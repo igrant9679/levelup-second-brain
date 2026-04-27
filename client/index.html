@@ -134,6 +134,68 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 .modal-ov.show{display:flex}
 .modal{background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:20px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;animation:popIn .2s ease}
+/* ===== FULL ADD MODAL ===== */
+.fa-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding:24px 16px;overflow-y:auto}
+.fa-modal-ov.show{display:flex}
+.fa-modal{background:#161D2E;border:1px solid rgba(255,255,255,.1);border-radius:14px;width:720px;max-width:96vw;display:flex;flex-direction:column;animation:popIn .2s ease;margin:auto}
+.fa-hd{display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:#161D2E;z-index:2;border-radius:14px 14px 0 0}
+.fa-hd h2{flex:1;font-size:16px;font-weight:700;margin:0}
+.fa-body{padding:20px;overflow-y:auto;max-height:calc(85vh - 120px)}
+.fa-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);position:sticky;bottom:0;background:#161D2E;z-index:2;border-radius:0 0 14px 14px;justify-content:flex-end}
+.fa-section{margin-bottom:18px}
+.fa-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.fa-row{display:grid;gap:10px;margin-bottom:10px}
+.fa-row.c2{grid-template-columns:1fr 1fr}
+.fa-row.c3{grid-template-columns:1fr 1fr 1fr}
+.fa-row.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fa-field{display:flex;flex-direction:column;gap:4px}
+.fa-field label{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em}
+.fa-field .err{font-size:10px;color:var(--red);margin-top:2px;display:none}
+.fa-field .err.show{display:block}
+.fa-inp{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--t1);font-size:12px;padding:7px 10px;width:100%;box-sizing:border-box;transition:border-color .15s}
+.fa-inp:focus{outline:none;border-color:var(--ac)}
+.fa-inp.err-border{border-color:var(--red)}
+textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
+.fa-checkbox-row{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:4px 0}
+.fa-checkbox-row input{width:14px;height:14px;accent-color:var(--ac)}
+.fa-tag-wrap{display:flex;flex-wrap:wrap;gap:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 8px;min-height:34px;cursor:text;align-items:center}
+.fa-tag{background:var(--ac);color:#fff;border-radius:4px;padding:2px 7px;font-size:10px;display:flex;align-items:center;gap:3px}
+.fa-tag-x{cursor:pointer;opacity:.7;font-size:11px}
+.fa-tag-input{background:none;border:none;outline:none;color:var(--t1);font-size:12px;min-width:80px;flex:1}
+.fa-typeahead{position:relative}
+.fa-typeahead-drop{position:absolute;top:100%;left:0;right:0;background:#1e2840;border:1px solid rgba(255,255,255,.12);border-radius:6px;z-index:10;max-height:160px;overflow-y:auto;display:none}
+.fa-typeahead-drop.show{display:block}
+.fa-typeahead-item{padding:7px 10px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.fa-typeahead-item:hover{background:rgba(59,130,246,.2)}
+.fa-linked-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.fa-chip{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:2px 8px;font-size:10px;display:flex;align-items:center;gap:4px;color:var(--ac)}
+.fa-chip-x{cursor:pointer;opacity:.7}
+.fa-subtask-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.fa-subtask-row input[type=text]{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:4px 8px;font-size:11px;color:var(--t1)}
+.fa-subtask-row input[type=text]:focus{outline:none;border-color:var(--ac)}
+.fa-add-row{font-size:11px;color:var(--ac);cursor:pointer;padding:5px 0;display:flex;align-items:center;gap:4px}
+.fa-add-row:hover{opacity:.8}
+.fa-milestone-row{display:grid;grid-template-columns:1fr 130px 100px 24px;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.fa-scope-row{display:flex;gap:16px;align-items:center;padding:4px 0}
+.fa-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px}
+.fa-toggle-track{width:34px;height:18px;background:rgba(255,255,255,.15);border-radius:9px;position:relative;transition:background .2s;flex-shrink:0}
+.fa-toggle-track.on{background:var(--ac)}
+.fa-toggle-thumb{width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s}
+.fa-toggle-track.on .fa-toggle-thumb{left:18px}
+.fa-mood-row{display:flex;gap:10px;padding:4px 0}
+.fa-mood-btn{font-size:24px;cursor:pointer;padding:4px;border-radius:8px;border:2px solid transparent;transition:border-color .15s}
+.fa-mood-btn.sel{border-color:var(--ac);background:rgba(59,130,246,.15)}
+.fa-prompt-row{display:flex;align-items:flex-start;gap:6px;margin-bottom:8px}
+.fa-prompt-row label{font-size:11px;color:var(--t2);padding-top:8px;min-width:180px}
+.fa-prompt-row textarea{flex:1}
+.fa-repeatable{border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 10px;margin-top:4px}
+.fa-rep-row{display:grid;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.fa-rep-row:last-child{border-bottom:none}
+.fa-day-grid{display:flex;gap:6px;flex-wrap:wrap;padding:4px 0}
+.fa-day-btn{width:32px;height:28px;border-radius:5px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--t2);font-size:10px;font-weight:600;cursor:pointer;transition:all .15s}
+.fa-day-btn.sel{background:var(--ac);color:#fff;border-color:var(--ac)}
+.fa-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 .modal h2{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .modal .close{margin-left:auto;width:26px;height:26px;border-radius:6px;background:var(--s3);border:none;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
@@ -360,6 +422,23 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 </div>
 <!-- IMPORT FILE INPUT (hidden) -->
 <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(this.files[0])">
+
+<!-- FULL ADD MODAL -->
+<div class="fa-modal-ov" id="fa-modal-ov" onclick="if(event.target===this)closeFA()">
+  <div class="fa-modal">
+    <div class="fa-hd">
+      <h2 id="fa-modal-title">New Item</h2>
+      <button class="close" onclick="closeFA()" style="margin-left:auto;background:rgba(255,255,255,.08);border:none;color:var(--t2);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px">✕</button>
+    </div>
+    <div class="fa-body" id="fa-modal-body"></div>
+    <div class="fa-ft">
+      <span style="font-size:10px;color:var(--t3);margin-right:auto">⌘+Enter to save · Esc to close</span>
+      <button class="btn btn-s" onclick="closeFA()">Cancel</button>
+      <button class="btn" style="background:rgba(255,255,255,.08);color:var(--t1);border:1px solid rgba(255,255,255,.12)" onclick="doFASave(true)">Save &amp; Add Another</button>
+      <button class="btn btn-p" id="fa-save-btn" onclick="doFASave(false)">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- AI ASSISTANT -->
 <div class="ai-bubble" id="ai-bubble"></div>
@@ -845,7 +924,8 @@ function renderScreen(s){
 
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
-  return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
+  return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -862,6 +942,26 @@ function addTaskComment(taskId){
   const panel=document.getElementById('task-comments');
   if(panel)panel.innerHTML=t.comments.map(c=>`<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><span>${c.ts||''}</span></div><div style="font-size:11px">${esc(c.text)}</div></div>`).join('');
   toast('💬 Comment added');
+}
+function delegateTask(id){
+  const t=D.tasks.find(x=>x.id===id);
+  if(!t)return;
+  const members=D.teams.flatMap(tm=>tm.members).filter(m=>m.name!==(D.creds.userName||'Idris Grant'));
+  if(!members.length){toast('No other team members to delegate to');return;}
+  const opts=members.map((m,i)=>`${i+1}. ${m.name} (${m.role})`).join('\n');
+  const choice=prompt(`Delegate "${t.title}" to:\n${opts}\n\nEnter number:`);
+  if(!choice)return;
+  const idx=parseInt(choice)-1;
+  if(isNaN(idx)||idx<0||idx>=members.length){toast('Invalid selection');return;}
+  const assignee=members[idx].name;
+  t.assignedTo=assignee;
+  t.status=t.status==='Not Started'?'Delegated':t.status;
+  t.comments=t.comments||[];
+  const ts=new Date().toLocaleString();
+  t.comments.push({id:Date.now(),author:D.creds.userName||'Idris Grant',ts,text:`Delegated to ${assignee}`,type:'delegation'});
+  save('tasks');
+  toast(`📤 Task delegated to ${assignee}`);
+  renderScreen(curScreen);
 }
 function moveSomeday(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -957,9 +1057,9 @@ function renderTasks(){
     if(!list)return;
     let filtered=D.tasks.filter(_taskFilter);
     if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
-    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openModal(\'capture\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openModal(\'capture\')">+ Add one</span></p>';
+    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-p" onclick="openModal('capture')">+ Quick Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div class="cd" id="tasks-list"></div>`;
   renderTaskList();
@@ -991,7 +1091,7 @@ function renderNotes(){
   </div>
   <div class="notes-editor" style="padding:16px">${D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3)">Select a note to edit</p>'}</div>
   <div class="notes-rail"><div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:10px">${['📄 Note','🔗 Clip','☑ Task','🎤 Voice'].map(t=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:8px;color:var(--t3)" onclick="openModal('capture')">${t}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:10px">${['📄 Note','🔗 Clip','☑ Task','🎤 Voice'].map(t=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:8px;color:var(--t3)" onclick="openFA(t.includes('Task')?'task':t.includes('Note')||t.includes('Clip')?'note':'task')">${t}</div>`).join('')}</div>
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">Related Notes</div>
   ${D.notes.filter(n=>n.starred).slice(0,3).map(n=>`<div class="lr" style="font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span style="color:var(--warn)">★</span></div>`).join('')}
   <div style="font-size:11px;font-weight:600;margin:8px 0 4px">Backlinks</div>
@@ -1008,7 +1108,7 @@ function renderNoteEditor(n){
 
 let projView='list';
 function renderProjects(){
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='team'?'btn-p':'btn-s'}" onclick="projView='team';renderProjects()">👥 Team</button><button class="btn btn-p" onclick="openModal('capture')">+ New</button></div></div>`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='team'?'btn-p':'btn-s'}" onclick="projView='team';renderProjects()">👥 Team</button><button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
   else if(projView==='team') renderProjectsTeamKanban(header);
@@ -1137,11 +1237,26 @@ function renderGoals(){
   // Auto-recalculate all goal percentages before rendering
   D.goals.forEach(g=>autoCalcGoalPct(g));
   let _goalsMyOnly=false;
+  let _goalsView='grid';
   function renderGoalCards(){
     const me=D.creds.userName||'Idris Grant';
-    const goals=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):D.goals;
     const el=document.getElementById('goals-grid');
     if(!el)return;
+    // Team view — group goals by owner
+    if(_goalsView==='team'){
+      const allMembers=[...new Set(D.goals.map(g=>g.createdBy||'Idris Grant'))];
+      el.style.gridTemplateColumns='1fr';
+      el.innerHTML=allMembers.map(member=>{
+        const mGoals=D.goals.filter(g=>(g.createdBy||'Idris Grant')===member);
+        const avgPct=mGoals.length?Math.round(mGoals.reduce((s,g)=>s+g.pct,0)/mGoals.length):0;
+        return`<div class="cd"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${member.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div style="font-size:13px;font-weight:600">${esc(member)}</div><div style="font-size:10px;color:var(--t3)">${mGoals.length} goal${mGoals.length!==1?'s':''} · avg ${avgPct}%</div></div></div>${mGoals.map(g=>{
+          const ms=g.milestones||[];const msDone=ms.filter(m=>m.done).length;
+          return`<div style="padding:6px;border-radius:6px;background:var(--s2);margin-bottom:5px;cursor:pointer" onclick="openGoalDetail(${g.id})"><div style="display:flex;align-items:center;gap:6px"><span>${g.icon}</span><span style="font-size:12px;font-weight:500;flex:1">${esc(g.title)}</span><span style="font-size:11px;font-weight:700;color:var(--ac)">${g.pct}%</span></div><div class="pb" style="margin-top:4px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>${ms.length?`<div style="font-size:9px;color:var(--t3);margin-top:2px">🏁 ${msDone}/${ms.length} milestones</div>`:''}</div>`}).join('')}</div>`;
+      }).join('');
+      return;
+    }
+    el.style.gridTemplateColumns='repeat(auto-fill,minmax(280px,1fr))';
+    const goals=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):D.goals;
     el.innerHTML=goals.map(g=>{
     const ms=g.milestones||[];
     const msDone=ms.filter(m=>m.done).length;
@@ -1164,7 +1279,7 @@ function renderGoals(){
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button></div><button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button></div></div>
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
   renderGoalCards();
 }
@@ -1231,7 +1346,7 @@ function addMilestone(goalId){
 }
 
 function renderJournal(){
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ New Entry</button></div>
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div>
   <div class="tabs"><div class="tab on">All</div><div class="tab">Daily</div><div class="tab">Weekly Review</div><div class="tab">Gratitude</div></div>
   ${D.journal.map(j=>`<div class="cd" style="cursor:pointer" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:13px;font-weight:500;margin:2px 0">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.4">${esc(j.body)}</div><div style="font-size:16px;margin-top:3px">${j.mood}</div></div>`).join('')}`;
   const streak=calcJournalStreak();
@@ -1265,7 +1380,7 @@ function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Ar
 <input class="inp" style="margin-bottom:10px" placeholder="Search archive...">
 <div class="cd">${['Complete Q1 report|Task|Mar 15','Brand Identity Refresh|Project|Feb 28','Old AI research|Note|Feb 10','Migrate CRM data|Task|Jan 30','Launch company blog|Goal|Jan 15'].map(x=>{const[n,t,d]=x.split('|');return`<div class="lr"><span style="font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;background:var(--s3);color:var(--t3)">${t}</span><span class="rt">${n}</span><span class="rm">Archived ${d}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:8px;padding:0 5px">Restore</button></span></div>`}).join('')}</div>`}
 
-function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openModal('capture')">+ Quick add</button></div></div>
+function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn on" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p"><div class="sec-h">📋 Plan — Select tasks for today</div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
@@ -1553,7 +1668,7 @@ function renderMyWeek(){
       <button class="btn btn-s" onclick="weekOffset--;renderMyWeek()">← Prev</button>
       <button class="btn btn-s" onclick="weekOffset=0;renderMyWeek()">Today</button>
       <button class="btn btn-s" onclick="weekOffset++;renderMyWeek()">Next →</button>
-      <button class="btn btn-p" onclick="openModal('capture')">+ Task</button>
+      <button class="btn btn-p" onclick="openFA('task')">+ Task</button>
     </div>
   </div>
   ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
@@ -1587,8 +1702,8 @@ function dropTaskOnDay(event,dateStr){
   toast('📅 Task moved to '+new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
 }
 function quickAddToDay(dateStr){
-  openModal('capture');
-  // Pre-fill date after modal opens
+ openFA('task');
+  }// Pre-fill date after modal opens
   setTimeout(()=>{
     const el=document.getElementById('cap-due');
     if(el)el.value=dateStr;
@@ -1643,7 +1758,7 @@ function renderMyYear(){
   $('myyear-main').innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
     <div><h1 style="font-size:22px;font-weight:700">🗓 My Year — ${yr}</h1><p style="font-size:12px;color:var(--t2)">Day ${dayOfYear} of ${daysInYear} · ${yearPct}% through the year</p></div>
-    <button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button>
+    <button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button>
   </div>
 
   <div style="background:var(--s2);border-radius:8px;padding:8px 14px;margin-bottom:12px">
@@ -1744,7 +1859,7 @@ function renderHabits(){
   const done=visibleHabits.filter(h=>h.doneToday).length;
   const total=visibleHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><button class="btn btn-p" onclick="openHabitDrawer(null)">+ New Habit</button></div></div>
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
@@ -2495,7 +2610,7 @@ document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('gSearch').focus()}
-  if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openModal('capture')}
+  if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
   if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();}
 });
 
@@ -2635,6 +2750,872 @@ function doLogout(){
   const ov=document.getElementById('login-overlay');
   if(ov){ov.classList.remove('hidden');initLoginScreen();}
   toast('Signed out');
+}
+
+// ====== FULL ADD MODAL SYSTEM ======
+// State
+let _faType=null; // current entity type
+let _faAddAnother=false;
+let _faHasChanges=false;
+let _faTags=[]; // current modal tags
+let _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[]}; // linked item ids
+let _faSubtasks=[]; // inline subtask rows
+let _faMilestones=[]; // project milestones
+let _faReflections=[]; // goal check-ins
+let _faDecisionAlts=[]; // note decision alternatives
+let _faMeetingActions=[]; // meeting action items
+let _faCustomDays=[]; // habit custom days
+let _faSessionScope={personal:true,business:false}; // persists across Save & Add Another
+let _faSessionTags=[]; // persists across Save & Add Another
+
+// Open Full Add modal
+function openFA(type){
+  _faType=type;
+  _faHasChanges=false;
+  _faTags=[..._faSessionTags];
+  _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[]};
+  _faSubtasks=[];
+  _faMilestones=[];
+  _faReflections=[];
+  _faDecisionAlts=[];
+  _faMeetingActions=[];
+  _faCustomDays=[];
+  const ov=document.getElementById('fa-modal-ov');
+  const body=document.getElementById('fa-modal-body');
+  const title=document.getElementById('fa-modal-title');
+  const icons={task:'📋 New Task',note:'📝 New Note',project:'📁 New Project',goal:'🎯 New Goal',journal:'✏️ New Journal Entry',habit:'🔄 New Habit'};
+  title.textContent=icons[type]||'New Item';
+  body.innerHTML=renderFAForm(type);
+  ov.classList.add('show');
+  const ti=document.getElementById('fa-title');if(ti)setTimeout(()=>ti.focus(),80);
+  _faHasChanges=false;
+  // Mark dirty on any input
+  body.addEventListener('input',()=>{_faHasChanges=true;},{once:true});
+}
+function closeFA(force){
+  if(!force&&_faHasChanges){
+    if(!confirm('You have unsaved changes. Close anyway?'))return;
+  }
+  document.getElementById('fa-modal-ov').classList.remove('show');
+  _faType=null;
+}
+// Keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('fa-modal-ov')?.classList.contains('show'))closeFA();
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&document.getElementById('fa-modal-ov')?.classList.contains('show')){e.preventDefault();doFASave(false);}
+});
+
+// Tag system
+function faAddTag(val){
+  val=val.trim();
+  if(!val||_faTags.includes(val))return;
+  _faTags.push(val);
+  _faHasChanges=true;
+  renderFATags();
+}
+function faRemoveTag(idx){
+  _faTags.splice(idx,1);
+  renderFATags();
+}
+function renderFATags(){
+  const wrap=document.getElementById('fa-tag-wrap');
+  if(!wrap)return;
+  const input=wrap.querySelector('.fa-tag-input');
+  const chips=_faTags.map((t,i)=>`<span class="fa-tag">${esc(t)}<span class="fa-tag-x" onclick="faRemoveTag(${i})">✕</span></span>`).join('');
+  wrap.innerHTML=chips+`<input class="fa-tag-input" placeholder="Add tag..." id="fa-tag-input" onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();faAddTag(this.value);this.value=''}">`;
+}
+
+// Typeahead linker
+function faLinkerInput(field,val){
+  const drop=document.getElementById('fa-drop-'+field);
+  if(!drop)return;
+  if(!val){drop.classList.remove('show');return;}
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal};
+  const src=sources[field]||[];
+  const q=val.toLowerCase();
+  const matches=src.filter(x=>(x.title||x.name||'').toLowerCase().includes(q)&&!_faLinked[field].includes(x.id)).slice(0,8);
+  if(!matches.length){drop.classList.remove('show');return;}
+  drop.innerHTML=matches.map(x=>`<div class="fa-typeahead-item" onclick="faLinkItem('${field}',${x.id},'${esc(x.title||x.name||'')}')">${x.title||x.name||''}</div>`).join('');
+  drop.classList.add('show');
+}
+function faLinkItem(field,id,label){
+  if(_faLinked[field].includes(id))return;
+  _faLinked[field].push(id);
+  _faHasChanges=true;
+  renderFALinked(field);
+  const inp=document.getElementById('fa-link-inp-'+field);
+  if(inp)inp.value='';
+  const drop=document.getElementById('fa-drop-'+field);
+  if(drop)drop.classList.remove('show');
+}
+function faUnlinkItem(field,id){
+  _faLinked[field]=_faLinked[field].filter(x=>x!==id);
+  renderFALinked(field);
+}
+function renderFALinked(field){
+  const wrap=document.getElementById('fa-linked-'+field);
+  if(!wrap)return;
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal};
+  const src=sources[field]||[];
+  wrap.innerHTML=_faLinked[field].map(id=>{
+    const item=src.find(x=>x.id===id);
+    const label=item?(item.title||item.name||'#'+id):'#'+id;
+    return`<span class="fa-chip">${esc(label)}<span class="fa-chip-x" onclick="faUnlinkItem('${field}',${id})">✕</span></span>`;
+  }).join('');
+}
+function faLinkerHtml(field,placeholder){
+  return`<div class="fa-typeahead"><input class="fa-inp" id="fa-link-inp-${field}" placeholder="${placeholder}" oninput="faLinkerInput('${field}',this.value)" autocomplete="off"><div class="fa-typeahead-drop" id="fa-drop-${field}"></div></div><div class="fa-linked-chips" id="fa-linked-${field}"></div>`;
+}
+
+// Toggle helper
+function faToggle(id){
+  const t=document.getElementById(id);
+  if(!t)return;
+  t.classList.toggle('on');
+  const thumb=t.querySelector('.fa-toggle-thumb');
+  _faHasChanges=true;
+}
+function faToggleVal(id){return document.getElementById(id)?.classList.contains('on')}
+
+// Subtask helpers
+function faAddSubtask(){
+  _faSubtasks.push({title:'',status:'Not Started',priority:'Medium',due:'',estimatedMins:0,energy:'medium',myDay:false});
+  renderFASubtasks();
+}
+function faRemoveSubtask(i){
+  _faSubtasks.splice(i,1);
+  renderFASubtasks();
+}
+function renderFASubtasks(){
+  const wrap=document.getElementById('fa-subtasks');
+  if(!wrap)return;
+  wrap.innerHTML=_faSubtasks.map((s,i)=>`
+  <div class="fa-subtask-row">
+    <input type="text" placeholder="Subtask title..." value="${esc(s.title)}" oninput="_faSubtasks[${i}].title=this.value" style="flex:2">
+    <select class="fa-inp" style="width:90px;padding:4px 6px" onchange="_faSubtasks[${i}].status=this.value"><option>Not Started</option><option>In Progress</option><option>Done</option></select>
+    <select class="fa-inp" style="width:70px;padding:4px 6px" onchange="_faSubtasks[${i}].priority=this.value"><option>Low</option><option selected>Medium</option><option>High</option></select>
+    <input type="date" class="fa-inp" style="width:120px" value="${s.due||''}" onchange="_faSubtasks[${i}].due=this.value">
+    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;flex-shrink:0" onclick="faRemoveSubtask(${i})">✕</button>
+  </div>`).join('');
+}
+
+// Milestone helpers
+function faAddMilestone(){
+  _faMilestones.push({label:'',targetDate:'',status:'Not Started'});
+  renderFAMilestones();
+}
+function faRemoveMilestone(i){
+  _faMilestones.splice(i,1);
+  renderFAMilestones();
+}
+function renderFAMilestones(){
+  const wrap=document.getElementById('fa-milestones');
+  if(!wrap)return;
+  wrap.innerHTML=_faMilestones.map((m,i)=>`
+  <div class="fa-milestone-row">
+    <input class="fa-inp" style="padding:4px 8px" placeholder="Milestone label..." value="${esc(m.label)}" oninput="_faMilestones[${i}].label=this.value">
+    <input type="date" class="fa-inp" style="padding:4px 8px" value="${m.targetDate||''}" onchange="_faMilestones[${i}].targetDate=this.value">
+    <select class="fa-inp" style="padding:4px 6px" onchange="_faMilestones[${i}].status=this.value"><option>Not Started</option><option>In Progress</option><option>Done</option></select>
+    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px" onclick="faRemoveMilestone(${i})">✕</button>
+  </div>`).join('');
+}
+
+// Decision alternatives helpers
+function faAddAlt(){
+  _faDecisionAlts.push({label:'',pros:'',cons:''});
+  renderFAAlts();
+}
+function faRemoveAlt(i){
+  _faDecisionAlts.splice(i,1);
+  renderFAAlts();
+}
+function renderFAAlts(){
+  const wrap=document.getElementById('fa-alts');
+  if(!wrap)return;
+  wrap.innerHTML=_faDecisionAlts.map((a,i)=>`
+  <div class="fa-rep-row c3" style="display:grid;grid-template-columns:1fr 1fr 1fr 24px;gap:6px;align-items:start">
+    <input class="fa-inp" style="padding:4px 8px" placeholder="Option label" value="${esc(a.label)}" oninput="_faDecisionAlts[${i}].label=this.value">
+    <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Pros" oninput="_faDecisionAlts[${i}].pros=this.value">${esc(a.pros)}</textarea>
+    <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Cons" oninput="_faDecisionAlts[${i}].cons=this.value">${esc(a.cons)}</textarea>
+    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;margin-top:2px" onclick="faRemoveAlt(${i})">✕</button>
+  </div>`).join('');
+}
+
+// Meeting action items helpers
+function faAddAction(){
+  _faMeetingActions.push({title:'',assignee:'',due:''});
+  renderFAActions();
+}
+function faRemoveAction(i){
+  _faMeetingActions.splice(i,1);
+  renderFAActions();
+}
+function renderFAActions(){
+  const wrap=document.getElementById('fa-actions');
+  if(!wrap)return;
+  const members=D.teams.flatMap(t=>t.members);
+  wrap.innerHTML=_faMeetingActions.map((a,i)=>`
+  <div style="display:grid;grid-template-columns:1fr 120px 120px 24px;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    <input class="fa-inp" style="padding:4px 8px" placeholder="Action item..." value="${esc(a.title)}" oninput="_faMeetingActions[${i}].title=this.value">
+    <select class="fa-inp" style="padding:4px 6px" onchange="_faMeetingActions[${i}].assignee=this.value"><option value="">Unassigned</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select>
+    <input type="date" class="fa-inp" style="padding:4px 8px" value="${a.due||''}" onchange="_faMeetingActions[${i}].due=this.value">
+    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px" onclick="faRemoveAction(${i})">✕</button>
+  </div>`).join('');
+}
+
+// Habit custom day toggle
+function faToggleDay(day){
+  if(_faCustomDays.includes(day))_faCustomDays=_faCustomDays.filter(d=>d!==day);
+  else _faCustomDays.push(day);
+  document.querySelectorAll('.fa-day-btn').forEach(b=>{b.classList.toggle('sel',_faCustomDays.includes(b.dataset.day));});
+}
+
+// Mood selector
+function faSelectMood(el,val){
+  document.querySelectorAll('.fa-mood-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+  const inp=document.getElementById('fa-mood-val');
+  if(inp)inp.value=val;
+}
+
+// Note type conditional fields
+function faUpdateNoteType(val){
+  const dec=document.getElementById('fa-note-decision');
+  const meet=document.getElementById('fa-note-meeting');
+  if(dec)dec.style.display=val==='Decision'?'':'none';
+  if(meet)meet.style.display=val==='Meeting Notes'?'':'none';
+}
+
+// Habit cadence conditional
+function faUpdateCadence(val){
+  const grid=document.getElementById('fa-custom-days');
+  if(grid)grid.style.display=val==='Custom'?'':'none';
+}
+
+// Bidirectional linker: when saving, update related entities
+function applyBidirectionalLinks(type,newId){
+  // Link tasks to project
+  if(type==='task'){
+    _faLinked.projects.forEach(pid=>{
+      const p=D.projects.find(x=>x.id===pid);
+      // projectId is already set on the task; nothing extra needed
+    });
+    // Link task to goals
+    _faLinked.goals.forEach(gid=>{
+      const g=D.goals.find(x=>x.id===gid);
+      if(g&&!g.linkedTaskIds)g.linkedTaskIds=[];
+      if(g&&!g.linkedTaskIds.includes(newId))g.linkedTaskIds.push(newId);
+    });
+    if(_faLinked.goals.length)save('goals');
+  }
+  if(type==='note'){
+    // Link note to tasks
+    _faLinked.tasks.forEach(tid=>{
+      const t=D.tasks.find(x=>x.id===tid);
+      if(t&&!t.linkedNoteIds)t.linkedNoteIds=[];
+      if(t&&!t.linkedNoteIds.includes(newId))t.linkedNoteIds.push(newId);
+    });
+    if(_faLinked.tasks.length)save('tasks');
+  }
+}
+
+// ===== FORM RENDERERS =====
+function faCommonLinks(){
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">🔗 Linked Items</div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Linked Projects</label>${faLinkerHtml('projects','Search projects...')}</div>
+      <div class="fa-field"><label>Linked Goals</label>${faLinkerHtml('goals','Search goals...')}</div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Linked Tasks</label>${faLinkerHtml('tasks','Search tasks...')}</div>
+      <div class="fa-field"><label>Linked Notes</label>${faLinkerHtml('notes','Search notes...')}</div>
+    </div>
+    <div class="fa-row">
+      <div class="fa-field"><label>Linked Journal Entries</label>${faLinkerHtml('journal','Search journal...')}</div>
+    </div>
+  </div>`;
+}
+function faCommonScope(){
+  return`<div class="fa-scope-row">
+    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-personal" ${_faSessionScope.personal?'checked':''}> Personal</label>
+    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-business" ${_faSessionScope.business?'checked':''}> Business</label>
+  </div>`;
+}
+function faCommonTags(){
+  const chips=_faTags.map((t,i)=>`<span class="fa-tag">${esc(t)}<span class="fa-tag-x" onclick="faRemoveTag(${i})">✕</span></span>`).join('');
+  return`<div class="fa-tag-wrap" id="fa-tag-wrap" onclick="document.getElementById('fa-tag-input')?.focus()">${chips}<input class="fa-tag-input" placeholder="Add tag..." id="fa-tag-input" onkeydown="if(event.key==='Enter'||event.key===','){event.preventDefault();faAddTag(this.value);this.value=''}"></div>`;
+}
+
+function renderFAForm(type){
+  if(type==='task')return renderFATask();
+  if(type==='note')return renderFANote();
+  if(type==='project')return renderFAProject();
+  if(type==='goal')return renderFAGoal();
+  if(type==='journal')return renderFAJournal();
+  if(type==='habit')return renderFAHabit();
+  return '';
+}
+
+function renderFATask(){
+  const members=D.teams.flatMap(t=>t.members);
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">📋 Core Details</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Title <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="What needs to be done?">
+      <span class="err" id="fa-title-err">Title is required</span>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Description</label>
+      <textarea class="fa-inp" id="fa-desc" placeholder="Add details, context, or markdown notes..."></textarea>
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">📅 Scheduling</div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Start Date</label><input type="date" class="fa-inp" id="fa-startdate"></div>
+      <div class="fa-field"><label>Start Time</label><input type="time" class="fa-inp" id="fa-starttime"></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Due Date</label><input type="date" class="fa-inp" id="fa-due"></div>
+      <div class="fa-field"><label>Due Time</label><input type="time" class="fa-inp" id="fa-duetime"></div>
+    </div>
+    <div class="fa-row c4">
+      <div class="fa-field"><label>Priority</label><select class="fa-inp" id="fa-priority"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+      <div class="fa-field"><label>Status</label><select class="fa-inp" id="fa-status"><option>Not Started</option><option>In Progress</option><option>Pending</option><option>Scheduled</option><option>Done</option></select></div>
+      <div class="fa-field"><label>Smart List</label><select class="fa-inp" id="fa-smartlist"><option>Task Intake</option><option>Do Next</option><option>Calendar</option><option>Delegated</option><option>Snoozed</option><option>Someday</option><option>Done</option></select></div>
+      <div class="fa-field"><label>Recurrence</label><select class="fa-inp" id="fa-recurring"><option>None</option><option>Daily</option><option>Weekdays</option><option>Weekly</option><option>Bi-weekly</option><option>Monthly</option></select></div>
+    </div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">⚙️ Task Details</div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Context</label><input class="fa-inp" id="fa-context" placeholder="Work, Personal, Calls..."></div>
+      <div class="fa-field"><label>Location</label><select class="fa-inp" id="fa-location"><option>Anywhere</option><option>Home</option><option>Office</option><option>Errands</option><option>Online</option></select></div>
+      <div class="fa-field"><label>Energy</label><select class="fa-inp" id="fa-energy"><option>low</option><option selected>medium</option><option>high</option></select></div>
+    </div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Est. Minutes</label><input type="number" class="fa-inp" id="fa-estmins" min="0" placeholder="30"></div>
+      <div class="fa-field"><label>Actual Minutes</label><input type="number" class="fa-inp" id="fa-actmins" min="0" placeholder="0"></div>
+      <div class="fa-field"><label>Processing</label><select class="fa-inp" id="fa-pi"><option>Process</option><option>Immersive</option></select></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Project</label><select class="fa-inp" id="fa-project"><option value="">None</option>${D.projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="fa-field"><label>Assigned To</label><select class="fa-inp" id="fa-assignee"><option value="">Unassigned</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Linked Goal</label><select class="fa-inp" id="fa-linkedgoal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}">${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
+      <div class="fa-field"><label>Snooze Until</label><input type="date" class="fa-inp" id="fa-snooze"></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Reminder</label><input type="datetime-local" class="fa-inp" id="fa-reminder"></div>
+      <div class="fa-field"><label>Delegated To</label><select class="fa-inp" id="fa-delegated"><option value="">None</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="fa-row">
+      <div class="fa-field"><label>Predecessor Tasks</label>${faLinkerHtml('tasks','Search tasks to add as predecessors...')}</div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;padding:6px 0">
+      <label class="fa-checkbox-row"><input type="checkbox" id="fa-myday"> Add to My Day</label>
+      <label class="fa-checkbox-row"><input type="checkbox" id="fa-iswork" checked> Work Task</label>
+      <label class="fa-checkbox-row"><input type="checkbox" id="fa-sync-todo"> Sync to Microsoft To Do</label>
+      <label class="fa-checkbox-row"><input type="checkbox" id="fa-sync-clickup"> Sync to ClickUp</label>
+    </div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">✅ Subtasks</div>
+    <div id="fa-subtasks"></div>
+    <div class="fa-add-row" onclick="faAddSubtask()">+ Add subtask</div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+function renderFANote(){
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">📝 Core Details</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Title <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="Note title...">
+      <span class="err" id="fa-title-err">Title is required</span>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Note Type</label><select class="fa-inp" id="fa-notetype" onchange="faUpdateNoteType(this.value)"><option>Note</option><option>Decision</option><option>Meeting Notes</option><option>Reading Highlight</option><option>Web Clip</option></select></div>
+      <div class="fa-field"><label>PARA</label><select class="fa-inp" id="fa-para"><option>Project</option><option>Area</option><option>Resource</option><option>Archive</option></select></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Source</label><input class="fa-inp" id="fa-source" placeholder="Book, website, meeting..."></div>
+      <div class="fa-field"><label>Source URL</label><input class="fa-inp" id="fa-sourceurl" placeholder="https://..."></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Reading Status</label><select class="fa-inp" id="fa-readstatus"><option>Inbox</option><option>To Read</option><option>Reading</option><option>Read</option><option>Reference</option></select></div>
+      <div class="fa-field" style="justify-content:flex-end;padding-top:18px">
+        <label class="fa-checkbox-row"><input type="checkbox" id="fa-favorite"> ⭐ Favorite</label>
+      </div>
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+    <div class="fa-field">
+      <label>Content</label>
+      <textarea class="fa-inp" id="fa-desc" style="min-height:120px" placeholder="Write your note in markdown..."></textarea>
+    </div>
+  </div>
+  <!-- Decision fields -->
+  <div id="fa-note-decision" style="display:none">
+    <div class="fa-section">
+      <div class="fa-section-title">⚖️ Decision Details</div>
+      <div class="fa-row c2">
+        <div class="fa-field"><label>Decision Context</label><textarea class="fa-inp" id="fa-dec-context" placeholder="What problem are you solving?"></textarea></div>
+        <div class="fa-field"><label>Choice Made</label><input class="fa-inp" id="fa-dec-choice" placeholder="The option selected..."></div>
+      </div>
+      <div class="fa-row c2">
+        <div class="fa-field"><label>Rationale</label><textarea class="fa-inp" id="fa-dec-rationale" placeholder="Why this choice?"></textarea></div>
+        <div class="fa-field"><label>Expected Outcome</label><textarea class="fa-inp" id="fa-dec-outcome" placeholder="What do you expect?"></textarea></div>
+      </div>
+      <div class="fa-row c2">
+        <div class="fa-field"><label>Review Date</label><input type="date" class="fa-inp" id="fa-dec-review"></div>
+        <div class="fa-field"><label>Actual Outcome</label><input class="fa-inp" id="fa-dec-actual" placeholder="Fill in after review..."></div>
+      </div>
+      <div class="fa-section-title" style="margin-top:12px">Alternatives Considered</div>
+      <div id="fa-alts"></div>
+      <div class="fa-add-row" onclick="faAddAlt()">+ Add alternative</div>
+    </div>
+  </div>
+  <!-- Meeting Notes fields -->
+  <div id="fa-note-meeting" style="display:none">
+    <div class="fa-section">
+      <div class="fa-section-title">📅 Meeting Details</div>
+      <div class="fa-row c2">
+        <div class="fa-field"><label>Meeting Date & Time</label><input type="datetime-local" class="fa-inp" id="fa-meet-dt"></div>
+        <div class="fa-field"><label>Attendees</label><input class="fa-inp" id="fa-meet-attendees" placeholder="Names, comma separated..."></div>
+      </div>
+      <div class="fa-section-title" style="margin-top:12px">Action Items (saved as Tasks)</div>
+      <div id="fa-actions"></div>
+      <div class="fa-add-row" onclick="faAddAction()">+ Add action item</div>
+    </div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+function renderFAProject(){
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">📁 Core Details</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Project Name <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="Project name...">
+      <span class="err" id="fa-title-err">Name is required</span>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Description</label>
+      <textarea class="fa-inp" id="fa-desc" placeholder="What is this project about?"></textarea>
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">📊 Project Settings</div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Status</label><select class="fa-inp" id="fa-status"><option>Planned</option><option selected>Active</option><option>On Hold</option><option>Completed</option><option>Archived</option></select></div>
+      <div class="fa-field"><label>Area</label><input class="fa-inp" id="fa-area" placeholder="Work, Personal..."></div>
+      <div class="fa-field"><label>Owner</label><select class="fa-inp" id="fa-owner"><option value="">Unassigned</option>${D.teams.flatMap(t=>t.members).map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="fa-row c4">
+      <div class="fa-field"><label>Start Date</label><input type="date" class="fa-inp" id="fa-startdate"></div>
+      <div class="fa-field"><label>Due Date</label><input type="date" class="fa-inp" id="fa-due"></div>
+      <div class="fa-field"><label>Quarter</label><select class="fa-inp" id="fa-quarter"><option value="">—</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+      <div class="fa-field"><label>Year</label><input type="number" class="fa-inp" id="fa-year" value="${new Date().getFullYear()}" min="2020" max="2035"></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Color</label><input type="color" class="fa-inp" id="fa-color" value="#3B82F6" style="height:36px;cursor:pointer"></div>
+      <div class="fa-field"><label>Kanban Axis</label><select class="fa-inp" id="fa-kanban-axis"><option>Status</option><option>Smart List</option><option>Context</option><option>Assignee</option></select></div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;padding:6px 0">
+      <label class="fa-checkbox-row"><input type="checkbox" id="fa-save-template"> Save as Template</label>
+    </div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">🏁 Milestones</div>
+    <div id="fa-milestones"></div>
+    <div class="fa-add-row" onclick="faAddMilestone()">+ Add milestone</div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+function renderFAGoal(){
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">🎯 Core Details</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Goal Title <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="What do you want to achieve?">
+      <span class="err" id="fa-title-err">Title is required</span>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Description</label>
+      <textarea class="fa-inp" id="fa-desc" placeholder="Why does this goal matter?"></textarea>
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">📊 Goal Metrics</div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Icon</label><input class="fa-inp" id="fa-icon" value="🎯" style="font-size:18px"></div>
+      <div class="fa-field"><label>Category</label><select class="fa-inp" id="fa-category"><option>Work</option><option>Learning</option><option>Health</option><option>Personal Brand</option><option>Finance</option><option>Personal</option></select></div>
+      <div class="fa-field"><label>Status</label><select class="fa-inp" id="fa-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div>
+    </div>
+    <div class="fa-row c4">
+      <div class="fa-field"><label>Year <span style="color:var(--red)">*</span></label><input type="number" class="fa-inp" id="fa-year" value="${new Date().getFullYear()}" min="2020" max="2035"></div>
+      <div class="fa-field"><label>Quarter</label><select class="fa-inp" id="fa-quarter"><option value="">Annual</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+      <div class="fa-field"><label>Start Date</label><input type="date" class="fa-inp" id="fa-startdate"></div>
+      <div class="fa-field"><label>Due Date</label><input type="date" class="fa-inp" id="fa-due"></div>
+    </div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Target Metric</label><input class="fa-inp" id="fa-metric" placeholder="e.g. Complete 12 chapters"></div>
+      <div class="fa-field"><label>Target Number</label><input type="number" class="fa-inp" id="fa-target-num" min="0" placeholder="12"></div>
+      <div class="fa-field"><label>Unit</label><input class="fa-inp" id="fa-unit" placeholder="chapters, km, $..."></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Current Value</label><input type="number" class="fa-inp" id="fa-current" min="0" placeholder="0"></div>
+      <div class="fa-field"><label>Linked Area</label><input class="fa-inp" id="fa-area" placeholder="Health, Career..."></div>
+    </div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">📝 Reflection Notes</div>
+    <div id="fa-reflections"></div>
+    <div class="fa-add-row" onclick="faAddReflection()">+ Add check-in note</div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+function faAddReflection(){
+  _faReflections.push({date:new Date().toISOString().split('T')[0],note:''});
+  renderFAReflections();
+}
+function faRemoveReflection(i){
+  _faReflections.splice(i,1);
+  renderFAReflections();
+}
+function renderFAReflections(){
+  const wrap=document.getElementById('fa-reflections');
+  if(!wrap)return;
+  wrap.innerHTML=_faReflections.map((r,i)=>`
+  <div style="display:grid;grid-template-columns:130px 1fr 24px;gap:6px;align-items:start;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+    <input type="date" class="fa-inp" style="padding:4px 8px" value="${r.date||''}" onchange="_faReflections[${i}].date=this.value">
+    <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Weekly check-in note..." oninput="_faReflections[${i}].note=this.value">${esc(r.note)}</textarea>
+    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;margin-top:2px" onclick="faRemoveReflection(${i})">✕</button>
+  </div>`).join('');
+}
+
+function renderFAJournal(){
+  const today=new Date().toISOString().split('T')[0];
+  const habitsDone=D.habits.filter(h=>h.doneToday).length;
+  const habitsTotal=D.habits.length;
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">✏️ Journal Entry</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Title <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="Entry title...">
+      <span class="err" id="fa-title-err">Title is required</span>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Date</label><input type="date" class="fa-inp" id="fa-date" value="${today}"></div>
+      <div class="fa-field"><label>Energy Level</label><select class="fa-inp" id="fa-energy"><option>low</option><option selected>medium</option><option>high</option></select></div>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Mood</label>
+      <div class="fa-mood-row">
+        ${['😊','🙂','😐','😫','😰'].map((m,i)=>`<span class="fa-mood-btn${i===0?' sel':''}" onclick="faSelectMood(this,'${m}')">${m}</span>`).join('')}
+      </div>
+      <input type="hidden" id="fa-mood-val" value="😊">
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">💭 Reflection Prompts</div>
+    <div class="fa-prompt-row"><label>What am I focused on?</label><textarea class="fa-inp" id="fa-prompt1" placeholder="Your answer..."></textarea></div>
+    <div class="fa-prompt-row"><label>What's energizing me?</label><textarea class="fa-inp" id="fa-prompt2" placeholder="Your answer..."></textarea></div>
+    <div class="fa-prompt-row"><label>What's one thing I learned?</label><textarea class="fa-inp" id="fa-prompt3" placeholder="Your answer..."></textarea></div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">✨ Highlights & Challenges</div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Highlights</label><textarea class="fa-inp" id="fa-highlights" placeholder="What went well today?"></textarea></div>
+      <div class="fa-field"><label>Challenges</label><textarea class="fa-inp" id="fa-challenges" placeholder="What was difficult?"></textarea></div>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Gratitude</label>
+      <textarea class="fa-inp" id="fa-gratitude" placeholder="What are you grateful for? (optional)"></textarea>
+    </div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">📊 Daily Stats</div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Sleep Hours</label><input type="number" class="fa-inp" id="fa-sleep" min="0" max="24" step="0.5" placeholder="7.5"></div>
+      <div class="fa-field"><label>Exercise</label><select class="fa-inp" id="fa-exercise"><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+      <div class="fa-field"><label>Habits Today (auto)</label><input class="fa-inp" value="${habitsDone} / ${habitsTotal} done" readonly style="background:rgba(255,255,255,.03);color:var(--t3)"></div>
+    </div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+function renderFAHabit(){
+  return`
+  <div class="fa-section">
+    <div class="fa-section-title">🔄 Habit Details</div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Habit Name <span style="color:var(--red)">*</span></label>
+      <input class="fa-inp" id="fa-title" placeholder="What habit do you want to build?">
+      <span class="err" id="fa-title-err">Title is required</span>
+    </div>
+    <div class="fa-field" style="margin-bottom:10px">
+      <label>Description</label>
+      <textarea class="fa-inp" id="fa-desc" placeholder="Why does this habit matter?"></textarea>
+    </div>
+    ${faCommonScope()}
+    <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+  </div>
+  <div class="fa-section">
+    <div class="fa-section-title">⚙️ Habit Settings</div>
+    <div class="fa-row c3">
+      <div class="fa-field"><label>Icon (emoji)</label><input class="fa-inp" id="fa-icon" value="✅" style="font-size:18px"></div>
+      <div class="fa-field"><label>Category</label><select class="fa-inp" id="fa-category"><option>Health</option><option>Mind</option><option>Work</option><option>Personal</option><option>Custom</option></select></div>
+      <div class="fa-field"><label>Status</label><select class="fa-inp" id="fa-status"><option>Active</option><option>Paused</option><option>Archived</option></select></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Cadence</label><select class="fa-inp" id="fa-cadence" onchange="faUpdateCadence(this.value)"><option>Daily</option><option>Weekdays</option><option>Weekly</option><option>Custom</option></select></div>
+      <div class="fa-field"><label>Target Count / Period</label><input type="number" class="fa-inp" id="fa-target-count" min="1" value="1"></div>
+    </div>
+    <div id="fa-custom-days" style="display:none">
+      <div class="fa-field"><label>Custom Days</label>
+      <div class="fa-day-grid">
+        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<button type="button" class="fa-day-btn" data-day="${d}" onclick="faToggleDay('${d}')">${d}</button>`).join('')}
+      </div></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field"><label>Target Time</label><input type="time" class="fa-inp" id="fa-targettime"></div>
+      <div class="fa-field"><label>Started On</label><input type="date" class="fa-inp" id="fa-startedon" value="${new Date().toISOString().split('T')[0]}"></div>
+    </div>
+    <div class="fa-row c2">
+      <div class="fa-field">
+        <label>Reminder</label>
+        <label class="fa-checkbox-row"><input type="checkbox" id="fa-reminder-enabled"> Enable reminder</label>
+      </div>
+      <div class="fa-field"><label>Reminder Time</label><input type="time" class="fa-inp" id="fa-reminder-time"></div>
+    </div>
+    <div class="fa-row">
+      <div class="fa-field"><label>Linked Task</label><select class="fa-inp" id="fa-linkedtask"><option value="">None</option>${D.tasks.map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join('')}</select></div>
+    </div>
+  </div>
+  ${faCommonLinks()}`;
+}
+
+// ===== SAVE HANDLER =====
+function doFASave(addAnother){
+  const titleEl=document.getElementById('fa-title');
+  const titleErr=document.getElementById('fa-title-err');
+  if(!titleEl||!titleEl.value.trim()){
+    if(titleEl){titleEl.classList.add('err-border');}
+    if(titleErr)titleErr.classList.add('show');
+    return;
+  }
+  if(titleEl)titleEl.classList.remove('err-border');
+  if(titleErr)titleErr.classList.remove('show');
+
+  // Show spinner
+  const saveBtn=document.getElementById('fa-save-btn');
+  if(saveBtn)saveBtn.innerHTML='<span class="fa-spinner"></span>Saving...';
+
+  setTimeout(()=>{
+    const title=titleEl.value.trim();
+    const desc=document.getElementById('fa-desc')?.value||'';
+    const scope={personal:document.getElementById('fa-scope-personal')?.checked||false,business:document.getElementById('fa-scope-business')?.checked||false};
+    _faSessionScope=scope;
+    _faSessionTags=[..._faTags];
+    let newId;
+
+    if(_faType==='task'){
+      const proj=document.getElementById('fa-project');
+      const projId=proj?.value?parseInt(proj.value):null;
+      const projName=projId?D.projects.find(p=>p.id===projId)?.name||'':'';
+      const gSel=document.getElementById('fa-linkedgoal');
+      const linkedGoalId=gSel?.value?parseInt(gSel.value):null;
+      const assignee=document.getElementById('fa-assignee')?.value||null;
+      const delegated=document.getElementById('fa-delegated')?.value||null;
+      const t={
+        id:nextId(D.tasks),title,notes:desc,
+        priority:document.getElementById('fa-priority')?.value||'Medium',
+        status:document.getElementById('fa-status')?.value||'Not Started',
+        smartList:document.getElementById('fa-smartlist')?.value||'Task Intake',
+        startDate:document.getElementById('fa-startdate')?.value||'',
+        endDate:document.getElementById('fa-due')?.value||'',
+        due:document.getElementById('fa-due')?.value||'',
+        startTime:document.getElementById('fa-starttime')?.value||'',
+        endTime:document.getElementById('fa-duetime')?.value||'',
+        estimatedMins:parseInt(document.getElementById('fa-estmins')?.value)||0,
+        actualMins:parseInt(document.getElementById('fa-actmins')?.value)||0,
+        energy:document.getElementById('fa-energy')?.value||'medium',
+        context:document.getElementById('fa-context')?.value||'',
+        location:document.getElementById('fa-location')?.value||'Anywhere',
+        pi:document.getElementById('fa-pi')?.value||'Process',
+        recurring:document.getElementById('fa-recurring')?.value||'None',
+        projectId:projId,project:projName,
+        linkedGoalId,assignedTo:assignee,delegatedTo:delegated,
+        snoozeUntil:document.getElementById('fa-snooze')?.value||'',
+        reminder:document.getElementById('fa-reminder')?.value||'',
+        myDay:document.getElementById('fa-myday')?.checked||false,
+        isWorkTask:document.getElementById('fa-iswork')?.checked||true,
+        tags:_faTags,scope,
+        subtasks:_faSubtasks.filter(s=>s.title.trim()).map((s,i)=>({id:i+1,...s})),
+        linkedNoteIds:_faLinked.notes,
+        predecessorIds:_faLinked.tasks,
+        comments:[],createdBy:D.creds.userName||'Idris Grant'
+      };
+      newId=t.id;
+      D.tasks.push(t);
+      save('tasks');
+      // Assignment notification
+      if(assignee&&assignee!==D.creds.userName){
+        t.comments.push({author:D.creds.userName||'Idris Grant',ts:new Date().toLocaleString(),text:`Assigned to ${assignee}`});
+        toast('📬 Task assigned to '+assignee);
+      }
+    } else if(_faType==='note'){
+      const noteType=document.getElementById('fa-notetype')?.value||'Note';
+      const n={
+        id:nextId(D.notes),title,body:desc,
+        noteType,para:document.getElementById('fa-para')?.value||'Resource',
+        source:document.getElementById('fa-source')?.value||'Manual',
+        sourceUrl:document.getElementById('fa-sourceurl')?.value||'',
+        readingStatus:document.getElementById('fa-readstatus')?.value||'Inbox',
+        favorite:document.getElementById('fa-favorite')?.checked||false,
+        tags:_faTags,scope,updated:'Just now',starred:false,
+        linkedTaskIds:_faLinked.tasks,linkedProjectIds:_faLinked.projects,
+        createdBy:D.creds.userName||'Idris Grant'
+      };
+      if(noteType==='Decision'){
+        n.decision={context:document.getElementById('fa-dec-context')?.value||'',choice:document.getElementById('fa-dec-choice')?.value||'',rationale:document.getElementById('fa-dec-rationale')?.value||'',expectedOutcome:document.getElementById('fa-dec-outcome')?.value||'',reviewDate:document.getElementById('fa-dec-review')?.value||'',actualOutcome:document.getElementById('fa-dec-actual')?.value||'',alternatives:_faDecisionAlts};
+      }
+      if(noteType==='Meeting Notes'){
+        n.meeting={datetime:document.getElementById('fa-meet-dt')?.value||'',attendees:document.getElementById('fa-meet-attendees')?.value||'',actionItems:_faMeetingActions};
+        // Save action items as tasks
+        _faMeetingActions.filter(a=>a.title.trim()).forEach(a=>{
+          D.tasks.push({id:nextId(D.tasks),title:a.title,assignedTo:a.assignee||null,due:a.due||'',status:'Not Started',priority:'Medium',notes:'From meeting: '+title,createdBy:D.creds.userName||'Idris Grant',tags:['meeting-action'],linkedNoteIds:[n.id],subtasks:[],comments:[]});
+        });
+        if(_faMeetingActions.length)save('tasks');
+      }
+      newId=n.id;
+      D.notes.push(n);
+      save('notes');
+    } else if(_faType==='project'){
+      const p={
+        id:nextId(D.projects),name:title,desc,
+        status:document.getElementById('fa-status')?.value||'Active',
+        area:document.getElementById('fa-area')?.value||'',
+        owner:document.getElementById('fa-owner')?.value||'',
+        color:document.getElementById('fa-color')?.value||'#3B82F6',
+        startDate:document.getElementById('fa-startdate')?.value||'',
+        due:document.getElementById('fa-due')?.value||'TBD',
+        quarter:document.getElementById('fa-quarter')?.value||'',
+        year:parseInt(document.getElementById('fa-year')?.value)||new Date().getFullYear(),
+        kanbanAxis:document.getElementById('fa-kanban-axis')?.value||'Status',
+        pct:0,tags:_faTags,scope,
+        milestones:_faMilestones.filter(m=>m.label.trim()),
+        linkedGoalIds:_faLinked.goals,
+        createdBy:D.creds.userName||'Idris Grant'
+      };
+      newId=p.id;
+      D.projects.push(p);
+      save('projects');
+    } else if(_faType==='goal'){
+      const g={
+        id:nextId(D.goals),title,
+        icon:document.getElementById('fa-icon')?.value||'🎯',
+        category:document.getElementById('fa-category')?.value||'Work',
+        status:document.getElementById('fa-status')?.value||'Active',
+        year:parseInt(document.getElementById('fa-year')?.value)||new Date().getFullYear(),
+        quarter:document.getElementById('fa-quarter')?.value||'',
+        startDate:document.getElementById('fa-startdate')?.value||'',
+        dueDate:document.getElementById('fa-due')?.value||'',
+        targetMetric:document.getElementById('fa-metric')?.value||'',
+        targetNumber:parseFloat(document.getElementById('fa-target-num')?.value)||0,
+        currentValue:parseFloat(document.getElementById('fa-current')?.value)||0,
+        unit:document.getElementById('fa-unit')?.value||'',
+        area:document.getElementById('fa-area')?.value||'',
+        target:document.getElementById('fa-metric')?.value||'',
+        pct:0,tags:_faTags,scope,
+        reflections:_faReflections.filter(r=>r.note.trim()),
+        linkedTaskIds:_faLinked.tasks,
+        milestones:[],
+        createdBy:D.creds.userName||'Idris Grant'
+      };
+      newId=g.id;
+      D.goals.push(g);
+      save('goals');
+    } else if(_faType==='journal'){
+      const j={
+        id:nextId(D.journal),title,
+        date:document.getElementById('fa-date')?.value||new Date().toISOString().split('T')[0],
+        mood:document.getElementById('fa-mood-val')?.value||'😊',
+        energy:document.getElementById('fa-energy')?.value||'medium',
+        body:desc,
+        prompts:{focused:document.getElementById('fa-prompt1')?.value||'',energizing:document.getElementById('fa-prompt2')?.value||'',learned:document.getElementById('fa-prompt3')?.value||''},
+        highlights:document.getElementById('fa-highlights')?.value||'',
+        challenges:document.getElementById('fa-challenges')?.value||'',
+        gratitude:document.getElementById('fa-gratitude')?.value||'',
+        sleep:parseFloat(document.getElementById('fa-sleep')?.value)||null,
+        exercise:document.getElementById('fa-exercise')?.value||'',
+        habitsDone:D.habits.filter(h=>h.doneToday).length,
+        habitsTotal:D.habits.length,
+        tags:_faTags,scope,
+        createdBy:D.creds.userName||'Idris Grant'
+      };
+      newId=j.id;
+      D.journal.push(j);
+      save('journal');
+    } else if(_faType==='habit'){
+      const h={
+        id:nextId(D.habits),
+        title,notes:desc,
+        icon:document.getElementById('fa-icon')?.value||'✅',
+        category:document.getElementById('fa-category')?.value||'Health',
+        status:document.getElementById('fa-status')?.value||'Active',
+        cadence:document.getElementById('fa-cadence')?.value||'Daily',
+        customDays:_faCustomDays,
+        targetCount:parseInt(document.getElementById('fa-target-count')?.value)||1,
+        targetTime:document.getElementById('fa-targettime')?.value||'',
+        startedOn:document.getElementById('fa-startedon')?.value||new Date().toISOString().split('T')[0],
+        reminderEnabled:document.getElementById('fa-reminder-enabled')?.checked||false,
+        reminderTime:document.getElementById('fa-reminder-time')?.value||'',
+        linkedTaskId:document.getElementById('fa-linkedtask')?.value?parseInt(document.getElementById('fa-linkedtask').value):null,
+        streak:0,doneToday:false,
+        tags:_faTags,scope,
+        createdBy:D.creds.userName||'Idris Grant'
+      };
+      newId=h.id;
+      D.habits.push(h);
+      save('habits');
+    }
+
+    if(newId)applyBidirectionalLinks(_faType,newId);
+    toast('✓ '+(_faType||'Item')+' saved: '+title);
+    _faHasChanges=false;
+    updateSidebarBadges();
+    renderScreen(curScreen);
+
+    if(addAnother){
+      // Re-open same type with session scope/tags persisted
+      openFA(_faType);
+    } else {
+      closeFA(true);
+    }
+  },200);
 }
 
 // ====== INIT ======
