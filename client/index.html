@@ -282,6 +282,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <div class="si" data-n="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span></div>
 <div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c">3</span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
+<div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
@@ -342,6 +343,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <!-- ===== S-19 COACH ===== -->
 <div class="scr" id="s-coach"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="coach-main"></main><aside class="rr" id="coach-rail"></aside></div></div>
 
+<!-- ===== S-20 TEAM ===== -->
+<div class="scr" id="s-team"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="team-main"></main><aside class="rr" id="team-rail"></aside></div></div>
+
 <!-- ===== S-12 SETTINGS ===== -->
 <div class="scr" id="s-settings"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="settings-main"></main></div></div>
 
@@ -370,24 +374,24 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 // ====== DATA STORE ======
 const D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
-    {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'09:00',endTime:'11:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'In Progress',myDay:true,energy:'high',notes:'Cover all MVP screens and data model.',recurring:'None',subtasks:[{id:1,title:'Write user stories',done:true},{id:2,title:'Define data schema',done:true},{id:3,title:'Review with Priya',done:false}],linkedGoalId:1},
-    {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'10:00',endTime:'11:00',estimatedMins:60,context:'Calls',project:'LevelUp Platform',projectId:1,status:'Scheduled',myDay:true,energy:'medium',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:1},
-    {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'08:00',endTime:'08:30',estimatedMins:30,context:'Admin',project:'Fundraising',projectId:2,status:'Pending',myDay:true,energy:'low',notes:'',recurring:'None',subtasks:[],linkedGoalId:2},
-    {id:4,title:'Draft Q3 product roadmap',priority:'Medium',due:'2025-05-20',startDate:'2025-05-20',endDate:'2025-05-21',startTime:'09:00',endTime:'12:00',estimatedMins:180,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[{id:1,title:'Outline key themes',done:false},{id:2,title:'Add milestones',done:false}],linkedGoalId:1},
-    {id:5,title:'Prepare demo for advisory board',priority:'High',due:'2025-05-23',startDate:'2025-05-22',endDate:'2025-05-23',startTime:'14:00',endTime:'16:00',estimatedMins:120,context:'Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:1},
-    {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'2025-05-24',startDate:'2025-05-24',endDate:'2025-05-24',startTime:'',endTime:'',estimatedMins:90,context:'Learning',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',notes:'',recurring:'None',subtasks:[],linkedGoalId:null},
-    {id:7,title:'Update pitch deck financials',priority:'Medium',due:'2025-05-25',startDate:'2025-05-25',endDate:'2025-05-25',startTime:'',endTime:'',estimatedMins:60,context:'Work',project:'Fundraising',projectId:2,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:2},
-    {id:8,title:'Write weekly reflection post',priority:'Low',due:'2025-05-26',startDate:'2025-05-26',endDate:'2025-05-26',startTime:'',endTime:'',estimatedMins:45,context:'Creative',project:'Personal Brand',projectId:4,status:'Not Started',myDay:false,energy:'low',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:5},
+    {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'09:00',endTime:'11:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'In Progress',myDay:true,energy:'high',notes:'Cover all MVP screens and data model.',recurring:'None',subtasks:[{id:1,title:'Write user stories',done:true},{id:2,title:'Define data schema',done:true},{id:3,title:'Review with Priya',done:false}],linkedGoalId:1,createdBy:'Idris Grant'},
+    {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'10:00',endTime:'11:00',estimatedMins:60,context:'Calls',project:'LevelUp Platform',projectId:1,status:'Scheduled',myDay:true,energy:'medium',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:1,createdBy:'Priya Nair'},
+    {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'08:00',endTime:'08:30',estimatedMins:30,context:'Admin',project:'Fundraising',projectId:2,status:'Pending',myDay:true,energy:'low',notes:'',recurring:'None',subtasks:[],linkedGoalId:2,createdBy:'Idris Grant'},
+    {id:4,title:'Draft Q3 product roadmap',priority:'Medium',due:'2025-05-20',startDate:'2025-05-20',endDate:'2025-05-21',startTime:'09:00',endTime:'12:00',estimatedMins:180,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[{id:1,title:'Outline key themes',done:false},{id:2,title:'Add milestones',done:false}],linkedGoalId:1,createdBy:'Idris Grant'},
+    {id:5,title:'Prepare demo for advisory board',priority:'High',due:'2025-05-23',startDate:'2025-05-22',endDate:'2025-05-23',startTime:'14:00',endTime:'16:00',estimatedMins:120,context:'Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:1,createdBy:'Idris Grant'},
+    {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'2025-05-24',startDate:'2025-05-24',endDate:'2025-05-24',startTime:'',endTime:'',estimatedMins:90,context:'Learning',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',notes:'',recurring:'None',subtasks:[],linkedGoalId:null,createdBy:'Marcus Webb'},
+    {id:7,title:'Update pitch deck financials',priority:'Medium',due:'2025-05-25',startDate:'2025-05-25',endDate:'2025-05-25',startTime:'',endTime:'',estimatedMins:60,context:'Work',project:'Fundraising',projectId:2,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:2,createdBy:'Priya Nair'},
+    {id:8,title:'Write weekly reflection post',priority:'Low',due:'2025-05-26',startDate:'2025-05-26',endDate:'2025-05-26',startTime:'',endTime:'',estimatedMins:45,context:'Creative',project:'Personal Brand',projectId:4,status:'Not Started',myDay:false,energy:'low',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:5,createdBy:'Idris Grant'},
   ],
   notes: JSON.parse(localStorage.getItem('lu_notes') || 'null') || [
-    {id:1,title:'LevelUp Vision & Core Principles',tags:['vision','product'],source:'Manual',updated:'Just now',starred:true,body:'LevelUp is a personal operating system for ambitious builders. Core principles: capture everything, process daily, connect ideas, act with intention.'},
-    {id:2,title:'Second Brain Architecture Notes',tags:['second-brain','architecture'],source:'Meeting Notes',updated:'1h ago',starred:false,body:'PARA method adapted for LevelUp: Projects (active), Areas (ongoing), Resources (reference), Archive (inactive). Each node links to tasks and goals.'},
-    {id:3,title:'AI Integration Research',tags:['research','ai'],source:'Web Clipper',updated:'3h ago',starred:true,body:'Key AI use cases for personal productivity: smart capture parsing, proactive nudges, pattern detection in journal entries, suggested daily plans.'},
-    {id:4,title:'Fundraising Narrative – Draft 2',tags:['fundraising','pitch'],source:'Manual',updated:'Yesterday',starred:false,body:'Problem: knowledge workers lose 30% of time to context switching. Solution: LevelUp unifies tasks, notes, goals and surfaces what matters most.'},
-    {id:5,title:'Advisory Board Prep Notes',tags:['meetings','strategy'],source:'Manual',updated:'Yesterday',starred:false,body:'Key questions to address: GTM timeline, AI differentiation, pricing model, enterprise vs. prosumer focus.'},
-    {id:6,title:'Book Notes – Building a Second Brain',tags:['books','productivity'],source:'Manual',updated:'2d ago',starred:true,body:'Tiago Forte: CODE method — Capture, Organize, Distill, Express. Progressive summarization for note refinement. Projects should always have a next action.'},
-    {id:7,title:'Sprint 7 Retrospective',tags:['engineering','process'],source:'Meeting Notes',updated:'3d ago',starred:false,body:'Velocity: 42 points. Blockers: auth flow complexity. Wins: search indexing 3x faster. Next sprint focus: mobile responsiveness and offline mode.'},
-    {id:8,title:'Personal Brand Strategy',tags:['marketing','personal'],source:'Manual',updated:'3d ago',starred:false,body:'Positioning: builder who ships. Channels: LinkedIn (thought leadership), X (product updates), newsletter (weekly reflection). Cadence: 3x/week.'},
+    {id:1,title:'LevelUp Vision & Core Principles',tags:['vision','product'],source:'Manual',updated:'Just now',starred:true,body:'LevelUp is a personal operating system for ambitious builders. Core principles: capture everything, process daily, connect ideas, act with intention.',createdBy:'Idris Grant'},
+    {id:2,title:'Second Brain Architecture Notes',tags:['second-brain','architecture'],source:'Meeting Notes',updated:'1h ago',starred:false,body:'PARA method adapted for LevelUp: Projects (active), Areas (ongoing), Resources (reference), Archive (inactive). Each node links to tasks and goals.',createdBy:'Idris Grant'},
+    {id:3,title:'AI Integration Research',tags:['research','ai'],source:'Web Clipper',updated:'3h ago',starred:true,body:'Key AI use cases for personal productivity: smart capture parsing, proactive nudges, pattern detection in journal entries, suggested daily plans.',createdBy:'Marcus Webb'},
+    {id:4,title:'Fundraising Narrative – Draft 2',tags:['fundraising','pitch'],source:'Manual',updated:'Yesterday',starred:false,body:'Problem: knowledge workers lose 30% of time to context switching. Solution: LevelUp unifies tasks, notes, goals and surfaces what matters most.',createdBy:'Idris Grant'},
+    {id:5,title:'Advisory Board Prep Notes',tags:['meetings','strategy'],source:'Manual',updated:'Yesterday',starred:false,body:'Key questions to address: GTM timeline, AI differentiation, pricing model, enterprise vs. prosumer focus.',createdBy:'Priya Nair'},
+    {id:6,title:'Book Notes – Building a Second Brain',tags:['books','productivity'],source:'Manual',updated:'2d ago',starred:true,body:'Tiago Forte: CODE method — Capture, Organize, Distill, Express. Progressive summarization for note refinement. Projects should always have a next action.',createdBy:'Idris Grant'},
+    {id:7,title:'Sprint 7 Retrospective',tags:['engineering','process'],source:'Meeting Notes',updated:'3d ago',starred:false,body:'Velocity: 42 points. Blockers: auth flow complexity. Wins: search indexing 3x faster. Next sprint focus: mobile responsiveness and offline mode.',createdBy:'Priya Nair'},
+    {id:8,title:'Personal Brand Strategy',tags:['marketing','personal'],source:'Manual',updated:'3d ago',starred:false,body:'Positioning: builder who ships. Channels: LinkedIn (thought leadership), X (product updates), newsletter (weekly reflection). Cadence: 3x/week.',createdBy:'Marcus Webb'},
   ],
   projects: JSON.parse(localStorage.getItem('lu_projects') || 'null') || [
     {id:1,name:'LevelUp Platform',color:'#3B82F6',status:'Active',due:'Jun 30',pct:55,desc:'Core app development — tasks, notes, goals, AI assistant.'},
@@ -431,12 +435,12 @@ const D = {
     {id:4,date:'May 16 · Friday',title:'End of Week',body:'Tired but good tired. The advisory board call went better than expected. Two potential advisors said yes.',mood:'😫'},
   ],
   habits: JSON.parse(localStorage.getItem('lu_habits') || 'null') || [
-    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:18,doneToday:true,startTime:'06:30',reminderTime:'06:25',category:'Mindfulness',notes:'10-minute guided session',linkedTaskId:null},
-    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:11,doneToday:true,startTime:'21:00',reminderTime:'20:55',category:'Learning',notes:'Non-fiction only. Log in reading tracker.',linkedTaskId:null},
-    {id:3,icon:'🏃',title:'Daily run or walk',cadence:'Daily',streak:7,doneToday:false,startTime:'07:00',reminderTime:'06:55',category:'Health',notes:'Minimum 30 minutes. Track in Strava.',linkedTaskId:null},
-    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:9,doneToday:false,startTime:'22:00',reminderTime:'21:55',category:'Reflection',notes:'Morning or evening. Min 5 minutes.',linkedTaskId:null},
-    {id:5,icon:'💻',title:'Deep work block (2h)',cadence:'Daily',streak:5,doneToday:false,startTime:'09:00',reminderTime:'08:55',category:'Productivity',notes:'No meetings, no Slack. Full focus.',linkedTaskId:null},
-    {id:6,icon:'💪',title:'Strength training',cadence:'3xd7/week',streak:4,doneToday:false,startTime:'07:30',reminderTime:'07:25',category:'Health',notes:'Mon / Wed / Fri. 45 min sessions.',linkedTaskId:null},
+    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:18,doneToday:true,startTime:'06:30',reminderTime:'06:25',category:'Mindfulness',notes:'10-minute guided session',linkedTaskId:null,createdBy:'Idris Grant'},
+    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:11,doneToday:true,startTime:'21:00',reminderTime:'20:55',category:'Learning',notes:'Non-fiction only. Log in reading tracker.',linkedTaskId:null,createdBy:'Idris Grant'},
+    {id:3,icon:'🏃',title:'Daily run or walk',cadence:'Daily',streak:7,doneToday:false,startTime:'07:00',reminderTime:'06:55',category:'Health',notes:'Minimum 30 minutes. Track in Strava.',linkedTaskId:null,createdBy:'Idris Grant'},
+    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:9,doneToday:false,startTime:'22:00',reminderTime:'21:55',category:'Reflection',notes:'Morning or evening. Min 5 minutes.',linkedTaskId:null,createdBy:'Idris Grant'},
+    {id:5,icon:'💻',title:'Deep work block (2h)',cadence:'Daily',streak:5,doneToday:false,startTime:'09:00',reminderTime:'08:55',category:'Productivity',notes:'No meetings, no Slack. Full focus.',linkedTaskId:null,createdBy:'Priya Nair'},
+    {id:6,icon:'💪',title:'Strength training',cadence:'3xd7/week',streak:4,doneToday:false,startTime:'07:30',reminderTime:'07:25',category:'Health',notes:'Mon / Wed / Fri. 45 min sessions.',linkedTaskId:null,createdBy:'Marcus Webb'},
   ],
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
     {id:1,name:'LevelUp Core Team',members:[
@@ -484,7 +488,7 @@ function setAccent(c){
 let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',capture:'s-home'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home'};
 let curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -800,6 +804,7 @@ function renderScreen(s){
   if(s==='goals')renderGoals();if(s==='journal')renderJournal();if(s==='archive')renderArchive();
   if(s==='myday')renderMyDay();if(s==='myweek')renderMyWeek();if(s==='myyear')renderMyYear();
   if(s==='process')renderProcess();if(s==='habits')renderHabits();if(s==='coach')renderCoach();
+  if(s==='team')renderTeam();
   if(s==='settings')renderSettings();
 }
 
@@ -911,13 +916,15 @@ function renderTasks(){
     {label:'Done',filter:t=>t.status==='Done'},
   ];
   let _taskFilter=tabDefs[0].filter;
+  let _taskMyOnly=false;
   function renderTaskList(){
     const list=document.getElementById('tasks-list');
     if(!list)return;
-    const filtered=D.tasks.filter(_taskFilter);
-    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openModal(\'capture\')">'+'+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openModal(\'capture\')">+ Add one</span></p>';
+    let filtered=D.tasks.filter(_taskFilter);
+    if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openModal(\'capture\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openModal(\'capture\')">+ Add one</span></p>';
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ Quick Add Task</button></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-p" onclick="openModal('capture')">+ Quick Add Task</button></div></div>
   <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div class="cd" id="tasks-list"></div>`;
   renderTaskList();
@@ -925,6 +932,16 @@ function renderTasks(){
   ${['9 AM|Daily Standup','10 AM|Focus Block','12 PM|Budget Review','1 PM|Client Call','3 PM|Focus Time'].map(e=>{const[t,n]=e.split('|');return`<div style="display:flex;gap:4px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:30px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:9px">${n}</div></div>`}).join('')}`;
 }
 
+let _notesMyOnly=false;
+function renderNotesList_html(myOnly){
+  const me=D.creds.userName||'Idris Grant';
+  const notes=myOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  return notes.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span>${n.createdBy&&n.createdBy!==me?`<span style="font-size:8px;color:var(--t3);margin-left:auto">${n.createdBy.split(' ')[0]}</span>`:''}</div></div>`).join('') || '<p style="color:var(--t3);font-size:11px;padding:8px">No notes found.</p>';
+}
+function renderNotesList(){
+  const el=document.getElementById('notes-list-inner');
+  if(el)el.innerHTML=renderNotesList_html(_notesMyOnly);
+}
 function renderNotes(){
   const nb=$('notes-body');
   nb.innerHTML=`<div class="notes-nav"><div style="font-size:14px;font-weight:600;margin-bottom:8px">Notes</div>
@@ -934,8 +951,8 @@ function renderNotes(){
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:8px 0 4px">PARA</div>
   ${['Projects 14','Areas 8','Resources 36','Archive 57'].map(x=>{const[n,c]=x.split(' ');return`<div class="nn">${n}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`}).join('')}
   </div>
-  <div class="notes-list"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><div style="font-size:13px;font-weight:600">All Notes</div><span style="font-size:10px;color:var(--t3)">${D.notes.length} notes</span></div>
-  ${D.notes.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span>${n.starred?'<span style="color:var(--warn);margin-left:auto">★</span>':''}</div></div>`).join('')}
+  <div class="notes-list"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:13px;font-weight:600">Notes</div><div style="display:flex;background:var(--s3);border-radius:5px;overflow:hidden"><button id="notes-scope-my" class="btn" style="border-radius:0;height:22px;font-size:9px;background:var(--ac);color:#fff;border:none;padding:0 7px" onclick="_notesMyOnly=true;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button><button id="notes-scope-all" class="btn" style="border-radius:0;height:22px;font-size:9px;background:transparent;color:var(--t2);border:none;padding:0 7px" onclick="_notesMyOnly=false;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';renderNotesList()">All</button></div></div>
+  <div id="notes-list-inner">${renderNotesList_html(false)}</div>
   </div>
   <div class="notes-editor" style="padding:16px">${D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3)">Select a note to edit</p>'}</div>
   <div class="notes-rail"><div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
@@ -1057,8 +1074,13 @@ function renderProjectsGantt(header){
 function renderGoals(){
   // Auto-recalculate all goal percentages before rendering
   D.goals.forEach(g=>autoCalcGoalPct(g));
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${D.goals.map(g=>{
+  let _goalsMyOnly=false;
+  function renderGoalCards(){
+    const me=D.creds.userName||'Idris Grant';
+    const goals=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):D.goals;
+    const el=document.getElementById('goals-grid');
+    if(!el)return;
+    el.innerHTML=goals.map(g=>{
     const ms=g.milestones||[];
     const msDone=ms.filter(m=>m.done).length;
     const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
@@ -1078,7 +1100,11 @@ function renderGoals(){
       <div style="margin-top:6px;display:flex;gap:4px">
         <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
       </div>
-    </div>`}).join('')}</div>`;
+    </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
+  }
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button></div><button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button></div></div>
+  <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
+  renderGoalCards();
 }
 function openGoalDetail(gid){
   const g=D.goals.find(x=>x.id===gid);
@@ -1649,12 +1675,15 @@ function toggleHabit(id){
   // refresh home rail if visible
   if(curScreen==='home')renderScreen('home');
 }
+let _habitsMyOnly=false;
 function renderHabits(){
-  const done=D.habits.filter(h=>h.doneToday).length;
-  const total=D.habits.length;
+  const me=D.creds.userName||'Idris Grant';
+  const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
+  const done=visibleHabits.filter(h=>h.doneToday).length;
+  const total=visibleHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><button class="btn btn-p" onclick="openHabitDrawer(null)">+ New Habit</button></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${D.habits.map(h=>{
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><button class="btn btn-p" onclick="openHabitDrawer(null)">+ New Habit</button></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
       <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
@@ -1834,6 +1863,59 @@ function renderCoach(){
   `;
 }
 
+function renderTeam(){
+  const allMembers=D.teams.flatMap(t=>t.members);
+  const today=new Date().toISOString().split('T')[0];
+  function memberCard(m){
+    const tasks=D.tasks.filter(t=>t.createdBy===m.name);
+    const done=tasks.filter(t=>t.status==='Done').length;
+    const overdue=tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+    const habits=D.habits.filter(h=>h.createdBy===m.name);
+    const habitsDone=habits.filter(h=>h.doneToday).length;
+    const topStreak=habits.reduce((max,h)=>Math.max(max,h.streak||0),0);
+    const goals=D.goals.filter(g=>g.createdBy===m.name);
+    const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+g.pct,0)/goals.length):null;
+    const initials=m.name.split(' ').map(w=>w[0]).join('');
+    return`<div class="cd" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${esc(m.name)}</div>
+          <div style="font-size:10px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
+        </div>
+        <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600">${m.role}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
+        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ac)">${tasks.length}</div><div style="font-size:8px;color:var(--t3)">Tasks</div></div>
+        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ok)">${done}</div><div style="font-size:8px;color:var(--t3)">Done</div></div>
+        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:${overdue?'var(--red)':'var(--t3)'}">${overdue}</div><div style="font-size:8px;color:var(--t3)">Overdue</div></div>
+        <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--warn)">🔥${topStreak}</div><div style="font-size:8px;color:var(--t3)">Streak</div></div>
+      </div>
+      ${habits.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${habits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${habits.length?Math.round(habitsDone/habits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
+      ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
+      <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
+      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+    </div>`;
+  }
+  const teamName=D.teams[0]?D.teams[0].name:'Team';
+  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>`;
+  const totalTasks=D.tasks.length;
+  const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
+  const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  const habitsDoneToday=D.habits.filter(h=>h.doneToday).length;
+  $('team-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:8px">📊 Team Stats</div>
+  <div class="stat"><div class="stat-n">${allMembers.length}</div><div class="stat-l">Members</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ok)">${doneTasks}</div><div class="stat-l">Tasks Done</div></div>
+  <div class="stat"><div class="stat-n" style="color:${overdueTasks?'var(--red)':'var(--t3)'}">${overdueTasks}</div><div class="stat-l">Overdue</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ok)">${habitsDoneToday}</div><div class="stat-l">Habits Today</div></div>
+  <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">📊 Task Completion</div>
+  <div class="pb"><div class="f" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%;background:var(--ok)"></div></div>
+  <div style="font-size:10px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
+  <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
+  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');return`<div class="lr" style="padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+}
+
 function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
@@ -1857,6 +1939,15 @@ function renderSettingsHTML(){
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Change PIN</div>
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Current PIN</div><input class="inp" type="password" id="pin-current" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">New PIN</div><input class="inp" type="password" id="pin-new" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Confirm PIN</div><input class="inp" type="password" id="pin-confirm" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
+    <button class="btn btn-p" style="height:32px" onclick="changePin()">Update PIN</button>
+  </div>
+  <div id="pin-change-msg" style="font-size:10px;min-height:14px"></div>
+  </div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
   <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
   <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
@@ -2445,6 +2536,36 @@ function applyUserPerms(member){
   } else {
     document.body.classList.remove('restricted');
   }
+}
+function changePin(){
+  const curr=document.getElementById('pin-current');
+  const nw=document.getElementById('pin-new');
+  const conf=document.getElementById('pin-confirm');
+  const msg=document.getElementById('pin-change-msg');
+  if(!curr||!nw||!conf||!msg)return;
+  const currentVal=curr.value.trim();
+  const newVal=nw.value.trim();
+  const confVal=conf.value.trim();
+  if(currentVal.length!==4||newVal.length!==4||confVal.length!==4){
+    msg.style.color='var(--red)';msg.textContent='All PIN fields must be exactly 4 digits.';return;
+  }
+  if(!/^\d{4}$/.test(newVal)){msg.style.color='var(--red)';msg.textContent='PIN must be 4 digits (0-9).';return;}
+  if(newVal!==confVal){msg.style.color='var(--red)';msg.textContent='New PIN and confirmation do not match.';return;}
+  // Find the logged-in member
+  const sess=JSON.parse(localStorage.getItem('lu_session')||'null');
+  if(!sess){msg.style.color='var(--red)';msg.textContent='No active session found.';return;}
+  const allMembers=D.teams.flatMap(t=>t.members);
+  const member=allMembers.find(m=>m.id===sess.memberId);
+  if(!member){msg.style.color='var(--red)';msg.textContent='User not found.';return;}
+  const correctPin=member.pin||'1234';
+  if(currentVal!==correctPin){msg.style.color='var(--red)';msg.textContent='Current PIN is incorrect.';curr.value='';curr.focus();return;}
+  // Update PIN
+  member.pin=newVal;
+  save('teams');
+  curr.value='';nw.value='';conf.value='';
+  msg.style.color='var(--ok)';msg.textContent='\u2713 PIN updated successfully!';
+  setTimeout(()=>{if(msg)msg.textContent='';},3000);
+  toast('\ud83d\udd12 PIN updated');
 }
 function doLogout(){
   localStorage.removeItem('lu_session');
