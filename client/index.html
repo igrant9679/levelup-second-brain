@@ -138,13 +138,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 /* ===== FULL ADD MODAL ===== */
 .fa-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding:24px 16px;overflow-y:auto}
 .fa-modal-ov.show{display:flex}
-.fa-modal{background:#161D2E;border:1px solid rgba(255,255,255,.1);border-radius:14px;width:720px;max-width:96vw;display:flex;flex-direction:column;animation:popIn .2s ease;margin:auto}
-.fa-hd{display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:#161D2E;z-index:2;border-radius:14px 14px 0 0}
+.fa-modal{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:720px;max-width:96vw;display:flex;flex-direction:column;animation:popIn .2s ease;margin:auto}
+.fa-hd{display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid var(--bd1);position:sticky;top:0;background:var(--s1);z-index:2;border-radius:14px 14px 0 0}
 .fa-hd h2{flex:1;font-size:16px;font-weight:700;margin:0}
 .fa-body{padding:20px;overflow-y:auto;max-height:calc(85vh - 120px)}
-.fa-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);position:sticky;bottom:0;background:#161D2E;z-index:2;border-radius:0 0 14px 14px;justify-content:flex-end}
+.fa-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--bd1);position:sticky;bottom:0;background:var(--s1);z-index:2;border-radius:0 0 14px 14px;justify-content:flex-end}
 .fa-section{margin-bottom:18px}
-.fa-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.06)}
+.fa-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--bd1)}
 .fa-row{display:grid;gap:10px;margin-bottom:10px}
 .fa-row.c2{grid-template-columns:1fr 1fr}
 .fa-row.c3{grid-template-columns:1fr 1fr 1fr}
@@ -226,7 +226,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .ai-panel-foot input{flex:1}
 
 /* NOTES 4-PANEL */
-.notes-body{display:grid;grid-template-columns:220px 1fr;min-height:0;height:100%}
+.notes-body{display:grid;grid-template-columns:160px 200px 1fr 200px;min-height:0;height:100%}
 .notes-nav,.notes-list,.notes-editor,.notes-rail{overflow-y:auto;padding:12px 8px}
 .notes-nav{background:var(--s1);border-right:1px solid var(--bd1)}
 .notes-list{border-right:1px solid var(--bd1)}
@@ -466,6 +466,8 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script>
 // ====== DATA STORE ======
+// Global today string used across screens (YYYY-MM-DD)
+const _todayStr=(()=>{const d=new Date();return d.toISOString().split('T')[0];})();
 const D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
     {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
@@ -479,6 +481,9 @@ const D = {
     {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'2025-05-24',startDate:'2025-05-24',endDate:'2025-05-24',startTime:'',endTime:'',estimatedMins:90,context:'Learning',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',notes:'',recurring:'None',subtasks:[],linkedGoalId:null,createdBy:'Marcus Webb'},
     {id:7,title:'Update pitch deck financials',priority:'Medium',due:'2025-05-25',startDate:'2025-05-25',endDate:'2025-05-25',startTime:'',endTime:'',estimatedMins:60,context:'Work',project:'Fundraising',projectId:2,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:2,createdBy:'Priya Nair'},
     {id:8,title:'Write weekly reflection post',priority:'Low',due:'2025-05-26',startDate:'2025-05-26',endDate:'2025-05-26',startTime:'',endTime:'',estimatedMins:45,context:'Creative',project:'Personal Brand',projectId:4,status:'Not Started',myDay:false,energy:'low',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:5,createdBy:'Idris Grant'},
+    {id:201,title:'Design Q3 Sprint Planning Workshop',priority:'High',due:'2026-05-10',startDate:'2026-05-08',endDate:'2026-05-10',startTime:'10:00',endTime:'12:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:true,energy:'high',tags:['planning','leadership','sprint'],notes:'Prepare agenda, invite all team leads, set up Miro board for async pre-work. Goal: align on Q3 OKRs and define sprint 8 scope with clear acceptance criteria for each story.',recurring:'None',subtasks:[{id:1,title:'Draft workshop agenda',done:false},{id:2,title:'Send calendar invites',done:false},{id:3,title:'Set up Miro collaboration board',done:false},{id:4,title:'Prepare OKR alignment slides',done:false}],linkedGoalId:1,assignedTo:'Idris Grant',createdBy:'Idris Grant'},
+    {id:202,title:'Competitive Analysis — Top 5 Productivity Apps',priority:'Medium',due:'2026-05-15',startDate:'2026-05-12',endDate:'2026-05-15',startTime:'09:00',endTime:'11:00',estimatedMins:180,context:'Research',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',tags:['research','strategy','competitive'],notes:'Analyze Notion, Obsidian, Roam, Logseq, and Mem.ai. Focus on: pricing, AI features, target persona, onboarding flow, and key differentiators. Produce a 1-page comparison matrix.',recurring:'None',subtasks:[{id:1,title:'Create comparison matrix template',done:false},{id:2,title:'Research Notion and Obsidian',done:false},{id:3,title:'Research Roam, Logseq, Mem.ai',done:false},{id:4,title:'Write executive summary',done:false}],linkedGoalId:null,assignedTo:'Marcus Webb',createdBy:'Marcus Webb'},
+    {id:203,title:'Prepare Monthly Stakeholder Report',priority:'High',due:'2026-04-30',startDate:'2026-04-28',endDate:'2026-04-30',startTime:'14:00',endTime:'16:00',estimatedMins:90,context:'Admin',project:'Fundraising',projectId:2,status:'In Progress',myDay:true,energy:'medium',tags:['reporting','investors','monthly'],notes:'Include: MRR growth, user acquisition metrics, key product milestones, burn rate, and 30-day outlook. Use the standard investor update template. Send by April 30 EOD.',recurring:'Monthly',subtasks:[{id:1,title:'Pull metrics from dashboard',done:true},{id:2,title:'Write narrative summary',done:false},{id:3,title:'Format with template',done:false},{id:4,title:'Review with Priya before sending',done:false}],linkedGoalId:2,assignedTo:'Idris Grant',createdBy:'Idris Grant'},
   ],
   notes: JSON.parse(localStorage.getItem('lu_notes') || 'null') || [
     {id:1,title:'LevelUp Vision & Core Principles',tags:['vision','product'],source:'Manual',updated:'Just now',starred:true,body:'LevelUp is a personal operating system for ambitious builders. Core principles: capture everything, process daily, connect ideas, act with intention.',createdBy:'Idris Grant'},
@@ -1118,7 +1123,7 @@ function renderTasks(){
     const d=t.startDate||t.due||'';
     return d>=_twStart&&d<=_twEnd;
   }
-  const _todayStr=_twFmt(_twNow);
+  // _todayStr is global
   const tabDefs=[
     {label:'Today',filter:t=>t.due===_todayStr||t.startDate===_todayStr,badge:D.tasks.filter(t=>t.due===_todayStr||t.startDate===_todayStr).length},
     {label:'This Week',filter:_taskInWeek,badge:D.tasks.filter(_taskInWeek).length},
@@ -1159,6 +1164,50 @@ function bulkCompleteVisible(){
   toast(`✓ ${rows.length} task(s) marked Done`);
 }
 let _notesMyOnly=false;
+function buildNoteBacklinks(id){
+  // Find notes whose body contains [[Title]] linking to this note
+  const target=D.notes.find(n=>n.id===id);
+  if(!target)return[];
+  return D.notes.filter(n=>n.id!==id&&n.body&&n.body.includes('[['+target.title+']]'));
+}
+function buildNoteOutlinks(n){
+  if(!n||!n.body)return[];
+  const matches=[...n.body.matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1]);
+  return matches.map(title=>D.notes.find(x=>x.title===title)).filter(Boolean);
+}
+function renderNotesGraph(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return '<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>';
+  const backlinks=buildNoteBacklinks(id);
+  const outlinks=buildNoteOutlinks(n);
+  const all=[...backlinks,...outlinks];
+  if(!all.length)return '<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">No links. Use [[Note Title]] to link.</div>';
+  const cx=80,cy=50,r=30;
+  const nodes=[{id,title:n.title,x:cx,y:cy,main:true}];
+  const links=[];
+  const placed=new Set([id]);
+  const total=all.length;
+  all.forEach((ln,i)=>{
+    if(placed.has(ln.id))return;
+    placed.add(ln.id);
+    const angle=(i/total)*2*Math.PI-Math.PI/2;
+    nodes.push({id:ln.id,title:ln.title,x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle),main:false});
+    links.push({from:id,to:ln.id,back:backlinks.includes(ln)});
+  });
+  const svgLinks=links.map(l=>{
+    const from=nodes.find(x=>x.id===l.from);
+    const to=nodes.find(x=>x.id===l.to);
+    return`<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="${l.back?'#8B5CF6':'#3B82F6'}" stroke-width="1" opacity="0.6"/>`;
+  }).join('');
+  const svgNodes=nodes.map(nd=>{
+    const short=nd.title.length>8?nd.title.slice(0,8)+'…':nd.title;
+    return`<g style="cursor:pointer" onclick="showNoteInEditor(${nd.id})">
+      <circle cx="${nd.x}" cy="${nd.y}" r="${nd.main?7:5}" fill="${nd.main?'#3B82F6':'#64748B'}" opacity="0.9"/>
+      <text x="${nd.x}" y="${nd.y+14}" text-anchor="middle" font-size="6" fill="var(--t2)">${short}</text>
+    </g>`;
+  }).join('');
+  return`<svg viewBox="0 0 160 100" style="width:100%;height:80px">${svgLinks}${svgNodes}</svg>`;
+}
 function showNoteInEditor(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
@@ -1599,17 +1648,64 @@ function renderMailInboxList(){
   return _mailItems.map(m=>`<div class="lr" style="cursor:pointer;background:${_selectedMail===m.id?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem(${m.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${_selectedMail===m.id?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from)}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${m.time}</span></div>`).join('');
 }
 function renderMail(){
-  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" style="font-size:11px" onclick="toast('Compose coming soon!')">+ Compose</button></div></div>
-<div class="tabs"><div class="tab on">Inbox</div><div class="tab" onclick="toast('Calendar tab — use the Calendar screen in sidebar')">Calendar</div><div class="tab" onclick="toast('Files tab coming soon!')">Files</div></div>
-<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
+  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
+<div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
+<div id="mail-tab-body"><div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
+<div style="border-right:1px solid var(--bd1);overflow-y:auto">
+<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span><span style="font-size:9px;color:var(--ac)">${_mailItems.filter(m=>!m.read).length} unread</span></div>
+<div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
+</div>
+<div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
+</div></div>`;
+}
+
+function openComposeModal(){
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">✉ New Message</h2>
+  <div style="display:flex;flex-direction:column;gap:8px">
+  <div class="field"><label>To</label><input class="inp" id="cmp-to" placeholder="recipient@example.com"></div>
+  <div class="field"><label>Subject</label><input class="inp" id="cmp-sub" placeholder="Subject..."></div>
+  <div class="field"><label>Message</label><textarea class="inp" id="cmp-body" style="min-height:120px" placeholder="Write your message..."></textarea></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="sendComposedMail()">✉ Send</button>
+  <button class="btn btn-s" onclick="closeModal()">Discard</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
+}
+function sendComposedMail(){
+  const to=document.getElementById('cmp-to')?.value.trim();
+  if(!to){toast('⚠ Recipient required');return;}
+  const sub=document.getElementById('cmp-sub')?.value||'(no subject)';
+  closeModal();
+  toast('✓ Message sent to '+to);
+}
+function switchMailTab(el,tab){
+  document.querySelectorAll('#mail-tabs .tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  const body=document.getElementById('mail-tab-body');
+  if(!body)return;
+  if(tab==='inbox'){
+    body.innerHTML=`<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
 <div style="border-right:1px solid var(--bd1);overflow-y:auto">
 <div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span><span style="font-size:9px;color:var(--ac)">${_mailItems.filter(m=>!m.read).length} unread</span></div>
 <div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
 </div>
 <div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
 </div>`;
+  } else if(tab==='calendar'){
+    const today=new Date();
+    const dayOfWeek=today.getDay();
+    const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
+    const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
+    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:9px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=_calEvents.filter(e=>e.day===d&&e.hour===h);return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:9px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
+    body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:10px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:10px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
+  } else {
+    body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
+  }
 }
-
 const _calEvents=[
   {id:1,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:0,hour:9,color:'var(--ac)',desc:'Team sync — share blockers and wins',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
   {id:2,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:1,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
@@ -3255,6 +3351,16 @@ function doLoginSuccess(member){
   // Hide login overlay
   const ov=document.getElementById('login-overlay');
   if(ov)ov.classList.add('hidden');
+  // Migrate: ensure example Full Add tasks exist
+  const exampleIds=[201,202,203];
+  exampleIds.forEach(eid=>{
+    if(!D.tasks.find(t=>t.id===eid)){
+      const defaults=[{id:201,title:'Design Q3 Sprint Planning Workshop',priority:'High',due:'2026-05-10',startDate:'2026-05-08',endDate:'2026-05-10',startTime:'10:00',endTime:'12:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:true,energy:'high',tags:['planning','leadership','sprint'],notes:'Prepare agenda, invite all team leads, set up Miro board for async pre-work. Goal: align on Q3 OKRs and define sprint 8 scope with clear acceptance criteria for each story.',recurring:'None',subtasks:[{id:1,title:'Draft workshop agenda',done:false},{id:2,title:'Send calendar invites',done:false},{id:3,title:'Set up Miro collaboration board',done:false},{id:4,title:'Prepare OKR alignment slides',done:false}],linkedGoalId:1,assignedTo:'Idris Grant',createdBy:'Idris Grant'},{id:202,title:'Competitive Analysis — Top 5 Productivity Apps',priority:'Medium',due:'2026-05-15',startDate:'2026-05-12',endDate:'2026-05-15',startTime:'09:00',endTime:'11:00',estimatedMins:180,context:'Research',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',tags:['research','strategy','competitive'],notes:'Analyze Notion, Obsidian, Roam, Logseq, and Mem.ai. Focus on: pricing, AI features, target persona, onboarding flow, and key differentiators. Produce a 1-page comparison matrix.',recurring:'None',subtasks:[{id:1,title:'Create comparison matrix template',done:false},{id:2,title:'Research Notion and Obsidian',done:false},{id:3,title:'Research Roam, Logseq, Mem.ai',done:false},{id:4,title:'Write executive summary',done:false}],linkedGoalId:null,assignedTo:'Marcus Webb',createdBy:'Marcus Webb'},{id:203,title:'Prepare Monthly Stakeholder Report',priority:'High',due:'2026-04-30',startDate:'2026-04-28',endDate:'2026-04-30',startTime:'14:00',endTime:'16:00',estimatedMins:90,context:'Admin',project:'Fundraising',projectId:2,status:'In Progress',myDay:true,energy:'medium',tags:['reporting','investors','monthly'],notes:'Include: MRR growth, user acquisition metrics, key product milestones, burn rate, and 30-day outlook. Use the standard investor update template. Send by April 30 EOD.',recurring:'Monthly',subtasks:[{id:1,title:'Pull metrics from dashboard',done:true},{id:2,title:'Write narrative summary',done:false},{id:3,title:'Format with template',done:false},{id:4,title:'Review with Priya before sending',done:false}],linkedGoalId:2,assignedTo:'Idris Grant',createdBy:'Idris Grant'}];
+      const ex=defaults.find(x=>x.id===eid);
+      if(ex)D.tasks.push(ex);
+    }
+  });
+  save('tasks');
   // Boot app
   applyPrefs();
   checkMyDayReset();
