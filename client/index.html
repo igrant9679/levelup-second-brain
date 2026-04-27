@@ -321,7 +321,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="tb-a">
 <button class="bn" onclick="openModal('capture')">+ New</button>
 <button class="tbtn" onclick="toggleAIPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="bg" id="ai-badge">3</span></button>
-<button class="tbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg">6</span></button>
+<button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" onclick="nav('settings')">IG</div>
 </div>
 </header>
@@ -366,7 +366,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 
 <!-- ===== S-04 NOTES ===== -->
 <div class="scr" id="s-notes"><div style="display:grid;grid-template-columns:var(--side) 1fr;min-height:0;height:calc(100vh - var(--top))"><nav class="sb" data-sb></nav>
-<div class="notes-body" id="notes-body"></div>
+<div class="notes-body" id="notes-body" style="overflow:hidden"></div>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -455,11 +455,19 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="ai-panel-body" id="ai-chat"></div>
 <div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
 </div>
+<!-- NOTIFICATION PANEL -->
+<div id="notif-panel" style="display:none;position:fixed;top:56px;right:12px;width:340px;max-height:480px;background:var(--s1);border:1px solid var(--bd2);border-radius:12px;z-index:200;box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden;flex-direction:column">
+<div style="padding:12px 14px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between"><span style="font-size:14px;font-weight:600">🔔 Notifications</span><div style="display:flex;gap:8px;align-items:center"><span style="font-size:10px;color:var(--ac);cursor:pointer" onclick="markAllNotifsRead()">Mark all read</span><button class="close" onclick="toggleNotifPanel()">✕</button></div></div>
+<div id="notif-list" style="overflow-y:auto;max-height:400px;padding:8px"></div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ====== DATA STORE ======
 const D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
+    {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
+    {id:102,title:'Review and merge auth refactor pull request',status:'Not Started',priority:'High',due:'2026-04-28',energy:'High',est:45,tags:['engineering','code-review'],projectId:2,assignee:'Idris Grant',context:'@computer',notes:'PR #247 by Marcus Webb. Check for security edge cases, test coverage, and backward compatibility with existing sessions.',subtasks:[{id:1,title:'Read PR diff',done:false},{id:2,title:'Run test suite locally',done:false},{id:3,title:'Leave review comments',done:false}],myDay:true,starred:false,createdAt:'2026-04-25'},
+    {id:103,title:'Prepare onboarding materials for new hire',status:'Not Started',priority:'Medium',due:'2026-05-05',energy:'Medium',est:60,tags:['hr','onboarding'],projectId:null,assignee:'Idris Grant',context:'@computer',notes:'New hire starts May 6. Prepare welcome doc, tool access checklist, 30-60-90 day plan template, and schedule intro meetings with each team lead.',subtasks:[{id:1,title:'Write welcome document',done:false},{id:2,title:'Create tool access checklist',done:false},{id:3,title:'Draft 30-60-90 plan',done:false},{id:4,title:'Schedule intro meetings',done:false}],myDay:false,starred:false,createdAt:'2026-04-26'},
     {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'09:00',endTime:'11:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'In Progress',myDay:true,energy:'high',notes:'Cover all MVP screens and data model.',recurring:'None',subtasks:[{id:1,title:'Write user stories',done:true},{id:2,title:'Define data schema',done:true},{id:3,title:'Review with Priya',done:false}],linkedGoalId:1,createdBy:'Idris Grant'},
     {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'10:00',endTime:'11:00',estimatedMins:60,context:'Calls',project:'LevelUp Platform',projectId:1,status:'Scheduled',myDay:true,energy:'medium',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:1,createdBy:'Priya Nair'},
     {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'08:00',endTime:'08:30',estimatedMins:30,context:'Admin',project:'Fundraising',projectId:2,status:'Pending',myDay:true,energy:'low',notes:'',recurring:'None',subtasks:[],linkedGoalId:2,createdBy:'Idris Grant'},
@@ -919,6 +927,10 @@ function updateSidebarBadges(){
   // Coach: sum of overdue + habits pending (actionable items)
   const coachCount=overdueCount+habitsPending;
   setBadge('badge-coach',coachCount>0?coachCount:null);
+  // Update notification badge
+  const notifCount=buildNotifs().length;
+  const nb=document.getElementById('notif-badge');
+  if(nb)nb.textContent=notifCount||'';
 }
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
@@ -1143,10 +1155,21 @@ function bulkCompleteVisible(){
   toast(`✓ ${rows.length} task(s) marked Done`);
 }
 let _notesMyOnly=false;
+function showNoteInEditor(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  // Highlight selected
+  document.querySelectorAll('.nc').forEach(el=>el.classList.remove('on'));
+  const el=document.querySelector(`.nc[data-nid="${id}"]`);
+  if(el)el.classList.add('on');
+  // Render in editor pane
+  const ed=document.querySelector('.notes-editor');
+  if(ed)ed.innerHTML=renderNoteEditor(n);
+}
 function renderNotesList_html(myOnly){
   const me=D.creds.userName||'Idris Grant';
   const notes=myOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
-  return notes.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span>${n.createdBy&&n.createdBy!==me?`<span style="font-size:8px;color:var(--t3);margin-left:auto">${n.createdBy.split(' ')[0]}</span>`:''}</div></div>`).join('') || '<p style="color:var(--t3);font-size:11px;padding:8px">No notes found.</p>';
+  return notes.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span>${n.createdBy&&n.createdBy!==me?`<span style="font-size:8px;color:var(--t3);margin-left:auto">${n.createdBy.split(' ')[0]}</span>`:''}</div></div>`).join('') || '<p style="color:var(--t3);font-size:11px;padding:8px">No notes found.</p>';
 }
 function renderNotesList(){
   const el=document.getElementById('notes-list-inner');
@@ -1176,8 +1199,7 @@ function filterNotesByTag(tag,el){
     const me=D.creds.userName||'Idris Grant';
     const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
     const filtered=base.filter(n=>(n.tags||[]).includes(tag));
-    const el2=document.getElementById('notes-list-inner');
-    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
+    const el2=document.getElementById('notes-list-inner');    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
   }
 }
 function exportNotesMarkdown(){
@@ -1223,11 +1245,18 @@ function renderNotes(){
   </div>`;
 }
 function renderNoteEditor(n){
-  return `<div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px"><span style="font-size:11px;color:var(--t2);cursor:pointer" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">✏ Edit</span><span style="color:${n.starred?'var(--warn)':'var(--t3)'};cursor:pointer" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');renderScreen('notes')">★</span></div>
+  const bodyHtml=n.body?n.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>'):'';
+  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
+  <div style="display:flex;gap:6px">
+    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">✏ Edit</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑 Delete</button>
+  </div>
+  <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
+  </div>
   <h2 style="font-size:18px;font-weight:600;margin-bottom:6px">${esc(n.title)}</h2>
-  <div style="display:flex;gap:3px;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
-  <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source} · Updated: ${n.updated}</div>
-  <div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(n.body)}</div>`;
+  <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
+  <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${n.updated||''}${n.createdBy?` · by ${n.createdBy}`:''}</div>
+  <div style="font-size:12px;color:var(--t2);line-height:1.7">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click Edit to add.</em>'}</div>`;
 }
 
 let projView='list';
@@ -1264,18 +1293,42 @@ function renderProjectsTeamKanban(header){
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Tasks grouped by assignee. Click any card to edit assignment.</div><div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
+function projectHealth(p){
+  const pts=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done');
+  const overdue=pts.filter(t=>t.due&&t.due<_todayStr).length;
+  const total=D.tasks.filter(t=>t.projectId===p.id).length;
+  const overdueRatio=total>0?overdue/total:0;
+  // Check deadline proximity
+  let daysLeft=Infinity;
+  if(p.due&&p.due!=='TBD'){
+    const d=new Date(p.due);
+    if(!isNaN(d))daysLeft=Math.ceil((d-new Date())/(1000*60*60*24));
+  }
+  if(overdueRatio>0.3||daysLeft<0)return{icon:'🔴',label:'At Risk',color:'var(--red)'};
+  if(overdueRatio>0.1||daysLeft<=7)return{icon:'🟡',label:'Needs Attention',color:'var(--warn)'};
+  return{icon:'🟢',label:'On Track',color:'var(--ok)'};
+}
 function renderProjectsList(header){
   $('proj-main').innerHTML=header+
   `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${D.projects.map(p=>{
     const pts=D.tasks.filter(t=>t.projectId===p.id);
     const done=pts.filter(t=>t.status==='Done').length;
     const subs=pts.flatMap(t=>t.subtasks||[]);
-    return`<div class="cd" style="cursor:pointer" onclick="openProjectDetail(${p.id})">
-      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px"><span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span><span style="font-size:13px;font-weight:500;flex:1">${esc(p.name)}</span><span class="pill ${statusPill(p.status)}">${p.status}</span></div>
+    const health=projectHealth(p);
+    return`<div class="cd" style="cursor:pointer;border-left:3px solid ${health.color}" onclick="openProjectDetail(${p.id})">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px">
+        <span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span>
+        <span style="font-size:13px;font-weight:500;flex:1">${esc(p.name)}</span>
+        <span title="Health: ${health.label}" style="font-size:14px;cursor:default">${health.icon}</span>
+        <span class="pill ${statusPill(p.status)}">${p.status}</span>
+      </div>
       <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc)}</div>
       <div style="display:flex;gap:8px;font-size:10px;color:var(--t3);margin-bottom:6px"><span>📋 ${pts.length} tasks</span><span>✅ ${done} done</span><span>📌 ${subs.length} subtasks</span></div>
       <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct}%</span></div>
-      <div style="margin-top:8px;display:flex;gap:4px"><button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))">✏ Edit</button></div>
+      <div style="margin-top:8px;display:flex;gap:4px;align-items:center">
+        <span style="font-size:9px;color:${health.color};font-weight:500">${health.icon} ${health.label}</span>
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))">✏ Edit</button>
+      </div>
     </div>`}).join('')}</div>`;
 }
 function openProjectDetail(pid){
@@ -1470,9 +1523,18 @@ function addMilestone(goalId){
 }
 
 function renderJournal(){
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div>
-  <div class="tabs"><div class="tab on">All</div><div class="tab">Daily</div><div class="tab">Weekly Review</div><div class="tab">Gratitude</div></div>
-  ${D.journal.map(j=>`<div class="cd" style="cursor:pointer" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:13px;font-weight:500;margin:2px 0">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.4">${esc(j.body)}</div><div style="font-size:16px;margin-top:3px">${j.mood}</div></div>`).join('')}`;
+  const journalTabs=['All','Daily','Weekly Review','Gratitude','Planning','Reflection'];
+  let _jrnlFilter='All';
+  function renderJournalList(filter){
+    _jrnlFilter=filter||_jrnlFilter;
+    const entries=_jrnlFilter==='All'?D.journal:D.journal.filter(j=>j.title&&j.title.toLowerCase().includes(_jrnlFilter.toLowerCase()));
+    const el=document.getElementById('jrnl-entries');
+    if(!el)return;
+    el.innerHTML=entries.length?entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):'<div style="text-align:center;padding:24px;color:var(--t3);font-size:12px">No '+(_jrnlFilter==='All'?'':_jrnlFilter+' ')+' journal entries yet.<br><span style="color:var(--ac);cursor:pointer" onclick="openFA(\'journal\')">+ Write your first entry</span></div>';
+  }
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
+  <div class="tabs" id="jrnl-tabs">${journalTabs.map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="document.querySelectorAll('#jrnl-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderJournalList('${t}')">${t}</div>`).join('')}</div>
+  <div id="jrnl-entries">${D.journal.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join('')}</div>`;
   const streak=calcJournalStreak();
   $('jrnl-rail').innerHTML=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Writing Streak</div><div style="font-size:20px;font-weight:700;color:var(--ac)">${streak} day${streak!==1?'s':''} 🔥</div></div>
   <div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Prompts</div><p style="font-size:10px;color:var(--t3);margin-bottom:6px">Click a prompt to start a new entry</p>
@@ -1486,18 +1548,95 @@ function renderJournal(){
   ].map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${p.title}','${p.text}')"><span style="font-size:14px;flex-shrink:0">${p.icon}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${p.title}</div><div style="font-size:10px;color:var(--t2);line-height:1.3">${p.text}</div></div></div>`).join('')}</div>`;
 }
 
-function renderMail(){$('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" style="font-size:11px">📅 Schedule</button><button class="btn btn-s" style="font-size:11px">📧 Outlook</button></div></div>
-<div class="tabs"><div class="tab on">Workspace</div><div class="tab">Outlook</div><div class="tab">Gmail</div><div class="tab">Calendar</div><div class="tab">SharePoint</div></div>
-<div class="mcf"><div class="cd"><div style="font-size:13px;font-weight:600;margin-bottom:6px">Unified Inbox</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">23 unread</div>${[{s:'Sarah Johnson',sub:'Project update',t:'9:15 AM'},{s:'Michael Lee',sub:'Q2 Budget',t:'8:42 AM'},{s:'Marketing Team',sub:'Campaign report',t:'Yesterday'}].map(m=>`<div class="lr"><span style="width:5px;height:5px;border-radius:50%;background:var(--ac);flex-shrink:0"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${m.s}</div><div style="font-size:9px;color:var(--t3)">${m.sub}</div></div><span class="rm">${m.t}</span></div>`).join('')}</div>
-<div class="cd"><div style="font-size:13px;font-weight:600;margin-bottom:6px">Today's Agenda</div>${[{t:'9:00 AM',n:'Daily Standup'},{t:'10:30',n:'Budget Review'},{t:'1:30 PM',n:'Client Call'}].map(e=>`<div class="lr"><span style="font-size:10px;color:var(--t3);width:45px;flex-shrink:0">${e.t}</span><span class="rt">${e.n}</span><button class="btn btn-p" style="height:20px;font-size:9px;padding:0 6px">Join</button></div>`).join('')}</div>
-<div class="cd"><div style="font-size:13px;font-weight:600;margin-bottom:6px">Meeting Details</div><div style="font-size:14px;font-weight:600;margin-bottom:4px">Budget Review</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">Today · 10:30–11:30 AM · Teams</div><div style="display:flex;gap:4px"><button class="btn btn-p" style="height:24px;font-size:10px">Join Teams</button><button class="btn btn-s" style="height:24px;font-size:10px">Join Web</button></div></div>
-<div class="cd"><div style="font-size:13px;font-weight:600;margin-bottom:6px">SharePoint</div><input class="inp" style="margin-bottom:6px;height:28px;font-size:10px" placeholder="Search files...">${[{n:'Q2 Marketing Plan.pptx',m:'2h ago'},{n:'Budget Forecast.xlsx',m:'5h ago'},{n:'Client Proposal.docx',m:'Yesterday'}].map(f=>`<div class="lr"><span class="rt" style="font-size:10px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div></div>`}
+const _mailItems=[
+  {id:1,from:'Sarah Johnson',email:'sarah@acmecorp.com',subject:'Project update — Q2 milestones',time:'9:15 AM',body:'Hi Idris,\n\nJust wanted to share a quick update on the Q2 milestones. We are on track for the June 30 deadline. The design team has completed all mockups and dev is 60% done.\n\nLet me know if you need anything from my side.\n\nBest,\nSarah',read:false},
+  {id:2,from:'Michael Lee',email:'m.lee@finance.com',subject:'Q2 Budget — final numbers',time:'8:42 AM',body:'Hi Idris,\n\nAttached are the final Q2 budget numbers. Please review before the Budget Review meeting at 11 AM.\n\nKey points:\n- Marketing: 12% under budget\n- Engineering: 3% over (due to contractor costs)\n- Overall: within approved range\n\nMichael',read:false},
+  {id:3,from:'Marketing Team',email:'marketing@levelup.app',subject:'Campaign report — May results',time:'Yesterday',body:'Team,\n\nMay campaign results are in:\n- Email open rate: 34% (up from 28%)\n- Click-through: 8.2%\n- New signups from campaign: 142\n\nFull report in SharePoint.\n\n— Marketing',read:true},
+  {id:4,from:'Priya Nair',email:'priya@levelup.app',subject:'Sprint review notes',time:'Yesterday',body:'Idris,\n\nNotes from yesterday\'s sprint review are in Notion. Main action items for you:\n1. Review the auth refactor PR\n2. Sign off on the new onboarding flow\n3. Confirm demo date with advisory board\n\nPriya',read:true},
+  {id:5,from:'Marcus Webb',email:'marcus@levelup.app',subject:'AI research links',time:'2 days ago',body:'Hey,\n\nHere are those AI note-linking papers I mentioned:\n- Semantic search with embeddings (arXiv)\n- Knowledge graph approaches (Stanford)\n- Zettelkasten + AI hybrid (blog post)\n\nLet me know what you think.\nMarcus',read:true},
+];
+let _selectedMail=null;
+function openMailItem(id){
+  _selectedMail=id;
+  const mail=_mailItems.find(m=>m.id===id);
+  if(!mail)return;
+  mail.read=true;
+  // Re-render inbox list to show read state
+  const inboxEl=document.getElementById('mail-inbox-list');
+  if(inboxEl)inboxEl.innerHTML=renderMailInboxList();
+  // Show detail
+  const det=document.getElementById('mail-detail');
+  if(det)det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+  <div><div style="font-size:14px;font-weight:600">${esc(mail.subject)}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">From: ${esc(mail.from)} &lt;${esc(mail.email)}&gt;</div><div style="font-size:10px;color:var(--t3)">${mail.time}</div></div>
+  <div style="display:flex;gap:4px"><button class="btn btn-p" style="height:24px;font-size:10px" onclick="toast('Reply drafted')">Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Forwarded')">Forward</button></div>
+  </div>
+  <div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap;border-top:1px solid var(--bd1);padding-top:12px">${esc(mail.body)}</div>
+  <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
+  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Archived')">Archive</button>
+  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Flagged')">Flag</button>
+  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openFA('task')">Create Task</button>
+  </div>`;
+}
+function renderMailInboxList(){
+  return _mailItems.map(m=>`<div class="lr" style="cursor:pointer;background:${_selectedMail===m.id?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem(${m.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${_selectedMail===m.id?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from)}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${m.time}</span></div>`).join('');
+}
+function renderMail(){
+  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" style="font-size:11px" onclick="toast('Compose coming soon!')">+ Compose</button></div></div>
+<div class="tabs"><div class="tab on">Inbox</div><div class="tab" onclick="toast('Calendar tab — use the Calendar screen in sidebar')">Calendar</div><div class="tab" onclick="toast('Files tab coming soon!')">Files</div></div>
+<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
+<div style="border-right:1px solid var(--bd1);overflow-y:auto">
+<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span><span style="font-size:9px;color:var(--ac)">${_mailItems.filter(m=>!m.read).length} unread</span></div>
+<div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
+</div>
+<div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
+</div>`;
+}
 
-function renderCal(){$('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1></div><div style="display:flex;gap:4px"><button class="btn btn-p">+ Event</button><button class="btn btn-s">Today</button></div></div>
-<div class="tabs"><div class="tab on">Week</div><div class="tab">Day</div><div class="tab">Month</div></div>
-<div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${['Mon 19','Tue 20','Wed 21','Thu 22','Fri 23','Sat 24','Sun 25'].map(d=>`<div class="cal-hd">${d}</div>`).join('')}
+const _calEvents=[
+  {id:1,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:0,hour:9,color:'var(--ac)',desc:'Team sync — share blockers and wins',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:2,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:1,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:3,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:2,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:4,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:3,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:5,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:4,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:6,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:0,hour:10,color:'var(--ok)',desc:'Uninterrupted deep work — no Slack, no meetings',attendees:['Idris Grant'],location:'Office'},
+  {id:7,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:3,hour:10,color:'var(--ok)',desc:'Uninterrupted deep work',attendees:['Idris Grant'],location:'Office'},
+  {id:8,title:'Budget Review',time:'11:00 AM',end:'12:00 PM',day:0,hour:11,color:'var(--warn)',desc:'Q2 budget review with finance team. Review projections and approve headcount.',attendees:['Idris Grant','Priya Nair'],location:'Conf Room B'},
+  {id:9,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:0,hour:13,color:'var(--red)',desc:'Acme Inc. onboarding call. Discuss implementation timeline and success metrics.',attendees:['Idris Grant','Marcus Webb'],location:'Zoom'},
+  {id:10,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:3,hour:13,color:'var(--red)',desc:'Follow-up with Apex Corp.',attendees:['Idris Grant'],location:'Zoom'},
+  {id:11,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:1,hour:14,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
+  {id:12,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:4,hour:14,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
+  {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+];
+function openCalEvent(id){
+  const ev=_calEvents.find(e=>e.id===id);
+  if(!ev)return;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:16px;font-weight:600;margin-bottom:12px">${esc(ev.title)}</h2>
+  <div style="display:flex;flex-direction:column;gap:10px">
+  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${ev.time} – ${ev.end}</div><div style="font-size:10px;color:var(--t3)">This week</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">📍</span><div style="font-size:12px">${esc(ev.location||'No location')}</div></div>
+  <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||'No description')}</div></div>
+  <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${(ev.attendees||[]).map(a=>`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px">${a}</span>`).join('')}</div></div></div>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
+  <button class="btn btn-p" style="height:28px;font-size:11px" onclick="toast('Joining meeting...');closeModal()">Join Meeting</button>
+  <button class="btn btn-s" style="height:28px;font-size:11px" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function renderCal(){
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const today=new Date();
+  const dayOfWeek=today.getDay();
+  const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
+  const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${today.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="toast('Add event coming soon!')">+ Event</button><button class="btn btn-s" onclick="renderCal()">Today</button></div></div>
+<div class="tabs"><div class="tab on">Week</div><div class="tab" onclick="toast('Day view coming soon!')">Day</div><div class="tab" onclick="toast('Month view coming soon!')">Month</div></div>
+<div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((d,i)=>`<div class="cal-hd" style="${i===dayOfWeek-1?'color:var(--ac);font-weight:700':''}">\n${d}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{
-let ev='';if(h===9&&d<5)ev='<div class="cal-ev">Standup</div>';if(h===10&&(d===0||d===3))ev='<div class="cal-ev grn">Focus</div>';if(h===11&&d===0)ev='<div class="cal-ev amb">Budget</div>';if(h===13&&(d===0||d===3))ev='<div class="cal-ev rd">Client</div>';if(h===14&&(d===1||d===4))ev='<div class="cal-ev grn">Focus</div>';if(h===15&&d===2)ev='<div class="cal-ev prp">Product</div>';return`<div class="cal-c">${ev}</div>`}).join('')}`).join('')}</div></div>`}
+  const evs=_calEvents.filter(e=>e.day===d&&e.hour===h);
+  return`<div class="cal-c">${evs.map(e=>`<div class="cal-ev" style="background:${e.color}22;border-left:2px solid ${e.color};color:var(--t1);cursor:pointer" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('')}</div></div>`;
+}
 
 function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">Completed and archived items.</p></div>
 <div class="tabs"><div class="tab on">All</div><div class="tab">Tasks</div><div class="tab">Notes</div><div class="tab">Projects</div></div>
@@ -1978,11 +2117,21 @@ function renderProcess(){$('process-main').innerHTML=`<div class="pg-h"><h1>⚡ 
 <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Keys: <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">D</kbd> Do Next · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">S</kbd> Someday · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">X</kbd> Done</div>
 <div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`}
 
+function skipHabitToday(id){
+  const h=D.habits.find(x=>x.id===id);
+  if(!h)return;
+  h.skippedToday=true;
+  h.doneToday=false;
+  save('habits');
+  renderHabits();
+  toast(`⏭ Skipped “${h.title}” — streak preserved`);
+}
 function toggleHabit(id){
   const h=D.habits.find(x=>x.id===id);
   if(!h)return;
   const wasOff=!h.doneToday;
   h.doneToday=wasOff;
+  h.skippedToday=false; // un-skip if checking in
   if(wasOff){h.streak=(h.streak||0)+1;toast(h.icon+' '+h.title+' \u2014 \ud83d\udd25 '+h.streak+' day streak!');}
   else{h.streak=Math.max(0,(h.streak||1)-1);toast(h.icon+' Habit unchecked. Streak adjusted.');}
   save('habits');
@@ -2012,9 +2161,10 @@ function renderHabits(){
       </div>
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
         <div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
-        <span style="font-size:10px;color:${h.doneToday?'var(--ok)':'var(--t3)'}">${h.doneToday?'✓ Done today':'Not yet'}</span>
+        <span style="font-size:10px;color:${h.doneToday?'var(--ok)':h.skippedToday?'var(--purp)':'var(--t3)'}">${h.doneToday?'✓ Done today':h.skippedToday?'⏭ Skipped today':'Not Today'}</span>
         <span style="font-size:11px;color:var(--warn);margin-left:auto">🔥 ${h.streak}</span>
       </div>
+      ${!h.doneToday&&!h.skippedToday?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;margin-bottom:4px" onclick="event.stopPropagation();skipHabitToday(${h.id})" title="Skip today without breaking streak">⏭ Skip Today</button>`:''}
       ${lt?`<div style="font-size:9px;color:var(--t2);margin-bottom:4px">📋 Linked: ${esc(lt.title)}</div>`:''}
       <div class="hm">${genHM(h.streak)}</div>
     </div>`}).join('')}</div>
@@ -2306,8 +2456,9 @@ function renderSettingsHTML(){
   ${D.teams.map(team=>`<div class="team-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${esc(team.name)}</div><button class="btn btn-p" style="height:26px;font-size:10px" onclick="addTeamMember(${team.id})">+ Add Member</button></div>
   ${team.members.map(m=>`<div class="member-row"><div class="member-av" style="background:${m.color}">${m.name.split(' ').map(w=>w[0]).join('')}</div><div class="member-info"><div class="member-name">${esc(m.name)}</div><div class="member-role">${esc(m.email)} · ${m.role}</div></div>
   <select class="inp" style="width:80px;height:24px;font-size:10px" onchange="updateMemberRole(${team.id},${m.id},this.value)"><option ${m.role==='Owner'?'selected':''}>Owner</option><option ${m.role==='Admin'?'selected':''}>Admin</option><option ${m.role==='Member'?'selected':''}>Member</option><option ${m.role==='Viewer'?'selected':''}>Viewer</option></select>
+  <button class="btn btn-s" style="height:24px;font-size:9px" onclick="editTeamMember(${team.id},${m.id})">✏ Edit</button>
   <button class="btn btn-s" style="height:24px;font-size:9px" onclick="editPerms(${team.id},${m.id})">Permissions</button>
-  ${m.role!=='Owner'?`<button class="btn btn-d" style="height:24px;font-size:9px" onclick="removeMember(${team.id},${m.id})">✕</button>`:''}</div>`).join('')}
+  ${m.role!=='Owner'?`<button class="btn btn-d" style="height:24px;font-size:9px" onclick="if(confirm('Remove ${m.name} from team?'))removeMember(${team.id},${m.id})">✕ Remove</button>`:''}</div>`).join('')}
   </div>`).join('')}
   <button class="btn btn-s" onclick="addTeam()">+ Create Team</button>
   </div>
@@ -2429,8 +2580,34 @@ function addTeamMember(teamId){
 function updateMemberRole(teamId,memberId,role){
   D.teams.find(t=>t.id===teamId).members.find(m=>m.id===memberId).role=role;save('teams');toast('Role updated');
 }
+function editTeamMember(teamId,memberId){
+  const m=D.teams.find(t=>t.id===teamId).members.find(x=>x.id===memberId);
+  const d=document.getElementById('drawer-content');
+  d.innerHTML=`<h2>✏ Edit Member: ${esc(m.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div class="field"><label>Name</label><input class="inp" id="em-name" value="${esc(m.name)}"></div>
+  <div class="field"><label>Email</label><input class="inp" id="em-email" value="${esc(m.email||'')}"></div>
+  <div class="field"><label>Job Title</label><input class="inp" id="em-title" value="${esc(m.jobTitle||'')}"></div>
+  <div class="field"><label>Role</label><select class="inp" id="em-role"><option ${m.role==='Owner'?'selected':''}>Owner</option><option ${m.role==='Admin'?'selected':''}>Admin</option><option ${m.role==='Member'?'selected':''}>Member</option><option ${m.role==='Viewer'?'selected':''}>Viewer</option></select></div>
+  <div class="field"><label>Avatar Color</label><input type="color" class="inp" id="em-color" value="${m.color||'#3B82F6'}" style="height:36px;padding:2px"></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="saveTeamMember(${teamId},${memberId})">Save Changes</button>
+  ${m.role!=='Owner'?`<button class="btn btn-d" onclick="if(confirm('Remove ${esc(m.name)} from team?')){removeMember(${teamId},${memberId});closeDrawer();}">Remove Member</button>`:''}
+  </div>`;
+  document.getElementById('drawer-ov').classList.add('show');
+}
+function saveTeamMember(teamId,memberId){
+  const m=D.teams.find(t=>t.id===teamId).members.find(x=>x.id===memberId);
+  m.name=document.getElementById('em-name').value.trim()||m.name;
+  m.email=document.getElementById('em-email').value.trim();
+  m.jobTitle=document.getElementById('em-title').value.trim();
+  m.role=document.getElementById('em-role').value;
+  m.color=document.getElementById('em-color').value;
+  save('teams');
+  closeDrawer();
+  renderScreen('settings');
+  toast('✓ Member updated');
+}
 function removeMember(teamId,memberId){
-  if(!confirm('Remove this member?'))return;
   const team=D.teams.find(t=>t.id===teamId);team.members=team.members.filter(m=>m.id!==memberId);save('teams');renderScreen('settings');toast('Member removed');
 }
 function editPerms(teamId,memberId){
@@ -2456,24 +2633,54 @@ function handleOneNoteFiles(files){
     let tag='imported',title=nameNoExt;
     if(nameNoExt.includes(' - ')){const parts=nameNoExt.split(' - ');tag=parts[0].trim();title=parts.slice(1).join(' - ').trim()}
     else if(nameNoExt.includes('_')){const parts=nameNoExt.split('_');tag=parts[0].trim();title=parts.slice(1).join('_').trim()}
-    // Read PDF as text (basic extraction)
+    // Read PDF as text using proper extraction
     const reader=new FileReader();
     reader.onload=function(e){
-      let bodyText='[PDF content from: '+file.name+']\n\nThis note was imported from a OneNote PDF export.\nOriginal file size: '+(file.size/1024).toFixed(1)+' KB\n\nTo view the full content, open the original PDF file.';
-      // Try to extract text if possible (basic approach)
+      let bodyText='[PDF imported from: '+file.name+']\n\nFile size: '+(file.size/1024).toFixed(1)+' KB\n\nNote: Browser-based PDF text extraction has limitations. For best results, copy text directly from OneNote and paste into a new note.';
       try{
+        // Extract readable ASCII/Latin text from PDF binary
         const bytes=new Uint8Array(e.target.result);
-        const text=new TextDecoder('utf-8',{fatal:false}).decode(bytes);
-        const textMatches=text.match(/\(([^)]{3,200})\)/g);
-        if(textMatches&&textMatches.length>5){
-          const extracted=textMatches.map(m=>m.slice(1,-1)).filter(s=>s.length>3&&!s.includes('\\')).join(' ').substring(0,2000);
-          if(extracted.length>50)bodyText=extracted+'\n\n[Extracted from PDF - may contain formatting artifacts]';
+        // Convert to Latin1 string to preserve all byte values
+        let raw='';
+        for(let i=0;i<Math.min(bytes.length,200000);i++)raw+=String.fromCharCode(bytes[i]);
+        // Extract text from PDF stream content operators (BT...ET blocks)
+        const btBlocks=raw.match(/BT[\s\S]*?ET/g)||[];
+        let lines=[];
+        btBlocks.forEach(block=>{
+          // Extract strings from Tj, TJ, ' operators
+          const strMatches=block.match(/\(([^)\\]|\\.)*\)\s*Tj|\[([^\]]*)\]\s*TJ/g)||[];
+          strMatches.forEach(sm=>{
+            // Extract content from parentheses
+            const inner=sm.match(/\(([^)\\]|\\.)*\)/g)||[];
+            inner.forEach(s=>{
+              let t=s.slice(1,-1)
+                .replace(/\\n/g,'\n').replace(/\\r/g,'').replace(/\\t/g,' ')
+                .replace(/\\\(/g,'(').replace(/\\\)/g,')').replace(/\\\\/g,'\\')
+                .replace(/\\[0-7]{3}/g,m=>String.fromCharCode(parseInt(m.slice(1),8)));
+              // Keep only printable ASCII and common Latin chars
+              t=t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,'');
+              if(t.trim().length>0)lines.push(t);
+            });
+          });
+        });
+        // Also try to get text from raw string literals outside BT blocks
+        if(lines.length<5){
+          const rawStrings=raw.match(/\(([A-Za-z0-9 ,\.\-\'\"\!\?\:\;\n\t]{4,200})\)/g)||[];
+          rawStrings.forEach(s=>{
+            const t=s.slice(1,-1).trim();
+            if(t.length>3&&!/^[\d\s\.]+$/.test(t))lines.push(t);
+          });
         }
-      }catch(ex){}
-      D.notes.push({id:nextId(D.notes),title:title||nameNoExt,tags:[tag.toLowerCase(),'onenote'],source:'OneNote Import',updated:'Just now',starred:false,body:bodyText});
+        const extracted=lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+        if(extracted.length>100){
+          bodyText=extracted.substring(0,5000)+(extracted.length>5000?'\n\n[...content truncated at 5000 chars]':'');
+        }
+      }catch(ex){console.warn('PDF extraction error:',ex);}
+      D.notes.push({id:nextId(D.notes),title:title||nameNoExt,tags:[tag.toLowerCase(),'onenote'],source:'OneNote Import',updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
       save('notes');imported++;
-      res.innerHTML=`<div style="font-size:12px;color:var(--ok)">✓ Imported ${imported} note(s)</div>`;
-      res.innerHTML+=`<div class="lr" onclick="openDrawer('note',D.notes[D.notes.length-1])"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
+      invalidateSearchIndex();
+      res.innerHTML=`<div style="font-size:12px;color:var(--ok)">✓ Imported ${imported} note(s) successfully</div>`;
+      res.innerHTML+=`<div class="lr" style="cursor:pointer" onclick="nav('notes');setTimeout(()=>openDrawer('note',D.notes.find(x=>x.id===${D.notes[D.notes.length-1].id})),100)"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
     };
     reader.readAsArrayBuffer(file);
   });
@@ -2524,6 +2731,70 @@ function toggleAIPanel(){
     appendAIChat('bot','👋 Hi! I\'m your LevelUp assistant. I can help with tasks, goals, meeting prep, and more. I also share updates on your subscribed topics (Technology, World News, etc). What would you like help with?');
   }
 }
+function toggleNotifPanel(){
+  const p=document.getElementById('notif-panel');
+  const isOpen=p.style.display==='flex';
+  p.style.display=isOpen?'none':'flex';
+  if(!isOpen)renderNotifPanel();
+  // Close if clicking outside
+  if(!isOpen){
+    setTimeout(()=>{
+      function outsideClick(e){
+        if(!p.contains(e.target)&&e.target.id!=='notif-btn'){
+          p.style.display='none';
+          document.removeEventListener('click',outsideClick);
+        }
+      }
+      document.addEventListener('click',outsideClick);
+    },10);
+  }
+}
+function buildNotifs(){
+  const today=_todayStr;
+  const notifs=[];
+  // Overdue tasks
+  D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).forEach(t=>{
+    notifs.push({id:'od-'+t.id,type:'warning',icon:'⚠️',title:'Overdue task',body:t.title,time:t.due,read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+  });
+  // Tasks due today
+  D.tasks.filter(t=>t.status!=='Done'&&t.due===today).forEach(t=>{
+    notifs.push({id:'td-'+t.id,type:'info',icon:'📋',title:'Due today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+  });
+  // Habits not done
+  D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily').forEach(h=>{
+    notifs.push({id:'hb-'+h.id,type:'habit',icon:h.icon,title:'Habit pending',body:h.title+(h.startTime?' · '+h.startTime:''),time:'Today',read:false,action:()=>{toggleNotifPanel();nav('habits');}});
+  });
+  // Goals near deadline
+  D.goals.filter(g=>g.due&&g.pct<100).forEach(g=>{
+    const daysLeft=Math.ceil((new Date(g.due)-new Date())/(1000*60*60*24));
+    if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:g.due,read:false,action:()=>{toggleNotifPanel();nav('goals');}});
+  });
+  // Snoozed tasks due back today
+  D.tasks.filter(t=>t.snoozeUntil===today&&t.status!=='Done').forEach(t=>{
+    notifs.push({id:'sn-'+t.id,type:'snooze',icon:'⏰',title:'Snoozed task back today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+  });
+  return notifs;
+}
+function renderNotifPanel(){
+  const list=document.getElementById('notif-list');
+  if(!list)return;
+  const notifs=buildNotifs();
+  const badge=document.getElementById('notif-badge');
+  if(badge)badge.textContent=notifs.length||'';
+  if(!notifs.length){
+    list.innerHTML='<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:12px">🎉 All caught up! No new notifications.</div>';
+    return;
+  }
+  const typeColor={warning:'var(--red)',info:'var(--ac)',habit:'var(--ok)',goal:'var(--warn)',snooze:'var(--purp)'};
+  list.innerHTML=notifs.map(n=>`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--bd1)" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="(${n.action.toString()})()"><div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">${n.icon}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}</div><div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div><div style="font-size:9px;color:var(--t3)">${n.time}</div></div></div>`).join('');
+}
+function markAllNotifsRead(){
+  const list=document.getElementById('notif-list');
+  if(list)list.innerHTML='<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:12px">🎉 All caught up! No new notifications.</div>';
+  const badge=document.getElementById('notif-badge');
+  if(badge)badge.textContent='';
+  toast('All notifications marked as read');
+}
 function appendAIChat(role,msg){
   const c=document.getElementById('ai-chat');
   const d=document.createElement('div');d.className='ai-chat-msg '+role;d.textContent=msg;
@@ -2552,6 +2823,21 @@ function sendAIMsg(){
 // ====== JOURNAL HELPERS ======
 function calcJournalStreak(){
   return D.journal.length > 0 ? Math.min(D.journal.length, 30) : 0;
+}
+function renderNotePreview(src){
+  const el=document.getElementById('fa-note-preview');
+  if(!el)return;
+  const html=src
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:8px 0 3px">$1</h3>')
+    .replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:10px 0 4px">$1</h2>')
+    .replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:12px 0 5px">$1</h1>')
+    .replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0">$1</li>')
+    .replace(/`([^`]+)`/g,'<code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+    .replace(/\n/g,'<br>');
+  el.innerHTML=html||'<em style="color:var(--t3)">Preview will appear here as you type...</em>';
 }
 function openJournalPrompt(title, promptText){
   capType='Journal';
@@ -2709,7 +2995,7 @@ function checkMyDayReset(){
   // Reset habit completion flags for a new day
   let habitsChanged=false;
   D.habits.forEach(h=>{
-    if(h.doneToday){h.doneToday=false;habitsChanged=true;}
+    if(h.doneToday||h.skippedToday){h.doneToday=false;h.skippedToday=false;habitsChanged=true;}
   });
   if(habitsChanged)save('habits');
   localStorage.setItem('lu_myday_reset',today);
@@ -3339,8 +3625,11 @@ function renderFANote(){
     ${faCommonScope()}
     <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
     <div class="fa-field">
-      <label>Content</label>
-      <textarea class="fa-inp" id="fa-desc" style="min-height:120px" placeholder="Write your note in markdown..."></textarea>
+      <label style="display:flex;justify-content:space-between;align-items:center">Content <span style="font-size:9px;color:var(--t3);font-weight:400">Markdown supported</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <textarea class="fa-inp" id="fa-desc" style="min-height:140px;font-family:monospace;font-size:11px" placeholder="# Title\n\nWrite your note in **markdown**...\n\n- Bullet points\n- **Bold**, *italic*" oninput="renderNotePreview(this.value)"></textarea>
+        <div id="fa-note-preview" style="min-height:140px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;color:var(--t2);line-height:1.6;overflow-y:auto"><em style="color:var(--t3)">Preview will appear here as you type...</em></div>
+      </div>
     </div>
   </div>
   <!-- Decision fields -->
