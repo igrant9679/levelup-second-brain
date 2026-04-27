@@ -260,7 +260,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}.dot-g{background:var(--ok)}.dot-r{background:var(--red)}.dot-x{background:var(--t3)}
 
 /* TOAST */
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;z-index:300;animation:popIn .2s ease;pointer-events:none}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(45,55,72,0.92);color:#f0f4ff;padding:9px 18px;border-radius:10px;font-size:12px;z-index:300;animation:popIn .2s ease;pointer-events:none;border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,0.35)}
 
 /* HABIT HEATMAP */
 .hm{display:flex;gap:1px;flex-wrap:wrap}.hm-c{width:7px;height:7px;border-radius:1px;background:var(--s3)}.hm-c.ok{background:var(--ok)}.hm-c.mi{background:var(--s4)}
@@ -608,12 +608,13 @@ function openDrawer(type,item){
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
 function renderDrawer(type,item){
+  const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:10px;margin-right:4px" onclick="togglePin('${t}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
   const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
   if(type==='task'){
     const subs=item.subtasks||[];
     const subHtml=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
     const doneCount=subs.filter(s=>s.done).length;
-    return `<h2>📋 Edit Task ${cb}</h2>
+    return `<h2>📋 Edit Task ${pinBtn('task',item.id)}${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field-row">
       <div class="field"><label>Priority</label><select class="inp" id="dr-pri"><option ${item.priority==='High'?'selected':''}>High</option><option ${item.priority==='Medium'?'selected':''}>Medium</option><option ${item.priority==='Low'?'selected':''}>Low</option></select></div>
@@ -658,7 +659,7 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='note'){
-    return `<h2>📝 Edit Note ${cb}</h2>
+    return `<h2>📝 Edit Note ${pinBtn('note',item.id)}${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field"><label>Tags (comma separated)</label><input class="inp" value="${(item.tags||[]).join(', ')}" id="dr-tags"></div>
     <div class="field"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
@@ -682,7 +683,7 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='goal'){
-    return `<h2>🎯 Edit Goal ${cb}</h2>
+    return `<h2>🎯 Edit Goal ${pinBtn('goal',item.id)}${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field-row">
       <div class="field"><label>Icon</label><input class="inp" value="${item.icon}" id="dr-icon" style="width:60px"></div>
@@ -790,11 +791,12 @@ function toggleSubtask(taskId,idx){
   if(!t||!t.subtasks[idx])return;
   t.subtasks[idx].done=!t.subtasks[idx].done;
   save('tasks');
+  // Update drawer subtask list if open
   const list=document.getElementById('subtask-list');
-  if(list){
-    const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
-  }
+  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');}
+  // Update exec list if on My Day
+  const execList=document.getElementById('md-exec-list');
+  if(execList){const activeTab=document.querySelector('#md-e .tab.on');const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';execList.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);}
 }
 function deleteSubtask(taskId,idx){
   const t=D.tasks.find(x=>x.id===taskId);
@@ -932,7 +934,7 @@ function renderScreen(s){
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
-  return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  return `<div class="lr" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -969,6 +971,14 @@ function delegateTask(id){
   save('tasks');
   toast(`📤 Task delegated to ${assignee}`);
   renderScreen(curScreen);
+}
+function togglePin(type,id){
+  if(!D.prefs.pinned)D.prefs.pinned=[];
+  const idx=D.prefs.pinned.findIndex(p=>p.type===type&&p.id===id);
+  if(idx>=0){D.prefs.pinned.splice(idx,1);toast('📌 Unpinned');}
+  else{D.prefs.pinned.push({type,id});toast('📌 Pinned to Home');}
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  if(curScreen==='home')renderScreen('home');
 }
 function moveSomeday(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -1042,6 +1052,20 @@ function renderHome(){
     if(!top.length)return '';
     const fmtTs=ts=>{const d=new Date(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id===${r.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:9px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
+  })()}
+  ${(()=>{
+    if(!D.prefs.pinned||!D.prefs.pinned.length)return '';
+    const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
+    const typeColor={task:'var(--ac)',note:'var(--ok)',project:'var(--warn)',goal:'var(--red)',journal:'#a78bfa',habit:'#fb923c'};
+    const rows=D.prefs.pinned.map(p=>{
+      const arr=p.type==='project'?D.projects:p.type==='habit'?D.habits:D[p.type+'s'];
+      const item=arr&&arr.find(x=>x.id===p.id);
+      if(!item)return '';
+      const label=item.title||item.name||'Untitled';
+      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id===${p.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:9px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
+    }).filter(Boolean).join('');
+    if(!rows)return '';
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">📌 Pinned</span></div>${rows}</div>`;
   })()}`;
 }
 function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
@@ -1081,7 +1105,7 @@ function renderTasks(){
     if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
     list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="bulkCompleteVisible()" title="Mark all visible tasks Done">✓ All Done</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div class="cd" id="tasks-list"></div>`;
   renderTaskList();
@@ -1089,6 +1113,20 @@ function renderTasks(){
   ${['9 AM|Daily Standup','10 AM|Focus Block','12 PM|Budget Review','1 PM|Client Call','3 PM|Focus Time'].map(e=>{const[t,n]=e.split('|');return`<div style="display:flex;gap:4px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:30px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:9px">${n}</div></div>`}).join('')}`;
 }
 
+function bulkCompleteVisible(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  const rows=list.querySelectorAll('[data-task-id]');
+  if(!rows.length){toast('No tasks to complete');return;}
+  if(!confirm(`Mark ${rows.length} visible task(s) as Done?`))return;
+  rows.forEach(el=>{
+    const id=parseInt(el.dataset.taskId);
+    const t=D.tasks.find(x=>x.id===id);
+    if(t&&t.status!=='Done'){t.status='Done';maybeSpawnRecurring(t);}
+  });
+  save('tasks');updateSidebarBadges();renderScreen(curScreen);
+  toast(`✓ ${rows.length} task(s) marked Done`);
+}
 let _notesMyOnly=false;
 function renderNotesList_html(myOnly){
   const me=D.creds.userName||'Idris Grant';
@@ -1098,6 +1136,15 @@ function renderNotesList_html(myOnly){
 function renderNotesList(){
   const el=document.getElementById('notes-list-inner');
   if(el)el.innerHTML=renderNotesList_html(_notesMyOnly);
+}
+function filterNotesList(q){
+  const el=document.getElementById('notes-list-inner');
+  if(!el)return;
+  const me=D.creds.userName||'Idris Grant';
+  const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  const lq=(q||'').toLowerCase().trim();
+  const filtered=lq?base.filter(n=>(n.title||'').toLowerCase().includes(lq)||(n.body||'').toLowerCase().includes(lq)||(n.tags||[]).some(t=>t.toLowerCase().includes(lq))):base;
+  el.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||'<p style="color:var(--t3);font-size:11px;padding:8px">No notes match.</p>';
 }
 function renderNotes(){
   const nb=$('notes-body');
@@ -1109,6 +1156,7 @@ function renderNotes(){
   ${['Projects 14','Areas 8','Resources 36','Archive 57'].map(x=>{const[n,c]=x.split(' ');return`<div class="nn">${n}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`}).join('')}
   </div>
   <div class="notes-list"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:13px;font-weight:600">Notes</div><div style="display:flex;background:var(--s3);border-radius:5px;overflow:hidden"><button id="notes-scope-my" class="btn" style="border-radius:0;height:22px;font-size:9px;background:var(--ac);color:#fff;border:none;padding:0 7px" onclick="_notesMyOnly=true;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button><button id="notes-scope-all" class="btn" style="border-radius:0;height:22px;font-size:9px;background:transparent;color:var(--t2);border:none;padding:0 7px" onclick="_notesMyOnly=false;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';renderNotesList()">All</button></div></div>
+  <input id="notes-search" class="inp" placeholder="🔍 Search notes..." style="width:100%;margin-bottom:6px;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
   <div id="notes-list-inner">${renderNotesList_html(false)}</div>
   </div>
   <div class="notes-editor" style="padding:16px">${D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3)">Select a note to edit</p>'}</div>
@@ -1539,17 +1587,7 @@ function startInlineEdit(taskId){
   inp.focus();
   inp.select();
 }
-function toggleSubtask(taskId,subIdx){
-  const t=D.tasks.find(x=>x.id===taskId);
-  if(!t||!t.subtasks[subIdx])return;
-  t.subtasks[subIdx].done=!t.subtasks[subIdx].done;
-  save('tasks');
-  // Re-render just the exec list without full screen re-render
-  const list=document.getElementById('md-exec-list');
-  const activeTab=document.querySelector('#md-e .tab.on');
-  const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';
-  if(list)list.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);
-}
+// toggleSubtask is defined above (unified)
 // ====== POMODORO FOCUS TIMER ======
 let _pomoInterval=null,_pomoSecs=25*60,_pomoTotal=25*60,_pomoRunning=false,_pomoSession=1,_pomoTaskId=null;
 function pomoSetMode(mins){
