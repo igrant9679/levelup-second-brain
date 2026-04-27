@@ -266,21 +266,21 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <template id="sb-tpl">
 <div style="padding:0 4px">
 <div class="si" data-n="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="l">Home</span></div>
-<div class="si" data-n="myday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg><span class="l">My Day</span><span class="c">8</span></div>
+<div class="si" data-n="myday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg><span class="l">My Day</span><span class="c" id="badge-myday"></span></div>
 <div class="si" data-n="myweek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">My Week</span></div>
 <div class="si" data-n="myyear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">My Year</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span class="l">Quick Capture</span></div>
-<div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c">12</span></div>
+<div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c" id="badge-process"></span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
-<div class="si" data-n="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c">12</span></div>
-<div class="si" data-n="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c">8</span></div>
+<div class="si" data-n="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
+<div class="si" data-n="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
 <div class="si" data-n="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
-<div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c">23</span></div>
+<div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c" id="badge-mail">23</span></div>
 <div class="si" data-n="goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
-<div class="si" data-n="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span></div>
-<div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c">3</span></div>
+<div class="si" data-n="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span><span class="c" id="badge-habits"></span></div>
+<div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c" id="badge-coach"></span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
 <div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
@@ -553,6 +553,10 @@ function renderDrawer(type,item){
       <div class="field"><label>Energy</label><select class="inp" id="dr-energy"><option ${item.energy==='high'?'selected':''}>high</option><option ${item.energy==='medium'?'selected':''}>medium</option><option ${item.energy==='low'?'selected':''}>low</option></select></div>
       <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Assigned To</label><select class="inp" id="dr-assignee"><option value="">Unassigned</option>${D.teams.flatMap(t=>t.members).map(m=>`<option value="${esc(m.name)}" ${item.assignedTo===m.name?'selected':''}>${esc(m.name)} (${m.role})</option>`).join('')}</select></div>
+      <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
+    </div>
     <div class="field"><label>Notes</label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
     <div class="field"><label>Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:''}</label>
     <div id="subtask-list">${subHtml}</div>
@@ -644,6 +648,8 @@ function saveItem(type,id){
     const gSel=document.getElementById('dr-goal');
     t.linkedGoalId=gSel.value?parseInt(gSel.value):null;
     t.notes=$('#dr-notes').value;
+    const aSel=document.getElementById('dr-assignee');
+    t.assignedTo=aSel?aSel.value||null:t.assignedTo;
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;n.updated='Just now';save('notes')}}
@@ -798,6 +804,34 @@ function doCapture(){
 }
 
 // ====== RENDER SCREENS ======
+function setBadge(id,val){
+  // Update all instances of this badge across all cloned sidebars
+  document.querySelectorAll('#'+id).forEach(el=>{
+    if(val&&val>0){el.textContent=val>99?'99+':val;el.style.display='';}
+    else{el.textContent='';el.style.display='none';}
+  });
+}
+function updateSidebarBadges(){
+  const today=new Date().toISOString().split('T')[0];
+  // My Day: tasks in My Day not done
+  const myDayCount=D.tasks.filter(t=>t.myDay&&t.status!=='Done').length;
+  setBadge('badge-myday',myDayCount);
+  // Tasks: overdue tasks (not done, due < today)
+  const overdueCount=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  setBadge('badge-tasks',overdueCount);
+  // Notes: starred notes
+  const starredNotes=D.notes.filter(n=>n.starred).length;
+  setBadge('badge-notes',starredNotes);
+  // Process: inbox tasks (Not Started, no project)
+  const inboxCount=D.tasks.filter(t=>t.status==='Not Started'&&!t.projectId).length;
+  setBadge('badge-process',inboxCount);
+  // Habits: habits not done today
+  const habitsPending=D.habits.filter(h=>!h.doneToday).length;
+  setBadge('badge-habits',habitsPending);
+  // Coach: sum of overdue + habits pending (actionable items)
+  const coachCount=overdueCount+habitsPending;
+  setBadge('badge-coach',coachCount>0?coachCount:null);
+}
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
   if(s==='mail')renderMail();if(s==='calendar')renderCal();if(s==='projects')renderProjects();
@@ -806,6 +840,7 @@ function renderScreen(s){
   if(s==='process')renderProcess();if(s==='habits')renderHabits();if(s==='coach')renderCoach();
   if(s==='team')renderTeam();
   if(s==='settings')renderSettings();
+  updateSidebarBadges();
 }
 
 function taskRow(t,showActs=true){
@@ -973,10 +1008,37 @@ function renderNoteEditor(n){
 
 let projView='list';
 function renderProjects(){
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><div style="display:flex;gap:4px"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn btn-p" onclick="openModal('capture')">+ New</button></div></div>`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='team'?'btn-p':'btn-s'}" onclick="projView='team';renderProjects()">👥 Team</button><button class="btn btn-p" onclick="openModal('capture')">+ New</button></div></div>`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
+  else if(projView==='team') renderProjectsTeamKanban(header);
   else renderProjectsGantt(header);
+}
+function renderProjectsTeamKanban(header){
+  const allMembers=D.teams.flatMap(t=>t.members);
+  // Build columns: one per member + Unassigned
+  const cols=[...allMembers.map(m=>({key:m.name,label:m.name,color:m.color,initials:m.name.split(' ').map(w=>w[0]).join('')})),{key:null,label:'Unassigned',color:'var(--t3)',initials:'?'}];
+  const colHtml=cols.map(col=>{
+    const tasks=D.tasks.filter(t=>t.status!=='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key)));
+    const done=D.tasks.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
+    return`<div style="flex:1;min-width:200px;max-width:280px">
+      <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">
+        <div style="width:22px;height:22px;border-radius:50%;background:${col.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
+        <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
+        <span style="font-size:10px;color:var(--t3)">${tasks.length} active · ${done} done</span>
+      </div>
+      ${tasks.map(t=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+        <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
+        <div style="display:flex;gap:6px;font-size:9px;color:var(--t3)">
+          <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
+          ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
+          ${t.due?`<span>📅 ${t.due}</span>`:''}
+        </div>
+        ${(t.subtasks||[]).length?`<div style="font-size:9px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
+      </div>`).join('')}
+      ${tasks.length===0?`<div style="font-size:10px;color:var(--t3);padding:8px;text-align:center">No active tasks</div>`:''}
+    </div>`}).join('');
+  $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Tasks grouped by assignee. Click any card to edit assignment.</div><div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
 function renderProjectsList(header){
   $('proj-main').innerHTML=header+
@@ -2521,6 +2583,7 @@ function doLoginSuccess(member){
   initSidebars('home');
   updateProfileUI();
   renderScreen('home');
+  updateSidebarBadges();
   setTimeout(startAIAssistant,5000);
   toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
 }
