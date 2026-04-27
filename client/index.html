@@ -804,9 +804,42 @@ function renderHome(){
 function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
 function renderTasks(){
+  // Compute week bounds for This Week filter
+  const _twNow=new Date();
+  const _twDay=_twNow.getDay();
+  const _twMon=new Date(_twNow);
+  _twMon.setDate(_twNow.getDate()-(_twDay===0?6:_twDay-1));
+  _twMon.setHours(0,0,0,0);
+  const _twSun=new Date(_twMon);
+  _twSun.setDate(_twMon.getDate()+6);
+  _twSun.setHours(23,59,59,999);
+  const _twFmt=d=>d.toISOString().split('T')[0];
+  const _twStart=_twFmt(_twMon);
+  const _twEnd=_twFmt(_twSun);
+  function _taskInWeek(t){
+    const d=t.startDate||t.due||'';
+    return d>=_twStart&&d<=_twEnd;
+  }
+  const _todayStr=_twFmt(_twNow);
+  const tabDefs=[
+    {label:'Today',filter:t=>t.due===_todayStr||t.startDate===_todayStr,badge:D.tasks.filter(t=>t.due===_todayStr||t.startDate===_todayStr).length},
+    {label:'This Week',filter:_taskInWeek,badge:D.tasks.filter(_taskInWeek).length},
+    {label:'Inbox',filter:t=>t.status==='Not Started'},
+    {label:'Recurring',filter:t=>t.recurring&&t.recurring!=='None'},
+    {label:'Someday',filter:t=>t.status==='Someday'},
+    {label:'Done',filter:t=>t.status==='Done'},
+  ];
+  let _taskFilter=tabDefs[0].filter;
+  function renderTaskList(){
+    const list=document.getElementById('tasks-list');
+    if(!list)return;
+    const filtered=D.tasks.filter(_taskFilter);
+    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openModal(\'capture\')">'+'+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openModal(\'capture\')">+ Add one</span></p>';
+  }
   $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ Quick Add Task</button></div>
-  <div class="tabs">${['Today','Inbox','Week','Month','Recurring','Someday'].map((t,i)=>`<div class="tab ${i===0?'on':''}">${t}${i===0?` <span class="tc">${D.tasks.filter(x=>x.due==='Today').length}</span>`:''}</div>`).join('')}</div>
-  <div class="cd">${D.tasks.map(t=>taskRow(t)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`;
+  <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
+  <div class="cd" id="tasks-list"></div>`;
+  renderTaskList();
   $('tasks-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Week Calendar</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">May 19–25, 2025</div>
   ${['9 AM|Daily Standup','10 AM|Focus Block','12 PM|Budget Review','1 PM|Client Call','3 PM|Focus Time'].map(e=>{const[t,n]=e.split('|');return`<div style="display:flex;gap:4px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:30px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:9px">${n}</div></div>`}).join('')}`;
 }
@@ -1067,13 +1100,83 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
 <div class="subnav"><span class="sn on" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p"><div class="sec-h">📋 Plan — Select tasks for today</div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
-<div id="md-e" style="display:none"><div class="sec-h">⚡ Execute — My Day tasks</div>
+<div id="md-e" style="display:none">
+<div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+    <div id="pomo-timer" style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac);letter-spacing:1px">25:00</div>
+    <div id="pomo-label" style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Focus</div>
+  </div>
+  <div style="flex:1;min-width:120px">
+    <div id="pomo-task-name" style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:3px">No task selected</div>
+    <div style="background:var(--s3);border-radius:3px;height:4px;overflow:hidden"><div id="pomo-progress" style="background:var(--ac);height:100%;width:0%;transition:width 1s linear"></div></div>
+    <div id="pomo-sessions" style="font-size:9px;color:var(--t3);margin-top:2px">Session 1 of 4</div>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn btn-p" id="pomo-btn" onclick="pomoToggle()" style="min-width:64px">▶ Start</button>
+    <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
+    <select class="inp" id="pomo-mode" onchange="pomoSetMode(this.value)" style="font-size:10px;padding:2px 6px;height:26px">
+      <option value="25">25 min Focus</option>
+      <option value="50">50 min Deep Work</option>
+      <option value="5">5 min Break</option>
+      <option value="15">15 min Long Break</option>
+    </select>
+  </div>
+</div>
+<div class="sec-h">⚡ Execute — My Day tasks</div>
 <div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
 <div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:none"><div class="sec-h">🌙 Wrap-Up</div>
-<div class="g3" style="margin-bottom:12px"><div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div><div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div><div class="stat"><div class="stat-n" style="color:var(--ac)">2:45</div><div class="stat-l">Focus time</div></div></div>
-<div class="cd"><div style="font-size:12px;font-weight:500;margin-bottom:6px">📝 Journal Entry</div><textarea class="inp" placeholder="What worked today?"></textarea></div></div>`}
+<div class="g3" style="margin-bottom:12px">
+  <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
+  <div class="stat"><div class="stat-n" style="color:var(--ac)">${Math.floor((D.prefs&&D.prefs.focusMinsToday||0)/60)+'h '+(D.prefs&&D.prefs.focusMinsToday||0)%60+'m'}</div><div class="stat-l">Focus time</div></div>
+</div>
+<div class="cd">
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px">📝 Daily Reflection</div>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">What went well today?</div>
+  <textarea class="inp" id="wrapup-wins" placeholder="Wins, breakthroughs, things to celebrate..." style="height:56px;margin-bottom:8px"></textarea>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">What could be improved?</div>
+  <textarea class="inp" id="wrapup-improve" placeholder="Challenges, blockers, lessons learned..." style="height:56px;margin-bottom:8px"></textarea>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Top priority for tomorrow?</div>
+  <textarea class="inp" id="wrapup-tomorrow" placeholder="One thing that will make tomorrow great..." style="height:40px;margin-bottom:10px"></textarea>
+  <button class="btn btn-p" style="width:100%" onclick="saveWrapUp()">Save as Journal Entry</button>
+</div></div>`}
 function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none')}
+function saveWrapUp(){
+  const wins=(document.getElementById('wrapup-wins')||{}).value||'';
+  const improve=(document.getElementById('wrapup-improve')||{}).value||'';
+  const tomorrow=(document.getElementById('wrapup-tomorrow')||{}).value||'';
+  if(!wins&&!improve&&!tomorrow){toast('Please fill in at least one reflection field.');return;}
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  const body=[
+    wins?'**What went well:**\n'+wins:'',
+    improve?'**What could be improved:**\n'+improve:'',
+    tomorrow?'**Top priority for tomorrow:**\n'+tomorrow:'',
+    '---',
+    '🍅 Focus sessions today: '+(D.prefs&&D.prefs.focusMinsToday||0)+' mins',
+    '✅ Tasks done: '+D.tasks.filter(t=>t.status==='Done').length,
+    '⏳ Carried over: '+D.tasks.filter(t=>t.myDay&&t.status!=='Done').length,
+  ].filter(Boolean).join('\n\n');
+  const entry={
+    id:nextId(D.journal),
+    date:today.toISOString().split('T')[0],
+    title:'Daily Wrap-Up — '+dateStr,
+    body,
+    mood:'😊',
+    energy:'medium',
+    tags:['wrap-up','daily-review'],
+    created:today.toISOString(),
+  };
+  D.journal.unshift(entry);
+  save('journal');
+  // Reset fields
+  ['wrapup-wins','wrapup-improve','wrapup-tomorrow'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value='';
+  });
+  toast('📝 Wrap-Up saved to Journal!');
+}
 function renderMdExecList(filter){
   let tasks=D.tasks.filter(t=>t.myDay);
   if(filter==='high')tasks=tasks.filter(t=>t.priority==='High');
@@ -1100,6 +1203,7 @@ function renderMdExecList(filter){
           ${t.notes?`<div style="font-size:10px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+          <button class="btn btn-p" style="font-size:9px;padding:1px 6px;height:20px" title="Focus on this task" onclick="pomoSelectTask(${t.id});toast('🎯 Focusing on: '+esc(D.tasks.find(x=>x.id===${t.id})?.title||''))">⏱</button>
           <button class="btn btn-s" style="font-size:9px;padding:1px 6px;height:20px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button>
           <button class="btn btn-s" style="font-size:9px;padding:1px 6px;height:20px" onclick="D.tasks.find(x=>x.id===${t.id}).myDay=false;save('tasks');renderScreen('myday')">✕</button>
         </div>
@@ -1139,6 +1243,90 @@ function toggleSubtask(taskId,subIdx){
   const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';
   if(list)list.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);
 }
+// ====== POMODORO FOCUS TIMER ======
+let _pomoInterval=null,_pomoSecs=25*60,_pomoTotal=25*60,_pomoRunning=false,_pomoSession=1,_pomoTaskId=null;
+function pomoSetMode(mins){
+  if(_pomoRunning)pomoToggle();
+  _pomoTotal=parseInt(mins)*60;
+  _pomoSecs=_pomoTotal;
+  _pomoUpdateDisplay();
+}
+function _pomoUpdateDisplay(){
+  const m=Math.floor(_pomoSecs/60),s=_pomoSecs%60;
+  const el=document.getElementById('pomo-timer');
+  if(el)el.textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  const prog=document.getElementById('pomo-progress');
+  if(prog)prog.style.width=(((_pomoTotal-_pomoSecs)/_pomoTotal)*100)+'%';
+  const sess=document.getElementById('pomo-sessions');
+  if(sess)sess.textContent='Session '+_pomoSession+' of 4';
+}
+function pomoToggle(){
+  const btn=document.getElementById('pomo-btn');
+  if(_pomoRunning){
+    clearInterval(_pomoInterval);
+    _pomoRunning=false;
+    if(btn)btn.textContent='▶ Resume';
+  } else {
+    _pomoRunning=true;
+    if(btn)btn.textContent='⏸ Pause';
+    _pomoInterval=setInterval(()=>{
+      _pomoSecs--;
+      _pomoUpdateDisplay();
+      if(_pomoSecs<=0){
+        clearInterval(_pomoInterval);
+        _pomoRunning=false;
+        const isBreak=_pomoTotal<=15*60&&_pomoTotal>=5*60;
+        if(!isBreak){
+          // Mark linked task done if one is selected
+          if(_pomoTaskId){
+            const t=D.tasks.find(x=>x.id===_pomoTaskId);
+            if(t&&t.status!=='Done'){toggleTask(_pomoTaskId);}
+          }
+          // Log focus time to D.prefs
+          D.prefs=D.prefs||{};
+          D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+Math.round(_pomoTotal/60);
+          save('prefs');
+          _pomoSession=Math.min(_pomoSession+1,4);
+          toast('🍅 Focus session complete! Take a break.');
+          // Auto-switch to 5-min break
+          _pomoTotal=5*60;
+          _pomoSecs=5*60;
+          const sel=document.getElementById('pomo-mode');
+          if(sel)sel.value='5';
+          const lbl=document.getElementById('pomo-label');
+          if(lbl)lbl.textContent='Break';
+        } else {
+          toast('⚡ Break over! Back to focus.');
+          _pomoTotal=25*60;
+          _pomoSecs=25*60;
+          const sel=document.getElementById('pomo-mode');
+          if(sel)sel.value='25';
+          const lbl=document.getElementById('pomo-label');
+          if(lbl)lbl.textContent='Focus';
+        }
+        _pomoUpdateDisplay();
+        if(btn)btn.textContent='▶ Start';
+      }
+    },1000);
+  }
+}
+function pomoReset(){
+  clearInterval(_pomoInterval);
+  _pomoRunning=false;
+  const sel=document.getElementById('pomo-mode');
+  _pomoTotal=(sel?parseInt(sel.value):25)*60;
+  _pomoSecs=_pomoTotal;
+  _pomoUpdateDisplay();
+  const btn=document.getElementById('pomo-btn');
+  if(btn)btn.textContent='▶ Start';
+}
+function pomoSelectTask(taskId){
+  _pomoTaskId=taskId;
+  const t=D.tasks.find(x=>x.id===taskId);
+  const el=document.getElementById('pomo-task-name');
+  if(el&&t)el.textContent='🎯 '+t.title;
+}
+
 function getWeekDates(offsetWeeks=0){
   const now=new Date();
   const day=now.getDay();
