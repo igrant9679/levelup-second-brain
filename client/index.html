@@ -63,7 +63,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3B82F6,#8B5CF6);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;cursor:pointer}
 
 /* LAYOUT */
-.bg{display:grid;grid-template-columns:var(--side) 1fr;min-height:0}
+.bg{display:grid;grid-template-columns:var(--side) 1fr;min-height:0;height:100%}
 .bg.wr{grid-template-columns:var(--side) 1fr 280px}
 
 /* SIDEBAR */
@@ -77,7 +77,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 
 /* MAIN */
 .mn{padding:16px 24px;overflow-y:auto;min-width:0}.rr{background:var(--s1);border-left:1px solid var(--bd1);padding:14px;overflow-y:auto}
-.scr{display:none}.scr.on{display:contents}
+.scr{display:none;height:calc(100vh - var(--top))}.scr.on{display:block}
+.scr>.bg{height:100%;min-height:0}
 
 /* SHARED */
 .cd{background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:12px;margin-bottom:12px}
@@ -225,7 +226,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .ai-panel-foot input{flex:1}
 
 /* NOTES 4-PANEL */
-.notes-body{display:grid;grid-template-columns:180px 220px 1fr 240px;min-height:0;height:100%}
+.notes-body{display:grid;grid-template-columns:220px 1fr;min-height:0;height:100%}
 .notes-nav,.notes-list,.notes-editor,.notes-rail{overflow-y:auto;padding:12px 8px}
 .notes-nav{background:var(--s1);border-right:1px solid var(--bd1)}
 .notes-list{border-right:1px solid var(--bd1)}
@@ -365,8 +366,8 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 </div></div>
 
 <!-- ===== S-04 NOTES ===== -->
-<div class="scr" id="s-notes"><div style="display:grid;grid-template-columns:var(--side) 1fr;min-height:0;height:calc(100vh - var(--top))"><nav class="sb" data-sb></nav>
-<div class="notes-body" id="notes-body" style="overflow:hidden"></div>
+<div class="scr" id="s-notes"><div class="bg"><nav class="sb" data-sb></nav>
+<div class="notes-body" id="notes-body" style="overflow:hidden;height:100%"></div>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -461,6 +462,8 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div id="notif-list" style="overflow-y:auto;max-height:400px;padding:8px"></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
 <script>
 // ====== DATA STORE ======
 const D = {
@@ -715,8 +718,9 @@ function renderDrawer(type,item){
     <div class="field"><label>Date</label><input class="inp" value="${esc(item.date)}" id="dr-date"></div>
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
+    <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
     <button class="btn btn-d" onclick="deleteItem('journal',${item.id})">Delete</button></div>`;
   }
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
@@ -1165,6 +1169,19 @@ function showNoteInEditor(id){
   // Render in editor pane
   const ed=document.querySelector('.notes-editor');
   if(ed)ed.innerHTML=renderNoteEditor(n);
+  // Update backlink graph in rail
+  const gc=document.getElementById('notes-graph-container');
+  if(gc)gc.innerHTML=renderNotesGraph(id);
+  const bp=document.getElementById('notes-backlinks-panel');
+  if(bp){
+    const backlinks=buildNoteBacklinks(id);
+    const outlinks=buildNoteOutlinks(n);
+    let html='';
+    if(backlinks.length)html+=`<div style="font-size:11px;font-weight:600;margin-bottom:4px">🔗 Backlinks (${backlinks.length})</div>${backlinks.map(b=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${b.id})"><span style="color:var(--purp)">←</span> <span class="rt">${esc(b.title)}</span></div>`).join('')}<div style="margin-bottom:6px"></div>`;
+    if(outlinks.length)html+=`<div style="font-size:11px;font-weight:600;margin-bottom:4px">🔗 Outlinks (${outlinks.length})</div>${outlinks.map(o=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${o.id})"><span style="color:var(--ac)">→</span> <span class="rt">${esc(o.title)}</span></div>`).join('')}<div style="margin-bottom:6px"></div>`;
+    if(!html)html='<div style="font-size:10px;color:var(--t3)">No links. Use [[Note Title]] to link notes.</div>';
+    bp.innerHTML=html;
+  }
 }
 function renderNotesList_html(myOnly){
   const me=D.creds.userName||'Idris Grant';
@@ -1236,12 +1253,13 @@ function renderNotes(){
   <div id="notes-list-inner">${renderNotesList_html(false)}</div>
   </div>
   <div class="notes-editor" style="padding:16px">${D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3)">Select a note to edit</p>'}</div>
-  <div class="notes-rail"><div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
+  <div class="notes-rail" id="notes-rail-panel"><div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:10px">${['📄 Note','🔗 Clip','☑ Task','🎤 Voice'].map(t=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:8px;color:var(--t3)" onclick="openFA(t.includes('Task')?'task':t.includes('Note')||t.includes('Clip')?'note':'task')">${t}</div>`).join('')}</div>
-  <div style="font-size:11px;font-weight:600;margin-bottom:4px">Related Notes</div>
-  ${D.notes.filter(n=>n.starred).slice(0,3).map(n=>`<div class="lr" style="font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span style="color:var(--warn)">★</span></div>`).join('')}
-  <div style="font-size:11px;font-weight:600;margin:8px 0 4px">Backlinks</div>
-  ${D.notes.slice(1,4).map(n=>`<div class="lr" style="font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">🔗 <span class="rt">${esc(n.title)}</span></div>`).join('')}
+  <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
+  ${D.notes.filter(n=>n.starred).slice(0,3).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${n.id})"><span class="rt">${esc(n.title)}</span><span style="color:var(--warn)">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">No starred notes</div>'}
+  <div style="font-size:11px;font-weight:600;margin:8px 0 4px">🕸 Link Graph</div>
+  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px;min-height:60px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note to see its graph</div>'}</div>
+  <div id="notes-backlinks-panel"></div>
   </div>`;
 }
 function renderNoteEditor(n){
@@ -1624,13 +1642,61 @@ function openCalEvent(id){
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
 }
+function openNewCalEventModal(prefillDay,prefillHour){
+  const m=document.getElementById('modal-content');
+  const today=new Date();
+  const dayOfWeek=today.getDay();
+  const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const colorOpts=[{v:'var(--ac)',l:'Blue'},{'v':'var(--ok)',l:'Green'},{'v':'var(--warn)',l:'Yellow'},{'v':'var(--red)',l:'Red'},{'v':'var(--purp)',l:'Purple'}];
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">📅 New Calendar Event</h2>
+  <div style="display:flex;flex-direction:column;gap:10px">
+  <div class="field"><label>Title</label><input class="inp" id="nev-title" placeholder="Event title..."></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Day</label><select class="inp" id="nev-day">${days.map((d,i)=>`<option value="${i}" ${(prefillDay!==undefined?prefillDay:dayOfWeek-1)===i?'selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="field"><label>Color</label><select class="inp" id="nev-color">${colorOpts.map(c=>`<option value="${c.v}">${c.l}</option>`).join('')}</select></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Start Time</label><input type="time" class="inp" id="nev-start" value="${prefillHour!==undefined?(prefillHour<10?'0'+prefillHour:prefillHour)+':00':'09:00'}"></div>
+    <div class="field"><label>End Time</label><input type="time" class="inp" id="nev-end" value="${prefillHour!==undefined?(prefillHour+1<10?'0'+(prefillHour+1):prefillHour+1)+':00':'10:00'}"></div>
+  </div>
+  <div class="field"><label>Location</label><input class="inp" id="nev-loc" placeholder="Room, Zoom, Teams..."></div>
+  <div class="field"><label>Attendees</label><input class="inp" id="nev-att" placeholder="Names, comma separated..."></div>
+  <div class="field"><label>Description</label><textarea class="inp" id="nev-desc" style="min-height:60px" placeholder="Event details..."></textarea></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="saveNewCalEvent()">✓ Add Event</button>
+  <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('nev-title')?.focus(),100);
+}
+function saveNewCalEvent(){
+  const title=document.getElementById('nev-title')?.value.trim();
+  if(!title){toast('⚠ Title is required');return;}
+  const startVal=document.getElementById('nev-start')?.value||'09:00';
+  const endVal=document.getElementById('nev-end')?.value||'10:00';
+  const [sh,sm]=startVal.split(':').map(Number);
+  const [eh,em]=endVal.split(':').map(Number);
+  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:${String(h%60===0?'00':h%60).padStart(2,'0')} ${ampm}`};
+  const day=parseInt(document.getElementById('nev-day')?.value||'0');
+  const color=document.getElementById('nev-color')?.value||'var(--ac)';
+  const loc=document.getElementById('nev-loc')?.value||'';
+  const att=document.getElementById('nev-att')?.value||'';
+  const desc=document.getElementById('nev-desc')?.value||'';
+  const newEv={id:Date.now(),title,time:fmt(sh),end:fmt(eh),day,hour:sh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc};
+  _calEvents.push(newEv);
+  closeModal();
+  renderCal();
+  toast('✓ Event added!');
+}
 function renderCal(){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const today=new Date();
   const dayOfWeek=today.getDay();
   const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
   const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${today.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="toast('Add event coming soon!')">+ Event</button><button class="btn btn-s" onclick="renderCal()">Today</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${today.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button><button class="btn btn-s" onclick="renderCal()">Today</button></div></div>
 <div class="tabs"><div class="tab on">Week</div><div class="tab" onclick="toast('Day view coming soon!')">Day</div><div class="tab" onclick="toast('Month view coming soon!')">Month</div></div>
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((d,i)=>`<div class="cal-hd" style="${i===dayOfWeek-1?'color:var(--ac);font-weight:700':''}">\n${d}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{
@@ -2622,67 +2688,84 @@ function editPerms(teamId,memberId){
 function addTeam(){const n=prompt('Team name:');if(n){D.teams.push({id:nextId(D.teams),name:n,members:[]});save('teams');renderScreen('settings');toast('Team created!')}}
 
 // ====== ONENOTE PDF IMPORT ======
+async function extractPdfText(arrayBuffer){
+  // Use pdf.js if available (best quality)
+  if(typeof pdfjsLib!=='undefined'){
+    try{
+      const pdf=await pdfjsLib.getDocument({data:new Uint8Array(arrayBuffer)}).promise;
+      const pages=[];
+      for(let p=1;p<=pdf.numPages;p++){
+        const page=await pdf.getPage(p);
+        const tc=await page.getTextContent();
+        const pageText=tc.items.map(item=>item.str).join(' ');
+        if(pageText.trim())pages.push(pageText.trim());
+      }
+      return pages.join('\n\n');
+    }catch(ex){console.warn('pdf.js extraction failed, falling back:',ex);}
+  }
+  // Fallback: BT/ET stream extraction
+  let raw='';
+  const bytes=new Uint8Array(arrayBuffer);
+  for(let i=0;i<Math.min(bytes.length,300000);i++)raw+=String.fromCharCode(bytes[i]);
+  const btBlocks=raw.match(/BT[\s\S]*?ET/g)||[];
+  let lines=[];
+  btBlocks.forEach(block=>{
+    const strMatches=block.match(/\(([^)\\]|\\.)*\)\s*Tj|\[([^\]]*)\]\s*TJ/g)||[];
+    strMatches.forEach(sm=>{
+      const inner=sm.match(/\(([^)\\]|\\.)*\)/g)||[];
+      inner.forEach(s=>{
+        let t=s.slice(1,-1)
+          .replace(/\\n/g,'\n').replace(/\\r/g,'').replace(/\\t/g,' ')
+          .replace(/\\\(/g,'(').replace(/\\\)/g,')').replace(/\\\\/g,'\\')
+          .replace(/\\[0-7]{3}/g,m=>String.fromCharCode(parseInt(m.slice(1),8)));
+        t=t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,'');
+        if(t.trim().length>0)lines.push(t);
+      });
+    });
+  });
+  if(lines.length<5){
+    const rawStrings=raw.match(/\(([A-Za-z0-9 ,\.\-\'\"\!\?\:\;\n\t]{4,200})\)/g)||[];
+    rawStrings.forEach(s=>{
+      const t=s.slice(1,-1).trim();
+      if(t.length>3&&!/^[\d\s\.]+$/.test(t))lines.push(t);
+    });
+  }
+  return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
 function handleOneNoteFiles(files){
   const res=document.getElementById('onenote-results');
-  res.innerHTML='<div style="font-size:12px;color:var(--ac)">Processing '+files.length+' file(s)...</div>';
+  res.innerHTML='<div style="font-size:12px;color:var(--ac)">⏳ Processing '+files.length+' file(s)...</div>';
   let imported=0;
-  Array.from(files).forEach(file=>{
-    if(!file.name.endsWith('.pdf')){res.innerHTML+='<div style="font-size:11px;color:var(--red)">⚠ Skipped (not PDF): '+esc(file.name)+'</div>';return}
-    // Extract folder/tag from filename: "FolderName - NoteName.pdf" or "FolderName_NoteName.pdf"
-    const nameNoExt=file.name.replace('.pdf','');
+  const total=Array.from(files).filter(f=>f.name.toLowerCase().endsWith('.pdf')).length;
+  if(total===0){res.innerHTML='<div style="font-size:11px;color:var(--red)">⚠ No PDF files found. Please select .pdf files exported from OneNote.</div>';return;}
+  Array.from(files).forEach(async file=>{
+    if(!file.name.toLowerCase().endsWith('.pdf')){
+      res.innerHTML+='<div style="font-size:11px;color:var(--t3)">⏩ Skipped (not PDF): '+esc(file.name)+'</div>';
+      return;
+    }
+    const nameNoExt=file.name.replace(/\.pdf$/i,'');
     let tag='imported',title=nameNoExt;
     if(nameNoExt.includes(' - ')){const parts=nameNoExt.split(' - ');tag=parts[0].trim();title=parts.slice(1).join(' - ').trim()}
     else if(nameNoExt.includes('_')){const parts=nameNoExt.split('_');tag=parts[0].trim();title=parts.slice(1).join('_').trim()}
-    // Read PDF as text using proper extraction
-    const reader=new FileReader();
-    reader.onload=function(e){
-      let bodyText='[PDF imported from: '+file.name+']\n\nFile size: '+(file.size/1024).toFixed(1)+' KB\n\nNote: Browser-based PDF text extraction has limitations. For best results, copy text directly from OneNote and paste into a new note.';
-      try{
-        // Extract readable ASCII/Latin text from PDF binary
-        const bytes=new Uint8Array(e.target.result);
-        // Convert to Latin1 string to preserve all byte values
-        let raw='';
-        for(let i=0;i<Math.min(bytes.length,200000);i++)raw+=String.fromCharCode(bytes[i]);
-        // Extract text from PDF stream content operators (BT...ET blocks)
-        const btBlocks=raw.match(/BT[\s\S]*?ET/g)||[];
-        let lines=[];
-        btBlocks.forEach(block=>{
-          // Extract strings from Tj, TJ, ' operators
-          const strMatches=block.match(/\(([^)\\]|\\.)*\)\s*Tj|\[([^\]]*)\]\s*TJ/g)||[];
-          strMatches.forEach(sm=>{
-            // Extract content from parentheses
-            const inner=sm.match(/\(([^)\\]|\\.)*\)/g)||[];
-            inner.forEach(s=>{
-              let t=s.slice(1,-1)
-                .replace(/\\n/g,'\n').replace(/\\r/g,'').replace(/\\t/g,' ')
-                .replace(/\\\(/g,'(').replace(/\\\)/g,')').replace(/\\\\/g,'\\')
-                .replace(/\\[0-7]{3}/g,m=>String.fromCharCode(parseInt(m.slice(1),8)));
-              // Keep only printable ASCII and common Latin chars
-              t=t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g,'');
-              if(t.trim().length>0)lines.push(t);
-            });
-          });
-        });
-        // Also try to get text from raw string literals outside BT blocks
-        if(lines.length<5){
-          const rawStrings=raw.match(/\(([A-Za-z0-9 ,\.\-\'\"\!\?\:\;\n\t]{4,200})\)/g)||[];
-          rawStrings.forEach(s=>{
-            const t=s.slice(1,-1).trim();
-            if(t.length>3&&!/^[\d\s\.]+$/.test(t))lines.push(t);
-          });
-        }
-        const extracted=lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
-        if(extracted.length>100){
-          bodyText=extracted.substring(0,5000)+(extracted.length>5000?'\n\n[...content truncated at 5000 chars]':'');
-        }
-      }catch(ex){console.warn('PDF extraction error:',ex);}
-      D.notes.push({id:nextId(D.notes),title:title||nameNoExt,tags:[tag.toLowerCase(),'onenote'],source:'OneNote Import',updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
+    try{
+      const arrayBuffer=await file.arrayBuffer();
+      let bodyText=await extractPdfText(arrayBuffer);
+      if(!bodyText||bodyText.length<20){
+        bodyText='[PDF imported: '+file.name+']\n\nFile size: '+(file.size/1024).toFixed(1)+' KB\n\nThe PDF did not contain extractable text (it may be a scanned image). For best results, export from OneNote as a Word document and paste the text here.';
+      } else {
+        bodyText=bodyText.substring(0,8000)+(bodyText.length>8000?'\n\n[...truncated at 8000 chars]':'');
+      }
+      const noteId=nextId(D.notes);
+      D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
       save('notes');imported++;
       invalidateSearchIndex();
-      res.innerHTML=`<div style="font-size:12px;color:var(--ok)">✓ Imported ${imported} note(s) successfully</div>`;
-      res.innerHTML+=`<div class="lr" style="cursor:pointer" onclick="nav('notes');setTimeout(()=>openDrawer('note',D.notes.find(x=>x.id===${D.notes[D.notes.length-1].id})),100)"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
-    };
-    reader.readAsArrayBuffer(file);
+      const statusEl=res.querySelector('.import-status');
+      if(statusEl)statusEl.textContent='✓ Imported '+imported+'/'+total+' note(s)';
+      else res.innerHTML='<div class="import-status" style="font-size:12px;color:var(--ok)">✓ Imported '+imported+'/'+total+' note(s)</div>';
+      res.innerHTML+=`<div class="lr" style="cursor:pointer;margin-top:4px" onclick="nav('notes');setTimeout(()=>showNoteInEditor(${noteId}),200)"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
+    }catch(ex){
+      res.innerHTML+='<div style="font-size:11px;color:var(--red)">⚠ Error importing '+esc(file.name)+': '+ex.message+'</div>';
+    }
   });
 }
 
@@ -2823,6 +2906,22 @@ function sendAIMsg(){
 // ====== JOURNAL HELPERS ======
 function calcJournalStreak(){
   return D.journal.length > 0 ? Math.min(D.journal.length, 30) : 0;
+}
+function shareJournalEntry(id){
+  const j=D.journal.find(x=>x.id===id);
+  if(!j)return;
+  const md=`# ${j.title}\n\n**Date:** ${j.date}  ${j.mood?' **Mood:** '+j.mood:''}\n\n${j.body||''}`;
+  // Show a share modal with copy + email draft options
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">📤 Share Journal Entry</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Copy as Markdown or open as email draft:</div>
+  <textarea id="share-md-text" style="width:100%;height:160px;background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:8px;font-size:11px;color:var(--t1);font-family:monospace;resize:vertical" readonly>${md.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+  <button class="btn btn-p" onclick="navigator.clipboard.writeText(document.getElementById('share-md-text').value).then(()=>toast('✓ Copied to clipboard!')).catch(()=>{document.getElementById('share-md-text').select();document.execCommand('copy');toast('✓ Copied!')})">📋 Copy Markdown</button>
+  <button class="btn btn-s" onclick="window.open('mailto:?subject='+encodeURIComponent('${esc(j.title)}')+\'&body=\'+encodeURIComponent(document.getElementById(\'share-md-text\').value),'_blank');toast('Email draft opened')">Email Draft</button>
+  <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
 }
 function renderNotePreview(src){
   const el=document.getElementById('fa-note-preview');
