@@ -300,6 +300,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <div class="modal-ov" id="modal-capture" onclick="if(event.target===this)closeModal()">
 <div class="modal" id="modal-content"></div>
 </div>
+<!-- IMPORT FILE INPUT (hidden) -->
+<input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(this.files[0])">
 
 <!-- AI ASSISTANT -->
 <div class="ai-bubble" id="ai-bubble"></div>
@@ -309,6 +311,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <div class="ai-panel-body" id="ai-chat"></div>
 <div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ====== DATA STORE ======
 const D = {
@@ -495,27 +498,84 @@ function $$(s){return document.querySelector(s)}
 function $(s){return document.getElementById?document.getElementById(s.replace('#','')):document.querySelector(s)}
 
 // ====== MODAL ======
-function openModal(type){
+const CAP_TYPES=['Task','Note','Project','Goal','Journal'];
+let capType='Task';
+function openModal(type,preType){
   const m=$('modal-content');
+  capType=preType||'Task';
   if(type==='capture'){
-    m.innerHTML=`<h2>⚡ Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>
-    <div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:10px">${['Task','Note','Project','Goal','Journal'].map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="this.parentElement.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));this.classList.add('on')" style="flex:1;text-align:center;padding:5px;font-size:11px">${t}</div>`).join('')}</div>
-    <div class="field"><label>Title</label><input class="inp" placeholder="What needs to be done?" id="cap-title" autofocus></div>
-    <div class="field"><label>Details</label><textarea class="inp" placeholder="Add details..." id="cap-body"></textarea></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Priority</label><select class="inp" id="cap-pri"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
-    <div class="field"><label>Due</label><input class="inp" type="date" id="cap-due"></div>
-    <div class="field"><label>Project</label><select class="inp" id="cap-proj"><option>None</option>${D.projects.map(p=>`<option>${esc(p.name)}</option>`).join('')}</select></div>
-    <div class="field"><label>Tags</label><input class="inp" placeholder="tag1, tag2" id="cap-tags"></div></div>
-    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Cancel</button><button class="btn btn-p" onclick="doCapture()">Save</button></div>`;
+    m.innerHTML=renderCaptureModal(capType);
   }
   $('modal-capture').classList.add('show');
+  const ti=document.getElementById('cap-title');if(ti)setTimeout(()=>ti.focus(),80);
+}
+function renderCaptureModal(active){
+  const tabs=CAP_TYPES.map(t=>`<div class="tab ${t===active?'on':''}" onclick="capType='${t}';document.getElementById('modal-content').innerHTML=renderCaptureModal('${t}')" style="flex:1;text-align:center;padding:5px;font-size:11px">${t}</div>`).join('');
+  const tabBar=`<div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:12px">${tabs}</div>`;
+  const footer=`<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Cancel</button><button class="btn btn-p" onclick="doCapture()">Save ${active}</button></div>`;
+  const titleField=`<div class="field"><label>Title</label><input class="inp" placeholder="${active==='Task'?'What needs to be done?':active==='Note'?'Note title...':active==='Project'?'Project name...':active==='Goal'?'Goal title...':'Journal entry title...'}" id="cap-title"></div>`;
+  if(active==='Task'){
+    return `<h2>⚡ Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div class="field"><label>Notes</label><textarea class="inp" placeholder="Add details..." id="cap-body"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Priority</label><select class="inp" id="cap-pri"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+    <div class="field"><label>Due Date</label><input class="inp" type="date" id="cap-due"></div>
+    <div class="field"><label>Project</label><select class="inp" id="cap-proj"><option value="">None</option>${D.projects.map(p=>`<option>${esc(p.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>Context</label><input class="inp" placeholder="Work, Personal..." id="cap-ctx" value="Inbox"></div></div>${footer}`;
+  }
+  if(active==='Note'){
+    return `<h2>📝 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div class="field"><label>Content</label><textarea class="inp" style="min-height:100px" placeholder="Write your note..." id="cap-body"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Tags (comma separated)</label><input class="inp" placeholder="tag1, tag2" id="cap-tags"></div>
+    <div class="field"><label>Source</label><select class="inp" id="cap-source"><option>Manual</option><option>Meeting Notes</option><option>Web Clipper</option><option>Quick Capture</option></select></div></div>${footer}`;
+  }
+  if(active==='Project'){
+    return `<h2>📁 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div class="field"><label>Description</label><textarea class="inp" placeholder="What is this project about?" id="cap-body"></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+    <div class="field"><label>Due Date</label><input class="inp" type="date" id="cap-due"></div>
+    <div class="field"><label>Status</label><select class="inp" id="cap-status"><option>Active</option><option>Not Started</option><option>On Hold</option></select></div>
+    <div class="field"><label>Color</label><input type="color" class="inp" id="cap-color" value="#3B82F6" style="height:32px;cursor:pointer"></div></div>${footer}`;
+  }
+  if(active==='Goal'){
+    return `<h2>🎯 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Icon (emoji)</label><input class="inp" placeholder="🚀" id="cap-icon" value="🎯"></div>
+    <div class="field"><label>Target description</label><input class="inp" placeholder="e.g. 5 of 12 done" id="cap-target"></div></div>${footer}`;
+  }
+  if(active==='Journal'){
+    return `<h2>✏️ Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div class="field"><label>Content</label><textarea class="inp" style="min-height:120px" placeholder="What's on your mind?" id="cap-body"></textarea></div>
+    <div class="field"><label>Mood</label><div style="display:flex;gap:8px;margin-top:4px">${['😊','🙂','😐','😫','😰'].map(mo=>`<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:6px" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';document.getElementById('cap-mood').value='${mo}'">${mo}</span>`).join('')}</div><input type="hidden" id="cap-mood" value="😊"></div>${footer}`;
+  }
+  return '';
 }
 function closeModal(){$('modal-capture').classList.remove('show')}
 function doCapture(){
-  const title=$('cap-title').value.trim();if(!title){toast('Title is required');return}
-  D.tasks.push({id:nextId(D.tasks),title,priority:$('cap-pri').value,due:$('cap-due').value||'No date',context:'Inbox',project:$('cap-proj').value==='None'?'':$('cap-proj').value,status:'Not Started',myDay:false,energy:'',notes:$('cap-body').value});
-  save('tasks');closeModal();toast('Captured: '+title);renderScreen(curScreen);
+  const title=document.getElementById('cap-title')?.value.trim();if(!title){toast('Title is required');return}
+  const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if(capType==='Task'){
+    const due=document.getElementById('cap-due')?.value;const dueLabel=due?new Date(due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+    D.tasks.push({id:nextId(D.tasks),title,priority:document.getElementById('cap-pri')?.value||'Medium',due:dueLabel||'No date',context:document.getElementById('cap-ctx')?.value||'Inbox',project:document.getElementById('cap-proj')?.value||'',status:'Not Started',myDay:false,energy:'',notes:document.getElementById('cap-body')?.value||''});
+    save('tasks');
+  } else if(capType==='Note'){
+    const tags=(document.getElementById('cap-tags')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+    D.notes.push({id:nextId(D.notes),title,tags,source:document.getElementById('cap-source')?.value||'Quick Capture',updated:'Just now',starred:false,body:document.getElementById('cap-body')?.value||''});
+    save('notes');
+  } else if(capType==='Project'){
+    const due=document.getElementById('cap-due')?.value;const dueLabel=due?new Date(due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
+    D.projects.push({id:nextId(D.projects),name:title,color:document.getElementById('cap-color')?.value||'#3B82F6',status:document.getElementById('cap-status')?.value||'Active',due:dueLabel||'TBD',pct:0,desc:document.getElementById('cap-body')?.value||''});
+    save('projects');
+  } else if(capType==='Goal'){
+    D.goals.push({id:nextId(D.goals),icon:document.getElementById('cap-icon')?.value||'🎯',title,target:document.getElementById('cap-target')?.value||'',pct:0});
+    save('goals');
+  } else if(capType==='Journal'){
+    const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+    D.journal.push({id:nextId(D.journal),date:'Today · '+dateStr,title,body:document.getElementById('cap-body')?.value||'',mood:document.getElementById('cap-mood')?.value||'😊'});
+    save('journal');
+  }
+  closeModal();toast('✓ '+capType+' saved: '+title);renderScreen(curScreen);
 }
 
 // ====== RENDER SCREENS ======
@@ -756,7 +816,8 @@ function renderSettingsHTML(){
   <!-- Backup --><div id="sp-8" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:10px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div></div><button class="btn btn-s" style="font-size:11px">Import ZIP</button></div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:10px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
+  <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:10px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
   <!-- Privacy --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
@@ -776,9 +837,69 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
 }
+// ====== EXPORT / IMPORT ======
 function exportData(){
-  const data=JSON.stringify({tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,teams:D.teams},null,2);
-  const blob=new Blob([data],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='levelup-backup.json';a.click();toast('Exported!');
+  // Build JSON backup
+  const ts=new Date().toISOString().slice(0,10);
+  const payload={version:1,exported:new Date().toISOString(),tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,teams:D.teams,aiTopics:D.aiTopics};
+  const jsonStr=JSON.stringify(payload,null,2);
+
+  // Build CSV for tasks
+  const csvHeader='id,title,priority,due,context,project,status,myDay,energy\n';
+  const csvRows=D.tasks.map(t=>[t.id,`"${(t.title||'').replace(/"/g,'""')}"`,t.priority,t.due,t.context,t.project,t.status,t.myDay,t.energy].join(',')).join('\n');
+  const csvStr=csvHeader+csvRows;
+
+  // Build Markdown notes
+  const mdNotes=D.notes.map(n=>`# ${n.title}\n\n**Tags:** ${(n.tags||[]).join(', ')}  \n**Source:** ${n.source}  \n**Updated:** ${n.updated}\n\n---\n\n${n.body||''}\n`).join('\n\n---\n\n');
+
+  // Use JSZip if available, otherwise fall back to JSON only
+  if(typeof JSZip!=='undefined'){
+    const zip=new JSZip();
+    zip.file('levelup-backup-'+ts+'.json',jsonStr);
+    zip.file('tasks-'+ts+'.csv',csvStr);
+    zip.file('notes-'+ts+'.md',mdNotes);
+    zip.generateAsync({type:'blob'}).then(blob=>{
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='levelup-export-'+ts+'.zip';a.click();toast('✓ Exported as ZIP');
+    });
+  } else {
+    // Fallback: download JSON
+    const blob=new Blob([jsonStr],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='levelup-backup-'+ts+'.json';a.click();
+    // Also download CSV
+    const b2=new Blob([csvStr],{type:'text/csv'});
+    const a2=document.createElement('a');a2.href=URL.createObjectURL(b2);a2.download='tasks-'+ts+'.csv';setTimeout(()=>a2.click(),300);
+    // Also download MD
+    const b3=new Blob([mdNotes],{type:'text/markdown'});
+    const a3=document.createElement('a');a3.href=URL.createObjectURL(b3);a3.download='notes-'+ts+'.md';setTimeout(()=>a3.click(),600);
+    toast('✓ Exported 3 files (JSON + CSV + MD)');
+  }
+}
+
+function importData(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      // Validate it looks like a LevelUp backup
+      if(!data.tasks&&!data.notes&&!data.projects){toast('⚠ Invalid backup file');return}
+      const counts=[];
+      if(Array.isArray(data.tasks)){D.tasks=data.tasks;counts.push(data.tasks.length+' tasks')}
+      if(Array.isArray(data.notes)){D.notes=data.notes;counts.push(data.notes.length+' notes')}
+      if(Array.isArray(data.projects)){D.projects=data.projects;counts.push(data.projects.length+' projects')}
+      if(Array.isArray(data.goals)){D.goals=data.goals;counts.push(data.goals.length+' goals')}
+      if(Array.isArray(data.journal)){D.journal=data.journal;counts.push(data.journal.length+' journal entries')}
+      if(Array.isArray(data.habits)){D.habits=data.habits;counts.push(data.habits.length+' habits')}
+      if(Array.isArray(data.teams)){D.teams=data.teams}
+      if(Array.isArray(data.aiTopics)){D.aiTopics=data.aiTopics}
+      saveAll();
+      renderScreen(curScreen);
+      toast('✓ Imported: '+counts.join(', '));
+    }catch(ex){
+      toast('⚠ Could not parse backup file: '+ex.message);
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ====== TEAMS ======
