@@ -366,8 +366,11 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 </div></div>
 
 <!-- ===== S-04 NOTES ===== -->
-<div class="scr" id="s-notes"><div class="bg"><nav class="sb" data-sb></nav>
-<div class="notes-body" id="notes-body" style="overflow:hidden;height:100%"></div>
+<div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px"><nav class="sb" data-sb></nav>
+<nav class="notes-nav" id="notes-nav-panel"></nav>
+<div class="notes-list" id="notes-list-panel"></div>
+<div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto"></div>
+<div class="notes-rail" id="notes-rail-panel"></div>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -952,10 +955,56 @@ function renderScreen(s){
   updateSidebarBadges();
 }
 
+let _bulkSelected=new Set();
+let _bulkMode=false;
+function toggleBulkMode(){
+  _bulkMode=!_bulkMode;
+  _bulkSelected.clear();
+  renderTaskList();
+  const bar=$('bulk-action-bar');
+  if(bar)bar.style.display=_bulkMode?'flex':'none';
+}
+function toggleBulkSelect(id,ev){
+  ev.stopPropagation();
+  if(_bulkSelected.has(id))_bulkSelected.delete(id);
+  else _bulkSelected.add(id);
+  const bar=$('bulk-action-bar');
+  if(bar){const n=_bulkSelected.size;bar.querySelector('#bulk-count').textContent=n+' selected';}
+  const row=document.querySelector(`[data-task-id="${id}"]`);
+  if(row)row.style.background=_bulkSelected.has(id)?'var(--acs)':'';
+}
+function bulkAction(action){
+  if(!_bulkSelected.size){toast('No tasks selected');return;}
+  const ids=[..._bulkSelected];
+  if(action==='done'){
+    if(!confirm(`Mark ${ids.length} task(s) as Done?`))return;
+    ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t){t.status='Done';maybeSpawnRecurring(t);}});
+    save('tasks');toast(`✓ ${ids.length} task(s) marked Done`);
+  } else if(action==='delete'){
+    if(!confirm(`Delete ${ids.length} task(s)? This cannot be undone.`))return;
+    D.tasks=D.tasks.filter(t=>!ids.includes(t.id));
+    save('tasks');toast(`🗑 ${ids.length} task(s) deleted`);
+  } else if(action==='project'){
+    const pName=prompt('Move to project (enter project name):');
+    if(!pName)return;
+    const p=D.projects.find(x=>x.name.toLowerCase()===pName.toLowerCase());
+    if(!p){toast('Project not found');return;}
+    ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t){t.projectId=p.id;t.project=p.name;}});
+    save('tasks');toast(`📁 ${ids.length} task(s) moved to ${p.name}`);
+  } else if(action==='someday'){
+    ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t)t.status='Someday';});
+    save('tasks');toast(`💤 ${ids.length} task(s) moved to Someday`);
+  }
+  _bulkSelected.clear();
+  updateSidebarBadges();
+  renderTaskList();
+}
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
-  return `<div class="lr" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${t.id},event)"></div>`:
+    `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div>`;
+  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -1141,7 +1190,15 @@ function renderTasks(){
     if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
     list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="bulkCompleteVisible()" title="Mark all visible tasks Done">✓ All Done</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
+    <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
+    <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('someday')">💤 Someday</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('project')">📁 Move</button>
+    <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
+  </div>
   <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div class="cd" id="tasks-list"></div>`;
   renderTaskList();
@@ -1208,6 +1265,23 @@ function renderNotesGraph(id){
   }).join('');
   return`<svg viewBox="0 0 160 100" style="width:100%;height:80px">${svgLinks}${svgNodes}</svg>`;
 }
+function filterNotesByCategory(cat,el){
+  document.querySelectorAll('.notes-nav .nn').forEach(e=>e.classList.remove('on'));
+  if(el)el.classList.add('on');
+  const catMap={
+    'Recent': n=>true,
+    'Favorites': n=>n.starred,
+    'Web Clips': n=>n.source==='Web Clipper',
+    'Meeting Notes': n=>n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'),
+    'Journal': n=>(n.tags||[]).includes('journal'),
+    'Resources': n=>n.source==='Manual'&&!(n.tags||[]).includes('meetings'),
+  };
+  const filter=catMap[cat]||(()=>true);
+  const filtered=D.notes.filter(filter);
+  const inner=$('notes-list-inner');
+  if(inner) inner.innerHTML=filtered.map(n=>renderNoteCard(n)).join('')||
+    '<div style="padding:16px;text-align:center;font-size:11px;color:var(--t3)">No notes in this category</div>';
+}
 function showNoteInEditor(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
@@ -1216,7 +1290,7 @@ function showNoteInEditor(id){
   const el=document.querySelector(`.nc[data-nid="${id}"]`);
   if(el)el.classList.add('on');
   // Render in editor pane
-  const ed=document.querySelector('.notes-editor');
+  const ed=$('notes-editor-panel')||document.querySelector('.notes-editor');
   if(ed)ed.innerHTML=renderNoteEditor(n);
   // Update backlink graph in rail
   const gc=document.getElementById('notes-graph-container');
@@ -1244,11 +1318,31 @@ function renderNotesList(){
 function filterNotesList(q){
   const el=document.getElementById('notes-list-inner');
   if(!el)return;
+  if(!q){el.innerHTML=renderNotesList_html(_notesMyOnly);return;}
+  const ql=q.toLowerCase();
   const me=D.creds.userName||'Idris Grant';
-  const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
-  const lq=(q||'').toLowerCase().trim();
-  const filtered=lq?base.filter(n=>(n.title||'').toLowerCase().includes(lq)||(n.body||'').toLowerCase().includes(lq)||(n.tags||[]).some(t=>t.toLowerCase().includes(lq))):base;
-  el.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||'<p style="color:var(--t3);font-size:11px;padding:8px">No notes match.</p>';
+  const notes=(_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes).filter(n=>{
+    return (n.title||'').toLowerCase().includes(ql)||
+           (n.body||'').toLowerCase().includes(ql)||
+           (n.tags||[]).some(t=>t.toLowerCase().includes(ql))||
+           (n.source||'').toLowerCase().includes(ql);
+  });
+  el.innerHTML=notes.map((n,i)=>{
+    // Highlight matching text in title
+    const hiTitle=esc(n.title).replace(new RegExp(ql.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
+    // Show matching body snippet
+    const bodyLower=(n.body||'').toLowerCase();
+    const idx=bodyLower.indexOf(ql);
+    let snippet='';
+    if(idx>=0){
+      const start=Math.max(0,idx-30);
+      const end=Math.min((n.body||'').length,idx+ql.length+50);
+      snippet=esc((n.body||'').slice(start,end)).replace(new RegExp(ql.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
+      if(start>0)snippet='…'+snippet;
+      if(end<(n.body||'').length)snippet+=('…');
+    }
+    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hiTitle}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`;
+  }).join('')||'<p style="color:var(--t3);font-size:11px;padding:8px">No notes match "'+esc(q)+'".</p>';
 }
 function filterNotesByTag(tag,el){
   const chips=document.querySelectorAll('.notes-tag-chip');
@@ -1289,27 +1383,46 @@ function exportNotesMarkdown(){
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
 }
 function renderNotes(){
-  const nb=$('notes-body');
-  nb.innerHTML=`<div class="notes-nav"><div style="font-size:14px;font-weight:600;margin-bottom:8px">Notes</div>
-  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}">${n}</div>`).join('')}
-  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:8px 0 4px">Tags</div>
-  <div style="display:flex;flex-wrap:wrap;gap:2px" id="notes-tag-chips">${[...new Set(D.notes.flatMap(n=>n.tags))].map(tag=>`<span class="notes-tag-chip" style="font-size:9px;color:var(--t2);background:var(--s3);padding:2px 6px;border-radius:3px;cursor:pointer;transition:all .15s" onclick="filterNotesByTag('${tag}',this)" title="Filter by #${tag}">#${tag}</span>`).join('')}</div>
-  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:8px 0 4px">PARA</div>
+  // Populate Notes nav panel
+  const nav=$('notes-nav-panel');
+  nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
+  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tags</div>
+  <div style="display:flex;flex-wrap:wrap;gap:2px;padding:0 4px" id="notes-tag-chips">${[...new Set(D.notes.flatMap(n=>n.tags))].map(tag=>`<span class="notes-tag-chip" style="font-size:9px;color:var(--t2);background:var(--s3);padding:2px 6px;border-radius:3px;cursor:pointer;transition:all .15s" onclick="filterNotesByTag('${tag}',this)" title="Filter by #${tag}">#${tag}</span>`).join('')}</div>
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
   ${['Projects 14','Areas 8','Resources 36','Archive 57'].map(x=>{const[n,c]=x.split(' ');return`<div class="nn">${n}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`}).join('')}
-  </div>
-  <div class="notes-list"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:13px;font-weight:600">Notes</div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:22px;font-size:9px;padding:0 7px" onclick="exportNotesMarkdown()" title="Export all visible notes as Markdown">⬇ Export MD</button><div style="display:flex;background:var(--s3);border-radius:5px;overflow:hidden"><button id="notes-scope-my" class="btn" style="border-radius:0;height:22px;font-size:9px;background:var(--ac);color:#fff;border:none;padding:0 7px" onclick="_notesMyOnly=true;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button><button id="notes-scope-all" class="btn" style="border-radius:0;height:22px;font-size:9px;background:transparent;color:var(--t2);border:none;padding:0 7px" onclick="_notesMyOnly=false;this.style.background='var(--ac)';this.style.color='#fff';document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';renderNotesList()">All</button></div></div>
-  <input id="notes-search" class="inp" placeholder="🔍 Search notes..." style="width:100%;margin-bottom:6px;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
-  <div id="notes-list-inner">${renderNotesList_html(false)}</div>
-  </div>
-  <div class="notes-editor" style="padding:16px">${D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3)">Select a note to edit</p>'}</div>
-  <div class="notes-rail" id="notes-rail-panel"><div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:10px">${['📄 Note','🔗 Clip','☑ Task','🎤 Voice'].map(t=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:8px;color:var(--t3)" onclick="openFA(t.includes('Task')?'task':t.includes('Note')||t.includes('Clip')?'note':'task')">${t}</div>`).join('')}</div>
-  <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
-  ${D.notes.filter(n=>n.starred).slice(0,3).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${n.id})"><span class="rt">${esc(n.title)}</span><span style="color:var(--warn)">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">No starred notes</div>'}
-  <div style="font-size:11px;font-weight:600;margin:8px 0 4px">🕸 Link Graph</div>
-  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px;min-height:60px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note to see its graph</div>'}</div>
-  <div id="notes-backlinks-panel"></div>
+  <div style="margin-top:auto;padding:8px 4px 0">
+    <button class="btn btn-p" style="width:100%;height:28px;font-size:10px" onclick="openFA('note')">+ New Note</button>
   </div>`;
+
+  // Populate Notes list panel
+  const list=$('notes-list-panel');
+  list.innerHTML=`<div style="padding:10px 8px 6px;border-bottom:1px solid var(--bd1)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div style="font-size:12px;font-weight:600">Notes <span style="font-size:10px;color:var(--t3);font-weight:400">(${D.notes.length})</span></div>
+    <div style="display:flex;gap:3px">
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export MD">⬇ MD</button>
+      <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
+      <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
+    </div>
+  </div>
+  <input id="notes-search" class="inp" placeholder="🔍 Search notes (title, body, tags)..." style="width:100%;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
+  </div>
+  <div id="notes-list-inner" style="overflow-y:auto;flex:1">${renderNotesList_html(false)}</div>`;
+
+  // Populate Notes editor panel
+  const editor=$('notes-editor-panel');
+  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3);margin-top:40px;text-align:center">Select a note to view</p>';
+
+  // Populate Notes rail panel
+  const rail=$('notes-rail-panel');
+  rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" onclick="openFA('${lbl==='Task'?'task':'note'}')">${ic} ${lbl}</div>`).join('')}</div>
+  <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
+  ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
+  <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
+  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
+  <div id="notes-backlinks-panel"></div>`;
 }
 function renderNoteEditor(n){
   const bodyHtml=n.body?n.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>'):'';
@@ -1759,6 +1872,7 @@ function openNewCalEventModal(prefillDay,prefillHour){
   <div class="field"><label>Location</label><input class="inp" id="nev-loc" placeholder="Room, Zoom, Teams..."></div>
   <div class="field"><label>Attendees</label><input class="inp" id="nev-att" placeholder="Names, comma separated..."></div>
   <div class="field"><label>Description</label><textarea class="inp" id="nev-desc" style="min-height:60px" placeholder="Event details..."></textarea></div>
+  <div class="field"><label>Repeat</label><select class="inp" id="nev-repeat"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly (same day each week)</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly (same day of month)</option></select></div>
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="saveNewCalEvent()">✓ Add Event</button>
@@ -1780,11 +1894,24 @@ function saveNewCalEvent(){
   const loc=document.getElementById('nev-loc')?.value||'';
   const att=document.getElementById('nev-att')?.value||'';
   const desc=document.getElementById('nev-desc')?.value||'';
-  const newEv={id:Date.now(),title,time:fmt(sh),end:fmt(eh),day,hour:sh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc};
-  _calEvents.push(newEv);
+  const repeat=document.getElementById('nev-repeat')?.value||'none';
+  const recurId=repeat!=='none'?Date.now():null;
+  const baseEv={id:Date.now(),title,time:fmt(sh),end:fmt(eh),day,hour:sh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc,repeat,recurId};
+  _calEvents.push(baseEv);
+  // Generate future occurrences (up to 12 weeks ahead)
+  if(repeat!=='none'){
+    const weekGap=repeat==='daily'?1/7:repeat==='biweekly'?2:1;
+    const maxWeeks=repeat==='daily'?14:12;
+    for(let w=1;w<=maxWeeks;w++){
+      if(repeat==='daily'||repeat==='weekly'||(repeat==='biweekly'&&w%2===0)||repeat==='monthly'){
+        if(repeat==='monthly'&&w%4!==0)continue;
+        _calEvents.push({...baseEv,id:Date.now()+w,recurId,_recurWeek:w});
+      }
+    }
+  }
   closeModal();
   renderCal();
-  toast('✓ Event added!');
+  toast(`✓ Event added${repeat!=='none'?' (recurring)':''}!`);
 }
 function renderCal(){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
