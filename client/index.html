@@ -764,7 +764,19 @@ function renderScreen(s){
 function taskRow(t,showActs=true){
   return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
-function toggleTask(id){const t=D.tasks.find(x=>x.id===id);if(t){t.status=t.status==='Done'?'Not Started':'Done';save('tasks');renderScreen(curScreen)}}
+function toggleTask(id){
+  const t=D.tasks.find(x=>x.id===id);
+  if(!t)return;
+  const wasDone=t.status==='Done';
+  t.status=wasDone?'Not Started':'Done';
+  save('tasks');
+  if(!wasDone&&t.recurring&&t.recurring!=='None')maybeSpawnRecurring(t);
+  // Auto-recalc linked goal progress
+  D.goals.forEach(g=>{
+    if((g.linkedTaskIds||[]).includes(t.id))autoCalcGoalPct(g);
+  });
+  renderScreen(curScreen);
+}
 
 function renderHome(){
   const m=$('home-main');const r=$('home-rail');
@@ -929,6 +941,8 @@ function renderProjectsGantt(header){
 }
 
 function renderGoals(){
+  // Auto-recalculate all goal percentages before rendering
+  D.goals.forEach(g=>autoCalcGoalPct(g));
   $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${D.goals.map(g=>{
     const ms=g.milestones||[];
@@ -1054,21 +1068,169 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
 <div id="md-p"><div class="sec-h">📋 Plan — Select tasks for today</div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:none"><div class="sec-h">⚡ Execute — My Day tasks</div>
-<div class="tabs"><div class="tab on">My Day</div><div class="tab">Energy</div><div class="tab">Location</div><div class="tab">P/I</div></div>
-<div class="cd">${D.tasks.filter(t=>t.myDay).length?D.tasks.filter(t=>t.myDay).map(t=>taskRow(t)).join(''):'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">Nothing on My Day yet. Go to Plan to add tasks.</p>'}</div></div>
+<div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
+<div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:none"><div class="sec-h">🌙 Wrap-Up</div>
 <div class="g3" style="margin-bottom:12px"><div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div><div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div><div class="stat"><div class="stat-n" style="color:var(--ac)">2:45</div><div class="stat-l">Focus time</div></div></div>
 <div class="cd"><div style="font-size:12px;font-weight:500;margin-bottom:6px">📝 Journal Entry</div><textarea class="inp" placeholder="What worked today?"></textarea></div></div>`}
 function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none')}
-
-function renderMyWeek(){$('myweek-main').innerHTML=`<div class="pg-h"><h1>📅 My Week</h1><p style="font-size:12px;color:var(--t2)">Week 21 · May 19–25</p></div>
-<div class="subnav"><span class="sn on">🧹 Clear & Reset</span><span class="sn">🪞 Reflect</span><span class="sn">📋 Plan</span></div>
-<div class="sec-h">🧹 Clear & Reset</div>
-<div class="tabs"><div class="tab on">Task Inbox <span class="tc">5</span></div><div class="tab">Overdue</div><div class="tab">Note Inbox</div><div class="tab">Projects</div></div>
-<div class="cd">${D.tasks.filter(t=>t.status==='Not Started').slice(0,5).map(t=>`<div class="lr">${taskRow(t).replace('<div class="lr"','').replace('</div>','')}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="event.stopPropagation()">Process →</button></div>`).join('')}</div>
-<div class="sec-h">📋 Plan the Week</div>
-<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${['Mon 19','Tue 20','Wed 21','Thu 22','Fri 23','Sat 24','Sun 25'].map((d,i)=>`<div class="cd" style="padding:6px;min-height:100px${i===1?';border-color:var(--ac)':''}"><div style="font-size:9px;font-weight:600;text-align:center;margin-bottom:4px${i===1?';color:var(--ac)':''}">${d}</div>${i<3?`<div style="font-size:8px;padding:2px;background:var(--acs);border-radius:2px;margin-bottom:2px">${D.tasks[i]?.title.substring(0,20)||''}...</div>`:''}
-</div>`).join('')}</div>`}
+function renderMdExecList(filter){
+  let tasks=D.tasks.filter(t=>t.myDay);
+  if(filter==='high')tasks=tasks.filter(t=>t.priority==='High');
+  else if(filter==='pending')tasks=tasks.filter(t=>t.status!=='Done');
+  else if(filter==='done')tasks=tasks.filter(t=>t.status==='Done');
+  if(!tasks.length)return '<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">'+
+    (filter==='done'?'No completed tasks yet today.':'Nothing here. Go to Plan to add tasks.')+'</p>';
+  return tasks.map(t=>{
+    const subs=t.subtasks||[];
+    const subsDone=subs.filter(s=>s.done).length;
+    const colors={High:'var(--err,#EF4444)',Medium:'var(--warn,#F59E0B)',Low:'var(--ok,#10B981)'};
+    return`<div class="cd" style="margin-bottom:8px;border-left:3px solid ${colors[t.priority]||'var(--bd2)'}" id="exec-card-${t.id}">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div class="chk ${t.status==='Done'?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="toggleTask(${t.id})"></div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span id="exec-title-${t.id}" style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}" onclick="startInlineEdit(${t.id})" title="Click to edit">${esc(t.title)}</span>
+            <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+            ${t.context?`<span style="font-size:9px;color:var(--t3)">${esc(t.context)}</span>`:''}
+            ${t.startTime?`<span style="font-size:9px;color:var(--t2)">⏰ ${t.startTime}${t.endTime?' – '+t.endTime:''}</span>`:''}
+          </div>
+          ${t.due?`<div style="font-size:10px;color:var(--t3);margin-top:2px">📅 Due ${t.due}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}
+          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:10px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:9px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
+          ${t.notes?`<div style="font-size:10px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+          <button class="btn btn-s" style="font-size:9px;padding:1px 6px;height:20px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button>
+          <button class="btn btn-s" style="font-size:9px;padding:1px 6px;height:20px" onclick="D.tasks.find(x=>x.id===${t.id}).myDay=false;save('tasks');renderScreen('myday')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function mdExecFilter(el,filter){
+  el.parentElement.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  el.classList.add('on');
+  const list=document.getElementById('md-exec-list');
+  if(list)list.innerHTML=renderMdExecList(filter);
+}
+function startInlineEdit(taskId){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  const span=document.getElementById('exec-title-'+taskId);
+  if(!span)return;
+  const inp=document.createElement('input');
+  inp.className='inp';
+  inp.value=t.title;
+  inp.style.cssText='font-size:13px;font-weight:500;padding:1px 4px;height:22px;width:100%';
+  inp.onblur=()=>{t.title=inp.value.trim()||t.title;save('tasks');renderScreen('myday');};
+  inp.onkeydown=(e)=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}if(e.key==='Escape'){renderScreen('myday');}}
+  span.replaceWith(inp);
+  inp.focus();
+  inp.select();
+}
+function toggleSubtask(taskId,subIdx){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t||!t.subtasks[subIdx])return;
+  t.subtasks[subIdx].done=!t.subtasks[subIdx].done;
+  save('tasks');
+  // Re-render just the exec list without full screen re-render
+  const list=document.getElementById('md-exec-list');
+  const activeTab=document.querySelector('#md-e .tab.on');
+  const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';
+  if(list)list.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);
+}
+function getWeekDates(offsetWeeks=0){
+  const now=new Date();
+  const day=now.getDay();
+  const mon=new Date(now);
+  mon.setDate(now.getDate()-(day===0?6:day-1)+offsetWeeks*7);
+  return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
+}
+let weekOffset=0;
+function renderMyWeek(){
+  const days=getWeekDates(weekOffset);
+  const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const today=new Date().toDateString();
+  const fmt=d=>d.toISOString().split('T')[0];
+  const label=d=>dayNames[d.getDay()===0?6:d.getDay()-1]+' '+d.getDate();
+  // Group tasks by their startDate or due date falling within this week
+  const weekStart=fmt(days[0]);
+  const weekEnd=fmt(days[6]);
+  function tasksForDay(d){
+    const ds=fmt(d);
+    return D.tasks.filter(t=>{
+      const td=t.startDate||t.due||'';
+      return td===ds;
+    });
+  }
+  // Unscheduled tasks (no startDate, not done)
+  const unscheduled=D.tasks.filter(t=>!t.startDate&&!t.due&&t.status!=='Done').slice(0,10);
+  const overdue=D.tasks.filter(t=>{
+    const td=t.startDate||t.due||'';
+    return td&&td<weekStart&&t.status!=='Done';
+  });
+  const colHtml=days.map((d,i)=>{
+    const ds=fmt(d);
+    const isToday=d.toDateString()===today;
+    const pts=tasksForDay(d);
+    return`<div class="wk-col" id="wkcol-${ds}" data-date="${ds}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropTaskOnDay(event,'${ds}')" style="flex:1;min-width:0;background:var(--s2);border-radius:6px;padding:6px;border:2px solid ${isToday?'var(--ac)':'transparent'};transition:border-color .15s">
+      <div style="font-size:10px;font-weight:600;text-align:center;margin-bottom:5px;color:${isToday?'var(--ac)':'var(--t2)'}">${label(d)}${isToday?' • Today':''}</div>
+      <div id="wkday-${ds}" style="min-height:60px">
+        ${pts.map(t=>weekTaskChip(t)).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--t3);text-align:center;margin-top:4px;cursor:pointer" onclick="quickAddToDay('${ds}')">+ Add</div>
+    </div>`;
+  }).join('');
+  $('myweek-main').innerHTML=`
+  <div class="ph-r" style="margin-bottom:12px">
+    <div><h1 style="font-size:22px;font-weight:700">📅 My Week</h1><p style="font-size:12px;color:var(--t2)">${days[0].toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p></div>
+    <div style="display:flex;gap:4px">
+      <button class="btn btn-s" onclick="weekOffset--;renderMyWeek()">← Prev</button>
+      <button class="btn btn-s" onclick="weekOffset=0;renderMyWeek()">Today</button>
+      <button class="btn btn-s" onclick="weekOffset++;renderMyWeek()">Next →</button>
+      <button class="btn btn-p" onclick="openModal('capture')">+ Task</button>
+    </div>
+  </div>
+  ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
+  <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">${colHtml}</div>
+  ${unscheduled.length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">📥 Unscheduled (drag to a day)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${unscheduled.map(t=>weekTaskChip(t,true)).join('')}</div></div>`:''}
+  `;
+}
+function weekTaskChip(t,draggable=true){
+  const colors={High:'var(--err,#EF4444)',Medium:'var(--warn,#F59E0B)',Low:'var(--ok,#10B981)'};
+  return`<div draggable="true" ondragstart="dragTaskStart(event,${t.id})" style="background:var(--s3);border-left:3px solid ${colors[t.priority]||'var(--bd2)'};border-radius:3px;padding:4px 6px;margin-bottom:3px;cursor:grab;font-size:10px;display:flex;align-items:center;gap:4px" title="${esc(t.title)}">
+    <div class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${t.id})"></div>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+    ${t.startTime?`<span style="font-size:8px;color:var(--t3);flex-shrink:0">${t.startTime}</span>`:''}
+  </div>`;
+}
+function dragTaskStart(event,taskId){
+  event.dataTransfer.setData('text/plain',String(taskId));
+  event.dataTransfer.effectAllowed='move';
+}
+function dropTaskOnDay(event,dateStr){
+  event.preventDefault();
+  const col=event.currentTarget;
+  col.classList.remove('drag-over');
+  const taskId=parseInt(event.dataTransfer.getData('text/plain'));
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  t.startDate=dateStr;
+  if(!t.due||t.due<dateStr)t.due=dateStr;
+  save('tasks');
+  renderMyWeek();
+  toast('📅 Task moved to '+new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
+}
+function quickAddToDay(dateStr){
+  openModal('capture');
+  // Pre-fill date after modal opens
+  setTimeout(()=>{
+    const el=document.getElementById('cap-due');
+    if(el)el.value=dateStr;
+    const sd=document.getElementById('cap-startdate');
+    if(sd)sd.value=dateStr;
+  },50);
+}
 
 function renderMyYear(){$('myyear-main').innerHTML=`<div class="pg-h"><h1>🗓 My Year — 2025</h1><p style="font-size:12px;color:var(--t2)">Strategic planning. Align daily work with direction.</p></div>
 <div class="sec-h">🎯 Current Priorities</div>
@@ -1606,17 +1768,24 @@ function updateProfileUI(){
   document.querySelectorAll('#sb-email').forEach(el=>el.textContent=email);
 }
 
-// ====== MY DAY AUTO-RESET ======
+// ====== MY DAY AUTO-RESET + HABIT RESET ======
 function checkMyDayReset(){
   const today=new Date().toDateString();
   const lastReset=localStorage.getItem('lu_myday_reset');
   if(lastReset===today)return;
+  // Reset My Day task flags
   let changed=false;
   D.tasks.forEach(t=>{
     if(t.myDay&&t.status==='Done'){t.myDay=false;changed=true;}
     if(t.due==='Today'&&t.status!=='Done'){t.due='Overdue';changed=true;}
   });
-  if(changed){save('tasks');}
+  if(changed)save('tasks');
+  // Reset habit completion flags for a new day
+  let habitsChanged=false;
+  D.habits.forEach(h=>{
+    if(h.doneToday){h.doneToday=false;habitsChanged=true;}
+  });
+  if(habitsChanged)save('habits');
   localStorage.setItem('lu_myday_reset',today);
 }
 function scheduleMidnightReset(){
@@ -1630,6 +1799,58 @@ function scheduleMidnightReset(){
     toast('☀️ New day! My Day has been refreshed.');
     scheduleMidnightReset();
   },ms);
+}
+
+// ====== GOAL AUTO-PROGRESS CALCULATION ======
+function autoCalcGoalPct(g){
+  // Weight: 60% linked tasks completion, 40% milestones completion
+  const tasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
+  const ms=g.milestones||[];
+  const taskScore=tasks.length?tasks.filter(t=>t.status==='Done').length/tasks.length:null;
+  const msScore=ms.length?ms.filter(m=>m.done).length/ms.length:null;
+  if(taskScore===null&&msScore===null)return; // no linked data, keep manual pct
+  const weights=taskScore!==null&&msScore!==null?[0.6,0.4]:[1,0];
+  const scores=[taskScore!==null?taskScore:msScore,msScore!==null?msScore:taskScore];
+  g.pct=Math.round((scores[0]*weights[0]+scores[1]*weights[1])*100);
+  save('goals');
+}
+
+// ====== RECURRING TASK AUTO-GENERATION ======
+function addDays(dateStr,n){
+  if(!dateStr)return '';
+  const d=new Date(dateStr);
+  if(isNaN(d))return dateStr;
+  d.setDate(d.getDate()+n);
+  return d.toISOString().split('T')[0];
+}
+function recurringOffset(cadence){
+  if(cadence==='Daily')return 1;
+  if(cadence==='Weekly')return 7;
+  if(cadence==='Bi-weekly')return 14;
+  if(cadence==='Monthly')return 30;
+  return 0;
+}
+function maybeSpawnRecurring(task){
+  if(!task.recurring||task.recurring==='None')return;
+  const offset=recurringOffset(task.recurring);
+  if(!offset)return;
+  // Avoid duplicates: check if a future instance already exists
+  const alreadyExists=D.tasks.some(t=>t._recurringFrom===task.id&&t.status!=='Done');
+  if(alreadyExists)return;
+  const newTask=Object.assign({},task,{
+    id:nextId(D.tasks),
+    status:'Not Started',
+    myDay:false,
+    doneToday:false,
+    subtasks:(task.subtasks||[]).map(s=>({...s,done:false})),
+    due:addDays(task.due,offset),
+    startDate:addDays(task.startDate,offset),
+    endDate:addDays(task.endDate,offset),
+    _recurringFrom:task.id,
+  });
+  D.tasks.push(newTask);
+  save('tasks');
+  toast('🔁 Next '+task.recurring.toLowerCase()+' instance created: '+esc(task.title));
 }
 
 // ====== KEYBOARD SHORTCUTS ======
