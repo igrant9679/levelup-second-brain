@@ -13,6 +13,22 @@ body.compact-mode .lr{padding:2px 0!important}
 body.compact-mode .cd{padding:8px!important}
 body.compact-mode h1{font-size:16px!important}
 body.compact-mode .si{padding:4px 8px!important;font-size:11px!important}
+/* LOGIN OVERLAY */
+#login-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
+#login-overlay.hidden{display:none}
+.login-box{background:var(--s2);border:1px solid var(--bd2);border-radius:16px;padding:36px 32px;width:360px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.login-box h2{font-size:20px;font-weight:700;margin-bottom:4px;text-align:center}
+.login-box p{font-size:12px;color:var(--t3);text-align:center;margin-bottom:24px}
+.login-user-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.login-user-btn{background:var(--s3);border:2px solid transparent;border-radius:10px;padding:10px 8px;cursor:pointer;text-align:center;transition:border-color .15s}
+.login-user-btn:hover,.login-user-btn.sel{border-color:var(--ac)}
+.login-user-btn .av-lg{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin:0 auto 6px}
+.login-user-btn .u-name{font-size:11px;font-weight:600}
+.login-user-btn .u-role{font-size:9px;color:var(--t3)}
+.login-pin{display:flex;gap:8px;justify-content:center;margin-bottom:16px}
+.login-pin input{width:44px;height:44px;border-radius:8px;background:var(--s3);border:1px solid var(--bd2);color:var(--t1);font-size:18px;font-weight:700;text-align:center;outline:none}
+.login-pin input:focus{border-color:var(--ac)}
+.login-err{color:var(--red);font-size:11px;text-align:center;min-height:16px;margin-bottom:8px}
 html,body{height:100%;overflow:hidden}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
@@ -211,6 +227,28 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .ins.obs{border-left:3px solid var(--ac)}.ins.enc{border-left:3px solid var(--ok);background:rgba(34,197,94,.03)}.ins.wrn{border-left:3px solid var(--warn);background:rgba(245,158,11,.03)}
 </style>
 </head><body>
+<div id="login-overlay">
+  <div style="text-align:center;margin-bottom:24px">
+    <svg viewBox="0 0 32 32" fill="none" width="48" height="48"><circle cx="16" cy="12" r="3" fill="#3B82F6"/><circle cx="9" cy="18" r="2.5" fill="#3B82F6" opacity=".8"/><circle cx="23" cy="18" r="2.5" fill="#3B82F6" opacity=".8"/><circle cx="6" cy="10" r="2" fill="#3B82F6" opacity=".6"/><circle cx="26" cy="10" r="2" fill="#3B82F6" opacity=".6"/></svg>
+    <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
+    <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
+  </div>
+  <div class="login-box">
+    <h2>Welcome back</h2>
+    <p>Select your profile to continue</p>
+    <div class="login-user-grid" id="login-user-grid"></div>
+    <div style="font-size:11px;color:var(--t3);text-align:center;margin-bottom:10px">Enter your 4-digit PIN</div>
+    <div class="login-pin">
+      <input type="tel" maxlength="1" id="pin0" oninput="pinInput(this,0)" onkeydown="pinKey(event,0)">
+      <input type="tel" maxlength="1" id="pin1" oninput="pinInput(this,1)" onkeydown="pinKey(event,1)">
+      <input type="tel" maxlength="1" id="pin2" oninput="pinInput(this,2)" onkeydown="pinKey(event,2)">
+      <input type="tel" maxlength="1" id="pin3" oninput="pinInput(this,3)" onkeydown="pinKey(event,3)">
+    </div>
+    <div class="login-err" id="login-err"></div>
+    <button class="btn btn-p" style="width:100%;height:38px;font-size:13px" onclick="attemptLogin()">Sign In</button>
+    <div style="font-size:10px;color:var(--t3);text-align:center;margin-top:12px">Default PIN for all users: <strong>1234</strong></div>
+  </div>
+</div>
 <div class="app">
 <header class="topbar">
 <div class="logo" onclick="nav('home')">
@@ -516,6 +554,10 @@ function renderDrawer(type,item){
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     </div>
+    <div class="field"><label>Comments / Activity</label>
+    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(item.comments||[]).map(c=>`<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><span>${c.ts||''}</span></div><div style="font-size:11px">${esc(c.text)}</div></div>`).join('')||("<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>")}</div>
+    <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
@@ -764,6 +806,22 @@ function renderScreen(s){
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
   return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+}
+function addTaskComment(taskId){
+  const inp=document.getElementById('new-comment');
+  if(!inp||!inp.value.trim())return;
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  t.comments=t.comments||[];
+  const now=new Date();
+  const ts=now.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  t.comments.push({id:Date.now(),author:D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris',text:inp.value.trim(),ts});
+  save('tasks');
+  inp.value='';
+  // Re-render comments panel inline
+  const panel=document.getElementById('task-comments');
+  if(panel)panel.innerHTML=t.comments.map(c=>`<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><span>${c.ts||''}</span></div><div style="font-size:11px">${esc(c.text)}</div></div>`).join('');
+  toast('💬 Comment added');
 }
 function moveSomeday(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -1146,7 +1204,7 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
   </div>
 </div>
 <div class="sec-h">⚡ Execute — My Day tasks</div>
-<div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
+<div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'quickwin')">⚡ Quick Wins</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
 <div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:none"><div class="sec-h">🌙 Wrap-Up</div>
 <div class="g3" style="margin-bottom:12px">
@@ -1203,10 +1261,11 @@ function saveWrapUp(){
 function renderMdExecList(filter){
   let tasks=D.tasks.filter(t=>t.myDay);
   if(filter==='high')tasks=tasks.filter(t=>t.priority==='High');
+  else if(filter==='quickwin')tasks=tasks.filter(t=>t.status!=='Done'&&(t.estimatedMins||999)<=15);
   else if(filter==='pending')tasks=tasks.filter(t=>t.status!=='Done');
   else if(filter==='done')tasks=tasks.filter(t=>t.status==='Done');
   if(!tasks.length)return '<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">'+
-    (filter==='done'?'No completed tasks yet today.':'Nothing here. Go to Plan to add tasks.')+'</p>';
+    (filter==='done'?'No completed tasks yet today.':filter==='quickwin'?'No quick wins (≤15 min) on My Day. Add estimated time to tasks to see them here.':'Nothing here. Go to Plan to add tasks.')+'</p>';
   return tasks.map(t=>{
     const subs=t.subtasks||[];
     const subsDone=subs.filter(s=>s.done).length;
@@ -1450,11 +1509,126 @@ function quickAddToDay(dateStr){
   },50);
 }
 
-function renderMyYear(){$('myyear-main').innerHTML=`<div class="pg-h"><h1>🗓 My Year — 2025</h1><p style="font-size:12px;color:var(--t2)">Strategic planning. Align daily work with direction.</p></div>
-<div class="sec-h">🎯 Current Priorities</div>
-${[{n:1,t:'Ship the product launch on time',l:'Product Launch Q2 · 40%'},{n:2,t:'Build the second brain system',l:'USIP Requirements · 55%'},{n:3,t:'Hit revenue growth targets',l:'Revenue goal · 12%'}].map(p=>`<div class="cd" style="display:flex;align-items:center;gap:10px;padding:10px"><span style="width:22px;height:22px;border-radius:50%;background:var(--ac);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${p.n}</span><div><div style="font-size:13px;font-weight:500">${p.t}</div><div style="font-size:10px;color:var(--t3)">${p.l}</div></div></div>`).join('')}
-<div class="sec-h">📊 Annual Goals</div>
-<div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">${g.icon}<span class="rt">${esc(g.title)}</span><span class="rm">${g.pct}%</span></div>`).join('')}</div>`}
+function renderMyYear(){
+  const yr=new Date().getFullYear();
+  const now=new Date();
+  const todayStr=now.toISOString().split('T')[0];
+  const dayOfYear=Math.floor((now-new Date(yr,0,0))/(1000*60*60*24));
+  const daysInYear=((yr%4===0&&yr%100!==0)||yr%400===0)?366:365;
+  const yearPct=Math.round(dayOfYear/daysInYear*100);
+
+  // Yearly stats
+  const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
+  const totalTasks=D.tasks.length;
+  const notesCount=D.notes.length;
+  const journalCount=D.journal.length;
+  const topStreak=D.habits.reduce((b,h)=>h.streak>b.streak?h:b,{streak:0,title:'—',icon:''});
+  const focusLog=D.prefs&&D.prefs.focusLog||{};
+  const totalFocusMins=Object.values(focusLog).reduce((s,v)=>s+v,0)+(D.prefs.focusMinsToday||0);
+
+  // Goal timeline
+  const goalTimeline=D.goals.map(g=>{
+    const start=g.startDate||`${yr}-01-01`;
+    const end=g.dueDate||`${yr}-12-31`;
+    const sDay=Math.floor((new Date(start)-new Date(yr,0,0))/(1000*60*60*24));
+    const eDay=Math.floor((new Date(end)-new Date(yr,0,0))/(1000*60*60*24));
+    const left=Math.max(0,Math.min(100,(sDay/daysInYear)*100));
+    const width=Math.max(2,Math.min(100-left,((eDay-sDay)/daysInYear)*100));
+    return {g,left,width};
+  });
+
+  // Habit heatmap — last 52 weeks (364 days)
+  const heatLog=D.prefs.focusLog||{};
+  const heatDays=Array.from({length:364},(_,i)=>{const d=new Date(now);d.setDate(d.getDate()-363+i);return d.toISOString().split('T')[0];});
+  const heatMax=Math.max(1,...Object.values(heatLog));
+  function heatColor(v){if(!v)return 'var(--s3)';const p=v/heatMax;if(p<0.25)return '#1e3a5f';if(p<0.5)return '#1d5fa8';if(p<0.75)return '#2b7de9';return 'var(--ac)';}
+
+  // Quarterly breakdown
+  const quarters=['Q1 (Jan–Mar)','Q2 (Apr–Jun)','Q3 (Jul–Sep)','Q4 (Oct–Dec)'];
+  const qRanges=[['01-01','03-31'],['04-01','06-30'],['07-01','09-30'],['10-01','12-31']];
+  const qStats=qRanges.map(([s,e])=>{
+    const qs=`${yr}-${s}`,qe=`${yr}-${e}`;
+    const qt=D.tasks.filter(t=>{const d=t.due||t.startDate||'';return d>=qs&&d<=qe;});
+    return {total:qt.length,done:qt.filter(t=>t.status==='Done').length};
+  });
+
+  $('myyear-main').innerHTML=`
+  <div class="ph-r" style="margin-bottom:12px">
+    <div><h1 style="font-size:22px;font-weight:700">🗓 My Year — ${yr}</h1><p style="font-size:12px;color:var(--t2)">Day ${dayOfYear} of ${daysInYear} · ${yearPct}% through the year</p></div>
+    <button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button>
+  </div>
+
+  <div style="background:var(--s2);border-radius:8px;padding:8px 14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:4px"><span>Jan</span><span>Mar</span><span>Jun</span><span>Sep</span><span>Dec</span></div>
+    <div style="position:relative;height:6px;background:var(--s3);border-radius:3px;margin-bottom:4px">
+      <div style="position:absolute;left:0;top:0;height:100%;width:${yearPct}%;background:var(--ac);border-radius:3px"></div>
+      <div style="position:absolute;top:-3px;left:${yearPct}%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:var(--ac);border:2px solid var(--bg)"></div>
+    </div>
+    <div style="font-size:9px;color:var(--t3);text-align:right">${yearPct}% of year elapsed</div>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    ${[{l:'Tasks Done',v:doneTasks+'/'+totalTasks,c:'var(--ok)'},{l:'Notes',v:notesCount,c:'var(--ac)'},{l:'Journal Entries',v:journalCount,c:'var(--warn)'},{l:'Top Streak',v:topStreak.streak+'🔥',c:'var(--warn)'},{l:'Focus Hours',v:Math.round(totalFocusMins/60)+'h',c:'var(--ac)'}].map(s=>`<div style="flex:1;min-width:80px;background:var(--s2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${s.c}">${s.v}</div><div style="font-size:9px;color:var(--t3);margin-top:2px">${s.l}</div></div>`).join('')}
+  </div>
+
+  <div class="sec-h">🎯 Goal Timeline</div>
+  <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t3);margin-bottom:8px"><span>Jan</span><span>Apr</span><span>Jul</span><span>Oct</span><span>Dec</span></div>
+    ${goalTimeline.map(({g,left,width})=>`
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+        <span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span>
+      </div>
+      <div style="position:relative;height:14px;background:var(--s3);border-radius:3px">
+        <div style="position:absolute;left:${left}%;width:${width}%;height:100%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'};border-radius:3px;opacity:0.85" title="${g.title}: ${g.pct}%"></div>
+        <div style="position:absolute;left:${yearPct}%;top:0;height:100%;width:1px;background:var(--t3);opacity:0.5"></div>
+      </div>
+    </div>`).join('')}
+  </div>
+
+  <div class="sec-h">📅 Quarterly Breakdown</div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    ${quarters.map((q,i)=>{
+      const {total,done}=qStats[i];
+      const pct=total?Math.round(done/total*100):0;
+      const isCur=Math.floor((now.getMonth())/3)===i;
+      return `<div style="flex:1;min-width:100px;background:${isCur?'var(--acs)':'var(--s2)'};border:${isCur?'1px solid var(--ac)':'1px solid transparent'};border-radius:8px;padding:10px">
+        <div style="font-size:10px;font-weight:600;margin-bottom:4px">${q}${isCur?' <span style="font-size:8px;color:var(--ac)">← Now</span>':''}</div>
+        <div style="font-size:16px;font-weight:700;color:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--t2)'}">${pct}%</div>
+        <div style="font-size:9px;color:var(--t3)">${done}/${total} tasks</div>
+        <div class="pb" style="margin-top:4px"><div class="f" style="width:${pct}%;background:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)'}"></div></div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="sec-h">🔥 Focus Activity (52 weeks)</div>
+  <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;overflow-x:auto">
+    <div style="display:flex;gap:2px;flex-wrap:wrap">
+      ${heatDays.map(d=>`<div style="width:10px;height:10px;border-radius:2px;background:${heatColor(heatLog[d]||0)}" title="${d}: ${heatLog[d]||0}m"></div>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:9px;color:var(--t3)">
+      <span>Less</span>
+      ${['var(--s3)','#1e3a5f','#1d5fa8','#2b7de9','var(--ac)'].map(c=>`<div style="width:10px;height:10px;border-radius:2px;background:${c}"></div>`).join('')}
+      <span>More</span>
+    </div>
+  </div>
+
+  <div class="sec-h">📊 Annual Goals</div>
+  <div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">${g.icon}<span class="rt">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3);margin-right:6px">${g.dueDate||''}</span><div class="pb" style="width:60px"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div><span class="rm">${g.pct}%</span></div>`).join('')}</div>
+  `;
+  $('myyear-rail').innerHTML=`
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px">📌 Year Priorities</div>
+  ${D.goals.filter(g=>g.pct<100).slice(0,5).map((g,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:18px;height:18px;border-radius:50%;background:var(--ac);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.icon} ${esc(g.title)}</div><div class="pb" style="margin-top:3px"><div class="f" style="width:${g.pct}%"></div></div></div><span style="font-size:10px;color:var(--t3)">${g.pct}%</span></div>`).join('')}
+  <div style="font-size:12px;font-weight:600;margin:12px 0 6px">📈 Year Stats</div>
+  <div style="font-size:10px;color:var(--t2);line-height:1.8">
+    <div>📋 Tasks done: <strong>${doneTasks}</strong></div>
+    <div>📝 Notes: <strong>${notesCount}</strong></div>
+    <div>📓 Journal entries: <strong>${journalCount}</strong></div>
+    <div>⏱ Focus time: <strong>${Math.round(totalFocusMins/60)}h ${totalFocusMins%60}m</strong></div>
+    <div>🔥 Top streak: <strong>${topStreak.streak} days</strong></div>
+  </div>
+  `;
+}
 
 function renderProcess(){$('process-main').innerHTML=`<div class="pg-h"><h1>⚡ Process (GTD)</h1><p style="font-size:12px;color:var(--t2)">${D.tasks.filter(t=>t.status==='Not Started').length} in task inbox</p></div>
 <div class="sec-h">📥 Task Processing</div>
@@ -1683,8 +1857,11 @@ function renderSettingsHTML(){
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
-  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
-  <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload();}">\ud83d\uddd1 Reset All Data</button></div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
+  <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
+  <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload()}">🗑 Reset All Data</button></div>
   </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
@@ -2169,14 +2346,117 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();}
 });
 
+// ====== LOGIN ======
+let _loginSelectedMember=null;
+function initLoginScreen(){
+  // Check for active session
+  const sess=JSON.parse(localStorage.getItem('lu_session')||'null');
+  if(sess&&sess.memberId&&sess.expires>Date.now()){
+    const allMembers=D.teams.flatMap(t=>t.members);
+    const member=allMembers.find(m=>m.id===sess.memberId);
+    if(member){doLoginSuccess(member);return;}
+  }
+  // Build user grid
+  const grid=document.getElementById('login-user-grid');
+  if(!grid)return;
+  const allMembers=D.teams.flatMap(t=>t.members);
+  grid.innerHTML=allMembers.map(m=>{
+    const initials=m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="login-user-btn" id="lbtn-${m.id}" onclick="selectLoginUser(${m.id})">
+      <div class="av-lg" style="background:${m.color||'var(--ac)'};color:#fff">${initials}</div>
+      <div class="u-name">${esc(m.name)}</div>
+      <div class="u-role">${m.role||'Member'}</div>
+    </div>`;
+  }).join('');
+  // Auto-select Idris (owner)
+  const owner=allMembers.find(m=>m.role==='Owner')||allMembers[0];
+  if(owner)selectLoginUser(owner.id);
+}
+function selectLoginUser(memberId){
+  _loginSelectedMember=memberId;
+  document.querySelectorAll('.login-user-btn').forEach(b=>b.classList.remove('sel'));
+  const btn=document.getElementById('lbtn-'+memberId);
+  if(btn)btn.classList.add('sel');
+  // Clear PIN
+  [0,1,2,3].forEach(i=>{const p=document.getElementById('pin'+i);if(p)p.value='';});
+  const p0=document.getElementById('pin0');if(p0)p0.focus();
+  document.getElementById('login-err').textContent='';
+}
+function pinInput(el,idx){
+  el.value=el.value.replace(/[^0-9]/g,'').slice(-1);
+  if(el.value&&idx<3){const next=document.getElementById('pin'+(idx+1));if(next)next.focus();}
+  if(idx===3&&el.value)attemptLogin();
+}
+function pinKey(e,idx){
+  if(e.key==='Backspace'&&!e.target.value&&idx>0){
+    const prev=document.getElementById('pin'+(idx-1));if(prev){prev.value='';prev.focus();}
+  }
+  if(e.key==='Enter')attemptLogin();
+}
+function attemptLogin(){
+  const pin=[0,1,2,3].map(i=>{const p=document.getElementById('pin'+i);return p?p.value:'';}).join('');
+  if(pin.length<4){document.getElementById('login-err').textContent='Please enter all 4 digits.';return;}
+  const allMembers=D.teams.flatMap(t=>t.members);
+  const member=allMembers.find(m=>m.id===_loginSelectedMember);
+  if(!member){document.getElementById('login-err').textContent='Please select a user.';return;}
+  // Check PIN: stored in member.pin, default 1234
+  const correctPin=member.pin||'1234';
+  if(pin!==correctPin){
+    document.getElementById('login-err').textContent='Incorrect PIN. Try again.';
+    [0,1,2,3].forEach(i=>{const p=document.getElementById('pin'+i);if(p)p.value='';});
+    const p0=document.getElementById('pin0');if(p0)p0.focus();
+    return;
+  }
+  doLoginSuccess(member);
+}
+function doLoginSuccess(member){
+  // Save session (8-hour expiry)
+  localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+8*60*60*1000}));
+  // Update creds to reflect logged-in user
+  D.creds.userName=member.name;
+  D.creds.email=member.email||'';
+  D.creds.role=member.role||'Member';
+  D.creds.color=member.color||'var(--ac)';
+  localStorage.setItem('lu_creds',JSON.stringify(D.creds));
+  // Apply permissions
+  applyUserPerms(member);
+  // Hide login overlay
+  const ov=document.getElementById('login-overlay');
+  if(ov)ov.classList.add('hidden');
+  // Boot app
+  applyPrefs();
+  checkMyDayReset();
+  scheduleMidnightReset();
+  initSidebars('home');
+  updateProfileUI();
+  renderScreen('home');
+  setTimeout(startAIAssistant,5000);
+  toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
+}
+function applyUserPerms(member){
+  const perms=member.perms||{};
+  // Hide sidebar items the user doesn't have access to
+  const permMap={mail:'s-mail',calendar:'s-calendar',settings:'s-settings',coach:'s-coach'};
+  // We apply via CSS class on body
+  document.body.dataset.role=member.role||'Member';
+  // Restrict settings nav for non-owners
+  if(member.role!=='Owner'&&member.role!=='Admin'){
+    document.body.classList.add('restricted');
+  } else {
+    document.body.classList.remove('restricted');
+  }
+}
+function doLogout(){
+  localStorage.removeItem('lu_session');
+  const ov=document.getElementById('login-overlay');
+  if(ov){ov.classList.remove('hidden');initLoginScreen();}
+  toast('Signed out');
+}
+
 // ====== INIT ======
 applyPrefs();
-checkMyDayReset();
-scheduleMidnightReset();
-initSidebars('home');
-updateProfileUI();
-renderScreen('home');
-setTimeout(startAIAssistant,5000);
+initLoginScreen();
+// App boots inside doLoginSuccess after auth
 // Patch save() to invalidate search index on data change
 const _origSave=window.save||save;
 window.save=function(k){_origSave(k);invalidateSearchIndex()};
