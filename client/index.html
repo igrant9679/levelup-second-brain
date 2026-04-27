@@ -1702,8 +1702,8 @@ function dropTaskOnDay(event,dateStr){
   toast('📅 Task moved to '+new Date(dateStr+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
 }
 function quickAddToDay(dateStr){
- openFA('task');
-  }// Pre-fill date after modal opens
+  openFA('task');
+  // Pre-fill date after modal opens
   setTimeout(()=>{
     const el=document.getElementById('cap-due');
     if(el)el.value=dateStr;
