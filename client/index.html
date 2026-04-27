@@ -217,7 +217,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 <button class="bn" onclick="openModal('capture')">+ New</button>
 <button class="tbtn" onclick="toggleAIPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="bg" id="ai-badge">3</span></button>
 <button class="tbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg">6</span></button>
-<div class="av" onclick="nav('settings')">JC</div>
+<div class="av" id="topbar-avatar" onclick="nav('settings')">IG</div>
 </div>
 </header>
 <template id="sb-tpl">
@@ -243,7 +243,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
 </div>
-<div class="su"><div class="av">JC</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">John Carter</div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">john.carter@work.com</div></div></div>
+<div class="su"><div class="av" id="sb-avatar">IG</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500" id="sb-name">Idris Grant</div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="sb-email">idris@levelup.app</div></div></div>
 </template>
 
 <!-- ===== S-01 HOME ===== -->
@@ -327,58 +327,59 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 // ====== DATA STORE ======
 const D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
-    {id:1,title:'Finalize Q2 marketing strategy',priority:'High',due:'Today',context:'Work',project:'Marketing Campaign',status:'In Progress',myDay:true,energy:'high',notes:''},
-    {id:2,title:'Review budget proposals',priority:'High',due:'Today',context:'Work',project:'Finance & Budget',status:'Pending',myDay:true,energy:'medium',notes:''},
-    {id:3,title:'Client onboarding call',priority:'Medium',due:'Today',context:'Calls',project:'Client Onboarding',status:'Scheduled',myDay:true,energy:'medium',notes:''},
-    {id:4,title:'Update product roadmap',priority:'Medium',due:'Today',context:'Deep Work',project:'Product Launch Q2',status:'Pending',myDay:false,energy:'high',notes:''},
-    {id:5,title:'Send weekly team update',priority:'Low',due:'Today',context:'Admin',project:'General Ops',status:'Pending',myDay:false,energy:'low',notes:''},
-    {id:6,title:'Research automation tools',priority:'Low',due:'Tomorrow',context:'Learning',project:'Finance Automation',status:'Not Started',myDay:false,energy:'medium',notes:''},
-    {id:7,title:'Design landing page mockups',priority:'Medium',due:'May 22',context:'Creative',project:'Website Redesign',status:'Not Started',myDay:false,energy:'high',notes:''},
-    {id:8,title:'Prepare investor update deck',priority:'High',due:'May 23',context:'Work',project:'Q2 Marketing Plan',status:'Not Started',myDay:false,energy:'high',notes:''},
+    {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'Today',context:'Deep Work',project:'LevelUp Platform',status:'In Progress',myDay:true,energy:'high',notes:''},
+    {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'Today',context:'Calls',project:'LevelUp Platform',status:'Scheduled',myDay:true,energy:'medium',notes:''},
+    {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'Today',context:'Admin',project:'Fundraising',status:'Pending',myDay:true,energy:'low',notes:''},
+    {id:4,title:'Draft Q3 product roadmap',priority:'Medium',due:'Tomorrow',context:'Deep Work',project:'LevelUp Platform',status:'Not Started',myDay:false,energy:'high',notes:''},
+    {id:5,title:'Prepare demo for advisory board',priority:'High',due:'May 23',context:'Work',project:'LevelUp Platform',status:'Not Started',myDay:false,energy:'high',notes:''},
+    {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'May 24',context:'Learning',project:'Second Brain Research',status:'Not Started',myDay:false,energy:'medium',notes:''},
+    {id:7,title:'Update pitch deck financials',priority:'Medium',due:'May 25',context:'Work',project:'Fundraising',status:'Not Started',myDay:false,energy:'high',notes:''},
+    {id:8,title:'Write weekly reflection post',priority:'Low',due:'May 26',context:'Creative',project:'Personal Brand',status:'Not Started',myDay:false,energy:'low',notes:''},
   ],
   notes: JSON.parse(localStorage.getItem('lu_notes') || 'null') || [
-    {id:1,title:'Building a Second Brain for Long-Term Clarity',tags:['productivity','second-brain'],source:'Manual',updated:'Just now',starred:true,body:'Our minds are for having ideas, not holding them. A second brain is a trusted system for capturing, organizing, and connecting knowledge.'},
-    {id:2,title:'Q2 Marketing Strategy Overview',tags:['marketing','strategy'],source:'Meeting Notes',updated:'1h ago',starred:false,body:'Key strategies for Q2 include digital campaigns, content marketing, and partner outreach.'},
-    {id:3,title:'AI Tools for Knowledge Work',tags:['research','tools'],source:'Web Clipper',updated:'3h ago',starred:true,body:'Overview of AI tools for knowledge workers including writing assistants, summarizers, and research tools.'},
-    {id:4,title:'Product Launch Q2 – Plan',tags:['product','launch'],source:'Manual',updated:'Yesterday',starred:false,body:'Phase 1: Beta testing. Phase 2: Soft launch. Phase 3: Full rollout with marketing campaign.'},
-    {id:5,title:'Daily Journal – May 20',tags:['journal','reflection'],source:'Manual',updated:'Yesterday',starred:false,body:'Productive day. Completed 5 tasks. Need to focus more on deep work tomorrow.'},
-    {id:6,title:'Finance Automation Ideas',tags:['finance','automation'],source:'Web Clipper',updated:'2d ago',starred:true,body:'Possible tools: QuickBooks integrations, custom Python scripts for report generation.'},
-    {id:7,title:'Meeting Notes – Product Sync',tags:['meeting','product'],source:'Meeting Notes',updated:'3d ago',starred:false,body:'Discussed timeline adjustments. New launch date: June 15.'},
-    {id:8,title:'Book Notes – Atomic Habits',tags:['books','habits'],source:'Manual',updated:'3d ago',starred:false,body:'Key insight: 1% better every day. Focus on systems, not goals. Identity-based habits.'},
+    {id:1,title:'LevelUp Vision & Core Principles',tags:['vision','product'],source:'Manual',updated:'Just now',starred:true,body:'LevelUp is a personal operating system for ambitious builders. Core principles: capture everything, process daily, connect ideas, act with intention.'},
+    {id:2,title:'Second Brain Architecture Notes',tags:['second-brain','architecture'],source:'Meeting Notes',updated:'1h ago',starred:false,body:'PARA method adapted for LevelUp: Projects (active), Areas (ongoing), Resources (reference), Archive (inactive). Each node links to tasks and goals.'},
+    {id:3,title:'AI Integration Research',tags:['research','ai'],source:'Web Clipper',updated:'3h ago',starred:true,body:'Key AI use cases for personal productivity: smart capture parsing, proactive nudges, pattern detection in journal entries, suggested daily plans.'},
+    {id:4,title:'Fundraising Narrative – Draft 2',tags:['fundraising','pitch'],source:'Manual',updated:'Yesterday',starred:false,body:'Problem: knowledge workers lose 30% of time to context switching. Solution: LevelUp unifies tasks, notes, goals and surfaces what matters most.'},
+    {id:5,title:'Advisory Board Prep Notes',tags:['meetings','strategy'],source:'Manual',updated:'Yesterday',starred:false,body:'Key questions to address: GTM timeline, AI differentiation, pricing model, enterprise vs. prosumer focus.'},
+    {id:6,title:'Book Notes – Building a Second Brain',tags:['books','productivity'],source:'Manual',updated:'2d ago',starred:true,body:'Tiago Forte: CODE method — Capture, Organize, Distill, Express. Progressive summarization for note refinement. Projects should always have a next action.'},
+    {id:7,title:'Sprint 7 Retrospective',tags:['engineering','process'],source:'Meeting Notes',updated:'3d ago',starred:false,body:'Velocity: 42 points. Blockers: auth flow complexity. Wins: search indexing 3x faster. Next sprint focus: mobile responsiveness and offline mode.'},
+    {id:8,title:'Personal Brand Strategy',tags:['marketing','personal'],source:'Manual',updated:'3d ago',starred:false,body:'Positioning: builder who ships. Channels: LinkedIn (thought leadership), X (product updates), newsletter (weekly reflection). Cadence: 3x/week.'},
   ],
   projects: JSON.parse(localStorage.getItem('lu_projects') || 'null') || [
-    {id:1,name:'Website Redesign',color:'#3B82F6',status:'Active',due:'May 30',pct:65,desc:'Complete overhaul of company website.'},
-    {id:2,name:'Product Launch Q2',color:'#8B5CF6',status:'Active',due:'Jun 15',pct:40,desc:'Launch new product line.'},
-    {id:3,name:'Marketing Campaign',color:'#F59E0B',status:'Active',due:'May 25',pct:75,desc:'Q2 multi-channel campaign.'},
-    {id:4,name:'Client Onboarding',color:'#10B981',status:'Active',due:'May 20',pct:20,desc:'Streamline onboarding.'},
-    {id:5,name:'Finance Automation',color:'#EF4444',status:'Not Started',due:'Jun 10',pct:30,desc:'Automate financial reports.'},
-    {id:6,name:'USIP Requirements',color:'#06B6D4',status:'Active',due:'Jun 15',pct:55,desc:'Requirements gathering.'},
+    {id:1,name:'LevelUp Platform',color:'#3B82F6',status:'Active',due:'Jun 30',pct:55,desc:'Core app development — tasks, notes, goals, AI assistant.'},
+    {id:2,name:'Fundraising',color:'#8B5CF6',status:'Active',due:'Jul 15',pct:35,desc:'Seed round preparation: deck, data room, investor outreach.'},
+    {id:3,name:'Second Brain Research',color:'#F59E0B',status:'Active',due:'May 31',pct:70,desc:'Research synthesis for AI-powered knowledge linking feature.'},
+    {id:4,name:'Personal Brand',color:'#10B981',status:'Active',due:'Ongoing',pct:45,desc:'LinkedIn, newsletter, and X presence for LevelUp launch.'},
+    {id:5,name:'Advisory Board Setup',color:'#EF4444',status:'Active',due:'Jun 10',pct:60,desc:'Recruit 3 advisors, define engagement model.'},
+    {id:6,name:'Mobile MVP',color:'#06B6D4',status:'Not Started',due:'Aug 1',pct:10,desc:'React Native port of core LevelUp screens.'},
   ],
   goals: JSON.parse(localStorage.getItem('lu_goals') || 'null') || [
-    {id:1,icon:'🚀',title:'Launch 2 new products',target:'2 products by Q2',pct:50},
-    {id:2,icon:'📈',title:'Increase revenue by 20%',target:'$2.4M annual',pct:12},
-    {id:3,icon:'📚',title:'Read 12 books this year',target:'5 of 12 done',pct:42},
-    {id:4,icon:'🏃',title:'Run 500 miles',target:'180 of 500',pct:36},
-    {id:5,icon:'🎓',title:'Complete 3 certifications',target:'1 of 3 done',pct:33},
+    {id:1,icon:'🚀',title:'Ship LevelUp v1.0',target:'Public launch by Jul 31',pct:55},
+    {id:2,icon:'💰',title:'Close seed round',target:'$500K by Aug 1',pct:30},
+    {id:3,icon:'📚',title:'Read 24 books this year',target:'9 of 24 done',pct:38},
+    {id:4,icon:'🏃',title:'Run 500 miles this year',target:'195 of 500',pct:39},
+    {id:5,icon:'✍️',title:'Publish 50 posts',target:'18 of 50 published',pct:36},
   ],
   journal: JSON.parse(localStorage.getItem('lu_journal') || 'null') || [
-    {id:1,date:'Today · Monday, May 19',title:'Morning Reflection',body:'Started the day with clear focus on Q2 priorities.',mood:'😊'},
-    {id:2,date:'Yesterday · Sunday, May 18',title:'Weekly Review Notes',body:'Completed 23 tasks this week.',mood:'🙂'},
-    {id:3,date:'May 17 · Saturday',title:'Gratitude Journal',body:'Grateful for team support and productive week.',mood:'😊'},
-    {id:4,date:'May 16 · Friday',title:'End of Week Thoughts',body:'Feeling tired but accomplished.',mood:'😫'},
+    {id:1,date:'Today · Monday, May 19',title:'Morning Reflection',body:'Feeling sharp. Prioritized the requirements doc and the investor follow-ups. The demo prep is the big unlock this week.',mood:'😊'},
+    {id:2,date:'Yesterday · Sunday, May 18',title:'Weekly Review',body:'Shipped 19 tasks. Biggest win: got the search feature working end-to-end. Biggest miss: skipped two deep work blocks. Next week: protect mornings.',mood:'🙂'},
+    {id:3,date:'May 17 · Saturday',title:'Gratitude',body:'Grateful for the team — they shipped the auth refactor without me having to micromanage. That trust is everything.',mood:'😊'},
+    {id:4,date:'May 16 · Friday',title:'End of Week',body:'Tired but good tired. The advisory board call went better than expected. Two potential advisors said yes.',mood:'😫'},
   ],
   habits: JSON.parse(localStorage.getItem('lu_habits') || 'null') || [
-    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:22,doneToday:true},
-    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:15,doneToday:true},
-    {id:3,icon:'🏃',title:'Daily steps ≥ 8000',cadence:'Daily',streak:8,doneToday:false},
-    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:12,doneToday:false},
-    {id:5,icon:'💪',title:'Strength training',cadence:'3×/week',streak:6,doneToday:false},
+    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:18,doneToday:true},
+    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:11,doneToday:true},
+    {id:3,icon:'🏃',title:'Daily run or walk',cadence:'Daily',streak:7,doneToday:false},
+    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:9,doneToday:false},
+    {id:5,icon:'💻',title:'Deep work block (2h)',cadence:'Daily',streak:5,doneToday:false},
+    {id:6,icon:'💪',title:'Strength training',cadence:'3×/week',streak:4,doneToday:false},
   ],
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
-    {id:1,name:'Core Team',members:[
-      {id:1,name:'John Carter',email:'john@work.com',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:true,mail:true,calendar:true,habits:false,coach:true}},
-      {id:2,name:'Sarah Johnson',email:'sarah@work.com',role:'Admin',color:'#8B5CF6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:false,mail:true,calendar:true,habits:false,coach:true}},
-      {id:3,name:'Michael Lee',email:'michael@work.com',role:'Member',color:'#10B981',perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}},
+    {id:1,name:'LevelUp Core Team',members:[
+      {id:1,name:'Idris Grant',email:'idris@levelup.app',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
+      {id:2,name:'Priya Nair',email:'priya@levelup.app',role:'Admin',color:'#8B5CF6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:false,mail:true,calendar:true,habits:false,coach:true}},
+      {id:3,name:'Marcus Webb',email:'marcus@levelup.app',role:'Member',color:'#10B981',perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}},
     ]},
   ],
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
@@ -606,7 +607,10 @@ function toggleTask(id){const t=D.tasks.find(x=>x.id===id);if(t){t.status=t.stat
 
 function renderHome(){
   const m=$('home-main');const r=$('home-rail');
-  m.innerHTML=`<div class="pg-h"><h1>Good morning, John! 👋</h1><p>Focus on what matters today. You've got this.</p></div>
+  const _greetName=(D.creds.userName||'Idris Grant').split(' ')[0];
+  const _greetTime=new Date().getHours();
+  const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':'evening';
+  m.innerHTML=`<div class="pg-h"><h1>Good ${_greetWord}, ${_greetName}! 👋</h1><p>Focus on what matters today. You've got this.</p></div>
   <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">Quick Add</span>
   ${['Task','Note','Project','Goal','Journal','File'].map(t=>`<span style="font-size:11px;color:var(--t2);cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="openModal('capture')">${t}</span>`).join('')}</div>
   <div class="cd" style="display:flex;gap:24px;align-items:center;padding:12px 16px"><span style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Today</span>
@@ -709,7 +713,7 @@ function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Ar
 <input class="inp" style="margin-bottom:10px" placeholder="Search archive...">
 <div class="cd">${['Complete Q1 report|Task|Mar 15','Brand Identity Refresh|Project|Feb 28','Old AI research|Note|Feb 10','Migrate CRM data|Task|Jan 30','Launch company blog|Goal|Jan 15'].map(x=>{const[n,t,d]=x.split('|');return`<div class="lr"><span style="font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;background:var(--s3);color:var(--t3)">${t}</span><span class="rt">${n}</span><span class="rm">Archived ${d}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:8px;padding:0 5px">Restore</button></span></div>`}).join('')}</div>`}
 
-function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear My Day</button><button class="btn btn-p" onclick="openModal('capture')">+ Quick add</button></div></div>
+function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openModal('capture')">+ Quick add</button></div></div>
 <div class="subnav"><span class="sn on" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p"><div class="sec-h">📋 Plan — Select tasks for today</div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
@@ -742,11 +746,28 @@ function renderProcess(){$('process-main').innerHTML=`<div class="pg-h"><h1>⚡ 
 <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Keys: <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">D</kbd> Do Next · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">S</kbd> Someday · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">X</kbd> Done</div>
 <div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`}
 
+function toggleHabit(id){
+  const h=D.habits.find(x=>x.id===id);
+  if(!h)return;
+  const wasOff=!h.doneToday;
+  h.doneToday=wasOff;
+  if(wasOff){h.streak=(h.streak||0)+1;toast(h.icon+' '+h.title+' \u2014 \ud83d\udd25 '+h.streak+' day streak!');}
+  else{h.streak=Math.max(0,(h.streak||1)-1);toast(h.icon+' Habit unchecked. Streak adjusted.');}
+  save('habits');
+  invalidateSearchIndex();
+  renderHabits();
+  // refresh home rail if visible
+  if(curScreen==='home')renderScreen('home');
+}
 function renderHabits(){
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1></div><button class="btn btn-p" onclick="addHabit()">+ New Habit</button></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">${D.habits.map(h=>`<div class="cd" style="cursor:pointer"><div style="font-size:20px;margin-bottom:3px">${h.icon}</div><div style="font-size:13px;font-weight:500;margin-bottom:2px">${esc(h.title)}</div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">${h.cadence}</div><div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><div class="chk ${h.doneToday?'on':''}" onclick="D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('habits')"></div><span style="font-size:10px;color:${h.doneToday?'var(--ok)':'var(--t3)'}">${h.doneToday?'Done':'Not yet'}</span></div><div style="font-size:11px;color:var(--warn);margin-bottom:4px">🔥 ${h.streak} days</div><div class="hm">${genHM(h.streak)}</div></div>`).join('')}</div>`;
-  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('habits')"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
-  <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Completion Rate</div><div class="stat"><div class="stat-n" style="color:var(--ok)">87%</div><div class="stat-l">Last 30 days</div></div></div>`;
+  const done=D.habits.filter(h=>h.doneToday).length;
+  const total=D.habits.length;
+  const pct=total?Math.round(done/total*100):0;
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">\u2705 Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><button class="btn btn-p" onclick="addHabit()">+ New Habit</button></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">${D.habits.map(h=>`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s"><div style="font-size:20px;margin-bottom:3px">${h.icon}</div><div style="font-size:13px;font-weight:500;margin-bottom:2px">${esc(h.title)}</div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">${h.cadence}</div><div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div><span style="font-size:10px;color:${h.doneToday?'var(--ok)':'var(--t3)'}">${h.doneToday?'\u2713 Done today':'Not yet'}</span></div><div style="font-size:11px;color:var(--warn);margin-bottom:4px">\ud83d\udd25 ${h.streak} day${h.streak===1?'':'s'}</div><div class="hm">${genHM(h.streak)}</div></div>`).join('')}</div>
+  <div class="cd" style="margin-top:12px;padding:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Progress</div><div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden"><div style="background:var(--ok);height:100%;width:${pct}%;transition:width .4s"></div></div><div style="font-size:11px;color:var(--t2);margin-top:4px">${pct}% complete \u2014 ${done} of ${total} habits done</div></div>`;
+  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">\ud83d\udd25${h.streak}</span></div>`).join('')}
+  <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Today's Rate</div><div class="stat"><div class="stat-n" style="color:var(--ok)">${pct}%</div><div class="stat-l">${done}/${total} done</div></div></div>`;
 }
 function genHM(s){let h='';for(let i=89;i>=0;i--){const ok=i<s||Math.random()>.25;h+=`<div class="hm-c ${ok?'ok':'mi'}"></div>`}return h}
 function addHabit(){const t=prompt('Habit name:');if(t){D.habits.push({id:nextId(D.habits),icon:'✅',title:t,cadence:'Daily',streak:0,doneToday:false});save('habits');renderScreen('habits');toast('Habit added!')}}
@@ -764,29 +785,40 @@ function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
 function renderSettingsHTML(){
-  const setNav=['General','Appearance','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy'];
-  return `<div class="pg-h"><h1>⚙ Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
+  const setNav=['\ud83d\udc64 Profile','General','Appearance','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy'];
+  const name=D.creds.userName||'Idris Grant';
+  const email=D.creds.email||'idris@levelup.app';
+  const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+  return `<div class="pg-h"><h1>\u2699 Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
   <div>${setNav.map((n,i)=>`<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${n}</div>`).join('')}</div>
   <div>
-  <!-- General --><div id="sp-0" class="sp">
-  <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">General</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">User Name</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.userName||'John Carter')}" onchange="D.creds.userName=this.value;saveAll()"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Email</div></div><input class="inp" style="max-width:240px" value="${esc(D.creds.email||'john.carter@work.com')}" onchange="D.creds.email=this.value;saveAll()"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px"><option>Eastern Time</option><option>Central</option><option>Pacific</option><option>UTC</option></select></div>
+  <!-- Profile --><div id="sp-0" class="sp">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px">
+  <div style="width:56px;height:56px;border-radius:50%;background:var(--ac);color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" id="prof-av">${initials}</div>
+  <div><div style="font-size:15px;font-weight:600" id="prof-name">${esc(name)}</div><div style="font-size:11px;color:var(--t3)" id="prof-email">${esc(email)}</div><div style="font-size:10px;color:var(--ac);margin-top:2px">Owner</div></div>
   </div>
-  <!-- Appearance --><div id="sp-1" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll()"></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:10px;color:var(--t3)">Used for account identification</div></div><input class="inp" style="max-width:240px" value="${esc(email)}" oninput="D.creds.email=this.value;updateProfileUI();document.getElementById('prof-email').textContent=this.value;saveAll()"></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll()"></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
+  <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload();}">\ud83d\uddd1 Reset All Data</button></div>
+  </div>
+  <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Recommended</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div></div>
-  <!-- Accounts --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
+  <!-- Accounts --><div id="sp-3" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
   ${renderCredCard('Microsoft 365','M365','Outlook, Calendar, SharePoint, To Do','ms',['Client ID|ms_cid','Client Secret|ms_cs','Tenant ID|ms_tid'])}
   ${renderCredCard('Google Workspace','G','Gmail, Google Calendar','ggl',['OAuth Client ID|ggl_cid','Client Secret|ggl_cs'])}
   </div>
-  <!-- Integrations --><div id="sp-3" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
+  <!-- Integrations --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
   ${renderCredCard('ClickUp','CU','Bidirectional task sync','cu',['API Token|cu_key','Workspace ID|cu_ws'])}
   ${renderCredCard('NiftyPM','NP','Task sync (pending API)','np',['API Key|np_key'])}
   </div>
-  <!-- AI Features --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
+  <!-- AI Features --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:600">AI Master Switch</div><div style="font-size:10px;color:var(--t3)">Enable/disable all AI</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Provider Keys (BYOK)</h4>
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">Keys stored locally only. Never sent to any server.</p>
@@ -804,7 +836,7 @@ function renderSettingsHTML(){
   <p style="font-size:10px;color:var(--t2);margin-bottom:6px">The AI assistant will proactively share info on these topics:</p>
   ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
   </div>
-  <!-- Teams --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
+  <!-- Teams --><div id="sp-6" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:10px">Manage team members and their access rights.</p>
   ${D.teams.map(team=>`<div class="team-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${esc(team.name)}</div><button class="btn btn-p" style="height:26px;font-size:10px" onclick="addTeamMember(${team.id})">+ Add Member</button></div>
   ${team.members.map(m=>`<div class="member-row"><div class="member-av" style="background:${m.color}">${m.name.split(' ').map(w=>w[0]).join('')}</div><div class="member-info"><div class="member-name">${esc(m.name)}</div><div class="member-role">${esc(m.email)} · ${m.role}</div></div>
@@ -814,7 +846,7 @@ function renderSettingsHTML(){
   </div>`).join('')}
   <button class="btn btn-s" onclick="addTeam()">+ Create Team</button>
   </div>
-  <!-- OneNote Import --><div id="sp-6" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">OneNote PDF Import</h3>
+  <!-- OneNote Import --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">OneNote PDF Import</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:6px">Import notes exported as PDF from Microsoft OneNote. The folder name from the PDF filename (before the first " - " or " _ ") will be used as tags.</p>
   <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--t2)">
   <strong>How to export from OneNote:</strong><br>1. Open the OneNote section/page<br>2. File → Export → PDF<br>3. Name the file as: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">FolderName - NoteName.pdf</code><br>4. Drop the PDF(s) below</div>
@@ -828,16 +860,16 @@ function renderSettingsHTML(){
   <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Previously Imported</div>
   <div id="onenote-history">${(D.notes.filter(n=>n.source==='OneNote Import')).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">No imports yet</div>'}</div>
   </div></div>
-  <!-- Sync --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
+  <!-- Sync --><div id="sp-8" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Microsoft To Do sync</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Sync interval</div></div><select class="inp" style="max-width:160px"><option>Every 30 sec</option><option>Every 1 min</option><option>Every 5 min</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Last sync</div></div><span style="font-size:11px;color:var(--ok)">2 min ago ✓</span></div></div>
-  <!-- Backup --><div id="sp-8" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
+  <!-- Backup --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:10px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:10px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
   <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:10px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
-  <!-- Privacy --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
+  <!-- Privacy --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">AI Audit Log</div></div><button class="btn btn-s" style="font-size:11px">View Activity</button></div></div>
@@ -1139,6 +1171,29 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('.tb-s'))closeSearch();
 });
 
+// ====== START FRESH MY DAY ======
+function startFreshMyDay(){
+  if(!confirm('Start Fresh will clear all My Day selections. Incomplete tasks will be marked as Carry Over. Continue?'))return;
+  D.tasks.forEach(t=>{
+    if(t.myDay&&t.status==='Done'){t.myDay=false;}
+    else if(t.myDay&&t.status!=='Done'){t.myDay=false;t.due='Carry Over';}
+  });
+  save('tasks');
+  invalidateSearchIndex();
+  renderScreen('myday');
+  toast('\u2600\ufe0f My Day cleared \u2014 ready to plan a fresh day!');
+}
+
+// ====== PROFILE UI SYNC ======
+function updateProfileUI(){
+  const name=D.creds.userName||'Idris Grant';
+  const email=D.creds.email||'idris@levelup.app';
+  const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+  document.querySelectorAll('#sb-avatar,#topbar-avatar').forEach(el=>el.textContent=initials);
+  document.querySelectorAll('#sb-name').forEach(el=>el.textContent=name);
+  document.querySelectorAll('#sb-email').forEach(el=>el.textContent=email);
+}
+
 // ====== MY DAY AUTO-RESET ======
 function checkMyDayReset(){
   const today=new Date().toDateString();
@@ -1178,6 +1233,7 @@ document.addEventListener('keydown',e=>{
 checkMyDayReset();
 scheduleMidnightReset();
 initSidebars('home');
+updateProfileUI();
 renderScreen('home');
 setTimeout(startAIAssistant,5000);
 // Patch save() to invalidate search index on data change
