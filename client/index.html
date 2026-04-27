@@ -427,8 +427,15 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="fa-modal-ov" id="fa-modal-ov" onclick="if(event.target===this)closeFA()">
   <div class="fa-modal">
     <div class="fa-hd">
-      <h2 id="fa-modal-title">New Item</h2>
-      <button class="close" onclick="closeFA()" style="margin-left:auto;background:rgba(255,255,255,.08);border:none;color:var(--t2);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px">✕</button>
+      <div style="flex:1;min-width:0">
+        <h2 id="fa-modal-title" style="margin:0 0 2px">New Item</h2>
+        <div style="font-size:10px;color:var(--t3);display:flex;gap:10px;flex-wrap:wrap">
+          <span title="Save"><kbd style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:3px;padding:1px 4px;font-size:9px;font-family:monospace">⌘↵</kbd> Save</span>
+          <span title="Save and add another"><kbd style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:3px;padding:1px 4px;font-size:9px;font-family:monospace">⌘⇧↵</kbd> Save &amp; Add Another</span>
+          <span title="Close"><kbd style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:3px;padding:1px 4px;font-size:9px;font-family:monospace">Esc</kbd> Cancel</span>
+        </div>
+      </div>
+      <button class="close" onclick="closeFA()" style="margin-left:8px;background:rgba(255,255,255,.08);border:none;color:var(--t2);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px">✕</button>
     </div>
     <div class="fa-body" id="fa-modal-body"></div>
     <div class="fa-ft">
@@ -998,7 +1005,7 @@ function renderHome(){
   const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':'evening';
   m.innerHTML=`<div class="pg-h"><h1>Good ${_greetWord}, ${_greetName}! 👋</h1><p>Focus on what matters today. You've got this.</p></div>
   <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">Quick Add</span>
-  ${['Task','Note','Project','Goal','Journal','File'].map(t=>`<span style="font-size:11px;color:var(--t2);cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="openModal('capture')">${t}</span>`).join('')}</div>
+  ${['Task','Note','Project','Goal','Journal','Habit'].map(t=>`<span style="font-size:11px;color:var(--t2);cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="openFA('${t.toLowerCase()}')">${t}</span>`).join('')}</div>
   <div class="cd" style="display:flex;gap:24px;align-items:center;padding:12px 16px"><span style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Today</span>
   <div><div style="font-size:22px;font-weight:700">${D.tasks.filter(t=>t.due==='Today').length}</div><div style="font-size:10px;color:var(--t3)">Tasks</div></div>
   <div><div style="font-size:22px;font-weight:700">2</div><div style="font-size:10px;color:var(--t3)">Meetings</div></div>
@@ -1020,7 +1027,22 @@ function renderHome(){
   r.innerHTML=focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
   ${[{n:'Daily Standup',t:'9:00–9:30 AM',c:'In 20m'},{n:'Budget Review',t:'11:30–12:30 PM',c:'In 2h 50m'},{n:'Client Onboarding',t:'1:00–2:00 PM',c:'In 4h 20m'}].map(m=>`<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${m.n}</div><div style="font-size:9px;color:var(--t3)">${m.t}</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">${m.c}</span></div>`).join('')}</div>
   <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
-  ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>`;
+  ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
+  ${(()=>{
+    const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
+    const typeColor={task:'var(--ac)',note:'var(--ok)',project:'var(--warn)',goal:'var(--red)',journal:'#a78bfa',habit:'#fb923c'};
+    const recent=[];
+    D.tasks.forEach(x=>{if(x.createdAt)recent.push({type:'task',title:x.title,ts:x.createdAt,id:x.id,obj:x});});
+    D.notes.forEach(x=>{if(x.createdAt)recent.push({type:'note',title:x.title,ts:x.createdAt,id:x.id,obj:x});});
+    D.goals.forEach(x=>{if(x.createdAt)recent.push({type:'goal',title:x.title,ts:x.createdAt,id:x.id,obj:x});});
+    D.projects.forEach(x=>{if(x.createdAt)recent.push({type:'project',title:x.name,ts:x.createdAt,id:x.id,obj:x});});
+    D.habits.forEach(x=>{if(x.createdAt)recent.push({type:'habit',title:x.title,ts:x.createdAt,id:x.id,obj:x});});
+    recent.sort((a,b)=>b.ts.localeCompare(a.ts));
+    const top=recent.slice(0,7);
+    if(!top.length)return '';
+    const fmtTs=ts=>{const d=new Date(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id===${r.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:9px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
+  })()}`;
 }
 function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
@@ -2802,7 +2824,7 @@ function closeFA(force){
 // Keyboard shortcuts
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&document.getElementById('fa-modal-ov')?.classList.contains('show'))closeFA();
-  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&document.getElementById('fa-modal-ov')?.classList.contains('show')){e.preventDefault();doFASave(false);}
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter'&&document.getElementById('fa-modal-ov')?.classList.contains('show')){e.preventDefault();if(e.shiftKey){doFASave(true);}else{doFASave(false);}}
 });
 
 // Tag system
@@ -3476,7 +3498,8 @@ function doFASave(addAnother){
         subtasks:_faSubtasks.filter(s=>s.title.trim()).map((s,i)=>({id:i+1,...s})),
         linkedNoteIds:_faLinked.notes,
         predecessorIds:_faLinked.tasks,
-        comments:[],createdBy:D.creds.userName||'Idris Grant'
+        comments:[],createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       newId=t.id;
       D.tasks.push(t);
@@ -3497,7 +3520,8 @@ function doFASave(addAnother){
         favorite:document.getElementById('fa-favorite')?.checked||false,
         tags:_faTags,scope,updated:'Just now',starred:false,
         linkedTaskIds:_faLinked.tasks,linkedProjectIds:_faLinked.projects,
-        createdBy:D.creds.userName||'Idris Grant'
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       if(noteType==='Decision'){
         n.decision={context:document.getElementById('fa-dec-context')?.value||'',choice:document.getElementById('fa-dec-choice')?.value||'',rationale:document.getElementById('fa-dec-rationale')?.value||'',expectedOutcome:document.getElementById('fa-dec-outcome')?.value||'',reviewDate:document.getElementById('fa-dec-review')?.value||'',actualOutcome:document.getElementById('fa-dec-actual')?.value||'',alternatives:_faDecisionAlts};
@@ -3528,7 +3552,8 @@ function doFASave(addAnother){
         pct:0,tags:_faTags,scope,
         milestones:_faMilestones.filter(m=>m.label.trim()),
         linkedGoalIds:_faLinked.goals,
-        createdBy:D.creds.userName||'Idris Grant'
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       newId=p.id;
       D.projects.push(p);
@@ -3553,7 +3578,8 @@ function doFASave(addAnother){
         reflections:_faReflections.filter(r=>r.note.trim()),
         linkedTaskIds:_faLinked.tasks,
         milestones:[],
-        createdBy:D.creds.userName||'Idris Grant'
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       newId=g.id;
       D.goals.push(g);
@@ -3574,7 +3600,8 @@ function doFASave(addAnother){
         habitsDone:D.habits.filter(h=>h.doneToday).length,
         habitsTotal:D.habits.length,
         tags:_faTags,scope,
-        createdBy:D.creds.userName||'Idris Grant'
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       newId=j.id;
       D.journal.push(j);
@@ -3596,7 +3623,8 @@ function doFASave(addAnother){
         linkedTaskId:document.getElementById('fa-linkedtask')?.value?parseInt(document.getElementById('fa-linkedtask').value):null,
         streak:0,doneToday:false,
         tags:_faTags,scope,
-        createdBy:D.creds.userName||'Idris Grant'
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
       };
       newId=h.id;
       D.habits.push(h);
