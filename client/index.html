@@ -762,7 +762,22 @@ function renderScreen(s){
 }
 
 function taskRow(t,showActs=true){
-  return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const isSomeday=t.status==='Someday';
+  return `<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+}
+function moveSomeday(id){
+  const t=D.tasks.find(x=>x.id===id);
+  if(!t)return;
+  if(t.status==='Someday'){
+    t.status='Not Started';
+    toast('📥 Moved back to Inbox');
+  } else {
+    t.status='Someday';
+    t.myDay=false;
+    toast('💤 Moved to Someday');
+  }
+  save('tasks');
+  renderScreen(curScreen);
 }
 function toggleTask(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -796,7 +811,15 @@ function renderHome(){
   <div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div></div>
   <div class="g4">${renderGoalCards(3)}<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div></div>
   ${[{n:'Q2 Marketing Plan.pptx',t:'PPT',c:'var(--reds)',cc:'var(--red)',m:'2h ago'},{n:'Budget Forecast.xlsx',t:'XLS',c:'var(--oks)',cc:'var(--ok)',m:'5h ago'},{n:'Client Proposal.docx',t:'DOC',c:'var(--acs)',cc:'var(--ac)',m:'Yesterday'}].map(f=>`<div class="lr"><span style="width:20px;height:20px;border-radius:3px;background:${f.c};color:${f.cc};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${f.t}</span><span class="rt" style="font-size:11px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div></div>`;
-  r.innerHTML=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
+  // Build 7-day focus chart data
+  const _focusLog=D.prefs&&D.prefs.focusLog||{};
+  const _chartDays=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d;});
+  const _dayNames=['S','M','T','W','T','F','S'];
+  const _chartVals=_chartDays.map(d=>_focusLog[d.toISOString().split('T')[0]]||0);
+  const _chartMax=Math.max(..._chartVals,1);
+  const _todayIdx=6;
+  const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:9px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:8px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
+  r.innerHTML=focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
   ${[{n:'Daily Standup',t:'9:00–9:30 AM',c:'In 20m'},{n:'Budget Review',t:'11:30–12:30 PM',c:'In 2h 50m'},{n:'Client Onboarding',t:'1:00–2:00 PM',c:'In 4h 20m'}].map(m=>`<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${m.n}</div><div style="font-size:9px;color:var(--t3)">${m.t}</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">${m.c}</span></div>`).join('')}</div>
   <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
   ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>`;
@@ -1285,6 +1308,13 @@ function pomoToggle(){
           // Log focus time to D.prefs
           D.prefs=D.prefs||{};
           D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+Math.round(_pomoTotal/60);
+          // Record in 7-day rolling log
+          const _today=new Date().toISOString().split('T')[0];
+          D.prefs.focusLog=D.prefs.focusLog||{};
+          D.prefs.focusLog[_today]=(D.prefs.focusLog[_today]||0)+Math.round(_pomoTotal/60);
+          // Trim to last 30 days
+          const _keys=Object.keys(D.prefs.focusLog).sort();
+          if(_keys.length>30)_keys.slice(0,_keys.length-30).forEach(k=>delete D.prefs.focusLog[k]);
           save('prefs');
           _pomoSession=Math.min(_pomoSession+1,4);
           toast('🍅 Focus session complete! Take a break.');
@@ -1532,14 +1562,103 @@ function deleteHabit(hid){
   toast('Habit deleted');
 }
 
-function renderCoach(){$('coach-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">⚡ Coach</h1><p style="font-size:12px;color:var(--t2)">AI-powered insights</p></div><button class="btn btn-s" onclick="nav('settings')">⚙ Settings</button></div>
-<div class="sec-h">📊 Observations</div>
-${[{t:'Task completion up 35%',b:'23 done this week vs 17 last week.',c:'obs'},{t:'Peak days: Tue & Wed',b:'Avg 4.2 tasks vs 1.6 on Fri.',c:'obs'}].map(i=>`<div class="ins ${i.c}"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${i.t}</div><div style="font-size:11px;color:var(--t2)">${i.b}</div><div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-s" style="height:20px;font-size:9px">Dismiss</button></div></div>`).join('')}
-<div class="sec-h" style="color:var(--ok)">🌟 Encouragement</div>
-<div class="ins enc"><div style="font-size:12px;font-weight:500;margin-bottom:3px">Five-day My Day streak!</div><div style="font-size:11px;color:var(--t2)">Strongest streak this quarter. Keep going!</div></div>
-<div class="sec-h" style="color:var(--warn)">⚠️ Warnings</div>
-<div class="ins wrn"><div style="font-size:12px;font-weight:500;margin-bottom:3px">Wednesday is overbooked</div><div style="font-size:11px;color:var(--t2)">12 hours planned in a 9-hour day.</div><button class="btn btn-s" style="height:20px;font-size:9px;margin-top:4px" onclick="nav('calendar')">View Calendar</button></div>`;
-  $('coach-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">AI Topics</div><div style="font-size:10px;color:var(--t2);margin-bottom:6px">Subscribed topics for proactive alerts:</div>${['Technology','World News','Politics','Entertainment','Science','Weather'].map(t=>`<div class="lr"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('coach')"></div><span class="rt" style="font-size:11px">${t}</span></div>`).join('')}`}
+function renderCoach(){
+  // ---- Compute real insights from data ----
+  const now=new Date();
+  const todayStr=now.toISOString().split('T')[0];
+  const dayOfWeek=now.getDay();
+  const monDate=new Date(now);monDate.setDate(now.getDate()-(dayOfWeek===0?6:dayOfWeek-1));monDate.setHours(0,0,0,0);
+  const weekStart=monDate.toISOString().split('T')[0];
+  const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
+  const weekEnd=sunDate.toISOString().split('T')[0];
+
+  // Tasks
+  const doneTasks=D.tasks.filter(t=>t.status==='Done');
+  const pendingTasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  const overdueTasks=D.tasks.filter(t=>t.due&&t.due<todayStr&&t.status!=='Done');
+  const highPending=pendingTasks.filter(t=>t.priority==='High');
+  const weekTasks=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=weekStart&&d<=weekEnd;});
+  const weekDone=weekTasks.filter(t=>t.status==='Done');
+  const completionRate=weekTasks.length?Math.round(weekDone.length/weekTasks.length*100):0;
+
+  // Habits
+  const dailyHabits=D.habits.filter(h=>h.cadence==='Daily');
+  const doneHabitsToday=dailyHabits.filter(h=>h.doneToday);
+  const habitRate=dailyHabits.length?Math.round(doneHabitsToday.length/dailyHabits.length*100):0;
+  const topStreak=D.habits.reduce((best,h)=>h.streak>best.streak?h:best,{streak:0,title:'—',icon:''});
+  const neglectedHabits=D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily');
+
+  // Goals
+  const goalsOnTrack=D.goals.filter(g=>g.pct>=50);
+  const goalsBehind=D.goals.filter(g=>g.pct<30&&g.dueDate&&g.dueDate>todayStr);
+  const nearDueGoals=D.goals.filter(g=>{if(!g.dueDate)return false;const diff=(new Date(g.dueDate)-now)/(1000*60*60*24);return diff>=0&&diff<=14;});
+
+  // Focus
+  const focusLog=D.prefs&&D.prefs.focusLog||{};
+  const focusToday=D.prefs&&D.prefs.focusMinsToday||0;
+  const focusWeek=Object.entries(focusLog).filter(([d])=>d>=weekStart&&d<=weekEnd).reduce((s,[,v])=>s+v,0)+focusToday;
+  const focusAvgDay=weekTasks.length?Math.round(focusWeek/7):0;
+
+  // Build insight cards
+  const observations=[];
+  const encouragements=[];
+  const warnings=[];
+  const nudges=[];
+
+  // Observations
+  observations.push({t:`This week: ${weekDone.length}/${weekTasks.length} tasks done (${completionRate}%)`,b:`${weekTasks.length-weekDone.length} tasks still pending this week.`,a:weekTasks.length?`<button class="btn btn-s" style="height:20px;font-size:9px" onclick="nav('myweek')">View Week</button>`:''});
+  if(focusWeek>0)observations.push({t:`${focusWeek}m focus time this week`,b:`That's roughly ${Math.round(focusWeek/60*10)/10}h of deep work. Daily average: ${focusAvgDay}m.`,a:''});
+  observations.push({t:`Habits: ${habitRate}% done today`,b:`${doneHabitsToday.length} of ${dailyHabits.length} daily habits completed.`,a:dailyHabits.length?`<button class="btn btn-s" style="height:20px;font-size:9px" onclick="nav('habits')">View Habits</button>`:''});
+  if(goalsOnTrack.length)observations.push({t:`${goalsOnTrack.length} goal${goalsOnTrack.length>1?'s':''} on track (≥50%)`,b:goalsOnTrack.map(g=>g.icon+' '+g.title+' — '+g.pct+'%').join(', '),a:''});
+
+  // Encouragements
+  if(topStreak.streak>=7)encouragements.push({t:`🔥 ${topStreak.streak}-day streak on "${topStreak.icon} ${topStreak.title}"!`,b:'Consistency is compounding. Keep it going!'});
+  if(completionRate>=70)encouragements.push({t:`Strong week — ${completionRate}% task completion!`,b:'You\'re in the top tier of productive weeks. Finish strong.'});
+  if(doneTasks.length>0)encouragements.push({t:`${doneTasks.length} task${doneTasks.length>1?'s':''} completed overall`,b:'Every done item is momentum. Great work, '+((D.creds.userName||'Idris').split(' ')[0])+'!'});
+  if(encouragements.length===0)encouragements.push({t:'You\'re showing up — that\'s what matters.',b:'Start small, stay consistent. Today is a fresh page.'});
+
+  // Warnings
+  if(overdueTasks.length)warnings.push({t:`${overdueTasks.length} overdue task${overdueTasks.length>1?'s':''}`,b:overdueTasks.slice(0,3).map(t=>t.title).join(', ')+(overdueTasks.length>3?'...':''),a:`<button class="btn btn-s" style="height:20px;font-size:9px" onclick="nav('tasks')">Review Tasks</button>`});
+  if(highPending.length>=5)warnings.push({t:`${highPending.length} high-priority tasks pending`,b:'Consider delegating or deferring some to stay focused.',a:''});
+  if(neglectedHabits.length&&now.getHours()>=18)warnings.push({t:`${neglectedHabits.length} habit${neglectedHabits.length>1?'s':''} not done today`,b:neglectedHabits.map(h=>h.icon+' '+h.title).join(', '),a:`<button class="btn btn-s" style="height:20px;font-size:9px" onclick="nav('habits')">Check In</button>`});
+  if(nearDueGoals.length)warnings.push({t:`${nearDueGoals.length} goal${nearDueGoals.length>1?'s':''} due within 14 days`,b:nearDueGoals.map(g=>g.icon+' '+g.title+' ('+g.dueDate+')').join(', '),a:`<button class="btn btn-s" style="height:20px;font-size:9px" onclick="nav('goals')">Review Goals</button>`});
+  if(goalsBehind.length)warnings.push({t:`${goalsBehind.length} goal${goalsBehind.length>1?'s':''} behind (<30%)`,b:goalsBehind.map(g=>g.icon+' '+g.title+' — '+g.pct+'%').join(', '),a:''});
+
+  // Daily nudges based on time of day
+  const hr=now.getHours();
+  if(hr<10)nudges.push({t:'Morning Ritual',b:'Start with your top 3 priorities. What\'s the one thing that would make today a win?',a:`<button class="btn btn-p" style="height:22px;font-size:9px" onclick="nav('myday')">Open My Day</button>`});
+  else if(hr<13)nudges.push({t:'Mid-Morning Check-in',b:`You have ${pendingTasks.filter(t=>t.myDay).length} tasks on My Day. Stay in deep work mode.`,a:`<button class="btn btn-p" style="height:22px;font-size:9px" onclick="nav('myday')">Execute</button>`});
+  else if(hr<17)nudges.push({t:'Afternoon Focus',b:'Energy typically dips after 2 PM. Consider a 5-min break or a Pomodoro sprint.',a:`<button class="btn btn-p" style="height:22px;font-size:9px" onclick="nav('myday')">Start Timer</button>`});
+  else nudges.push({t:'Evening Wrap-Up',b:'Great time to complete your daily reflection and plan tomorrow\'s top 3.',a:`<button class="btn btn-p" style="height:22px;font-size:9px" onclick="nav('myday')">Wrap Up</button>`});
+
+  function insCard(items,cls){return items.map(i=>`<div class="ins ${cls}" style="margin-bottom:8px"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${i.t}</div><div style="font-size:11px;color:var(--t2);line-height:1.5">${i.b}</div>${i.a?`<div style="margin-top:6px">${i.a}</div>`:''}</div>`).join('');}
+
+  $('coach-main').innerHTML=`
+  <div class="ph-r" style="margin-bottom:12px">
+    <div><h1 style="font-size:22px;font-weight:700">⚡ Coach</h1><p style="font-size:12px;color:var(--t2)">Real-time insights from your data</p></div>
+    <button class="btn btn-s" onclick="renderCoach()">🔄 Refresh</button>
+  </div>
+  <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${completionRate}%</div><div style="font-size:9px;color:var(--t3)">Week Tasks</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${habitRate}%</div><div style="font-size:9px;color:var(--t3)">Habits Today</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--warn)">${overdueTasks.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${focusToday}m</div><div style="font-size:9px;color:var(--t3)">Focus Today</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${topStreak.streak}🔥</div><div style="font-size:9px;color:var(--t3)">Top Streak</div></div>
+  </div>
+  ${nudges.length?`<div class="sec-h" style="color:var(--ac)">💡 Right Now</div>${insCard(nudges,'obs')}`:''}
+  <div class="sec-h">📊 Observations</div>${insCard(observations,'obs')}
+  <div class="sec-h" style="color:var(--ok)">🌟 Encouragement</div>${insCard(encouragements,'enc')}
+  ${warnings.length?`<div class="sec-h" style="color:var(--warn)">⚠️ Needs Attention</div>${insCard(warnings,'wrn')}`:''}
+  `;
+  $('coach-rail').innerHTML=`
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px">🎯 Daily Priorities</div>
+  ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:10px;color:var(--t3)">All tasks done! 🎉</p>')}
+  <div style="font-size:12px;font-weight:600;margin:12px 0 6px">✅ Habit Check-In</div>
+  ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
+  <div style="font-size:12px;font-weight:600;margin:12px 0 6px">🎯 Goals Snapshot</div>
+  ${D.goals.slice(0,4).map(g=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span></div><div class="pb"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div></div>`).join('')}
+  `;
+}
 
 function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
