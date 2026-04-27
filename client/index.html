@@ -7,7 +7,12 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#64748B;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px}
+:root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#64748B;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px;--brd:rgba(255,255,255,.10)}
+body.light-mode{--bg:#F1F5F9;--s1:#FFFFFF;--s2:#F8FAFC;--s3:#EEF2F7;--s4:#E2E8F0;--bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.10);--bd3:rgba(0,0,0,.16);--t1:#0F172A;--t2:#475569;--t3:#94A3B8;--t4:#CBD5E1;--brd:rgba(0,0,0,.10)}
+body.compact-mode .lr{padding:2px 0!important}
+body.compact-mode .cd{padding:8px!important}
+body.compact-mode h1{font-size:16px!important}
+body.compact-mode .si{padding:4px 8px!important;font-size:11px!important}
 html,body{height:100%;overflow:hidden}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
@@ -327,14 +332,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 // ====== DATA STORE ======
 const D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
-    {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'Today',context:'Deep Work',project:'LevelUp Platform',status:'In Progress',myDay:true,energy:'high',notes:''},
-    {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'Today',context:'Calls',project:'LevelUp Platform',status:'Scheduled',myDay:true,energy:'medium',notes:''},
-    {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'Today',context:'Admin',project:'Fundraising',status:'Pending',myDay:true,energy:'low',notes:''},
-    {id:4,title:'Draft Q3 product roadmap',priority:'Medium',due:'Tomorrow',context:'Deep Work',project:'LevelUp Platform',status:'Not Started',myDay:false,energy:'high',notes:''},
-    {id:5,title:'Prepare demo for advisory board',priority:'High',due:'May 23',context:'Work',project:'LevelUp Platform',status:'Not Started',myDay:false,energy:'high',notes:''},
-    {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'May 24',context:'Learning',project:'Second Brain Research',status:'Not Started',myDay:false,energy:'medium',notes:''},
-    {id:7,title:'Update pitch deck financials',priority:'Medium',due:'May 25',context:'Work',project:'Fundraising',status:'Not Started',myDay:false,energy:'high',notes:''},
-    {id:8,title:'Write weekly reflection post',priority:'Low',due:'May 26',context:'Creative',project:'Personal Brand',status:'Not Started',myDay:false,energy:'low',notes:''},
+    {id:1,title:'Finalize LevelUp platform requirements',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'09:00',endTime:'11:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'In Progress',myDay:true,energy:'high',notes:'Cover all MVP screens and data model.',recurring:'None',subtasks:[{id:1,title:'Write user stories',done:true},{id:2,title:'Define data schema',done:true},{id:3,title:'Review with Priya',done:false}],linkedGoalId:1},
+    {id:2,title:'Review sprint backlog with dev team',priority:'High',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'10:00',endTime:'11:00',estimatedMins:60,context:'Calls',project:'LevelUp Platform',projectId:1,status:'Scheduled',myDay:true,energy:'medium',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:1},
+    {id:3,title:'Respond to investor follow-up emails',priority:'Medium',due:'2025-05-19',startDate:'2025-05-19',endDate:'2025-05-19',startTime:'08:00',endTime:'08:30',estimatedMins:30,context:'Admin',project:'Fundraising',projectId:2,status:'Pending',myDay:true,energy:'low',notes:'',recurring:'None',subtasks:[],linkedGoalId:2},
+    {id:4,title:'Draft Q3 product roadmap',priority:'Medium',due:'2025-05-20',startDate:'2025-05-20',endDate:'2025-05-21',startTime:'09:00',endTime:'12:00',estimatedMins:180,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[{id:1,title:'Outline key themes',done:false},{id:2,title:'Add milestones',done:false}],linkedGoalId:1},
+    {id:5,title:'Prepare demo for advisory board',priority:'High',due:'2025-05-23',startDate:'2025-05-22',endDate:'2025-05-23',startTime:'14:00',endTime:'16:00',estimatedMins:120,context:'Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:1},
+    {id:6,title:'Research AI note-linking approaches',priority:'Low',due:'2025-05-24',startDate:'2025-05-24',endDate:'2025-05-24',startTime:'',endTime:'',estimatedMins:90,context:'Learning',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',notes:'',recurring:'None',subtasks:[],linkedGoalId:null},
+    {id:7,title:'Update pitch deck financials',priority:'Medium',due:'2025-05-25',startDate:'2025-05-25',endDate:'2025-05-25',startTime:'',endTime:'',estimatedMins:60,context:'Work',project:'Fundraising',projectId:2,status:'Not Started',myDay:false,energy:'high',notes:'',recurring:'None',subtasks:[],linkedGoalId:2},
+    {id:8,title:'Write weekly reflection post',priority:'Low',due:'2025-05-26',startDate:'2025-05-26',endDate:'2025-05-26',startTime:'',endTime:'',estimatedMins:45,context:'Creative',project:'Personal Brand',projectId:4,status:'Not Started',myDay:false,energy:'low',notes:'',recurring:'Weekly',subtasks:[],linkedGoalId:5},
   ],
   notes: JSON.parse(localStorage.getItem('lu_notes') || 'null') || [
     {id:1,title:'LevelUp Vision & Core Principles',tags:['vision','product'],source:'Manual',updated:'Just now',starred:true,body:'LevelUp is a personal operating system for ambitious builders. Core principles: capture everything, process daily, connect ideas, act with intention.'},
@@ -355,11 +360,31 @@ const D = {
     {id:6,name:'Mobile MVP',color:'#06B6D4',status:'Not Started',due:'Aug 1',pct:10,desc:'React Native port of core LevelUp screens.'},
   ],
   goals: JSON.parse(localStorage.getItem('lu_goals') || 'null') || [
-    {id:1,icon:'🚀',title:'Ship LevelUp v1.0',target:'Public launch by Jul 31',pct:55},
-    {id:2,icon:'💰',title:'Close seed round',target:'$500K by Aug 1',pct:30},
-    {id:3,icon:'📚',title:'Read 24 books this year',target:'9 of 24 done',pct:38},
-    {id:4,icon:'🏃',title:'Run 500 miles this year',target:'195 of 500',pct:39},
-    {id:5,icon:'✍️',title:'Publish 50 posts',target:'18 of 50 published',pct:36},
+    {id:1,icon:'🚀',title:'Ship LevelUp v1.0',target:'Public launch by Jul 31',pct:55,category:'Work',startDate:'2025-01-01',dueDate:'2025-07-31',linkedTaskIds:[1,2,4,5],milestones:[
+      {id:1,title:'MVP feature complete',done:true,due:'2025-04-30'},
+      {id:2,title:'Beta launch to 100 users',done:false,due:'2025-06-15'},
+      {id:3,title:'Public v1.0 launch',done:false,due:'2025-07-31'},
+    ]},
+    {id:2,icon:'💰',title:'Close seed round',target:'$500K by Aug 1',pct:30,category:'Work',startDate:'2025-03-01',dueDate:'2025-08-01',linkedTaskIds:[3,7],milestones:[
+      {id:1,title:'Deck finalized',done:true,due:'2025-04-01'},
+      {id:2,title:'10 investor meetings',done:false,due:'2025-06-30'},
+      {id:3,title:'Term sheet signed',done:false,due:'2025-08-01'},
+    ]},
+    {id:3,icon:'📚',title:'Read 24 books this year',target:'9 of 24 done',pct:38,category:'Learning',startDate:'2025-01-01',dueDate:'2025-12-31',linkedTaskIds:[],milestones:[
+      {id:1,title:'6 books by Q1',done:true,due:'2025-03-31'},
+      {id:2,title:'12 books by mid-year',done:false,due:'2025-06-30'},
+      {id:3,title:'24 books by year-end',done:false,due:'2025-12-31'},
+    ]},
+    {id:4,icon:'🏃',title:'Run 500 miles this year',target:'195 of 500',pct:39,category:'Health',startDate:'2025-01-01',dueDate:'2025-12-31',linkedTaskIds:[],milestones:[
+      {id:1,title:'100 miles',done:true,due:'2025-03-31'},
+      {id:2,title:'250 miles',done:false,due:'2025-06-30'},
+      {id:3,title:'500 miles',done:false,due:'2025-12-31'},
+    ]},
+    {id:5,icon:'✍️',title:'Publish 50 posts',target:'18 of 50 published',pct:36,category:'Personal Brand',startDate:'2025-01-01',dueDate:'2025-12-31',linkedTaskIds:[8],milestones:[
+      {id:1,title:'10 posts published',done:true,due:'2025-03-31'},
+      {id:2,title:'25 posts published',done:false,due:'2025-06-30'},
+      {id:3,title:'50 posts published',done:false,due:'2025-12-31'},
+    ]},
   ],
   journal: JSON.parse(localStorage.getItem('lu_journal') || 'null') || [
     {id:1,date:'Today · Monday, May 19',title:'Morning Reflection',body:'Feeling sharp. Prioritized the requirements doc and the investor follow-ups. The demo prep is the big unlock this week.',mood:'😊'},
@@ -368,12 +393,12 @@ const D = {
     {id:4,date:'May 16 · Friday',title:'End of Week',body:'Tired but good tired. The advisory board call went better than expected. Two potential advisors said yes.',mood:'😫'},
   ],
   habits: JSON.parse(localStorage.getItem('lu_habits') || 'null') || [
-    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:18,doneToday:true},
-    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:11,doneToday:true},
-    {id:3,icon:'🏃',title:'Daily run or walk',cadence:'Daily',streak:7,doneToday:false},
-    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:9,doneToday:false},
-    {id:5,icon:'💻',title:'Deep work block (2h)',cadence:'Daily',streak:5,doneToday:false},
-    {id:6,icon:'💪',title:'Strength training',cadence:'3×/week',streak:4,doneToday:false},
+    {id:1,icon:'🧘',title:'Morning meditation',cadence:'Daily',streak:18,doneToday:true,startTime:'06:30',reminderTime:'06:25',category:'Mindfulness',notes:'10-minute guided session',linkedTaskId:null},
+    {id:2,icon:'📖',title:'Read 20 pages',cadence:'Daily',streak:11,doneToday:true,startTime:'21:00',reminderTime:'20:55',category:'Learning',notes:'Non-fiction only. Log in reading tracker.',linkedTaskId:null},
+    {id:3,icon:'🏃',title:'Daily run or walk',cadence:'Daily',streak:7,doneToday:false,startTime:'07:00',reminderTime:'06:55',category:'Health',notes:'Minimum 30 minutes. Track in Strava.',linkedTaskId:null},
+    {id:4,icon:'✏️',title:'Journal entry',cadence:'Daily',streak:9,doneToday:false,startTime:'22:00',reminderTime:'21:55',category:'Reflection',notes:'Morning or evening. Min 5 minutes.',linkedTaskId:null},
+    {id:5,icon:'💻',title:'Deep work block (2h)',cadence:'Daily',streak:5,doneToday:false,startTime:'09:00',reminderTime:'08:55',category:'Productivity',notes:'No meetings, no Slack. Full focus.',linkedTaskId:null},
+    {id:6,icon:'💪',title:'Strength training',cadence:'3xd7/week',streak:4,doneToday:false,startTime:'07:30',reminderTime:'07:25',category:'Health',notes:'Mon / Wed / Fri. 45 min sessions.',linkedTaskId:null},
   ],
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
     {id:1,name:'LevelUp Core Team',members:[
@@ -385,9 +410,39 @@ const D = {
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
   aiMessages: [],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
+  prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
-function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
+function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
+function applyPrefs(){
+  document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
+  document.body.classList.toggle('compact-mode',!!D.prefs.compact);
+  document.documentElement.style.setProperty('--ac',D.prefs.accent||'#3B82F6');
+  // derive ach/acs from accent
+  document.documentElement.style.setProperty('--ach',D.prefs.accent||'#60A5FA');
+  document.documentElement.style.setProperty('--acs',(D.prefs.accent||'#3B82F6')+'26');
+}
+function toggleDarkMode(el){
+  el.classList.toggle('on');
+  D.prefs.darkMode=el.classList.contains('on');
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  applyPrefs();
+  toast(D.prefs.darkMode?'🌙 Dark mode on':'☀️ Light mode on');
+}
+function toggleCompact(el){
+  el.classList.toggle('on');
+  D.prefs.compact=el.classList.contains('on');
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  applyPrefs();
+  toast(D.prefs.compact?'Compact mode on':'Compact mode off');
+}
+function setAccent(c){
+  D.prefs.accent=c;
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  applyPrefs();
+  renderScreen('settings');
+  toast('Accent color updated');
+}
 let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
@@ -427,14 +482,40 @@ function closeDrawer(){document.getElementById('drawer-ov').classList.remove('sh
 function renderDrawer(type,item){
   const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
   if(type==='task'){
+    const subs=item.subtasks||[];
+    const subHtml=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+    const doneCount=subs.filter(s=>s.done).length;
     return `<h2>📋 Edit Task ${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
-    <div class="field-row"><div class="field"><label>Priority</label><select class="inp" id="dr-pri"><option ${item.priority==='High'?'selected':''}>High</option><option ${item.priority==='Medium'?'selected':''}>Medium</option><option ${item.priority==='Low'?'selected':''}>Low</option></select></div>
-    <div class="field"><label>Due Date</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div></div>
-    <div class="field-row"><div class="field"><label>Context</label><input class="inp" value="${esc(item.context)}" id="dr-ctx"></div>
-    <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Not Started</option><option ${item.status==='Pending'?'selected':''}>Pending</option><option ${item.status==='In Progress'?'selected':''}>In Progress</option><option ${item.status==='Scheduled'?'selected':''}>Scheduled</option><option ${item.status==='Done'?'selected':''}>Done</option></select></div></div>
-    <div class="field"><label>Project</label><input class="inp" value="${esc(item.project)}" id="dr-proj"></div>
+    <div class="field-row">
+      <div class="field"><label>Priority</label><select class="inp" id="dr-pri"><option ${item.priority==='High'?'selected':''}>High</option><option ${item.priority==='Medium'?'selected':''}>Medium</option><option ${item.priority==='Low'?'selected':''}>Low</option></select></div>
+      <div class="field"><label>Status</label><select class="inp" id="dr-status"><option ${item.status==='Not Started'?'selected':''}>Not Started</option><option ${item.status==='Pending'?'selected':''}>Pending</option><option ${item.status==='In Progress'?'selected':''}>In Progress</option><option ${item.status==='Scheduled'?'selected':''}>Scheduled</option><option ${item.status==='Done'?'selected':''}>Done</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Start Date</label><input class="inp" type="date" value="${esc(item.startDate||item.due||'')}" id="dr-startdate"></div>
+      <div class="field"><label>End / Due Date</label><input class="inp" type="date" value="${esc(item.endDate||item.due||'')}" id="dr-due"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Start Time</label><input class="inp" type="time" value="${esc(item.startTime||'')}" id="dr-starttime"></div>
+      <div class="field"><label>End Time</label><input class="inp" type="time" value="${esc(item.endTime||'')}" id="dr-endtime"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Project</label><select class="inp" id="dr-proj"><option value="">None</option>${D.projects.map(p=>`<option value="${p.id}" ${item.projectId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Context</label><input class="inp" value="${esc(item.context)}" id="dr-ctx"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Recurring</label><select class="inp" id="dr-recurring"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option></select></div>
+      <div class="field"><label>Est. Time (min)</label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Energy</label><select class="inp" id="dr-energy"><option ${item.energy==='high'?'selected':''}>high</option><option ${item.energy==='medium'?'selected':''}>medium</option><option ${item.energy==='low'?'selected':''}>low</option></select></div>
+      <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
+    </div>
     <div class="field"><label>Notes</label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
+    <div class="field"><label>Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:''}</label>
+    <div id="subtask-list">${subHtml}</div>
+    <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
@@ -467,12 +548,21 @@ function renderDrawer(type,item){
   if(type==='goal'){
     return `<h2>🎯 Edit Goal ${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
-    <div class="field-row"><div class="field"><label>Icon</label><input class="inp" value="${item.icon}" id="dr-icon"></div>
-    <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
+    <div class="field-row">
+      <div class="field"><label>Icon</label><input class="inp" value="${item.icon}" id="dr-icon" style="width:60px"></div>
+      <div class="field"><label>Category</label><select class="inp" id="dr-category"><option ${(item.category||'')==='Work'?'selected':''}>Work</option><option ${item.category==='Learning'?'selected':''}>Learning</option><option ${item.category==='Health'?'selected':''}>Health</option><option ${item.category==='Personal Brand'?'selected':''}>Personal Brand</option><option ${item.category==='Finance'?'selected':''}>Finance</option><option ${item.category==='Personal'?'selected':''}>Personal</option></select></div>
+      <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div>
+    </div>
     <div class="field"><label>Target description</label><input class="inp" value="${esc(item.target)}" id="dr-target"></div>
+    <div class="field-row">
+      <div class="field"><label>Start Date</label><input class="inp" type="date" value="${esc(item.startDate||'')}" id="dr-startdate"></div>
+      <div class="field"><label>Due Date</label><input class="inp" type="date" value="${esc(item.dueDate||'')}" id="dr-due"></div>
+    </div>
+    <div class="field"><label>Linked Tasks</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px">${D.tasks.map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.linkedTaskIds||[]).includes(t.id)?'checked':''} data-tid="${t.id}" class="goal-task-cb"> ${esc(t.title)}</label>`).join('')}</div></div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('goal',${item.id})">Save</button>
-    <button class="btn btn-d" onclick="deleteItem('goal',${item.id})">Delete</button></div>`;
+    <button class="btn btn-d" onclick="deleteItem('goal',${item.id})">Delete</button>
+    <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='journal'){
     return `<h2>✏️ Edit Journal Entry ${cb}</h2>
@@ -489,10 +579,40 @@ function renderDrawer(type,item){
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 
 function saveItem(type,id){
-  if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){t.title=$('#dr-title').value;t.priority=$('#dr-pri').value;t.due=$('#dr-due').value;t.context=$('#dr-ctx').value;t.status=$('#dr-status').value;t.project=$('#dr-proj').value;t.notes=$('#dr-notes').value;save('tasks')}}
+  if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
+    t.title=$('#dr-title').value;
+    t.priority=$('#dr-pri').value;
+    t.status=$('#dr-status').value;
+    t.startDate=$('#dr-startdate').value;
+    t.endDate=$('#dr-due').value;
+    t.due=$('#dr-due').value;
+    t.startTime=$('#dr-starttime').value;
+    t.endTime=$('#dr-endtime').value;
+    const pSel=document.getElementById('dr-proj');
+    t.projectId=pSel.value?parseInt(pSel.value):null;
+    t.project=pSel.value?D.projects.find(p=>p.id===parseInt(pSel.value))?.name||'':'';
+    t.context=$('#dr-ctx').value;
+    t.recurring=$('#dr-recurring').value;
+    t.estimatedMins=parseInt($('#dr-estmins').value)||0;
+    t.energy=$('#dr-energy').value;
+    const gSel=document.getElementById('dr-goal');
+    t.linkedGoalId=gSel.value?parseInt(gSel.value):null;
+    t.notes=$('#dr-notes').value;
+    save('tasks');
+  }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;n.updated='Just now';save('notes')}}
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
-  if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){g.title=$('#dr-title').value;g.icon=$('#dr-icon').value;g.pct=parseInt($('#dr-pct').value)||0;g.target=$('#dr-target').value;save('goals')}}
+  if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
+    g.title=$('#dr-title').value;
+    g.icon=$('#dr-icon').value;
+    g.pct=parseInt($('#dr-pct').value)||0;
+    g.target=$('#dr-target').value;
+    g.category=document.getElementById('dr-category')?.value||'';
+    g.startDate=document.getElementById('dr-startdate')?.value||'';
+    g.dueDate=document.getElementById('dr-due')?.value||'';
+    g.linkedTaskIds=[...document.querySelectorAll('.goal-task-cb:checked')].map(cb=>parseInt(cb.dataset.tid));
+    save('goals');
+  }}
   if(type==='journal'){const j=D.journal.find(x=>x.id===id);if(j){j.title=$('#dr-title').value;j.date=$('#dr-date').value;j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;save('journal')}}
   closeDrawer();toast('Saved!');renderScreen(curScreen);
 }
@@ -508,6 +628,47 @@ function deleteItem(type,id){
 }
 function $$(s){return document.querySelector(s)}
 function $(s){return document.getElementById?document.getElementById(s.replace('#','')):document.querySelector(s)}
+function addSubtask(taskId){
+  const inp=document.getElementById('new-subtask');
+  const title=(inp?.value||'').trim();
+  if(!title){toast('Enter a subtask title');return;}
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  if(!t.subtasks)t.subtasks=[];
+  t.subtasks.push({id:Date.now(),title,done:false});
+  save('tasks');
+  // re-render subtask list in drawer without closing
+  const list=document.getElementById('subtask-list');
+  if(list){
+    const subs=t.subtasks;
+    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+  }
+  inp.value='';
+  inp.focus();
+  toast('Subtask added');
+}
+function toggleSubtask(taskId,idx){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t||!t.subtasks[idx])return;
+  t.subtasks[idx].done=!t.subtasks[idx].done;
+  save('tasks');
+  const list=document.getElementById('subtask-list');
+  if(list){
+    const subs=t.subtasks;
+    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+  }
+}
+function deleteSubtask(taskId,idx){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t||!t.subtasks)return;
+  t.subtasks.splice(idx,1);
+  save('tasks');
+  const list=document.getElementById('subtask-list');
+  if(list){
+    const subs=t.subtasks;
+    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+  }
+}
 
 // ====== MODAL ======
 const CAP_TYPES=['Task','Note','Project','Goal','Journal'];
@@ -667,15 +828,190 @@ function renderNoteEditor(n){
   <div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(n.body)}</div>`;
 }
 
+let projView='list';
 function renderProjects(){
-  $('proj-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ New Project</button></div>
-  <div class="tabs"><div class="tab on">Active</div><div class="tab">On Hold</div><div class="tab">Completed</div></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">${D.projects.map(p=>`<div class="cd" style="cursor:pointer" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><div style="display:flex;align-items:center;gap:5px;margin-bottom:6px"><span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span><span style="font-size:13px;font-weight:500;flex:1">${esc(p.name)}</span><span class="pill ${statusPill(p.status)}">${p.status}</span></div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc)}</div><div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due}</span><div class="pb" style="max-width:60px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct}%</span></div></div>`).join('')}</div>`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">Track and manage projects.</p></div><div style="display:flex;gap:4px"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn btn-p" onclick="openModal('capture')">+ New</button></div></div>`;
+  if(projView==='list') renderProjectsList(header);
+  else if(projView==='kanban') renderProjectsKanban(header);
+  else renderProjectsGantt(header);
+}
+function renderProjectsList(header){
+  $('proj-main').innerHTML=header+
+  `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${D.projects.map(p=>{
+    const pts=D.tasks.filter(t=>t.projectId===p.id);
+    const done=pts.filter(t=>t.status==='Done').length;
+    const subs=pts.flatMap(t=>t.subtasks||[]);
+    return`<div class="cd" style="cursor:pointer" onclick="openProjectDetail(${p.id})">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px"><span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span><span style="font-size:13px;font-weight:500;flex:1">${esc(p.name)}</span><span class="pill ${statusPill(p.status)}">${p.status}</span></div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc)}</div>
+      <div style="display:flex;gap:8px;font-size:10px;color:var(--t3);margin-bottom:6px"><span>📋 ${pts.length} tasks</span><span>✅ ${done} done</span><span>📌 ${subs.length} subtasks</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct}%</span></div>
+      <div style="margin-top:8px;display:flex;gap:4px"><button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))">✏ Edit</button></div>
+    </div>`}).join('')}</div>`;
+}
+function openProjectDetail(pid){
+  const p=D.projects.find(x=>x.id===pid);
+  if(!p)return;
+  const pts=D.tasks.filter(t=>t.projectId===pid);
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  const taskRows=pts.map(t=>{
+    const subs=t.subtasks||[];
+    const done=subs.filter(s=>s.done).length;
+    return`<div style="padding:6px 0;border-bottom:1px solid var(--bd1)">
+      <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="cursor:pointer">
+        <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
+        <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+        <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+        <span style="font-size:9px;color:var(--t3)">${t.due||''}</span>
+      </div>
+      ${subs.length?`<div style="padding-left:24px;font-size:10px;color:var(--t3)">${done}/${subs.length} subtasks · ${subs.filter(s=>!s.done).map(s=>`<span style="margin-right:6px">◦ ${esc(s.title)}</span>`).join('')}</div>`:''}
+    </div>`}).join('');
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:${p.color}"></span>${esc(p.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <span class="pill ${statusPill(p.status)}">${p.status}</span>
+    <span style="font-size:11px;color:var(--t3)">Due ${p.due}</span>
+    <span style="font-size:11px;color:var(--t3)">${p.pct}% complete</span>
+  </div>
+  <div class="pb" style="margin-bottom:12px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">${esc(p.desc)}</div>
+  <div style="font-size:12px;font-weight:600;margin-bottom:6px">Tasks & Subtasks (${pts.length})</div>
+  ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
+    <button class="btn btn-s" onclick="closeDrawer()">Close</button>
+  </div>`;
+  ov.classList.add('show');
+}
+function renderProjectsKanban(header){
+  const cols=['Not Started','In Progress','On Hold','Completed'];
+  const colMap={'Not Started':'Not Started','Active':'In Progress','On Hold':'On Hold','Completed':'Completed'};
+  const colHtml=cols.map(col=>{
+    const ps=D.projects.filter(p=>(colMap[p.status]||p.status)===col);
+    return`<div style="flex:1;min-width:180px;max-width:260px">
+      <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:10px;color:var(--t3)">(${ps.length})</span></div>
+      ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color}" onclick="openProjectDetail(${p.id})">
+        <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(p.name)}</div>
+        <div style="font-size:10px;color:var(--t3)">Due ${p.due} · ${p.pct}%</div>
+        <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div>
+      </div>`).join('')}
+      <div class="add-c" onclick="openModal('capture')" style="font-size:10px">+ Add project</div>
+    </div>`}).join('');
+  $('proj-main').innerHTML=header+`<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
+}
+function renderProjectsGantt(header){
+  // Simple CSS Gantt — compute week offsets from today
+  const today=new Date();
+  const parseDate=s=>{if(!s||s==='Ongoing')return null;try{return new Date(s)}catch{return null}};
+  const allDates=D.projects.map(p=>parseDate(p.due)).filter(Boolean);
+  const minDate=new Date(today); minDate.setDate(minDate.getDate()-7);
+  const maxDate=allDates.length?new Date(Math.max(...allDates.map(d=>d.getTime()))):new Date(today.getTime()+90*86400000);
+  const totalDays=Math.max(1,Math.ceil((maxDate-minDate)/86400000))+14;
+  const pct=(d)=>Math.max(0,Math.min(100,Math.ceil((new Date(d)-minDate)/86400000/totalDays*100)));
+  const rows=D.projects.map(p=>{
+    const due=parseDate(p.due);
+    const startPct=Math.max(0,pct(new Date(today.getTime()-14*86400000)));
+    const endPct=due?pct(due):80;
+    const barW=Math.max(2,endPct-startPct);
+    return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)">
+      <div style="width:140px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)}">
+        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:4px"></span>${esc(p.name)}
+      </div>
+      <div style="flex:1;position:relative;height:18px;background:var(--s3);border-radius:3px;overflow:hidden">
+        <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:${p.color};border-radius:3px;opacity:.85;display:flex;align-items:center;padding:0 4px">
+          <span style="font-size:9px;color:#fff;white-space:nowrap;overflow:hidden">${p.pct}%</span>
+        </div>
+        <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:1px;background:var(--warn);opacity:.7"></div>
+      </div>
+      <div style="width:60px;flex-shrink:0;font-size:9px;color:var(--t3);text-align:right">${p.due||'—'}</div>
+    </div>`}).join('');
+  $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Yellow line = today. Bars span from project start to due date.</div><div>${rows}</div>`;
 }
 
 function renderGoals(){
   $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><button class="btn btn-p" onclick="openModal('capture')">+ New Goal</button></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${D.goals.map(g=>`<div class="cd" style="cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="font-size:20px;margin-bottom:3px">${g.icon}</div><div style="font-size:14px;font-weight:500;margin-bottom:2px">${esc(g.title)}</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">${esc(g.target)}</div><div style="display:flex;align-items:center;gap:5px"><div class="pb"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div><span style="font-size:12px;font-weight:600">${g.pct}%</span></div></div>`).join('')}</div>`;
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${D.goals.map(g=>{
+    const ms=g.milestones||[];
+    const msDone=ms.filter(m=>m.done).length;
+    const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
+    const nextMs=ms.find(m=>!m.done);
+    return`<div class="cd" style="cursor:pointer" onclick="openGoalDetail(${g.id})">
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
+        <span style="font-size:22px">${g.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${esc(g.title)}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(g.category||'')} · ${esc(g.target)}</div>
+        </div>
+        <span style="font-size:13px;font-weight:700;color:var(--ac)">${g.pct}%</span>
+      </div>
+      <div class="pb" style="margin-bottom:8px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>
+      ${ms.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">🏁 Milestones: ${msDone}/${ms.length} done${nextMs?` · Next: ${esc(nextMs.title)}`:''}</div>`:''}
+      ${linkedTasks.length?`<div style="font-size:10px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''}</div>`:''}
+      <div style="margin-top:6px;display:flex;gap:4px">
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
+      </div>
+    </div>`}).join('')}</div>`;
+}
+function openGoalDetail(gid){
+  const g=D.goals.find(x=>x.id===gid);
+  if(!g)return;
+  const ms=g.milestones||[];
+  const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
+    <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
+    <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span>
+    <span style="font-size:9px;color:var(--t3)">${m.due||''}</span>
+  </div>`).join('');
+  const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+    <div class="chk ${t.status==='Done'?'on':''}"></div>
+    <span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+    <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+  </div>`).join('');
+  d.innerHTML=`<h2>${g.icon} ${esc(g.title)} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(g.category||'')} · ${esc(g.target)}</div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <div class="pb" style="flex:1"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>
+    <span style="font-size:14px;font-weight:700;color:var(--ac)">${g.pct}%</span>
+  </div>
+  ${ms.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🏁 Milestones</div><div id="ms-list">${msHtml}</div><div style="display:flex;gap:6px;margin:6px 0 12px"><input class="inp" placeholder="Add milestone..." id="new-ms" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMilestone(${gid})}"><input class="inp" type="date" id="new-ms-due" style="width:120px"><button class="btn btn-s" onclick="addMilestone(${gid})">+ Add</button></div>`:''}
+  ${linkedTasks.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">📋 Linked Tasks (${linkedTasks.length})</div>${taskHtml}`:''}
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-p" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${gid}))">✏ Edit Goal</button>
+    <button class="btn btn-s" onclick="closeDrawer()">Close</button>
+  </div>`;
+  ov.classList.add('show');
+}
+function toggleMilestone(goalId,idx){
+  const g=D.goals.find(x=>x.id===goalId);
+  if(!g||!g.milestones[idx])return;
+  g.milestones[idx].done=!g.milestones[idx].done;
+  save('goals');
+  const list=document.getElementById('ms-list');
+  if(list){
+    const ms=g.milestones;
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('');
+  }
+  toast(g.milestones[idx].done?'🏁 Milestone complete!':'Milestone unmarked');
+}
+function addMilestone(goalId){
+  const g=D.goals.find(x=>x.id===goalId);
+  if(!g)return;
+  const inp=document.getElementById('new-ms');
+  const due=document.getElementById('new-ms-due');
+  const title=(inp?.value||'').trim();
+  if(!title){toast('Enter a milestone title');return;}
+  if(!g.milestones)g.milestones=[];
+  g.milestones.push({id:Date.now(),title,done:false,due:due?.value||''});
+  save('goals');
+  const list=document.getElementById('ms-list');
+  if(list){
+    const ms=g.milestones;
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('');
+  }
+  inp.value=''; if(due)due.value='';
+  toast('Milestone added');
 }
 
 function renderJournal(){
@@ -763,14 +1099,88 @@ function renderHabits(){
   const done=D.habits.filter(h=>h.doneToday).length;
   const total=D.habits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">\u2705 Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><button class="btn btn-p" onclick="addHabit()">+ New Habit</button></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px">${D.habits.map(h=>`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s"><div style="font-size:20px;margin-bottom:3px">${h.icon}</div><div style="font-size:13px;font-weight:500;margin-bottom:2px">${esc(h.title)}</div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">${h.cadence}</div><div style="display:flex;align-items:center;gap:5px;margin-bottom:4px"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div><span style="font-size:10px;color:${h.doneToday?'var(--ok)':'var(--t3)'}">${h.doneToday?'\u2713 Done today':'Not yet'}</span></div><div style="font-size:11px;color:var(--warn);margin-bottom:4px">\ud83d\udd25 ${h.streak} day${h.streak===1?'':'s'}</div><div class="hm">${genHM(h.streak)}</div></div>`).join('')}</div>
-  <div class="cd" style="margin-top:12px;padding:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Progress</div><div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden"><div style="background:var(--ok);height:100%;width:${pct}%;transition:width .4s"></div></div><div style="font-size:11px;color:var(--t2);margin-top:4px">${pct}% complete \u2014 ${done} of ${total} habits done</div></div>`;
-  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">\ud83d\udd25${h.streak}</span></div>`).join('')}
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><button class="btn btn-p" onclick="openHabitDrawer(null)">+ New Habit</button></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${D.habits.map(h=>{
+    const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
+    return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
+      <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
+        <span style="font-size:20px">${h.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500">${esc(h.title)}</div>
+          <div style="font-size:10px;color:var(--t3)">${h.cadence}${h.startTime?' · ⏰ '+h.startTime:''}</div>
+          ${h.category?`<div style="font-size:9px;color:var(--ac);margin-top:1px">${h.category}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+        <div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
+        <span style="font-size:10px;color:${h.doneToday?'var(--ok)':'var(--t3)'}">${h.doneToday?'✓ Done today':'Not yet'}</span>
+        <span style="font-size:11px;color:var(--warn);margin-left:auto">🔥 ${h.streak}</span>
+      </div>
+      ${lt?`<div style="font-size:9px;color:var(--t2);margin-bottom:4px">📋 Linked: ${esc(lt.title)}</div>`:''}
+      <div class="hm">${genHM(h.streak)}</div>
+    </div>`}).join('')}</div>
+  <div class="cd" style="margin-top:12px;padding:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Progress</div><div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden"><div style="background:var(--ok);height:100%;width:${pct}%;transition:width .4s"></div></div><div style="font-size:11px;color:var(--t2);margin-top:4px">${pct}% complete — ${done} of ${total} habits done</div></div>`;
+  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Today's Rate</div><div class="stat"><div class="stat-n" style="color:var(--ok)">${pct}%</div><div class="stat-l">${done}/${total} done</div></div></div>`;
 }
 function genHM(s){let h='';for(let i=89;i>=0;i--){const ok=i<s||Math.random()>.25;h+=`<div class="hm-c ${ok?'ok':'mi'}"></div>`}return h}
-function addHabit(){const t=prompt('Habit name:');if(t){D.habits.push({id:nextId(D.habits),icon:'✅',title:t,cadence:'Daily',streak:0,doneToday:false});save('habits');renderScreen('habits');toast('Habit added!')}}
+function openHabitDrawer(hid){
+  const h=hid?D.habits.find(x=>x.id===hid):null;
+  const isNew=!h;
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  d.innerHTML=`<h2>${isNew?'+ New Habit':h.icon+' Edit Habit'} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div class="field"><label>Title</label><input class="inp" value="${esc(h?.title||'')}" id="hdr-title"></div>
+  <div class="field-row">
+    <div class="field"><label>Icon (emoji)</label><input class="inp" value="${h?.icon||'✅'}" id="hdr-icon" style="width:60px"></div>
+    <div class="field"><label>Category</label><select class="inp" id="hdr-cat"><option ${(h?.category||'')==='Mindfulness'?'selected':''}>Mindfulness</option><option ${h?.category==='Health'?'selected':''}>Health</option><option ${h?.category==='Learning'?'selected':''}>Learning</option><option ${h?.category==='Productivity'?'selected':''}>Productivity</option><option ${h?.category==='Reflection'?'selected':''}>Reflection</option><option ${h?.category==='Finance'?'selected':''}>Finance</option><option ${h?.category==='Social'?'selected':''}>Social</option></select></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Cadence</label><select class="inp" id="hdr-cadence"><option ${(h?.cadence||'Daily')==='Daily'?'selected':''}>Daily</option><option ${h?.cadence==='Weekdays'?'selected':''}>Weekdays</option><option ${h?.cadence==='Weekends'?'selected':''}>Weekends</option><option ${h?.cadence==='3xd7/week'?'selected':''}>3×/week</option><option ${h?.cadence==='Weekly'?'selected':''}>Weekly</option></select></div>
+    <div class="field"><label>Start Time</label><input class="inp" type="time" value="${h?.startTime||''}" id="hdr-start"></div>
+    <div class="field"><label>Reminder</label><input class="inp" type="time" value="${h?.reminderTime||''}" id="hdr-reminder"></div>
+  </div>
+  <div class="field"><label>Link to Task (optional)</label><select class="inp" id="hdr-task"><option value="">None</option>${D.tasks.filter(t=>t.status!=='Done').map(t=>`<option value="${t.id}" ${h?.linkedTaskId===t.id?'selected':''}>${esc(t.title)}</option>`).join('')}</select></div>
+  <div class="field"><label>Notes</label><textarea class="inp" id="hdr-notes">${esc(h?.notes||'')}</textarea></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-p" onclick="saveHabit(${hid||'null'})">${isNew?'Create Habit':'Save Changes'}</button>
+    ${!isNew?`<button class="btn btn-d" onclick="deleteHabit(${hid})">Delete</button>`:''}
+    <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
+  </div>`;
+  ov.classList.add('show');
+}
+function saveHabit(hid){
+  const title=document.getElementById('hdr-title')?.value.trim();
+  if(!title){toast('Title required');return;}
+  const data={
+    title,
+    icon:document.getElementById('hdr-icon')?.value||'✅',
+    category:document.getElementById('hdr-cat')?.value||'',
+    cadence:document.getElementById('hdr-cadence')?.value||'Daily',
+    startTime:document.getElementById('hdr-start')?.value||'',
+    reminderTime:document.getElementById('hdr-reminder')?.value||'',
+    linkedTaskId:document.getElementById('hdr-task')?.value?parseInt(document.getElementById('hdr-task').value):null,
+    notes:document.getElementById('hdr-notes')?.value||'',
+  };
+  if(hid){
+    const h=D.habits.find(x=>x.id===hid);
+    if(h)Object.assign(h,data);
+  } else {
+    D.habits.push({id:nextId(D.habits),streak:0,doneToday:false,...data});
+  }
+  save('habits');
+  closeDrawer();
+  renderScreen('habits');
+  toast(hid?'Habit updated!':'Habit created!');
+}
+function deleteHabit(hid){
+  if(!confirm('Delete this habit?'))return;
+  D.habits=D.habits.filter(x=>x.id!==hid);
+  save('habits');
+  closeDrawer();
+  renderScreen('habits');
+  toast('Habit deleted');
+}
 
 function renderCoach(){$('coach-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">⚡ Coach</h1><p style="font-size:12px;color:var(--t2)">AI-powered insights</p></div><button class="btn btn-s" onclick="nav('settings')">⚙ Settings</button></div>
 <div class="sec-h">📊 Observations</div>
@@ -808,8 +1218,10 @@ function renderSettingsHTML(){
   <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload();}">\ud83d\uddd1 Reset All Data</button></div>
   </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Recommended</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div><div style="font-size:10px;color:var(--t3)">Reduce padding and spacing</div></div><div class="tog ${D.prefs&&D.prefs.compact?'on':''}" id="tog-compact" onclick="toggleCompact(this)"></div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Accent Color</div><div style="font-size:10px;color:var(--t3)">Primary highlight color</div></div><div style="display:flex;gap:6px">${['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'].map(c=>`<div onclick="setAccent('${c}')" style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${(D.prefs&&D.prefs.accent||'#3B82F6')===c?'#fff':'transparent'}"></div>`).join('')}</div></div>
+  </div>
   <!-- Accounts --><div id="sp-3" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
   ${renderCredCard('Microsoft 365','M365','Outlook, Calendar, SharePoint, To Do','ms',['Client ID|ms_cid','Client Secret|ms_cs','Tenant ID|ms_tid'])}
   ${renderCredCard('Google Workspace','G','Gmail, Google Calendar','ggl',['OAuth Client ID|ggl_cid','Client Secret|ggl_cs'])}
@@ -1230,6 +1642,7 @@ document.addEventListener('keydown',e=>{
 });
 
 // ====== INIT ======
+applyPrefs();
 checkMyDayReset();
 scheduleMidnightReset();
 initSidebars('home');
