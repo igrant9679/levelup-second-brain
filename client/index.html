@@ -308,7 +308,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
     </div>
     <div class="login-err" id="login-err"></div>
     <button class="btn btn-p" style="width:100%;height:38px;font-size:13px" onclick="attemptLogin()">Sign In</button>
-    <div style="font-size:10px;color:var(--t3);text-align:center;margin-top:12px">Default PIN for all users: <strong>1234</strong></div>
+    <div id="pin-hint" style="font-size:10px;color:var(--t3);text-align:center;margin-top:12px">Default PIN for all users: <strong>1234</strong> &nbsp;<span style="cursor:pointer;text-decoration:underline" onclick="document.getElementById('pin-hint').style.display='none';localStorage.setItem('lu_hidePinHint','1')">Hide</span></div>
   </div>
 </div>
 <div class="app">
@@ -1146,12 +1146,31 @@ function filterNotesList(q){
   const filtered=lq?base.filter(n=>(n.title||'').toLowerCase().includes(lq)||(n.body||'').toLowerCase().includes(lq)||(n.tags||[]).some(t=>t.toLowerCase().includes(lq))):base;
   el.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||'<p style="color:var(--t3);font-size:11px;padding:8px">No notes match.</p>';
 }
+function filterNotesByTag(tag,el){
+  const chips=document.querySelectorAll('.notes-tag-chip');
+  const isActive=el.dataset.active==='1';
+  // Toggle: if already active, clear filter
+  chips.forEach(c=>{c.dataset.active='';c.style.background='var(--s3)';c.style.color='var(--t2)';});
+  const search=document.getElementById('notes-search');
+  if(isActive){
+    if(search)search.value='';
+    renderNotesList();
+  } else {
+    el.dataset.active='1';el.style.background='var(--ac)';el.style.color='#fff';
+    if(search)search.value='';
+    const me=D.creds.userName||'Idris Grant';
+    const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+    const filtered=base.filter(n=>(n.tags||[]).includes(tag));
+    const el2=document.getElementById('notes-list-inner');
+    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
+  }
+}
 function renderNotes(){
   const nb=$('notes-body');
   nb.innerHTML=`<div class="notes-nav"><div style="font-size:14px;font-weight:600;margin-bottom:8px">Notes</div>
   ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}">${n}</div>`).join('')}
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:8px 0 4px">Tags</div>
-  <div style="display:flex;flex-wrap:wrap;gap:2px">${[...new Set(D.notes.flatMap(n=>n.tags))].map(t=>`<span style="font-size:9px;color:var(--t2);background:var(--s3);padding:2px 6px;border-radius:3px;cursor:pointer">${t}</span>`).join('')}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:2px" id="notes-tag-chips">${[...new Set(D.notes.flatMap(n=>n.tags))].map(tag=>`<span class="notes-tag-chip" style="font-size:9px;color:var(--t2);background:var(--s3);padding:2px 6px;border-radius:3px;cursor:pointer;transition:all .15s" onclick="filterNotesByTag('${tag}',this)" title="Filter by #${tag}">#${tag}</span>`).join('')}</div>
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:8px 0 4px">PARA</div>
   ${['Projects 14','Areas 8','Resources 36','Archive 57'].map(x=>{const[n,c]=x.split(' ');return`<div class="nn">${n}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`}).join('')}
   </div>
@@ -1478,7 +1497,7 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
 </div>
 <div class="sec-h">⚡ Execute — My Day tasks</div>
 <div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'quickwin')">⚡ Quick Wins</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
-<div id="md-exec-list">${renderMdExecList('all')}</div></div>
+<div id="md-exec-summary">${getMdExecSummary('all')}</div><div id="md-exec-list">${renderMdExecList('all')}</div></div>
 <div id="md-w" style="display:none"><div class="sec-h">🌙 Wrap-Up</div>
 <div class="g3" style="margin-bottom:12px">
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div>
@@ -1531,6 +1550,29 @@ function saveWrapUp(){
   });
   toast('📝 Wrap-Up saved to Journal!');
 }
+function getMdExecSummary(filter){
+  let tasks=D.tasks.filter(t=>t.myDay);
+  if(filter==='high')tasks=tasks.filter(t=>t.priority==='High');
+  else if(filter==='quickwin')tasks=tasks.filter(t=>t.status!=='Done'&&(t.estimatedMins||999)<=15);
+  else if(filter==='pending')tasks=tasks.filter(t=>t.status!=='Done');
+  else if(filter==='done')tasks=tasks.filter(t=>t.status==='Done');
+  const total=tasks.reduce((s,t)=>s+(t.estimatedMins||0),0);
+  const done=tasks.filter(t=>t.status==='Done').length;
+  const pending=tasks.filter(t=>t.status!=='Done').length;
+  if(!tasks.length)return '';
+  const hrs=Math.floor(total/60),mins=total%60;
+  const timeStr=total?`⏱ ${hrs?hrs+'h ':''}${mins?mins+'m':''} estimated`:'⏱ No estimates set';
+  const pct=tasks.length?Math.round(done/tasks.length*100):0;
+  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s2);border-radius:6px;margin-bottom:8px;font-size:10px;color:var(--t2);flex-wrap:wrap">
+    <span style="color:var(--t3)">${timeStr}</span>
+    <span style="color:var(--t3)">·</span>
+    <span>${done} done</span>
+    <span style="color:var(--t3)">·</span>
+    <span>${pending} pending</span>
+    <div style="flex:1;min-width:60px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--ok,#10B981);border-radius:2px;transition:width .3s"></div></div>
+    <span style="font-size:9px;color:var(--t3)">${pct}%</span>
+  </div>`;
+}
 function renderMdExecList(filter){
   let tasks=D.tasks.filter(t=>t.myDay);
   if(filter==='high')tasks=tasks.filter(t=>t.priority==='High');
@@ -1571,6 +1613,8 @@ function mdExecFilter(el,filter){
   el.classList.add('on');
   const list=document.getElementById('md-exec-list');
   if(list)list.innerHTML=renderMdExecList(filter);
+  const summ=document.getElementById('md-exec-summary');
+  if(summ)summ.innerHTML=getMdExecSummary(filter);
 }
 function startInlineEdit(taskId){
   const t=D.tasks.find(x=>x.id===taskId);
@@ -2699,6 +2743,11 @@ function initLoginScreen(){
   // Auto-select Idris (owner)
   const owner=allMembers.find(m=>m.role==='Owner')||allMembers[0];
   if(owner)selectLoginUser(owner.id);
+  // Hide PIN hint if user dismissed it before
+  if(localStorage.getItem('lu_hidePinHint')==='1'){
+    const h=document.getElementById('pin-hint');
+    if(h)h.style.display='none';
+  }
 }
 function selectLoginUser(memberId){
   _loginSelectedMember=memberId;
