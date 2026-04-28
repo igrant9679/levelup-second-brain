@@ -1155,6 +1155,17 @@ function renderHome(){
 }
 function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
+// Module-level task list state so tab clicks work after renderTasks() returns
+let _taskTabDefs=null;
+let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday';
+let _taskMyOnly=false;
+function renderTaskList(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  let filtered=D.tasks.filter(_taskFilter);
+  if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
+}
 function renderTasks(){
   // Compute week bounds for This Week filter
   const _twNow=new Date();
@@ -1173,22 +1184,18 @@ function renderTasks(){
     return d>=_twStart&&d<=_twEnd;
   }
   // _todayStr is global
-  const tabDefs=[
-    {label:'Today',filter:t=>t.due===_todayStr||t.startDate===_todayStr,badge:D.tasks.filter(t=>t.due===_todayStr||t.startDate===_todayStr).length},
-    {label:'This Week',filter:_taskInWeek,badge:D.tasks.filter(_taskInWeek).length},
+  _taskTabDefs=[
+    {label:'All Active',filter:t=>t.status!=='Done'&&t.status!=='Someday'},
+    {label:'Today',filter:t=>t.due===_todayStr||t.startDate===_todayStr,badge:D.tasks.filter(t=>t.due===_todayStr||t.startDate===_todayStr).length||undefined},
+    {label:'This Week',filter:_taskInWeek,badge:D.tasks.filter(_taskInWeek).length||undefined},
     {label:'Inbox',filter:t=>t.status==='Not Started'},
     {label:'Recurring',filter:t=>t.recurring&&t.recurring!=='None'},
     {label:'Someday',filter:t=>t.status==='Someday'},
     {label:'Done',filter:t=>t.status==='Done'},
   ];
-  let _taskFilter=tabDefs[0].filter;
-  let _taskMyOnly=false;
-  function renderTaskList(){
-    const list=document.getElementById('tasks-list');
-    if(!list)return;
-    let filtered=D.tasks.filter(_taskFilter);
-    if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
-    list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
+  // Default to All Active on first render, preserve current filter if re-rendering
+  if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
+    _taskFilter=_taskTabDefs[0].filter;
   }
   $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
@@ -1199,7 +1206,7 @@ function renderTasks(){
     <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
-  <div class="tabs" id="tasks-tabs">${tabDefs.map((td,i)=>`<div class="tab ${i===0?'on':''}" onclick="_taskFilter=tabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
+  <div class="tabs" id="tasks-tabs">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div class="cd" id="tasks-list"></div>`;
   renderTaskList();
   $('tasks-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Week Calendar</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">May 19–25, 2025</div>
