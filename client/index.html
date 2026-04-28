@@ -1049,11 +1049,17 @@ function taskRow(t,showActs=true){
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
   const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${t.id},event)"></div>`:
     `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div>`;
+  // Blocked indicator: task is blocked if any predecessor task is not Done
+  const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{
+    const pred=D.tasks.find(x=>x.id===pid);
+    return pred&&pred.status!=='Done';
+  });
+  const blockedLabel=isBlocked?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600" title="Blocked by incomplete predecessor tasks">🔒 Blocked</span>`:'';
   const isTimerActive=_timerTaskId===t.id;
   const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
-  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -1166,12 +1172,99 @@ function autoCalcGoalPctBidirectional(g){
   }
 }
 
+// Home dashboard card order & visibility
+const _homeCardDefs=[
+  {id:'tasks',label:'📋 Top Tasks',default:true},
+  {id:'notes',label:'📝 Recent Notes',default:true},
+  {id:'projects',label:'📁 Active Projects',default:true},
+  {id:'goals',label:'🎯 Goals',default:true},
+  {id:'files',label:'📁 Recent Files',default:true},
+  {id:'habits',label:'⚡ Today\'s Habits',default:true},
+  {id:'meetings',label:'📅 Upcoming Meetings',default:true},
+  {id:'recent',label:'🕐 Recently Added',default:true},
+  {id:'pinned',label:'📌 Pinned',default:true}
+];
+function getHomeCardPrefs(){
+  try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
+  return _homeCardDefs.map(c=>({id:c.id,visible:c.default,order:_homeCardDefs.findIndex(x=>x.id===c.id)}));
+}
+function saveHomeCardPrefs(prefs){localStorage.setItem('lu_home_cards',JSON.stringify(prefs));}
+function openHomeDashCustomize(){
+  const prefs=getHomeCardPrefs();
+  const ov=document.createElement('div');
+  ov.id='home-cust-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  const sorted=[...prefs].sort((a,b)=>a.order-b.order);
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">⚙️ Customize Dashboard</div>
+    <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('home-cust-ov').remove()">✕</button>
+  </div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle cards on/off or drag to reorder (use ↑↓ buttons).</div>
+  <div id="home-cust-list">${sorted.map((p,i)=>{
+    const def=_homeCardDefs.find(c=>c.id===p.id);
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+      </div>
+      <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+        <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+        Show
+      </label>
+    </div>`;
+  }).join('')}</div>
+  <div style="display:flex;gap:6px;margin-top:12px">
+    <button class="btn btn-p" style="flex:1" onclick="document.getElementById('home-cust-ov').remove();renderHome()">Done</button>
+    <button class="btn btn-s" onclick="localStorage.removeItem('lu_home_cards');document.getElementById('home-cust-ov').remove();renderHome()">Reset</button>
+  </div></div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function homeCardToggle(id,visible){
+  const prefs=getHomeCardPrefs();
+  const p=prefs.find(x=>x.id===id);
+  if(p)p.visible=visible;
+  saveHomeCardPrefs(prefs);
+}
+function homeCardMove(id,dir){
+  const prefs=getHomeCardPrefs();
+  const sorted=[...prefs].sort((a,b)=>a.order-b.order);
+  const idx=sorted.findIndex(x=>x.id===id);
+  const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=sorted.length)return;
+  [sorted[idx].order,sorted[newIdx].order]=[sorted[newIdx].order,sorted[idx].order];
+  saveHomeCardPrefs(prefs);
+  // Re-render the list
+  const list=document.getElementById('home-cust-list');
+  if(list){
+    const newSorted=[...prefs].sort((a,b)=>a.order-b.order);
+    list.innerHTML=newSorted.map((p,i)=>{
+      const def=_homeCardDefs.find(c=>c.id===p.id);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+        </div>
+        <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+          <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+          Show
+        </label>
+      </div>`;
+    }).join('');
+  }
+}
 function renderHome(){
   const m=$('home-main');const r=$('home-rail');
   const _greetName=(D.creds.userName||'Idris Grant').split(' ')[0];
   const _greetTime=new Date().getHours();
   const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':'evening';
-  m.innerHTML=`<div class="pg-h"><h1>Good ${_greetWord}, ${_greetName}! 👋</h1><p>Focus on what matters today. You've got this.</p></div>
+  const _homePrefs=getHomeCardPrefs();
+  const _homeVisible=new Set(_homePrefs.filter(p=>p.visible).map(p=>p.id));
+  const _homeOrder=[..._homePrefs].sort((a,b)=>a.order-b.order).map(p=>p.id);
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:8px"><div><h1>Good ${_greetWord}, ${_greetName}! 👋</h1><p>Focus on what matters today. You've got this.</p></div><button class="btn btn-s" style="height:26px;font-size:10px;flex-shrink:0" onclick="openHomeDashCustomize()">⚙️ Customize</button></div>
   <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">Quick Add</span>
   ${['Task','Note','Project','Goal','Journal','Habit'].map(t=>`<span style="font-size:11px;color:var(--t2);cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="openFA('${t.toLowerCase()}')">${t}</span>`).join('')}</div>
   <div class="cd" style="display:flex;gap:24px;align-items:center;padding:12px 16px"><span style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Today</span>
@@ -1179,11 +1272,17 @@ function renderHome(){
   <div><div style="font-size:22px;font-weight:700">2</div><div style="font-size:10px;color:var(--t3)">Meetings</div></div>
   <div><div style="font-size:22px;font-weight:700">${D.tasks.filter(t=>t.myDay).length}</div><div style="font-size:10px;color:var(--t3)">My Day</div></div>
   <div><div style="font-size:22px;font-weight:700">${D.notes.length}</div><div style="font-size:10px;color:var(--t3)">Notes</div></div></div>
-  <div class="g3"><div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>
-  <div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>
-  <div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div></div>
-  <div class="g4">${renderGoalCards(3)}<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div></div>
-  ${[{n:'Q2 Marketing Plan.pptx',t:'PPT',c:'var(--reds)',cc:'var(--red)',m:'2h ago'},{n:'Budget Forecast.xlsx',t:'XLS',c:'var(--oks)',cc:'var(--ok)',m:'5h ago'},{n:'Client Proposal.docx',t:'DOC',c:'var(--acs)',cc:'var(--ac)',m:'Yesterday'}].map(f=>`<div class="lr"><span style="width:20px;height:20px;border-radius:3px;background:${f.c};color:${f.cc};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${f.t}</span><span class="rt" style="font-size:11px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div></div>`;
+  ${(()=>{
+    const cardHtml={
+      tasks:`<div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`,
+      notes:`<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`,
+      projects:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`,
+      goals:renderGoalCards(3),
+      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div></div>${[{n:'Q2 Marketing Plan.pptx',t:'PPT',c:'var(--reds)',cc:'var(--red)',m:'2h ago'},{n:'Budget Forecast.xlsx',t:'XLS',c:'var(--oks)',cc:'var(--ok)',m:'5h ago'},{n:'Client Proposal.docx',t:'DOC',c:'var(--acs)',cc:'var(--ac)',m:'Yesterday'}].map(f=>`<div class="lr"><span style="width:20px;height:20px;border-radius:3px;background:${f.c};color:${f.cc};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${f.t}</span><span class="rt" style="font-size:11px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div>`
+    };
+    const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
+    return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>`;
+  })()}`;
   // Build 7-day focus chart data
   const _focusLog=D.prefs&&D.prefs.focusLog||{};
   const _chartDays=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d;});
@@ -1874,9 +1973,25 @@ function openGoalDetail(gid){
   const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
+  // Build visual milestone timeline
+  const totalMs=ms.length;
+  const doneMs=ms.filter(m=>m.done).length;
+  const msTimelineHtml=totalMs===0?'':`
+  <div style="position:relative;padding:0 0 0 0;margin-bottom:4px">
+    <!-- Horizontal track -->
+    <div style="position:relative;height:4px;background:var(--s3);border-radius:2px;margin:20px 0 28px">
+      <div style="position:absolute;left:0;top:0;height:100%;width:${totalMs>1?Math.round((doneMs/totalMs)*100):doneMs?100:0}%;background:var(--ac);border-radius:2px;transition:width .4s"></div>
+      ${ms.map((m,mi)=>{
+        const pct=totalMs>1?(mi/(totalMs-1))*100:50;
+        return `<div style="position:absolute;top:50%;left:${pct}%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:${m.done?'var(--ac)':'var(--s1)'};border:2px solid ${m.done?'var(--ac)':'var(--bd2)'};cursor:pointer;z-index:1" title="${esc(m.title)}" onclick="toggleMilestone(${gid},${mi})">${m.done?'<div style="width:6px;height:6px;background:#fff;border-radius:50%;margin:2px auto"></div>':''}</div>
+        <div style="position:absolute;top:14px;left:${pct}%;transform:translateX(-50%);font-size:8px;color:${m.done?'var(--ac)':'var(--t3)'};white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis;text-align:center">${esc(m.title)}</div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div id="ms-list" style="display:none">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('')}</div>`;
   const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
     <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
-    <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span>
+    <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span>
     <span style="font-size:9px;color:var(--t3)">${m.due||''}</span>
   </div>`).join('');
   const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
@@ -1890,12 +2005,7 @@ function openGoalDetail(gid){
     <div class="pb" style="flex:1"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>
     <span style="font-size:14px;font-weight:700;color:var(--ac)">${g.pct}%</span>
   </div>
-  ${ms.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🏁 Milestones</div><div id="ms-list">${msHtml}</div><div style="display:flex;gap:6px;margin:6px 0 12px"><input class="inp" placeholder="Add milestone..." id="new-ms" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMilestone(${gid})}"><input class="inp" type="date" id="new-ms-due" style="width:120px"><button class="btn btn-s" onclick="addMilestone(${gid})">+ Add</button></div>`:''}
-  ${linkedTasks.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">📋 Linked Tasks (${linkedTasks.length})</div>${taskHtml}`:''}
-  <div style="display:flex;gap:8px;margin-top:12px">
-    <button class="btn btn-p" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${gid}))">✏ Edit Goal</button>
-    <button class="btn btn-s" onclick="closeDrawer()">Close</button>
-  </div>`;
+   ${ms.length?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:12px;font-weight:600">🏁 Milestones (${doneMs}/${totalMs})</div><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="document.getElementById('ms-list').style.display=document.getElementById('ms-list').style.display==='none'?'block':'none'">List ▾</button></div>${msTimelineHtml}<div style="display:flex;gap:6px;margin:6px 0 12px"><input class="inp" placeholder="Add milestone..." id="new-ms" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMilestone(${gid})}"><input class="inp" type="date" id="new-ms-due" style="width:120px"><button class="btn btn-s" onclick="addMilestone(${gid})">+ Add</button></div>`:''}  ${linkedTasks.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">📋 Linked Tasks (${linkedTasks.length})</div>${taskHtml}`:''}  <div style="display:flex;gap:8px;margin-top:12px">    <button class="btn btn-p" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${gid}))">✏ Edit Goal</button>    <button class="btn btn-s" onclick="closeDrawer()">Close</button>  </div>`;
   ov.classList.add('show');
 }
 function toggleMilestone(goalId,idx){
@@ -4156,7 +4266,7 @@ function renderFATask(){
       <div class="fa-field"><label>Delegated To</label><select class="fa-inp" id="fa-delegated"><option value="">None</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select></div>
     </div>
     <div class="fa-row">
-      <div class="fa-field"><label>Predecessor Tasks</label>${faLinkerHtml('tasks','Search tasks to add as predecessors...')}</div>
+      <div class="fa-field"><label>🔒 Blocked By (Predecessor Tasks)</label>${faLinkerHtml('tasks','Search tasks that must complete first...')}</div>
     </div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;padding:6px 0">
       <label class="fa-checkbox-row"><input type="checkbox" id="fa-myday"> Add to My Day</label>
