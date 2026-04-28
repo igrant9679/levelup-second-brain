@@ -1010,12 +1010,50 @@ function bulkAction(action){
   updateSidebarBadges();
   renderTaskList();
 }
+// ====== TASK TIME TRACKER ======
+let _timerTaskId=null,_timerStart=null,_timerInterval=null;
+function startTaskTimer(id,event){
+  if(event)event.stopPropagation();
+  if(_timerTaskId===id){stopTaskTimer();return;}
+  if(_timerTaskId)stopTaskTimer();
+  _timerTaskId=id;
+  _timerStart=Date.now();
+  _timerInterval=setInterval(()=>{
+    const el=document.getElementById('timer-display-'+id);
+    if(el){
+      const secs=Math.floor((Date.now()-_timerStart)/1000);
+      const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;
+      el.textContent=(h?h+'h ':'')+m+'m '+s+'s';
+    }
+  },1000);
+  // Update button appearance
+  const btn=document.getElementById('timer-btn-'+id);
+  if(btn){btn.style.background='var(--red)';btn.style.color='#fff';btn.title='Stop timer';}
+  toast('▶ Timer started for task');
+}
+function stopTaskTimer(){
+  if(!_timerTaskId)return;
+  const elapsed=Math.round((Date.now()-_timerStart)/60000); // minutes
+  const t=D.tasks.find(x=>x.id===_timerTaskId);
+  if(t&&elapsed>0){
+    t.timeSpent=(t.timeSpent||0)+elapsed;
+    save('tasks');
+    toast(`⏹ Timer stopped: +${elapsed} min logged (total: ${t.timeSpent} min)`);
+  }
+  clearInterval(_timerInterval);
+  _timerTaskId=null;_timerStart=null;_timerInterval=null;
+  renderTaskList();
+}
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
   const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${t.id},event)"></div>`:
     `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div>`;
-  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''}${showActs?`<span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const isTimerActive=_timerTaskId===t.id;
+  const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
+  const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
+    (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
+  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -1485,6 +1523,53 @@ function exportNotesMarkdown(){
   URL.revokeObjectURL(a.href);
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
 }
+const _noteTemplates=[
+  {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
+  {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${new Date().toISOString().slice(0,10)}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
+  {label:'🗓 Weekly Review',icon:'🗓',tags:['strategy','productivity'],body:`# Weekly Review\n**Week of:** ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}\n\n## 🌟 Wins This Week\n- \n\n## 🚧 What Didn't Go Well\n- \n\n## 📊 Progress on Goals\n| Goal | Progress | Notes |\n|------|----------|-------|\n| | | |\n\n## 📌 Carry-Over Tasks\n- \n\n## 🔭 Focus for Next Week\n1. \n2. \n3. \n\n## 💡 Insights & Learnings\n`},
+  {label:'💡 Idea Capture',icon:'💡',tags:['vision'],body:`# Idea: \n**Captured:** ${new Date().toLocaleDateString()}\n**Category:** \n\n## The Idea\n\n## Why It Matters\n\n## How It Could Work\n\n## Next Steps\n- [ ] \n\n## Related Notes\n- `},
+  {label:'📚 Book Notes',icon:'📚',tags:['books','research'],body:`# Book Notes: [Title]\n**Author:** \n**Finished:** \n**Rating:** /5\n\n## One-Line Summary\n\n## Key Ideas\n1. \n2. \n3. \n\n## Favourite Quotes\n> \n\n## How I'll Apply This\n- \n\n## Related Books\n- `}
+];
+function openNoteTemplates(){
+  const ov=document.createElement('div');
+  ov.id='note-tmpl-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:420px;max-width:95vw">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="font-size:14px;font-weight:700">📝 Note Templates</div>
+    <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('note-tmpl-ov').remove()">✕</button>
+  </div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Select a template to create a new note with pre-filled structure.</div>
+  ${_noteTemplates.map((tmpl,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--bd1);margin-bottom:6px" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''" onclick="applyNoteTemplate(${i})">
+    <span style="font-size:20px">${tmpl.icon}</span>
+    <div><div style="font-size:12px;font-weight:600">${tmpl.label}</div><div style="font-size:10px;color:var(--t3)">${(tmpl.tags||[]).map(t=>'#'+t).join(' ')}</div></div>
+  </div>`).join('')}
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function applyNoteTemplate(idx){
+  const tmpl=_noteTemplates[idx];
+  if(!tmpl)return;
+  document.getElementById('note-tmpl-ov')?.remove();
+  const newNote={
+    id:Date.now(),
+    title:tmpl.label.replace(/^[^a-zA-Z]+/,'').trim()+' — '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+    body:tmpl.body,
+    tags:[...tmpl.tags],
+    source:'Template',
+    category:'Recent',
+    starred:false,
+    updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+    createdBy:D.creds.userName||'Idris Grant'
+  };
+  D.notes.unshift(newNote);
+  save('notes');
+  renderNotes();
+  showNoteInEditor(newNote.id);
+  toggleNoteInlineEdit(newNote.id);
+  toast('📝 Template applied — start editing!');
+}
 function renderNotes(){
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
@@ -1504,6 +1589,7 @@ function renderNotes(){
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
     <div style="font-size:12px;font-weight:600">Notes <span style="font-size:10px;color:var(--t3);font-weight:400">(${D.notes.length})</span></div>
     <div style="display:flex;gap:3px">
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Note templates">📝 Tmpl</button>
       <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export MD">⬇ MD</button>
       <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
       <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
@@ -2054,17 +2140,32 @@ function saveNewCalEvent(){
   renderCal();
   toast(`✓ Event added${repeat!=='none'?' (recurring)':''}!`);
 }
+let _calWeekOffset=0;
 function renderCal(){
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const today=new Date();
   const dayOfWeek=today.getDay();
-  const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
-  const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${today.toLocaleDateString('en-US',{month:'long',year:'numeric'})}</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button><button class="btn btn-s" onclick="renderCal()">Today</button></div></div>
+  // Base monday of current week, then offset by _calWeekOffset weeks
+  const baseMonday=new Date(today);
+  baseMonday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1)+(_calWeekOffset*7));
+  baseMonday.setHours(0,0,0,0);
+  const baseSunday=new Date(baseMonday);baseSunday.setDate(baseMonday.getDate()+6);
+  const isCurrentWeek=_calWeekOffset===0;
+  const monthLabel=baseMonday.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const weekRangeLabel=`${baseMonday.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${baseSunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+  const weekDays=days.map((d,i)=>{
+    const dt=new Date(baseMonday);dt.setDate(baseMonday.getDate()+i);
+    const isToday=dt.toDateString()===today.toDateString();
+    return{label:`${d} ${dt.getDate()}`,isToday,dt};
+  });
+  // Map events: match by weekday index (0=Mon) and hour, but also match by date string for new events
+  const weekDayStrs=weekDays.map(wd=>wd.dt.toISOString().split('T')[0]);
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 <div class="tabs"><div class="tab on">Week</div><div class="tab" onclick="toast('Day view coming soon!')">Day</div><div class="tab" onclick="toast('Month view coming soon!')">Month</div></div>
-<div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((d,i)=>`<div class="cal-hd" style="${i===dayOfWeek-1?'color:var(--ac);font-weight:700':''}">\n${d}</div>`).join('')}
-${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{
-  const evs=_calEvents.filter(e=>e.day===d&&e.hour===h);
+<div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
+${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
+  // Match events by weekday index (legacy) OR by date string (new events)
+  const evs=_calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek)));
   return`<div class="cal-c">${evs.map(e=>`<div class="cal-ev" style="background:${e.color}22;border-left:2px solid ${e.color};color:var(--t1);cursor:pointer" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('')}</div></div>`;
 }
 
