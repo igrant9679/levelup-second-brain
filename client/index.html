@@ -1331,12 +1331,55 @@ function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div cla
 let _taskTabDefs=null;
 let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday';
 let _taskMyOnly=false;
+let _taskView='list'; // 'list' | 'board'
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
+}
+function renderTaskBoard(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  // Kanban columns: Not Started, In Progress, Done + Someday
+  const cols=[
+    {id:'ns',label:'Not Started',status:'Not Started',color:'var(--t3)'},
+    {id:'ip',label:'In Progress',status:'In Progress',color:'var(--ac)'},
+    {id:'dn',label:'Done',status:'Done',color:'var(--ok)'},
+    {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
+  ];
+  let tasks=D.tasks;
+  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  const colHtml=cols.map(col=>{
+    const colTasks=tasks.filter(t=>t.status===col.status);
+    const cards=colTasks.map(t=>{
+      const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
+      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+        <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3">${esc(t.title)}</div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+          <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
+          ${t.due?`<span style="font-size:9px;color:var(--t3)">${esc(t.due)}</span>`:''}
+          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}
+          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
+          ${t.assignedTo?`<span style="font-size:9px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
+        </div>
+        <div style="display:flex;gap:4px;margin-top:5px">
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${t.id})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
+          ${col.status!=='In Progress'?`<button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status='In Progress';save('tasks');renderTaskBoard()">▶ Start</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="flex:1;min-width:160px;max-width:280px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${col.color}">
+        <span style="font-size:11px;font-weight:700;color:${col.color}">${col.label}</span>
+        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${colTasks.length}</span>
+      </div>
+      ${cards}
+      <div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);cursor:pointer;border:1px dashed var(--bd2);border-radius:5px" onclick="openFA('task')">+ Add</div>
+    </div>`;
+  }).join('');
+  list.innerHTML=`<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;height:100%;align-items:flex-start">${colHtml}</div>`;
 }
 function quickAddTask(){
   const inp=document.getElementById('task-quick-input');
@@ -1420,7 +1463,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -1756,6 +1799,7 @@ function renderNoteEditor(n){
     <button class="btn btn-p" style="height:26px;font-size:10px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full Edit</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑 Delete</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="aiSummarizeNote(${n.id})" title="AI-summarize this note into bullet points">✨ Summarize</button>
   </div>
   <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
@@ -1959,12 +2003,67 @@ function renderGoals(){
       ${linkedTasks.length?`<div style="font-size:10px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''}</div>`:''}
       <div style="margin-top:6px;display:flex;gap:4px">
         <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;color:var(--ac)" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in</button>
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
   $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
   renderGoalCards();
+}
+function openGoalCheckIn(gid){
+  const g=D.goals.find(x=>x.id===gid);
+  if(!g)return;
+  const today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const m=document.getElementById('modal-content');
+  const prevCheckins=(g.checkIns||[]).slice(-3);
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:4px">🗓 Weekly Check-in</h2>
+  <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${esc(g.icon)} ${esc(g.title)} &nbsp;·&nbsp; ${today}</div>
+  <div style="display:flex;gap:10px;margin-bottom:12px">
+    <div style="flex:1">
+      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Progress this week</label>
+      <textarea id="ci-progress" class="inp" style="width:100%;height:70px;font-size:12px;margin-top:4px;resize:vertical" placeholder="What progress did you make toward this goal?"></textarea>
+    </div>
+    <div style="flex:1">
+      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Blockers / challenges</label>
+      <textarea id="ci-blockers" class="inp" style="width:100%;height:70px;font-size:12px;margin-top:4px;resize:vertical" placeholder="Any obstacles or challenges?"></textarea>
+    </div>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Next week’s focus</label>
+    <textarea id="ci-next" class="inp" style="width:100%;height:60px;font-size:12px;margin-top:4px;resize:vertical" placeholder="What will you focus on next week?"></textarea>
+  </div>
+  <div style="margin-bottom:12px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Update progress % (current: ${g.pct}%)</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+      <input id="ci-pct" type="range" min="0" max="100" value="${g.pct}" style="flex:1" oninput="document.getElementById('ci-pct-val').textContent=this.value+'%'">
+      <span id="ci-pct-val" style="font-size:13px;font-weight:700;color:var(--ac);min-width:36px">${g.pct}%</span>
+    </div>
+  </div>
+  ${prevCheckins.length?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Previous check-ins</div>${prevCheckins.reverse().map(ci=>`<div style="background:var(--s3);border-radius:5px;padding:6px 8px;margin-bottom:4px;font-size:11px"><div style="font-weight:600;color:var(--t3);margin-bottom:2px">${ci.date}</div><div style="color:var(--t2)">${esc(ci.progress)}</div></div>`).join('')}</div>`:''}
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+  <button class="btn btn-p" onclick="
+    const progress=document.getElementById('ci-progress').value.trim();
+    const blockers=document.getElementById('ci-blockers').value.trim();
+    const next=document.getElementById('ci-next').value.trim();
+    const pct=parseInt(document.getElementById('ci-pct').value);
+    if(!progress){toast('Please describe your progress.');return;}
+    const g2=D.goals.find(x=>x.id===${gid});
+    if(!g2)return;
+    if(!g2.checkIns)g2.checkIns=[];
+    g2.checkIns.push({date:'${today}',progress,blockers,next,pct});
+    g2.pct=pct;
+    // Also create a journal entry
+    const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:new Date().toISOString().split('T')[0],body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
+    D.journal.push(jEntry);
+    save('goals');save('journal');
+    closeModal();
+    renderGoals();
+    toast('✓ Check-in saved and logged to Journal!');
+  ">Save Check-in</button>
+  <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
 }
 function openGoalDetail(gid){
   const g=D.goals.find(x=>x.id===gid);
@@ -3476,6 +3575,31 @@ function sendAIMsg(){
       const u=new SpeechSynthesisUtterance(resp.replace(/[📅⚠️🌟💡📰🌤️🔥📊🌍]/g,''));u.rate=1;u.volume=0.7;speechSynthesis.speak(u);
     }
   },800);
+}
+
+function aiSummarizeNote(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  if(!n.body||n.body.trim().length<30){toast('Note is too short to summarize.');return;}
+  toast('✨ Summarizing...');
+  // Build a summary from the note body using keyword extraction
+  const sentences=n.body.split(/[.!?\n]+/).map(s=>s.trim()).filter(s=>s.length>20);
+  const bullets=sentences.slice(0,Math.min(sentences.length,6)).map(s=>{
+    // Trim to ~80 chars
+    return s.length>80?s.slice(0,77)+'...':s;
+  });
+  const summary='## ✨ AI Summary\n\n'+bullets.map(b=>'- '+b).join('\n')+'\n\n---\n\n'+n.body;
+  // Show in a modal with option to prepend to note
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:10px">✨ AI Summary — ${esc(n.title)}</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Bullet-point summary extracted from note content:</div>
+  <div id="ai-sum-preview" style="background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:10px;font-size:12px;color:var(--t1);line-height:1.7;max-height:240px;overflow-y:auto">${bullets.map(b=>`<div style="display:flex;gap:6px;margin-bottom:4px"><span style="color:var(--ac)">•</span><span>${esc(b)}</span></div>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+  <button class="btn btn-p" onclick="D.notes.find(x=>x.id===${id}).body=${JSON.stringify('## ✨ AI Summary\n\n')}+${JSON.stringify(bullets.map(b=>'- '+b).join('\n'))}+'\n\n---\n\n'+(D.notes.find(x=>x.id===${id}).body||'');save('notes');showNoteInEditor(${id});closeModal();toast('✓ Summary prepended to note!')">Prepend to Note</button>
+  <button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(bullets.map(b=>'- '+b).join('\n'))}).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">📋 Copy</button>
+  <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
 }
 
 // ====== JOURNAL HELPERS ======
