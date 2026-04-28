@@ -144,6 +144,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .fa-body{padding:20px;overflow-y:auto;max-height:calc(85vh - 120px)}
 .fa-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--bd1);position:sticky;bottom:0;background:var(--s1);z-index:2;border-radius:0 0 14px 14px;justify-content:flex-end}
 .fa-section{margin-bottom:18px}
+.fa-due-chip{font-size:9px;padding:2px 7px;border-radius:3px;border:1px solid var(--bd2);background:var(--s2);color:var(--t2);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
+.fa-due-chip:hover{background:var(--acs);color:var(--ach)}
 .fa-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--bd1)}
 .fa-row{display:grid;gap:10px;margin-bottom:10px}
 .fa-row.c2{grid-template-columns:1fr 1fr}
@@ -1764,8 +1766,22 @@ function renderNotes(){
   const nav=$('notes-nav-panel');
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
   ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
-  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tags</div>
-  <div style="display:flex;flex-wrap:wrap;gap:2px;padding:0 4px" id="notes-tag-chips">${[...new Set(D.notes.flatMap(n=>n.tags))].map(tag=>`<span class="notes-tag-chip" style="font-size:9px;color:var(--t2);background:var(--s3);padding:2px 6px;border-radius:3px;cursor:pointer;transition:all .15s" onclick="filterNotesByTag('${tag}',this)" title="Filter by #${tag}">#${tag}</span>`).join('')}</div>
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tag Cloud</div>
+  <div style="padding:0 4px" id="notes-tag-cloud">${(()=>{
+    const freq={};
+    D.notes.forEach(n=>(n.tags||[]).forEach(t=>{freq[t]=(freq[t]||0)+1;}));
+    const tags=Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+    if(!tags.length)return '<span style="font-size:9px;color:var(--t3)">No tags yet</span>';
+    const maxF=tags[0][1];
+    const minF=tags[tags.length-1][1];
+    const range=Math.max(maxF-minF,1);
+    return tags.map(([tag,count])=>{
+      const sz=Math.round(9+(count-minF)/range*7); // 9px–16px
+      const op=0.55+(count-minF)/range*0.45; // 0.55–1.0
+      const hue=Math.abs(tag.split('').reduce((h,c)=>h*31+c.charCodeAt(0),0))%360;
+      return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:hsl(${hue},55%,62%);cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${tag}',this)" title="${count} note${count>1?'s':''}">#${tag}</span>`;
+    }).join('');
+  })()}</div>
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
   ${['Projects 14','Areas 8','Resources 36','Archive 57'].map(x=>{const[n,c]=x.split(' ');return`<div class="nn">${n}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`}).join('')}
   <div style="margin-top:auto;padding:8px 4px 0">
@@ -3547,9 +3563,7 @@ function renderIdeaDetail(idea){
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       ${idea.stage==='spark'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'develop')">→ Move to Develop</button>`:''}
       ${idea.stage==='develop'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'stress_test')">→ Move to Stress Test</button>`:''}
-      ${idea.stage==='stress_test'?`<button class="btn btn-p" onclick="openVerdictModal(${idea.id})">⚖ Move to Verdict</button>`:''}
-      ${idea.stage!=='verdict'?`<button class="btn btn-s" style="color:var(--err)" onclick="openVerdictModal(${idea.id})">⚖ Verdict now</button>`:''}
-    </div>
+        ${idea.stage==='stress_test'?`<button class="btn btn-p" onclick="openVerdictModal(${idea.id})">⚖ Move to Verdict</button><button class="btn btn-s" style="color:var(--warn)" onclick="runIdeaPremortem(${idea.id})">🧨 Premortem AI</button>`:''}      ${idea.stage!=='verdict'?`<button class="btn btn-s" style="color:var(--err)" onclick="openVerdictModal(${idea.id})">⚖ Verdict now</button>`:''}    </div>
   </div>`;
 
   // Render right rail
@@ -3726,6 +3740,32 @@ function ideaSynthesisMode(id){
   }).catch(()=>toast('AI unavailable.'));
 }
 
+function runIdeaPremortem(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const answers=idea.answers.filter(a=>a.body.trim()).map(a=>`[${a.question_key}]: ${a.body}`).join('\n');
+  const prompt=`You are a brutal but constructive devil's advocate. The user has an idea titled "${idea.title}" (type: ${idea.idea_type}).\n\nTheir thinking so far:\n${answers||'(no answers yet)'}\n\nRun a structured premortem: imagine it's 12 months from now and this idea has completely failed or been abandoned. Write:\n1. The most likely cause of death (1-2 sentences)\n2. Three specific failure modes they haven't addressed\n3. One hidden assumption that, if wrong, kills everything\n4. One concrete thing they should validate BEFORE committing more time\n\nBe specific, not generic. Name real risks.`;
+  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
+  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
+  toast('🧨 Running premortem analysis…');
+  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:600})})
+  .then(r=>r.json()).then(d=>{
+    const text=d.choices?.[0]?.message?.content||'No response.';
+    // Save premortem to idea
+    idea.premortem=text;
+    idea.premortem_at=new Date().toISOString();
+    save('ideas');
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🧨 Premortem: ${esc(idea.title)}</h2>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:12px">If this fails in 12 months, here’s why:</div>
+    <div style="font-size:12px;color:var(--t2);line-height:1.75;white-space:pre-wrap;background:var(--s2);border-radius:8px;padding:12px;border:1px solid var(--bd2)">${esc(text)}</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-p" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied!');" style="font-size:11px">📋 Copy</button>
+      <button class="btn btn-s" onclick="closeModal()" style="font-size:11px">Close</button>
+    </div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }).catch(()=>toast('AI unavailable.'));
+}
 function requestAIIceScore(id){
   const idea=D.ideas.find(x=>x.id===id);
   if(!idea)return;
@@ -5067,6 +5107,28 @@ let _faSessionScope={personal:true,business:false}; // persists across Save & Ad
 let _faSessionTags=[]; // persists across Save & Add Another
 
 // Open Full Add modal
+function faSetDueChip(daysOffset){
+  const d=new Date();
+  d.setDate(d.getDate()+daysOffset);
+  const iso=d.toISOString().split('T')[0];
+  const inp=document.getElementById('fa-due');
+  if(inp){inp.value=iso;inp.dispatchEvent(new Event('change'));}
+  // Highlight selected chip
+  document.querySelectorAll('.fa-due-chip').forEach(c=>c.style.background='');
+  event.target.style.background='var(--ac)';
+  event.target.style.color='#fff';
+}
+function faAutoSuggestDueDate(){
+  // Called when priority changes - suggest a date if due is empty
+  const pri=document.getElementById('fa-priority')?.value;
+  const due=document.getElementById('fa-due');
+  if(!due||due.value)return; // don't override existing value
+  const offsets={High:1,Medium:7,Low:14};
+  const offset=offsets[pri]||7;
+  const d=new Date();
+  d.setDate(d.getDate()+offset);
+  due.placeholder=d.toISOString().split('T')[0]+' (suggested)';
+}
 function openFA(type){
   _faType=type;
   _faHasChanges=false;
@@ -5380,7 +5442,17 @@ function renderFATask(){
       <div class="fa-field"><label>Start Time</label><input type="time" class="fa-inp" id="fa-starttime"></div>
     </div>
     <div class="fa-row c2">
-      <div class="fa-field"><label>Due Date</label><input type="date" class="fa-inp" id="fa-due"></div>
+      <div class="fa-field"><label>Due Date <span style="font-size:9px;color:var(--t3);font-weight:400">— or pick:</span></label>
+        <input type="date" class="fa-inp" id="fa-due">
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px" id="fa-due-chips">
+          <span class="fa-due-chip" onclick="faSetDueChip(0)" title="Today">Today</span>
+          <span class="fa-due-chip" onclick="faSetDueChip(1)" title="Tomorrow">Tomorrow</span>
+          <span class="fa-due-chip" onclick="faSetDueChip(3)" title="In 3 days">+3 days</span>
+          <span class="fa-due-chip" onclick="faSetDueChip(7)" title="Next week">Next week</span>
+          <span class="fa-due-chip" onclick="faSetDueChip(14)" title="In 2 weeks">+2 weeks</span>
+          <span class="fa-due-chip" onclick="faSetDueChip(30)" title="Next month">Next month</span>
+        </div>
+      </div>
       <div class="fa-field"><label>Due Time</label><input type="time" class="fa-inp" id="fa-duetime"></div>
     </div>
     <div class="fa-row c4">
