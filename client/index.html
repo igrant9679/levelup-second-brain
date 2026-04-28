@@ -2881,11 +2881,47 @@ function renderMyYear(){
   `;
 }
 
-function renderProcess(){$('process-main').innerHTML=`<div class="pg-h"><h1>⚡ Process (GTD)</h1><p style="font-size:12px;color:var(--t2)">${D.tasks.filter(t=>t.status==='Not Started').length} in task inbox</p></div>
-<div class="sec-h">📥 Task Processing</div>
+let _processTab='tasks';
+function renderProcess(){
+  const sparkIdeas=(D.ideas||[]).filter(x=>x.stage==='spark');
+  const tabBar=`<div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:12px;width:fit-content">
+    <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='tasks'?'var(--ac)':'transparent'};color:${_processTab==='tasks'?'#fff':'var(--t2)'};border:none" onclick="_processTab='tasks';renderProcess()">Tasks (${D.tasks.filter(t=>t.status==='Not Started').length})</button>
+    <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='ideas'?'var(--ac)':'transparent'};color:${_processTab==='ideas'?'#fff':'var(--t2)'};border:none" onclick="_processTab='ideas';renderProcess()">💡 Ideas (${sparkIdeas.length})</button>
+  </div>`;
+  const tasksHtml=`<div class="sec-h">📥 Task Processing</div>
 <div class="tabs">${['Inbox','Do Next','Calendar','Delegated','Snoozed','Someday','Done'].map((t,i)=>`<div class="tab ${i===0?'on':''}">${t}</div>`).join('')}</div>
 <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Keys: <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">D</kbd> Do Next · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">S</kbd> Someday · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">X</kbd> Done</div>
-<div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`}
+<div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`;
+  const ideasHtml=sparkIdeas.length===0
+    ?`<div style="text-align:center;padding:40px 20px;color:var(--t3)">🎉 No ideas in Spark stage — all caught up!</div>`
+    :`<div style="font-size:10px;color:var(--t2);margin-bottom:10px">Triage each Spark idea: <strong>Develop</strong> to move forward, <strong>Park</strong> for later, or <strong>Kill</strong> to discard.</div>
+    ${sparkIdeas.map(idea=>{
+      const ice=Math.round((idea.ice_impact+idea.ice_confidence+idea.ice_ease)/3);
+      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:20px">${IDEA_TYPE_ICONS[idea.idea_type]||'💡'}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">${esc(idea.title)}</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(idea.description||'')}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <span style="font-size:9px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">ICE ${ice}/10</span>
+              <span style="font-size:9px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">${IDEA_TYPE_LABELS[idea.idea_type]||'General'}</span>
+              ${idea.goal_id?`<span style="font-size:9px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--ac)">🎯 ${esc((D.goals.find(g=>g.id===idea.goal_id)||{}).title||'Goal')}</span>`:''}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="btn btn-p" style="font-size:10px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
+            <button class="btn btn-s" style="font-size:10px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
+            <button class="btn btn-s" style="font-size:10px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='parked';D.ideas.find(x=>x.id===${idea.id}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
+            <button class="btn btn-s" style="font-size:10px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
+  $('process-main').innerHTML=`<div class="pg-h"><h1>⚡ Process (GTD)</h1><p style="font-size:12px;color:var(--t2)">${D.tasks.filter(t=>t.status==='Not Started').length} tasks · ${sparkIdeas.length} ideas to triage</p></div>
+  ${tabBar}
+  ${_processTab==='tasks'?tasksHtml:ideasHtml}`;
+}
 // ====== FOCUS / POMODORO ======
 let _focusTimer=null,_focusSecsLeft=25*60,_focusRunning=false,_focusSessions=JSON.parse(localStorage.getItem('lu_focus_sessions')||'[]'),_focusTaskId=null;
 function renderFocus(){
@@ -2922,6 +2958,30 @@ function renderFocus(){
       ${taskOpts}
     </select>
   </div>
+  ${(()=>{
+    // 7-day bar chart
+    const days7=Array.from({length:7},(_,i)=>{
+      const d=new Date();d.setDate(d.getDate()-6+i);
+      return d.toISOString().split('T')[0];
+    });
+    const dayLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const dayMins=days7.map(ds=>_focusSessions.filter(s=>s.date===ds).reduce((a,s)=>a+(s.mins||0),0));
+    const maxMins=Math.max(...dayMins,1);
+    const bars=days7.map((ds,i)=>{
+      const h=Math.round((dayMins[i]/maxMins)*80);
+      const isToday=ds===_todayStr;
+      const d=new Date(ds+'T00:00');
+      const lbl=dayLabels[d.getDay()===0?6:d.getDay()-1];
+      return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
+        <div style="font-size:9px;color:var(--t3)">${dayMins[i]?dayMins[i]+'m':''}</div>
+        <div style="width:100%;background:var(--s3);border-radius:4px 4px 0 0;height:80px;display:flex;align-items:flex-end">
+          <div style="width:100%;height:${h}px;background:${isToday?'var(--ac)':'var(--ac-muted,#6366f1aa)'};border-radius:4px 4px 0 0;transition:height .3s"></div>
+        </div>
+        <div style="font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?700:400}">${lbl}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:10px">📊 7-Day Focus History</div><div style="display:flex;gap:4px;align-items:flex-end">${bars}</div></div>`;
+  })()}
   ${todaySessions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px">Today\'s sessions</div>${todaySessions.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:16px">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.taskTitle||'Free focus'}</div><div style="font-size:10px;color:var(--t3)">${s.time} &middot; ${s.mins} min</div></div></div>`).join('')}</div>`:''}
   `;
 }
@@ -3688,7 +3748,45 @@ function revokeIdeaCollaborator(id,email){
   renderIdeaDetail(idea);
   toast(`✓ Access revoked for ${email}`);
 }
-function openIdeaShare(id){openIdeaInvite(id);}
+function openIdeaShare(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  // Generate a public read-only token if one doesn't exist
+  if(!idea.public_token){
+    idea.public_token=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+    save('ideas');
+  }
+  const baseUrl=window.location.origin+window.location.pathname;
+  const publicUrl=`${baseUrl}?idea=${idea.id}&token=${idea.public_token}`;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">🔗 Share Idea</h2>
+  <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Public Read-Only Link</div>
+    <div style="font-size:11px;color:var(--t1);word-break:break-all;background:var(--s3);border-radius:4px;padding:8px;margin-bottom:8px;font-family:monospace">${publicUrl}</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${publicUrl}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
+      <button class="btn btn-s" style="font-size:11px" onclick="window.open('${publicUrl}','_blank')">👁 Preview</button>
+      <button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="D.ideas.find(x=>x.id===${id}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
+    </div>
+  </div>
+  <div style="font-size:11px;font-weight:600;margin-bottom:8px">Or invite a specific collaborator:</div>
+  <div style="margin-bottom:8px"><input id="inv-email" class="inp" style="width:100%" type="email" placeholder="collaborator@example.com"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <select id="inv-role" class="inp"><option value="reviewer">Reviewer (read + vote)</option><option value="collaborator">Collaborator (edit)</option><option value="observer">Observer (read only)</option></select>
+    <input id="inv-expires" class="inp" type="number" value="30" min="1" max="365" placeholder="Expires (days)">
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-p" onclick="sendIdeaInvite(${id})">Send Invite</button>
+    <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  // Handle shared idea view if URL has token
+  const urlParams=new URLSearchParams(window.location.search);
+  if(urlParams.get('idea')&&urlParams.get('token')){
+    const sharedIdea=D.ideas.find(x=>x.id===parseInt(urlParams.get('idea'))&&x.public_token===urlParams.get('token'));
+    if(sharedIdea){nav('ideas');openIdeaDetail(sharedIdea.id);}
+  }
+}
 
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
@@ -4783,6 +4881,15 @@ function doLoginSuccess(member){
   updateSidebarBadges();
   setTimeout(startAIAssistant,5000);
   toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
+  // Handle shared idea URL: ?idea=ID&token=TOKEN
+  const _sp=new URLSearchParams(window.location.search);
+  const _sharedIdeaId=parseInt(_sp.get('idea'));
+  const _sharedToken=_sp.get('token');
+  if(_sharedIdeaId&&_sharedToken){
+    const _si=(D.ideas||[]).find(x=>x.id===_sharedIdeaId&&x.public_token===_sharedToken);
+    if(_si){setTimeout(()=>{nav('ideas');openIdeaDetail(_si.id);toast('🔗 Viewing shared idea: '+_si.title);},300);}
+    else{toast('⚠️ Shared idea link is invalid or has been revoked.');}
+  }
 }
 function applyUserPerms(member){
   const perms=member.perms||{};
