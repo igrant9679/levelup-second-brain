@@ -334,6 +334,8 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="si" data-n="myyear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">My Year</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="capture"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span class="l">Quick Capture</span></div>
+<div class="si" data-n="ideas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg><span class="l">Ideas</span><span class="c" id="badge-ideas"></span></div>
+<div class="si" data-n="focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">Focus</span></div>
 <div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c" id="badge-process"></span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
@@ -402,6 +404,10 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 
 <!-- ===== S-17 PROCESS ===== -->
 <div class="scr" id="s-process"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="process-main"></main></div></div>
+<!-- ===== S-IDEAS ===== -->
+<div class="scr" id="s-ideas"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="ideas-main"></main><aside class="rr" id="ideas-rail" style="width:320px"></aside></div></div>
+<!-- ===== S-FOCUS ===== -->
+<div class="scr" id="s-focus"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="focus-main"></main></div></div>
 
 <!-- ===== S-18 HABITS ===== -->
 <div class="scr" id="s-habits"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="habits-main"></main><aside class="rr" id="habits-rail"></aside></div></div>
@@ -556,11 +562,16 @@ const D = {
   ],
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
   aiMessages: [],
+  ideas: JSON.parse(localStorage.getItem('lu_ideas') || 'null') || [
+    {id:1,title:'AI-powered daily briefing tool',description:'A tool that synthesizes your tasks, notes, and calendar into a 5-minute morning briefing.',idea_type:'tool_to_build',stage:'develop',goal_id:1,ice_impact:8,ice_confidence:6,ice_ease:5,ai_ice_impact:7,ai_ice_confidence:5,ai_ice_ease:6,ai_ice_rationale:'High impact if users adopt it daily, but confidence is moderate given complexity of synthesis.',kill_reason:null,parked_review_date:null,promoted_project_id:null,spark_at:'2026-04-10T09:00:00Z',develop_at:'2026-04-12T10:00:00Z',stress_test_at:null,verdict_at:null,answers:[{stage:'spark',question_key:'one_sentence',body:'A tool that reads your second brain and delivers a personalized morning briefing.'},{stage:'spark',question_key:'who_for',body:'Ambitious builders who use LevelUp and want to start each day with clarity.'},{stage:'develop',question_key:'problem_evidence',body:'Users report spending 15-20 min each morning manually reviewing tasks and notes.'},{stage:'develop',question_key:'workaround',body:'Manual review of Notion/Obsidian, or just winging it.'}],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:'Idris Grant',createdAt:'2026-04-10T09:00:00Z',updatedAt:'2026-04-12T10:00:00Z'},
+    {id:2,title:'Weekly team async standup bot',description:'Automate weekly async standups via a bot that collects updates and synthesizes them.',idea_type:'process_change',stage:'stress_test',goal_id:null,ice_impact:6,ice_confidence:7,ice_ease:7,ai_ice_impact:6,ai_ice_confidence:7,ai_ice_ease:8,ai_ice_rationale:'Moderate impact, high ease — many existing tools do this. Differentiation is unclear.',kill_reason:null,parked_review_date:null,promoted_project_id:null,spark_at:'2026-04-05T08:00:00Z',develop_at:'2026-04-07T09:00:00Z',stress_test_at:'2026-04-15T11:00:00Z',verdict_at:null,answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:'Priya Nair',createdAt:'2026-04-05T08:00:00Z',updatedAt:'2026-04-15T11:00:00Z'},
+    {id:3,title:'Publish a "Building in Public" newsletter',description:'Weekly newsletter documenting the LevelUp build journey — decisions, metrics, lessons.',idea_type:'content',stage:'verdict',goal_id:5,ice_impact:7,ice_confidence:8,ice_ease:7,ai_ice_impact:8,ai_ice_confidence:7,ai_ice_ease:7,ai_ice_rationale:'Strong brand-building play with compounding returns. Effort is manageable at 2h/week.',kill_reason:null,parked_review_date:null,promoted_project_id:4,spark_at:'2026-03-20T10:00:00Z',develop_at:'2026-03-22T09:00:00Z',stress_test_at:'2026-03-28T14:00:00Z',verdict_at:'2026-04-01T10:00:00Z',verdict_outcome:'promoted',answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:'Idris Grant',createdAt:'2026-03-20T10:00:00Z',updatedAt:'2026-04-01T10:00:00Z'},
+  ],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
-function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
+function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
   document.body.classList.toggle('compact-mode',!!D.prefs.compact);
@@ -593,7 +604,7 @@ function setAccent(c){
 let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus'};
 let curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -831,7 +842,7 @@ function deleteSubtask(taskId,idx){
 }
 
 // ====== MODAL ======
-const CAP_TYPES=['Task','Note','Project','Goal','Journal'];
+const CAP_TYPES=['Task','Note','Project','Goal','Journal','Idea'];
 let capType='Task';
 function openModal(type,preType){
   const m=$('modal-content');
@@ -882,6 +893,13 @@ function renderCaptureModal(active){
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:120px" placeholder="What's on your mind?" id="cap-body"></textarea></div>
     <div class="field"><label>Mood</label><div style="display:flex;gap:8px;margin-top:4px">${['😊','🙂','😐','😫','😰'].map(mo=>`<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:6px" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';document.getElementById('cap-mood').value='${mo}'">${mo}</span>`).join('')}</div><input type="hidden" id="cap-mood" value="😊"></div>${footer}`;
   }
+  if(active==='Idea'){
+    return `<h2>💡 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    <div class="field"><label>One-line description</label><input class="inp" placeholder="In one sentence…" id="cap-body"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Idea type</label><select class="inp" id="cap-idea-type">${Object.entries(IDEA_TYPE_LABELS).map(([k,v])=>`<option value="${k}">${IDEA_TYPE_ICONS[k]} ${v}</option>`).join('')}</select></div>
+    <div class="field"><label>Link to goal</label><select class="inp" id="cap-idea-goal"><option value="">— None —</option>${D.goals.map(g=>`<option value="${g.id}">${g.icon} ${esc(g.title)}</option>`).join('')}</select></div></div>${footer}`;
+  }
   return '';
 }
 function closeModal(){$('modal-capture').classList.remove('show')}
@@ -907,6 +925,15 @@ function doCapture(){
     const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
     D.journal.push({id:nextId(D.journal),date:'Today · '+dateStr,title,body:document.getElementById('cap-body')?.value||'',mood:document.getElementById('cap-mood')?.value||'😊'});
     save('journal');
+  } else if(capType==='Idea'){
+    const idea_type=document.getElementById('cap-idea-type')?.value||'general';
+    const goal_id=parseInt(document.getElementById('cap-idea-goal')?.value)||null;
+    const desc=document.getElementById('cap-body')?.value||'';
+    const idea={id:nextId(D.ideas||[]),title,description:desc,idea_type,stage:'spark',goal_id,ice_impact:5,ice_confidence:5,ice_ease:5,ai_ice_impact:null,ai_ice_confidence:null,ai_ice_ease:null,ai_ice_rationale:null,kill_reason:null,parked_review_date:null,promoted_project_id:null,verdict_outcome:null,spark_at:new Date().toISOString(),develop_at:null,stress_test_at:null,verdict_at:null,answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    if(!D.ideas)D.ideas=[];
+    D.ideas.push(idea);
+    save('ideas');
+    closeModal();toast('💡 Idea captured! Opening in Ideas…');nav('ideas');setTimeout(()=>openIdeaDetail(idea.id),100);return;
   }
   closeModal();toast('✓ '+capType+' saved: '+title);renderScreen(curScreen);
 }
@@ -952,6 +979,8 @@ function renderScreen(s){
   if(s==='process')renderProcess();if(s==='habits')renderHabits();if(s==='coach')renderCoach();
   if(s==='team')renderTeam();
   if(s==='settings')renderSettings();
+  if(s==='ideas')renderIdeas();
+  if(s==='focus')renderFocus();
   updateSidebarBadges();
 }
 
@@ -2692,6 +2721,7 @@ function renderMyWeek(){
   ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
   <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">${colHtml}</div>
   ${unscheduled.length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">📥 Unscheduled (drag to a day)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${unscheduled.map(t=>weekTaskChip(t,true)).join('')}</div></div>`:''}
+  ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:10px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:9px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:10px;color:var(--err)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:9px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
   `;
 }
 function weekTaskChip(t,draggable=true){
@@ -2856,7 +2886,82 @@ function renderProcess(){$('process-main').innerHTML=`<div class="pg-h"><h1>⚡ 
 <div class="tabs">${['Inbox','Do Next','Calendar','Delegated','Snoozed','Someday','Done'].map((t,i)=>`<div class="tab ${i===0?'on':''}">${t}</div>`).join('')}</div>
 <div style="font-size:10px;color:var(--t2);margin-bottom:6px">Keys: <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">D</kbd> Do Next · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">S</kbd> Someday · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">X</kbd> Done</div>
 <div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`}
-
+// ====== FOCUS / POMODORO ======
+let _focusTimer=null,_focusSecsLeft=25*60,_focusRunning=false,_focusSessions=JSON.parse(localStorage.getItem('lu_focus_sessions')||'[]'),_focusTaskId=null;
+function renderFocus(){
+  const el=$('focus-main');
+  if(!el)return;
+  const mins=Math.floor(_focusSecsLeft/60),secs=_focusSecsLeft%60;
+  const pct=Math.round((1-_focusSecsLeft/(25*60))*100);
+  const totalMins=_focusSessions.reduce((s,x)=>s+(x.mins||0),0);
+  const todaySessions=_focusSessions.filter(s=>s.date===_todayStr);
+  const taskOpts=D.tasks.filter(t=>t.status!=='Done').map(t=>`<option value="${t.id}" ${_focusTaskId===t.id?'selected':''}>${esc(t.title)}</option>`).join('');
+  el.innerHTML=`<div style="max-width:600px;margin:0 auto;padding:24px">
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:4px">⏱ Focus Mode</h1>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:24px">Pomodoro timer &middot; ${todaySessions.length} sessions today &middot; ${Math.round(totalMins/60)}h total</p>
+  <div style="text-align:center;margin-bottom:24px">
+    <svg width="200" height="200" viewBox="0 0 200 200" style="transform:rotate(-90deg)">
+      <circle cx="100" cy="100" r="88" fill="none" stroke="var(--bd2)" stroke-width="12"/>
+      <circle id="focus-ring" cx="100" cy="100" r="88" fill="none" stroke="var(--ac)" stroke-width="12" stroke-dasharray="553" stroke-dashoffset="${553-(553*pct/100)}" style="transition:stroke-dashoffset .5s"/>
+    </svg>
+    <div style="margin-top:-120px;font-size:48px;font-weight:700;letter-spacing:-2px;line-height:1" id="focus-clock">${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}</div>
+    <div style="margin-top:8px;font-size:12px;color:var(--t3)">${_focusRunning?'Focus session running...':'Ready to focus'}</div>
+    <div style="margin-top:120px"></div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:center;margin-bottom:20px">
+    <button class="btn btn-p" style="padding:10px 24px;font-size:14px" onclick="toggleFocusTimer()">${_focusRunning?'⏸ Pause':'▶ Start'}</button>
+    <button class="btn btn-s" onclick="resetFocusTimer()">↺ Reset</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=5*60;renderFocus()">5 min</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=15*60;renderFocus()">15 min</button>
+    <button class="btn btn-s" onclick="_focusSecsLeft=25*60;renderFocus()">25 min</button>
+  </div>
+  <div style="margin-bottom:20px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Focusing on task</label>
+    <select class="inp" style="width:100%;margin-top:4px" onchange="_focusTaskId=parseInt(this.value)||null">
+      <option value="">— No specific task —</option>
+      ${taskOpts}
+    </select>
+  </div>
+  ${todaySessions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px">Today\'s sessions</div>${todaySessions.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:16px">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.taskTitle||'Free focus'}</div><div style="font-size:10px;color:var(--t3)">${s.time} &middot; ${s.mins} min</div></div></div>`).join('')}</div>`:''}
+  `;
+}
+function toggleFocusTimer(){
+  if(_focusRunning){
+    clearInterval(_focusTimer);
+    _focusRunning=false;
+    renderFocus();
+  } else {
+    _focusRunning=true;
+    renderFocus();
+    _focusTimer=setInterval(()=>{
+      _focusSecsLeft--;
+      const mins=Math.floor(_focusSecsLeft/60),secs=_focusSecsLeft%60;
+      const clk=document.getElementById('focus-clock');
+      if(clk)clk.textContent=String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+      const ring=document.getElementById('focus-ring');
+      const pct=Math.round((1-_focusSecsLeft/(25*60))*100);
+      if(ring)ring.style.strokeDashoffset=553-(553*pct/100);
+      if(_focusSecsLeft<=0){
+        clearInterval(_focusTimer);
+        _focusRunning=false;
+        const task=_focusTaskId?D.tasks.find(t=>t.id===_focusTaskId):null;
+        if(task){task.timeSpent=(task.timeSpent||0)+25;save('tasks');}
+        const sess={id:Date.now(),date:_todayStr,time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins:25,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'};
+        _focusSessions.push(sess);
+        localStorage.setItem('lu_focus_sessions',JSON.stringify(_focusSessions));
+        _focusSecsLeft=25*60;
+        toast('🍅 Focus session complete! Great work.');
+        renderFocus();
+      }
+    },1000);
+  }
+}
+function resetFocusTimer(){
+  clearInterval(_focusTimer);
+  _focusRunning=false;
+  _focusSecsLeft=25*60;
+  renderFocus();
+}
 function skipHabitToday(id){
   const h=D.habits.find(x=>x.id===id);
   if(!h)return;
@@ -2881,6 +2986,710 @@ function toggleHabit(id){
   if(curScreen==='home')renderScreen('home');
 }
 let _habitsMyOnly=false;
+// ====== IDEAS MODULE ======
+const IDEA_QUESTION_TEMPLATES = {
+  tool_to_build: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this tool?',help:'Be specific — avoid "a platform that…"'},
+      {key:'who_for',prompt:'Who is it for?',help:'Describe the specific person, not a broad demographic.'},
+    ],
+    develop: [
+      {key:'problem_evidence',prompt:'What problem does it solve, and what evidence do you have the problem is real?',help:'User quotes, data, or your own repeated pain count.'},
+      {key:'workaround',prompt:'What is the current workaround?',help:'If there is no workaround, that is a red flag.'},
+      {key:'smallest_version',prompt:'What is the smallest version you could test in a week?',help:'Think prototype, not MVP.'},
+      {key:'effort_hours',prompt:'Estimate the effort in hours to ship the smallest version.',help:'Be honest — multiply your first estimate by 3.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine you ship this and abandon it within six months. What killed it?',help:'Be brutally honest.'},
+      {key:'kill_threshold',prompt:'What is the threshold at which you would kill this — users, time spent, dollars?',help:'Set this now, before you are emotionally invested.'},
+      {key:'opportunity_cost',prompt:'What else could you build with the same hours?',help:'List 2–3 alternatives.'},
+      {key:'prior_art',prompt:'Has someone built something similar? What happened?',help:'Research before answering.'},
+    ],
+  },
+  business: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this business?',help:'Describe the value exchange clearly.'},
+      {key:'customer',prompt:'Who is the primary customer and what do they pay for?',help:'Be specific about the buyer and the outcome they purchase.'},
+    ],
+    develop: [
+      {key:'market_size',prompt:'What is the realistic addressable market, and how did you arrive at that number?',help:'Bottom-up estimates beat top-down TAM slides.'},
+      {key:'revenue_model',prompt:'How does this make money? What are the unit economics?',help:'Revenue per customer, cost to acquire, margin.'},
+      {key:'unfair_advantage',prompt:'What gives you an unfair advantage over existing alternatives?',help:'Distribution, IP, team, timing, or network effects.'},
+      {key:'first_customer',prompt:'Who is the first customer you would call tomorrow, and why would they say yes?',help:'A name, not a persona.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine this business fails in 18 months. What was the cause of death?',help:'Be specific — "ran out of money" is not an answer.'},
+      {key:'regulatory_risk',prompt:'What regulatory, legal, or compliance risks could kill this?',help:'Think about data, licensing, and incumbents with lobbying power.'},
+      {key:'competition_response',prompt:'If this works, what stops a well-funded competitor from copying it in 12 months?',help:'Your moat must be real, not aspirational.'},
+      {key:'founder_fit',prompt:'Why are you the right person to build this, and what are you missing?',help:'Honest self-assessment of skills and gaps.'},
+    ],
+  },
+  content: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this content about?',help:'State the core thesis or angle.'},
+      {key:'audience',prompt:'Who is the primary audience, and where do they currently consume content?',help:'Be specific about platform and persona.'},
+    ],
+    develop: [
+      {key:'unique_angle',prompt:'What is the unique angle that makes this worth reading/watching over existing content?',help:'What do you know or see that others miss?'},
+      {key:'format_cadence',prompt:'What format and cadence will you commit to?',help:'Realistic > ambitious. Consistency beats volume.'},
+      {key:'distribution',prompt:'How will the first 100 people find this content?',help:'Do not rely on organic discovery alone.'},
+      {key:'effort',prompt:'How many hours per piece, and how many pieces per month?',help:'Calculate the annual time commitment before committing.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine you stop publishing after 3 months. What caused you to quit?',help:'Address that cause now.'},
+      {key:'differentiation',prompt:'What existing content is most similar, and why will yours win?',help:'Name specific creators or publications.'},
+      {key:'monetization',prompt:'If this never directly makes money, is it still worth doing?',help:'Clarity on intrinsic vs. extrinsic motivation matters.'},
+      {key:'opportunity_cost',prompt:'What else could you do with the same time investment?',help:'Content compounds slowly — is this the best use of your creative energy?'},
+    ],
+  },
+  career: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this career move?',help:'Role, company, or direction change.'},
+      {key:'why_now',prompt:'Why are you considering this now?',help:'Push vs. pull — are you running from something or toward something?'},
+    ],
+    develop: [
+      {key:'skills_gap',prompt:'What skills or experiences do you currently lack for this move?',help:'Be specific — list 3–5 gaps.'},
+      {key:'path',prompt:'What is the most realistic path to making this move in 12 months?',help:'Steps, not wishes.'},
+      {key:'financial_impact',prompt:'What is the financial impact (positive or negative) of this move?',help:'Include opportunity cost, not just salary.'},
+      {key:'network',prompt:'Who in your network has made a similar move and can give you honest advice?',help:'Name 2–3 people to contact.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine you make this move and regret it in 2 years. What happened?',help:'Specific scenarios, not vague anxiety.'},
+      {key:'reversibility',prompt:'How reversible is this decision?',help:'Can you go back? At what cost?'},
+      {key:'identity',prompt:'Does this move align with who you want to become, or just what you want to earn?',help:'Long-term identity > short-term compensation.'},
+      {key:'worst_case',prompt:'What is the realistic worst-case outcome, and can you live with it?',help:'If yes, the decision is easier than you think.'},
+    ],
+  },
+  investment: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this investment?',help:'Asset class, instrument, and thesis.'},
+      {key:'thesis',prompt:'What is your investment thesis in 2–3 sentences?',help:'Why will this appreciate? What do you know that the market does not?'},
+    ],
+    develop: [
+      {key:'due_diligence',prompt:'What research have you done, and what key questions remain unanswered?',help:'List what you know and what you need to verify.'},
+      {key:'position_size',prompt:'What percentage of your investable assets will this represent, and why?',help:'Kelly criterion or your own sizing framework.'},
+      {key:'time_horizon',prompt:'What is your time horizon, and what triggers an exit?',help:'Set exit criteria now, not when emotions are high.'},
+      {key:'downside',prompt:'What is the maximum realistic loss, and what is your plan if that happens?',help:'Stress-test at -50% and -90%.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine this investment goes to zero. What was the cause?',help:'Specific failure modes, not "market risk."'},
+      {key:'bias_check',prompt:'What cognitive biases might be driving this decision?',help:'Confirmation bias, FOMO, recency bias, social proof.'},
+      {key:'opportunity_cost',prompt:'What else could you do with this capital?',help:'Compare risk-adjusted returns honestly.'},
+      {key:'expert_opinion',prompt:'What would a skeptical expert say about this investment?',help:'Steelman the bear case.'},
+    ],
+  },
+  process_change: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what process are you changing and how?',help:'Current state → desired state.'},
+      {key:'pain_point',prompt:'What specific pain or inefficiency is driving this change?',help:'Quantify if possible — time lost, errors, cost.'},
+    ],
+    develop: [
+      {key:'root_cause',prompt:'What is the root cause of the current problem?',help:'Use 5 Whys to get past symptoms.'},
+      {key:'stakeholders',prompt:'Who is affected by this change, and who needs to buy in?',help:'List people, not roles.'},
+      {key:'rollout',prompt:'How will you roll this out — pilot, phased, or big bang?',help:'Smaller rollouts reduce risk and build evidence.'},
+      {key:'metrics',prompt:'How will you measure whether the change worked?',help:'Define success metrics before you start.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine this process change is reverted in 6 months. Why?',help:'Adoption failure, unintended consequences, or wrong diagnosis?'},
+      {key:'resistance',prompt:'Who will resist this change and why?',help:'Address resistance proactively, not reactively.'},
+      {key:'second_order',prompt:'What are the second-order effects of this change?',help:'What breaks downstream when you fix this upstream?'},
+      {key:'simpler_alternative',prompt:'Is there a simpler change that would achieve 80% of the benefit?',help:'Complexity is a cost.'},
+    ],
+  },
+  hire_fire: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is the hire or separation decision?',help:'Role, person (if applicable), and direction.'},
+      {key:'urgency',prompt:'Why is this decision urgent, and what happens if you delay 30 days?',help:'Urgency should be real, not manufactured.'},
+    ],
+    develop: [
+      {key:'role_clarity',prompt:'Is the role clearly defined, and does the team agree on what success looks like?',help:'Unclear roles cause most hiring and performance failures.'},
+      {key:'evidence',prompt:'What specific evidence supports this decision?',help:'Concrete examples, not impressions.'},
+      {key:'alternatives',prompt:'What alternatives have you considered?',help:'Coaching, role change, team restructure, or waiting.'},
+      {key:'process',prompt:'What is the fair and legal process for this decision?',help:'Consult HR or legal if in doubt.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine this decision creates a serious problem in 6 months. What happened?',help:'Wrong hire, wrongful termination claim, team morale collapse.'},
+      {key:'bias_check',prompt:'What biases might be affecting your judgment here?',help:'Affinity bias, recency bias, attribution error.'},
+      {key:'team_impact',prompt:'How will this decision affect the rest of the team?',help:'Model the second-order effects on morale and workload.'},
+      {key:'reversibility',prompt:'How reversible is this decision, and at what cost?',help:'Hiring is more reversible than firing — but both have costs.'},
+    ],
+  },
+  general: {
+    spark: [
+      {key:'one_sentence',prompt:'In one sentence, what is this idea?',help:'State it clearly enough that a stranger would understand.'},
+      {key:'why_now',prompt:'Why are you thinking about this now?',help:'Context and timing matter.'},
+    ],
+    develop: [
+      {key:'core_value',prompt:'What is the core value this idea creates, and for whom?',help:'Value must be real and specific.'},
+      {key:'effort',prompt:'What would it take to act on this idea?',help:'Time, money, skills, relationships.'},
+      {key:'dependencies',prompt:'What needs to be true for this idea to work?',help:'List the key assumptions.'},
+      {key:'first_step',prompt:'What is the single next action that would move this idea forward?',help:'Make it concrete and completable in under 2 hours.'},
+    ],
+    stress_test: [
+      {key:'premortem',prompt:'Imagine this idea fails or is abandoned. What caused it?',help:'Specific failure modes.'},
+      {key:'opportunity_cost',prompt:'What are you NOT doing if you pursue this?',help:'Every yes is a no to something else.'},
+      {key:'simpler_version',prompt:'What is the simplest version of this idea that still delivers the core value?',help:'Simplicity reduces risk.'},
+      {key:'who_disagrees',prompt:'Who would strongly disagree with this idea, and why?',help:'Engage with the strongest objection.'},
+    ],
+  },
+};
+
+const IDEA_STAGE_COLORS = {spark:'var(--t3)',develop:'var(--ac)',stress_test:'var(--warn)',verdict:'var(--ok)'};
+const IDEA_STAGE_LABELS = {spark:'Spark',develop:'Develop',stress_test:'Stress Test',verdict:'Verdict'};
+const IDEA_TYPE_ICONS = {tool_to_build:'🔧',business:'💼',content:'✍️',career:'🎯',investment:'📈',process_change:'⚙️',hire_fire:'👥',general:'💡'};
+const IDEA_TYPE_LABELS = {tool_to_build:'Tool to Build',business:'Business',content:'Content',career:'Career',investment:'Investment',process_change:'Process Change',hire_fire:'Hire / Fire',general:'General'};
+
+function ideaICE(idea){return Math.round(((idea.ice_impact||5)+(idea.ice_confidence||5)+(idea.ice_ease||5))/3*10)/10;}
+function ideaDaysInStage(idea){
+  const stageAtKey=idea.stage+'_at';
+  const stageAt=idea[stageAtKey]||idea.createdAt;
+  if(!stageAt)return 0;
+  return Math.floor((Date.now()-new Date(stageAt).getTime())/(1000*60*60*24));
+}
+function ideaStagePill(stage,outcome){
+  const label=outcome?({killed:'Killed',parked:'Parked',promoted:'Promoted'}[outcome]||IDEA_STAGE_LABELS[stage]):IDEA_STAGE_LABELS[stage];
+  const color=outcome?({killed:'var(--err)',parked:'#8B5CF6',promoted:'var(--ok)'}[outcome]||IDEA_STAGE_COLORS[stage]):IDEA_STAGE_COLORS[stage];
+  return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${label}</span>`;
+}
+
+let _ideasView='active';
+function renderIdeas(){
+  const el=$('ideas-main');
+  if(!el)return;
+  const me=D.creds.userName||'Idris Grant';
+  const staleCount=D.ideas.filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14).length;
+  // Update badge
+  const badge=document.getElementById('badge-ideas');
+  if(badge){badge.textContent=staleCount||'';badge.style.display=staleCount?'':'none';}
+
+  const viewTabs=['active','parked','graveyard','promoted','all'];
+  const viewLabels={active:'Active',parked:'Parked',graveyard:'Graveyard',promoted:'Promoted',all:'All'};
+  function filterIdeas(v){
+    if(v==='active')return D.ideas.filter(x=>['spark','develop','stress_test'].includes(x.stage));
+    if(v==='parked')return D.ideas.filter(x=>x.stage==='verdict'&&x.verdict_outcome==='parked');
+    if(v==='graveyard')return D.ideas.filter(x=>x.stage==='verdict'&&x.verdict_outcome==='killed');
+    if(v==='promoted')return D.ideas.filter(x=>x.stage==='verdict'&&x.verdict_outcome==='promoted');
+    return D.ideas;
+  }
+  const ideas=filterIdeas(_ideasView);
+
+  el.innerHTML=`
+  <div class="ph-r" style="margin-bottom:12px">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">💡 Ideas</h1>
+      <p style="font-size:12px;color:var(--t2)">Develop, stress-test, and decide which ideas earn your time.</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="openNewIdeaModal()">+ New Idea</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:0;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden;margin-bottom:16px;width:fit-content">
+    ${viewTabs.map(v=>{
+      const cnt=filterIdeas(v).length;
+      return `<button class="btn" style="border-radius:0;height:28px;font-size:10px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
+    }).join('')}
+  </div>
+  ${ideas.length===0?`<div style="text-align:center;padding:48px;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">💡</div><div style="font-size:14px;font-weight:500;margin-bottom:8px">No ideas here yet</div><div style="font-size:12px;margin-bottom:16px">Every great project starts with a spark.</div><button class="btn btn-p" onclick="openNewIdeaModal()">+ Capture your first idea</button></div>`:`
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+    ${ideas.map(idea=>{
+      const ice=ideaICE(idea);
+      const days=ideaDaysInStage(idea);
+      const stale=days>=14&&['develop','stress_test'].includes(idea.stage);
+      const goalName=idea.goal_id?D.goals.find(g=>g.id===idea.goal_id)?.title:'';
+      return `<div class="cd" style="cursor:pointer;border-left:3px solid ${IDEA_STAGE_COLORS[idea.stage]};${stale?'border-color:var(--err)':''}" onclick="openIdeaDetail(${idea.id})">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px">${IDEA_TYPE_ICONS[idea.idea_type]||'💡'}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">${esc(idea.title)}</div>
+            <div style="font-size:11px;color:var(--t2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(idea.description)}</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          ${ideaStagePill(idea.stage,idea.verdict_outcome)}
+          <span style="font-size:10px;color:var(--t3)">${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}</span>
+          ${stale?`<span style="font-size:10px;color:var(--err);font-weight:600">⚠ ${days}d stale</span>`:`<span style="font-size:10px;color:var(--t3)">${days}d in stage</span>`}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:10px;color:var(--t3)">ICE</span>
+            <span style="font-size:12px;font-weight:700;color:var(--ac)">${ice}</span>
+          </div>
+          ${goalName?`<span style="font-size:10px;background:var(--ac)22;color:var(--ac);border-radius:4px;padding:1px 6px">🎯 ${esc(goalName.slice(0,20))}</span>`:''}
+          ${idea.collaborators&&idea.collaborators.length?`<span style="font-size:10px;color:var(--t3)">👥 ${idea.collaborators.length}</span>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`}`;
+}
+
+function openNewIdeaModal(){
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">💡 New Idea</h2>
+  <div style="margin-bottom:10px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Title *</label>
+    <input id="ni-title" class="inp" style="width:100%;margin-top:4px" placeholder="What is the idea?">
+  </div>
+  <div style="margin-bottom:10px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">One-line description</label>
+    <input id="ni-desc" class="inp" style="width:100%;margin-top:4px" placeholder="In one sentence…">
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:10px">
+    <div style="flex:1">
+      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Idea type *</label>
+      <select id="ni-type" class="inp" style="width:100%;margin-top:4px">
+        ${Object.entries(IDEA_TYPE_LABELS).map(([k,v])=>`<option value="${k}">${IDEA_TYPE_ICONS[k]} ${v}</option>`).join('')}
+      </select>
+    </div>
+    <div style="flex:1">
+      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Link to goal</label>
+      <select id="ni-goal" class="inp" style="width:100%;margin-top:4px">
+        <option value="">— None —</option>
+        ${D.goals.map(g=>`<option value="${g.id}">${g.icon} ${esc(g.title)}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:16px">
+    <button class="btn btn-p" onclick="saveNewIdea()">Create Idea</button>
+    <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('ni-title')?.focus(),50);
+}
+
+function saveNewIdea(){
+  const title=document.getElementById('ni-title')?.value.trim();
+  const desc=document.getElementById('ni-desc')?.value.trim();
+  const idea_type=document.getElementById('ni-type')?.value||'general';
+  const goal_id=parseInt(document.getElementById('ni-goal')?.value)||null;
+  if(!title){toast('Please enter a title.');return;}
+  const idea={
+    id:nextId(D.ideas),title,description:desc||'',idea_type,stage:'spark',
+    goal_id,ice_impact:5,ice_confidence:5,ice_ease:5,
+    ai_ice_impact:null,ai_ice_confidence:null,ai_ice_ease:null,ai_ice_rationale:null,
+    kill_reason:null,parked_review_date:null,promoted_project_id:null,verdict_outcome:null,
+    spark_at:new Date().toISOString(),develop_at:null,stress_test_at:null,verdict_at:null,
+    answers:[],collaborators:[],comments:[],votes:[],checkIns:[],
+    createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+  };
+  D.ideas.push(idea);
+  save('ideas');
+  closeModal();
+  renderIdeas();
+  toast('💡 Idea captured! Open it to develop further.');
+  // Open detail immediately
+  openIdeaDetail(idea.id);
+}
+
+let _currentIdeaId=null;
+let _ideaAIMode='devil'; // 'devil' or 'champion'
+function openIdeaDetail(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  _currentIdeaId=id;
+  renderIdeaDetail(idea);
+}
+
+function renderIdeaDetail(idea){
+  const el=$('ideas-main');
+  if(!el)return;
+  const rail=$('ideas-rail');
+  const stages=['spark','develop','stress_test','verdict'];
+  const stageIdx=stages.indexOf(idea.stage);
+  const qs=IDEA_QUESTION_TEMPLATES[idea.idea_type]||IDEA_QUESTION_TEMPLATES.general;
+  const ice=ideaICE(idea);
+
+  // Render main content
+  el.innerHTML=`
+  <div style="max-width:900px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <button class="btn btn-s" style="font-size:10px" onclick="renderIdeas()">← Ideas</button>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+      <div style="flex:1">
+        <div contenteditable="true" id="idea-title-edit" style="font-size:22px;font-weight:700;outline:none;border-bottom:2px solid transparent;padding-bottom:2px" onfocus="this.style.borderColor='var(--ac)'" onblur="this.style.borderColor='transparent';updateIdeaTitle(${idea.id},this.textContent)">${esc(idea.title)}</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:4px">${IDEA_TYPE_ICONS[idea.idea_type]} ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type} &nbsp;·&nbsp; Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:4px 10px;text-align:center">
+          <div style="font-size:16px;font-weight:700;color:var(--ac)">${ice}</div>
+          <div style="font-size:9px;color:var(--t3)">ICE</div>
+        </div>
+        <button class="btn btn-s" style="font-size:10px" onclick="openIdeaShare(${idea.id})">👥 Share</button>
+        <button class="btn btn-s" style="font-size:10px;color:var(--err)" onclick="if(confirm('Delete this idea?')){D.ideas=D.ideas.filter(x=>x.id!==${idea.id});save('ideas');renderIdeas();toast('Idea deleted.');}">🗑</button>
+      </div>
+    </div>
+
+    <!-- Stage strip -->
+    <div style="display:flex;gap:0;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;overflow:hidden;margin-bottom:20px">
+      ${stages.map((s,i)=>{
+        const active=idea.stage===s;
+        const past=i<stageIdx;
+        const color=active?'var(--ac)':past?'var(--ok)':'var(--t3)';
+        const bg=active?'var(--ac)22':past?'var(--ok)11':'transparent';
+        return `<div style="flex:1;padding:8px 4px;text-align:center;background:${bg};cursor:pointer;border-right:1px solid var(--bd1)" onclick="moveIdeaToStage(${idea.id},'${s}')">
+          <div style="font-size:10px;font-weight:600;color:${color}">${IDEA_STAGE_LABELS[s]}</div>
+          ${active?`<div style="width:6px;height:6px;background:var(--ac);border-radius:50%;margin:3px auto 0"></div>`:''}
+        </div>`;
+      }).join('')}
+      <div style="flex:1;padding:8px 4px;text-align:center;cursor:pointer" onclick="openVerdictModal(${idea.id})">
+        <div style="font-size:10px;font-weight:600;color:${idea.stage==='verdict'?'var(--ok)':'var(--t3)'}">Verdict</div>
+        ${idea.verdict_outcome?`<div style="font-size:9px;color:var(--t3)">${idea.verdict_outcome}</div>`:''}
+      </div>
+    </div>
+
+    <!-- AI mode toggle -->
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px">
+      <span style="font-size:11px;color:var(--t2)">AI mode:</span>
+      <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">😈 Devil's Advocate</button>
+      <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">🏆 Champion</button>
+      ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:10px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
+    </div>
+
+    <!-- Question sections per stage -->
+    ${['spark','develop','stress_test'].filter(s=>stages.indexOf(s)<=stageIdx).map(s=>{
+      const stageQs=qs[s]||[];
+      const collapsed=s!==idea.stage;
+      return `<div style="margin-bottom:16px;border:1px solid var(--bd2);border-radius:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s2);cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          <div style="display:flex;align-items:center;gap:8px">
+            ${ideaStagePill(s)}
+            <span style="font-size:13px;font-weight:600">${IDEA_STAGE_LABELS[s]} Questions</span>
+          </div>
+          <span style="font-size:12px;color:var(--t3)">${collapsed?'▸':'▾'}</span>
+        </div>
+        <div style="${collapsed?'display:none':''}padding:14px">
+          ${stageQs.map(q=>{
+            const ans=idea.answers.find(a=>a.stage===s&&a.question_key===q.key);
+            return `<div style="margin-bottom:16px">
+              <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
+                <label style="font-size:12px;font-weight:600;flex:1">${esc(q.prompt)}</label>
+                <button class="btn btn-s" style="font-size:9px;padding:2px 6px;white-space:nowrap" onclick="ideaAISparkle(${idea.id},'${s}','${q.key}',this)">✨ AI</button>
+              </div>
+              ${q.help?`<div style="font-size:10px;color:var(--t3);margin-bottom:6px;font-style:italic">${esc(q.help)}</div>`:''}
+              <textarea class="inp" style="width:100%;min-height:80px;font-size:12px;resize:vertical" placeholder="Your answer…" onblur="saveIdeaAnswer(${idea.id},'${s}','${q.key}',this.value)">${esc(ans?.body||'')}</textarea>
+            </div>`;
+          }).join('')}
+          <button class="btn btn-s" style="font-size:10px;margin-top:4px" onclick="ideaWhyStuck(${idea.id},'${s}')">🤔 Why I'm stuck</button>
+        </div>
+      </div>`;
+    }).join('')}
+
+    <!-- Move to next stage / verdict buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      ${idea.stage==='spark'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'develop')">→ Move to Develop</button>`:''}
+      ${idea.stage==='develop'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'stress_test')">→ Move to Stress Test</button>`:''}
+      ${idea.stage==='stress_test'?`<button class="btn btn-p" onclick="openVerdictModal(${idea.id})">⚖ Move to Verdict</button>`:''}
+      ${idea.stage!=='verdict'?`<button class="btn btn-s" style="color:var(--err)" onclick="openVerdictModal(${idea.id})">⚖ Verdict now</button>`:''}
+    </div>
+  </div>`;
+
+  // Render right rail
+  if(rail){
+    const linkedGoal=idea.goal_id?D.goals.find(g=>g.id===idea.goal_id):null;
+    const similar=D.ideas.filter(x=>x.id!==idea.id&&(x.idea_type===idea.idea_type||x.title.split(' ').some(w=>w.length>4&&idea.title.toLowerCase().includes(w.toLowerCase())))).slice(0,3);
+    rail.innerHTML=`
+    <div style="padding:14px">
+      <!-- Goal link -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Linked goal</div>
+        <select class="inp" style="width:100%;font-size:12px" onchange="updateIdeaGoal(${idea.id},parseInt(this.value)||null)">
+          <option value="">— None —</option>
+          ${D.goals.map(g=>`<option value="${g.id}" ${idea.goal_id===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}
+        </select>
+        ${!linkedGoal?`<div style="font-size:10px;color:var(--t3);margin-top:4px;font-style:italic">Ideas without a goal link tend to drift. Pick one, or note this is exploratory.</div>`:''}
+      </div>
+
+      <!-- ICE score -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">ICE score</div>
+        ${[['ice_impact','Impact'],['ice_confidence','Confidence'],['ice_ease','Ease']].map(([k,l])=>`
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${l}</span><span style="font-weight:700;color:var(--ac)">${idea[k]||5}</span></div>
+          <input type="range" min="1" max="10" value="${idea[k]||5}" style="width:100%" oninput="updateIdeaICE(${idea.id},'${k}',parseInt(this.value));this.previousElementSibling.querySelector('span:last-child').textContent=this.value">
+        </div>`).join('')}
+        <div style="text-align:center;margin:8px 0">
+          <div style="font-size:20px;font-weight:700;color:var(--ac)">${ice}</div>
+          <div style="font-size:10px;color:var(--t3)">ICE average</div>
+        </div>
+        ${idea.ai_ice_rationale?`<div style="background:var(--s3);border-radius:6px;padding:8px;font-size:11px;color:var(--t2);margin-top:6px"><div style="font-weight:600;margin-bottom:4px">AI suggestion: ${idea.ai_ice_impact}/${idea.ai_ice_confidence}/${idea.ai_ice_ease}</div>${esc(idea.ai_ice_rationale)}<br><button class="btn btn-s" style="font-size:9px;margin-top:6px" onclick="useAIIceScore(${idea.id})">Use AI score</button></div>`:`<button class="btn btn-s" style="width:100%;font-size:10px;margin-top:4px" onclick="requestAIIceScore(${idea.id})">✨ Get AI score</button>`}
+      </div>
+
+      <!-- Similar ideas -->
+      ${similar.length?`<div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Similar ideas</div>
+        ${similar.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="openIdeaDetail(${s.id})">
+          <div style="font-size:11px;font-weight:500">${esc(s.title)}</div>
+          <div style="display:flex;gap:4px;margin-top:2px">${ideaStagePill(s.stage,s.verdict_outcome)}${s.kill_reason?`<span style="font-size:10px;color:var(--t3)">${esc(s.kill_reason.slice(0,30))}</span>`:''}</div>
+        </div>`).join('')}
+      </div>`:''}
+
+      <!-- Collaborators -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Collaborators</div>
+        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:10px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:9px;color:var(--err)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
+        <button class="btn btn-s" style="width:100%;font-size:10px;margin-top:6px" onclick="openIdeaInvite(${idea.id})">+ Invite</button>
+      </div>
+
+      <!-- Activity log -->
+      <div>
+        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Activity</div>
+        <div style="font-size:11px;color:var(--t3)">
+          <div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
+          ${idea.develop_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Develop ${new Date(idea.develop_at).toLocaleDateString()}</div>`:''}
+          ${idea.stress_test_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Stress Test ${new Date(idea.stress_test_at).toLocaleDateString()}</div>`:''}
+          ${idea.verdict_at?`<div style="padding:4px 0">Verdict: ${idea.verdict_outcome} ${new Date(idea.verdict_at).toLocaleDateString()}</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }
+}
+
+function updateIdeaTitle(id,title){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea||!title.trim())return;
+  idea.title=title.trim();
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+}
+function updateIdeaGoal(id,goalId){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  idea.goal_id=goalId;
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+  renderIdeaDetail(idea);
+}
+function updateIdeaICE(id,key,val){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  idea[key]=val;
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+  // Update ICE display
+  const ice=ideaICE(idea);
+  const iceEl=document.querySelector('[data-ice-display]');
+  if(iceEl)iceEl.textContent=ice;
+}
+function saveIdeaAnswer(id,stage,key,body){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const existing=idea.answers.find(a=>a.stage===stage&&a.question_key===key);
+  if(existing){existing.body=body;existing.updated_at=new Date().toISOString();}
+  else{idea.answers.push({id:Date.now(),stage,question_key:key,body,updated_at:new Date().toISOString()});}
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+}
+function moveIdeaToStage(id,stage){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const stages=['spark','develop','stress_test','verdict'];
+  const curIdx=stages.indexOf(idea.stage);
+  const newIdx=stages.indexOf(stage);
+  if(newIdx>curIdx+1){
+    if(!confirm(`Skip to ${IDEA_STAGE_LABELS[stage]}? This will skip intermediate stages.`))return;
+  }
+  idea.stage=stage;
+  idea[stage+'_at']=new Date().toISOString();
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+  renderIdeaDetail(idea);
+  toast(`→ Moved to ${IDEA_STAGE_LABELS[stage]}`);
+}
+
+function ideaAISparkle(id,stage,key,btn){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const qs=IDEA_QUESTION_TEMPLATES[idea.idea_type]||IDEA_QUESTION_TEMPLATES.general;
+  const q=(qs[stage]||[]).find(x=>x.key===key);
+  const ans=idea.answers.find(a=>a.stage===stage&&a.question_key===key);
+  const mode=_ideaAIMode;
+  const modeLabel=mode==='devil'?"devil's advocate":"champion";
+  const prompt=`You are reviewing an idea titled "${idea.title}" (type: ${idea.idea_type}). The question is: "${q?.prompt}". The user answered: "${ans?.body||'(no answer yet)'}". As a ${modeLabel}, provide a concise 2-3 sentence response that ${mode==='devil'?'challenges assumptions, surfaces risks, and asks hard questions':'strengthens the idea, suggests better framings, and identifies supporting evidence'}. Be direct and specific.`;
+  btn.textContent='…';
+  btn.disabled=true;
+  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
+  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
+  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:200})})
+  .then(r=>r.json()).then(d=>{
+    const text=d.choices?.[0]?.message?.content||'No response.';
+    btn.textContent='✨ AI';btn.disabled=false;
+    // Show in a popover below the button
+    const existing=btn.parentElement.querySelector('.ai-popover');
+    if(existing)existing.remove();
+    const pop=document.createElement('div');
+    pop.className='ai-popover';
+    pop.style.cssText='background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:10px;font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5';
+    pop.innerHTML=`<div style="font-size:10px;font-weight:600;color:${mode==='devil'?'var(--err)':'var(--ok)'};margin-bottom:4px">${mode==='devil'?'😈 Devil\'s Advocate':'🏆 Champion'}</div>${esc(text)}<button class="btn btn-s" style="font-size:9px;margin-top:6px;display:block" onclick="this.parentElement.remove()">Dismiss</button>`;
+    btn.parentElement.appendChild(pop);
+  }).catch(()=>{btn.textContent='✨ AI';btn.disabled=false;toast('AI unavailable.');});
+}
+
+function ideaWhyStuck(id,stage){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const prompt=`An idea titled "${idea.title}" is in the ${stage} stage. The user is stuck. Provide 3 alternate framings of the core challenge in this stage that might help them think differently. Be concise and specific.`;
+  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
+  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
+  toast('🤔 Generating alternate framings…');
+  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:300})})
+  .then(r=>r.json()).then(d=>{
+    const text=d.choices?.[0]?.message?.content||'No response.';
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">🤔 Alternate Framings</h2><div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(text)}</div><button class="btn btn-s" style="margin-top:12px" onclick="closeModal()">Close</button>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }).catch(()=>toast('AI unavailable.'));
+}
+
+function ideaSynthesisMode(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const answers=idea.answers.map(a=>`[${a.stage}/${a.question_key}]: ${a.body}`).join('\n');
+  const prompt=`Here are all the answers a person wrote about their idea titled "${idea.title}":\n\n${answers}\n\nIf you were giving advice to a friend with this exact idea and these exact answers, what would you say? Be honest, specific, and actionable. 3-4 paragraphs.`;
+  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
+  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
+  toast('✨ Synthesizing your thinking…');
+  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:600})})
+  .then(r=>r.json()).then(d=>{
+    const text=d.choices?.[0]?.message?.content||'No response.';
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">✨ AI Synthesis</h2><div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(text)}</div><button class="btn btn-s" style="margin-top:12px" onclick="closeModal()">Close</button>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }).catch(()=>toast('AI unavailable.'));
+}
+
+function requestAIIceScore(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const prompt=`Score this idea on ICE (Impact, Confidence, Ease) each from 1-10. Idea: "${idea.title}". Type: ${idea.idea_type}. Description: "${idea.description}". Answers: ${idea.answers.map(a=>a.body).join(' | ')}. Respond in JSON: {"impact":N,"confidence":N,"ease":N,"rationale":"..."}`;
+  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
+  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
+  toast('✨ Getting AI ICE score…');
+  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:200,response_format:{type:'json_object'}})})
+  .then(r=>r.json()).then(d=>{
+    try{
+      const j=JSON.parse(d.choices?.[0]?.message?.content||'{}');
+      idea.ai_ice_impact=j.impact||5;idea.ai_ice_confidence=j.confidence||5;idea.ai_ice_ease=j.ease||5;idea.ai_ice_rationale=j.rationale||'';
+      save('ideas');renderIdeaDetail(idea);toast('✨ AI ICE score ready!');
+    }catch(e){toast('Could not parse AI response.');}
+  }).catch(()=>toast('AI unavailable.'));
+}
+function useAIIceScore(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  idea.ice_impact=idea.ai_ice_impact||5;idea.ice_confidence=idea.ai_ice_confidence||5;idea.ice_ease=idea.ai_ice_ease||5;
+  save('ideas');renderIdeaDetail(idea);toast('✓ AI ICE score applied.');
+}
+
+function openVerdictModal(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">⚖ Verdict: ${esc(idea.title)}</h2>
+  <div style="margin-bottom:12px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Outcome *</label>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="killed" onchange="showVerdictFields('killed')" style="margin-right:4px"><span style="font-size:12px;color:var(--err)">🪦 Kill</span></label>
+      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="parked" onchange="showVerdictFields('parked')" style="margin-right:4px"><span style="font-size:12px;color:#8B5CF6">🅿 Park</span></label>
+      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="promoted" onchange="showVerdictFields('promoted')" style="margin-right:4px"><span style="font-size:12px;color:var(--ok)">🚀 Promote</span></label>
+    </div>
+  </div>
+  <div id="verdict-fields"></div>
+  <div style="display:flex;gap:8px;margin-top:16px">
+    <button class="btn btn-p" onclick="confirmVerdict(${id})">Confirm Verdict</button>
+    <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function showVerdictFields(outcome){
+  const el=document.getElementById('verdict-fields');
+  if(!el)return;
+  if(outcome==='killed'){
+    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Kill reason *</label><textarea id="vf-kill" class="inp" style="width:100%;height:80px;margin-top:4px;font-size:12px" placeholder="Why are you killing this idea?"></textarea></div>`;
+  } else if(outcome==='parked'){
+    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Review date *</label><input id="vf-date" type="date" class="inp" style="width:100%;margin-top:4px" value="${new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0]}"></div>`;
+  } else if(outcome==='promoted'){
+    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">New project name</label><input id="vf-proj" class="inp" style="width:100%;margin-top:4px" placeholder="Project name (leave blank to skip)"></div>`;
+  }
+}
+function confirmVerdict(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const outcome=document.querySelector('input[name="verdict"]:checked')?.value;
+  if(!outcome){toast('Please select an outcome.');return;}
+  if(outcome==='killed'){
+    const reason=document.getElementById('vf-kill')?.value.trim();
+    if(!reason){toast('Please provide a kill reason.');return;}
+    idea.kill_reason=reason;
+  } else if(outcome==='parked'){
+    const date=document.getElementById('vf-date')?.value;
+    if(!date){toast('Please set a review date.');return;}
+    idea.parked_review_date=date;
+  } else if(outcome==='promoted'){
+    const projName=document.getElementById('vf-proj')?.value.trim();
+    if(projName){
+      const proj={id:nextId(D.projects),name:projName,color:'#3B82F6',status:'Active',due:'TBD',pct:0,desc:`Promoted from idea: ${idea.title}\n\n${idea.answers.map(a=>`**${a.stage}/${a.question_key}:** ${a.body}`).join('\n\n')}`};
+      D.projects.push(proj);
+      idea.promoted_project_id=proj.id;
+      save('projects');
+    }
+    if(idea.goal_id){/* goal link preserved */}
+  }
+  idea.stage='verdict';
+  idea.verdict_outcome=outcome;
+  idea.verdict_at=new Date().toISOString();
+  idea.updatedAt=new Date().toISOString();
+  // Auto-create Decision Log entry
+  if(!D.decisions)D.decisions=[];
+  D.decisions.push({id:Date.now(),idea_id:id,outcome,date:new Date().toISOString().split('T')[0],title:`Idea ${outcome}: ${idea.title}`,context:idea.answers.map(a=>`**${a.stage}/${a.question_key}:** ${a.body}`).join('\n\n'),kill_reason:idea.kill_reason||null,promoted_project_id:idea.promoted_project_id||null});
+  save('ideas');
+  closeModal();
+  renderIdeas();
+  const icons={killed:'🪦',parked:'🅿',promoted:'🚀'};
+  toast(`${icons[outcome]} Idea ${outcome}!${outcome==='promoted'&&idea.promoted_project_id?' New project created.':''}`);
+}
+
+function openIdeaInvite(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">👥 Invite Collaborator</h2>
+  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Email *</label><input id="inv-email" class="inp" style="width:100%;margin-top:4px" type="email" placeholder="collaborator@example.com"></div>
+  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Role</label><select id="inv-role" class="inp" style="width:100%;margin-top:4px"><option value="reviewer">Reviewer (read + comment + vote)</option><option value="collaborator">Collaborator (read + comment + edit Develop)</option><option value="observer">Observer (read only)</option></select></div>
+  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Expires after (days)</label><input id="inv-expires" class="inp" style="width:100%;margin-top:4px" type="number" value="30" min="1" max="365"></div>
+  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Personal message (optional)</label><textarea id="inv-msg" class="inp" style="width:100%;height:60px;margin-top:4px;font-size:12px" placeholder="Hi! I'd love your input on this idea…"></textarea></div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-p" onclick="sendIdeaInvite(${id})">Send Invite</button>
+    <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function sendIdeaInvite(id){
+  const email=document.getElementById('inv-email')?.value.trim();
+  const role=document.getElementById('inv-role')?.value||'reviewer';
+  const expires=parseInt(document.getElementById('inv-expires')?.value)||30;
+  if(!email||!email.includes('@')){toast('Please enter a valid email.');return;}
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  if(!idea.collaborators)idea.collaborators=[];
+  const token=Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+  idea.collaborators.push({email,role,invited_at:new Date().toISOString(),accepted_at:null,revoked_at:null,expires_at:new Date(Date.now()+expires*24*60*60*1000).toISOString(),magic_link_token:token});
+  save('ideas');
+  closeModal();
+  renderIdeaDetail(idea);
+  toast(`✓ Invite sent to ${email} (${role}). Magic link: #idea-${id}-${token}`);
+}
+function revokeIdeaCollaborator(id,email){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const c=idea.collaborators.find(x=>x.email===email);
+  if(c)c.revoked_at=new Date().toISOString();
+  idea.collaborators=idea.collaborators.filter(x=>x.email!==email);
+  save('ideas');
+  renderIdeaDetail(idea);
+  toast(`✓ Access revoked for ${email}`);
+}
+function openIdeaShare(id){openIdeaInvite(id);}
+
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
   const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
@@ -3866,7 +4675,7 @@ function maybeSpawnRecurring(task){
 // ====== KEYBOARD SHORTCUTS ======
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
-  if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');
+  if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('gSearch').focus()}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
   if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();}
