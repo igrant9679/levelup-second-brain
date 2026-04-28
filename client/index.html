@@ -1211,7 +1211,8 @@ const _homeCardDefs=[
   {id:'habits',label:'⚡ Today\'s Habits',default:true},
   {id:'meetings',label:'📅 Upcoming Meetings',default:true},
   {id:'recent',label:'🕐 Recently Added',default:true},
-  {id:'pinned',label:'📌 Pinned',default:true}
+  {id:'pinned',label:'📌 Pinned',default:true},
+  {id:'focus',label:'⏱ Focus Widget',default:true}
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -1307,6 +1308,23 @@ function renderHome(){
       notes:`<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`,
       projects:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`,
       goals:renderGoalCards(3),
+      focus:(()=>{
+        const _fl=D.prefs&&D.prefs.focusLog||{};
+        const todayKey=new Date().toISOString().split('T')[0];
+        const todayMins=_fl[todayKey]||0;
+        const todaySessions=D.prefs&&D.prefs.focusSessions?D.prefs.focusSessions.filter(s=>s.date===todayKey).length:0;
+        const weekMins=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return _fl[d.toISOString().split('T')[0]]||0;}).reduce((a,b)=>a+b,0);
+        const activeFocusTask=D.tasks.find(t=>t.id===(_focusTaskId||null));
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">⏱ Focus</div><span class="cd-a" onclick="nav('focus')">Open Focus</span></div>
+          <div style="display:flex;gap:16px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd1);margin-bottom:10px">
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todaySessions}</div><div style="font-size:9px;color:var(--t3)">Sessions</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todayMins}</div><div style="font-size:9px;color:var(--t3)">Minutes Today</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--t2)">${weekMins}</div><div style="font-size:9px;color:var(--t3)">This Week</div></div>
+          </div>
+          ${activeFocusTask?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Current: <strong>${esc(activeFocusTask.title)}</strong></div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No task selected</div>'}
+          <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
+        </div>`;
+      })(),
       files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div></div>${[{n:'Q2 Marketing Plan.pptx',t:'PPT',c:'var(--reds)',cc:'var(--red)',m:'2h ago'},{n:'Budget Forecast.xlsx',t:'XLS',c:'var(--oks)',cc:'var(--ok)',m:'5h ago'},{n:'Client Proposal.docx',t:'DOC',c:'var(--acs)',cc:'var(--ac)',m:'Yesterday'}].map(f=>`<div class="lr"><span style="width:20px;height:20px;border-radius:3px;background:${f.c};color:${f.cc};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${f.t}</span><span class="rt" style="font-size:11px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div>`
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
@@ -1806,6 +1824,52 @@ function toggleNoteInlineEdit(id){
     setTimeout(()=>document.getElementById('nie-title')?.focus(),50);
   }
 }
+// ====== WIKI-LINK AUTO-COMPLETE ======
+let _wikiAcIdx=-1;
+function noteWikiInput(ta){
+  const ac=document.getElementById('wiki-autocomplete');
+  if(!ac)return;
+  const val=ta.value;
+  const pos=ta.selectionStart;
+  // Find [[ before cursor
+  const before=val.slice(0,pos);
+  const m=before.match(/\[\[([^\]\n]*)$/);
+  if(!m){ac.style.display='none';return;}
+  const q=m[1].toLowerCase();
+  const matches=D.notes.filter(n=>n.title.toLowerCase().includes(q)).slice(0,8);
+  if(!matches.length){ac.style.display='none';return;}
+  _wikiAcIdx=-1;
+  ac.style.display='block';
+  ac.innerHTML=matches.map((n,i)=>`<div data-idx="${i}" data-title="${esc(n.title)}" onclick="insertWikiLink(this.dataset.title)" style="padding:7px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--bd1);color:var(--t1)" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">[[${esc(n.title)}]]</div>`).join('');
+  // Position dropdown below cursor
+  const rect=ta.getBoundingClientRect();
+  ac.style.top=(ta.offsetHeight+2)+'px';
+  ac.style.left='0';
+}
+function noteWikiKeydown(e){
+  const ac=document.getElementById('wiki-autocomplete');
+  if(!ac||ac.style.display==='none')return;
+  const items=ac.querySelectorAll('div');
+  if(e.key==='ArrowDown'){e.preventDefault();_wikiAcIdx=Math.min(_wikiAcIdx+1,items.length-1);items.forEach((el,i)=>el.style.background=i===_wikiAcIdx?'var(--s3)':'');}
+  else if(e.key==='ArrowUp'){e.preventDefault();_wikiAcIdx=Math.max(_wikiAcIdx-1,0);items.forEach((el,i)=>el.style.background=i===_wikiAcIdx?'var(--s3)':'');}
+  else if(e.key==='Enter'&&_wikiAcIdx>=0){e.preventDefault();insertWikiLink(items[_wikiAcIdx].dataset.title);}
+  else if(e.key==='Escape'){ac.style.display='none';}
+}
+function insertWikiLink(title){
+  const ta=document.getElementById('nie-body');
+  const ac=document.getElementById('wiki-autocomplete');
+  if(!ta)return;
+  const val=ta.value;
+  const pos=ta.selectionStart;
+  const before=val.slice(0,pos);
+  const after=val.slice(pos);
+  // Replace the partial [[query with [[title]]
+  const newBefore=before.replace(/\[\[[^\]\n]*$/,'[['+title+']]');
+  ta.value=newBefore+after;
+  ta.selectionStart=ta.selectionEnd=newBefore.length;
+  ta.focus();
+  if(ac)ac.style.display='none';
+}
 function renderNoteEditor(n){
   const bodyHtml=n.body?n.body.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>'):'';
   const isEditing=_noteInlineEditId===n.id;
@@ -1821,7 +1885,12 @@ function renderNoteEditor(n){
   <input id="nie-title" class="inp" style="font-size:16px;font-weight:600;margin-bottom:8px;width:100%" value="${esc(n.title)}" placeholder="Note title...">
   <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
   <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Use **bold**, *italic*, # Heading, - list</div>
-  <textarea id="nie-body" class="inp" style="width:100%;min-height:300px;font-size:12px;font-family:monospace;line-height:1.6;resize:vertical" onkeydown="if(event.key==='s'&&(event.ctrlKey||event.metaKey)){event.preventDefault();saveNoteInlineEdit(${n.id});}">${(n.body||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>`;
+  <div style="position:relative">
+  <textarea id="nie-body" class="inp" style="width:100%;min-height:300px;font-size:12px;font-family:monospace;line-height:1.6;resize:vertical"
+    onkeydown="if(event.key==='s'&&(event.ctrlKey||event.metaKey)){event.preventDefault();saveNoteInlineEdit(${n.id});}noteWikiKeydown(event)"
+    oninput="noteWikiInput(this)">${(n.body||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+  <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>
+  </div>`;
   }
   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
   <div style="display:flex;gap:6px">
@@ -3213,6 +3282,46 @@ function ideaStagePill(stage,outcome){
 }
 
 let _ideasView='active';
+function renderIdeasLeaderboard(){
+  // Rank all non-killed ideas by total votes + ICE score
+  const ranked=D.ideas
+    .filter(x=>x.verdict_outcome!=='killed')
+    .map(x=>({
+      idea:x,
+      ice:ideaICE(x),
+      votes:(x.votes||[]).reduce((s,v)=>s+v.score,0),
+      score:ideaICE(x)*0.6+((x.votes||[]).reduce((s,v)=>s+v.score,0))*0.4
+    }))
+    .sort((a,b)=>b.score-a.score);
+  if(!ranked.length)return `<div style="text-align:center;padding:48px;color:var(--t3)">No ideas to rank yet. Add some ideas first.</div>`;
+  const medals=['🥇','🥈','🥉'];
+  return `<div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Ranked by ICE score (60%) + community votes (40%). Click any row to open the idea.</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+    ${ranked.map((r,i)=>{
+      const idea=r.idea;
+      const medal=medals[i]||`<span style="font-size:12px;font-weight:700;color:var(--t3);width:20px;text-align:center">#${i+1}</span>`;
+      const barW=Math.round((r.score/Math.max(...ranked.map(x=>x.score),1))*100);
+      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px" onclick="openIdeaDetail(${idea.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='var(--s2)'">
+        <span style="font-size:18px;width:24px;text-align:center;flex-shrink:0">${medal}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(idea.title)}</div>
+          <div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden;margin-bottom:3px">
+            <div style="height:100%;width:${barW}%;background:var(--ac);border-radius:2px;transition:width .3s"></div>
+          </div>
+          <div style="display:flex;gap:8px;font-size:10px;color:var(--t3)">
+            ${ideaStagePill(idea.stage,idea.verdict_outcome)}
+            <span>ICE <strong style="color:var(--ac)">${r.ice}</strong></span>
+            <span>Votes <strong style="color:var(--ok)">${r.votes}</strong></span>
+            <span>Score <strong style="color:var(--t1)">${r.score.toFixed(1)}</strong></span>
+          </div>
+        </div>
+        <button class="btn btn-s" style="font-size:10px;padding:3px 8px;flex-shrink:0" onclick="event.stopPropagation();openIdeaVote(${idea.id})">👍 Vote</button>
+      </div>`;
+    }).join('')}
+    </div>
+  </div>`;
+}
 function renderIdeas(){
   const el=$('ideas-main');
   if(!el)return;
@@ -3222,8 +3331,8 @@ function renderIdeas(){
   const badge=document.getElementById('badge-ideas');
   if(badge){badge.textContent=staleCount||'';badge.style.display=staleCount?'':'none';}
 
-  const viewTabs=['active','parked','graveyard','promoted','all'];
-  const viewLabels={active:'Active',parked:'Parked',graveyard:'Graveyard',promoted:'Promoted',all:'All'};
+  const viewTabs=['active','parked','graveyard','promoted','all','leaderboard'];
+  const viewLabels={active:'Active',parked:'Parked',graveyard:'Graveyard',promoted:'Promoted',all:'All',leaderboard:'🏆 Leaderboard'};
   function filterIdeas(v){
     if(v==='active')return D.ideas.filter(x=>['spark','develop','stress_test'].includes(x.stage));
     if(v==='parked')return D.ideas.filter(x=>x.stage==='verdict'&&x.verdict_outcome==='parked');
@@ -3249,7 +3358,7 @@ function renderIdeas(){
       return `<button class="btn" style="border-radius:0;height:28px;font-size:10px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
     }).join('')}
   </div>
-  ${ideas.length===0?`<div style="text-align:center;padding:48px;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">💡</div><div style="font-size:14px;font-weight:500;margin-bottom:8px">No ideas here yet</div><div style="font-size:12px;margin-bottom:16px">Every great project starts with a spark.</div><button class="btn btn-p" onclick="openNewIdeaModal()">+ Capture your first idea</button></div>`:`
+  ${_ideasView==='leaderboard'?renderIdeasLeaderboard():ideas.length===0?`<div style="text-align:center;padding:48px;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">💡</div><div style="font-size:14px;font-weight:500;margin-bottom:8px">No ideas here yet</div><div style="font-size:12px;margin-bottom:16px">Every great project starts with a spark.</div><button class="btn btn-p" onclick="openNewIdeaModal()">+ Capture your first idea</button></div>`:`
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
     ${ideas.map(idea=>{
       const ice=ideaICE(idea);
