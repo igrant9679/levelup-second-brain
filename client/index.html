@@ -353,6 +353,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c" id="badge-coach"></span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
 <div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
+<div class="si" data-n="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
@@ -425,6 +426,9 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 
 <!-- ===== S-12 SETTINGS ===== -->
 <div class="scr" id="s-settings"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="settings-main"></main></div></div>
+
+<!-- ===== S-CONTACTS ===== -->
+<div class="scr" id="s-contacts"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="contacts-main"></main><aside class="rr" id="contacts-rail" style="width:280px"></aside></div></div>
 
 <!-- DETAIL DRAWER -->
 <div class="drawer-overlay" id="drawer-ov" onclick="if(event.target===this)closeDrawer()">
@@ -803,11 +807,21 @@ const D = {
     {id:2,title:'Weekly team async standup bot',description:'Automate weekly async standups via a bot that collects updates and synthesizes them.',idea_type:'process_change',stage:'stress_test',goal_id:null,ice_impact:6,ice_confidence:7,ice_ease:7,ai_ice_impact:6,ai_ice_confidence:7,ai_ice_ease:8,ai_ice_rationale:'Moderate impact, high ease — many existing tools do this. Differentiation is unclear.',kill_reason:null,parked_review_date:null,promoted_project_id:null,spark_at:'2026-04-05T08:00:00Z',develop_at:'2026-04-07T09:00:00Z',stress_test_at:'2026-04-15T11:00:00Z',verdict_at:null,answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:'Priya Nair',createdAt:'2026-04-05T08:00:00Z',updatedAt:'2026-04-15T11:00:00Z'},
     {id:3,title:'Publish a "Building in Public" newsletter',description:'Weekly newsletter documenting the LevelUp build journey — decisions, metrics, lessons.',idea_type:'content',stage:'verdict',goal_id:5,ice_impact:7,ice_confidence:8,ice_ease:7,ai_ice_impact:8,ai_ice_confidence:7,ai_ice_ease:7,ai_ice_rationale:'Strong brand-building play with compounding returns. Effort is manageable at 2h/week.',kill_reason:null,parked_review_date:null,promoted_project_id:4,spark_at:'2026-03-20T10:00:00Z',develop_at:'2026-03-22T09:00:00Z',stress_test_at:'2026-03-28T14:00:00Z',verdict_at:'2026-04-01T10:00:00Z',verdict_outcome:'promoted',answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:'Idris Grant',createdAt:'2026-03-20T10:00:00Z',updatedAt:'2026-04-01T10:00:00Z'},
   ],
+  contacts: JSON.parse(localStorage.getItem('lu_contacts') || 'null') || [
+    {id:1,name:'Sarah Chen',title:'VP of Product',company:'Notion',email:'sarah.chen@notion.so',phone:'+1 415 555 0101',linkedin:'linkedin.com/in/sarahchen',location:'San Francisco, CA',tags:['investor-prospect','product'],notes:'Met at ProductConf 2026. Interested in LevelUp for enterprise.',enriched:false,enrichedAt:null},
+    {id:2,name:'Marcus Rivera',title:'Partner',company:'Sequoia Capital',email:'m.rivera@sequoiacap.com',phone:'',linkedin:'linkedin.com/in/marcusrivera',location:'Menlo Park, CA',tags:['investor','vip'],notes:'Warm intro via James. Follow up after Q2 metrics.',enriched:false,enrichedAt:null},
+    {id:3,name:'Priya Kapoor',title:'Head of Engineering',company:'Linear',email:'priya@linear.app',phone:'+1 650 555 0203',linkedin:'linkedin.com/in/priyakapoor',location:'New York, NY',tags:['partnership','engineering'],notes:'Exploring API integration between Linear and LevelUp tasks.',enriched:false,enrichedAt:null},
+    {id:4,name:'David Park',title:'Founder & CEO',company:'Reflect Notes',email:'david@reflect.app',phone:'',linkedin:'linkedin.com/in/davidpark',location:'Austin, TX',tags:['competitor','founder'],notes:'Competitor analysis. Friendly relationship. Possible co-marketing.',enriched:false,enrichedAt:null},
+    {id:5,name:'Aisha Johnson',title:'Director of Partnerships',company:'Atlassian',email:'aisha.j@atlassian.com',phone:'+1 212 555 0305',linkedin:'linkedin.com/in/aishajohnson',location:'New York, NY',tags:['partnership','enterprise'],notes:'Exploring Jira integration. Decision maker for partner program.',enriched:false,enrichedAt:null},
+    {id:6,name:'Tom Nakamura',title:'Angel Investor',company:'Independent',email:'tom@nakamura.vc',phone:'',linkedin:'linkedin.com/in/tomnakamura',location:'Seattle, WA',tags:['investor','angel'],notes:'$50K check size. Focus on productivity tools. Intro from Sarah.',enriched:false,enrichedAt:null},
+    {id:7,name:'Elena Vasquez',title:'Product Designer',company:'Figma',email:'elena.v@figma.com',phone:'+1 415 555 0407',linkedin:'linkedin.com/in/elenavasquez',location:'San Francisco, CA',tags:['design','advisor'],notes:'Potential design advisor. Loves the UX direction of LevelUp.',enriched:false,enrichedAt:null},
+    {id:8,name:'James Okafor',title:'CTO',company:'Coda',email:'james@coda.io',phone:'',linkedin:'linkedin.com/in/jamesokafor',location:'San Francisco, CA',tags:['technical','partnership'],notes:'Discussed API collaboration. Coda has complementary use cases.',enriched:false,enrichedAt:null},
+  ],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
-function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
+function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
   document.body.classList.toggle('compact-mode',!!D.prefs.compact);
@@ -840,7 +854,7 @@ function setAccent(c){
 let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts'};
 let curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -1219,6 +1233,7 @@ function renderScreen(s){
   if(s==='settings')renderSettings();
   if(s==='ideas')renderIdeas();
   if(s==='focus')renderFocus();
+  if(s==='contacts')renderContacts();
   updateSidebarBadges();
 }
 
@@ -5294,6 +5309,12 @@ function renderSettingsHTML(){
   <!-- Integrations --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
   ${renderCredCard('ClickUp','CU','Bidirectional task sync','cu',['API Token|cu_key','Workspace ID|cu_ws'])}
   ${renderCredCard('NiftyPM','NP','Task sync (pending API)','np',['API Key|np_key'])}
+  <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px">🔍 Contact Enrichment</h3>
+  <p style="font-size:10px;color:var(--t2);margin-bottom:8px">Enrich contact records with verified emails, phone numbers, job titles, LinkedIn profiles, and 40+ firmographic attributes via Clodura.AI.</p>
+  ${renderCredCard('Clodura.AI','CL','Contact & company enrichment — 600M+ contacts database','clo',['API Key|clo_key'])}
+  <div style="margin-top:8px;padding:8px 10px;background:var(--s2);border-radius:6px;font-size:10px;color:var(--t3)">
+    <strong style="color:var(--t2)">How to get your API key:</strong> Log in to <a href="https://app.clodura.ai" target="_blank" style="color:var(--ac)">app.clodura.ai</a> → Settings → Developer → API Keys → Generate Key.
+  </div>
   </div>
   <!-- AI Features --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:600">AI Master Switch</div><div style="font-size:10px;color:var(--t3)">Enable/disable all AI</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
@@ -7207,6 +7228,399 @@ function doFASave(addAnother){
       closeFA(true);
     }
   },200);
+}
+
+// ====== CONTACTS & CLODURA ENRICHMENT ======
+let _contactSearch='',_contactTagFilter='',_contactSelected=new Set();
+function renderContacts(){
+  const contacts=D.contacts||[];
+  const apiKey=D.creds.clo_key||'';
+  // Filter
+  const q=_contactSearch.toLowerCase();
+  const filtered=contacts.filter(c=>{
+    const matchQ=!q||(c.name+c.company+c.email+c.title+c.location+(c.tags||[]).join(' ')).toLowerCase().includes(q);
+    const matchTag=!_contactTagFilter||(c.tags||[]).includes(_contactTagFilter);
+    return matchQ&&matchTag;
+  });
+  // All tags
+  const allTags=[...new Set(contacts.flatMap(c=>c.tags||[]))].sort();
+  const enrichedCount=contacts.filter(c=>c.enriched).length;
+  const hasKey=!!apiKey;
+  $('contacts-main').innerHTML=`
+  <div class="pg-h" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <div style="flex:1;min-width:0">
+      <h1 style="font-size:22px;font-weight:700">👤 Contacts</h1>
+      <p style="font-size:12px;color:var(--t2)">${contacts.length} contacts · ${enrichedCount} enriched via Clodura</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-s" style="height:30px;font-size:11px" onclick="openAddContactModal()">+ Add Contact</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px" onclick="importContactsCSV()">📥 Import CSV</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px" onclick="exportContactsCSV()">📤 Export CSV</button>
+      <button class="btn btn-p" style="height:30px;font-size:11px;${!hasKey?'opacity:.5;cursor:not-allowed':''}"
+        onclick="${hasKey?'enrichAllContacts()':"toast('⚠️ Add your Clodura API key in Settings → Integrations first')"}">
+        🔍 Enrich All via Clodura
+      </button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+    <input class="inp" style="flex:1;min-width:180px;max-width:320px;height:30px;font-size:11px" placeholder="Search contacts…" value="${esc(_contactSearch)}" oninput="_contactSearch=this.value;renderContacts()">
+    <select class="inp" style="height:30px;font-size:11px;max-width:160px" onchange="_contactTagFilter=this.value;renderContacts()">
+      <option value="">All tags</option>
+      ${allTags.map(t=>`<option value="${esc(t)}" ${_contactTagFilter===t?'selected':''}>${esc(t)}</option>`).join('')}
+    </select>
+    <span style="font-size:10px;color:var(--t3)">${filtered.length} result${filtered.length!==1?'s':''}</span>
+  </div>
+  ${!hasKey?`<div style="background:var(--warn)1a;border:1px solid var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--t2);display:flex;align-items:center;gap:10px">
+    <span style="font-size:18px">🔑</span>
+    <div><strong>Clodura API key not configured.</strong> Add it in <span class="cd-a" onclick="nav('settings');setTimeout(()=>{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');document.getElementById('sp-4').style.display='';document.querySelectorAll('[data-sb] .si').forEach(x=>{x.classList.remove('on');if(x.dataset.n==='settings')x.classList.add('on')})},100)">Settings → Integrations</span> to enable enrichment.</div>
+  </div>`:''}
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="border-bottom:2px solid var(--bd2);text-align:left">
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2);width:28px"><input type="checkbox" id="contact-check-all" onchange="toggleSelectAllContacts(this.checked)" style="cursor:pointer"></th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Name</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Title</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Company</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Email</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Phone</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Tags</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Status</th>
+      <th style="padding:6px 8px;font-weight:600;color:var(--t2)">Actions</th>
+    </tr></thead>
+    <tbody id="contacts-tbody">
+    ${filtered.map(c=>contactRow(c,hasKey)).join('')}
+    ${filtered.length===0?`<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--t3);font-size:12px">No contacts found. <span class="cd-a" onclick="openAddContactModal()">Add one</span>.</td></tr>`:''}
+    </tbody>
+  </table>
+  </div>
+  `;
+  // Bulk action bar
+  const bar=document.createElement('div');
+  bar.id='contact-bulk-bar';
+  bar.style.cssText='display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:8px 16px;display:none;gap:10px;align-items:center;box-shadow:0 4px 24px rgba(0,0,0,.4);z-index:100';
+  bar.innerHTML=`<span id="contact-bulk-count" style="font-size:11px;color:var(--t2)">0 selected</span>
+    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="enrichSelectedContacts()">🔍 Enrich Selected</button>
+    <button class="btn btn-d" style="height:26px;font-size:10px" onclick="deleteSelectedContacts()">🗑 Delete</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_contactSelected.clear();renderContacts()">✕ Clear</button>`;
+  $('contacts-main').appendChild(bar);
+  updateContactBulkBar();
+  // Rail
+  renderContactsRail(contacts);
+}
+function contactRow(c,hasKey){
+  const initials=c.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+  const colors=['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'];
+  const color=colors[c.id%colors.length];
+  const enrichBtnLabel=c.enriched?'✓ Enriched':'🔍 Enrich';
+  const enrichBtnStyle=c.enriched?'background:var(--ok)1a;color:var(--ok);border:1px solid var(--ok)':'background:var(--acs);color:var(--ac);border:1px solid var(--ac)';
+  return`<tr style="border-bottom:1px solid var(--bd1);cursor:pointer" onclick="openContactDetail(${c.id})" id="contact-row-${c.id}">
+    <td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" ${_contactSelected.has(c.id)?'checked':''} onchange="toggleContactSelect(${c.id},this.checked)" style="cursor:pointer"></td>
+    <td style="padding:6px 8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
+        <div><div style="font-weight:500">${esc(c.name)}</div><div style="font-size:9px;color:var(--t3)">${esc(c.location||'')}</div></div>
+      </div>
+    </td>
+    <td style="padding:6px 8px;color:var(--t2)">${esc(c.title||'—')}</td>
+    <td style="padding:6px 8px;font-weight:500">${esc(c.company||'—')}</td>
+    <td style="padding:6px 8px">${c.email?`<a href="mailto:${esc(c.email)}" onclick="event.stopPropagation()" style="color:var(--ac);text-decoration:none">${esc(c.email)}</a>`:'<span style="color:var(--t3)">—</span>'}</td>
+    <td style="padding:6px 8px;color:var(--t2)">${c.phone||'<span style="color:var(--t3)">—</span>'}</td>
+    <td style="padding:6px 8px">${(c.tags||[]).slice(0,2).map(t=>`<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--acs);color:var(--ac);margin-right:3px">${esc(t)}</span>`).join('')}${(c.tags||[]).length>2?`<span style="font-size:9px;color:var(--t3)">+${c.tags.length-2}</span>`:''}</td>
+    <td style="padding:6px 8px">
+      <span id="enrich-status-${c.id}" style="font-size:9px;padding:2px 6px;border-radius:8px;${enrichBtnStyle}">${enrichBtnLabel}</span>
+    </td>
+    <td style="padding:6px 8px" onclick="event.stopPropagation()">
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openContactDetail(${c.id})" title="View">👁</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openEditContactModal(${c.id})" title="Edit">✏</button>
+        <button class="btn btn-p" style="height:22px;font-size:9px;padding:0 6px;${!hasKey?'opacity:.5;':''}"
+          onclick="${hasKey?`enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}"
+          title="Enrich via Clodura">🔍</button>
+        <button class="btn btn-d" style="height:22px;font-size:9px;padding:0 6px" onclick="deleteContact(${c.id})" title="Delete">🗑</button>
+      </div>
+    </td>
+  </tr>`;
+}
+function renderContactsRail(contacts){
+  const tags=[...new Set(contacts.flatMap(c=>c.tags||[]))].sort();
+  const enriched=contacts.filter(c=>c.enriched).length;
+  const withEmail=contacts.filter(c=>c.email).length;
+  const withPhone=contacts.filter(c=>c.phone).length;
+  const withLinkedin=contacts.filter(c=>c.linkedin).length;
+  $('contacts-rail').innerHTML=`
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">📊 Stats</div>
+    <div class="stat"><div class="stat-n">${contacts.length}</div><div class="stat-l">Total Contacts</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--ok)">${enriched}</div><div class="stat-l">Enriched</div></div>
+    <div class="stat"><div class="stat-n">${withEmail}</div><div class="stat-l">With Email</div></div>
+    <div class="stat"><div class="stat-n">${withPhone}</div><div class="stat-l">With Phone</div></div>
+    <div class="stat"><div class="stat-n">${withLinkedin}</div><div class="stat-l">With LinkedIn</div></div>
+    <div style="margin-top:14px;font-size:12px;font-weight:600;margin-bottom:6px">🏷 Tags</div>
+    ${tags.map(t=>{
+      const count=contacts.filter(c=>(c.tags||[]).includes(t)).length;
+      return`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="_contactTagFilter=_contactTagFilter===\'${t}\'?\'\':\'${t}\';renderContacts()">
+        <span style="font-size:11px;${_contactTagFilter===t?'color:var(--ac);font-weight:600':''}">${esc(t)}</span>
+        <span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">${count}</span>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:14px">
+      <button class="btn btn-p" style="width:100%;height:28px;font-size:11px" onclick="openAddContactModal()">+ Add Contact</button>
+    </div>
+  `;
+}
+function toggleContactSelect(id,checked){
+  if(checked)_contactSelected.add(id);else _contactSelected.delete(id);
+  updateContactBulkBar();
+}
+function toggleSelectAllContacts(checked){
+  const contacts=D.contacts||[];
+  const q=_contactSearch.toLowerCase();
+  const filtered=contacts.filter(c=>{
+    const matchQ=!q||(c.name+c.company+c.email+c.title+c.location+(c.tags||[]).join(' ')).toLowerCase().includes(q);
+    const matchTag=!_contactTagFilter||(c.tags||[]).includes(_contactTagFilter);
+    return matchQ&&matchTag;
+  });
+  filtered.forEach(c=>{if(checked)_contactSelected.add(c.id);else _contactSelected.delete(c.id);});
+  updateContactBulkBar();
+  renderContacts();
+}
+function updateContactBulkBar(){
+  const bar=document.getElementById('contact-bulk-bar');
+  if(!bar)return;
+  const n=_contactSelected.size;
+  bar.style.display=n>0?'flex':'none';
+  const cnt=document.getElementById('contact-bulk-count');
+  if(cnt)cnt.textContent=n+' selected';
+}
+function deleteContact(id){
+  if(!confirm('Delete this contact?'))return;
+  D.contacts=D.contacts.filter(c=>c.id!==id);
+  save('contacts');renderContacts();toast('🗑 Contact deleted');
+}
+function deleteSelectedContacts(){
+  if(!_contactSelected.size){toast('No contacts selected');return;}
+  if(!confirm(`Delete ${_contactSelected.size} contact(s)?`))return;
+  D.contacts=D.contacts.filter(c=>!_contactSelected.has(c.id));
+  _contactSelected.clear();save('contacts');renderContacts();toast('🗑 Contacts deleted');
+}
+
+// ---- Clodura Enrichment ----
+async function enrichContact(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c)return;
+  const apiKey=D.creds.clo_key||'';
+  if(!apiKey){toast('⚠️ Add your Clodura API key in Settings → Integrations');return;}
+  const statusEl=document.getElementById('enrich-status-'+id);
+  if(statusEl){statusEl.textContent='⏳ Enriching…';statusEl.style.color='var(--warn)';}
+  toast('🔍 Enriching '+c.name+'…');
+  try{
+    // Build query params from available contact data
+    const params=new URLSearchParams();
+    if(c.name){const parts=c.name.trim().split(' ');params.set('first_name',parts[0]||'');params.set('last_name',parts.slice(1).join(' ')||'');}
+    if(c.email)params.set('email',c.email);
+    if(c.company)params.set('company',c.company);
+    if(c.title)params.set('title',c.title);
+    if(c.linkedin)params.set('linkedin_url','https://'+c.linkedin.replace(/^https?:\/\//,''));
+    const res=await fetch(`https://clodura.dev/api/v1/enrich/search?${params.toString()}`,{
+      method:'GET',
+      headers:{'x-api-key':apiKey,'Accept':'application/json'}
+    });
+    if(!res.ok){const err=await res.text();throw new Error(`API error ${res.status}: ${err}`);}
+    const data=await res.json();
+    // Map response fields to contact
+    const person=data.person||data.data||data.result||data;
+    if(person&&typeof person==='object'){
+      if(person.email&&!c.email)c.email=person.email;
+      if(person.phone||person.phone_number)c.phone=person.phone||person.phone_number||c.phone;
+      if(person.title||person.job_title)c.title=person.title||person.job_title||c.title;
+      if(person.company||person.organization)c.company=person.company||person.organization||c.company;
+      if(person.location||person.city)c.location=person.location||(person.city?(person.city+(person.country?', '+person.country:'')):'');
+      if(person.linkedin_url||person.linkedin)c.linkedin=(person.linkedin_url||person.linkedin||c.linkedin).replace(/^https?:\/\//,'');
+      if(person.twitter)c.twitter=person.twitter;
+      if(person.seniority)c.seniority=person.seniority;
+      if(person.department)c.department=person.department;
+      if(person.company_size)c.companySize=person.company_size;
+      if(person.industry)c.industry=person.industry;
+      if(person.technologies&&person.technologies.length)c.technologies=person.technologies;
+    }
+    c.enriched=true;
+    c.enrichedAt=new Date().toISOString();
+    c.enrichedRaw=person;
+    save('contacts');
+    renderContacts();
+    toast('✅ '+c.name+' enriched successfully!');
+  }catch(err){
+    console.error('Clodura enrichment error:',err);
+    if(statusEl){statusEl.textContent='⚠️ Failed';statusEl.style.color='var(--red)';}
+    toast('❌ Enrichment failed: '+err.message);
+  }
+}
+async function enrichAllContacts(){
+  const apiKey=D.creds.clo_key||'';
+  if(!apiKey){toast('⚠️ Add your Clodura API key in Settings → Integrations');return;}
+  const unenriched=(D.contacts||[]).filter(c=>!c.enriched);
+  if(!unenriched.length){toast('✅ All contacts already enriched');return;}
+  if(!confirm(`Enrich ${unenriched.length} contact(s) via Clodura? This will use API credits.`))return;
+  toast('🔍 Enriching '+unenriched.length+' contacts…');
+  let done=0,failed=0;
+  for(const c of unenriched){
+    try{await enrichContact(c.id);done++;}catch(e){failed++;}
+    await new Promise(r=>setTimeout(r,400)); // rate limit
+  }
+  toast(`✅ Enrichment complete: ${done} enriched${failed?' · '+failed+' failed':''}`);
+}
+async function enrichSelectedContacts(){
+  const apiKey=D.creds.clo_key||'';
+  if(!apiKey){toast('⚠️ Add your Clodura API key in Settings → Integrations');return;}
+  if(!_contactSelected.size){toast('No contacts selected');return;}
+  const ids=[..._contactSelected];
+  if(!confirm(`Enrich ${ids.length} selected contact(s) via Clodura?`))return;
+  toast('🔍 Enriching '+ids.length+' contacts…');
+  let done=0,failed=0;
+  for(const id of ids){
+    try{await enrichContact(id);done++;}catch(e){failed++;}
+    await new Promise(r=>setTimeout(r,400));
+  }
+  _contactSelected.clear();
+  toast(`✅ Done: ${done} enriched${failed?' · '+failed+' failed':''}`);
+}
+
+// ---- Contact Detail ----
+function openContactDetail(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c)return;
+  const initials=c.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+  const colors=['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'];
+  const color=colors[c.id%colors.length];
+  const hasKey=!!D.creds.clo_key;
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  d.innerHTML=`<h2>👤 ${esc(c.name)} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px">
+    <div style="width:52px;height:52px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
+    <div style="flex:1">
+      <div style="font-size:16px;font-weight:700">${esc(c.name)}</div>
+      <div style="font-size:11px;color:var(--t2)">${esc(c.title||'')}${c.title&&c.company?' · ':''}${esc(c.company||'')}</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(c.location||'')}</div>
+    </div>
+    ${c.enriched?`<span style="font-size:9px;padding:2px 7px;border-radius:8px;background:var(--ok)1a;color:var(--ok);border:1px solid var(--ok)">✓ Enriched</span>`:''}
+  </div>
+  <div style="display:grid;gap:6px;margin-bottom:14px">
+    ${c.email?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Email</span><a href="mailto:${esc(c.email)}" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.email)}</a></div>`:''}
+    ${c.phone?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Phone</span><span style="font-size:11px">${esc(c.phone)}</span></div>`:''}
+    ${c.linkedin?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">LinkedIn</span><a href="https://${esc(c.linkedin)}" target="_blank" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.linkedin)}</a></div>`:''}
+    ${c.twitter?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Twitter</span><span style="font-size:11px">@${esc(c.twitter)}</span></div>`:''}
+    ${c.department?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Dept</span><span style="font-size:11px">${esc(c.department)}</span></div>`:''}
+    ${c.seniority?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Seniority</span><span style="font-size:11px">${esc(c.seniority)}</span></div>`:''}
+    ${c.industry?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Industry</span><span style="font-size:11px">${esc(c.industry)}</span></div>`:''}
+    ${c.companySize?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Co. Size</span><span style="font-size:11px">${esc(c.companySize)}</span></div>`:''}
+    ${c.technologies&&c.technologies.length?`<div class="lr" style="padding:5px 0;align-items:flex-start"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Tech Stack</span><div style="display:flex;flex-wrap:wrap;gap:3px">${c.technologies.slice(0,8).map(t=>`<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t)}</span>`).join('')}</div></div>`:''}
+  </div>
+  ${(c.tags||[]).length?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.tags.map(t=>`<span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--acs);color:var(--ac)">${esc(t)}</span>`).join('')}</div></div>`:''}
+  ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
+  ${c.enrichedAt?`<div style="font-size:9px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <button class="btn btn-p" style="height:28px;font-size:10px" onclick="openEditContactModal(${c.id})">✏ Edit</button>
+    <button class="btn btn-p" style="height:28px;font-size:10px;${!hasKey?'opacity:.5;':''}"
+      onclick="${hasKey?`closeDrawer();enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}">
+      🔍 Enrich via Clodura
+    </button>
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="closeDrawer()">Close</button>
+    <button class="btn btn-d" style="height:28px;font-size:10px" onclick="deleteContact(${c.id});closeDrawer()">🗑 Delete</button>
+  </div>`;
+  ov.classList.add('show');
+}
+
+// ---- Add / Edit Contact Modal ----
+function openAddContactModal(){
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  d.innerHTML=contactFormHTML(null);
+  ov.classList.add('show');
+}
+function openEditContactModal(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c)return;
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  d.innerHTML=contactFormHTML(c);
+  ov.classList.add('show');
+}
+function contactFormHTML(c){
+  const isEdit=!!c;
+  return`<h2>${isEdit?'✏ Edit Contact':'➕ New Contact'} <button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div class="field"><label>Full Name *</label><input class="inp" id="cf-name" value="${esc(c?c.name:'')}"></div>
+  <div class="field-row">
+    <div class="field"><label>Job Title</label><input class="inp" id="cf-title" value="${esc(c?c.title||'':'')}"></div>
+    <div class="field"><label>Company</label><input class="inp" id="cf-company" value="${esc(c?c.company||'':'')}"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Email</label><input class="inp" type="email" id="cf-email" value="${esc(c?c.email||'':'')}"></div>
+    <div class="field"><label>Phone</label><input class="inp" type="tel" id="cf-phone" value="${esc(c?c.phone||'':'')}"></div>
+  </div>
+  <div class="field"><label>LinkedIn URL</label><input class="inp" id="cf-linkedin" value="${esc(c?c.linkedin||'':'')}"></div>
+  <div class="field"><label>Location</label><input class="inp" id="cf-location" value="${esc(c?c.location||'':'')}"></div>
+  <div class="field"><label>Tags (comma separated)</label><input class="inp" id="cf-tags" value="${esc(c?(c.tags||[]).join(', '):'')}"></div>
+  <div class="field"><label>Notes</label><textarea class="inp" id="cf-notes" style="min-height:80px">${esc(c?c.notes||'':'')}</textarea></div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn btn-p" onclick="saveContactForm(${isEdit?c.id:'null'})">Save</button>
+    <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
+    ${isEdit?`<button class="btn btn-d" onclick="deleteContact(${c.id});closeDrawer()">Delete</button>`:''}
+  </div>`;
+}
+function saveContactForm(id){
+  const name=document.getElementById('cf-name').value.trim();
+  if(!name){toast('Name is required');return;}
+  const tags=document.getElementById('cf-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  if(id){
+    const c=D.contacts.find(x=>x.id===id);
+    if(!c)return;
+    c.name=name;
+    c.title=document.getElementById('cf-title').value.trim();
+    c.company=document.getElementById('cf-company').value.trim();
+    c.email=document.getElementById('cf-email').value.trim();
+    c.phone=document.getElementById('cf-phone').value.trim();
+    c.linkedin=document.getElementById('cf-linkedin').value.trim();
+    c.location=document.getElementById('cf-location').value.trim();
+    c.tags=tags;
+    c.notes=document.getElementById('cf-notes').value.trim();
+  }else{
+    const newC={id:nextId(D.contacts),name,title:document.getElementById('cf-title').value.trim(),company:document.getElementById('cf-company').value.trim(),email:document.getElementById('cf-email').value.trim(),phone:document.getElementById('cf-phone').value.trim(),linkedin:document.getElementById('cf-linkedin').value.trim(),location:document.getElementById('cf-location').value.trim(),tags,notes:document.getElementById('cf-notes').value.trim(),enriched:false,enrichedAt:null};
+    D.contacts.push(newC);
+  }
+  save('contacts');closeDrawer();renderContacts();toast(id?'✓ Contact updated':'✓ Contact added');
+}
+
+// ---- Import / Export ----
+function importContactsCSV(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.csv';
+  inp.onchange=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const text=await file.text();
+    const lines=text.split('\n').filter(l=>l.trim());
+    if(lines.length<2){toast('CSV appears empty');return;}
+    const headers=lines[0].split(',').map(h=>h.trim().toLowerCase().replace(/["']/g,''));
+    let added=0;
+    lines.slice(1).forEach(line=>{
+      const vals=line.match(/(?:"[^"]*"|[^,])+/g)||line.split(',');
+      const row={};
+      headers.forEach((h,i)=>{row[h]=(vals[i]||'').replace(/^"|"$/g,'').trim();});
+      const name=row.name||row.full_name||row['first name']+(row['last name']?' '+row['last name']:'');
+      if(!name)return;
+      D.contacts.push({id:nextId(D.contacts),name,title:row.title||row.job_title||'',company:row.company||row.organization||'',email:row.email||'',phone:row.phone||row.mobile||'',linkedin:row.linkedin||row.linkedin_url||'',location:row.location||row.city||'',tags:row.tags?row.tags.split(';').map(t=>t.trim()).filter(Boolean):[],notes:row.notes||'',enriched:false,enrichedAt:null});
+      added++;
+    });
+    save('contacts');renderContacts();toast(`✅ Imported ${added} contacts from CSV`);
+  };
+  inp.click();
+}
+function exportContactsCSV(){
+  const headers=['name','title','company','email','phone','linkedin','location','tags','notes','enriched','enrichedAt'];
+  const rows=D.contacts.map(c=>[c.name,c.title||'',c.company||'',c.email||'',c.phone||'',c.linkedin||'',c.location||'',(c.tags||[]).join(';'),c.notes||'',c.enriched?'yes':'no',c.enrichedAt||''].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv=headers.join(',')+String.fromCharCode(10)+rows.join(String.fromCharCode(10));
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts-export.csv';a.click();
+  toast('📤 Contacts exported as CSV');
 }
 
 // ====== INIT ======
