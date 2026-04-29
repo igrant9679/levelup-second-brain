@@ -1342,7 +1342,7 @@ function taskRow(t,showActs=true){
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
-  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -1380,6 +1380,175 @@ function delegateTask(id){
   toast(`📤 Task delegated to ${assignee}`);
   renderScreen(curScreen);
 }
+// ====== TASKS AI ======
+function aiDecomposeGoal(){
+  const goal=prompt('Enter a goal or project to decompose into tasks:');
+  if(!goal||!goal.trim())return;
+  toast('🧩 Decomposing goal into tasks...');
+  // Generate subtasks based on the goal using heuristic decomposition
+  const g=goal.trim();
+  const verbs=['Research','Draft','Review','Finalize','Schedule','Send','Create','Set up','Test','Present','Coordinate','Document','Implement','Analyze','Design'];
+  const count=5+Math.floor(Math.random()*4);
+  const subtasks=[];
+  const phases=['Planning','Execution','Review'];
+  // Build contextual subtasks based on keywords in the goal
+  const lower=g.toLowerCase();
+  if(lower.includes('launch')||lower.includes('ship')||lower.includes('release')){
+    subtasks.push('Define launch criteria and success metrics','Prepare launch checklist','Draft announcement copy','Set up monitoring and alerts','Coordinate with stakeholders','Run final QA pass','Schedule launch date','Prepare rollback plan');
+  } else if(lower.includes('report')||lower.includes('analysis')||lower.includes('research')){
+    subtasks.push('Define scope and key questions','Gather data sources','Conduct primary research','Analyze findings','Draft executive summary','Create supporting visuals','Review with stakeholders','Finalize and distribute');
+  } else if(lower.includes('meeting')||lower.includes('workshop')||lower.includes('session')){
+    subtasks.push('Define agenda and objectives','Send calendar invites','Prepare materials and slides','Share pre-read with attendees','Facilitate the session','Capture action items','Send follow-up summary','Track action item completion');
+  } else {
+    verbs.slice(0,count).forEach((v,i)=>{
+      subtasks.push(v+' '+g.split(' ').slice(0,3).join(' ')+(i<3?' — Phase '+(i+1):''));
+    });
+  }
+  const today=new Date();
+  const dueDate=new Date(today.getTime()+7*24*60*60*1000).toISOString().slice(0,10);
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Task Decomposition</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Goal: <strong>${esc(g)}</strong></div>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Select tasks to add (all selected by default):</div>
+  <div id="decomp-list" style="max-height:260px;overflow-y:auto">${subtasks.slice(0,8).map((s,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:12px"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac)"> ${esc(s)}</label>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="(function(){
+    const checks=document.querySelectorAll('#decomp-list input:checked');
+    if(!checks.length){toast('Select at least one task');return;}
+    const titles=[...checks].map(c=>c.closest('label').textContent.trim());
+    titles.forEach(title=>{
+      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${dueDate}',status:'Not Started',context:'Deep Work',project:'',tags:['ai-generated'],notes:'Generated from goal: ${esc(g)}',myDay:false,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+    });
+    save('tasks');renderScreen('tasks');closeModal();
+    toast('✓ '+titles.length+' tasks added!');
+  })()">✓ Add Selected Tasks</button>
+  <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiDeadlineRisk(){
+  toast('⚠️ Analyzing deadline risk...');
+  const today=new Date();
+  const risks=[];
+  D.tasks.filter(t=>t.status!=='Done'&&t.due).forEach(t=>{
+    const due=new Date(t.due);
+    const daysLeft=Math.ceil((due-today)/(1000*60*60*24));
+    const subtasksDone=(t.subtasks||[]).filter(s=>s.done).length;
+    const subtasksTotal=(t.subtasks||[]).length;
+    const pct=subtasksTotal>0?subtasksDone/subtasksTotal:0;
+    const estMins=t.estimatedMins||60;
+    const hoursNeeded=estMins/60;
+    let risk='low';
+    if(daysLeft<0)risk='overdue';
+    else if(daysLeft<=1&&pct<0.5)risk='critical';
+    else if(daysLeft<=3&&pct<0.3)risk='high';
+    else if(daysLeft<=7&&pct<0.2)risk='medium';
+    if(risk!=='low')risks.push({t,daysLeft,pct,risk,hoursNeeded});
+  });
+  if(!risks.length){toast('✅ No deadline risks detected — you\'re on track!');return;}
+  risks.sort((a,b)=>['overdue','critical','high','medium'].indexOf(a.risk)-['overdue','critical','high','medium'].indexOf(b.risk));
+  const riskColors={overdue:'var(--red)',critical:'var(--red)',high:'#f97316',medium:'#eab308'};
+  const riskLabels={overdue:'🔴 OVERDUE',critical:'🔴 CRITICAL',high:'🟠 HIGH',medium:'🟡 MEDIUM'};
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">⚠️ Deadline Risk Report</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${risks.length} task${risks.length!==1?'s':''} at risk:</div>
+  <div style="max-height:300px;overflow-y:auto">${risks.map(r=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;border-left:3px solid ${riskColors[r.risk]};background:var(--s2)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10px;font-weight:700;color:${riskColors[r.risk]}">${riskLabels[r.risk]}</span><span style="font-size:11px;font-weight:600">${esc(r.t.title)}</span></div>
+    <div style="font-size:10px;color:var(--t3)">${r.daysLeft<0?Math.abs(r.daysLeft)+' days overdue':r.daysLeft+' day'+( r.daysLeft!==1?'s':'')+' left'} · ${Math.round(r.pct*100)}% complete · ~${r.hoursNeeded.toFixed(1)}h estimated</div>
+  </div>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="closeModal()">Got it</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiAutoPriority(){
+  toast('✨ Scoring and re-prioritizing tasks...');
+  const today=new Date();
+  D.tasks.filter(t=>t.status!=='Done').forEach(t=>{
+    const due=new Date(t.due||'2099-12-31');
+    const daysLeft=Math.ceil((due-today)/(1000*60*60*24));
+    // Urgency: 0-40 pts
+    const urgency=daysLeft<=0?40:daysLeft<=1?35:daysLeft<=3?28:daysLeft<=7?20:daysLeft<=14?12:5;
+    // Importance: 0-30 pts (based on existing priority + linked goal)
+    const impBase={High:30,Medium:20,Low:10}[t.priority]||15;
+    const goalBonus=t.linkedGoalId?10:0;
+    const importance=Math.min(30,impBase+goalBonus);
+    // Energy alignment: 0-15 pts
+    const energyScore={high:15,medium:10,low:5}[t.energy]||10;
+    // Subtask progress: 0-15 pts
+    const subs=t.subtasks||[];
+    const progScore=subs.length>0?Math.round((subs.filter(s=>s.done).length/subs.length)*15):0;
+    const total=urgency+importance+energyScore+progScore;
+    t._aiScore=total;
+    // Assign priority based on score
+    if(total>=75)t.priority='High';
+    else if(total>=45)t.priority='Medium';
+    else t.priority='Low';
+  });
+  D.tasks.sort((a,b)=>(b._aiScore||0)-(a._aiScore||0));
+  save('tasks');
+  renderTaskList();
+  toast('✨ Tasks re-scored and sorted by AI priority!');
+}
+
+function aiSuggestDelegate(id){
+  const t=D.tasks.find(x=>x.id===id);
+  if(!t)return;
+  const members=D.teams.flatMap(tm=>tm.members);
+  if(!members.length){toast('No team members found');return;}
+  // Score each member by role/skill match with task tags and context
+  const taskText=(t.title+' '+(t.notes||'')+' '+(t.tags||[]).join(' ')).toLowerCase();
+  const scored=members.map(m=>{
+    const roleText=(m.role||'').toLowerCase();
+    const nameText=(m.name||'').toLowerCase();
+    // Check workload: count tasks assigned to this member
+    const workload=D.tasks.filter(x=>x.assignedTo===m.name&&x.status!=='Done').length;
+    // Skill match: count keyword overlaps
+    const roleWords=roleText.split(/\s+/);
+    const matches=roleWords.filter(w=>w.length>3&&taskText.includes(w)).length;
+    const score=matches*10 - workload*2;
+    return{m,score,workload,matches};
+  }).sort((a,b)=>b.score-a.score);
+  const top=scored.slice(0,3);
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🤖 AI Delegation Suggestion</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Task: <strong>${esc(t.title)}</strong></div>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Recommended based on role match and current workload:</div>
+  ${top.map(({m:member,score,workload,matches})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);display:flex;align-items:center;gap:10px">
+    <div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${member.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
+    <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
+    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${member.name}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
+  </div>`).join('')}
+  <button class="btn btn-s" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiUnblockTask(id){
+  const t=D.tasks.find(x=>x.id===id);
+  if(!t)return;
+  const blockerTitle=t.blockedBy?D.tasks.find(x=>x.id===t.blockedBy)?.title||'unknown task':'unknown blocker';
+  const suggestions=[
+    'Schedule a 15-minute sync with the task owner to clarify requirements',
+    'Break the dependency: identify which parts of this task can proceed independently',
+    'Escalate to your manager with a clear decision request and deadline',
+    'Document the blocker in the task notes and set a follow-up reminder for tomorrow',
+    'Find an alternative approach that does not depend on the blocking item',
+    'Reassign the blocking task to someone with available capacity',
+  ];
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔓 AI Unblock Suggestions</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Blocked task: <strong>${esc(t.title)}</strong></div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Blocked by: <em>${esc(blockerTitle)}</em></div>
+  <div style="max-height:240px;overflow-y:auto">${suggestions.map((s,i)=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px;display:flex;gap:8px;align-items:flex-start"><span style="color:var(--ac);font-weight:700;flex-shrink:0">${i+1}.</span><span>${esc(s)}</span></div>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="const task=D.tasks.find(x=>x.id===${id});if(task){task.blockedBy=null;task.status='Not Started';save('tasks');renderScreen(curScreen);closeModal();toast('🔓 Task unblocked!')}">Mark as Unblocked</button>
+  <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 function togglePin(type,id){
   if(!D.prefs.pinned)D.prefs.pinned=[];
   const idx=D.prefs.pinned.findIndex(p=>p.type===type&&p.id===id);
@@ -1891,7 +2060,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiDecomposeGoal()" title="AI: Break a goal into tasks">🧩 Decompose</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--red)" onclick="aiDeadlineRisk()" title="AI: Detect deadline risk">⚠️ Risk Check</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiAutoPriority()" title="AI: Auto-score and re-sort tasks">✨ Auto-Priority</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -2299,6 +2468,7 @@ function renderNotes(){
       <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Note templates">📝 Tmpl</button>
       <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export all notes as Markdown">⬇ MD</button>
       <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md files as notes">📥 Import</button>
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="AI: Ask a question about your notes">🤔 Ask AI</button>
       <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
       <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
       <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
@@ -2497,6 +2667,9 @@ function renderNoteEditor(n){
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp)" onclick="aiAutoTagNote(${n.id})" title="AI auto-suggest tags for this note">🏷 Auto-tag</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openNoteHistory(${n.id})" title="View version history">🕐 History${(n.versions||[]).length?` (${(n.versions||[]).length})`:''}</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="exportNotePDF(${n.id})" title="Export this note as PDF">📄 PDF</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--grn)" onclick="aiConceptLink(${n.id})" title="AI: Find related notes by concept">🔗 Links</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--warn)" onclick="aiGapDetect(${n.id})" title="AI: Detect knowledge gaps">🔍 Gaps</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp)" onclick="aiExpandToDoc(${n.id})" title="AI: Expand note to full document">📄 Expand</button>
   </div>
   <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
@@ -2657,6 +2830,144 @@ function renderProjectsGantt(header){
   $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Yellow line = today. Bars span from project start to due date.</div><div>${rows}</div>`;
 }
 
+// ====== GOALS AI ======
+function aiGoalProgress(){
+  if(!D.goals.length){toast('No goals yet');return;}
+  toast('✨ Generating progress narratives...');
+  const narratives=D.goals.map(g=>{
+    const pct=g.pct||0;
+    const linkedTasks=D.tasks.filter(t=>(t.tags||[]).includes('goal:'+((g.title||'').toLowerCase().replace(/\s+/g,'-'))));
+    const doneTasks=linkedTasks.filter(t=>t.status==='Done').length;
+    const openTasks=linkedTasks.filter(t=>t.status!=='Done').length;
+    const dueDate=g.due?new Date(g.due):null;
+    const daysLeft=dueDate?Math.floor((dueDate-new Date())/(1000*60*60*24)):null;
+    let narrative='';
+    if(pct>=100)narrative=`✅ Completed! You achieved "${g.title}". Celebrate this win and consider what\'s next.`;
+    else if(pct>=75)narrative=`🎉 Almost there! "${g.title}" is ${pct}% complete.${daysLeft!==null?` With ${daysLeft} days left, you\'re on track.`:''} ${openTasks} task${openTasks!==1?'s':''} remaining.`;
+    else if(pct>=50)narrative=`💪 Halfway through "${g.title}" at ${pct}%.${daysLeft!==null&&daysLeft<30?` Only ${daysLeft} days left — consider increasing focus.`:''} ${doneTasks} tasks done, ${openTasks} to go.`;
+    else if(pct>=25)narrative=`🔄 "${g.title}" is ${pct}% complete. Good start — ${openTasks} tasks remain.${daysLeft!==null&&daysLeft<60?` ${daysLeft} days left — time to accelerate.`:''}` ;
+    else if(pct>0)narrative=`⚠️ "${g.title}" is only ${pct}% complete.${daysLeft!==null?` ${daysLeft} days remaining.`:''} Consider breaking it into smaller milestones.`;
+    else narrative=`💤 "${g.title}" hasn\'t started yet.${daysLeft!==null?` Due in ${daysLeft} days.`:''} Add tasks and check in to build momentum.`;
+    return{g,pct,narrative,doneTasks,openTasks,daysLeft};
+  });
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Goal Progress Narratives</h2>
+  <div style="max-height:360px;overflow-y:auto">${narratives.map(({g,pct,narrative,daysLeft})=>{
+    const color=pct>=75?'var(--grn)':pct>=50?'var(--ac)':pct>=25?'var(--warn)':'var(--red)';
+    return`<div style="padding:10px;margin-bottom:8px;border-radius:6px;background:var(--s2);border-left:3px solid ${color}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:12px;font-weight:600">${esc(g.title)}</div>
+        <div style="font-size:11px;font-weight:700;color:${color}">${pct}%</div>
+      </div>
+      <div style="background:var(--s3);border-radius:3px;height:4px;margin-bottom:6px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(narrative)}</div>
+      ${daysLeft!==null?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${daysLeft>0?daysLeft+' days remaining':daysLeft===0?'Due today!':'Overdue by '+Math.abs(daysLeft)+' days'}</div>`:''}
+    </div>`;
+  }).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiWeeklyReview(){
+  toast('📅 Generating weekly review...');
+  const today=new Date();
+  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekAgo);d.setDate(weekAgo.getDate()+i+1);return d.toISOString().split('T')[0];});
+  // Tasks
+  const tasksDone=D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&weekDates.some(d=>t.completedAt.startsWith(d)));
+  const tasksAdded=D.tasks.filter(t=>t.created&&weekDates.some(d=>t.created.startsWith(d)));
+  const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<weekDates[6]);
+  // Habits
+  const habitsDone=D.habits.filter(h=>(h.completedDates||[]).some(d=>weekDates.includes(d)));
+  const habitScore=D.habits.length?Math.round(D.habits.reduce((sum,h)=>{
+    const done=(h.completedDates||[]).filter(d=>weekDates.includes(d)).length;
+    const target=h.frequency==='Daily'?7:h.frequency==='3x/week'?3:h.frequency==='Weekly'?1:7;
+    return sum+(done/target);
+  },0)/D.habits.length*100):0;
+  // Journal
+  const journalEntries=D.journal.filter(j=>weekDates.includes(j.date));
+  const moodMap={'😄':5,'😊':4,'😐':3,'😔':2,'😢':1,'😤':2,'😴':2,'🤩':5,'😌':4};
+  const moodScores=journalEntries.filter(j=>moodMap[j.mood]).map(j=>moodMap[j.mood]);
+  const avgMood=moodScores.length?moodScores.reduce((a,b)=>a+b,0)/moodScores.length:null;
+  // Goals
+  const activeGoals=D.goals.filter(g=>g.pct<100);
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📅 Weekly Review</h2>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">${weekDates[0]} – ${weekDates[6]}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div style="padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:18px;font-weight:700;color:var(--grn)">${tasksDone.length}</div>
+      <div style="font-size:10px;color:var(--t3)">Tasks Completed</div>
+    </div>
+    <div style="padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:18px;font-weight:700;color:var(--ac)">${habitScore}%</div>
+      <div style="font-size:10px;color:var(--t3)">Habit Score</div>
+    </div>
+    <div style="padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:18px;font-weight:700;color:var(--purp)">${journalEntries.length}</div>
+      <div style="font-size:10px;color:var(--t3)">Journal Entries</div>
+    </div>
+    <div style="padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:18px;font-weight:700;color:${avgMood?avgMood>=4?'var(--grn)':avgMood>=3?'var(--ac)':'var(--warn)':'var(--t3)'}">${avgMood?avgMood.toFixed(1)+'/5':'N/A'}</div>
+      <div style="font-size:10px;color:var(--t3)">Avg Mood</div>
+    </div>
+  </div>
+  ${tasksDone.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Wins this week</div>${tasksDone.slice(0,5).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}${tasksDone.length>5?`<div style="font-size:10px;color:var(--t3)">+${tasksDone.length-5} more</div>`:''}</div>`:''}
+  ${overdueTasks.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ Overdue tasks (${overdueTasks.length})</div>${overdueTasks.slice(0,3).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)} (due ${t.due})</div>`).join('')}</div>`:''}
+  ${activeGoals.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Active Goals</div>${activeGoals.slice(0,4).map(g=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span>${esc(g.title)}</span><span style="color:var(--ac);font-weight:600">${g.pct||0}%</span></div>`).join('')}</div>`:''}
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn btn-p" onclick="closeModal();openFA('journal')" title="Write a reflection entry">Write Reflection</button>
+    <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiOKRAlignment(){
+  if(!D.goals.length){toast('No goals to check alignment for');return;}
+  toast('🔗 Checking OKR alignment...');
+  // Group goals by type: Objective vs Key Result
+  const objectives=D.goals.filter(g=>g.type==='Objective'||g.okrType==='Objective'||(!g.parentId&&!g.okrType));
+  const keyResults=D.goals.filter(g=>g.type==='Key Result'||g.okrType==='Key Result'||g.parentId);
+  // For each task, check if it has a goal tag
+  const allActiveTasks=D.tasks.filter(t=>t.status!=='Done');
+  const taggedTasks=allActiveTasks.filter(t=>(t.tags||[]).some(tag=>tag.startsWith('goal:')));
+  const untaggedTasks=allActiveTasks.filter(t=>!(t.tags||[]).some(tag=>tag.startsWith('goal:')));
+  const alignmentPct=allActiveTasks.length?Math.round(taggedTasks.length/allActiveTasks.length*100):0;
+  // Find orphaned key results (no parent objective)
+  const orphanKRs=keyResults.filter(kr=>kr.parentId&&!D.goals.find(g=>g.id===kr.parentId));
+  // Find objectives with no key results
+  const objectivesWithoutKRs=objectives.filter(o=>!keyResults.some(kr=>kr.parentId===o.id));
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔗 OKR Alignment Check</h2>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:${alignmentPct>=70?'var(--grn)':alignmentPct>=40?'var(--warn)':'var(--red)'}">${alignmentPct}%</div>
+      <div style="font-size:10px;color:var(--t3)">Tasks Aligned to Goals</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--ac)">${objectives.length}</div>
+      <div style="font-size:10px;color:var(--t3)">Objectives</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--purp)">${keyResults.length}</div>
+      <div style="font-size:10px;color:var(--t3)">Key Results</div>
+    </div>
+  </div>
+  ${untaggedTasks.length?`<div style="margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px;border-left:3px solid var(--warn)">
+    <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ ${untaggedTasks.length} task${untaggedTasks.length!==1?'s':''} not linked to any goal</div>
+    ${untaggedTasks.slice(0,4).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}
+    ${untaggedTasks.length>4?`<div style="font-size:10px;color:var(--t3)">+${untaggedTasks.length-4} more</div>`:''}
+    <div style="font-size:10px;color:var(--t3);margin-top:4px">Add a goal: tag to link these tasks to objectives</div>
+  </div>`:''}
+  ${objectivesWithoutKRs.length?`<div style="margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px;border-left:3px solid var(--red)">
+    <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--red)">🚨 ${objectivesWithoutKRs.length} objective${objectivesWithoutKRs.length!==1?'s':''} with no Key Results</div>
+    ${objectivesWithoutKRs.map(o=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(o.title)}</div>`).join('')}
+  </div>`:''}
+  ${alignmentPct>=70?`<div style="padding:8px;background:var(--s2);border-radius:6px;border-left:3px solid var(--grn);font-size:11px;color:var(--t2)">✅ Strong alignment! Most of your active work is connected to goals.</div>`:''}
+  <button class="btn btn-p" style="margin-top:12px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 function renderGoals(){
   // Auto-recalculate all goal percentages before rendering
   D.goals.forEach(g=>autoCalcGoalPct(g));
@@ -2754,7 +3065,7 @@ function renderGoals(){
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:10px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:10px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiGoalProgress()" title="AI: Goal progress narrative">✨ Progress</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiWeeklyReview()" title="AI: Auto-generate weekly review">📅 Review</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiOKRAlignment()" title="AI: Check OKR alignment">🔗 Align</button><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
   renderGoalCards();
 }
@@ -2895,7 +3206,7 @@ function renderJournal(){
     if(!el)return;
     el.innerHTML=entries.length?entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):'<div style="text-align:center;padding:24px;color:var(--t3);font-size:12px">No '+(_jrnlFilter==='All'?'':_jrnlFilter+' ')+' journal entries yet.<br><span style="color:var(--ac);cursor:pointer" onclick="openFA(\'journal\')">+ Write your first entry</span></div>';
   }
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiJournalSentiment()" title="AI: Sentiment trend analysis">📈 Sentiment</button><button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiJournalThemes()" title="AI: Detect recurring themes">🔍 Themes</button><button class="btn btn-s" style="font-size:11px;color:var(--grn)" onclick="aiJournalPrompt()" title="AI: Get a guided writing prompt">✏ Prompt</button><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
   <div class="tabs" id="jrnl-tabs">${journalTabs.map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="document.querySelectorAll('#jrnl-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderJournalList('${t}')">${t}</div>`).join('')}</div>
   <div id="jrnl-entries">${D.journal.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join('')}</div>`;
   const streak=calcJournalStreak();
@@ -2931,20 +3242,110 @@ function openMailItem(id){
   const det=document.getElementById('mail-detail');
   if(det)det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
   <div><div style="font-size:14px;font-weight:600">${esc(mail.subject)}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">From: ${esc(mail.from)} &lt;${esc(mail.email)}&gt;</div><div style="font-size:10px;color:var(--t3)">${mail.time}</div></div>
-  <div style="display:flex;gap:4px"><button class="btn btn-p" style="height:24px;font-size:10px" onclick="toast('Reply drafted')">Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Forwarded')">Forward</button></div>
+  <div style="display:flex;gap:4px"><button class="btn btn-p" style="height:24px;font-size:10px" onclick="aiSmartReply(${id})">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Forwarded')">Forward</button></div>
   </div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap;border-top:1px solid var(--bd1);padding-top:12px">${esc(mail.body)}</div>
   <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Archived')">Archive</button>
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Flagged')">Flag</button>
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openFA('task')">Create Task</button>
+  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="aiSummarizeThread(${id})">✨ Summarize</button>
+  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--grn)" onclick="aiFollowUpReminder(${id})">⏰ Follow-up</button>
   </div>`;
 }
 function renderMailInboxList(){
   return _mailItems.map(m=>`<div class="lr" style="cursor:pointer;background:${_selectedMail===m.id?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem(${m.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${_selectedMail===m.id?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from)}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${m.time}</span></div>`).join('');
 }
+// ====== MAIL AI ======
+function aiSmartReply(id){
+  const mail=_mailItems.find(m=>m.id===id);
+  if(!mail)return;
+  toast('✨ Drafting smart reply...');
+  const body=(mail.body||'').toLowerCase();
+  // Detect intent and generate contextual reply
+  let draft='';
+  if(body.includes('meeting')||body.includes('schedule')||body.includes('available')){
+    draft=`Hi ${mail.from.split(' ')[0]},\n\nThanks for reaching out. I'd be happy to connect. I'm available:\n\n• Tuesday 10am–12pm\n• Wednesday 2–4pm\n• Thursday 9–11am\n\nLet me know what works best for you, or feel free to send a calendar invite.\n\nBest,\n${D.creds.userName||'Idris'}`;
+  } else if(body.includes('question')||body.includes('help')||body.includes('how')){
+    draft=`Hi ${mail.from.split(' ')[0]},\n\nThank you for your message. I've reviewed your question and happy to help.\n\n[Your response here]\n\nPlease let me know if you need any clarification or have additional questions.\n\nBest regards,\n${D.creds.userName||'Idris'}`;
+  } else if(body.includes('follow up')||body.includes('checking in')||body.includes('update')){
+    draft=`Hi ${mail.from.split(' ')[0]},\n\nThanks for following up. Here's a quick update:\n\n[Status update here]\n\nI'll keep you posted on any further developments. Don't hesitate to reach out if you need anything.\n\nBest,\n${D.creds.userName||'Idris'}`;
+  } else if(body.includes('thank')||body.includes('appreciate')){
+    draft=`Hi ${mail.from.split(' ')[0]},\n\nThank you for your kind words! It was a pleasure working with you on this.\n\nLooking forward to our continued collaboration.\n\nBest regards,\n${D.creds.userName||'Idris'}`;
+  } else {
+    draft=`Hi ${mail.from.split(' ')[0]},\n\nThank you for your email regarding "${mail.subject}". I've reviewed your message and will get back to you shortly with a full response.\n\nBest regards,\n${D.creds.userName||'Idris'}`;
+  }
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Smart Reply Draft</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Re: ${esc(mail.subject)}</div>
+  <textarea id="smart-reply-body" class="inp" style="height:200px;font-size:12px;font-family:inherit;resize:vertical">${draft}</textarea>
+  <div style="display:flex;gap:8px;margin-top:10px">
+  <button class="btn btn-p" onclick="openComposeModal();setTimeout(()=>{document.getElementById('cmp-to').value='${mail.email}';document.getElementById('cmp-sub').value='Re: ${esc(mail.subject)}';luRTE_setText('cmp-body',document.getElementById('smart-reply-body').value);},100);closeModal()">Use in Compose</button>
+  <button class="btn btn-s" onclick="navigator.clipboard.writeText(document.getElementById('smart-reply-body').value).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">Copy</button>
+  <button class="btn btn-s" onclick="closeModal()">Discard</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiSummarizeThread(id){
+  const mail=_mailItems.find(m=>m.id===id);
+  if(!mail)return;
+  const body=mail.body||'';
+  if(body.length<50){toast('Email too short to summarize');return;}
+  toast('✨ Summarizing thread...');
+  // Extract key sentences
+  const sentences=body.split(/[.!?\n]+/).map(s=>s.trim()).filter(s=>s.length>20);
+  const keyPoints=sentences.slice(0,4);
+  // Detect action items
+  const actionWords=['please','could you','can you','need','require','action','todo','follow','send','review','confirm','schedule','update'];
+  const actions=sentences.filter(s=>actionWords.some(w=>s.toLowerCase().includes(w))).slice(0,3);
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Thread Summary</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${esc(mail.subject)} · from ${esc(mail.from)}</div>
+  <div style="margin-bottom:10px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">KEY POINTS</div>${keyPoints.map(p=>`<div style="font-size:12px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;display:flex;gap:6px"><span style="color:var(--ac)">•</span><span>${esc(p)}</span></div>`).join('')}</div>
+  ${actions.length?`<div><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">ACTION ITEMS</div>${actions.map(a=>`<div style="font-size:12px;padding:4px 8px;background:var(--acs);border-left:2px solid var(--ac);border-radius:4px;margin-bottom:3px">${esc(a)}</div>`).join('')}</div>`:''}
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="closeModal()">Got it</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiFollowUpReminder(id){
+  const mail=_mailItems.find(m=>m.id===id);
+  if(!mail)return;
+  const followUpDate=new Date();followUpDate.setDate(followUpDate.getDate()+3);
+  const dateStr=followUpDate.toISOString().split('T')[0];
+  D.tasks.push({id:Date.now(),title:`Follow up: ${mail.subject}`,priority:'Medium',due:dateStr,status:'Not Started',context:'Calls',project:'',tags:['follow-up','email'],notes:`Follow up with ${mail.from} (${mail.email}) re: ${mail.subject}`,myDay:false,energy:'low',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+  save('tasks');
+  toast(`⏰ Follow-up task created for ${dateStr}`);
+}
+
+function aiTriageMail(){
+  toast('✨ Triaging inbox...');
+  const actionWords=['please','action required','urgent','asap','deadline','confirm','approve','review by','respond','decision needed'];
+  const newsletterWords=['unsubscribe','newsletter','weekly digest','monthly update','promotional','offer','deal','sale','discount'];
+  const spamWords=['winner','congratulations','claim your','free gift','click here','limited time','act now','verify your account'];
+  const triaged=_mailItems.map(mail=>{
+    const text=(mail.subject+' '+mail.body).toLowerCase();
+    let category='FYI';
+    if(spamWords.some(w=>text.includes(w)))category='Spam';
+    else if(newsletterWords.some(w=>text.includes(w)))category='Newsletter';
+    else if(actionWords.some(w=>text.includes(w)))category='Action Required';
+    return{...mail,_triage:category};
+  });
+  const groups={['Action Required']:[],'FYI':[],'Newsletter':[],'Spam':[]};
+  triaged.forEach(m=>groups[m._triage]?.push(m));
+  const catColors={'Action Required':'var(--red)','FYI':'var(--ac)','Newsletter':'var(--purp)','Spam':'var(--t3)'};
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ AI Inbox Triage</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Classified ${_mailItems.length} emails:</div>
+  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:10px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:10px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem(${ml.id})">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
+  <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 function renderMail(){
-  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
+  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
 <div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
 <div id="mail-tab-body"><div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
 <div style="border-right:1px solid var(--bd1);overflow-y:auto">
@@ -3156,7 +3557,7 @@ function renderCalWeek(){
     return{label:`${d} ${dt.getDate()}`,isToday,dt};
   });
   const weekDayStrs=weekDays.map(wd=>wd.dt.toISOString().split('T')[0]);
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
@@ -3217,7 +3618,7 @@ function renderCalDay(){
       </div>
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiExtractActions()" title="AI: Extract action items from today's meeting notes">✓ Extract Actions</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
@@ -3330,12 +3731,198 @@ function renderCalMonth(){
       ${evDots}${moreCount}
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
-${_calViewTabs()}
-<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
   ${dayNames.map(d=>`<div style="text-align:center;font-size:10px;font-weight:600;color:var(--t3);padding:4px 0">${d}</div>`).join('')}
   ${cellsHtml}
 </div>`;
+}
+
+// ====== CALENDAR AI ======
+function aiCalNLP(){
+  const input=prompt('Describe the event in plain language:\n\nExamples:\n• "Lunch with Sarah next Tuesday at noon at Nobu"\n• "Team standup every Monday at 9am for 30 minutes"\n• "Doctor appointment Friday 3pm"');
+  if(!input||!input.trim())return;
+  toast('💬 Parsing event...');
+  const text=input.toLowerCase();
+  // Parse time
+  let hour=9;
+  const timeMatch=text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  if(timeMatch){
+    hour=parseInt(timeMatch[1]);
+    if(timeMatch[3]==='pm'&&hour!==12)hour+=12;
+    if(timeMatch[3]==='am'&&hour===12)hour=0;
+  } else if(text.includes('noon')||text.includes('lunch'))hour=12;
+  else if(text.includes('morning'))hour=9;
+  else if(text.includes('afternoon'))hour=14;
+  else if(text.includes('evening'))hour=18;
+  // Parse date
+  const today=new Date();
+  let targetDate=new Date(today);
+  if(text.includes('tomorrow'))targetDate.setDate(today.getDate()+1);
+  else if(text.includes('monday'))targetDate.setDate(today.getDate()+(1-today.getDay()+7)%7||7);
+  else if(text.includes('tuesday'))targetDate.setDate(today.getDate()+(2-today.getDay()+7)%7||7);
+  else if(text.includes('wednesday'))targetDate.setDate(today.getDate()+(3-today.getDay()+7)%7||7);
+  else if(text.includes('thursday'))targetDate.setDate(today.getDate()+(4-today.getDay()+7)%7||7);
+  else if(text.includes('friday'))targetDate.setDate(today.getDate()+(5-today.getDay()+7)%7||7);
+  else if(text.includes('saturday'))targetDate.setDate(today.getDate()+(6-today.getDay()+7)%7||7);
+  else if(text.includes('sunday'))targetDate.setDate(today.getDate()+(0-today.getDay()+7)%7||7);
+  const dateStr=targetDate.toISOString().split('T')[0];
+  // Parse duration
+  let durationMins=60;
+  const durMatch=text.match(/(\d+)\s*(hour|hr|minute|min)/);
+  if(durMatch){
+    const n=parseInt(durMatch[1]);
+    durationMins=(durMatch[2].startsWith('h'))?n*60:n;
+  } else if(text.includes('standup')||text.includes('sync'))durationMins=30;
+  else if(text.includes('lunch')||text.includes('dinner'))durationMins=90;
+  // Parse title — strip time/date words, use remaining
+  let title=input.replace(/\b(next|this|at|on|for|every|monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|noon|morning|afternoon|evening|\d{1,2}(am|pm)?|\d{1,2}:\d{2}|hour|hours|minute|minutes|min|mins|hr|hrs)\b/gi,'').replace(/\s+/g,' ').trim();
+  if(!title)title='New Event';
+  // Parse location — text after "at" that looks like a place
+  let location='';
+  const locMatch=input.match(/\bat\s+([A-Z][a-zA-Z\s]+?)(?:\s+(?:on|for|every|at|\d)|$)/i);
+  if(locMatch&&!/\d/.test(locMatch[1]))location=locMatch[1].trim();
+  const endHour=hour+Math.floor(durationMins/60);
+  const startStr=`${hour.toString().padStart(2,'0')}:00`;
+  const endStr=`${endHour.toString().padStart(2,'0')}:${(durationMins%60).toString().padStart(2,'0')}`;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">💬 Natural Language Event</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Parsed from: <em>${esc(input)}</em></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Title</div><input id="nlp-title" class="inp" value="${esc(title)}" style="font-size:12px"></div>
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Date</div><input id="nlp-date" class="inp" type="date" value="${dateStr}" style="font-size:12px"></div>
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Start</div><input id="nlp-start" class="inp" value="${startStr}" style="font-size:12px"></div>
+    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">End</div><input id="nlp-end" class="inp" value="${endStr}" style="font-size:12px"></div>
+    <div style="grid-column:1/-1"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Location</div><input id="nlp-loc" class="inp" value="${esc(location)}" style="font-size:12px" placeholder="Optional"></div>
+  </div>
+  <div style="display:flex;gap:8px">
+  <button class="btn btn-p" onclick="(function(){
+    const t=document.getElementById('nlp-title').value.trim();
+    const d=document.getElementById('nlp-date').value;
+    const s=document.getElementById('nlp-start').value;
+    const e=document.getElementById('nlp-end').value;
+    const l=document.getElementById('nlp-loc').value.trim();
+    if(!t||!d){toast('Title and date required');return;}
+    const h=parseInt(s.split(':')[0]);
+    _calEvents.push({id:Date.now(),title:t,dateStr:d,hour:h,start:s,end:e,endHour:parseInt(e.split(':')[0]),location:l,color:'var(--ac)',desc:'Created via NL Event'});
+    localStorage.setItem('lu_cal_events',JSON.stringify(_calEvents));
+    closeModal();renderCal();
+    toast('✓ Event created: '+t);
+  })()">Create Event</button>
+  <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiScheduleOptimize(){
+  toast('✨ Analyzing your schedule...');
+  const today=new Date();
+  const weekStart=new Date(today);
+  weekStart.setDate(today.getDate()-today.getDay()+1);
+  const weekDates=Array.from({length:7},(_,i)=>{
+    const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
+    return d.toISOString().split('T')[0];
+  });
+  const weekEvents=_calEvents.filter(e=>weekDates.includes(e.dateStr));
+  const suggestions=[];
+  // Check for back-to-back meetings
+  weekDates.forEach(dateStr=>{
+    const dayEvs=weekEvents.filter(e=>e.dateStr===dateStr).sort((a,b)=>a.hour-b.hour);
+    for(let i=0;i<dayEvs.length-1;i++){
+      const a=dayEvs[i],b=dayEvs[i+1];
+      if((a.endHour||a.hour+1)>=b.hour){
+        suggestions.push(`🔴 Back-to-back: "${a.title}" and "${b.title}" on ${dateStr} — consider adding a 15-min buffer`);
+      }
+    }
+    // Check for no deep work blocks
+    const morningFree=dayEvs.filter(e=>e.hour>=9&&e.hour<=12).length===0;
+    if(morningFree&&new Date(dateStr)>=today){
+      suggestions.push(`🟢 ${dateStr}: Morning 9–12 is free — ideal for deep work block`);
+    }
+  });
+  // Check for meeting-heavy days
+  weekDates.forEach(dateStr=>{
+    const count=weekEvents.filter(e=>e.dateStr===dateStr).length;
+    if(count>=4)suggestions.push(`🟡 ${dateStr} has ${count} events — consider moving one to a lighter day`);
+  });
+  if(!suggestions.length){toast('✅ Schedule looks well-optimized this week!');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Schedule Optimization</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${suggestions.length} suggestion${suggestions.length!==1?'s':''} for this week:</div>
+  <div style="max-height:300px;overflow-y:auto">${suggestions.map(s=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px">${esc(s)}</div>`).join('')}</div>
+  <button class="btn btn-p" style="margin-top:12px" onclick="closeModal()">Got it</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiMeetingPrepBrief(){
+  // Find the next upcoming event
+  const today=new Date();
+  const todayStr=today.toISOString().split('T')[0];
+  const upcoming=_calEvents.filter(e=>e.dateStr>=todayStr).sort((a,b)=>a.dateStr.localeCompare(b.dateStr)||a.hour-b.hour);
+  if(!upcoming.length){toast('No upcoming events found');return;}
+  const ev=upcoming[0];
+  // Find linked notes, tasks, contacts
+  const evTitle=(ev.title||'').toLowerCase();
+  const linkedNotes=D.notes.filter(n=>(n.title+' '+(n.body||'')).toLowerCase().includes(evTitle.split(' ')[0]));
+  const linkedTasks=D.tasks.filter(t=>t.status!=='Done'&&(t.title+' '+(t.notes||'')).toLowerCase().includes(evTitle.split(' ')[0]));
+  const linkedContacts=D.contacts?D.contacts.filter(c=>(c.name+' '+(c.company||'')).toLowerCase().split(' ').some(w=>w.length>3&&evTitle.includes(w))):[];
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📝 Meeting Prep Brief</h2>
+  <div style="background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:8px 10px;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:600">${esc(ev.title)}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${ev.dateStr} at ${ev.start||ev.hour+':00'}${ev.location?' · '+esc(ev.location):''}</div>
+    ${ev.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px">${esc(ev.desc)}</div>`:''}
+  </div>
+  ${linkedNotes.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">RELATED NOTES (${linkedNotes.length})</div>${linkedNotes.slice(0,3).map(n=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">${esc(n.title)}</div>`).join('')}</div>`:''}
+  ${linkedTasks.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">OPEN TASKS (${linkedTasks.length})</div>${linkedTasks.slice(0,3).map(t=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(t.title)} <span style="color:var(--t3)">· ${t.priority}</span></div>`).join('')}</div>`:''}
+  ${linkedContacts.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">ATTENDEES</div>${linkedContacts.slice(0,4).map(c=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(c.name)} · ${esc(c.role||c.company||'')}</div>`).join('')}</div>`:''}
+  ${!linkedNotes.length&&!linkedTasks.length&&!linkedContacts.length?'<div style="font-size:11px;color:var(--t3);padding:10px 0">No linked notes, tasks, or contacts found. Add notes or tasks mentioning this event to build a richer brief.</div>':''}
+  <div style="display:flex;gap:8px;margin-top:8px">
+  <button class="btn btn-p" onclick="closeModal()">Close</button>
+  <button class="btn btn-s" onclick="closeModal();nav('notes');setTimeout(()=>openNewNote(),200)">+ Add Note</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiExtractActions(){
+  // Look for today's journal entries and notes that mention meetings
+  const todayStr=new Date().toISOString().split('T')[0];
+  const todayJournal=D.journal.filter(j=>j.date===todayStr);
+  const todayNotes=D.notes.filter(n=>n.updatedAt&&n.updatedAt.startsWith(todayStr));
+  const allText=[...todayJournal.map(j=>j.body||''),...todayNotes.map(n=>n.body||'')].join(' ');
+  if(!allText.trim()){toast('No notes or journal entries found for today');return;}
+  // Extract action items using heuristic patterns
+  const actionPatterns=[/(?:action|todo|follow.?up|need to|will|should|must|assigned to|owner)[:\s]+([^.!?\n]{10,80})/gi,/[-•*]\s*([A-Z][^.!?\n]{10,70})/g,/(?:\d+\.\s*)([A-Z][^.!?\n]{10,70})/g];
+  const actions=new Set();
+  actionPatterns.forEach(re=>{
+    let match;
+    while((match=re.exec(allText))!==null){
+      const a=match[1].trim();
+      if(a.length>10&&a.length<100)actions.add(a);
+    }
+  });
+  const actionList=[...actions].slice(0,8);
+  if(!actionList.length){toast('No action items detected in today\'s notes');return;}
+  const dueDate=new Date();dueDate.setDate(dueDate.getDate()+1);
+  const dueDateStr=dueDate.toISOString().split('T')[0];
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✓ Extract Action Items</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Found ${actionList.length} potential action item${actionList.length!==1?'s':''} in today's notes. Select to create tasks:</div>
+  <div id="actions-list" style="max-height:260px;overflow-y:auto">${actionList.map((a,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;cursor:pointer;font-size:12px"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:2px"> ${esc(a)}</label>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="(function(){
+    const checks=document.querySelectorAll('#actions-list input:checked');
+    if(!checks.length){toast('Select at least one action');return;}
+    const titles=[...checks].map(c=>c.closest('label').textContent.trim());
+    titles.forEach(title=>{
+      D.tasks.push({id:Date.now()+Math.random(),title,priority:'Medium',due:'${dueDateStr}',status:'Not Started',context:'Admin',project:'',tags:['meeting-action'],notes:'Extracted from meeting notes',myDay:true,energy:'medium',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
+    });
+    save('tasks');closeModal();
+    toast('✓ '+titles.length+' action item'+( titles.length!==1?'s':'')+' added to Tasks!');
+  })()">Create Tasks</button>
+  <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
 }
 
 function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">Completed and archived items.</p></div>
@@ -4963,13 +5550,249 @@ function openIdeaShare(id){
   }
 }
 
+// ====== HABITS AI ======
+function aiHabitCoach(){
+  if(!D.habits.length){toast('Add some habits first');return;}
+  toast('✨ Analyzing your habits...');
+  const tips=[];
+  D.habits.forEach(h=>{
+    const streak=h.streak||0;
+    const completedDates=h.completedDates||[];
+    const total=completedDates.length;
+    const recentDays=7;
+    const recentDates=Array.from({length:recentDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
+    const recentCount=completedDates.filter(d=>recentDates.includes(d)).length;
+    const consistency=recentDays>0?Math.round(recentCount/recentDays*100):0;
+    if(streak===0&&total>0)tips.push({h,type:'warning',msg:`"${h.name}" streak broken — restart today to rebuild momentum`});
+    else if(streak>=7)tips.push({h,type:'celebrate',msg:`"${h.name}" is on a ${streak}-day streak! Consider increasing difficulty or frequency`});
+    else if(consistency<30)tips.push({h,type:'warning',msg:`"${h.name}" only ${consistency}% consistent this week — try habit stacking with an existing routine`});
+    else if(consistency>=80)tips.push({h,type:'good',msg:`"${h.name}" is ${consistency}% consistent — great work! Try adding a related habit`});
+    else tips.push({h,type:'neutral',msg:`"${h.name}" at ${consistency}% consistency — aim for 3 more completions this week`});
+  });
+  const colors={warning:'var(--warn)',celebrate:'var(--grn)',good:'var(--ac)',neutral:'var(--t3)'};
+  const icons={warning:'⚠️',celebrate:'🎉',good:'✅',neutral:'💡'};
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ AI Habit Coach</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Personalized insights for your ${D.habits.length} habit${D.habits.length!==1?'s':''}:</div>
+  <div style="max-height:320px;overflow-y:auto">${tips.map(({h,type,msg})=>`<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--s2);border-left:3px solid ${colors[type]};font-size:12px">
+    <div style="display:flex;gap:6px;align-items:flex-start"><span>${icons[type]}</span><div><strong>${esc(h.name)}</strong><br><span style="color:var(--t2)">${esc(msg)}</span></div></div>
+  </div>`).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Got it</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiHabitCorrelation(){
+  if(!D.habits.length||!D.journal.length){toast('Need both habits and journal entries for correlation');return;}
+  toast('📈 Analyzing mood-habit correlation...');
+  const moodMap={'😄':5,'😊':4,'😐':3,'😔':2,'😢':1,'😤':2,'😴':2,'🤩':5,'😌':4};
+  const journalWithMood=D.journal.filter(j=>j.mood&&moodMap[j.mood]);
+  if(journalWithMood.length<3){toast('Need at least 3 journal entries with mood to correlate');return;}
+  const correlations=D.habits.map(h=>{
+    const completedDates=h.completedDates||[];
+    let sumDone=0,countDone=0,sumNotDone=0,countNotDone=0;
+    journalWithMood.forEach(j=>{
+      const score=moodMap[j.mood];
+      if(completedDates.includes(j.date)){sumDone+=score;countDone++;}
+      else{sumNotDone+=score;countNotDone++;}
+    });
+    const avgDone=countDone?sumDone/countDone:null;
+    const avgNotDone=countNotDone?sumNotDone/countNotDone:null;
+    const diff=avgDone!==null&&avgNotDone!==null?avgDone-avgNotDone:0;
+    return{h,avgDone,avgNotDone,diff,countDone};
+  }).filter(x=>x.countDone>0).sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+  if(!correlations.length){toast('Not enough data for correlation yet');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📈 Mood-Habit Correlation</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Based on ${journalWithMood.length} journal entries with mood data:</div>
+  <div style="max-height:300px;overflow-y:auto">${correlations.map(({h,avgDone,avgNotDone,diff,countDone})=>{
+    const positive=diff>0;
+    const neutral=Math.abs(diff)<0.3;
+    const color=neutral?'var(--t3)':positive?'var(--grn)':'var(--red)';
+    const icon=neutral?'↔️':positive?'⬆️':'⬇️';
+    return`<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--s2);font-size:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>${esc(h.name)}</strong>
+        <span style="color:${color};font-weight:600">${icon} ${neutral?'No effect':positive?'+'+diff.toFixed(1)+' mood':''+diff.toFixed(1)+' mood'}</span>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px">Done days: avg mood ${avgDone?.toFixed(1)||'N/A'} · Skipped days: avg mood ${avgNotDone?.toFixed(1)||'N/A'} · ${countDone} data points</div>
+    </div>`;
+  }).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Got it</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiWellbeingReport(){
+  toast('📊 Generating wellbeing report...');
+  const today=new Date();
+  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekAgo);d.setDate(weekAgo.getDate()+i+1);return d.toISOString().split('T')[0];});
+  // Habits this week
+  const habitScore=D.habits.length?Math.round(D.habits.reduce((sum,h)=>{
+    const done=(h.completedDates||[]).filter(d=>weekDates.includes(d)).length;
+    const target=h.frequency==='Daily'?7:h.frequency==='3x/week'?3:h.frequency==='Weekly'?1:7;
+    return sum+(done/target);
+  },0)/D.habits.length*100):0;
+  // Journal mood this week
+  const moodMap={'😄':5,'😊':4,'😐':3,'😔':2,'😢':1,'😤':2,'😴':2,'🤩':5,'😌':4};
+  const weekJournal=D.journal.filter(j=>weekDates.includes(j.date));
+  const moodScores=weekJournal.filter(j=>moodMap[j.mood]).map(j=>moodMap[j.mood]);
+  const avgMood=moodScores.length?moodScores.reduce((a,b)=>a+b,0)/moodScores.length:null;
+  // Tasks completed this week
+  const weekTasksDone=D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&weekDates.some(d=>t.completedAt.startsWith(d))).length;
+  // Overall score
+  const moodPct=avgMood?Math.round((avgMood/5)*100):50;
+  const overallScore=Math.round((habitScore+moodPct)/2);
+  const grade=overallScore>=80?'Excellent':overallScore>=60?'Good':overallScore>=40?'Fair':'Needs Attention';
+  const gradeColor=overallScore>=80?'var(--grn)':overallScore>=60?'var(--ac)':overallScore>=40?'var(--warn)':'var(--red)';
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📊 Weekly Wellbeing Report</h2>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">${weekDates[0]} to ${weekDates[6]}</div>
+  <div style="text-align:center;padding:12px;background:var(--s2);border-radius:8px;margin-bottom:12px">
+    <div style="font-size:36px;font-weight:700;color:${gradeColor}">${overallScore}</div>
+    <div style="font-size:12px;font-weight:600;color:${gradeColor}">${grade}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">Overall Wellbeing Score</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+    <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--ac)">${habitScore}%</div>
+      <div style="font-size:10px;color:var(--t3)">Habit Score</div>
+    </div>
+    <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--purp)">${avgMood?avgMood.toFixed(1)+'/5':'N/A'}</div>
+      <div style="font-size:10px;color:var(--t3)">Avg Mood</div>
+    </div>
+    <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--grn)">${weekTasksDone}</div>
+      <div style="font-size:10px;color:var(--t3)">Tasks Done</div>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--t2);padding:8px 10px;background:var(--s2);border-radius:6px">
+    ${overallScore>=80?'🎉 Outstanding week! You\'re hitting your habits and maintaining a positive outlook.':overallScore>=60?'👍 Good week overall. Keep building on your habits and reflect on what\'s working.':overallScore>=40?'💡 Mixed week. Focus on your top 1-2 habits and try journaling daily to track your mood.':'⚠️ Tough week. Be kind to yourself — pick one small habit to restart and write about how you\'re feeling.'}
+  </div>
+  <button class="btn btn-p" style="margin-top:12px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+// ====== JOURNAL AI ======
+function aiJournalSentiment(){
+  if(D.journal.length<3){toast('Need at least 3 journal entries for sentiment analysis');return;}
+  toast('📈 Analyzing sentiment trends...');
+  const moodMap={'😄':5,'😊':4,'😐':3,'😔':2,'😢':1,'😤':2,'😴':2,'🤩':5,'😌':4};
+  const positiveWords=['happy','great','amazing','excited','grateful','proud','accomplished','wonderful','fantastic','love','joy','success','win','achieve','progress','motivated','inspired','energized','confident','optimistic'];
+  const negativeWords=['stressed','anxious','tired','exhausted','frustrated','overwhelmed','sad','worried','difficult','hard','struggle','fail','stuck','lost','confused','angry','upset','disappointed','behind','behind'];
+  const entries=D.journal.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-14);
+  const scored=entries.map(j=>{
+    const text=(j.body||'').toLowerCase();
+    const posCount=positiveWords.filter(w=>text.includes(w)).length;
+    const negCount=negativeWords.filter(w=>text.includes(w)).length;
+    const moodScore=moodMap[j.mood]||3;
+    const textScore=3+(posCount-negCount)*0.3;
+    const combined=Math.min(5,Math.max(1,(moodScore+textScore)/2));
+    return{date:j.date,score:combined,mood:j.mood,title:j.title};
+  });
+  const avg=scored.reduce((s,x)=>s+x.score,0)/scored.length;
+  const trend=scored.length>1?scored[scored.length-1].score-scored[0].score:0;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📈 Sentiment Trend</h2>
+  <div style="display:flex;gap:12px;margin-bottom:12px">
+    <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:var(--ac)">${avg.toFixed(1)}/5</div>
+      <div style="font-size:10px;color:var(--t3)">Avg Sentiment</div>
+    </div>
+    <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
+      <div style="font-size:20px;font-weight:700;color:${trend>0?'var(--grn)':trend<0?'var(--red)':'var(--t3)'}">${trend>0?'⬆':trend<0?'⬇':'↔'} ${Math.abs(trend).toFixed(1)}</div>
+      <div style="font-size:10px;color:var(--t3)">Trend (last 14 days)</div>
+    </div>
+  </div>
+  <div style="max-height:220px;overflow-y:auto">${scored.map(s=>{
+    const bar=Math.round(s.score/5*80);
+    const color=s.score>=4?'var(--grn)':s.score>=3?'var(--ac)':s.score>=2?'var(--warn)':'var(--red)';
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">${s.date.slice(5)}</div>
+      <div style="flex:1;background:var(--s3);border-radius:3px;height:12px;overflow:hidden"><div style="width:${bar}%;height:100%;background:${color};border-radius:3px"></div></div>
+      <div style="font-size:12px;width:20px">${s.mood||''}</div>
+    </div>`;
+  }).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiJournalThemes(){
+  if(D.journal.length<2){toast('Need at least 2 journal entries for theme detection');return;}
+  toast('🔍 Detecting themes...');
+  const allText=D.journal.map(j=>(j.title+' '+(j.body||'')).toLowerCase()).join(' ');
+  const themePatterns=[
+    {name:'Work & Career',words:['work','project','meeting','deadline','client','team','boss','job','career','office','task','goal','productivity']},
+    {name:'Health & Fitness',words:['exercise','gym','run','sleep','tired','energy','health','diet','food','water','workout','body','weight']},
+    {name:'Relationships',words:['friend','family','partner','love','relationship','social','people','talk','conversation','together','support']},
+    {name:'Learning & Growth',words:['learn','read','book','course','skill','improve','study','knowledge','understand','practice','develop']},
+    {name:'Finance & Money',words:['money','budget','spend','save','invest','cost','price','financial','income','expense','salary']},
+    {name:'Stress & Anxiety',words:['stress','anxious','worry','overwhelm','pressure','nervous','fear','doubt','uncertain','difficult']},
+    {name:'Gratitude & Joy',words:['grateful','thankful','happy','joy','appreciate','blessed','wonderful','amazing','love','enjoy','celebrate']},
+    {name:'Planning & Goals',words:['plan','goal','future','next','week','month','year','strategy','focus','priority','achieve','accomplish']},
+  ];
+  const scored=themePatterns.map(theme=>{
+    const count=theme.words.reduce((sum,w)=>{
+      const re=new RegExp('\\b'+w,'g');
+      return sum+(allText.match(re)||[]).length;
+    },0);
+    return{...theme,count};
+  }).filter(t=>t.count>0).sort((a,b)=>b.count-a.count);
+  if(!scored.length){toast('No clear themes detected');return;}
+  const maxCount=scored[0].count;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔍 Recurring Themes</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Across ${D.journal.length} journal entries:</div>
+  <div style="max-height:300px;overflow-y:auto">${scored.map((t,i)=>{
+    const pct=Math.round(t.count/maxCount*100);
+    const colors=['var(--ac)','var(--purp)','var(--grn)','var(--warn)','var(--red)'];
+    const color=colors[i%colors.length];
+    return`<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:12px;font-weight:500">${t.name}</span>
+        <span style="font-size:10px;color:var(--t3)">${t.count} mentions</span>
+      </div>
+      <div style="background:var(--s3);border-radius:3px;height:8px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
+    </div>`;
+  }).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiJournalPrompt(){
+  const prompts=[
+    'What is one thing you accomplished today that you are proud of, and what made it possible?',
+    'Describe a challenge you are currently facing. What is one small step you could take tomorrow to move forward?',
+    'Who has positively impacted your life recently? How could you express gratitude to them?',
+    'What is draining your energy right now? What would it feel like to let it go?',
+    'If your future self looked back on this week, what advice would they give you?',
+    'What is one habit or behaviour you want to change? What triggers it, and what could replace it?',
+    'Describe your ideal day one year from now. What needs to happen for that to be your reality?',
+    'What are you avoiding that you know you should address? What is the first step?',
+    'What are three things you are grateful for today, and why do they matter?',
+    'What did you learn this week — about yourself, others, or your work?',
+    'Where are you spending your time vs. where you want to be spending it?',
+    'What would you do if you knew you could not fail?',
+  ];
+  const prompt=prompts[Math.floor(Math.random()*prompts.length)];
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✏ Guided Journal Prompt</h2>
+  <div style="background:var(--acs);border:1px solid var(--ac);border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px;line-height:1.6;font-style:italic">“${esc(prompt)}”</div>
+  <div style="display:flex;gap:8px">
+  <button class="btn btn-p" onclick="closeModal();openFA('journal');setTimeout(()=>{const el=document.querySelector('#capture-modal .inp[placeholder*=\'Title\']');if(el)el.value='Reflection';},200)">Write Now</button>
+  <button class="btn btn-s" onclick="(function(){const prompts=${JSON.stringify(prompts)};const p=prompts[Math.floor(Math.random()*prompts.length)];document.querySelector('#modal-content blockquote,#modal-content div[style*=italic]').textContent=p;})()">New Prompt</button>
+  <button class="btn btn-s" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
   const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
   const done=visibleHabits.filter(h=>h.doneToday).length;
   const total=visibleHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiHabitCoach()" title="AI: Personalized habit coaching">✨ Coach</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiHabitCorrelation()" title="AI: Mood-habit correlation">📈 Correlate</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiWellbeingReport()" title="AI: Weekly wellbeing report">📊 Report</button><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
@@ -5825,6 +6648,150 @@ function exportNotePDF(id){
   },400);
   toast('📄 PDF print dialog opened for: '+n.title);
 }
+// ====== NOTES AI (extended) ======
+function aiConceptLink(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  const body=(n.body||'').toLowerCase();
+  if(body.length<30){toast('Note too short for concept linking');return;}
+  toast('🔗 Finding concept links...');
+  // Find notes that share significant keywords
+  const words=body.replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>4);
+  const freq={};
+  words.forEach(w=>{freq[w]=(freq[w]||0)+1;});
+  const stopWords=new Set(['about','after','again','being','could','doing','every','first','found','given','going','great','group','having','helps','large','later','learn','light','local','might','never','often','other','place','right','small','still','their','there','these','think','those','three','under','until','using','where','which','while','would','write','years','your']);
+  const topWords=Object.entries(freq).filter(([w])=>!stopWords.has(w)).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([w])=>w);
+  const linked=D.notes.filter(note=>{
+    if(note.id===id)return false;
+    const noteText=(note.title+' '+(note.body||'')).toLowerCase();
+    const matches=topWords.filter(w=>noteText.includes(w)).length;
+    return matches>=2;
+  }).map(note=>{
+    const noteText=(note.title+' '+(note.body||'')).toLowerCase();
+    const matches=topWords.filter(w=>noteText.includes(w)).length;
+    return{note,matches};
+  }).sort((a,b)=>b.matches-a.matches).slice(0,6);
+  if(!linked.length){toast('✅ No strong concept links found in other notes');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔗 Concept Links</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Notes sharing concepts with <strong>${esc(n.title)}</strong>:</div>
+  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Shared keywords: ${topWords.slice(0,5).map(w=>`<span style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;margin-right:3px">${w}</span>`).join('')}</div>
+  <div style="max-height:280px;overflow-y:auto">${linked.map(({note,matches})=>`<div style="padding:8px;margin-bottom:5px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${note.id})">
+    <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(note.title)}</div>
+    <div style="font-size:10px;color:var(--t3)">${matches} shared concept${matches!==1?'s':''} · ${(note.tags||[]).map(t=>'#'+t).join(' ')}</div>
+  </div>`).join('')}</div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+  <button class="btn btn-p" onclick="closeModal()">Close</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiGapDetect(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  const body=(n.body||'').trim();
+  if(body.length<50){toast('Note too short for gap detection');return;}
+  toast('🔍 Detecting knowledge gaps...');
+  // Identify questions and incomplete sections
+  const sentences=body.split(/[.!?\n]+/).map(s=>s.trim()).filter(s=>s.length>10);
+  const gaps=[];
+  // Look for placeholder markers
+  const placeholderPatterns=[/\[.*?\]/g,/TODO[:\s]/i,/TBD/i,/\?\?\?/,/FIXME/i,/\.\.\./];
+  placeholderPatterns.forEach(re=>{
+    if(re.test(body))gaps.push('Contains placeholder or incomplete section: '+re.source);
+  });
+  // Look for unanswered questions in the note itself
+  const questions=sentences.filter(s=>s.trim().endsWith('?')).slice(0,4);
+  if(questions.length)gaps.push(...questions.map(q=>'Unanswered question: '+q));
+  // Check for thin sections (very short paragraphs)
+  const paras=body.split(/\n{2,}/).filter(p=>p.trim().length>0);
+  const thinParas=paras.filter(p=>p.trim().split(/\s+/).length<8);
+  if(thinParas.length>0)gaps.push(`${thinParas.length} section${thinParas.length!==1?'s':''} appear thin (under 8 words) — consider expanding`);
+  // Check for missing common sections based on note type
+  const lower=body.toLowerCase();
+  if((lower.includes('project')||lower.includes('plan'))&&!lower.includes('deadline')&&!lower.includes('due'))gaps.push('Missing: deadline or due date');
+  if((lower.includes('meeting')||lower.includes('discussion'))&&!lower.includes('action'))gaps.push('Missing: action items from meeting');
+  if(lower.includes('research')&&!lower.includes('source')&&!lower.includes('reference'))gaps.push('Missing: sources or references');
+  if(!gaps.length){toast('✅ Note appears complete — no obvious gaps detected!');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔍 Knowledge Gap Report</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Potential gaps in <strong>${esc(n.title)}</strong>:</div>
+  <div style="max-height:280px;overflow-y:auto">${gaps.map((g,i)=>`<div style="padding:7px 10px;margin-bottom:5px;border-radius:6px;background:var(--s2);font-size:12px;display:flex;gap:8px"><span style="color:var(--red);font-weight:700;flex-shrink:0">${i+1}.</span><span>${esc(g)}</span></div>`).join('')}</div>
+  <button class="btn btn-p" style="margin-top:12px" onclick="closeModal()">Got it</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiNoteQA(){
+  const question=prompt('Ask a question about your notes:\n\nExamples:\n• What did I decide about pricing?\n• What are my goals for Q3?\n• What did I write about the Acme deal?');
+  if(!question||!question.trim())return;
+  toast('🤔 Searching your notes...');
+  const q=question.toLowerCase();
+  const qWords=q.replace(/[^a-z0-9\s]/g,' ').split(/\s+/).filter(w=>w.length>3);
+  // Score all notes by relevance to the question
+  const scored=D.notes.map(n=>{
+    const text=(n.title+' '+(n.body||'')+' '+(n.tags||[]).join(' ')).toLowerCase();
+    const matches=qWords.filter(w=>text.includes(w)).length;
+    // Find the most relevant sentence
+    const sentences=(n.body||'').split(/[.!?\n]+/).map(s=>s.trim()).filter(s=>s.length>15);
+    const bestSentence=sentences.find(s=>qWords.some(w=>s.toLowerCase().includes(w)))||sentences[0]||'';
+    return{n,matches,bestSentence};
+  }).filter(x=>x.matches>0).sort((a,b)=>b.matches-a.matches).slice(0,5);
+  if(!scored.length){toast('No matching notes found for that question');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🤔 Q&A Over Your Notes</h2>
+  <div style="background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;font-style:italic">“${esc(question)}”</div>
+  <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:8px">MOST RELEVANT NOTES (${scored.length}):</div>
+  <div style="max-height:280px;overflow-y:auto">${scored.map(({n,matches,bestSentence})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">
+    <div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(n.title)} <span style="font-size:9px;color:var(--t3);font-weight:400">${matches} match${matches!==1?'es':''}</span></div>
+    ${bestSentence?`<div style="font-size:11px;color:var(--t2);line-height:1.5">“${esc(bestSentence.slice(0,120))}${bestSentence.length>120?'…':''}”</div>`:''}
+  </div>`).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiExpandToDoc(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  const body=(n.body||'').trim();
+  if(body.length<20){toast('Note too short to expand');return;}
+  toast('📄 Expanding note to document...');
+  const title=n.title||'Untitled';
+  const sentences=body.split(/[.!?\n]+/).map(s=>s.trim()).filter(s=>s.length>10);
+  const lower=body.toLowerCase();
+  // Determine document type
+  let docType='Report';
+  if(lower.includes('meeting')||lower.includes('agenda'))docType='Meeting Notes';
+  else if(lower.includes('plan')||lower.includes('strategy'))docType='Strategic Plan';
+  else if(lower.includes('proposal')||lower.includes('pitch'))docType='Proposal';
+  else if(lower.includes('research')||lower.includes('analysis'))docType='Research Brief';
+  // Build expanded document
+  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  let expanded=`# ${title}\n\n`;
+  expanded+=`**Document Type:** ${docType}  \n**Date:** ${today}  \n**Author:** ${D.creds.userName||'Idris Grant'}\n\n---\n\n`;
+  expanded+=`## Executive Summary\n\n${sentences.slice(0,2).join('. ')}.\n\n`;
+  expanded+=`## Background\n\n${sentences.slice(2,5).join('. ')}.\n\n`;
+  if(sentences.length>5){
+    expanded+=`## Key Points\n\n${sentences.slice(5,9).map(s=>`- ${s}`).join('\n')}\n\n`;
+  }
+  expanded+=`## Next Steps\n\n- [ ] Review and validate key findings\n- [ ] Share with relevant stakeholders\n- [ ] Schedule follow-up discussion\n\n`;
+  expanded+=`---\n\n*Generated from note: ${title}*`;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📄 Expanded Document</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Type: ${docType} · ${sentences.length} sentences expanded</div>
+  <textarea id="expand-doc-body" class="inp" style="height:260px;font-size:11px;font-family:monospace;resize:vertical">${expanded}</textarea>
+  <div style="display:flex;gap:8px;margin-top:10px">
+  <button class="btn btn-p" onclick="(function(){
+    const content=document.getElementById('expand-doc-body').value;
+    D.notes.push({id:Date.now(),title:'[Doc] '+${JSON.stringify(title)},body:content,tags:[...(${JSON.stringify(n.tags||[])}||[]),'ai-expanded'],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),pinned:false});
+    save('notes');renderNotes();closeModal();
+    toast('✓ Expanded document saved as new note!');
+  })()">Save as New Note</button>
+  <button class="btn btn-s" onclick="navigator.clipboard.writeText(document.getElementById('expand-doc-body').value).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">Copy</button>
+  <button class="btn btn-s" onclick="closeModal()">Discard</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 function aiSummarizeNote(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
@@ -5951,18 +6918,97 @@ function openJournalPrompt(title, promptText){
   },60);
 }
 
-// ====== GLOBAL SEARCH ======
+// ====== GLOBAL SEARCH & SEMANTIC SEARCH ======
 let searchIdx=0;
 function buildSearchIndex(){
   const items=[];
-  D.tasks.forEach(t=>items.push({type:'Task',icon:'☑',label:t.title,meta:t.due+' · '+t.priority,action:()=>{nav('tasks');setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===t.id)),120)}}));
-  D.notes.forEach(n=>items.push({type:'Note',icon:'📝',label:n.title,meta:(n.tags||[]).map(t=>'#'+t).join(' ')||n.source,action:()=>{nav('notes');setTimeout(()=>openDrawer('note',D.notes.find(x=>x.id===n.id)),120)}}));
-  D.projects.forEach(p=>items.push({type:'Project',icon:'📁',label:p.name,meta:p.status+' · '+p.pct+'%',action:()=>{nav('projects');setTimeout(()=>openDrawer('project',D.projects.find(x=>x.id===p.id)),120)}}));
-  D.goals.forEach(g=>items.push({type:'Goal',icon:g.icon,label:g.title,meta:g.pct+'%',action:()=>nav('goals')}));
-  D.journal.forEach(j=>items.push({type:'Journal',icon:'✏️',label:j.title,meta:j.date,action:()=>{nav('journal');setTimeout(()=>openDrawer('journal',D.journal.find(x=>x.id===j.id)),120)}}));
-  D.habits.forEach(h=>items.push({type:'Habit',icon:h.icon,label:h.title,meta:h.cadence+' · '+h.streak+'d streak',action:()=>nav('habits')}));
-  [['Home','🏠','home'],['My Day','☀️','myday'],['My Week','📅','myweek'],['Tasks','☑','tasks'],['Notes','📝','notes'],['Projects','📁','projects'],['Goals','🎯','goals'],['Journal','✏️','journal'],['Habits','✅','habits'],['Coach','⚡','coach'],['Settings','⚙️','settings'],['Archive','🗄','archive']].forEach(([label,icon,screen])=>items.push({type:'Nav',icon,label:'Go to '+label,meta:'',action:()=>nav(screen)}));
+  D.tasks.forEach(t=>items.push({type:'Task',icon:'☑',label:t.title,meta:t.due+' · '+t.priority,tags:(t.tags||[]).join(' '),body:t.notes||'',action:()=>{nav('tasks');setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===t.id)),120)}}));
+  D.notes.forEach(n=>items.push({type:'Note',icon:'📝',label:n.title,meta:(n.tags||[]).map(t=>'#'+t).join(' ')||n.source,tags:(n.tags||[]).join(' '),body:n.body||'',action:()=>{nav('notes');setTimeout(()=>openDrawer('note',D.notes.find(x=>x.id===n.id)),120)}}));
+  D.projects.forEach(p=>items.push({type:'Project',icon:'📁',label:p.name,meta:p.status+' · '+p.pct+'%',tags:'',body:p.desc||'',action:()=>{nav('projects');setTimeout(()=>openDrawer('project',D.projects.find(x=>x.id===p.id)),120)}}));
+  D.goals.forEach(g=>items.push({type:'Goal',icon:g.icon||'🎯',label:g.title,meta:g.pct+'%',tags:'',body:g.desc||'',action:()=>nav('goals')}));
+  D.journal.forEach(j=>items.push({type:'Journal',icon:'✏️',label:j.title,meta:j.date,tags:'',body:j.body||'',action:()=>{nav('journal');setTimeout(()=>openDrawer('journal',D.journal.find(x=>x.id===j.id)),120)}}));
+  D.habits.forEach(h=>items.push({type:'Habit',icon:h.icon||'✅',label:h.name||h.title,meta:(h.cadence||h.frequency||'')+' · '+(h.streak||0)+'d streak',tags:'',body:'',action:()=>nav('habits')}));
+  (D.contacts||[]).forEach(c=>items.push({type:'Contact',icon:'👤',label:c.name,meta:(c.role||c.title||'')+' · '+(c.company||''),tags:(c.tags||[]).join(' '),body:c.notes||'',action:()=>{nav('contacts');setTimeout(()=>openContactDetail(c.id),120)}}));
+  (D.mail||[]).forEach(m=>items.push({type:'Mail',icon:'✉️',label:m.subject||'(no subject)',meta:m.from+' · '+m.date,tags:'',body:m.body||'',action:()=>{nav('mail');setTimeout(()=>openMailItem&&openMailItem(m.id),120)}}));
+  (_calEvents||[]).forEach(ev=>items.push({type:'Event',icon:'📅',label:ev.title,meta:ev.dateStr+' '+ev.start,tags:'',body:ev.location||ev.desc||'',action:()=>{nav('calendar');}}));
+  (D.ideas||[]).forEach(i=>items.push({type:'Idea',icon:'💡',label:i.title,meta:i.status||'',tags:(i.tags||[]).join(' '),body:i.body||'',action:()=>{nav('ideas');setTimeout(()=>openIdeaDetail&&openIdeaDetail(i.id),120)}}));
+  [['Home','🏠','home'],['My Day','☀️','myday'],['My Week','📅','myweek'],['Tasks','☑','tasks'],['Notes','📝','notes'],['Projects','📁','projects'],['Goals','🎯','goals'],['Journal','✏️','journal'],['Habits','✅','habits'],['Contacts','👤','contacts'],['Mail','✉️','mail'],['Calendar','📅','calendar'],['Coach','⚡','coach'],['Settings','⚙️','settings'],['Archive','🗄','archive']].forEach(([label,icon,screen])=>items.push({type:'Nav',icon,label:'Go to '+label,meta:'',tags:'',body:'',action:()=>nav(screen)}));
   return items;
+}
+
+// Semantic search: score items by concept overlap
+function semanticScore(item, tokens){
+  const text=(item.label+' '+(item.meta||'')+' '+(item.tags||'')+' '+(item.body||'')).toLowerCase();
+  let score=0;
+  tokens.forEach(tok=>{
+    if(item.label.toLowerCase().includes(tok))score+=3;
+    else if((item.meta||'').toLowerCase().includes(tok))score+=2;
+    else if((item.tags||'').toLowerCase().includes(tok))score+=2;
+    else if(text.includes(tok))score+=1;
+  });
+  return score;
+}
+
+// Synonym/concept expansion map for semantic search
+const SEARCH_CONCEPTS={
+  meeting:['calendar','event','schedule','appointment'],
+  task:['todo','action','work','do'],
+  note:['notes','document','write','written'],
+  contact:['person','people','colleague','client','customer'],
+  goal:['objective','target','aim','okr'],
+  habit:['routine','daily','streak','practice'],
+  journal:['diary','reflection','entry','mood'],
+  project:['initiative','programme','program','effort'],
+  email:['mail','message','inbox','sent'],
+  idea:['brainstorm','concept','thought','inspiration'],
+};
+
+function expandQuery(q){
+  const tokens=q.toLowerCase().split(/\s+/).filter(t=>t.length>1);
+  const expanded=[...tokens];
+  tokens.forEach(tok=>{
+    Object.entries(SEARCH_CONCEPTS).forEach(([key,synonyms])=>{
+      if(key.includes(tok)||tok.includes(key))expanded.push(...synonyms);
+      synonyms.forEach(s=>{if(s.includes(tok)||tok.includes(s))expanded.push(key,...synonyms);});
+    });
+  });
+  return [...new Set(expanded)];
+}
+
+// Cross-module insights: find everything related to a query
+// Stores pending actions for insight rows (keyed by temp index)
+let _insightActions=[];
+function aiCrossModuleInsight(q){
+  if(!q.trim()){toast('Type a search query first');return;}
+  const tokens=expandQuery(q);
+  const allItems=getSearchItems();
+  const nonNav=allItems.map((it,i)=>({it,i})).filter(({it})=>it.type!=='Nav');
+  const scored=nonNav
+    .map(({it,i})=>({it,i,score:semanticScore(it,tokens)}))
+    .filter(x=>x.score>0)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,20);
+  if(!scored.length){toast('No related items found for "'+q+'"');return;}
+  _insightActions=scored.map(x=>x.i); // store original indices
+  const groups={};
+  scored.forEach((x,pos)=>{if(!groups[x.it.type])groups[x.it.type]=[];groups[x.it.type].push({it:x.it,pos,score:x.score});});
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:4px">🔍 Everything about "${esc(q)}"</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${scored.length} related items across ${Object.keys(groups).length} module${Object.keys(groups).length!==1?'s':''}:</div>
+  <div style="max-height:360px;overflow-y:auto">${Object.entries(groups).map(([type,rows])=>`
+    <div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.05em;margin-bottom:4px">${type.toUpperCase()}S (${rows.length})</div>
+      ${rows.map(({it,pos,score})=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;background:var(--s2);margin-bottom:3px;cursor:pointer" data-insight-pos="${pos}" onclick="closeModal();execSearch(_insightActions[${pos}])" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='var(--s2)'">
+        <span style="font-size:14px">${it.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.label)}</div>
+          ${it.meta?`<div style="font-size:10px;color:var(--t3)">${esc(it.meta)}</div>`:''}
+        </div>
+        <div style="font-size:9px;color:var(--ac);font-weight:600;flex-shrink:0">${score}pts</div>
+      </div>`).join('')}
+    </div>`).join('')}</div>
+  <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
 }
 let _searchItems=null;
 function getSearchItems(){if(!_searchItems)_searchItems=buildSearchIndex();return _searchItems;}
@@ -5972,20 +7018,37 @@ function onSearchInput(q){
   q=q.trim();
   if(!q){drop.classList.remove('show');searchIdx=0;return;}
   const items=getSearchItems();
+  const tokens=expandQuery(q);
+  // Semantic scoring: annotate original items with score, preserving index reference
+  const scored=items
+    .map((it,i)=>({item:it,idx:i,score:semanticScore(it,tokens)}))
+    .filter(x=>x.score>0)
+    .sort((a,b)=>b.score-a.score)
+    .slice(0,14);
+  // Fallback to substring match if semantic returns nothing
   const ql=q.toLowerCase();
-  const matches=items.filter(it=>it.label.toLowerCase().includes(ql)||(it.meta||'').toLowerCase().includes(ql)||(it.type||'').toLowerCase().includes(ql)).slice(0,12);
-  if(!matches.length){drop.innerHTML=`<div class="sd-empty">No results for “${esc(q)}”</div><div class="sd-hint"><span>Press <kbd>Esc</kbd> to close</span></div>`;drop.classList.add('show');return;}
+  const matches=scored.length
+    ?scored
+    :items.map((it,i)=>({item:it,idx:i,score:0})).filter(x=>x.item.label.toLowerCase().includes(ql)||(x.item.meta||'').toLowerCase().includes(ql)).slice(0,12);
+  if(!matches.length){
+    drop.innerHTML=`<div class="sd-empty">No results for "${esc(q)}"</div><div class="sd-hint"><span>Press <kbd>Esc</kbd> to close</span></div>`;
+    drop.classList.add('show');return;
+  }
   const groups={};
-  matches.forEach(m=>{if(!groups[m.type])groups[m.type]=[];groups[m.type].push(m);});
+  matches.forEach(({item,idx})=>{if(!groups[item.type])groups[item.type]=[];groups[item.type].push({item,idx});});
   let html='';
   Object.entries(groups).forEach(([type,rows])=>{
     html+=`<div class="sd-sec">${type}s</div>`;
-    rows.forEach(row=>{
-      const idx=items.indexOf(row);
-      html+=`<div class="sd-row" onclick="execSearch(${idx})"><span class="sd-icon">${row.icon}</span><span class="sd-label">${esc(row.label)}</span>${row.meta?`<span class="sd-meta">${esc(row.meta)}</span>`:''}</div>`;
+    rows.forEach(({item,idx})=>{
+      html+=`<div class="sd-row" onclick="execSearch(${idx})"><span class="sd-icon">${item.icon}</span><span class="sd-label">${esc(item.label)}</span>${item.meta?`<span class="sd-meta">${esc(item.meta)}</span>`:''}</div>`;
     });
   });
-  html+=`<div class="sd-hint"><span><kbd>↑↓</kbd> navigate</span><span><kbd>Enter</kbd> open</span><span><kbd>Esc</kbd> close</span></div>`;
+  // Cross-module insights button
+  const qEsc=q.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  html+=`<div class="sd-hint" style="border-top:1px solid var(--bd2);padding-top:6px;margin-top:4px;display:flex;justify-content:space-between;align-items:center">`+
+    `<span><kbd>↑↓</kbd> navigate &nbsp; <kbd>Enter</kbd> open &nbsp; <kbd>Esc</kbd> close</span>`+
+    `<button class="btn btn-s" style="font-size:9px;height:20px;padding:0 6px;color:var(--ac)" onclick="closeSearch();aiCrossModuleInsight('${qEsc}')">🔍 All related</button>`+
+    `</div>`;
   drop.innerHTML=html;
   drop.classList.add('show');
   searchIdx=0;
@@ -7267,6 +8330,129 @@ function doFASave(addAnother){
   },200);
 }
 
+// ====== CONTACTS AI ======
+function aiContactHealth(){
+  const contacts=D.contacts||[];
+  if(!contacts.length){toast('No contacts yet');return;}
+  const today=new Date();
+  const scored=contacts.map(c=>{
+    const linkedTasks=D.tasks.filter(t=>(t.tags||[]).includes('contact:'+((c.name||'').toLowerCase().replace(/\s+/g,'-'))));
+    const doneTasks=linkedTasks.filter(t=>t.status==='Done').length;
+    const openTasks=linkedTasks.filter(t=>t.status!=='Done').length;
+    // Days since last contact (use completedAt of most recent done task)
+    const lastDates=linkedTasks.filter(t=>t.completedAt).map(t=>new Date(t.completedAt)).sort((a,b)=>b-a);
+    const daysSince=lastDates.length?Math.floor((today-lastDates[0])/(1000*60*60*24)):999;
+    // Health score: recent contact + task completion rate
+    const recencyScore=daysSince<7?100:daysSince<14?80:daysSince<30?60:daysSince<60?40:daysSince<90?20:0;
+    const taskScore=linkedTasks.length?Math.round(doneTasks/linkedTasks.length*100):50;
+    const health=Math.round((recencyScore*0.6+taskScore*0.4));
+    return{c,health,daysSince,doneTasks,openTasks,linkedTasks:linkedTasks.length};
+  }).sort((a,b)=>a.health-b.health);
+  const getColor=h=>h>=70?'var(--grn)':h>=40?'var(--warn)':'var(--red)';
+  const getLabel=h=>h>=70?'Strong':h>=40?'Needs Attention':'At Risk';
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">❤ Relationship Health</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Scored by recency of contact + task completion rate:</div>
+  <div style="max-height:340px;overflow-y:auto">${scored.map(({c,health,daysSince,linkedTasks,openTasks})=>{
+    const color=getColor(health);
+    const label=getLabel(health);
+    return`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:4px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();openContactDetail(${c.id})">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--ac);flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
+        <div style="font-size:10px;color:var(--t3)">${daysSince===999?'Never contacted':daysSince===0?'Contacted today':'Last contact '+daysSince+'d ago'} · ${linkedTasks} task${linkedTasks!==1?'s':''}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:16px;font-weight:700;color:${color}">${health}</div>
+        <div style="font-size:9px;color:${color}">${label}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>
+  <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiContactConversation(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c)return;
+  const linkedTasks=D.tasks.filter(t=>(t.tags||[]).includes('contact:'+((c.name||'').toLowerCase().replace(/\s+/g,'-'))));
+  const recentTask=linkedTasks.filter(t=>t.status==='Done').sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''))[0];
+  const role=c.role||c.title||'professional';
+  const company=c.company||'their company';
+  const starters=[
+    `How has ${company} been navigating the current market conditions?`,
+    `What\'s the biggest challenge your team is working through right now?`,
+    `I\'ve been thinking about ${role.toLowerCase().includes('ceo')||role.toLowerCase().includes('founder')?'scaling and growth':'your industry'} lately — what\'s your take on where things are heading?`,
+    recentTask?`Last time we connected, we discussed "${recentTask.title}" — how did that turn out?`:`It\'s been a while — what\'s been keeping you busy lately?`,
+    `What\'s one thing you wish more people understood about what you do at ${company}?`,
+    c.notes?`I noticed you mentioned ${c.notes.split(' ').slice(0,5).join(' ')}... how did that develop?`:`What projects are you most excited about right now?`,
+    `How are you thinking about ${new Date().getFullYear()+1} planning — any big shifts in direction?`,
+    `Who else in your network do you think I should be talking to about this space?`,
+  ].filter(Boolean);
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:4px">💬 Conversation Starters</h2>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">For your next interaction with <strong>${esc(c.name)}</strong> (${esc(role)} at ${esc(company)}):</div>
+  <div style="max-height:300px;overflow-y:auto">${starters.map((s,i)=>`<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--s2);font-size:12px;line-height:1.5;cursor:pointer;border:1px solid transparent" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='transparent'" onclick="navigator.clipboard&&navigator.clipboard.writeText('${s.replace(/'/g,"\\'").replace(/"/g,'&quot;')}');toast('📋 Copied to clipboard')">
+    <span style="color:var(--t3);font-size:10px;margin-right:6px">${i+1}.</span>${esc(s)}
+  </div>`).join('')}</div>
+  <div style="font-size:10px;color:var(--t3);margin-top:8px">📋 Click any starter to copy to clipboard</div>
+  <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+function aiContactDuplicates(){
+  const contacts=D.contacts||[];
+  if(contacts.length<2){toast('Need at least 2 contacts to detect duplicates');return;}
+  const dupes=[];
+  const normalize=s=>(s||'').toLowerCase().trim().replace(/[^a-z0-9]/g,'');
+  for(let i=0;i<contacts.length;i++){
+    for(let j=i+1;j<contacts.length;j++){
+      const a=contacts[i],b=contacts[j];
+      const nameA=normalize(a.name),nameB=normalize(b.name);
+      const emailA=normalize(a.email),emailB=normalize(b.email);
+      // Exact email match
+      if(emailA&&emailA===emailB){dupes.push({a,b,reason:'Same email address',confidence:'High'});continue;}
+      // Same name
+      if(nameA&&nameA===nameB){dupes.push({a,b,reason:'Identical name',confidence:'High'});continue;}
+      // Similar name (one is substring of other)
+      if(nameA.length>3&&nameB.length>3&&(nameA.includes(nameB)||nameB.includes(nameA))){dupes.push({a,b,reason:'Similar name',confidence:'Medium'});continue;}
+      // Same company + similar role
+      const compA=normalize(a.company),compB=normalize(b.company);
+      const roleA=normalize(a.role||a.title||''),roleB=normalize(b.role||b.title||'');
+      if(compA&&compA===compB&&roleA&&roleA===roleB){dupes.push({a,b,reason:'Same company & role',confidence:'Medium'});}
+    }
+  }
+  const m=document.getElementById('modal-content');
+  if(!dupes.length){
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔍 Duplicate Detection</h2><div style="padding:20px;text-align:center;color:var(--grn);font-size:13px">✅ No duplicates found across ${contacts.length} contacts!</div><button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  } else {
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔍 Duplicate Detection</h2>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Found ${dupes.length} potential duplicate pair${dupes.length!==1?'s':''}:</div>
+    <div style="max-height:320px;overflow-y:auto">${dupes.map(({a,b,reason,confidence})=>{
+      const confColor=confidence==='High'?'var(--red)':'var(--warn)';
+      return`<div style="padding:10px;margin-bottom:8px;border-radius:6px;background:var(--s2);font-size:12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-weight:600">${esc(reason)}</span>
+          <span style="font-size:10px;color:${confColor};font-weight:600">${confidence} confidence</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;padding:6px;background:var(--s3);border-radius:4px;cursor:pointer" onclick="closeModal();openContactDetail(${a.id})">
+            <div style="font-weight:500">${esc(a.name)}</div>
+            <div style="font-size:10px;color:var(--t3)">${esc(a.email||'')} · ${esc(a.company||'')}</div>
+          </div>
+          <div style="flex:1;padding:6px;background:var(--s3);border-radius:4px;cursor:pointer" onclick="closeModal();openContactDetail(${b.id})">
+            <div style="font-weight:500">${esc(b.name)}</div>
+            <div style="font-size:10px;color:var(--t3)">${esc(b.email||'')} · ${esc(b.company||'')}</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-top:4px">Click a card to open and manually merge or delete</div>
+      </div>`;
+    }).join('')}</div>
+    <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
+  }
+  document.getElementById('modal-capture').classList.add('show');
+}
+
 // ====== CONTACTS & CLODURA ENRICHMENT ======
 let _contactSearch='',_contactTagFilter='',_contactSelected=new Set();
 function renderContacts(){
@@ -7293,6 +8479,8 @@ function renderContacts(){
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="openAddContactModal()">+ Add Contact</button>
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="importContactsCSV()">📥 Import CSV</button>
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="exportContactsCSV()">📤 Export CSV</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="aiContactHealth()" title="AI: Relationship health scores">❤ Health</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--purp)" onclick="aiContactDuplicates()" title="AI: Detect duplicate contacts">🔍 Dupes</button>
       <button class="btn btn-p" style="height:30px;font-size:11px;${!hasKey?'opacity:.5;cursor:not-allowed':''}"
         onclick="${hasKey?'enrichAllContacts()':"toast('⚠️ Add your Clodura API key in Settings → Integrations first')"}">
         🔍 Enrich All via Clodura
@@ -7596,6 +8784,7 @@ function openContactDetail(id){
       onclick="${hasKey?`closeDrawer();enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}">
       🔍 Enrich via Clodura
     </button>
+    <button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiContactConversation(${c.id})">💬 Starters</button>
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="closeDrawer()">Close</button>
     <button class="btn btn-d" style="height:28px;font-size:10px" onclick="deleteContact(${c.id});closeDrawer()">🗑 Delete</button>
   </div>`;
