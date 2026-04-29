@@ -7519,6 +7519,7 @@ function openContactDetail(id){
   ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
   ${c.enrichedAt?`<div style="font-size:9px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <button class="btn btn-p" style="height:28px;font-size:10px" onclick="createTaskFromContact(${c.id})">📋 Create Task</button>
     <button class="btn btn-p" style="height:28px;font-size:10px" onclick="openEditContactModal(${c.id})">✏ Edit</button>
     <button class="btn btn-p" style="height:28px;font-size:10px;${!hasKey?'opacity:.5;':''}"
       onclick="${hasKey?`closeDrawer();enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}">
@@ -7528,6 +7529,51 @@ function openContactDetail(id){
     <button class="btn btn-d" style="height:28px;font-size:10px" onclick="deleteContact(${c.id});closeDrawer()">🗑 Delete</button>
   </div>`;
   ov.classList.add('show');
+}
+
+// ---- Create Task from Contact ----
+function createTaskFromContact(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c)return;
+  // Close the contact drawer first
+  closeDrawer();
+  // Open the FA task modal
+  openFA('task');
+  // Pre-fill after a short delay to let the form render
+  setTimeout(()=>{
+    // Title: "Follow up with [Name]"
+    const titleEl=document.getElementById('fa-title');
+    if(titleEl)titleEl.value='Follow up with '+c.name;
+    // Description: contact context
+    const descEl=document.getElementById('fa-desc');
+    if(descEl){
+      const lines=[];
+      if(c.title||c.company)lines.push('Contact: '+(c.title?c.title+' at ':'')+c.company);
+      if(c.email)lines.push('Email: '+c.email);
+      if(c.phone)lines.push('Phone: '+c.phone);
+      if(c.notes)lines.push('','Notes: '+c.notes);
+      descEl.value=lines.join('\n');
+    }
+    // Context: Calls
+    const ctxEl=document.getElementById('fa-context');
+    if(ctxEl)ctxEl.value='Calls';
+    // Priority: Medium
+    const priEl=document.getElementById('fa-priority');
+    if(priEl)priEl.value='Medium';
+    // Due: tomorrow
+    const dueEl=document.getElementById('fa-due');
+    if(dueEl){
+      const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+      dueEl.value=tomorrow.toISOString().split('T')[0];
+    }
+    // Tags: follow-up + contact's name slug
+    _faTags=['follow-up','contact:'+c.name.toLowerCase().replace(/\s+/g,'-')];
+    renderFATags();
+    // Focus title
+    if(titleEl)titleEl.focus();
+    // Mark dirty
+    _faHasChanges=true;
+  },120);
 }
 
 // ---- Add / Edit Contact Modal ----
