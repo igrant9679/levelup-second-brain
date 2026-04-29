@@ -2107,6 +2107,84 @@ function exportNotesMarkdown(){
   URL.revokeObjectURL(a.href);
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
 }
+function importMarkdownFiles(files){
+  if(!files||!files.length)return;
+  const fileArr=[...files];
+  let imported=0;
+  let errors=0;
+  let processed=0;
+  const total=fileArr.length;
+  fileArr.forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      processed++;
+      try{
+        const raw=e.target.result;
+        // Extract title from first H1 heading or filename
+        const h1Match=raw.match(/^#\s+(.+)$/m);
+        const nameNoExt=file.name.replace(/\.(md|markdown|txt)$/i,'');
+        const title=h1Match?h1Match[1].trim():nameNoExt;
+        // Extract tags from frontmatter (---) or from #tag patterns in body
+        let tags=[];
+        let body=raw;
+        // Parse YAML frontmatter
+        const fmMatch=raw.match(/^---\n([\s\S]*?)\n---\n/);
+        if(fmMatch){
+          const fm=fmMatch[1];
+          const tagLine=fm.match(/^tags:\s*(.+)$/m);
+          if(tagLine){
+            const tagStr=tagLine[1].trim();
+            if(tagStr.startsWith('[')){
+              tags=tagStr.slice(1,-1).split(',').map(t=>t.trim().replace(/["']/g,'').replace(/^#/,''));
+            } else {
+              tags=tagStr.split(/[,\s]+/).map(t=>t.trim().replace(/^#/,'')).filter(Boolean);
+            }
+          }
+          body=raw.slice(fmMatch[0].length);
+        }
+        // Also extract inline #tags from body
+        const inlineTags=[...body.matchAll(/(?:^|\s)#([a-zA-Z][\w-]+)/g)].map(m=>m[1]);
+        tags=[...new Set([...tags,...inlineTags])].slice(0,10);
+        // Remove the first H1 from body to avoid duplication
+        body=body.replace(/^#\s+.+\n?/m,'').trim();
+        const noteId=nextId(D.notes);
+        D.notes.push({
+          id:noteId,
+          title,
+          tags,
+          source:'Markdown Import',
+          updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),
+          starred:false,
+          body,
+          createdBy:D.creds.userName||'Idris Grant',
+          createdAt:new Date().toISOString()
+        });
+        imported++;
+      } catch(err){
+        errors++;
+        console.error('Import error for '+file.name,err);
+      }
+      if(processed===total){
+        save('notes');
+        invalidateSearchIndex();
+        renderNotes();
+        const msg=imported===1
+          ?`📥 Imported 1 note: "${D.notes[D.notes.length-1].title}"`
+          :`📥 Imported ${imported} note${imported!==1?'s':''}${errors?' (⚠ '+errors+' failed)':''}`;
+        toast(msg);
+        // Reset input so same file can be re-imported
+        const inp=document.getElementById('md-import-input');
+        if(inp)inp.value='';
+      }
+    };
+    reader.onerror=()=>{
+      errors++;processed++;
+      if(processed===total&&imported>0){save('notes');renderNotes();}
+      toast('⚠ Failed to read: '+file.name);
+    };
+    reader.readAsText(file);
+  });
+}
 const _noteTemplates=[
   {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
   {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${new Date().toISOString().slice(0,10)}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
@@ -2204,7 +2282,9 @@ function renderNotes(){
     <div style="font-size:12px;font-weight:600">Notes <span style="font-size:10px;color:var(--t3);font-weight:400">(${D.notes.length})</span></div>
     <div style="display:flex;gap:3px">
       <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Note templates">📝 Tmpl</button>
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export MD">⬇ MD</button>
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export all notes as Markdown">⬇ MD</button>
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md files as notes">📥 Import</button>
+      <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
       <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
       <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
     </div>
@@ -2907,21 +2987,22 @@ function switchMailTab(el,tab){
     body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
   }
 }
-const _calEvents=[
-  {id:1,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:0,hour:9,color:'var(--ac)',desc:'Team sync — share blockers and wins',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
-  {id:2,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:1,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
-  {id:3,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:2,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
-  {id:4,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:3,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
-  {id:5,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:4,hour:9,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
-  {id:6,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:0,hour:10,color:'var(--ok)',desc:'Uninterrupted deep work — no Slack, no meetings',attendees:['Idris Grant'],location:'Office'},
-  {id:7,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:3,hour:10,color:'var(--ok)',desc:'Uninterrupted deep work',attendees:['Idris Grant'],location:'Office'},
-  {id:8,title:'Budget Review',time:'11:00 AM',end:'12:00 PM',day:0,hour:11,color:'var(--warn)',desc:'Q2 budget review with finance team. Review projections and approve headcount.',attendees:['Idris Grant','Priya Nair'],location:'Conf Room B'},
-  {id:9,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:0,hour:13,color:'var(--red)',desc:'Acme Inc. onboarding call. Discuss implementation timeline and success metrics.',attendees:['Idris Grant','Marcus Webb'],location:'Zoom'},
-  {id:10,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:3,hour:13,color:'var(--red)',desc:'Follow-up with Apex Corp.',attendees:['Idris Grant'],location:'Zoom'},
-  {id:11,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:1,hour:14,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
-  {id:12,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:4,hour:14,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
-  {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+const _calEventsDefault=[
+  {id:1,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:0,hour:9,endHour:10,color:'var(--ac)',desc:'Team sync — share blockers and wins',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:2,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:1,hour:9,endHour:10,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:3,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:2,hour:9,endHour:10,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:4,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:3,hour:9,endHour:10,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:5,title:'Daily Standup',time:'9:00 AM',end:'9:15 AM',day:4,hour:9,endHour:10,color:'var(--ac)',desc:'Team sync',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
+  {id:6,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:0,hour:10,endHour:12,color:'var(--ok)',desc:'Uninterrupted deep work — no Slack, no meetings',attendees:['Idris Grant'],location:'Office'},
+  {id:7,title:'Deep Focus',time:'10:00 AM',end:'12:00 PM',day:3,hour:10,endHour:12,color:'var(--ok)',desc:'Uninterrupted deep work',attendees:['Idris Grant'],location:'Office'},
+  {id:8,title:'Budget Review',time:'11:00 AM',end:'12:00 PM',day:0,hour:11,endHour:12,color:'var(--warn)',desc:'Q2 budget review with finance team. Review projections and approve headcount.',attendees:['Idris Grant','Priya Nair'],location:'Conf Room B'},
+  {id:9,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:0,hour:13,endHour:14,color:'var(--red)',desc:'Acme Inc. onboarding call. Discuss implementation timeline and success metrics.',attendees:['Idris Grant','Marcus Webb'],location:'Zoom'},
+  {id:10,title:'Client Call',time:'1:00 PM',end:'2:00 PM',day:3,hour:13,endHour:14,color:'var(--red)',desc:'Follow-up with Apex Corp.',attendees:['Idris Grant'],location:'Zoom'},
+  {id:11,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:1,hour:14,endHour:16,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
+  {id:12,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:4,hour:14,endHour:16,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
+  {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,endHour:16,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
 ];
+const _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
 function openCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
   if(!ev)return;
@@ -3080,13 +3161,29 @@ function renderCalDay(){
   const rows=hours.map(h=>{
     const label=h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
     const evs=_calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0)));
-    const evHtml=evs.map(e=>`<div style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px;border-radius:4px;margin-bottom:3px;cursor:pointer;font-size:11px" onclick="openCalEvent(${e.id})">
-      <strong>${esc(e.title)}</strong>
-      ${e.time?`<span style="color:var(--t3);font-size:10px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
-      ${e.location?`<span style="color:var(--t3);font-size:10px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
-    </div>`).join('');
+    const evHtml=evs.map(e=>{
+      // Calculate duration in hours for visual height hint
+      const durationH=e.endHour&&e.endHour>e.hour?e.endHour-e.hour:1;
+      return`<div
+        data-ev-id="${e.id}"
+        draggable="true"
+        style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px;border-radius:4px;margin-bottom:3px;cursor:grab;font-size:11px;user-select:none"
+        onclick="openCalEvent(${e.id})"
+        ondragstart="calDayDragStart(event,${e.id})"
+        title="Drag to reschedule">
+        <strong>${esc(e.title)}</strong>
+        ${e.time?`<span style="color:var(--t3);font-size:10px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
+        ${e.location?`<span style="color:var(--t3);font-size:10px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
+        <span style="float:right;font-size:9px;color:var(--t3);opacity:.6" title="Drag to move">↕</span>
+      </div>`;
+    }).join('');
     const isNowHour=isToday&&new Date().getHours()===h;
-    return`<div style="display:grid;grid-template-columns:56px 1fr;border-top:1px solid var(--bd1);min-height:52px">
+    return`<div
+      data-hour="${h}"
+      style="display:grid;grid-template-columns:56px 1fr;border-top:1px solid var(--bd1);min-height:52px"
+      ondragover="event.preventDefault();this.style.background='var(--acs)'"
+      ondragleave="this.style.background=''"
+      ondrop="calDayDrop(event,${h},${dayOfWeek},'${dayStr}');this.style.background=''">
       <div style="font-size:10px;color:${isNowHour?'var(--ac)':'var(--t3)'};font-weight:${isNowHour?700:400};padding:6px 8px 0 0;text-align:right;padding-top:4px">${label}</div>
       <div style="padding:4px 8px;position:relative">
         ${isNowHour?`<div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac);border-radius:1px"></div>`:''}
@@ -3099,6 +3196,38 @@ ${_calViewTabs()}
 <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
 
+let _calDragEvId=null;
+function calDayDragStart(event,evId){
+  _calDragEvId=evId;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('text/plain',String(evId));
+  // Slight opacity on drag
+  setTimeout(()=>{if(event.target)event.target.style.opacity='0.5';},0);
+  event.target.addEventListener('dragend',()=>{event.target.style.opacity='';},{once:true});
+}
+function calDayDrop(event,newHour,dayOfWeek,dayStr){
+  event.preventDefault();
+  const evId=_calDragEvId||parseInt(event.dataTransfer.getData('text/plain'));
+  _calDragEvId=null;
+  const ev=_calEvents.find(e=>e.id===evId);
+  if(!ev)return;
+  const oldHour=ev.hour;
+  if(oldHour===newHour)return;
+  const durationH=ev.endHour&&ev.endHour>ev.hour?ev.endHour-ev.hour:1;
+  ev.hour=newHour;
+  ev.endHour=newHour+durationH;
+  // Update dateStr to current day view
+  ev.dateStr=dayStr;
+  ev.day=dayOfWeek;
+  // Recalculate time labels
+  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:00 ${ampm}`};
+  ev.time=fmt(newHour);
+  ev.end=fmt(newHour+durationH);
+  // Persist
+  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  renderCalDay();
+  toast(`📅 "${ev.title}" moved to ${ev.time}`);
+}
 function renderCalMonth(){
   const today=new Date();
   const firstOfMonth=new Date(today.getFullYear(),today.getMonth()+_calMonthOffset,1);
@@ -5693,9 +5822,37 @@ function checkMyDayReset(){
   });
   if(changed)save('tasks');
   // Reset habit completion flags for a new day
+  // Also break streaks for habits that were not done/skipped yesterday
+  const todayDate=new Date();todayDate.setHours(0,0,0,0);
+  const yesterdayDate=new Date(todayDate);yesterdayDate.setDate(todayDate.getDate()-1);
+  const yesterdayStr=yesterdayDate.toISOString().split('T')[0];
   let habitsChanged=false;
   D.habits.forEach(h=>{
-    if(h.doneToday||h.skippedToday){h.doneToday=false;h.skippedToday=false;habitsChanged=true;}
+    if(h.doneToday||h.skippedToday){
+      // If habit was done or skipped, record it for yesterday before clearing
+      if(h.doneToday){
+        if(!h.completedDates)h.completedDates=[];
+        if(!h.completedDates.includes(yesterdayStr))h.completedDates.push(yesterdayStr);
+      } else if(h.skippedToday){
+        if(!h.skippedDates)h.skippedDates=[];
+        if(!h.skippedDates.includes(yesterdayStr))h.skippedDates.push(yesterdayStr);
+      }
+      h.doneToday=false;
+      h.skippedToday=false;
+      habitsChanged=true;
+    } else {
+      // Habit was NOT done or skipped yesterday — check if streak should break
+      // Only break streak if the habit is Daily (not Weekly/3x/etc.)
+      if(h.cadence==='Daily'&&(h.streak||0)>0){
+        const completedDates=h.completedDates||[];
+        const skippedDates=h.skippedDates||[];
+        // If yesterday is not in either array, the streak is broken
+        if(!completedDates.includes(yesterdayStr)&&!skippedDates.includes(yesterdayStr)){
+          h.streak=0;
+          habitsChanged=true;
+        }
+      }
+    }
   });
   if(habitsChanged)save('habits');
   localStorage.setItem('lu_myday_reset',today);
