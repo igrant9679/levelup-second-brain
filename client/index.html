@@ -7517,8 +7517,42 @@ function openContactDetail(id){
   </div>
   ${(c.tags||[]).length?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.tags.map(t=>`<span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--acs);color:var(--ac)">${esc(t)}</span>`).join('')}</div></div>`:''}
   ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
-  ${c.enrichedAt?`<div style="font-size:9px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}
-  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+  ${c.enrichedAt?`<div style="font-size:9px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}  ${(()=>{
+    const slug='contact:'+c.name.toLowerCase().replace(/\s+/g,'-');
+    const nameLC=c.name.toLowerCase();
+    const linked=D.tasks.filter(t=>{
+      const tagMatch=(t.tags||[]).some(tg=>tg===slug||tg.toLowerCase()===nameLC);
+      const titleMatch=(t.title||'').toLowerCase().includes(nameLC);
+      return tagMatch||titleMatch;
+    }).sort((a,b)=>{
+      // Open tasks first, then by due date
+      const aD=a.status==='Done'?1:0;
+      const bD=b.status==='Done'?1:0;
+      if(aD!==bD)return aD-bD;
+      return (a.due||'9999')>(b.due||'9999')?1:-1;
+    });
+    if(!linked.length)return `<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY</div><div style="font-size:11px;color:var(--t3);padding:8px 10px;background:var(--s2);border-radius:6px">No tasks linked yet — click 📋 Create Task to add one.</div></div>`;
+    const priColor={High:'var(--red)',Medium:'var(--warn,#f59e0b)',Low:'var(--ok)'};
+    const rows=linked.map(t=>{
+      const done=t.status==='Done';
+      const pri=t.priority||'Medium';
+      const dueStr=t.due?new Date(t.due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'No due date';
+      const overdue=!done&&t.due&&t.due<new Date().toISOString().split('T')[0];
+      return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;background:var(--s2);margin-bottom:4px;${done?'opacity:.55':''}">` +
+        `<button onclick="toggleTask(${t.id});openContactDetail(${c.id})" title="${done?'Mark open':'Mark done'}" style="flex-shrink:0;margin-top:1px;width:16px;height:16px;border-radius:50%;border:2px solid ${done?'var(--ok)':'var(--bd2)'};background:${done?'var(--ok)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff">${done?'✓':''}</button>` +
+        `<div style="flex:1;min-width:0">` +
+          `<div style="font-size:11px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div>` +
+          `<div style="display:flex;gap:6px;align-items:center;margin-top:2px;flex-wrap:wrap">` +
+            `<span style="font-size:9px;color:${priColor[pri]||'var(--t3)'}">${pri}</span>` +
+            `<span style="font-size:9px;color:${overdue?'var(--red)':'var(--t3)'}">${overdue?'⚠ Overdue · ':''}${dueStr}</span>` +
+            `<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t.status)}</span>` +
+          `</div>` +
+        `</div>` +
+      `</div>`;
+    }).join('');
+    const openCount=linked.filter(t=>t.status!=='Done').length;
+    return `<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY <span style="font-weight:400;color:var(--t3)">(${linked.length} task${linked.length!==1?'s':''}, ${openCount} open)</span></div>${rows}</div>`;
+  })()}  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
     <button class="btn btn-p" style="height:28px;font-size:10px" onclick="createTaskFromContact(${c.id})">📋 Create Task</button>
     <button class="btn btn-p" style="height:28px;font-size:10px" onclick="openEditContactModal(${c.id})">✏ Edit</button>
     <button class="btn btn-p" style="height:28px;font-size:10px;${!hasKey?'opacity:.5;':''}"
