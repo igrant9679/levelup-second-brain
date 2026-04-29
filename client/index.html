@@ -334,7 +334,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <template id="sb-tpl">
 <div style="padding:0 4px">
 <div class="si" data-n="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="l">Home</span></div>
-<div class="si" data-n="myday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg><span class="l">My Day</span><span class="c" id="badge-myday"></span></div>
+<div class="si" data-n="myday" data-tour-id="nav-myday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg><span class="l">My Day</span><span class="c" id="badge-myday"></span></div>
 <div class="si" data-n="myweek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">My Week</span></div>
 <div class="si" data-n="myyear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">My Year</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
@@ -343,20 +343,21 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="si" data-n="focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">Focus</span></div>
 <div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c" id="badge-process"></span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
-<div class="si" data-n="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
-<div class="si" data-n="notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
+<div class="si" data-n="tasks" data-tour-id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
+<div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
-<div class="si" data-n="calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
+<div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
 <div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c" id="badge-mail">23</span></div>
-<div class="si" data-n="goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
-<div class="si" data-n="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span><span class="c" id="badge-habits"></span></div>
+<div class="si" data-n="goals" data-tour-id="nav-goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
+<div class="si" data-n="habits" data-tour-id="nav-habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span><span class="c" id="badge-habits"></span></div>
 <div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c" id="badge-coach"></span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
 <div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
-<div class="si" data-n="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
+<div class="si" data-n="contacts" data-tour-id="nav-contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
-<div class="si" data-n="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
+<div class="si" data-n="help" data-tour-id="nav-help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="l">Help &amp; Learning</span></div>
+<div class="si" data-n="settings" data-tour-id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
 </div>
 <div class="su"><div class="av" id="sb-avatar">IG</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500" id="sb-name">Idris Grant</div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="sb-email">idris@levelup.app</div></div></div>
 </template>
@@ -427,6 +428,9 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <!-- ===== S-12 SETTINGS ===== -->
 <div class="scr" id="s-settings"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="settings-main"></main></div></div>
 
+<!-- ===== S-HELP ===== -->
+<div class="scr" id="s-help"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="help-main"></main></div></div>
+
 <!-- ===== S-CONTACTS ===== -->
 <div class="scr" id="s-contacts"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="contacts-main"></main><aside class="rr" id="contacts-rail" style="width:280px"></aside></div></div>
 
@@ -434,6 +438,61 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="drawer-overlay" id="drawer-ov" onclick="if(event.target===this)closeDrawer()">
 <div class="drawer" id="drawer-content"></div>
 </div>
+
+<!-- HELP DRAWER -->
+<div id="help-drawer-ov" onclick="if(event.target===this)closeHelpDrawer()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;justify-content:flex-end">
+  <div id="help-drawer-panel" style="width:480px;max-width:100vw;background:var(--bg);height:100%;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.2);display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--br);flex-shrink:0">
+      <div style="font-size:15px;font-weight:700">❓ Help &amp; Learning</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="nav('help');closeHelpDrawer()" style="font-size:11px;background:none;border:1px solid var(--br);border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--t2)">Open Full View</button>
+        <button onclick="closeHelpDrawer()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:18px;line-height:1">×</button>
+      </div>
+    </div>
+    <div id="help-drawer-body" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
+  </div>
+</div>
+
+<!-- TOUR OVERLAY -->
+<div id="tour-overlay" style="position:fixed;inset:0;z-index:400;pointer-events:none;display:none">
+  <div id="tour-dim" style="position:absolute;inset:0;background:rgba(0,0,0,.6)"></div>
+  <div id="tour-spotlight" style="position:absolute;background:transparent;box-shadow:0 0 0 9999px rgba(0,0,0,.6);border-radius:8px;transition:all .3s ease;pointer-events:none"></div>
+  <div id="tour-pulse-ring" style="position:absolute;border:3px solid var(--ac);border-radius:50%;animation:tourPulse 1.2s ease-in-out infinite;pointer-events:none;display:none"></div>
+  <div id="tour-tooltip" style="position:absolute;background:var(--bg);border:1px solid var(--br);border-radius:12px;padding:16px 18px;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.25);pointer-events:all;z-index:401">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div id="tour-step-label" style="font-size:10px;color:var(--t3);font-weight:600">STEP 1 OF 7</div>
+      <button onclick="exitTour()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:16px;line-height:1">×</button>
+    </div>
+    <div id="tour-title" style="font-size:14px;font-weight:700;margin-bottom:6px"></div>
+    <div id="tour-body" style="font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:14px"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;gap:6px">
+        <button id="tour-back-btn" onclick="tourBack()" class="btn-s" style="font-size:11px">Back</button>
+        <button onclick="exitTour()" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--t3)">Skip tour</button>
+      </div>
+      <button id="tour-next-btn" onclick="tourNext()" class="btn-p" style="font-size:11px">Next →</button>
+    </div>
+  </div>
+  <!-- Progress bar -->
+  <div id="tour-progress-bar" style="position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.15);z-index:402">
+    <div id="tour-progress-fill" style="height:100%;background:var(--ac);transition:width .3s ease;width:0%"></div>
+  </div>
+  <!-- Controls bar -->
+  <div id="tour-controls" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg);border:1px solid var(--br);border-radius:20px;padding:6px 12px;display:flex;gap:8px;align-items:center;z-index:402;box-shadow:0 4px 16px rgba(0,0,0,.2)">
+    <button onclick="toggleTourPause()" id="tour-pause-btn" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--t2)">⏸ Pause</button>
+    <span style="color:var(--br)">|</span>
+    <button onclick="restartTour()" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--t2)">↺ Restart</button>
+    <span style="color:var(--br)">|</span>
+    <button onclick="exitTour()" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--t3)">✕ Exit</button>
+  </div>
+</div>
+
+<!-- CONFETTI CANVAS -->
+<canvas id="tour-confetti" style="position:fixed;inset:0;pointer-events:none;z-index:500;display:none"></canvas>
+
+<!-- HELP FAB -->
+<button id="help-fab" onclick="openHelpDrawer()" data-tour-id="help-fab"
+  style="position:fixed;bottom:24px;right:24px;width:44px;height:44px;border-radius:50%;background:var(--ac);color:#fff;border:none;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:250;transition:transform .15s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Help &amp; Learning (?)">❓</button>
 
 <!-- QUICK CAPTURE MODAL -->
 <div class="modal-ov" id="modal-capture" onclick="if(event.target===this)closeModal()">
@@ -854,15 +913,18 @@ function setAccent(c){
 let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts',help:'s-help'};
 let curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
   document.getElementById(SM[s]||'s-home').classList.add('on');
   curScreen=s;
+  _curScreen=s;
   initSidebars(s);
   renderScreen(s);
   if(s==='capture')openModal('capture');
+  // Trigger proactive hints after a delay
+  if(typeof triggerProactiveHint==='function')triggerProactiveHint(s);
 }
 function initSidebars(a){
   const t=document.getElementById('sb-tpl');
@@ -1234,6 +1296,7 @@ function renderScreen(s){
   if(s==='ideas')renderIdeas();
   if(s==='focus')renderFocus();
   if(s==='contacts')renderContacts();
+  if(s==='help')renderHelp();
   updateSidebarBadges();
 }
 
@@ -6082,6 +6145,533 @@ function renderTeam(){
   ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');return`<div class="lr" style="padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
 }
 
+// ============================================================
+// HELP CENTER
+// ============================================================
+const HC_CATS=[
+  {id:1,icon:'🚀',name:'Getting Started',desc:'First steps, onboarding, and orientation'},
+  {id:2,icon:'✅',name:'Tasks & Projects',desc:'Manage tasks, projects, and deadlines'},
+  {id:3,icon:'📅',name:'Calendar & Events',desc:'Scheduling, views, and time-blocking'},
+  {id:4,icon:'📝',name:'Notes & Journal',desc:'Capture, organise, and review your thoughts'},
+  {id:5,icon:'👤',name:'Contacts & CRM',desc:'Manage relationships and enrichment'},
+  {id:6,icon:'⚙️',name:'Settings & Integrations',desc:'Connect accounts, configure preferences'},
+];
+const HC_ARTICLES=[
+  {id:1,slug:'welcome',catId:1,title:'Welcome to LevelUp',summary:'A quick overview of every module and how they connect.',tags:['intro','overview'],tourId:1,body:`## Welcome to LevelUp\n\nLevelUp is your all-in-one **Second Brain Hub** — a single workspace for tasks, notes, calendar, mail, habits, goals, journal, and contacts.\n\n### Core Modules\n\n| Module | Purpose |\n|---|---|\n| **My Day** | Daily focus view with top tasks and schedule |\n| **Tasks** | Full task manager with AI decomposition |\n| **Notes** | Rich-text knowledge base with AI Q&A |\n| **Calendar** | Week/Day/Month views with drag-to-reschedule |\n| **Mail** | Unified inbox with AI smart replies |\n| **Habits** | Streak tracking with heatmap and coaching |\n| **Goals** | OKR-style goal tracking with AI alignment |\n| **Contacts** | CRM with Clodura enrichment |\n\n### Quick Start\n1. Open **My Day** to see today's focus\n2. Press **C** to quick-capture any thought\n3. Use **Cmd+K** to search across everything\n4. Press **?** to open this Help Center anytime`},
+  {id:2,slug:'quick-capture',catId:1,title:'Quick Capture (Cmd+C)',summary:'How to capture any thought instantly without losing context.',tags:['capture','shortcut'],body:`## Quick Capture\n\nPress **C** anywhere in the app (when no input is focused) to open the Quick Capture modal.\n\n### Capture Types\n- **Task** — adds to your inbox with optional due date\n- **Note** — creates a new note in your Notes library\n- **Journal** — appends a timestamped entry to today's journal\n- **Idea** — sends to the Ideas board\n\n### Tips\n- Use **#tag** inline to auto-tag the item\n- Use **!** prefix for high-priority tasks (e.g. '! Call Sarah')\n- The capture modal remembers your last-used type`},
+  {id:3,slug:'tasks-overview',catId:2,title:'Managing Tasks',summary:'Create, organise, and complete tasks with AI assistance.',tags:['tasks','ai','priority'],tourId:2,body:`## Managing Tasks\n\n### Creating a Task\nClick **+ Add Task** or press **T** to create a new task. Fill in title, due date, priority, context, and tags.\n\n### AI Features\n- **✨ Decompose** — paste a vague goal and AI breaks it into sub-tasks\n- **⚠️ Risk Check** — flags tasks likely to miss their deadline\n- **🎯 Auto-Priority** — re-scores all tasks by urgency × importance\n- **👤 Delegate** — suggests the best team member for a task\n- **🔓 Unblock** — suggests next action when a task is blocked\n\n### Views\nSwitch between **List**, **Board**, and **Timeline** using the toolbar.`},
+  {id:4,slug:'calendar-overview',catId:3,title:'Using the Calendar',summary:'Navigate Week, Day, and Month views and create events.',tags:['calendar','events'],body:`## Using the Calendar\n\n### Views\n- **Week** — 7-day grid with hourly slots\n- **Day** — single-day hourly grid with drag-to-reschedule\n- **Month** — full month with event chips\n\n### Creating Events\nClick any empty slot or press **+ New Event**. Fill in title, date, start/end time, location, and attendees.\n\n### Drag to Reschedule\nIn Day view, drag the **↕** handle on any event to move it. Drag the bottom resize handle to change duration.\n\n### AI Features\n- **📋 Prep Brief** — generates a one-page brief before any meeting\n- **🗓 Optimise** — suggests moving meetings to protect focus blocks\n- **✏️ NL Create** — type a sentence like "Lunch with Sarah Tuesday noon" to create an event`},
+  {id:5,slug:'notes-overview',catId:4,title:'Notes & Knowledge Base',summary:'Capture and connect your knowledge with rich text and AI.',tags:['notes','ai','rte'],body:`## Notes & Knowledge Base\n\n### Creating Notes\nClick **+ New Note** in the Notes sidebar. Use the full rich-text editor with headings, lists, links, and code blocks.\n\n### Wiki Links\nType **[[** to trigger auto-complete for linking to other notes. Linked notes appear in the **Related** panel.\n\n### AI Features\n- **🔗 Link** — detects concepts matching other notes and suggests links\n- **🔍 Gaps** — identifies what's under-documented on the note's topic\n- **💬 Ask AI** — ask a question, get an answer sourced from your notes\n- **📄 Expand** — expand a rough note into a full structured document\n- **📋 Summarise** — condense a long note to key points\n- **🏷 Auto-tag** — extract and apply relevant tags automatically\n\n### Import & Export\nUse **📥 Import** to bring in `.md` files. Use **📤 Export** to save all notes as Markdown.`},
+  {id:6,slug:'contacts-enrichment',catId:5,title:'Contacts & Clodura Enrichment',summary:'Manage your contact database and enrich records with AI.',tags:['contacts','clodura','enrichment'],body:`## Contacts & Clodura Enrichment\n\n### Adding Contacts\nClick **+ Add Contact** or import a CSV. LinkedIn export CSVs are supported directly.\n\n### Clodura Enrichment\n1. Go to **Settings → Integrations → Contact Enrichment** and add your Clodura API key\n2. Click **🔍 Enrich** on any contact row, or **Enrich All via Clodura** for bulk enrichment\n3. Enriched fields include: verified email, phone, LinkedIn, company size, industry, and 40+ attributes\n\n### AI Features\n- **💚 Health Score** — scores all contacts by recency, follow-up completion, and interaction frequency\n- **💬 Starters** — suggests talking points before a meeting with a contact\n- **🔍 Duplicates** — detects contacts that may be the same person\n\n### Activity Log\nOpen any contact's detail drawer to see all tasks linked to that contact via the 'contact:' tag.`},
+  {id:7,slug:'settings-integrations',catId:6,title:'Settings & Integrations',summary:'Connect Microsoft 365, Google Workspace, and third-party tools.',tags:['settings','oauth','integrations'],body:`## Settings & Integrations\n\n### Connected Accounts\nGo to **Settings → Connected Accounts** to connect:\n- **Microsoft 365** — sync Calendar, Mail, and Contacts via Microsoft Graph\n- **Google Workspace** — sync Calendar, Gmail, and Google Contacts\n\nClick **Connect** and authorise via OAuth. Once connected, use the **Sync** buttons to pull data.\n\n### Clodura API Key\nGo to **Settings → Integrations → Contact Enrichment** to add your Clodura API key.\n\n### Webhook Integration\nGo to **Settings → Integrations → External Task Sync** to configure incoming webhooks from Zapier, Make, or any HTTP source.`},
+  {id:8,slug:'habits-streaks',catId:1,title:'Habits & Streak Tracking',summary:'Build consistent habits with streak tracking, heatmaps, and AI coaching.',tags:['habits','streaks','ai'],body:`## Habits & Streak Tracking\n\n### Creating a Habit\nClick **+ Add Habit** and set a name, icon, cadence (Daily / 3x/week / Weekly), and target.\n\n### Streak Tracking\nCheck off a habit each day to build your streak. The heatmap shows the last 30 days — green for done, purple for skipped, grey for missed.\n\n### Cadence-Aware Streaks\n- **Daily** habits count consecutive days\n- **Weekly / 3x/week** habits count consecutive ISO weeks with enough completions\n\n### AI Features\n- **💜 Mood Correlation** — cross-references journal mood with habit completion\n- **🎯 Coaching** — suggests a more achievable cadence when a streak breaks\n- **📊 Wellbeing Report** — auto-generates a Sunday evening summary`},
+  {id:9,slug:'goals-okr',catId:2,title:'Goals & OKR Tracking',summary:'Set and track goals with AI-powered progress narratives and alignment checks.',tags:['goals','okr','ai'],body:`## Goals & OKR Tracking\n\n### Creating a Goal\nClick **+ Add Goal** and set a title, description, target date, and linked tasks.\n\n### Progress Tracking\nGoal progress is calculated from linked task completion rates. The progress bar updates automatically.\n\n### AI Features\n- **✨ Progress** — generates a plain-English progress narrative for each goal\n- **📅 Review** — auto-populates a weekly review template with data from tasks, habits, and calendar\n- **🔗 Align** — analyses whether your daily tasks are actually moving your top-level goals forward`},
+  {id:10,slug:'keyboard-shortcuts',catId:1,title:'Keyboard Shortcuts',summary:'Master LevelUp with keyboard shortcuts for every action.',tags:['shortcuts','keyboard','productivity'],body:`## Keyboard Shortcuts\n\n| Shortcut | Action |\n|---|---|\n| **C** | Quick Capture |\n| **T** | New Task |\n| **N** | New Note |\n| **Cmd/Ctrl+K** | Global Search |\n| **Cmd/Ctrl+/** | Focus Help Search |\n| **?** | Open Help Center |\n| **Esc** | Close modal / drawer |\n| **Cmd/Ctrl+S** | Save note (in editor) |\n| **1–9** | Navigate to screen N in sidebar |\n\n### In Calendar\n| Shortcut | Action |\n|---|---|\n| **W** | Week view |\n| **D** | Day view |\n| **M** | Month view |\n| **← →** | Previous / Next period |`},
+];
+const HC_TOURS=[
+  {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[
+    {target:'nav-home',title:'Welcome to LevelUp! 👋',body:'This is your Home screen — your daily command centre. Let\'s take a quick tour of the key areas.'},
+    {target:'nav-myday',title:'My Day',body:'Start every morning here. LevelUp surfaces your top-priority tasks, today\'s calendar events, and habit check-ins.'},
+    {target:'nav-tasks',title:'Tasks',body:'All your tasks live here. Use the AI toolbar to decompose goals, check deadline risk, and auto-prioritise.'},
+    {target:'nav-notes',title:'Notes',body:'Your knowledge base. Write in rich text, link notes with [[wiki-links]], and ask AI questions about your own notes.'},
+    {target:'nav-calendar',title:'Calendar',body:'Week, Day, and Month views. Drag events to reschedule, resize to change duration, and use AI to generate meeting prep briefs.'},
+    {target:'nav-habits',title:'Habits',body:'Track daily habits with streaks and a heatmap. AI coaching adapts your targets when you miss a streak.'},
+    {target:'nav-help',title:'Help & Learning',body:'You\'re here! Come back anytime with the ? button, the ? key, or Cmd+/. The AI helper can answer questions about any feature.'},
+  ]},
+  {id:2,name:'Import First Contact',desc:'Add a contact and enrich it with Clodura in under 2 minutes.',type:'feature',est:2,roles:['member','admin'],steps:[
+    {target:'nav-contacts',title:'Open Contacts',body:'Click Contacts in the sidebar to open your contact database.'},
+    {target:'contacts-add-btn',title:'Add a Contact',body:'Click + Add Contact to create a new record. Fill in name, email, and company.'},
+    {target:'contacts-enrich-btn',title:'Enrich with Clodura',body:'Click the 🔍 Enrich button on the contact row. LevelUp will pull in verified email, phone, LinkedIn, and 40+ firmographic fields automatically.'},
+  ]},
+  {id:3,name:'Build Your First Goal',desc:'Create a goal, link tasks, and track progress with AI.',type:'feature',est:3,roles:['member','admin'],steps:[
+    {target:'nav-goals',title:'Open Goals',body:'Navigate to Goals in the sidebar.'},
+    {target:'goals-add-btn',title:'Create a Goal',body:'Click + Add Goal. Give it a clear title and a target date.'},
+    {target:'goals-ai-btn',title:'Use AI Alignment',body:'After adding some tasks, click 🔗 Align to check whether your daily work is actually moving this goal forward.'},
+  ]},
+];
+
+let _helpTab='browse'; // 'browse' | 'ask' | 'tours'
+let _helpSearch='';
+let _helpCatFilter=null;
+let _helpArticleId=null;
+let _helpAIMessages=[];
+let _helpAILoading=false;
+let _activeTour=null; // {tourId, stepIdx, paused}
+let _tourOverlayActive=false;
+let _idleTimer=null;
+let _idleScreen=null;
+let _proactiveHintShown=new Set();
+let _helpDrawerOpen=false;
+
+function renderHelp(){
+  const el=$('help-main');
+  if(!el)return;
+  if(_helpArticleId!==null){renderHelpArticle();return;}
+  const q=_helpSearch.toLowerCase();
+  let articles=HC_ARTICLES;
+  if(q){articles=articles.filter(a=>a.title.toLowerCase().includes(q)||a.summary.toLowerCase().includes(q)||(a.tags||[]).some(t=>t.includes(q)));}
+  if(_helpCatFilter!==null){articles=articles.filter(a=>a.catId===_helpCatFilter);}
+
+  el.innerHTML=`
+<div style="padding:0 24px 24px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-top:20px">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;margin:0">❓ Help &amp; Learning</h1>
+      <p style="font-size:12px;color:var(--t3);margin:4px 0 0">Search articles, ask AI, or launch a guided tour</p>
+    </div>
+    <button class="btn-s" onclick="openHelpDrawer()" style="font-size:11px">📥 Open Drawer</button>
+  </div>
+
+  <!-- Hero Search -->
+  <div style="position:relative;margin-bottom:20px">
+    <input id="help-search-input" class="inp" placeholder="Search help articles… (try 'shortcuts', 'calendar', 'enrich')" value="${esc(_helpSearch)}"
+      oninput="_helpSearch=this.value;_helpCatFilter=null;renderHelp()" style="width:100%;padding-left:36px;font-size:13px">
+    <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--t3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    ${_helpSearch?`<button onclick="_helpSearch='';_helpCatFilter=null;renderHelp()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--t3);font-size:16px">×</button>`:''}
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--br);padding-bottom:0">
+    ${['browse','ask','tours','builder','insights'].map(t=>`<button onclick="_helpTab='${t}';renderHelp()" style="padding:8px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:${_helpTab===t?'var(--ac)':'var(--t3)'};border-bottom:2px solid ${_helpTab===t?'var(--ac)':'transparent'};margin-bottom:-1px">${t==='browse'?'📚 Browse':t==='ask'?'🤖 Ask AI':t==='tours'?'🎯 Guided Tours':t==='builder'?'🔧 Tour Builder':'📊 Insights'}</button>`).join('')}
+  </div>
+
+  ${_helpTab==='browse'?renderHelpBrowseTab(articles,q):
+    _helpTab==='ask'?renderHelpAskTab():
+    _helpTab==='tours'?renderHelpToursTab():
+    _helpTab==='builder'?renderTourBuilder():
+    renderHelpInsights()}
+</div>`;
+
+  // Focus search if ? shortcut was used
+  if(_helpSearch==='' && _helpTab==='browse'){const inp=$('help-search-input');if(inp)inp.focus();}
+}
+
+function renderHelpBrowseTab(articles,q){
+  if(q||_helpCatFilter!==null){
+    // Search results
+    return `
+<div>
+  ${_helpCatFilter!==null?`<button onclick="_helpCatFilter=null;renderHelp()" class="btn-s" style="margin-bottom:12px;font-size:11px">← All Categories</button>`:
+    `<p style="font-size:12px;color:var(--t3);margin:0 0 12px">${articles.length} result${articles.length!==1?'s':''} for "${esc(q)}"</p>`}
+  <div style="display:flex;flex-direction:column;gap:8px">
+    ${articles.length?articles.map(a=>helpArticleCard(a)).join(''):
+      `<div style="text-align:center;padding:40px;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">🔍</div><div style="font-size:13px">No articles found. Try asking AI instead.</div><button class="btn-p" onclick="_helpTab='ask';renderHelp()" style="margin-top:12px;font-size:11px">Ask AI</button></div>`}
+  </div>
+</div>`;
+  }
+  // Category grid
+  return `
+<div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px">
+    ${HC_CATS.map(c=>{
+      const count=HC_ARTICLES.filter(a=>a.catId===c.id).length;
+      return `<div onclick="_helpCatFilter=${c.id};renderHelp()" style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--br)'">
+        <div style="font-size:28px;margin-bottom:8px">${c.icon}</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(c.name)}</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(c.desc)}</div>
+        <div style="font-size:10px;color:var(--ac);font-weight:600">${count} article${count!==1?'s':''}</div>
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="margin-bottom:12px;font-size:12px;font-weight:600;color:var(--t2)">📌 Popular Articles</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    ${HC_ARTICLES.slice(0,5).map(a=>helpArticleCard(a)).join('')}
+  </div>
+</div>`;
+}
+
+function helpArticleCard(a){
+  const cat=HC_CATS.find(c=>c.id===a.catId);
+  return `<div onclick="_helpArticleId=${a.id};renderHelp()" style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:12px 14px;cursor:pointer;display:flex;align-items:flex-start;gap:12px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--br)'">
+  <div style="font-size:20px;flex-shrink:0;margin-top:2px">${cat?cat.icon:'📄'}</div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:13px;font-weight:600;margin-bottom:3px">${esc(a.title)}</div>
+    <div style="font-size:11px;color:var(--t3)">${esc(a.summary)}</div>
+    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(a.tags||[]).map(t=>`<span style="font-size:9px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">${esc(t)}</span>`).join('')}${a.tourId?`<span style="font-size:9px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">🎯 Has Tour</span>`:''}</div>
+  </div>
+  <svg style="flex-shrink:0;color:var(--t3);width:14px;height:14px;margin-top:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+</div>`;
+}
+
+function renderHelpArticle(){
+  const a=HC_ARTICLES.find(x=>x.id===_helpArticleId);
+  if(!a){_helpArticleId=null;renderHelp();return;}
+  const cat=HC_CATS.find(c=>c.id===a.catId);
+  const related=HC_ARTICLES.filter(x=>x.id!==a.id&&(x.catId===a.catId||(a.tags||[]).some(t=>(x.tags||[]).includes(t)))).slice(0,3);
+  const tour=a.tourId?HC_TOURS.find(t=>t.id===a.tourId):null;
+  const el=$('help-main');
+  if(!el)return;
+  el.innerHTML=`
+<div style="padding:0 24px 40px;max-width:720px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;padding-top:20px">
+    <button onclick="_helpArticleId=null;renderHelp()" class="btn-s" style="font-size:11px">← Back</button>
+    <span style="font-size:11px;color:var(--t3)">${cat?cat.icon+' '+cat.name:''}</span>
+  </div>
+  <h1 style="font-size:20px;font-weight:700;margin:0 0 8px">${esc(a.title)}</h1>
+  <p style="font-size:12px;color:var(--t3);margin:0 0 16px">${esc(a.summary)}</p>
+  ${tour?`<div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:20px">🎯</span>
+    <div style="flex:1"><div style="font-size:12px;font-weight:600;color:#10b981">Interactive Tour Available</div><div style="font-size:11px;color:var(--t3)">${esc(tour.name)} · ~${tour.est} min</div></div>
+    <button class="btn-p" onclick="launchTour(${tour.id})" style="font-size:11px">Launch Tour</button>
+  </div>`:''}
+  <div style="font-size:13px;line-height:1.7;color:var(--t1)" id="help-article-body"></div>
+  <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--br)">
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Was this article helpful?</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-s" onclick="helpFeedback(${a.id},'yes')" style="font-size:11px">👍 Yes</button>
+      <button class="btn-s" onclick="helpFeedback(${a.id},'no')" style="font-size:11px">👎 No</button>
+    </div>
+  </div>
+  ${related.length?`<div style="margin-top:24px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--t2)">Related Articles</div>
+    <div style="display:flex;flex-direction:column;gap:8px">${related.map(r=>helpArticleCard(r)).join('')}</div>
+  </div>`:''}
+</div>`;
+  // Render markdown body
+  const bodyEl=$('help-article-body');
+  if(bodyEl&&a.body)bodyEl.innerHTML=simpleMarkdown(a.body);
+}
+
+function simpleMarkdown(md){
+  return md
+    .replace(/^## (.+)$/gm,'<h2 style="font-size:16px;font-weight:700;margin:20px 0 8px">$1</h2>')
+    .replace(/^### (.+)$/gm,'<h3 style="font-size:13px;font-weight:700;margin:16px 0 6px">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`(.+?)`/g,'<code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+    .replace(/^\| (.+) \|$/gm,(_,row)=>{
+      const cells=row.split(' | ');
+      return '<tr>'+cells.map(c=>`<td style="padding:6px 10px;border:1px solid var(--br);font-size:12px">${c}</td>`).join('')+'</tr>';
+    })
+    .replace(/(<tr>.*<\/tr>\n?)+/gs,t=>`<table style="border-collapse:collapse;width:100%;margin:12px 0">${t}</table>`)
+    .replace(/^- (.+)$/gm,'<li style="margin:3px 0;font-size:12px">$1</li>')
+    .replace(/(<li.*<\/li>\n?)+/gs,t=>`<ul style="padding-left:20px;margin:8px 0">${t}</ul>`)
+    .replace(/^(\d+)\. (.+)$/gm,'<li style="margin:3px 0;font-size:12px">$2</li>')
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+}
+
+function renderHelpAskTab(){
+  const msgs=_helpAIMessages;
+  return `
+<div style="display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:300px">
+  <div id="help-ai-msgs" style="flex:1;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:10px">
+    ${msgs.length===0?`<div style="text-align:center;padding:40px 20px;color:var(--t3)">
+      <div style="font-size:32px;margin-bottom:12px">🤖</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Ask me anything about LevelUp</div>
+      <div style="font-size:11px;margin-bottom:16px">I can answer questions about features, shortcuts, and best practices.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+        ${['How do I import contacts?','What keyboard shortcuts are available?','How does habit streak tracking work?','How do I connect my Google Calendar?'].map(q=>`<button onclick="helpAskQuestion(this.dataset.q)" data-q="${esc(q)}" style="font-size:11px;background:var(--s2);border:1px solid var(--br);border-radius:16px;padding:6px 12px;cursor:pointer;color:var(--t1)">${esc(q)}</button>`).join('')}
+      </div>
+    </div>`:
+    msgs.map(m=>`<div style="display:flex;gap:8px;align-items:flex-start;${m.role==='user'?'flex-direction:row-reverse':''}"><div style="width:28px;height:28px;border-radius:50%;background:${m.role==='user'?'var(--ac)':'var(--s3)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</div><div style="max-width:80%;background:${m.role==='user'?'var(--ac)':'var(--s2)'};color:${m.role==='user'?'#fff':'var(--t1)'};padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.6">${m.role==='assistant'?simpleMarkdown(m.body):esc(m.body)}</div></div>`).join('')}
+    ${_helpAILoading?`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div><div style="background:var(--s2);padding:10px 14px;border-radius:10px;font-size:12px;color:var(--t3)">Thinking…</div></div>`:''}
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <input id="help-ai-input" class="inp" placeholder="Ask a question about LevelUp…" style="flex:1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();helpAskQuestion(this.value)}">
+    <button class="btn-p" onclick="helpAskQuestion(document.getElementById('help-ai-input').value)" style="font-size:11px">Send</button>
+    ${msgs.length?`<button class="btn-s" onclick="_helpAIMessages=[];renderHelp()" style="font-size:11px">Clear</button>`:''}
+  </div>
+</div>`;
+}
+
+function helpAskQuestion(q){
+  q=(q||'').trim();
+  if(!q)return;
+  _helpAIMessages.push({role:'user',body:q});
+  _helpAILoading=true;
+  renderHelp();
+  // Scroll to bottom
+  const msgs=$('help-ai-msgs');
+  if(msgs)msgs.scrollTop=msgs.scrollHeight;
+  // Clear input
+  const inp=$('help-ai-input');
+  if(inp)inp.value='';
+  // Find relevant articles
+  const ql=q.toLowerCase();
+  const relevant=HC_ARTICLES.filter(a=>a.title.toLowerCase().includes(ql)||a.summary.toLowerCase().includes(ql)||(a.tags||[]).some(t=>t.includes(ql))||(a.body||'').toLowerCase().includes(ql)).slice(0,3);
+  // Generate answer
+  setTimeout(()=>{
+    let answer='';
+    if(relevant.length){
+      const art=relevant[0];
+      // Extract a relevant snippet from the body
+      const bodyLines=(art.body||'').split('\n').filter(l=>l.trim()&&!l.startsWith('#'));
+      const snippetLine=bodyLines.find(l=>l.toLowerCase().includes(ql))||bodyLines[0]||'';
+      const snippet=snippetLine.replace(/\*\*/g,'').replace(/^- /,'').slice(0,200);
+      answer=`Based on the article **${art.title}**:\n\n${snippet}${snippet.length===200?'…':''}\n\n`;
+      if(relevant.length>1)answer+=`**Related articles you might find helpful:**\n${relevant.map(a=>`- ${a.title}`).join('\n')}\n\n`;
+      answer+='**Follow-up actions:**\n- Open the full article for step-by-step instructions\n- Launch the interactive tour if one is available\n- Ask a more specific follow-up question';
+    } else {
+      answer=`I couldn't find a specific article about "${q}", but here are some things you can try:\n\n- Use the **Browse** tab to explore all help categories\n- Check the **Keyboard Shortcuts** article for quick actions\n- Try a different search term\n\n**Suggested articles:**\n${HC_ARTICLES.slice(0,3).map(a=>`- ${a.title}`).join('\n')}`;
+    }
+    _helpAIMessages.push({role:'assistant',body:answer,cited:relevant.map(a=>a.id)});
+    _helpAILoading=false;
+    renderHelp();
+    const msgs=$('help-ai-msgs');
+    if(msgs)msgs.scrollTop=msgs.scrollHeight;
+  },800);
+}
+
+function renderHelpToursTab(){
+  const tours=HC_TOURS;
+  return `
+<div>
+  <p style="font-size:12px;color:var(--t3);margin:0 0 16px">Interactive step-by-step walkthroughs for every feature. Launch any tour to get a guided experience with spotlight highlights and tooltips.</p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    ${tours.map(t=>{
+      const progress=_activeTour&&_activeTour.tourId===t.id?_activeTour.stepIdx:0;
+      const isActive=_activeTour&&_activeTour.tourId===t.id;
+      const isCompleted=(_helpCompletedTours||new Set()).has(t.id);
+      return `<div style="background:var(--s2);border:1px solid ${isActive?'var(--ac)':'var(--br)'};border-radius:10px;padding:14px 16px">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div style="font-size:28px">${t.type==='onboarding'?'🚀':t.type==='feature'?'🎯':'✨'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+              <span style="font-size:13px;font-weight:600">${esc(t.name)}</span>
+              ${isCompleted?'<span style="font-size:9px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">✓ Completed</span>':''}
+              ${isActive?'<span style="font-size:9px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">In Progress</span>':''}
+            </div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(t.desc)}</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:10px;color:var(--t3)">⏱ ~${t.est} min · ${t.steps.length} steps</span>
+              <span style="font-size:10px;color:var(--t3)">${t.roles.map(r=>`<span style="background:var(--s3);padding:1px 5px;border-radius:8px">${r}</span>`).join(' ')}</span>
+            </div>
+            ${isActive?`<div style="margin-top:8px"><div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--ac);width:${Math.round((progress/t.steps.length)*100)}%;transition:width .3s"></div></div><div style="font-size:10px;color:var(--t3);margin-top:3px">Step ${progress} of ${t.steps.length}</div></div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">${isActive?'Resume':'Launch'}</button>
+            ${isActive?`<button class="btn-s" onclick="exitTour()" style="font-size:11px">Exit</button>`:''}
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+</div>`;
+}
+
+function helpFeedback(articleId,vote){
+  toast(vote==='yes'?'Thanks for the feedback! 👍':'Thanks — we\'ll improve this article.');
+}
+
+let _helpCompletedTours=new Set();
+
+// ====== TOUR BUILDER ======
+let _builderTour={name:'',desc:'',steps:[],recording:false};
+let _builderRecordedSteps=[];
+let _builderRecording=false;
+
+function renderTourBuilder(){
+  const t=_builderTour;
+  return `
+<div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div style="font-size:14px;font-weight:700">🔧 Tour Builder</div>
+      <div style="font-size:11px;color:var(--t3)">Create custom guided tours for your team. Record by clicking elements or add steps manually.</div>
+    </div>
+    <button class="btn-p" onclick="saveTourFromBuilder()" style="font-size:11px">💾 Save Tour</button>
+  </div>
+
+  <!-- Tour Meta -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <div>
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Tour Name</label>
+      <input class="inp" value="${esc(t.name)}" oninput="_builderTour.name=this.value" placeholder="e.g. New Employee Onboarding" style="font-size:12px">
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Description</label>
+      <input class="inp" value="${esc(t.desc)}" oninput="_builderTour.desc=this.value" placeholder="What will users learn?" style="font-size:12px">
+    </div>
+  </div>
+
+  <!-- Record Mode -->
+  <div style="background:${_builderRecording?'rgba(239,68,68,.08)':'var(--s2)'};border:1px solid ${_builderRecording?'#ef4444':'var(--br)'};border-radius:8px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+    <div style="width:10px;height:10px;border-radius:50%;background:${_builderRecording?'#ef4444':'var(--t3)'};${_builderRecording?'animation:tourPulse 1s infinite':''};"></div>
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:600">${_builderRecording?'🔴 Recording… Click any element to add it as a tour step':'Record Mode'}</div>
+      <div style="font-size:10px;color:var(--t3)">${_builderRecording?'Click elements on screen. Press Esc or Stop to finish.':'Click Record to start capturing element clicks as tour steps.'}</div>
+    </div>
+    <button class="${_builderRecording?'btn-s':'btn-p'}" onclick="toggleBuilderRecord()" style="font-size:11px">${_builderRecording?'⏹ Stop':'● Record'}</button>
+  </div>
+
+  <!-- Steps List -->
+  <div style="margin-bottom:12px;font-size:12px;font-weight:600">Steps (${t.steps.length})</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+    ${t.steps.length?t.steps.map((s,i)=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div style="width:20px;height:20px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${i+1}</div>
+        <input class="inp" value="${esc(s.title)}" oninput="_builderTour.steps[${i}].title=this.value" placeholder="Step title" style="flex:1;font-size:12px">
+        <button onclick="_builderTour.steps.splice(${i},1);renderHelp()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px">×</button>
+      </div>
+      <textarea class="inp" oninput="_builderTour.steps[${i}].body=this.value" placeholder="Step description…" style="width:100%;font-size:11px;min-height:48px;resize:vertical">${esc(s.body)}</textarea>
+      <div style="margin-top:4px;font-size:10px;color:var(--t3)">Target: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(s.target||'(none)')}</code></div>
+    </div>`).join(''):
+    `<div style="text-align:center;padding:24px;color:var(--t3);border:2px dashed var(--br);border-radius:8px">
+      <div style="font-size:24px;margin-bottom:6px">📍</div>
+      <div style="font-size:12px">No steps yet. Use Record mode or click Add Step.</div>
+    </div>`}
+  </div>
+  <button class="btn-s" onclick="addBuilderStep()" style="font-size:11px;width:100%">+ Add Step Manually</button>
+
+  <!-- Existing Tours -->
+  <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--br)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Existing Tours</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${HC_TOURS.map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
+        <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${t.steps.length} steps · ${t.type}</div></div>
+        <button class="btn-s" onclick="loadTourIntoBuilder(${t.id})" style="font-size:10px">Edit</button>
+        <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:10px">Preview</button>
+      </div>`).join('')}
+    </div>
+  </div>
+</div>`;
+}
+
+function toggleBuilderRecord(){
+  _builderRecording=!_builderRecording;
+  if(_builderRecording){
+    toast('🔴 Recording started. Click any element to add a step.');
+    document.addEventListener('click',builderRecordClick,{capture:true,once:false});
+  } else {
+    document.removeEventListener('click',builderRecordClick,{capture:true});
+    toast('⏹ Recording stopped. '+_builderTour.steps.length+' steps recorded.');
+  }
+  renderHelp();
+}
+
+function builderRecordClick(e){
+  if(!_builderRecording)return;
+  // Don't capture clicks inside the help screen itself
+  const helpMain=$('help-main');
+  if(helpMain&&helpMain.contains(e.target))return;
+  e.stopPropagation();
+  e.preventDefault();
+  const el=e.target;
+  const id=el.id||el.dataset.tourId||el.dataset.n||'';
+  const label=el.textContent.trim().slice(0,40)||el.getAttribute('title')||el.getAttribute('aria-label')||'Element';
+  _builderTour.steps.push({target:id,title:'Step: '+label,body:'Describe what the user should do here.'});
+  toast('📍 Step added: '+label);
+  renderHelp();
+}
+
+function addBuilderStep(){
+  _builderTour.steps.push({target:'',title:'New Step',body:'Describe this step.'});
+  renderHelp();
+}
+
+function loadTourIntoBuilder(tourId){
+  const tour=HC_TOURS.find(t=>t.id===tourId);
+  if(!tour)return;
+  _builderTour={name:tour.name,desc:tour.desc,steps:tour.steps.map(s=>({...s}))};
+  renderHelp();
+  toast('Tour loaded into builder.');
+}
+
+function saveTourFromBuilder(){
+  if(!_builderTour.name.trim()){toast('Please enter a tour name.');return;}
+  if(!_builderTour.steps.length){toast('Please add at least one step.');return;}
+  const newId=Math.max(...HC_TOURS.map(t=>t.id),0)+1;
+  HC_TOURS.push({id:newId,name:_builderTour.name,desc:_builderTour.desc,type:'custom',est:Math.ceil(_builderTour.steps.length*0.5),roles:['member','admin'],steps:_builderTour.steps.map(s=>({...s}))});
+  _builderTour={name:'',desc:'',steps:[]};
+  _helpTab='tours';
+  renderHelp();
+  toast('🎉 Tour saved! Find it in the Guided Tours tab.');
+}
+
+// ====== HELP INSIGHTS ======
+let _helpInsightsData=null;
+
+function renderHelpInsights(){
+  // Generate insights from app data
+  const totalTasks=D.tasks?D.tasks.length:0;
+  const doneTasks=D.tasks?D.tasks.filter(t=>t.done).length:0;
+  const totalNotes=D.notes?D.notes.length:0;
+  const totalContacts=D.contacts?D.contacts.length:0;
+  const totalHabits=D.habits?D.habits.length:0;
+  const activeHabits=D.habits?D.habits.filter(h=>h.doneToday).length:0;
+  const totalGoals=D.goals?D.goals.length:0;
+  const completedTours=_helpCompletedTours.size;
+  const totalTours=HC_TOURS.length;
+  const totalArticles=HC_ARTICLES.length;
+  const articlesRead=0; // tracked via feedback clicks
+  const aiQuestionsAsked=_helpAIMessages.filter(m=>m.role==='user').length;
+
+  const taskPct=totalTasks?Math.round((doneTasks/totalTasks)*100):0;
+  const habitPct=totalHabits?Math.round((activeHabits/totalHabits)*100):0;
+  const tourPct=totalTours?Math.round((completedTours/totalTours)*100):0;
+
+  return `
+<div>
+  <div style="font-size:14px;font-weight:700;margin-bottom:4px">📊 Help &amp; Learning Insights</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:20px">Your learning progress and app usage at a glance.</div>
+
+  <!-- Learning Progress -->
+  <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:12px">🎓 Learning Progress</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      ${[
+        {label:'Tours Completed',val:completedTours,total:totalTours,pct:tourPct,icon:'🎯'},
+        {label:'AI Questions Asked',val:aiQuestionsAsked,total:null,pct:null,icon:'🤖'},
+        {label:'Articles Available',val:totalArticles,total:null,pct:null,icon:'📚'},
+      ].map(m=>`<div style="text-align:center">
+        <div style="font-size:24px;margin-bottom:4px">${m.icon}</div>
+        <div style="font-size:20px;font-weight:700">${m.val}${m.total!==null?'/'+m.total:''}</div>
+        <div style="font-size:10px;color:var(--t3)">${m.label}</div>
+        ${m.pct!==null?`<div style="margin-top:6px;height:4px;background:var(--s3);border-radius:2px"><div style="height:100%;background:var(--ac);width:${m.pct}%"></div></div>`:''}
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- App Usage -->
+  <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:12px">📱 App Usage Summary</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      ${[
+        {label:'Tasks',done:doneTasks,total:totalTasks,pct:taskPct,icon:'✅'},
+        {label:'Habits Active Today',done:activeHabits,total:totalHabits,pct:habitPct,icon:'🔥'},
+        {label:'Notes',done:totalNotes,total:null,pct:null,icon:'📝'},
+        {label:'Contacts',done:totalContacts,total:null,pct:null,icon:'👤'},
+        {label:'Goals',done:totalGoals,total:null,pct:null,icon:'🎯'},
+      ].map(m=>`<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--s3);border-radius:6px">
+        <span style="font-size:18px">${m.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600">${m.done}${m.total!==null?'/'+m.total:''}</div>
+          <div style="font-size:10px;color:var(--t3)">${m.label}</div>
+          ${m.pct!==null?`<div style="margin-top:4px;height:3px;background:var(--s2);border-radius:2px"><div style="height:100%;background:var(--ac);width:${m.pct}%"></div></div>`:''}
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Recommended Next Steps -->
+  <div style="background:var(--s2);border:1px solid var(--br);border-radius:10px;padding:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💡 Recommended Next Steps</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${completedTours===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--acs);border-radius:6px">
+        <span style="font-size:16px">🚀</span>
+        <div style="flex:1;font-size:11px">Start the <strong>Member Onboarding</strong> tour to get a full walkthrough</div>
+        <button class="btn-p" onclick="launchTour(1)" style="font-size:10px">Start</button>
+      </div>`:''}
+      ${totalNotes===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
+        <span style="font-size:16px">📝</span>
+        <div style="flex:1;font-size:11px">Create your first note to start building your knowledge base</div>
+        <button class="btn-s" onclick="nav('notes')" style="font-size:10px">Go to Notes</button>
+      </div>`:''}
+      ${totalContacts===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
+        <span style="font-size:16px">👤</span>
+        <div style="flex:1;font-size:11px">Add your first contact and try Clodura enrichment</div>
+        <button class="btn-s" onclick="nav('contacts')" style="font-size:10px">Go to Contacts</button>
+      </div>`:''}
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
+        <span style="font-size:16px">🤖</span>
+        <div style="flex:1;font-size:11px">Ask the AI helper a question about any LevelUp feature</div>
+        <button class="btn-s" onclick="_helpTab='ask';renderHelp()" style="font-size:10px">Ask AI</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
 function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
@@ -7258,7 +7848,16 @@ document.addEventListener('keydown',e=>{
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('gSearch').focus()}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
-  if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();}
+  // Help shortcuts
+  if(e.key==='?'){e.preventDefault();nav('help');}
+  if((e.ctrlKey||e.metaKey)&&e.key==='/'){e.preventDefault();openHelpDrawer();}
+  if(e.key==='Escape'){
+    closeModal();closeDrawer();
+    document.getElementById('ai-panel').classList.remove('show');
+    closeSearch();
+    if(_tourOverlayActive)exitTour();
+    if(_helpDrawerOpen)closeHelpDrawer();
+  }
 });
 
 // ====== LOGIN ======
@@ -9095,6 +9694,305 @@ async function syncOAuthContacts(provider){
   if(success){toast('✓ '+success+' connected successfully!');history.replaceState(null,'',window.location.pathname);}
   if(error){toast('⚠️ OAuth error: '+error.replace(/_/g,' '));history.replaceState(null,'',window.location.pathname);}
 })();
+
+// ====== TOUR ENGINE ======
+function launchTour(tourId){
+  const tour=HC_TOURS.find(t=>t.id===tourId);
+  if(!tour)return;
+  _activeTour={tourId,stepIdx:0,paused:false};
+  _tourOverlayActive=true;
+  closeHelpDrawer();
+  if(_helpArticleId!==null){_helpArticleId=null;}
+  showTourStep();
+}
+
+function showTourStep(){
+  if(!_activeTour)return;
+  const tour=HC_TOURS.find(t=>t.id===_activeTour.tourId);
+  if(!tour)return;
+  const step=tour.steps[_activeTour.stepIdx];
+  if(!step){completeTour();return;}
+
+  const overlay=$('tour-overlay');
+  if(!overlay)return;
+  overlay.style.display='block';
+
+  // Update tooltip content
+  const stepLabel=$('tour-step-label');
+  const titleEl=$('tour-title');
+  const bodyEl=$('tour-body');
+  const nextBtn=$('tour-next-btn');
+  const backBtn=$('tour-back-btn');
+  const fill=$('tour-progress-fill');
+
+  if(stepLabel)stepLabel.textContent=`STEP ${_activeTour.stepIdx+1} OF ${tour.steps.length}`;
+  if(titleEl)titleEl.textContent=step.title;
+  if(bodyEl)bodyEl.textContent=step.body;
+  if(nextBtn)nextBtn.textContent=_activeTour.stepIdx===tour.steps.length-1?'Finish ✓':'Next →';
+  if(backBtn)backBtn.style.display=_activeTour.stepIdx===0?'none':'';
+  if(fill)fill.style.width=`${((_activeTour.stepIdx+1)/tour.steps.length)*100}%`;
+
+  // Spotlight the target element
+  const targetEl=document.querySelector(`[data-tour-id="${step.target}"]`)||document.getElementById(step.target);
+  const tooltip=$('tour-tooltip');
+  const spotlight=$('tour-spotlight');
+  const pulse=$('tour-pulse-ring');
+
+  if(targetEl&&spotlight&&tooltip){
+    const rect=targetEl.getBoundingClientRect();
+    const pad=8;
+    spotlight.style.left=(rect.left-pad)+'px';
+    spotlight.style.top=(rect.top-pad)+'px';
+    spotlight.style.width=(rect.width+pad*2)+'px';
+    spotlight.style.height=(rect.height+pad*2)+'px';
+    spotlight.style.display='block';
+
+    // Pulse ring
+    if(pulse){
+      pulse.style.left=(rect.left+rect.width/2-20)+'px';
+      pulse.style.top=(rect.top+rect.height/2-20)+'px';
+      pulse.style.width='40px';
+      pulse.style.height='40px';
+      pulse.style.display='block';
+    }
+
+    // Position tooltip
+    const tw=320,th=160;
+    let tx=rect.left;
+    let ty=rect.bottom+16;
+    if(ty+th>window.innerHeight-20)ty=rect.top-th-16;
+    if(tx+tw>window.innerWidth-20)tx=window.innerWidth-tw-20;
+    if(tx<10)tx=10;
+    tooltip.style.left=tx+'px';
+    tooltip.style.top=ty+'px';
+    tooltip.style.display='block';
+
+    // Scroll target into view
+    targetEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+  } else {
+    // No target — center tooltip
+    if(spotlight)spotlight.style.display='none';
+    if(pulse)pulse.style.display='none';
+    if(tooltip){
+      tooltip.style.left='50%';
+      tooltip.style.top='50%';
+      tooltip.style.transform='translate(-50%,-50%)';
+      tooltip.style.display='block';
+    }
+  }
+}
+
+function tourNext(){
+  if(!_activeTour)return;
+  const tour=HC_TOURS.find(t=>t.id===_activeTour.tourId);
+  if(!tour)return;
+  if(_activeTour.stepIdx>=tour.steps.length-1){completeTour();return;}
+  _activeTour.stepIdx++;
+  showTourStep();
+}
+
+function tourBack(){
+  if(!_activeTour||_activeTour.stepIdx===0)return;
+  _activeTour.stepIdx--;
+  showTourStep();
+}
+
+function toggleTourPause(){
+  if(!_activeTour)return;
+  _activeTour.paused=!_activeTour.paused;
+  const btn=$('tour-pause-btn');
+  if(btn)btn.textContent=_activeTour.paused?'▶ Resume':'⏸ Pause';
+}
+
+function restartTour(){
+  if(!_activeTour)return;
+  _activeTour.stepIdx=0;
+  _activeTour.paused=false;
+  showTourStep();
+}
+
+function exitTour(){
+  _activeTour=null;
+  _tourOverlayActive=false;
+  const overlay=$('tour-overlay');
+  if(overlay)overlay.style.display='none';
+  const spotlight=$('tour-spotlight');
+  if(spotlight)spotlight.style.display='none';
+  const pulse=$('tour-pulse-ring');
+  if(pulse)pulse.style.display='none';
+  const tooltip=$('tour-tooltip');
+  if(tooltip){tooltip.style.display='none';tooltip.style.transform='';}
+}
+
+function completeTour(){
+  if(!_activeTour)return;
+  const tourId=_activeTour.tourId;
+  _helpCompletedTours.add(tourId);
+  exitTour();
+  launchConfetti();
+  toast('🎉 Tour complete! Great job.');
+  // If on help screen, re-render tours tab
+  if(_curScreen==='help'){_helpTab='tours';renderHelp();}
+}
+
+function launchConfetti(){
+  const canvas=$('tour-confetti');
+  if(!canvas)return;
+  canvas.style.display='block';
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+  const ctx=canvas.getContext('2d');
+  const particles=Array.from({length:120},()=>({
+    x:Math.random()*canvas.width,
+    y:-10,
+    r:Math.random()*6+3,
+    d:Math.random()*120+60,
+    color:`hsl(${Math.random()*360},80%,60%)`,
+    tilt:Math.random()*10-5,
+    tiltAngle:0,
+    tiltAngleInc:Math.random()*.07+.05,
+  }));
+  let frame=0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      p.tiltAngle+=p.tiltAngleInc;
+      p.y+=Math.cos(frame/10+p.d)+2;
+      p.x+=Math.sin(frame/5)*.5;
+      p.tilt=Math.sin(p.tiltAngle)*12;
+      ctx.beginPath();
+      ctx.lineWidth=p.r;
+      ctx.strokeStyle=p.color;
+      ctx.moveTo(p.x+p.tilt+p.r/3,p.y);
+      ctx.lineTo(p.x+p.tilt,p.y+p.tilt+p.r/3);
+      ctx.stroke();
+    });
+    frame++;
+    if(frame<180)requestAnimationFrame(draw);
+    else{canvas.style.display='none';}
+  }
+  draw();
+}
+
+// ====== HELP DRAWER ======
+function openHelpDrawer(query){
+  const ov=$('help-drawer-ov');
+  if(!ov)return;
+  ov.style.display='flex';
+  _helpDrawerOpen=true;
+  renderHelpDrawer(query||'');
+}
+
+function closeHelpDrawer(){
+  const ov=$('help-drawer-ov');
+  if(ov)ov.style.display='none';
+  _helpDrawerOpen=false;
+}
+
+function renderHelpDrawer(q){
+  const body=$('help-drawer-body');
+  if(!body)return;
+  q=(q||'').toLowerCase();
+  const curScreen=_curScreen||'home';
+
+  // Context-aware suggestions based on current screen
+  const screenArticleMap={
+    tasks:[3,10],notes:[5,10],calendar:[4,10],mail:[10],habits:[8,10],goals:[9,10],
+    contacts:[6,10],settings:[7,10],home:[1,2,10],journal:[5,10],help:[1,10]
+  };
+  const suggestedIds=screenArticleMap[curScreen]||[1,10];
+  const suggested=HC_ARTICLES.filter(a=>suggestedIds.includes(a.id));
+
+  // Search results
+  let results=[];
+  if(q){
+    results=HC_ARTICLES.filter(a=>a.title.toLowerCase().includes(q)||a.summary.toLowerCase().includes(q)||(a.tags||[]).some(t=>t.includes(q)));
+  }
+
+  // Active tour status
+  const activeTour=_activeTour?HC_TOURS.find(t=>t.id===_activeTour.tourId):null;
+
+  body.innerHTML=`
+  ${activeTour?`<div style="background:var(--acs);border:1px solid var(--ac);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+    <span style="font-size:16px">🎯</span>
+    <div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--ac)">Tour in progress: ${esc(activeTour.name)}</div><div style="font-size:10px;color:var(--t3)">Step ${_activeTour.stepIdx+1} of ${activeTour.steps.length}</div></div>
+    <button class="btn-p" onclick="showTourStep();closeHelpDrawer()" style="font-size:10px">Resume</button>
+  </div>`:''}
+
+  <div style="position:relative;margin-bottom:14px">
+    <input class="inp" placeholder="Search help…" value="${esc(q)}" oninput="renderHelpDrawer(this.value)" style="width:100%;padding-left:32px;font-size:12px">
+    <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--t3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+  </div>
+
+  ${q&&results.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">${results.length} result${results.length!==1?'s':''}</div><div style="display:flex;flex-direction:column;gap:6px">${results.map(a=>helpDrawerCard(a)).join('')}</div>`:
+  q&&!results.length?`<div style="text-align:center;padding:20px;color:var(--t3)"><div style="font-size:24px;margin-bottom:6px">🔍</div><div style="font-size:12px">No results. <button onclick="_helpTab='ask';nav('help');closeHelpDrawer()" style="background:none;border:none;cursor:pointer;color:var(--ac);font-size:12px">Ask AI instead</button></div></div>`:
+  `<div>
+    <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">Suggested for this screen</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${suggested.map(a=>helpDrawerCard(a)).join('')}</div>
+    <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">🎯 Guided Tours</div>
+    <div style="display:flex;flex-direction:column;gap:6px">${HC_TOURS.slice(0,3).map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">${t.type==='onboarding'?'🚀':'🎯'}</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${t.steps.length} steps · ~${t.est} min</div></div>
+      <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:10px">Start</button>
+    </div>`).join('')}</div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--br);display:flex;gap:6px">
+      <button onclick="_helpTab='ask';nav('help');closeHelpDrawer()" class="btn-s" style="font-size:11px;flex:1">🤖 Ask AI</button>
+      <button onclick="nav('help');closeHelpDrawer()" class="btn-s" style="font-size:11px;flex:1">📚 All Articles</button>
+    </div>
+  </div>`}
+  `;
+}
+
+function helpDrawerCard(a){
+  const cat=HC_CATS.find(c=>c.id===a.catId);
+  return `<div onclick="_helpArticleId=${a.id};nav('help');closeHelpDrawer()" style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--br)'">
+  <span style="font-size:16px;flex-shrink:0">${cat?cat.icon:'📄'}</span>
+  <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(a.title)}</div><div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.summary)}</div></div>
+  <svg style="flex-shrink:0;color:var(--t3);width:12px;height:12px;margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+</div>`;
+}
+
+// ====== PROACTIVE HINTS ======
+const PROACTIVE_HINTS={
+  tasks:{delay:8000,msg:'Tip: Press ✨ Decompose to break a big goal into sub-tasks automatically.',action:'Learn more',articleId:3},
+  notes:{delay:10000,msg:'Tip: Type [[ to link to another note and build your knowledge graph.',action:'Learn more',articleId:5},
+  calendar:{delay:8000,msg:'Tip: Drag any event in Day view to reschedule it instantly.',action:'Learn more',articleId:4},
+  contacts:{delay:8000,msg:'Tip: Click 🔍 Enrich to fill in emails, phones, and LinkedIn from Clodura.',action:'Learn more',articleId:6},
+  habits:{delay:10000,msg:'Tip: AI Coaching adapts your habit targets when you miss a streak.',action:'Learn more',articleId:8},
+};
+
+function triggerProactiveHint(screen){
+  if(_proactiveHintShown.has(screen))return;
+  const hint=PROACTIVE_HINTS[screen];
+  if(!hint)return;
+  clearTimeout(_idleTimer);
+  _idleTimer=setTimeout(()=>{
+    if(_curScreen!==screen)return; // user navigated away
+    _proactiveHintShown.add(screen);
+    showProactiveHint(hint);
+  },hint.delay);
+}
+
+function showProactiveHint(hint){
+  const existing=document.getElementById('proactive-hint');
+  if(existing)existing.remove();
+  const el=document.createElement('div');
+  el.id='proactive-hint';
+  el.style.cssText='position:fixed;bottom:80px;right:24px;background:var(--bg);border:1px solid var(--ac);border-radius:10px;padding:12px 14px;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:249;animation:slideInRight .3s ease';
+  el.innerHTML=`<div style="display:flex;align-items:flex-start;gap:8px">
+    <span style="font-size:16px;flex-shrink:0">💡</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;color:var(--t1);line-height:1.5;margin-bottom:6px">${esc(hint.msg)}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="_helpArticleId=${hint.articleId};nav('help');document.getElementById('proactive-hint')?.remove()" style="font-size:10px;background:none;border:none;cursor:pointer;color:var(--ac);font-weight:600">${esc(hint.action)}</button>
+        <button onclick="document.getElementById('proactive-hint')?.remove()" style="font-size:10px;background:none;border:none;cursor:pointer;color:var(--t3)">Dismiss</button>
+      </div>
+    </div>
+    <button onclick="document.getElementById('proactive-hint')?.remove()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;flex-shrink:0">×</button>
+  </div>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),12000);
+}
 
 // ====== INIT ======
 applyPrefs();
