@@ -5303,8 +5303,44 @@ function renderSettingsHTML(){
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Accent Color</div><div style="font-size:10px;color:var(--t3)">Primary highlight color</div></div><div style="display:flex;gap:6px">${['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'].map(c=>`<div onclick="setAccent('${c}')" style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${(D.prefs&&D.prefs.accent||'#3B82F6')===c?'#fff':'transparent'}"></div>`).join('')}</div></div>
   </div>
   <!-- Accounts --><div id="sp-3" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
-  ${renderCredCard('Microsoft 365','M365','Outlook, Calendar, SharePoint, To Do','ms',['Client ID|ms_cid','Client Secret|ms_cs','Tenant ID|ms_tid'])}
-  ${renderCredCard('Google Workspace','G','Gmail, Google Calendar','ggl',['OAuth Client ID|ggl_cid','Client Secret|ggl_cs'])}
+  <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 or Google Workspace account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
+  <div id="oauth-ms-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div class="lr" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:32px;height:32px;background:#0078d4;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">M</div>
+        <div><div style="font-size:12px;font-weight:600">Microsoft 365</div><div style="font-size:10px;color:var(--t3)">Outlook · Calendar · Contacts</div></div>
+      </div>
+      <div id="oauth-ms-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
+    </div>
+    <div id="oauth-ms-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
+      <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
+      <button id="btn-ms-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('microsoft')">📅 Sync Calendar</button>
+      <button id="btn-ms-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('microsoft')">✉ Sync Mail</button>
+      <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
+    </div>
+  </div>
+  <div id="oauth-google-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
+    <div class="lr" style="margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:32px;height:32px;background:#EA4335;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">G</div>
+        <div><div style="font-size:12px;font-weight:600">Google Workspace</div><div style="font-size:10px;color:var(--t3)">Gmail · Google Calendar · Contacts</div></div>
+      </div>
+      <div id="oauth-google-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
+    </div>
+    <div id="oauth-google-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
+      <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
+      <button id="btn-google-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('google')">📅 Sync Calendar</button>
+      <button id="btn-google-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('google')">✉ Sync Mail</button>
+      <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
+    </div>
+  </div>
+  <div style="padding:8px 10px;background:var(--s2);border-radius:6px;font-size:10px;color:var(--t3);margin-top:4px">
+    <strong style="color:var(--t2)">Setup required:</strong> Add your Microsoft and Google OAuth app credentials in <strong>Settings → Integrations</strong> (Client ID &amp; Secret), then return here to connect.
+  </div>
   </div>
   <!-- Integrations --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
   ${renderCredCard('ClickUp','CU','Bidirectional task sync','cu',['API Token|cu_key','Workspace ID|cu_ws'])}
@@ -5386,6 +5422,7 @@ function showSetTab(el,id){
   el.parentElement.querySelectorAll('.si').forEach(x=>x.classList.remove('on'));el.classList.add('on');
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
+  if(id==='sp-3')loadOAuthStatus();
 }
 // ====== EXPORT / IMPORT ======
 function exportData(){
@@ -7702,6 +7739,173 @@ function exportContactsCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts-export.csv';a.click();
   toast('📤 Contacts exported as CSV');
 }
+
+// ====== OAUTH SYNC ======
+// Calls the tRPC backend via fetch to manage Microsoft/Google OAuth tokens
+
+async function _trpc(procedure,input,method='query'){
+  const url='/api/trpc/'+procedure;
+  if(method==='query'){
+    const resp=await fetch(url+'?input='+encodeURIComponent(JSON.stringify({json:input})),{credentials:'include'});
+    const data=await resp.json();
+    if(data.error)throw new Error(data.error.message||'tRPC error');
+    return data.result?.data?.json??data.result?.data;
+  }
+  const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({json:input})});
+  const data=await resp.json();
+  if(data.error)throw new Error(data.error.message||'tRPC error');
+  return data.result?.data?.json??data.result?.data;
+}
+
+function _updateOAuthCard(provider,status){
+  const p=provider==='microsoft'?'ms':'google';
+  const badge=document.getElementById('oauth-'+p+'-badge');
+  const info=document.getElementById('oauth-'+p+'-info');
+  const btnConnect=document.getElementById('btn-'+p+'-connect');
+  const btnDisconnect=document.getElementById('btn-'+p+'-disconnect');
+  const btnCal=document.getElementById('btn-'+p+'-sync-cal');
+  const btnMail=document.getElementById('btn-'+p+'-sync-mail');
+  const btnContacts=document.getElementById('btn-'+p+'-sync-contacts');
+  if(!badge)return;
+  if(status.connected){
+    badge.style.background='var(--ok)';badge.style.color='#fff';badge.textContent='✓ Connected';
+    if(info){info.style.display='';info.textContent=(status.displayName||'')+' · '+(status.email||'');}
+    if(btnConnect)btnConnect.style.display='none';
+    if(btnDisconnect)btnDisconnect.style.display='';
+    if(btnCal)btnCal.style.display='';
+    if(btnMail)btnMail.style.display='';
+    if(btnContacts)btnContacts.style.display='';
+  } else {
+    badge.style.background='var(--s3)';badge.style.color='var(--t3)';badge.textContent='Not connected';
+    if(info)info.style.display='none';
+    if(btnConnect)btnConnect.style.display='';
+    if(btnDisconnect)btnDisconnect.style.display='none';
+    if(btnCal)btnCal.style.display='none';
+    if(btnMail)btnMail.style.display='none';
+    if(btnContacts)btnContacts.style.display='none';
+  }
+}
+
+async function loadOAuthStatus(){
+  try{
+    const status=await _trpc('oauthSync.status',undefined,'query');
+    if(status){
+      _updateOAuthCard('microsoft',status.microsoft);
+      _updateOAuthCard('google',status.google);
+    }
+  }catch(e){
+    // Not logged in or server not available — silently ignore
+  }
+}
+
+async function connectOAuth(provider){
+  try{
+    const origin=window.location.origin;
+    const data=await _trpc('oauthSync.getAuthUrl',{provider,origin},'query');
+    if(data?.url)window.location.href=data.url;
+    else toast('⚠️ Could not generate auth URL. Check your OAuth credentials in Settings → Integrations.');
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+async function disconnectOAuth(provider){
+  if(!confirm('Disconnect '+provider+'? This will remove stored tokens.'))return;
+  try{
+    await _trpc('oauthSync.disconnect',{provider},'mutation');
+    _updateOAuthCard(provider,{connected:false});
+    toast('✓ '+provider+' disconnected');
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+async function syncOAuthCalendar(provider){
+  toast('⏳ Syncing '+provider+' calendar...');
+  try{
+    const result=await _trpc('oauthSync.syncCalendar',{provider,daysAhead:30},'mutation');
+    const events=result?.events||[];
+    if(!events.length){toast('No upcoming events found.');return;}
+    // Merge into _calEvents
+    let added=0;
+    events.forEach(ev=>{
+      const d=new Date(ev.start);
+      const dateStr=d.toISOString().slice(0,10);
+      const hour=d.getHours();
+      const endD=new Date(ev.end);
+      const endHour=endD.getHours()||hour+1;
+      const exists=_calEvents.find(e=>e.title===ev.title&&e.dateStr===dateStr);
+      if(!exists){
+        _calEvents.push({id:Date.now()+Math.random(),title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider});
+        added++;
+      }
+    });
+    localStorage.setItem('lu_cal_events',JSON.stringify(_calEvents));
+    renderCal();
+    toast('✓ Synced '+added+' new events from '+provider);
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+async function syncOAuthMail(provider){
+  toast('⏳ Syncing '+provider+' mail...');
+  try{
+    const result=await _trpc('oauthSync.syncMail',{provider,limit:20},'mutation');
+    const messages=result?.messages||[];
+    if(!messages.length){toast('No messages found.');return;}
+    // Merge into D.mail.inbox
+    if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
+    if(!D.mail.inbox)D.mail.inbox=[];
+    let added=0;
+    messages.forEach(m=>{
+      if(!m)return;
+      const exists=D.mail.inbox.find(x=>x.subject===m.subject&&x.from===m.from);
+      if(!exists){
+        D.mail.inbox.push({id:Date.now()+Math.random(),from:m.from,fromEmail:m.fromEmail,subject:m.subject,preview:m.preview,date:m.date,read:m.read,body:m.preview,source:provider});
+        added++;
+      }
+    });
+    save('mail');
+    if(typeof renderMail==='function')renderMail();
+    toast('✓ Synced '+added+' new messages from '+provider);
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+async function syncOAuthContacts(provider){
+  toast('⏳ Syncing '+provider+' contacts...');
+  try{
+    const result=await _trpc('oauthSync.syncContacts',{provider,limit:50},'mutation');
+    const contacts=result?.contacts||[];
+    if(!contacts.length){toast('No contacts found.');return;}
+    if(!D.contacts)D.contacts=[];
+    let added=0;
+    contacts.forEach(c=>{
+      if(!c.name&&!c.email)return;
+      const exists=D.contacts.find(x=>x.email&&x.email===c.email);
+      if(!exists){
+        D.contacts.push({id:Date.now()+Math.random(),name:c.name,email:c.email,phone:c.phone,title:c.title,company:c.company,tags:[provider],notes:'',enriched:false});
+        added++;
+      }
+    });
+    save('contacts');
+    if(typeof renderContacts==='function')renderContacts();
+    toast('✓ Synced '+added+' new contacts from '+provider);
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+// Check for OAuth success/error query params on page load
+(function(){
+  const p=new URLSearchParams(window.location.search);
+  const success=p.get('oauth_success');
+  const error=p.get('oauth_error');
+  if(success){toast('✓ '+success+' connected successfully!');history.replaceState(null,'',window.location.pathname);}
+  if(error){toast('⚠️ OAuth error: '+error.replace(/_/g,' '));history.replaceState(null,'',window.location.pathname);}
+})();
 
 // ====== INIT ======
 applyPrefs();
