@@ -2481,6 +2481,7 @@ function renderNoteEditor(n){
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="aiSummarizeNote(${n.id})" title="AI-summarize this note into bullet points">✨ Summarize</button>
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp)" onclick="aiAutoTagNote(${n.id})" title="AI auto-suggest tags for this note">🏷 Auto-tag</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openNoteHistory(${n.id})" title="View version history">🕐 History${(n.versions||[]).length?` (${(n.versions||[]).length})`:''}</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="exportNotePDF(${n.id})" title="Export this note as PDF">📄 PDF</button>
   </div>
   <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
@@ -3167,7 +3168,7 @@ function renderCalDay(){
       return`<div
         data-ev-id="${e.id}"
         draggable="true"
-        style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px;border-radius:4px;margin-bottom:3px;cursor:grab;font-size:11px;user-select:none"
+        style="background:${e.color}22;border-left:3px solid ${e.color};padding:4px 8px 2px 8px;border-radius:4px;margin-bottom:3px;cursor:grab;font-size:11px;user-select:none;position:relative"
         onclick="openCalEvent(${e.id})"
         ondragstart="calDayDragStart(event,${e.id})"
         title="Drag to reschedule">
@@ -3175,6 +3176,16 @@ function renderCalDay(){
         ${e.time?`<span style="color:var(--t3);font-size:10px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
         ${e.location?`<span style="color:var(--t3);font-size:10px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
         <span style="float:right;font-size:9px;color:var(--t3);opacity:.6" title="Drag to move">↕</span>
+        <div
+          class="cal-resize-handle"
+          style="position:absolute;bottom:0;left:0;right:0;height:8px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s"
+          onmouseenter="this.style.opacity='1'"
+          onmouseleave="this.style.opacity='0'"
+          onmousedown="calResizeStart(event,${e.id})"
+          onclick="event.stopPropagation()"
+          title="Drag to resize">
+          <div style="width:24px;height:3px;background:${e.color};border-radius:2px;opacity:.7"></div>
+        </div>
       </div>`;
     }).join('');
     const isNowHour=isToday&&new Date().getHours()===h;
@@ -3197,6 +3208,54 @@ ${_calViewTabs()}
 }
 
 let _calDragEvId=null;
+let _calResizeEvId=null;
+let _calResizeStartY=0;
+let _calResizeStartEndHour=0;
+function calResizeStart(event,evId){
+  event.preventDefault();
+  event.stopPropagation();
+  const ev=_calEvents.find(e=>e.id===evId);
+  if(!ev)return;
+  _calResizeEvId=evId;
+  _calResizeStartY=event.clientY;
+  _calResizeStartEndHour=ev.endHour||(ev.hour+1);
+  // Prevent drag-to-move from firing during resize
+  document.addEventListener('mousemove',calResizeMove);
+  document.addEventListener('mouseup',calResizeEnd,{once:true});
+  document.body.style.cursor='ns-resize';
+  document.body.style.userSelect='none';
+}
+function calResizeMove(event){
+  if(_calResizeEvId===null)return;
+  const ev=_calEvents.find(e=>e.id===_calResizeEvId);
+  if(!ev)return;
+  // Each hour row is approximately 52px tall (min-height)
+  const rowH=52;
+  const deltaHours=Math.round((event.clientY-_calResizeStartY)/rowH);
+  const newEndHour=Math.max(ev.hour+1,Math.min(23,_calResizeStartEndHour+deltaHours));
+  if(newEndHour===ev.endHour)return;
+  ev.endHour=newEndHour;
+  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:00 ${ampm}`};
+  ev.end=fmt(newEndHour);
+  // Live update the time label in DOM without full re-render
+  const el=document.querySelector(`[data-ev-id="${ev.id}"]`);
+  if(el){
+    const timeSpan=el.querySelector('span');
+    if(timeSpan)timeSpan.textContent=`${ev.time} – ${ev.end}`;
+  }
+}
+function calResizeEnd(){
+  if(_calResizeEvId===null)return;
+  document.removeEventListener('mousemove',calResizeMove);
+  document.body.style.cursor='';
+  document.body.style.userSelect='';
+  const ev=_calEvents.find(e=>e.id===_calResizeEvId);
+  _calResizeEvId=null;
+  if(!ev)return;
+  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  renderCalDay();
+  toast(`📅 "${ev.title}" resized to ${ev.time} – ${ev.end}`);
+}
 function calDayDragStart(event,evId){
   _calDragEvId=evId;
   event.dataTransfer.effectAllowed='move';
@@ -3879,6 +3938,90 @@ function resetFocusTimer(){
   _focusSecsLeft=25*60;
   renderFocus();
 }
+// Returns the ISO week string "YYYY-Www" for a given Date
+function isoWeek(date){
+  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
+  const day=d.getUTCDay()||7; // Mon=1..Sun=7
+  d.setUTCDate(d.getUTCDate()+4-day);
+  const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const wk=Math.ceil((((d-yearStart)/86400000)+1)/7);
+  return d.getUTCFullYear()+'-W'+String(wk).padStart(2,'0');
+}
+// Returns the required completions per week for a cadence string
+function cadencePerWeek(cadence){
+  if(!cadence||cadence==='Daily')return 7;
+  if(cadence==='Weekly'||cadence==='1x/week')return 1;
+  if(cadence==='2x/week')return 2;
+  if(cadence==='3x/week'||cadence==='3xd7/week')return 3;
+  if(cadence==='4x/week')return 4;
+  if(cadence==='5x/week')return 5;
+  if(cadence==='6x/week')return 6;
+  return 7; // default to daily
+}
+// Calculates current streak for a habit based on its cadence and completedDates
+function calcHabitStreak(h){
+  const completedDates=(h.completedDates||[]).slice().sort();
+  const skippedDates=(h.skippedDates||[]);
+  if(!completedDates.length)return 0;
+  const cadence=h.cadence||'Daily';
+  const reqPerWeek=cadencePerWeek(cadence);
+  if(cadence==='Daily'){
+    // Count consecutive days ending today (or yesterday if not yet done today)
+    const today=new Date();today.setHours(0,0,0,0);
+    let streak=0;
+    let checkDate=new Date(today);
+    // If today is completed, start from today; else start from yesterday
+    const todayStr=today.toISOString().split('T')[0];
+    if(!completedDates.includes(todayStr))checkDate.setDate(checkDate.getDate()-1);
+    while(true){
+      const ds=checkDate.toISOString().split('T')[0];
+      if(completedDates.includes(ds)||skippedDates.includes(ds)){
+        streak++;
+        checkDate.setDate(checkDate.getDate()-1);
+      } else break;
+    }
+    return streak;
+  } else {
+    // Weekly cadence: count consecutive ISO weeks where completions >= reqPerWeek
+    // Build a map of week -> completion count
+    const weekMap={};
+    completedDates.forEach(ds=>{
+      const d=new Date(ds);
+      const wk=isoWeek(d);
+      weekMap[wk]=(weekMap[wk]||0)+1;
+    });
+    // Also count skipped days as 1 completion each for streak preservation
+    skippedDates.forEach(ds=>{
+      const d=new Date(ds);
+      const wk=isoWeek(d);
+      weekMap[wk]=(weekMap[wk]||0)+0.5; // half-credit for skips
+    });
+    const today=new Date();
+    const currentWeek=isoWeek(today);
+    let streak=0;
+    let checkWeek=currentWeek;
+    // Helper to get previous ISO week string
+    const prevWeek=wkStr=>{
+      const [yr,wn]=wkStr.split('-W').map(Number);
+      const d=new Date(Date.UTC(yr,0,1+((wn-1)*7)));
+      d.setUTCDate(d.getUTCDate()-7);
+      return isoWeek(d);
+    };
+    // If current week has enough completions, count it
+    if((weekMap[checkWeek]||0)>=reqPerWeek){
+      streak++;
+      checkWeek=prevWeek(checkWeek);
+    } else {
+      // Current week not yet fulfilled — look back from previous week
+      checkWeek=prevWeek(checkWeek);
+    }
+    while((weekMap[checkWeek]||0)>=reqPerWeek){
+      streak++;
+      checkWeek=prevWeek(checkWeek);
+    }
+    return streak;
+  }
+}
 function skipHabitToday(id){
   const h=D.habits.find(x=>x.id===id);
   if(!h)return;
@@ -3905,12 +4048,13 @@ function toggleHabit(id){
   if(wasOff){
     if(!h.completedDates.includes(todayStr))h.completedDates.push(todayStr);
     h.skippedDates=h.skippedDates.filter(d=>d!==todayStr);
-    h.streak=(h.streak||0)+1;
-    toast(h.icon+' '+h.title+' — 🔥 '+h.streak+' day streak!');
+    h.streak=calcHabitStreak(h);
+    const cadenceLabel=h.cadence==='Daily'?'day':(h.cadence==='Weekly'||h.cadence==='1x/week')?'week':'week';
+    toast(h.icon+' '+h.title+' — 🔥 '+h.streak+' '+cadenceLabel+' streak!');
   } else {
     h.completedDates=h.completedDates.filter(d=>d!==todayStr);
-    h.streak=Math.max(0,(h.streak||1)-1);
-    toast(h.icon+' Habit unchecked. Streak adjusted.');
+    h.streak=calcHabitStreak(h);
+    toast(h.icon+' Habit unchecked. Streak recalculated.');
   }
   save('habits');
   invalidateSearchIndex();
@@ -4825,7 +4969,7 @@ function renderHabits(){
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
         <div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
         <span style="font-size:10px;color:${h.doneToday?'var(--ok)':h.skippedToday?'var(--purp)':'var(--t3)'}">${h.doneToday?'✓ Done today':h.skippedToday?'⏭ Skipped today':'Not Today'}</span>
-        <span style="font-size:11px;color:var(--warn);margin-left:auto">🔥 ${h.streak}</span>
+        <span style="font-size:11px;color:var(--warn);margin-left:auto" title="${h.cadence} streak">🔥 ${h.streak}${h.cadence==='Daily'?'d':(h.cadence&&h.cadence.includes('/week'))?'w':'d'}</span>
       </div>
       ${!h.doneToday&&!h.skippedToday?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;margin-bottom:4px" onclick="event.stopPropagation();skipHabitToday(${h.id})" title="Skip today without breaking streak">⏭ Skip Today</button>`:''}
       ${lt?`<div style="font-size:9px;color:var(--t2);margin-bottom:4px">📋 Linked: ${esc(lt.title)}</div>`:''}
@@ -5555,6 +5699,74 @@ function sendAIMsg(){
   },800);
 }
 
+function exportNotePDF(id){
+  const n=D.notes.find(x=>x.id===id);
+  if(!n)return;
+  toast('📄 Preparing PDF...');
+  // Render markdown body to HTML
+  const bodyHtml=(n.body||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/^#{3}\s+(.+)$/gm,'<h3>$1</h3>')
+    .replace(/^#{2}\s+(.+)$/gm,'<h2>$1</h2>')
+    .replace(/^#\s+(.+)$/gm,'<h1>$1</h1>')
+    .replace(/^[-*]\s+(.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
+    .replace(/^>\s+(.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\[\[(.+?)\]\]/g,'<span class="wikilink">$1</span>')
+    .replace(/\n\n+/g,'</p><p>')
+    .replace(/\n/g,'<br>');
+  const tagsHtml=(n.tags||[]).map(t=>`<span class="tag">#${t}</span>`).join(' ');
+  const printHtml=`<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${n.title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;font-size:13px;line-height:1.7;color:#1a202c;padding:40px 48px;max-width:800px;margin:0 auto}
+  h1{font-size:26px;font-weight:700;margin:20px 0 6px;color:#1a202c}
+  h2{font-size:18px;font-weight:600;margin:18px 0 5px;color:#2d3748}
+  h3{font-size:15px;font-weight:600;margin:14px 0 4px;color:#4a5568}
+  p{margin:8px 0;color:#2d3748}
+  ul{margin:8px 0 8px 20px}
+  li{margin:3px 0}
+  blockquote{border-left:3px solid #3b82f6;padding:6px 12px;margin:10px 0;color:#4a5568;background:#eff6ff;border-radius:0 4px 4px 0}
+  code{background:#f7fafc;border:1px solid #e2e8f0;padding:1px 5px;border-radius:3px;font-family:monospace;font-size:12px}
+  .wikilink{color:#3b82f6;text-decoration:underline;cursor:pointer}
+  .tag{display:inline-block;background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px}
+  .meta{font-size:11px;color:#718096;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0}
+  .note-title{font-size:28px;font-weight:700;color:#1a202c;margin-bottom:8px}
+  .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#a0aec0;display:flex;justify-content:space-between}
+  @media print{
+    body{padding:20px 24px}
+    @page{margin:15mm 20mm;size:A4}
+  }
+</style>
+</head><body>
+<div class="note-title">${n.title}</div>
+<div class="meta">
+  ${tagsHtml?`<div style="margin-bottom:6px">${tagsHtml}</div>`:''}
+  <span>Source: ${n.source||'Manual'}</span>
+  ${n.updated?` &nbsp;·&nbsp; Updated: ${n.updated}`:''}
+  ${n.createdBy?` &nbsp;·&nbsp; Author: ${n.createdBy}`:''}
+</div>
+<div class="body-content"><p>${bodyHtml||'<em>No content</em>'}</p></div>
+<div class="footer"><span>LevelUp Second Brain</span><span>Exported ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</span></div>
+</body></html>`;
+  // Open in a new window and trigger print dialog
+  const win=window.open('','_blank','width=900,height=700');
+  if(!win){toast('⚠ Pop-up blocked. Please allow pop-ups for this site.');return;}
+  win.document.write(printHtml);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{
+    win.print();
+    // Close after print dialog closes (some browsers)
+    win.onafterprint=()=>win.close();
+  },400);
+  toast('📄 PDF print dialog opened for: '+n.title);
+}
 function aiSummarizeNote(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
@@ -5841,14 +6053,11 @@ function checkMyDayReset(){
       h.skippedToday=false;
       habitsChanged=true;
     } else {
-      // Habit was NOT done or skipped yesterday — check if streak should break
-      // Only break streak if the habit is Daily (not Weekly/3x/etc.)
-      if(h.cadence==='Daily'&&(h.streak||0)>0){
-        const completedDates=h.completedDates||[];
-        const skippedDates=h.skippedDates||[];
-        // If yesterday is not in either array, the streak is broken
-        if(!completedDates.includes(yesterdayStr)&&!skippedDates.includes(yesterdayStr)){
-          h.streak=0;
+      // Habit was NOT done or skipped yesterday — recalculate streak using cadence-aware logic
+      if((h.streak||0)>0){
+        const newStreak=calcHabitStreak(h);
+        if(newStreak!==h.streak){
+          h.streak=newStreak;
           habitsChanged=true;
         }
       }
