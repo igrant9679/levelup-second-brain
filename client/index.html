@@ -1473,6 +1473,90 @@ function renderTaskMatrix(){
   list.innerHTML=`<div style="margin-bottom:10px;font-size:11px;color:var(--t3)">Tasks plotted by <strong>Impact</strong> (priority) vs <strong>Effort</strong> (estimated time). Drag tasks to Full Edit to adjust.</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${quadHtml}</div>`;
 }
+function renderTaskGantt(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  let tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate));
+  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(!tasks.length){
+    list.innerHTML=`<div style="text-align:center;padding:40px;color:var(--t3)">
+      <div style="font-size:32px;margin-bottom:8px">📅</div>
+      <div style="font-size:13px;font-weight:600">No tasks with dates</div>
+      <div style="font-size:11px;margin-top:4px">Add start or due dates to tasks to see them here.</div>
+    </div>`;
+    return;
+  }
+  // Calculate date range
+  const today=new Date(); today.setHours(0,0,0,0);
+  const allDates=tasks.flatMap(t=>[t.startDate,t.due].filter(Boolean).map(d=>new Date(d)));
+  let minDate=new Date(Math.min(...allDates)); minDate.setDate(minDate.getDate()-1);
+  let maxDate=new Date(Math.max(...allDates)); maxDate.setDate(maxDate.getDate()+2);
+  // Ensure at least 14 days visible
+  const span=Math.max(14,Math.round((maxDate-minDate)/(1000*60*60*24)));
+  maxDate=new Date(minDate); maxDate.setDate(minDate.getDate()+span);
+  const totalDays=Math.round((maxDate-minDate)/(1000*60*60*24));
+  const dayPx=Math.max(28,Math.floor(Math.min(900,list.offsetWidth-220)/totalDays));
+  const totalW=totalDays*dayPx;
+  // Build header (day labels)
+  let headerCells='';
+  for(let i=0;i<totalDays;i++){
+    const d=new Date(minDate); d.setDate(minDate.getDate()+i);
+    const isToday=d.toDateString()===today.toDateString();
+    const dayNum=d.getDate();
+    const isMonStart=dayNum===1;
+    headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
+  }
+  // Build task rows
+  const priorityColors={High:'var(--err)',Medium:'var(--ac)',Low:'var(--ok)'};
+  const rows=tasks.map(t=>{
+    const start=t.startDate?new Date(t.startDate):new Date(t.due);
+    const end=t.due?new Date(t.due):start;
+    start.setHours(0,0,0,0); end.setHours(0,0,0,0);
+    const startOffset=Math.max(0,Math.round((start-minDate)/(1000*60*60*24)));
+    const duration=Math.max(1,Math.round((end-start)/(1000*60*60*24))+1);
+    const barLeft=startOffset*dayPx;
+    const barWidth=Math.min(duration*dayPx, totalW-barLeft);
+    const overdue=end<today&&t.status!=='Done';
+    const barColor=overdue?'var(--err)':priorityColors[t.priority]||'var(--ac)';
+    const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const p=D.tasks.find(x=>x.id===pid);return p&&p.status!=='Done';});
+    // Today marker offset
+    const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
+    return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
+      <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">
+        ${isBlocked?'<span style="color:var(--err);margin-right:3px">🔒</span>':''}
+        <span style="font-weight:500">${esc(t.title)}</span>
+      </div>
+      <div style="flex:1;position:relative;height:32px;overflow:hidden">
+        <!-- Today line -->
+        ${todayOffset>=0&&todayOffset<totalDays?`<div style="position:absolute;left:${todayOffset*dayPx}px;top:0;bottom:0;width:2px;background:var(--ac);opacity:.5;z-index:2"></div>`:''}
+        <!-- Bar -->
+        <div style="position:absolute;top:6px;left:${barLeft}px;width:${barWidth}px;height:20px;background:${barColor};border-radius:4px;opacity:.85;cursor:pointer;display:flex;align-items:center;padding:0 6px;font-size:9px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">
+          ${barWidth>40?esc(t.title.substring(0,20)):''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  // Today marker column header
+  const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
+  list.innerHTML=`
+  <div style="overflow-x:auto">
+    <div style="min-width:${200+totalW}px">
+      <!-- Header -->
+      <div style="display:flex;border-bottom:2px solid var(--bd2);background:var(--s2)">
+        <div style="width:200px;min-width:200px;padding:4px 8px;font-size:10px;font-weight:600;color:var(--t2)">Task</div>
+        <div style="display:flex;flex:1">${headerCells}</div>
+      </div>
+      <!-- Rows -->
+      ${rows}
+    </div>
+  </div>
+  <div style="margin-top:10px;display:flex;gap:12px;font-size:10px;color:var(--t3)">
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--err);border-radius:2px;margin-right:3px"></span>Overdue / High</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--ac);border-radius:2px;margin-right:3px"></span>Medium</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--ok);border-radius:2px;margin-right:3px"></span>Low</span>
+    <span><span style="display:inline-block;width:2px;height:10px;background:var(--ac);margin-right:3px"></span>Today</span>
+  </div>`;
+}
 function quickAddTask(){
   const inp=document.getElementById('task-quick-input');
   const pri=document.getElementById('task-quick-priority');
@@ -1555,7 +1639,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';document.getElementById('tasks-view-matrix').style.background='var(--ac)';document.getElementById('tasks-view-matrix').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskMatrix()">⊞ Matrix</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -1737,6 +1821,35 @@ function filterNotesByTag(tag,el){
     const el2=document.getElementById('notes-list-inner');    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
   }
 }
+function filterNotesBySmart(filter,el){
+  // Deactivate all nav items
+  document.querySelectorAll('.nn').forEach(n=>{n.classList.remove('on');});
+  el.classList.add('on');
+  const search=document.getElementById('notes-search');
+  if(search)search.value='';
+  const me=D.creds.userName||'Idris Grant';
+  const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  const now=new Date();
+  const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+  let filtered=[];
+  let emptyMsg='';
+  if(filter==='smart_recent'){
+    filtered=base.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} });
+    emptyMsg='No notes modified this week.';
+  } else if(filter==='smart_notags'){
+    filtered=base.filter(n=>!n.tags||!n.tags.length);
+    emptyMsg='All notes have tags — great!';
+  } else if(filter==='smart_long'){
+    filtered=base.filter(n=>(n.body||'').length>500).sort((a,b)=>(b.body||'').length-(a.body||'').length);
+    emptyMsg='No long notes (>500 chars) yet.';
+  } else if(filter==='smart_unlinked'){
+    filtered=base.filter(n=>!((n.body||'').includes('[[')));
+    emptyMsg='All notes have wiki-links!';
+  }
+  const el2=document.getElementById('notes-list-inner');
+  if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">${emptyMsg}</p>`;
+  if(filtered.length)showNoteInEditor(filtered[0].id);
+}
 function exportNotesMarkdown(){
   const me=D.creds.userName||'Idris Grant';
   const notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
@@ -1809,6 +1922,22 @@ function renderNotes(){
   const nav=$('notes-nav-panel');
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
   ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Smart Folders</div>
+  ${(()=>{
+    const now=new Date(); const todayStr=now.toISOString().slice(0,10);
+    const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+    const modThisWeek=D.notes.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} }).length;
+    const noTags=D.notes.filter(n=>!n.tags||!n.tags.length).length;
+    const longNotes=D.notes.filter(n=>(n.body||'').length>500).length;
+    const unlinked=D.notes.filter(n=>!((n.body||'').includes('[['))).length;
+    const smartFolders=[
+      {icon:'🕐',label:'Modified this week',count:modThisWeek,filter:'smart_recent'},
+      {icon:'🏷',label:'No tags',count:noTags,filter:'smart_notags'},
+      {icon:'📖',label:'Long notes',count:longNotes,filter:'smart_long'},
+      {icon:'🔗',label:'Unlinked notes',count:unlinked,filter:'smart_unlinked'},
+    ];
+    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${sf.count}</span></div>`).join('');
+  })()}
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tag Cloud</div>
   <div style="padding:0 4px" id="notes-tag-cloud">${(()=>{
     const freq={};
@@ -2213,6 +2342,56 @@ function renderGoals(){
       }).join('');
       return;
     }
+    // OKR mode: group goals by category as Objectives, milestones as Key Results
+    if(_goalsView==='okr'){
+      el.style.gridTemplateColumns='1fr';
+      const me2=D.creds.userName||'Idris Grant';
+      const goals2=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me2):D.goals;
+      // Group by category
+      const cats=[...new Set(goals2.map(g=>g.category||'Uncategorized'))];
+      el.innerHTML=cats.map(cat=>{
+        const catGoals=goals2.filter(g=>(g.category||'Uncategorized')===cat);
+        const catAvg=catGoals.length?Math.round(catGoals.reduce((s,g)=>s+g.pct,0)/catGoals.length):0;
+        return `<div style="margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:var(--s2);border-radius:8px;border-left:4px solid var(--ac)">
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:700">${esc(cat)}</div>
+              <div style="font-size:10px;color:var(--t3)">${catGoals.length} Objective${catGoals.length!==1?'s':''} · avg ${catAvg}%</div>
+            </div>
+            <div style="font-size:16px;font-weight:700;color:var(--ac)">${catAvg}%</div>
+          </div>
+          ${catGoals.map(g=>{
+            const krs=g.milestones||[];
+            const krsDone=krs.filter(m=>m.done).length;
+            const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
+            return `<div style="margin-left:16px;margin-bottom:10px;border:1px solid var(--bd2);border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--s1);cursor:pointer" onclick="openGoalDetail(${g.id})">
+                <span style="font-size:18px">${g.icon}</span>
+                <div style="flex:1">
+                  <div style="font-size:12px;font-weight:600">${esc(g.title)}</div>
+                  <div style="font-size:10px;color:var(--t3)">${esc(g.target)} · ${g.pct}% complete</div>
+                </div>
+                <div style="display:flex;gap:4px">
+                  <button class="btn btn-s" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓</button>
+                  <button class="btn btn-s" style="font-size:9px;padding:2px 6px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏</button>
+                </div>
+              </div>
+              <div class="pb" style="height:4px;border-radius:0;margin:0"><div class="f" style="width:${g.pct}%;background:var(--ac);height:4px;border-radius:0"></div></div>
+              ${krs.length?`<div style="padding:8px 12px;background:var(--s0)">
+                <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Key Results (${krsDone}/${krs.length})</div>
+                ${krs.map((kr,ki)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
+                  <input type="checkbox" ${kr.done?'checked':''} onchange="const g3=D.goals.find(x=>x.id===${g.id});if(g3){g3.milestones[${ki}].done=this.checked;autoCalcGoalPct(g3);save('goals');renderGoalCards();}" style="width:14px;height:14px;accent-color:var(--ac)">
+                  <span style="font-size:11px;flex:1;${kr.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(kr.title)}</span>
+                  ${kr.target?`<span style="font-size:9px;color:var(--t3)">${esc(kr.target)}</span>`:''}
+                </div>`).join('')}
+              </div>`:''}
+              ${linkedTasks.length?`<div style="padding:6px 12px;background:var(--s0);border-top:1px solid var(--bd1)"><span style="font-size:10px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length!==1?'s':''}</span></div>`:''}
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
+      return;
+    }
     el.style.gridTemplateColumns='repeat(auto-fill,minmax(280px,1fr))';
     const goals=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):D.goals;
     el.innerHTML=goals.map(g=>{
@@ -2238,7 +2417,7 @@ function renderGoals(){
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">Track progress toward what matters.</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:10px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
   renderGoalCards();
 }
