@@ -53,70 +53,70 @@
 ## Help Center + Guided Tour Learning Layer
 
 ### DB Schema
-- [ ] help_categories table
-- [ ] help_articles table (slug, title, summary, body_markdown, category, tags, status, associated_tour_id, view/helpful/not_helpful counts)
-- [ ] help_search_log table
-- [ ] ai_help_conversations + ai_help_messages tables
-- [ ] tours table
-- [ ] tour_steps table
-- [ ] user_tour_progress table
-- [ ] user_learning_preferences table
+- [x] help_categories table
+- [x] help_articles table (slug, title, summary, body_markdown, category, tags, status, associated_tour_id, view/helpful/not_helpful counts)
+- [x] help_search_log table
+- [x] ai_help_conversations + ai_help_messages tables
+- [x] tours table
+- [x] tour_steps table
+- [x] user_tour_progress table
+- [x] user_learning_preferences table
 
 ### Help Center — Full Page
-- [ ] S-Help screen with PageHeader "Help & Learning"
-- [ ] Hero search bar with rotating placeholder queries
-- [ ] Browse tab: category grid cards with icon, title, article count, last-updated
-- [ ] Ask AI tab: chat interface with RAG over help articles, cited sources, 3 follow-up actions
-- [ ] Guided Tours tab: gallery of tour cards with completion status, role tags, recommended row
-- [ ] Article view: title, summary, body markdown, prerequisites callout, related articles, Take the Tour CTA, helpful widget
-- [ ] Admin: Edit/New Article buttons, draft/published toggle
-- [ ] Admin: Help Insights dashboard tab
+- [x] S-Help screen with PageHeader "Help & Learning"
+- [x] Hero search bar with rotating placeholder queries
+- [x] Browse tab: category grid cards with icon, title, article count, last-updated
+- [x] Ask AI tab: chat interface with RAG over help articles, cited sources, 3 follow-up actions
+- [x] Guided Tours tab: gallery of tour cards with completion status, role tags, recommended row
+- [x] Article view: title, summary, body markdown, prerequisites callout, related articles, Take the Tour CTA, helpful widget
+- [x] Admin: Edit/New Article buttons, draft/published toggle
+- [x] Admin: Help Insights dashboard tab
 
 ### Help Drawer
-- [ ] Right-side slide-over (480px desktop, full-screen mobile)
-- [ ] Context-aware "For this page" card based on current screen
-- [ ] Same three tabs as full page
-- [ ] "Open in full view" link
-- [ ] Triggered by ? icon, ? keyboard shortcut, Cmd+/ shortcut
+- [x] Right-side slide-over (480px desktop, full-screen mobile)
+- [x] Context-aware "For this page" card based on current screen
+- [x] Same three tabs as full page
+- [x] "Open in full view" link
+- [x] Triggered by ? icon, ? keyboard shortcut, Cmd+/ shortcut
 
 ### Guided Tour Engine
-- [ ] Dim overlay (60% opacity) with spotlight cutout for target element
-- [ ] Pulsing accent ring around target (1.2s ease-in-out)
-- [ ] Animated SVG arrow pointing from tooltip to target
-- [ ] Tooltip card: step N of M, title, body, Back/Skip/Next buttons, tail pointer
-- [ ] Progress bar at top of viewport
-- [ ] Coach mascot (toggleable, line-art style, idle animation)
-- [ ] Click-blocker with shake + "Click here to continue" hint
-- [ ] Confetti on tour completion (respects prefers-reduced-motion)
-- [ ] Achievement toast for milestone tours
-- [ ] Tour controls bar: Pause / Restart / Exit
-- [ ] Pause/resume state persistence
-- [ ] Exit confirmation dialog
+- [x] Dim overlay (60% opacity) with spotlight cutout for target element
+- [x] Pulsing accent ring around target (1.2s ease-in-out)
+- [x] Animated SVG arrow pointing from tooltip to target
+- [x] Tooltip card: step N of M, title, body, Back/Skip/Next buttons, tail pointer
+- [x] Progress bar at top of viewport
+- [x] Coach mascot (toggleable, line-art style, idle animation)
+- [x] Click-blocker with shake + "Click here to continue" hint
+- [x] Confetti on tour completion (respects prefers-reduced-motion)
+- [x] Achievement toast for milestone tours
+- [x] Tour controls bar: Pause / Restart / Exit
+- [x] Pause/resume state persistence
+- [x] Exit confirmation dialog
 
 ### data-tour-id Attributes
-- [ ] Add data-tour-id to all nav items in sidebar
-- [ ] Add data-tour-id to all primary CTAs across every screen
-- [ ] Add data-tour-id to key inputs and buttons in Tasks, Calendar, Mail, Notes, Habits, Journal, Goals, Contacts
+- [x] Add data-tour-id to all nav items in sidebar
+- [x] Add data-tour-id to all primary CTAs across every screen
+- [x] Add data-tour-id to key inputs and buttons in Tasks, Calendar, Mail, Notes, Habits, Journal, Goals, Contacts
 
 ### Proactive Hints
-- [ ] Detect same empty state opened 3x in session → offer walkthrough toast
-- [ ] Detect idle >90s on complex screen → pulse most likely next action
-- [ ] "Don't show hints" preference toggle
+- [x] Detect same empty state opened 3x in session → offer walkthrough toast
+- [x] Detect idle >90s on complex screen → pulse most likely next action
+- [x] "Don't show hints" preference toggle
 
 ### Entry Points
-- [ ] Persistent ? icon docked bottom-right
-- [ ] ? keyboard shortcut (no input focused)
-- [ ] Cmd/Ctrl+/ shortcut focuses help search
-- [ ] Sidebar "Help & Learning" nav item (bottom, above profile)
-- [ ] Contextual ? icons next to section headers
+- [x] Persistent ? icon docked bottom-right
+- [x] ? keyboard shortcut (no input focused)
+- [x] Cmd/Ctrl+/ shortcut focuses help search
+- [x] Sidebar "Help & Learning" nav item (bottom, above profile)
+- [x] Contextual ? icons next to section headers
 
 ### Admin Tour Builder
-- [ ] Record mode: capture clicks as steps with auto-generated targeting
-- [ ] Manual mode: step-by-step form with element picker
-- [ ] Preview mode for tours
-- [ ] Publish to all / specific roles / specific users
+- [x] Record mode: capture clicks as steps with auto-generated targeting
+- [x] Manual mode: step-by-step form with element picker
+- [x] Preview mode for tours
+- [x] Publish to all / specific roles / specific users
 
 ### Seeded Content
-- [ ] 6 help categories with icons
-- [ ] 10+ seeded help articles covering Getting Started, Contacts, Calendar, Notes, Tasks, Settings
-- [ ] 3 seeded tours: Member Onboarding, Import First Contact, Build First Campaign
+- [x] 6 help categories with icons
+- [x] 10+ seeded help articles covering Getting Started, Contacts, Calendar, Notes, Tasks, Settings
+- [x] 3 seeded tours: Member Onboarding, Import First Contact, Build First Campaign

@@ -775,8 +775,8 @@ function luRTE_htmlToMd(html){
 
 // ====== DATA STORE ======
 // Global today string used across screens (YYYY-MM-DD)
-const _todayStr=(()=>{const d=new Date();return d.toISOString().split('T')[0];})();
-const D = {
+var _todayStr=(()=>{const d=new Date();return d.toISOString().split('T')[0];})();
+var D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
     {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
     {id:102,title:'Review and merge auth refactor pull request',status:'Not Started',priority:'High',due:'2026-04-28',energy:'High',est:45,tags:['engineering','code-review'],projectId:2,assignee:'Idris Grant',context:'@computer',notes:'PR #247 by Marcus Webb. Check for security edge cases, test coverage, and backward compatibility with existing sessions.',subtasks:[{id:1,title:'Read PR diff',done:false},{id:2,title:'Run test suite locally',done:false},{id:3,title:'Leave review comments',done:false}],myDay:true,starred:false,createdAt:'2026-04-25'},
@@ -910,11 +910,11 @@ function setAccent(c){
   renderScreen('settings');
   toast('Accent color updated');
 }
-let nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
+var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
 const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts',help:'s-help'};
-let curScreen='home';
+var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
   document.getElementById(SM[s]||'s-home').classList.add('on');
@@ -1155,7 +1155,7 @@ function deleteSubtask(taskId,idx){
 
 // ====== MODAL ======
 const CAP_TYPES=['Task','Note','Project','Goal','Journal','Idea'];
-let capType='Task';
+var capType='Task';
 function openModal(type,preType){
   const m=$('modal-content');
   capType=preType||'Task';
@@ -3482,7 +3482,7 @@ const _calEventsDefault=[
   {id:12,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:4,hour:14,endHour:16,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
   {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,endHour:16,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
 ];
-const _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
+var _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
 function openCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
   if(!ev)return;
@@ -6148,7 +6148,7 @@ function renderTeam(){
 // ============================================================
 // HELP CENTER
 // ============================================================
-const HC_CATS=[
+var HC_CATS=[
   {id:1,icon:'🚀',name:'Getting Started',desc:'First steps, onboarding, and orientation'},
   {id:2,icon:'✅',name:'Tasks & Projects',desc:'Manage tasks, projects, and deadlines'},
   {id:3,icon:'📅',name:'Calendar & Events',desc:'Scheduling, views, and time-blocking'},
@@ -6156,19 +6156,19 @@ const HC_CATS=[
   {id:5,icon:'👤',name:'Contacts & CRM',desc:'Manage relationships and enrichment'},
   {id:6,icon:'⚙️',name:'Settings & Integrations',desc:'Connect accounts, configure preferences'},
 ];
-const HC_ARTICLES=[
+var HC_ARTICLES=[
   {id:1,slug:'welcome',catId:1,title:'Welcome to LevelUp',summary:'A quick overview of every module and how they connect.',tags:['intro','overview'],tourId:1,body:`## Welcome to LevelUp\n\nLevelUp is your all-in-one **Second Brain Hub** — a single workspace for tasks, notes, calendar, mail, habits, goals, journal, and contacts.\n\n### Core Modules\n\n| Module | Purpose |\n|---|---|\n| **My Day** | Daily focus view with top tasks and schedule |\n| **Tasks** | Full task manager with AI decomposition |\n| **Notes** | Rich-text knowledge base with AI Q&A |\n| **Calendar** | Week/Day/Month views with drag-to-reschedule |\n| **Mail** | Unified inbox with AI smart replies |\n| **Habits** | Streak tracking with heatmap and coaching |\n| **Goals** | OKR-style goal tracking with AI alignment |\n| **Contacts** | CRM with Clodura enrichment |\n\n### Quick Start\n1. Open **My Day** to see today's focus\n2. Press **C** to quick-capture any thought\n3. Use **Cmd+K** to search across everything\n4. Press **?** to open this Help Center anytime`},
   {id:2,slug:'quick-capture',catId:1,title:'Quick Capture (Cmd+C)',summary:'How to capture any thought instantly without losing context.',tags:['capture','shortcut'],body:`## Quick Capture\n\nPress **C** anywhere in the app (when no input is focused) to open the Quick Capture modal.\n\n### Capture Types\n- **Task** — adds to your inbox with optional due date\n- **Note** — creates a new note in your Notes library\n- **Journal** — appends a timestamped entry to today's journal\n- **Idea** — sends to the Ideas board\n\n### Tips\n- Use **#tag** inline to auto-tag the item\n- Use **!** prefix for high-priority tasks (e.g. '! Call Sarah')\n- The capture modal remembers your last-used type`},
   {id:3,slug:'tasks-overview',catId:2,title:'Managing Tasks',summary:'Create, organise, and complete tasks with AI assistance.',tags:['tasks','ai','priority'],tourId:2,body:`## Managing Tasks\n\n### Creating a Task\nClick **+ Add Task** or press **T** to create a new task. Fill in title, due date, priority, context, and tags.\n\n### AI Features\n- **✨ Decompose** — paste a vague goal and AI breaks it into sub-tasks\n- **⚠️ Risk Check** — flags tasks likely to miss their deadline\n- **🎯 Auto-Priority** — re-scores all tasks by urgency × importance\n- **👤 Delegate** — suggests the best team member for a task\n- **🔓 Unblock** — suggests next action when a task is blocked\n\n### Views\nSwitch between **List**, **Board**, and **Timeline** using the toolbar.`},
   {id:4,slug:'calendar-overview',catId:3,title:'Using the Calendar',summary:'Navigate Week, Day, and Month views and create events.',tags:['calendar','events'],body:`## Using the Calendar\n\n### Views\n- **Week** — 7-day grid with hourly slots\n- **Day** — single-day hourly grid with drag-to-reschedule\n- **Month** — full month with event chips\n\n### Creating Events\nClick any empty slot or press **+ New Event**. Fill in title, date, start/end time, location, and attendees.\n\n### Drag to Reschedule\nIn Day view, drag the **↕** handle on any event to move it. Drag the bottom resize handle to change duration.\n\n### AI Features\n- **📋 Prep Brief** — generates a one-page brief before any meeting\n- **🗓 Optimise** — suggests moving meetings to protect focus blocks\n- **✏️ NL Create** — type a sentence like "Lunch with Sarah Tuesday noon" to create an event`},
-  {id:5,slug:'notes-overview',catId:4,title:'Notes & Knowledge Base',summary:'Capture and connect your knowledge with rich text and AI.',tags:['notes','ai','rte'],body:`## Notes & Knowledge Base\n\n### Creating Notes\nClick **+ New Note** in the Notes sidebar. Use the full rich-text editor with headings, lists, links, and code blocks.\n\n### Wiki Links\nType **[[** to trigger auto-complete for linking to other notes. Linked notes appear in the **Related** panel.\n\n### AI Features\n- **🔗 Link** — detects concepts matching other notes and suggests links\n- **🔍 Gaps** — identifies what's under-documented on the note's topic\n- **💬 Ask AI** — ask a question, get an answer sourced from your notes\n- **📄 Expand** — expand a rough note into a full structured document\n- **📋 Summarise** — condense a long note to key points\n- **🏷 Auto-tag** — extract and apply relevant tags automatically\n\n### Import & Export\nUse **📥 Import** to bring in `.md` files. Use **📤 Export** to save all notes as Markdown.`},
+  {id:5,slug:'notes-overview',catId:4,title:'Notes & Knowledge Base',summary:'Capture and connect your knowledge with rich text and AI.',tags:['notes','ai','rte'],body:`## Notes & Knowledge Base\n\n### Creating Notes\nClick **+ New Note** in the Notes sidebar. Use the full rich-text editor with headings, lists, links, and code blocks.\n\n### Wiki Links\nType **[[** to trigger auto-complete for linking to other notes. Linked notes appear in the **Related** panel.\n\n### AI Features\n- **🔗 Link** — detects concepts matching other notes and suggests links\n- **🔍 Gaps** — identifies what's under-documented on the note's topic\n- **💬 Ask AI** — ask a question, get an answer sourced from your notes\n- **📄 Expand** — expand a rough note into a full structured document\n- **📋 Summarise** — condense a long note to key points\n- **🏷 Auto-tag** — extract and apply relevant tags automatically\n\n### Import & Export\nUse **📥 Import** to bring in \`.md\` files. Use **📤 Export** to save all notes as Markdown.`},
   {id:6,slug:'contacts-enrichment',catId:5,title:'Contacts & Clodura Enrichment',summary:'Manage your contact database and enrich records with AI.',tags:['contacts','clodura','enrichment'],body:`## Contacts & Clodura Enrichment\n\n### Adding Contacts\nClick **+ Add Contact** or import a CSV. LinkedIn export CSVs are supported directly.\n\n### Clodura Enrichment\n1. Go to **Settings → Integrations → Contact Enrichment** and add your Clodura API key\n2. Click **🔍 Enrich** on any contact row, or **Enrich All via Clodura** for bulk enrichment\n3. Enriched fields include: verified email, phone, LinkedIn, company size, industry, and 40+ attributes\n\n### AI Features\n- **💚 Health Score** — scores all contacts by recency, follow-up completion, and interaction frequency\n- **💬 Starters** — suggests talking points before a meeting with a contact\n- **🔍 Duplicates** — detects contacts that may be the same person\n\n### Activity Log\nOpen any contact's detail drawer to see all tasks linked to that contact via the 'contact:' tag.`},
   {id:7,slug:'settings-integrations',catId:6,title:'Settings & Integrations',summary:'Connect Microsoft 365, Google Workspace, and third-party tools.',tags:['settings','oauth','integrations'],body:`## Settings & Integrations\n\n### Connected Accounts\nGo to **Settings → Connected Accounts** to connect:\n- **Microsoft 365** — sync Calendar, Mail, and Contacts via Microsoft Graph\n- **Google Workspace** — sync Calendar, Gmail, and Google Contacts\n\nClick **Connect** and authorise via OAuth. Once connected, use the **Sync** buttons to pull data.\n\n### Clodura API Key\nGo to **Settings → Integrations → Contact Enrichment** to add your Clodura API key.\n\n### Webhook Integration\nGo to **Settings → Integrations → External Task Sync** to configure incoming webhooks from Zapier, Make, or any HTTP source.`},
   {id:8,slug:'habits-streaks',catId:1,title:'Habits & Streak Tracking',summary:'Build consistent habits with streak tracking, heatmaps, and AI coaching.',tags:['habits','streaks','ai'],body:`## Habits & Streak Tracking\n\n### Creating a Habit\nClick **+ Add Habit** and set a name, icon, cadence (Daily / 3x/week / Weekly), and target.\n\n### Streak Tracking\nCheck off a habit each day to build your streak. The heatmap shows the last 30 days — green for done, purple for skipped, grey for missed.\n\n### Cadence-Aware Streaks\n- **Daily** habits count consecutive days\n- **Weekly / 3x/week** habits count consecutive ISO weeks with enough completions\n\n### AI Features\n- **💜 Mood Correlation** — cross-references journal mood with habit completion\n- **🎯 Coaching** — suggests a more achievable cadence when a streak breaks\n- **📊 Wellbeing Report** — auto-generates a Sunday evening summary`},
   {id:9,slug:'goals-okr',catId:2,title:'Goals & OKR Tracking',summary:'Set and track goals with AI-powered progress narratives and alignment checks.',tags:['goals','okr','ai'],body:`## Goals & OKR Tracking\n\n### Creating a Goal\nClick **+ Add Goal** and set a title, description, target date, and linked tasks.\n\n### Progress Tracking\nGoal progress is calculated from linked task completion rates. The progress bar updates automatically.\n\n### AI Features\n- **✨ Progress** — generates a plain-English progress narrative for each goal\n- **📅 Review** — auto-populates a weekly review template with data from tasks, habits, and calendar\n- **🔗 Align** — analyses whether your daily tasks are actually moving your top-level goals forward`},
   {id:10,slug:'keyboard-shortcuts',catId:1,title:'Keyboard Shortcuts',summary:'Master LevelUp with keyboard shortcuts for every action.',tags:['shortcuts','keyboard','productivity'],body:`## Keyboard Shortcuts\n\n| Shortcut | Action |\n|---|---|\n| **C** | Quick Capture |\n| **T** | New Task |\n| **N** | New Note |\n| **Cmd/Ctrl+K** | Global Search |\n| **Cmd/Ctrl+/** | Focus Help Search |\n| **?** | Open Help Center |\n| **Esc** | Close modal / drawer |\n| **Cmd/Ctrl+S** | Save note (in editor) |\n| **1–9** | Navigate to screen N in sidebar |\n\n### In Calendar\n| Shortcut | Action |\n|---|---|\n| **W** | Week view |\n| **D** | Day view |\n| **M** | Month view |\n| **← →** | Previous / Next period |`},
 ];
-const HC_TOURS=[
+var HC_TOURS=[
   {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[
     {target:'nav-home',title:'Welcome to LevelUp! 👋',body:'This is your Home screen — your daily command centre. Let\'s take a quick tour of the key areas.'},
     {target:'nav-myday',title:'My Day',body:'Start every morning here. LevelUp surfaces your top-priority tasks, today\'s calendar events, and habit check-ins.'},
@@ -6190,18 +6190,18 @@ const HC_TOURS=[
   ]},
 ];
 
-let _helpTab='browse'; // 'browse' | 'ask' | 'tours'
+var _helpTab='browse'; // 'browse' | 'ask' | 'tours'
 let _helpSearch='';
 let _helpCatFilter=null;
-let _helpArticleId=null;
+var _helpArticleId=null;
 let _helpAIMessages=[];
 let _helpAILoading=false;
-let _activeTour=null; // {tourId, stepIdx, paused}
-let _tourOverlayActive=false;
-let _idleTimer=null;
+var _activeTour=null; // {tourId, stepIdx, paused}
+var _tourOverlayActive=false;
+var _idleTimer=null;
 let _idleScreen=null;
-let _proactiveHintShown=new Set();
-let _helpDrawerOpen=false;
+var _proactiveHintShown=new Set();
+var _helpDrawerOpen=false;
 
 function renderHelp(){
   const el=$('help-main');
@@ -6453,7 +6453,7 @@ function helpFeedback(articleId,vote){
   toast(vote==='yes'?'Thanks for the feedback! 👍':'Thanks — we\'ll improve this article.');
 }
 
-let _helpCompletedTours=new Set();
+var _helpCompletedTours=new Set();
 
 // ====== TOUR BUILDER ======
 let _builderTour={name:'',desc:'',steps:[],recording:false};
