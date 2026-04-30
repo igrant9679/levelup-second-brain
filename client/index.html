@@ -6363,8 +6363,16 @@ function renderHelpAskTab(){
         ${['How do I import contacts?','What keyboard shortcuts are available?','How does habit streak tracking work?','How do I connect my Google Calendar?'].map(q=>`<button onclick="helpAskQuestion(this.dataset.q)" data-q="${esc(q)}" style="font-size:11px;background:var(--s2);border:1px solid var(--br);border-radius:16px;padding:6px 12px;cursor:pointer;color:var(--t1)">${esc(q)}</button>`).join('')}
       </div>
     </div>`:
-    msgs.map(m=>`<div style="display:flex;gap:8px;align-items:flex-start;${m.role==='user'?'flex-direction:row-reverse':''}"><div style="width:28px;height:28px;border-radius:50%;background:${m.role==='user'?'var(--ac)':'var(--s3)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</div><div style="max-width:80%;background:${m.role==='user'?'var(--ac)':'var(--s2)'};color:${m.role==='user'?'#fff':'var(--t1)'};padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.6">${m.role==='assistant'?simpleMarkdown(m.body):esc(m.body)}</div></div>`).join('')}
-    ${_helpAILoading?`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div><div style="background:var(--s2);padding:10px 14px;border-radius:10px;font-size:12px;color:var(--t3)">Thinking…</div></div>`:''}
+    (msgs.map(m=>{
+      const citedArts=m.role==='assistant'&&m.cited&&m.cited.length?HC_ARTICLES.filter(a=>m.cited.includes(a.id)):[];
+      return `<div style="display:flex;gap:8px;align-items:flex-start;${m.role==='user'?'flex-direction:row-reverse':''}">
+        <div style="width:28px;height:28px;border-radius:50%;background:${m.role==='user'?'var(--ac)':'var(--s3)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</div>
+        <div style="max-width:85%;display:flex;flex-direction:column;gap:6px">
+          <div style="background:${m.role==='user'?'var(--ac)':'var(--s2)'};color:${m.role==='user'?'#fff':'var(--t1)'};padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.6">${m.role==='assistant'?simpleMarkdown(m.body):esc(m.body)}</div>
+          ${citedArts.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;padding:0 2px">${citedArts.map(a=>`<button onclick="_helpArticleId=${a.id};renderHelp()" style="font-size:10px;background:var(--s3);border:1px solid var(--br);border-radius:10px;padding:3px 8px;cursor:pointer;color:var(--t2);display:flex;align-items:center;gap:4px">📄 ${esc(a.title)}</button>`).join('')}</div>`:''}
+        </div>
+      </div>`;
+    }).join('')+(_helpAILoading?`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div><div style="background:var(--s2);padding:10px 14px;border-radius:10px;font-size:12px;color:var(--t3)">Thinking…</div></div>`:''))}
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
     <input id="help-ai-input" class="inp" placeholder="Ask a question about LevelUp…" style="flex:1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();helpAskQuestion(this.value)}">
@@ -6377,6 +6385,7 @@ function renderHelpAskTab(){
 function helpAskQuestion(q){
   q=(q||'').trim();
   if(!q)return;
+  if(_helpAILoading)return;
   _helpAIMessages.push({role:'user',body:q});
   _helpAILoading=true;
   renderHelp();
@@ -6386,30 +6395,42 @@ function helpAskQuestion(q){
   // Clear input
   const inp=$('help-ai-input');
   if(inp)inp.value='';
-  // Find relevant articles
-  const ql=q.toLowerCase();
-  const relevant=HC_ARTICLES.filter(a=>a.title.toLowerCase().includes(ql)||a.summary.toLowerCase().includes(ql)||(a.tags||[]).some(t=>t.includes(ql))||(a.body||'').toLowerCase().includes(ql)).slice(0,3);
-  // Generate answer
-  setTimeout(()=>{
+  // Build conversation history for context (last 6 messages)
+  const history=_helpAIMessages.slice(-7,-1).map(m=>({role:m.role==='user'?'user':'assistant',content:m.body}));
+  // Call the real tRPC endpoint
+  const payload=JSON.stringify({json:{question:q,conversationHistory:history}});
+  fetch('/api/trpc/help.askAI',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    credentials:'include',
+    body:payload
+  })
+  .then(r=>r.json())
+  .then(data=>{
     let answer='';
-    if(relevant.length){
-      const art=relevant[0];
-      // Extract a relevant snippet from the body
-      const bodyLines=(art.body||'').split('\n').filter(l=>l.trim()&&!l.startsWith('#'));
-      const snippetLine=bodyLines.find(l=>l.toLowerCase().includes(ql))||bodyLines[0]||'';
-      const snippet=snippetLine.replace(/\*\*/g,'').replace(/^- /,'').slice(0,200);
-      answer=`Based on the article **${art.title}**:\n\n${snippet}${snippet.length===200?'…':''}\n\n`;
-      if(relevant.length>1)answer+=`**Related articles you might find helpful:**\n${relevant.map(a=>`- ${a.title}`).join('\n')}\n\n`;
-      answer+='**Follow-up actions:**\n- Open the full article for step-by-step instructions\n- Launch the interactive tour if one is available\n- Ask a more specific follow-up question';
+    let cited=[];
+    if(data&&data.result&&data.result.data&&data.result.data.json){
+      const res=data.result.data.json;
+      answer=res.answer||'';
+      cited=(res.citedArticles||[]).map(a=>a.id);
+    } else if(data&&data.error){
+      answer='Sorry, I encountered an error: '+(data.error.message||'Unknown error. Please try again.');
     } else {
-      answer=`I couldn't find a specific article about "${q}", but here are some things you can try:\n\n- Use the **Browse** tab to explore all help categories\n- Check the **Keyboard Shortcuts** article for quick actions\n- Try a different search term\n\n**Suggested articles:**\n${HC_ARTICLES.slice(0,3).map(a=>`- ${a.title}`).join('\n')}`;
+      answer='Sorry, I could not get an answer. Please try again.';
     }
-    _helpAIMessages.push({role:'assistant',body:answer,cited:relevant.map(a=>a.id)});
+    _helpAIMessages.push({role:'assistant',body:answer,cited:cited});
     _helpAILoading=false;
     renderHelp();
     const msgs=$('help-ai-msgs');
     if(msgs)msgs.scrollTop=msgs.scrollHeight;
-  },800);
+  })
+  .catch(err=>{
+    _helpAIMessages.push({role:'assistant',body:'Sorry, there was a network error. Please check your connection and try again.',cited:[]});
+    _helpAILoading=false;
+    renderHelp();
+    const msgs=$('help-ai-msgs');
+    if(msgs)msgs.scrollTop=msgs.scrollHeight;
+  });
 }
 
 function renderHelpToursTab(){

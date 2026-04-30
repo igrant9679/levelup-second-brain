@@ -120,3 +120,10 @@
 - [x] 6 help categories with icons
 - [x] 10+ seeded help articles covering Getting Started, Contacts, Calendar, Notes, Tasks, Settings
 - [x] 3 seeded tours: Member Onboarding, Import First Contact, Build First Campaign
+
+## Ask AI Tab — LLM Integration
+- [x] Add tRPC procedure `help.askAI` that accepts a question and returns an LLM answer grounded in help article content
+- [x] Replace the setTimeout mock in helpAskQuestion() with a real fetch call to the tRPC endpoint
+- [x] Render markdown in AI answers using a simple markdown renderer
+- [x] Show cited article titles with clickable links in the answer
+- [x] Show typing indicator while LLM is responding
