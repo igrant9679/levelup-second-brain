@@ -1387,6 +1387,25 @@ function setBadge(id,val){
     else{el.textContent='';el.style.display='none';}
   });
 }
+// ---- Notification sound ----
+let _prevUnreadCount=0;
+function playNotifChime(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    // Two-note ascending chime: C5 then E5
+    [[523.25,0],[659.25,0.18]].forEach(([freq,delay])=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.type='sine';osc.frequency.value=freq;
+      const t=ctx.currentTime+delay;
+      gain.gain.setValueAtTime(0,t);
+      gain.gain.linearRampToValueAtTime(0.18,t+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.55);
+      osc.start(t);osc.stop(t+0.55);
+    });
+  }catch(e){}
+}
 function updateSidebarBadges(){
   const today=new Date().toISOString().split('T')[0];
   // My Day: tasks in My Day not done
@@ -1416,6 +1435,11 @@ function updateSidebarBadges(){
     if(unreadCount>0){nb.textContent=unreadCount>99?'99+':unreadCount;nb.style.display='';}
     else{nb.textContent='';nb.style.display='none';}
   }
+  // Play chime when new unread notifications appear
+  if(unreadCount>_prevUnreadCount&&D.prefs&&D.prefs.notifications&&D.prefs.notifications.soundAlerts){
+    playNotifChime();
+  }
+  _prevUnreadCount=unreadCount;
 }
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
@@ -6478,9 +6502,15 @@ function renderTeam(){
     const goals=D.goals.filter(g=>g.createdBy===m.name);
     const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+g.pct,0)/goals.length):null;
     const initials=m.name.split(' ').map(w=>w[0]).join('');
+    const avatarHtml=m.avatar
+      ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
+      :`<div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
     return`<div class="cd" style="padding:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
+        <div style="position:relative;flex-shrink:0" title="Click to upload photo" onclick="uploadMemberAvatar(${m.id})" style="cursor:pointer">
+          ${avatarHtml}
+          <div style="position:absolute;bottom:0;right:0;width:14px;height:14px;background:var(--ac);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;cursor:pointer;border:1px solid var(--bg)">📷</div>
+        </div>
         <div style="flex:1">
           <div style="font-size:14px;font-weight:600">${esc(m.name)}</div>
           <div style="font-size:10px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
@@ -6515,7 +6545,7 @@ function renderTeam(){
   <div class="pb"><div class="f" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%;background:var(--ok)"></div></div>
   <div style="font-size:10px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
-  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');return`<div class="lr" style="padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
 }
 
 // ============================================================
@@ -7217,6 +7247,10 @@ function renderSettingsHTML(){
       <div style="flex:1"><div style="font-size:12px;font-weight:500">AI Insight Alerts</div><div style="font-size:10px;color:var(--t3)">Show AI-generated tips and nudges in the notification panel</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)?'on':''}" id="tog-notif-ai" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.aiInsights=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'✨ AI insight alerts on':'✨ AI insight alerts off')"></div>
     </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Sound Alerts</div><div style="font-size:10px;color:var(--t3)">Play a subtle chime when new notifications arrive</div></div>
+      <div class="tog ${D.prefs&&D.prefs.notifications&&D.prefs.notifications.soundAlerts?'on':''}" id="tog-notif-sound" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.soundAlerts=!this.classList.contains('on');this.classList.toggle('on');saveAll();if(this.classList.contains('on'))playNotifChime();toast(this.classList.contains('on')?'🔔 Sound alerts on':'🔕 Sound alerts off')"></div>
+    </div>
   </div>
 
   <!-- Reminder Timing -->
@@ -7224,9 +7258,7 @@ function renderSettingsHTML(){
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Reminder Timing</div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Time</div><div style="font-size:10px;color:var(--t3)">When to show the morning summary</div></div>
-      <select class="inp" style="max-width:120px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.digestTime=this.value;saveAll()">
-        ${['06:00','07:00','08:00','09:00','10:00'].map(t=>`<option value="${t}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.digestTime||'08:00')===t?'selected':''}>${t}</option>`).join('')}
-      </select>
+      <input type="time" class="inp" style="max-width:120px;font-size:12px" value="${D.prefs&&D.prefs.notifications&&D.prefs.notifications.digestTime||'08:00'}" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.digestTime=this.value;saveAll();toast('⏰ Digest time set to '+this.value)">
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Advance Notice</div><div style="font-size:10px;color:var(--t3)">How early to warn before a task is due</div></div>
@@ -7500,6 +7532,37 @@ function importData(file){
 }
 
 // ====== TEAMS ======
+// ---- Profile picture upload ----
+function uploadMemberAvatar(memberId){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='image/jpeg,image/png,image/webp,image/gif';
+  input.onchange=async()=>{
+    const file=input.files&&input.files[0];
+    if(!file)return;
+    if(file.size>5*1024*1024){toast('⚠️ Image must be under 5 MB');return;}
+    const mimeType=file.type;
+    // Read as base64 data URL
+    const reader=new FileReader();
+    reader.onload=async(e)=>{
+      const dataUrl=e.target.result;
+      toast('⏳ Uploading photo…');
+      try{
+        const res=await _trpc('team.uploadMemberAvatar',{memberId,dataUrl,mimeType},'mutation');
+        // Persist avatar URL in D.teams member
+        const member=D.teams.flatMap(t=>t.members).find(m=>m.id===memberId);
+        if(member){member.avatar=res.url;save('teams');}
+        renderTeam();
+        toast('✅ Profile photo updated!');
+      }catch(err){
+        console.error('Avatar upload error:',err);
+        toast('❌ Upload failed: '+(err.message||'Unknown error'));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
 function addTeamMember(teamId){
   const name=prompt('Member name:');if(!name)return;
   const email=prompt('Member email:')||'';
@@ -7804,7 +7867,16 @@ function buildNotifs(){
   D.tasks.filter(t=>t.snoozeUntil===today&&t.status!=='Done').forEach(t=>{
     notifs.push({id:'sn-'+t.id,type:'snooze',icon:'⏰',title:'Snoozed task back today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
   });
-  return notifs;
+  // ---- Filter out still-snoozed notifications ----
+  // Read the snooze map from localStorage and remove entries whose expiry has passed
+  const now=Date.now();
+  let snoozed=getSnoozedNotifs();
+  let snoozeDirty=false;
+  Object.keys(snoozed).forEach(id=>{
+    if(snoozed[id]<=now){delete snoozed[id];snoozeDirty=true;}
+  });
+  if(snoozeDirty){try{localStorage.setItem(NOTIF_SNOOZE_KEY,JSON.stringify(snoozed));}catch(e){}}
+  return notifs.filter(n=>!snoozed[n.id]);
 }
 // ---- Daily Digest ----
 function closeDigest(){
@@ -7848,18 +7920,56 @@ function showDailyDigest(){
   if(m)m.style.display='flex';
   localStorage.setItem(lastKey,today);
 }
+// ---- Snooze notification ----
+const NOTIF_SNOOZE_KEY='lu_notifs_snoozed';
+function getSnoozedNotifs(){
+  try{return JSON.parse(localStorage.getItem(NOTIF_SNOOZE_KEY)||'{}');}catch(e){return {};}
+}
+function snoozeNotif(id){
+  // Mark as read now, schedule un-read after 1h
+  markNotifsReadInStorage([id]);
+  const snoozed=getSnoozedNotifs();
+  snoozed[id]=Date.now()+60*60*1000;
+  try{localStorage.setItem(NOTIF_SNOOZE_KEY,JSON.stringify(snoozed));}catch(e){}
+  // Re-mark unread after 1h by removing from read set
+  setTimeout(()=>{
+    const readIds=getReadNotifIds();
+    readIds.delete(id);
+    try{localStorage.setItem(NOTIF_READ_KEY,JSON.stringify([...readIds]));}catch(e){}
+    updateSidebarBadges();
+  },60*60*1000);
+  renderNotifPanel();
+  updateSidebarBadges();
+  toast('⏰ Notification snoozed for 1 hour');
+}
 function renderNotifPanel(){
   const list=document.getElementById('notif-list');
   if(!list)return;
   const notifs=buildNotifs();
+  const readIds=getReadNotifIds();
+  const unread=notifs.filter(n=>!readIds.has(n.id));
   const badge=document.getElementById('notif-badge');
-  if(badge)badge.textContent=notifs.length||'';
+  if(badge){
+    if(unread.length>0){badge.textContent=unread.length>99?'99+':unread.length;badge.style.display='';}
+    else{badge.textContent='';badge.style.display='none';}
+  }
   if(!notifs.length){
     list.innerHTML='<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:12px">🎉 All caught up! No new notifications.</div>';
     return;
   }
   const typeColor={warning:'var(--red)',info:'var(--ac)',habit:'var(--ok)',goal:'var(--warn)',snooze:'var(--purp)'};
-  list.innerHTML=notifs.map(n=>`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--bd1)" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="(${n.action.toString()})()"><div style="font-size:18px;flex-shrink:0;width:28px;text-align:center">${n.icon}</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}</div><div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div><div style="font-size:9px;color:var(--t3)">${n.time}</div></div></div>`).join('');
+  list.innerHTML=notifs.map(n=>{
+    const isRead=readIds.has(n.id);
+    return`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;transition:background .15s;border-bottom:1px solid var(--bd1);${isRead?'opacity:.55':''}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
+      <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="(${n.action.toString()})()">${n.icon}</div>
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="(${n.action.toString()})()">
+        <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}${isRead?'<span style="font-size:9px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
+        <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
+        <div style="font-size:9px;color:var(--t3)">${n.time}</div>
+      </div>
+      <button onclick="event.stopPropagation();snoozeNotif('${n.id}')" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 6px;font-size:9px;color:var(--t2);cursor:pointer;align-self:center" title="Snooze 1 hour">⏰ 1h</button>
+    </div>`;
+  }).join('');
 }
 function markAllNotifsRead(){
   const list=document.getElementById('notif-list');

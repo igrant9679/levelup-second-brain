@@ -207,3 +207,9 @@
 - [x] Wire goal milestone alerts to notification bell: check D.prefs.notifications.goalMilestones, add notifs for 25/50/75/100% milestones
 - [x] Daily digest pop-up: on first load after configured digestTime, show modal with today's tasks/habits/goals summary, gated by dailyDigest toggle and quiet hours, shown max once per day (tracked in localStorage)
 - [x] Notification badge count: live unread count badge on bell icon, increments on new alerts, clears when panel is opened
+
+## Notification Follow-ups & Team Profile Pictures
+- [x] Notification sound: add "Sound alerts" toggle in Settings → Notifications; play subtle Web Audio API chime when new unread notification appears
+- [x] Snooze individual notifications: add "Snooze 1h" button on each notification row; re-marks that alert as unread after 60 minutes
+- [x] Digest time picker: surface digestTime as a visible time-picker row in the Notifications settings panel alongside the daily digest toggle
+- [x] Team member profile picture: file input on team member card/drawer → upload to S3 via tRPC → display as avatar in team list and member detail
