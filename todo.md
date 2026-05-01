@@ -219,3 +219,8 @@
 - [x] Remove avatar button: add ✕ button on avatar when one exists, clears m.avatar and reverts to initials
 - [x] Snooze duration dropdown: extend snooze to 15 min / 1h / 3h / Tomorrow options
 - [x] Custom favicon: generate and deploy a LevelUp-branded favicon (SVG + ICO)
+
+## Logo, User Avatar & Onboarding Splash
+- [x] Update favicon.svg to use the LU↑ monogram matching the new logo
+- [x] Logged-in user avatar: upload + crop in Settings → Profile, display in topbar initials circle and task assignment dropdowns
+- [x] Onboarding splash screen: animated LU↑ logo intro shown once on first login, CSS keyframe animation

@@ -621,6 +621,24 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="ai-panel-body" id="ai-chat"></div>
 <div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
 </div>
+<!-- ONBOARDING SPLASH SCREEN -->
+<div id="splash-screen" style="display:none;position:fixed;inset:0;z-index:500;background:#0B0F1A;align-items:center;justify-content:center;flex-direction:column;gap:0">
+  <style>
+    @keyframes splash-logo-in{0%{opacity:0;transform:scale(.4) translateY(20px)}60%{opacity:1;transform:scale(1.08) translateY(-4px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+    @keyframes splash-text-in{0%{opacity:0;transform:translateY(16px)}100%{opacity:1;transform:translateY(0)}}
+    @keyframes splash-tagline-in{0%{opacity:0}100%{opacity:1}}
+    @keyframes splash-bar{0%{width:0}100%{width:100%}}
+    @keyframes splash-fade-out{0%{opacity:1}100%{opacity:0;pointer-events:none}}
+    #splash-screen.fade-out{animation:splash-fade-out .5s ease forwards;}
+  </style>
+  <img id="splash-logo" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:96px;height:96px;object-fit:contain;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards">
+  <div id="splash-brand" style="font-size:36px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0;animation:splash-text-in .5s ease .85s forwards;margin-top:12px">LevelUp</div>
+  <div id="splash-tagline" style="font-size:14px;color:#64748B;opacity:0;animation:splash-tagline-in .5s ease 1.2s forwards;margin-top:4px">Your Second Brain</div>
+  <div id="splash-greeting" style="font-size:16px;color:#94A3B8;opacity:0;animation:splash-tagline-in .5s ease 1.6s forwards;margin-top:28px"></div>
+  <div style="width:200px;height:2px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:32px;overflow:hidden">
+    <div id="splash-bar" style="height:100%;background:linear-gradient(90deg,#3B82F6,#8B5CF6);border-radius:2px;width:0;animation:splash-bar 1.8s ease .4s forwards"></div>
+  </div>
+</div>
 <!-- AVATAR CROP MODAL -->
 <div id="avatar-crop-modal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,.7);align-items:center;justify-content:center">
   <div style="background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:min(400px,96vw);box-shadow:0 16px 60px rgba(0,0,0,.6);padding:0">
@@ -7145,7 +7163,14 @@ function renderSettingsHTML(){
   <!-- Profile --><div id="sp-0" class="sp">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px">
-  <div style="width:56px;height:56px;border-radius:50%;background:var(--ac);color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0" id="prof-av">${initials}</div>
+  <div style="position:relative;flex-shrink:0;cursor:pointer" title="Click to change photo" onclick="uploadUserAvatar()">
+    ${D.creds.avatar
+      ?`<img src="${D.creds.avatar}" id="prof-av" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--ac);display:block">`
+      :`<div style="width:56px;height:56px;border-radius:50%;background:var(--ac);color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center" id="prof-av">${initials}</div>`
+    }
+    <div style="position:absolute;bottom:0;right:0;width:18px;height:18px;background:var(--ac);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;border:2px solid var(--s2)">📷</div>
+    ${D.creds.avatar?`<div onclick="event.stopPropagation();removeUserAvatar()" title="Remove photo" style="position:absolute;top:-3px;right:-3px;width:16px;height:16px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;border:1px solid var(--bg);color:#fff;font-weight:700">×</div>`:''}
+  </div>
   <div><div style="font-size:15px;font-weight:600" id="prof-name">${esc(name)}</div><div style="font-size:11px;color:var(--t3)" id="prof-email">${esc(email)}</div><div style="font-size:10px;color:var(--ac);margin-top:2px">Owner</div></div>
   </div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll()"></div>
@@ -8004,6 +8029,25 @@ function closeDigest(){
   const m=document.getElementById('digest-modal');
   if(m)m.style.display='none';
 }
+function showSplashScreen(firstName){
+  const el=document.getElementById('splash-screen');
+  if(!el)return;
+  const greet=document.getElementById('splash-greeting');
+  if(greet)greet.textContent='Welcome aboard, '+firstName+' 🚀';
+  el.style.display='flex';
+  // After 2.8s (bar completes) fade out then hide
+  setTimeout(()=>{
+    el.classList.add('fade-out');
+    setTimeout(()=>{
+      el.style.display='none';
+      el.classList.remove('fade-out');
+      // Trigger digest and assistant after splash
+      setTimeout(showDailyDigest,800);
+      setTimeout(startAIAssistant,3000);
+      toast('👋 Welcome to LevelUp, '+firstName+'!');
+    },500);
+  },2800);
+}
 function showDailyDigest(){
   const np=D.prefs&&D.prefs.notifications||{};
   if(np.dailyDigest===false)return;
@@ -8703,9 +8747,108 @@ function updateProfileUI(){
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
-  document.querySelectorAll('#sb-avatar,#topbar-avatar').forEach(el=>el.textContent=initials);
+  // Update topbar and sidebar avatars — show photo if set, otherwise initials
+  document.querySelectorAll('#sb-avatar,#topbar-avatar').forEach(el=>{
+    if(D.creds.avatar){
+      // Swap to img element if not already
+      if(el.tagName!=='IMG'){
+        const img=document.createElement('img');
+        img.src=D.creds.avatar;
+        img.alt=name;
+        img.className=el.className;
+        img.id=el.id;
+        img.style.cssText='width:28px;height:28px;border-radius:50%;object-fit:cover;cursor:pointer';
+        if(el.id==='topbar-avatar'){img.onclick=()=>nav('settings');}
+        if(el.id==='sb-avatar'){img.style.cssText='width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0';}
+        el.parentNode.replaceChild(img,el);
+      }else{
+        el.src=D.creds.avatar;
+      }
+    }else{
+      // Swap back to div if currently an img
+      if(el.tagName==='IMG'){
+        const div=document.createElement('div');
+        div.className=el.className;
+        div.id=el.id;
+        div.textContent=initials;
+        if(el.id==='topbar-avatar'){div.onclick=()=>nav('settings');}
+        el.parentNode.replaceChild(div,el);
+      }else{
+        el.textContent=initials;
+      }
+    }
+  });
   document.querySelectorAll('#sb-name').forEach(el=>el.textContent=name);
   document.querySelectorAll('#sb-email').forEach(el=>el.textContent=email);
+}
+function uploadUserAvatar(){
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='image/jpeg,image/png,image/webp,image/gif';
+  input.onchange=()=>{
+    const file=input.files&&input.files[0];
+    if(!file)return;
+    if(file.size>10*1024*1024){toast('⚠️ Image must be under 10 MB');return;}
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      const img=new Image();
+      img.onload=()=>{
+        // Reuse the team member avatar crop modal
+        _avatarMemberId='__user__';
+        _avatarImg=img;
+        _avatarOffX=0;_avatarOffY=0;
+        const zoomEl=document.getElementById('avatar-zoom');
+        if(zoomEl){zoomEl.value='1';}
+        const modal=document.getElementById('avatar-crop-modal');
+        if(modal){
+          // Retitle the modal for user avatar
+          const title=modal.querySelector('div[style*="font-size:15px"]');
+          if(title)title.textContent='📷 Crop Profile Photo';
+          // Override the save button to call saveUserAvatarCrop
+          const btn=document.getElementById('avatar-crop-save-btn');
+          if(btn){btn.onclick=saveUserAvatarCrop;}
+          modal.style.display='flex';
+        }
+        _avatarDraw();
+        _avatarBindEvents();
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+async function saveUserAvatarCrop(){
+  const canvas=document.getElementById('avatar-crop-canvas');
+  if(!canvas)return;
+  const btn=document.getElementById('avatar-crop-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    const dataUrl=canvas.toDataURL('image/jpeg',0.92);
+    const res=await _trpc('userProfile.uploadAvatar',{dataUrl,mimeType:'image/jpeg'},'mutation');
+    D.creds.avatar=res.url;
+    saveAll();
+    closeAvatarCrop();
+    // Re-render settings to show new avatar
+    renderSettings();
+    updateProfileUI();
+    toast('✅ Profile photo updated!');
+  }catch(err){
+    console.error('User avatar upload error:',err);
+    toast('❌ Upload failed: '+(err.message||'Unknown error'));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Save Photo';}
+    // Restore save button to team avatar handler
+    const btn2=document.getElementById('avatar-crop-save-btn');
+    if(btn2)btn2.onclick=saveAvatarCrop;
+  }
+}
+function removeUserAvatar(){
+  delete D.creds.avatar;
+  saveAll();
+  renderSettings();
+  updateProfileUI();
+  toast('🗑️ Profile photo removed');
 }
 
 // ====== MY DAY AUTO-RESET + HABIT RESET ======
@@ -9044,10 +9187,17 @@ function doLoginSuccess(member){
   updateProfileUI();
   renderScreen(_homeKey);
   updateSidebarBadges();
-  // Show daily digest after a short delay so the app is fully rendered
-  setTimeout(showDailyDigest,1500);
-  setTimeout(startAIAssistant,5000);
-  toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
+  // Show onboarding splash on first-ever login
+  const _splashKey='lu_splash_shown_v1';
+  if(!localStorage.getItem(_splashKey)){
+    localStorage.setItem(_splashKey,'1');
+    showSplashScreen(member.name.split(' ')[0]);
+  }else{
+    // Show daily digest after a short delay so the app is fully rendered
+    setTimeout(showDailyDigest,1500);
+    setTimeout(startAIAssistant,5000);
+    toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
+  }
   // Handle shared idea URL: ?idea=ID&token=TOKEN
   const _sp=new URLSearchParams(window.location.search);
   const _sharedIdeaId=parseInt(_sp.get('idea'));
