@@ -213,3 +213,9 @@
 - [x] Snooze individual notifications: add "Snooze 1h" button on each notification row; re-marks that alert as unread after 60 minutes
 - [x] Digest time picker: surface digestTime as a visible time-picker row in the Notifications settings panel alongside the daily digest toggle
 - [x] Team member profile picture: file input on team member card/drawer → upload to S3 via tRPC → display as avatar in team list and member detail
+
+## Avatar UX, Snooze Options & Favicon
+- [x] Avatar crop/preview modal: show circular crop preview before upload using Canvas API
+- [x] Remove avatar button: add ✕ button on avatar when one exists, clears m.avatar and reverts to initials
+- [x] Snooze duration dropdown: extend snooze to 15 min / 1h / 3h / Tomorrow options
+- [x] Custom favicon: generate and deploy a LevelUp-branded favicon (SVG + ICO)

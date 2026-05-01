@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LevelUp - The Second Brain</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="192x192" href="/manus-storage/favicon-192_0a5868b9.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/manus-storage/favicon-512_f76dd5b1.png">
+<link rel="apple-touch-icon" href="/manus-storage/favicon-192_0a5868b9.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -615,6 +620,33 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="ai-panel-h"><span>⚡ LevelUp Assistant</span><button class="close" onclick="toggleAIPanel()">✕</button></div>
 <div class="ai-panel-body" id="ai-chat"></div>
 <div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
+</div>
+<!-- AVATAR CROP MODAL -->
+<div id="avatar-crop-modal" style="display:none;position:fixed;inset:0;z-index:310;background:rgba(0,0,0,.7);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:min(400px,96vw);box-shadow:0 16px 60px rgba(0,0,0,.6);padding:0">
+    <div style="padding:16px 18px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:15px;font-weight:600">📷 Crop Profile Photo</div>
+      <button onclick="closeAvatarCrop()" style="background:none;border:none;color:var(--t2);font-size:18px;cursor:pointer;padding:2px 6px">&times;</button>
+    </div>
+    <div style="padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px">
+      <!-- Circular preview -->
+      <div style="position:relative;width:180px;height:180px">
+        <canvas id="avatar-crop-canvas" width="180" height="180" style="border-radius:50%;display:block;border:3px solid var(--ac)"></canvas>
+        <div style="position:absolute;inset:0;border-radius:50%;border:2px dashed rgba(255,255,255,.3);pointer-events:none"></div>
+      </div>
+      <!-- Zoom slider -->
+      <div style="width:100%;display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--t3)">Zoom</span>
+        <input type="range" id="avatar-zoom" min="1" max="3" step="0.05" value="1" style="flex:1" oninput="_avatarDraw()">
+        <span style="font-size:11px;color:var(--t3)" id="avatar-zoom-val">1.0×</span>
+      </div>
+      <p style="font-size:11px;color:var(--t3);text-align:center">Drag to reposition · Scroll or slide to zoom</p>
+      <div style="display:flex;gap:10px;width:100%">
+        <button class="btn" style="flex:1" onclick="closeAvatarCrop()">Cancel</button>
+        <button class="btn btn-p" style="flex:1" id="avatar-crop-save-btn" onclick="saveAvatarCrop()">Save Photo</button>
+      </div>
+    </div>
+  </div>
 </div>
 <!-- DAILY DIGEST MODAL -->
 <div id="digest-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
@@ -6505,11 +6537,13 @@ function renderTeam(){
     const avatarHtml=m.avatar
       ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
       :`<div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
+    const removeAvatarBtn=m.avatar?`<div onclick="event.stopPropagation();removeAvatarMember(${m.id})" title="Remove photo" style="position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;border:1px solid var(--bg);color:#fff;font-weight:700;line-height:1">×</div>`:'';
     return`<div class="cd" style="padding:14px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div style="position:relative;flex-shrink:0" title="Click to upload photo" onclick="uploadMemberAvatar(${m.id})" style="cursor:pointer">
           ${avatarHtml}
           <div style="position:absolute;bottom:0;right:0;width:14px;height:14px;background:var(--ac);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;cursor:pointer;border:1px solid var(--bg)">📷</div>
+          ${removeAvatarBtn}
         </div>
         <div style="flex:1">
           <div style="font-size:14px;font-weight:600">${esc(m.name)}</div>
@@ -7533,35 +7567,122 @@ function importData(file){
 
 // ====== TEAMS ======
 // ---- Profile picture upload ----
+// ---- Avatar crop state ----
+let _avatarMemberId=null,_avatarImg=null,_avatarOffX=0,_avatarOffY=0,_avatarDragging=false,_avatarDragStartX=0,_avatarDragStartY=0,_avatarDragOffX=0,_avatarDragOffY=0;
 function uploadMemberAvatar(memberId){
   const input=document.createElement('input');
   input.type='file';
   input.accept='image/jpeg,image/png,image/webp,image/gif';
-  input.onchange=async()=>{
+  input.onchange=()=>{
     const file=input.files&&input.files[0];
     if(!file)return;
-    if(file.size>5*1024*1024){toast('⚠️ Image must be under 5 MB');return;}
-    const mimeType=file.type;
-    // Read as base64 data URL
+    if(file.size>10*1024*1024){toast('⚠️ Image must be under 10 MB');return;}
     const reader=new FileReader();
-    reader.onload=async(e)=>{
-      const dataUrl=e.target.result;
-      toast('⏳ Uploading photo…');
-      try{
-        const res=await _trpc('team.uploadMemberAvatar',{memberId,dataUrl,mimeType},'mutation');
-        // Persist avatar URL in D.teams member
-        const member=D.teams.flatMap(t=>t.members).find(m=>m.id===memberId);
-        if(member){member.avatar=res.url;save('teams');}
-        renderTeam();
-        toast('✅ Profile photo updated!');
-      }catch(err){
-        console.error('Avatar upload error:',err);
-        toast('❌ Upload failed: '+(err.message||'Unknown error'));
-      }
+    reader.onload=(e)=>{
+      const img=new Image();
+      img.onload=()=>{
+        _avatarMemberId=memberId;
+        _avatarImg=img;
+        _avatarOffX=0;_avatarOffY=0;
+        const zoomEl=document.getElementById('avatar-zoom');
+        if(zoomEl){zoomEl.value='1';}
+        const modal=document.getElementById('avatar-crop-modal');
+        if(modal){modal.style.display='flex';}
+        _avatarDraw();
+        _avatarBindEvents();
+      };
+      img.src=e.target.result;
     };
     reader.readAsDataURL(file);
   };
   input.click();
+}
+function _avatarDraw(){
+  const canvas=document.getElementById('avatar-crop-canvas');
+  if(!canvas||!_avatarImg)return;
+  const ctx=canvas.getContext('2d');
+  const size=180;
+  const zoomEl=document.getElementById('avatar-zoom');
+  const zoom=zoomEl?parseFloat(zoomEl.value):1;
+  const zoomVal=document.getElementById('avatar-zoom-val');
+  if(zoomVal)zoomVal.textContent=zoom.toFixed(1)+'×';
+  ctx.clearRect(0,0,size,size);
+  // Clip to circle
+  ctx.save();
+  ctx.beginPath();ctx.arc(size/2,size/2,size/2,0,Math.PI*2);ctx.clip();
+  // Fit image to canvas at zoom level, centered + offset
+  const scale=Math.max(size/_avatarImg.width,size/_avatarImg.height)*zoom;
+  const sw=_avatarImg.width*scale,sh=_avatarImg.height*scale;
+  const dx=(size-sw)/2+_avatarOffX,dy=(size-sh)/2+_avatarOffY;
+  ctx.drawImage(_avatarImg,dx,dy,sw,sh);
+  ctx.restore();
+}
+// Keep references to window-level drag handlers so they can be removed on close
+let _avatarMoveHandler=null,_avatarUpHandler=null;
+function _avatarBindEvents(){
+  // Clean up any previous window listeners
+  if(_avatarMoveHandler)window.removeEventListener('mousemove',_avatarMoveHandler);
+  if(_avatarUpHandler)window.removeEventListener('mouseup',_avatarUpHandler);
+  const canvas=document.getElementById('avatar-crop-canvas');
+  if(!canvas)return;
+  // Replace canvas node to clear old element-level listeners
+  const fresh=canvas.cloneNode(false); // shallow clone — no bitmap needed
+  canvas.parentNode.replaceChild(fresh,canvas);
+  fresh.style.cursor='grab';
+  // Redraw immediately on the fresh canvas
+  // (must happen after replace so _avatarDraw targets the new element)
+  requestAnimationFrame(()=>_avatarDraw());
+  fresh.addEventListener('mousedown',(e)=>{_avatarDragging=true;_avatarDragStartX=e.clientX;_avatarDragStartY=e.clientY;_avatarDragOffX=_avatarOffX;_avatarDragOffY=_avatarOffY;fresh.style.cursor='grabbing';});
+  _avatarMoveHandler=(e)=>{if(!_avatarDragging)return;_avatarOffX=_avatarDragOffX+(e.clientX-_avatarDragStartX);_avatarOffY=_avatarDragOffY+(e.clientY-_avatarDragStartY);_avatarDraw();};
+  _avatarUpHandler=()=>{_avatarDragging=false;fresh.style.cursor='grab';};
+  window.addEventListener('mousemove',_avatarMoveHandler);
+  window.addEventListener('mouseup',_avatarUpHandler);
+  fresh.addEventListener('wheel',(e)=>{e.preventDefault();const zEl=document.getElementById('avatar-zoom');if(!zEl)return;let v=parseFloat(zEl.value)+(e.deltaY<0?0.1:-0.1);v=Math.max(1,Math.min(3,v));zEl.value=v;_avatarDraw();},{passive:false});
+  // Touch support
+  let lastTouchDist=null;
+  fresh.addEventListener('touchstart',(e)=>{if(e.touches.length===1){_avatarDragging=true;_avatarDragStartX=e.touches[0].clientX;_avatarDragStartY=e.touches[0].clientY;_avatarDragOffX=_avatarOffX;_avatarDragOffY=_avatarOffY;}if(e.touches.length===2){lastTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+  fresh.addEventListener('touchmove',(e)=>{if(e.touches.length===1&&_avatarDragging){_avatarOffX=_avatarDragOffX+(e.touches[0].clientX-_avatarDragStartX);_avatarOffY=_avatarDragOffY+(e.touches[0].clientY-_avatarDragStartY);_avatarDraw();}if(e.touches.length===2&&lastTouchDist){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);const zEl=document.getElementById('avatar-zoom');if(zEl){let v=parseFloat(zEl.value)*(d/lastTouchDist);v=Math.max(1,Math.min(3,v));zEl.value=v;_avatarDraw();}lastTouchDist=d;}},{passive:true});
+  fresh.addEventListener('touchend',()=>{_avatarDragging=false;lastTouchDist=null;});
+  // Re-bind zoom slider (was cloned)
+  const zoomEl=document.getElementById('avatar-zoom');
+  if(zoomEl)zoomEl.oninput=_avatarDraw;
+}
+function closeAvatarCrop(){
+  const modal=document.getElementById('avatar-crop-modal');
+  if(modal)modal.style.display='none';
+  // Clean up window-level drag listeners
+  if(_avatarMoveHandler){window.removeEventListener('mousemove',_avatarMoveHandler);_avatarMoveHandler=null;}
+  if(_avatarUpHandler){window.removeEventListener('mouseup',_avatarUpHandler);_avatarUpHandler=null;}
+  _avatarImg=null;_avatarMemberId=null;_avatarDragging=false;
+}
+async function saveAvatarCrop(){
+  const canvas=document.getElementById('avatar-crop-canvas');
+  if(!canvas||!_avatarMemberId)return;
+  const btn=document.getElementById('avatar-crop-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+  try{
+    // Export canvas as JPEG data URL
+    const dataUrl=canvas.toDataURL('image/jpeg',0.92);
+    const res=await _trpc('team.uploadMemberAvatar',{memberId:_avatarMemberId,dataUrl,mimeType:'image/jpeg'},'mutation');
+    const member=D.teams.flatMap(t=>t.members).find(m=>m.id===_avatarMemberId);
+    if(member){member.avatar=res.url;save('teams');}
+    closeAvatarCrop();
+    renderTeam();
+    toast('✅ Profile photo updated!');
+  }catch(err){
+    console.error('Avatar upload error:',err);
+    toast('❌ Upload failed: '+(err.message||'Unknown error'));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Save Photo';}
+  }
+}
+function removeAvatarMember(memberId){
+  const member=D.teams.flatMap(t=>t.members).find(m=>m.id===memberId);
+  if(!member)return;
+  delete member.avatar;
+  save('teams');
+  renderTeam();
+  toast('🗑️ Profile photo removed');
 }
 function addTeamMember(teamId){
   const name=prompt('Member name:');if(!name)return;
@@ -7925,22 +8046,35 @@ const NOTIF_SNOOZE_KEY='lu_notifs_snoozed';
 function getSnoozedNotifs(){
   try{return JSON.parse(localStorage.getItem(NOTIF_SNOOZE_KEY)||'{}');}catch(e){return {};}
 }
-function snoozeNotif(id){
-  // Mark as read now, schedule un-read after 1h
+function snoozeNotif(id,durationMs){
+  // durationMs can be a number (ms) or the string 'tomorrow'
+  let expiry;
+  let label;
+  if(durationMs==='tomorrow'||isNaN(durationMs)){
+    const tom=new Date();tom.setDate(tom.getDate()+1);tom.setHours(9,0,0,0);
+    expiry=tom.getTime();label='tomorrow at 9 AM';
+  }else{
+    expiry=Date.now()+(durationMs||3600000);
+    label=durationMs<=900000?'15 minutes':durationMs<=3600000?'1 hour':'3 hours';
+  }
+  // Mark as read now
   markNotifsReadInStorage([id]);
   const snoozed=getSnoozedNotifs();
-  snoozed[id]=Date.now()+60*60*1000;
+  snoozed[id]=expiry;
   try{localStorage.setItem(NOTIF_SNOOZE_KEY,JSON.stringify(snoozed));}catch(e){}
-  // Re-mark unread after 1h by removing from read set
-  setTimeout(()=>{
-    const readIds=getReadNotifIds();
-    readIds.delete(id);
-    try{localStorage.setItem(NOTIF_READ_KEY,JSON.stringify([...readIds]));}catch(e){}
-    updateSidebarBadges();
-  },60*60*1000);
+  // Re-mark unread after snooze expires (in-session)
+  const delay=expiry-Date.now();
+  if(delay>0&&delay<24*60*60*1000){
+    setTimeout(()=>{
+      const readIds=getReadNotifIds();
+      readIds.delete(id);
+      try{localStorage.setItem(NOTIF_READ_KEY,JSON.stringify([...readIds]));}catch(e){}
+      updateSidebarBadges();
+    },delay);
+  }
   renderNotifPanel();
   updateSidebarBadges();
-  toast('⏰ Notification snoozed for 1 hour');
+  toast('⏰ Snoozed for '+label);
 }
 function renderNotifPanel(){
   const list=document.getElementById('notif-list');
@@ -7967,7 +8101,13 @@ function renderNotifPanel(){
         <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
         <div style="font-size:9px;color:var(--t3)">${n.time}</div>
       </div>
-      <button onclick="event.stopPropagation();snoozeNotif('${n.id}')" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 6px;font-size:9px;color:var(--t2);cursor:pointer;align-self:center" title="Snooze 1 hour">⏰ 1h</button>
+      <select onchange="event.stopPropagation();if(this.value)snoozeNotif('${n.id}',+this.value)" onclick="event.stopPropagation()" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;font-size:9px;color:var(--t2);cursor:pointer;align-self:center;max-width:72px" title="Snooze">
+        <option value="">⏰ Snooze</option>
+        <option value="900000">15 min</option>
+        <option value="3600000">1 hour</option>
+        <option value="10800000">3 hours</option>
+        <option value="tomorrow">Tomorrow</option>
+      </select>
     </div>`;
   }).join('');
 }
