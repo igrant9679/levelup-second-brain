@@ -141,6 +141,28 @@ export const userTourProgress = mysqlTable('user_tour_progress', {
   lastResumedAt: timestamp('lastResumedAt'),
 });
 
+// ─── OneNote Import ──────────────────────────────────────────────────────────
+export const onenoteImportJobs = mysqlTable('onenote_import_jobs', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  status: mysqlEnum('status', ['pending', 'running', 'completed', 'failed']).notNull().default('pending'),
+  // What was selected to import
+  notebookId: varchar('notebookId', { length: 256 }),
+  notebookName: varchar('notebookName', { length: 256 }),
+  sectionId: varchar('sectionId', { length: 256 }),   // null = all sections
+  sectionName: varchar('sectionName', { length: 256 }),
+  pageId: varchar('pageId', { length: 256 }),          // null = all pages in section
+  // Progress counters
+  totalPages: int('totalPages').notNull().default(0),
+  importedPages: int('importedPages').notNull().default(0),
+  failedPages: int('failedPages').notNull().default(0),
+  errorMessage: text('errorMessage'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  completedAt: timestamp('completedAt'),
+});
+export type OnenoteImportJob = typeof onenoteImportJobs.$inferSelect;
+export type InsertOnenoteImportJob = typeof onenoteImportJobs.$inferInsert;
+
 export const userLearningPreferences = mysqlTable('user_learning_preferences', {
   userId: int('userId').primaryKey(),
   showCoachMascot: int('showCoachMascot').notNull().default(1),

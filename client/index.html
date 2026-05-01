@@ -6815,20 +6815,74 @@ function renderSettingsHTML(){
   </div>`).join('')}
   <button class="btn btn-s" onclick="addTeam()">+ Create Team</button>
   </div>
-  <!-- OneNote Import --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">OneNote PDF Import</h3>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:6px">Import notes exported as PDF from Microsoft OneNote. The folder name from the PDF filename (before the first " - " or " _ ") will be used as tags.</p>
-  <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--t2)">
-  <strong>How to export from OneNote:</strong><br>1. Open the OneNote section/page<br>2. File → Export → PDF<br>3. Name the file as: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">FolderName - NoteName.pdf</code><br>4. Drop the PDF(s) below</div>
-  <div class="import-zone" id="onenote-zone" onclick="document.getElementById('onenote-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="event.preventDefault();this.classList.remove('dragover');handleOneNoteFiles(event.dataTransfer.files)">
-  <div style="font-size:24px;margin-bottom:6px">📄</div>
-  <div style="font-size:13px;font-weight:500;margin-bottom:3px">Drop OneNote PDF files here</div>
-  <div style="font-size:11px;color:var(--t3)">or click to browse</div>
+  <!-- OneNote Import --><div id="sp-7" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">📓 OneNote Import</h3>
+  <p style="font-size:10px;color:var(--t2);margin-bottom:12px">Connect your Microsoft account to browse and import notebooks, sections, or individual pages directly into LevelUp Notes.</p>
+  <!-- Connection status card -->
+  <div id="on-connect-card" style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:32px;height:32px;background:#2563eb;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">📓</div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">Microsoft OneNote</div>
+        <div id="on-status-text" style="font-size:10px;color:var(--t3)">Checking connection…</div>
+      </div>
+      <span id="on-status-badge" style="font-size:9px;padding:2px 8px;border-radius:12px;background:var(--s3);color:var(--t3)">Not connected</span>
+    </div>
+    <div id="on-btn-connect-wrap">
+      <button class="btn btn-p" style="font-size:11px;width:100%" onclick="connectOnenote()">🔗 Connect Microsoft Account</button>
+    </div>
+    <div id="on-btn-connected-wrap" style="display:none">
+      <div style="display:flex;gap:8px">
+        <button class="btn" style="font-size:11px;flex:1" onclick="loadOnenoteNotebooks()">📚 Browse Notebooks</button>
+        <button class="btn btn-d" style="font-size:11px" onclick="disconnectOnenote()">✕ Disconnect</button>
+      </div>
+    </div>
   </div>
-  <input type="file" id="onenote-input" accept=".pdf" multiple style="display:none" onchange="handleOneNoteFiles(this.files)">
-  <div id="onenote-results" style="margin-top:12px"></div>
-  <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Previously Imported</div>
-  <div id="onenote-history">${(D.notes.filter(n=>n.source==='OneNote Import')).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span style="font-size:9px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">No imports yet</div>'}</div>
-  </div></div>
+  <!-- Notebook browser -->
+  <div id="on-browser" style="display:none">
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">Select what to import</div>
+    <!-- Notebook list -->
+    <div id="on-notebooks-wrap">
+      <div style="font-size:11px;color:var(--t3);padding:8px 0">Loading notebooks…</div>
+    </div>
+    <!-- Section list (shown after notebook selected) -->
+    <div id="on-sections-wrap" style="display:none">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="document.getElementById('on-sections-wrap').style.display='none';document.getElementById('on-notebooks-wrap').style.display=''">← Back</button>
+        <span id="on-selected-nb-name" style="font-size:12px;font-weight:600"></span>
+      </div>
+      <div id="on-sections-list"><div style="font-size:11px;color:var(--t3)">Loading sections…</div></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-p" style="font-size:11px;width:100%" onclick="startOnenoteImport('notebook')">📥 Import Entire Notebook</button>
+      </div>
+    </div>
+    <!-- Page list (shown after section selected) -->
+    <div id="on-pages-wrap" style="display:none">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="document.getElementById('on-pages-wrap').style.display='none';document.getElementById('on-sections-wrap').style.display=''">← Back</button>
+        <span id="on-selected-sec-name" style="font-size:12px;font-weight:600"></span>
+      </div>
+      <div id="on-pages-list"><div style="font-size:11px;color:var(--t3)">Loading pages…</div></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-p" style="font-size:11px;width:100%" onclick="startOnenoteImport('section')">📥 Import Entire Section</button>
+      </div>
+    </div>
+  </div>
+  <!-- Import progress -->
+  <div id="on-progress-wrap" style="display:none;background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">Importing…</div>
+    <div id="on-progress-label" style="font-size:11px;color:var(--t2);margin-bottom:6px">Starting import…</div>
+    <div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden;margin-bottom:6px">
+      <div id="on-progress-bar" style="height:100%;background:var(--ac);border-radius:4px;width:0%;transition:width 0.4s"></div>
+    </div>
+    <div id="on-progress-pct" style="font-size:10px;color:var(--t3)">0%</div>
+  </div>
+  <!-- Import history -->
+  <div id="on-history-wrap" style="margin-top:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">Import History</div>
+    <div id="on-history-list"><div style="font-size:11px;color:var(--t3)">No imports yet</div></div>
+  </div>
+  </div>
   <!-- Sync --><div id="sp-8" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Microsoft To Do sync</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Sync interval</div></div><select class="inp" style="max-width:160px"><option>Every 30 sec</option><option>Every 1 min</option><option>Every 5 min</option></select></div>
@@ -6857,6 +6911,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-3')loadOAuthStatus();
+  if(id==='sp-7')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
 function exportData(){
@@ -9547,6 +9602,228 @@ function exportContactsCSV(){
   const blob=new Blob([csv],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts-export.csv';a.click();
   toast('📤 Contacts exported as CSV');
+}
+
+// ====== ONENOTE IMPORT ======
+// State for the notebook browser
+var _onSelectedNotebook=null; // {id,name}
+var _onSelectedSection=null;  // {id,name}
+var _onImportJobId=null;
+var _onPollTimer=null;
+
+async function loadOnenoteStatus(){
+  const badge=document.getElementById('on-status-badge');
+  const text=document.getElementById('on-status-text');
+  const connectWrap=document.getElementById('on-btn-connect-wrap');
+  const connectedWrap=document.getElementById('on-btn-connected-wrap');
+  if(!badge)return;
+  try{
+    const status=await _trpc('onenote.status',undefined,'query');
+    if(status&&status.connected){
+      badge.style.background='var(--ok)';badge.style.color='#fff';badge.textContent='✓ Connected';
+      text.textContent=status.email||status.displayName||'Microsoft account connected';
+      connectWrap.style.display='none';connectedWrap.style.display='';
+      renderOnenoteHistory(status.latestJob);
+    } else {
+      badge.style.background='var(--s3)';badge.style.color='var(--t3)';badge.textContent='Not connected';
+      text.textContent='Connect your Microsoft account to get started';
+      connectWrap.style.display='';connectedWrap.style.display='none';
+    }
+  } catch(e){
+    text.textContent='Could not check connection status';
+    console.error('[OneNote]',e);
+  }
+}
+
+async function connectOnenote(){
+  try{
+    const data=await _trpc('onenote.getAuthUrl',{origin:window.location.origin},'query');
+    if(data&&data.url)window.location.href=data.url;
+  } catch(e){
+    showToast('Could not get Microsoft auth URL: '+e.message,'error');
+  }
+}
+
+async function disconnectOnenote(){
+  if(!confirm('Disconnect your Microsoft account from OneNote import?'))return;
+  try{
+    await _trpc('oauthSync.disconnect',{provider:'microsoft'},'mutation');
+    loadOnenoteStatus();
+    document.getElementById('on-browser').style.display='none';
+    showToast('Microsoft account disconnected');
+  } catch(e){
+    showToast('Disconnect failed: '+e.message,'error');
+  }
+}
+
+async function loadOnenoteNotebooks(){
+  const browser=document.getElementById('on-browser');
+  const nbWrap=document.getElementById('on-notebooks-wrap');
+  browser.style.display='';
+  document.getElementById('on-sections-wrap').style.display='none';
+  document.getElementById('on-pages-wrap').style.display='none';
+  nbWrap.style.display='';
+  nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3);padding:8px 0">Loading notebooks…</div>';
+  try{
+    const notebooks=await _trpc('onenote.listNotebooks',undefined,'query');
+    if(!notebooks||notebooks.length===0){
+      nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3)">No notebooks found in your Microsoft account.</div>';
+      return;
+    }
+    nbWrap.innerHTML=notebooks.map(nb=>`
+      <div class="lr" style="cursor:pointer;padding:8px;border-radius:8px;margin-bottom:4px;background:var(--s2)" onclick="selectOnenoteNotebook('${nb.id.replace(/'/g,"\\'")}',' ${nb.name.replace(/'/g,"\\'")}')">  
+        <span style="font-size:18px;margin-right:8px">📓</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:500">${esc(nb.name)}</div>
+          <div style="font-size:10px;color:var(--t3)">Last modified: ${new Date(nb.lastModified).toLocaleDateString()}</div>
+        </div>
+        <span style="font-size:10px;color:var(--t3)">›</span>
+      </div>`).join('');
+  } catch(e){
+    nbWrap.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load notebooks: '+esc(e.message)+'</div>';
+  }
+}
+
+async function selectOnenoteNotebook(id,name){
+  _onSelectedNotebook={id,name};
+  document.getElementById('on-selected-nb-name').textContent=name;
+  document.getElementById('on-notebooks-wrap').style.display='none';
+  const secWrap=document.getElementById('on-sections-wrap');
+  const secList=document.getElementById('on-sections-list');
+  secWrap.style.display='';
+  secList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading sections…</div>';
+  try{
+    const sections=await _trpc('onenote.listSections',{notebookId:id},'query');
+    if(!sections||sections.length===0){
+      secList.innerHTML='<div style="font-size:11px;color:var(--t3)">No sections found.</div>';
+      return;
+    }
+    secList.innerHTML=sections.map(s=>`
+      <div class="lr" style="cursor:pointer;padding:8px;border-radius:8px;margin-bottom:4px;background:var(--s2)" onclick="selectOnenoteSection('${s.id.replace(/'/g,"\\'")}',' ${s.name.replace(/'/g,"\\'")}')">  
+        <span style="font-size:16px;margin-right:8px">📂</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:500">${esc(s.name)}</div>
+          <div style="font-size:10px;color:var(--t3)">Last modified: ${new Date(s.lastModified).toLocaleDateString()}</div>
+        </div>
+        <span style="font-size:10px;color:var(--t3)">›</span>
+      </div>`).join('');
+  } catch(e){
+    secList.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load sections: '+esc(e.message)+'</div>';
+  }
+}
+
+async function selectOnenoteSection(id,name){
+  _onSelectedSection={id,name};
+  document.getElementById('on-selected-sec-name').textContent=name;
+  document.getElementById('on-sections-wrap').style.display='none';
+  const pagesWrap=document.getElementById('on-pages-wrap');
+  const pagesList=document.getElementById('on-pages-list');
+  pagesWrap.style.display='';
+  pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading pages…</div>';
+  try{
+    const pages=await _trpc('onenote.listPages',{sectionId:id},'query');
+    if(!pages||pages.length===0){
+      pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">No pages found.</div>';
+      return;
+    }
+    pagesList.innerHTML=`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">${pages.length} page${pages.length!==1?'s':''} found — click a page to import it individually, or use the button below to import all.</div>`+
+      pages.map(p=>`
+        <div class="lr" style="cursor:pointer;padding:6px 8px;border-radius:6px;margin-bottom:3px;background:var(--s2)" onclick="startOnenoteImport('page','${p.id.replace(/'/g,"\\'")}',' ${p.title.replace(/'/g,"\\'")}')">  
+          <span style="font-size:14px;margin-right:8px">📄</span>
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:500">${esc(p.title||'Untitled')}</div>
+            <div style="font-size:9px;color:var(--t3)">${new Date(p.lastModified).toLocaleDateString()}</div>
+          </div>
+        </div>`).join('');
+  } catch(e){
+    pagesList.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load pages: '+esc(e.message)+'</div>';
+  }
+}
+
+async function startOnenoteImport(scope,pageId,pageName){
+  if(!_onSelectedNotebook){showToast('No notebook selected','error');return;}
+  const input={
+    scope,
+    notebookId:_onSelectedNotebook.id,
+    notebookName:_onSelectedNotebook.name,
+    sectionId:_onSelectedSection?_onSelectedSection.id:undefined,
+    sectionName:_onSelectedSection?_onSelectedSection.name:undefined,
+    pageId:pageId||undefined,
+    pageName:pageName||undefined,
+  };
+  try{
+    const result=await _trpc('onenote.startImport',input,'mutation');
+    _onImportJobId=result.jobId;
+    document.getElementById('on-browser').style.display='none';
+    document.getElementById('on-progress-wrap').style.display='';
+    document.getElementById('on-progress-label').textContent='Importing '+result.totalPages+' page'+(result.totalPages!==1?'s':'')+'…';
+    document.getElementById('on-progress-bar').style.width='0%';
+    document.getElementById('on-progress-pct').textContent='0%';
+    pollOnenoteProgress();
+  } catch(e){
+    showToast('Import failed to start: '+e.message,'error');
+  }
+}
+
+function pollOnenoteProgress(){
+  if(_onPollTimer)clearInterval(_onPollTimer);
+  _onPollTimer=setInterval(async()=>{
+    if(!_onImportJobId)return;
+    try{
+      const job=await _trpc('onenote.getImportProgress',{jobId:_onImportJobId},'query');
+      const pct=job.progressPct||0;
+      document.getElementById('on-progress-bar').style.width=pct+'%';
+      document.getElementById('on-progress-pct').textContent=pct+'%';
+      document.getElementById('on-progress-label').textContent=
+        `Imported ${job.importedPages} of ${job.totalPages} pages${job.failedPages>0?' ('+job.failedPages+' failed)':''}`;
+      if(job.status==='completed'||job.status==='failed'){
+        clearInterval(_onPollTimer);
+        _onPollTimer=null;
+        document.getElementById('on-progress-wrap').style.display='none';
+        if(job.status==='completed'){
+          showToast('✅ Imported '+job.importedPages+' note'+(job.importedPages!==1?'s':'')+' from OneNote!');
+        } else {
+          showToast('⚠ Import finished with errors. '+job.failedPages+' pages failed.','error');
+        }
+        loadOnenoteStatus();
+        loadOnenoteHistory();
+      }
+    } catch(e){
+      console.error('[OneNote poll]',e);
+    }
+  },2000);
+}
+
+async function loadOnenoteHistory(){
+  const list=document.getElementById('on-history-list');
+  if(!list)return;
+  try{
+    const jobs=await _trpc('onenote.listImportJobs',undefined,'query');
+    if(!jobs||jobs.length===0){
+      list.innerHTML='<div style="font-size:11px;color:var(--t3)">No imports yet</div>';
+      return;
+    }
+    list.innerHTML=jobs.map(j=>{
+      const statusColor=j.status==='completed'?'var(--ok)':j.status==='failed'?'var(--red)':j.status==='running'?'var(--ac)':'var(--t3)';
+      const statusIcon=j.status==='completed'?'✅':j.status==='failed'?'❌':j.status==='running'?'⏳':'⏸';
+      return `<div class="lr" style="padding:8px;border-radius:8px;background:var(--s2);margin-bottom:4px">
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:500">${esc(j.notebookName||'Unknown notebook')}${j.sectionName?' / '+esc(j.sectionName):''}</div>
+          <div style="font-size:10px;color:var(--t3)">${new Date(j.createdAt).toLocaleString()}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:${statusColor}">${statusIcon} ${j.status}</div>
+          <div style="font-size:9px;color:var(--t3)">${j.importedPages}/${j.totalPages} pages</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e){
+    list.innerHTML='<div style="font-size:11px;color:var(--t3)">Could not load history</div>';
+  }
+}
+
+function renderOnenoteHistory(latestJob){
+  loadOnenoteHistory();
 }
 
 // ====== OAUTH SYNC ======

@@ -127,3 +127,26 @@
 - [x] Render markdown in AI answers using a simple markdown renderer
 - [x] Show cited article titles with clickable links in the answer
 - [x] Show typing indicator while LLM is responding
+
+## OneNote Import Feature
+- [x] DB: `onenote_connections` table (userId, accessToken, refreshToken, expiresAt, microsoftUserId, microsoftUserEmail)
+- [x] DB: `onenote_import_jobs` table (id, userId, status, totalPages, importedPages, failedPages, notebookName, sectionFilter, createdAt, completedAt)
+- [x] DB: push migrations with `pnpm db:push`
+- [x] Backend: Microsoft OAuth redirect endpoint (`/api/onenote/connect`)
+- [x] Backend: Microsoft OAuth callback endpoint (`/api/onenote/callback`) — exchange code for tokens, store in DB
+- [x] Backend: tRPC `onenote.getStatus` — check if user has connected Microsoft account
+- [x] Backend: tRPC `onenote.disconnect` — remove stored tokens
+- [x] Backend: tRPC `onenote.listNotebooks` — fetch notebooks from Graph API
+- [x] Backend: tRPC `onenote.listSections` — fetch sections for a notebook
+- [x] Backend: tRPC `onenote.listPages` — fetch pages for a section
+- [x] Backend: tRPC `onenote.startImport` — kick off batch import job (notebook/section/page level)
+- [x] Backend: tRPC `onenote.getImportProgress` — poll import job status
+- [x] Backend: HTML-to-Markdown converter for OneNote page content
+- [x] Backend: token refresh logic (auto-refresh when access token expires)
+- [x] Frontend: "Connect Microsoft / OneNote" button in Settings > Integrations
+- [x] Frontend: Notebook tree browser modal (Notebook → Section → Page checkboxes)
+- [x] Frontend: Import progress bar with live polling
+- [x] Frontend: Success state showing how many notes were imported
+- [x] Frontend: Imported notes appear in Notes module with `onenote:NotebookName` tag
+- [x] Tests: vitest for HTML-to-Markdown converter
+- [x] Tests: vitest for import job status transitions
