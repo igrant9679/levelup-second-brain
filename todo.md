@@ -152,12 +152,12 @@
 - [x] Tests: vitest for import job status transitions
 
 ## Notes Search & Filter Panel
-- [ ] Add a collapsible filter panel below the search bar in the Notes list column
-- [ ] Tag facet: show all unique tags as clickable chips, multi-select, active chips highlighted
-- [ ] Date range facet: preset buttons (Today, This Week, This Month, This Year) + custom from/to date inputs
-- [ ] Source facet: show all unique source values as toggle chips (Manual, OneNote Import, Markdown Import, Quick Capture, AI, Template, Clip)
-- [ ] Sort control: dropdown for Newest, Oldest, A–Z, Z–A, Longest, Most Tagged
-- [ ] Active filter summary bar: show count of results + "Clear all filters" button when any filter is active
-- [ ] Wire all facets into a unified applyNotesFilters() function that combines text search + tag + date + source + sort
-- [ ] Preserve filter state across note opens (don't reset filters when clicking a note)
-- [ ] Highlight matched text in note cards when text search is active
+- [x] Add a collapsible filter panel below the search bar in the Notes list column
+- [x] Tag facet: show all unique tags as clickable chips, multi-select, active chips highlighted
+- [x] Date range facet: preset buttons (Today, This Week, This Month, This Year) + custom from/to date inputs
+- [x] Source facet: show all unique source values as toggle chips (Manual, OneNote Import, Markdown Import, Quick Capture, AI, Template, Clip)
+- [x] Sort control: dropdown for Newest, Oldest, A–Z, Z–A, Longest, Most Tagged
+- [x] Active filter summary bar: show count of results + "Clear all filters" button when any filter is active
+- [x] Wire all facets into a unified applyNotesFilters() function that combines text search + tag + date + source + sort
+- [x] Preserve filter state across note opens (don't reset filters when clicking a note)
+- [x] Highlight matched text in note cards when text search is active

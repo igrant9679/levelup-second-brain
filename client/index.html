@@ -2259,25 +2259,45 @@ function showNoteInEditor(id){
 }
 // ─── Unified Notes Filter Engine ─────────────────────────────────────────────
 function _parseNoteDate(n){
-  // Try to parse a note's updated field into a Date. Falls back to epoch.
-  if(!n.updated)return new Date(0);
-  const s=n.updated.trim();
-  // ISO or standard date strings
+  // Try to parse a note's updated/created field into a Date. Falls back to epoch.
+  const raw=n.updated||n.created||'';
+  if(!raw)return new Date(0);
+  const s=raw.trim();
+  // 1. ISO / RFC2822 / standard parseable strings
   const d=new Date(s);
-  if(!isNaN(d))return d;
-  // Relative: 'Xd ago', 'Xh ago', 'Just now'
-  if(/just now/i.test(s))return new Date();
-  const m=s.match(/(\d+)([smhdwMy])\s*ago/i);
+  if(!isNaN(d.getTime()))return d;
+  const sl=s.toLowerCase();
+  const now=new Date();
+  // 2. Human-readable relative labels
+  if(/^just now$/i.test(sl))return new Date(now);
+  if(/^today$/i.test(sl)){const t=new Date(now);t.setHours(12,0,0,0);return t;}
+  if(/^yesterday$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-1);t.setHours(12,0,0,0);return t;}
+  if(/^this week$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-3);return t;}
+  if(/^last week$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-10);return t;}
+  if(/^this month$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-15);return t;}
+  if(/^last month$/i.test(sl)){const t=new Date(now);t.setMonth(t.getMonth()-1);return t;}
+  // 3. Numeric relative: '2h ago', '3d ago', '1w ago', '2mo ago', '1y ago'
+  const m=sl.match(/^(\d+)\s*(s|sec|m|min|h|hr|d|day|w|wk|mo|month|y|yr|year)s?\s*ago$/);
   if(m){
-    const v=parseInt(m[1]),u=m[2].toLowerCase(),now=new Date();
-    if(u==='s')now.setSeconds(now.getSeconds()-v);
-    else if(u==='m')now.setMinutes(now.getMinutes()-v);
-    else if(u==='h')now.setHours(now.getHours()-v);
-    else if(u==='d')now.setDate(now.getDate()-v);
-    else if(u==='w')now.setDate(now.getDate()-v*7);
-    else if(u==='M'||u==='mo')now.setMonth(now.getMonth()-v);
-    else if(u==='y')now.setFullYear(now.getFullYear()-v);
-    return now;
+    const v=parseInt(m[1]),u=m[2],t=new Date(now);
+    if(u==='s'||u==='sec')t.setSeconds(t.getSeconds()-v);
+    else if(u==='m'||u==='min')t.setMinutes(t.getMinutes()-v);
+    else if(u==='h'||u==='hr')t.setHours(t.getHours()-v);
+    else if(u==='d'||u==='day')t.setDate(t.getDate()-v);
+    else if(u==='w'||u==='wk')t.setDate(t.getDate()-v*7);
+    else if(u==='mo'||u==='month')t.setMonth(t.getMonth()-v);
+    else if(u==='y'||u==='yr'||u==='year')t.setFullYear(t.getFullYear()-v);
+    return t;
+  }
+  // 4. Short forms without 'ago': '2h', '3d', '1w'
+  const m2=sl.match(/^(\d+)(h|d|w|m)$/);
+  if(m2){
+    const v=parseInt(m2[1]),u=m2[2],t=new Date(now);
+    if(u==='h')t.setHours(t.getHours()-v);
+    else if(u==='d')t.setDate(t.getDate()-v);
+    else if(u==='w')t.setDate(t.getDate()-v*7);
+    else if(u==='m')t.setMonth(t.getMonth()-v);
+    return t;
   }
   return new Date(0);
 }
@@ -2363,10 +2383,28 @@ function applyNotesFilters(){
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
   if(countEl)countEl.textContent=`${notes.length} note${notes.length!==1?'s':''}`;
-  // Show/hide clear button
+  // Show/hide clear button and update summary bar
   const hasFilters=q||_notesFilterTags.size||_notesFilterSources.size||_notesFilterDatePreset||_notesSort!=='newest';
   const clearBtn=document.getElementById('notes-filter-clear');
   if(clearBtn)clearBtn.style.display=hasFilters?'inline-flex':'none';
+  // Show active filter count in summary bar
+  const summaryEl=document.getElementById('notes-filter-summary');
+  if(summaryEl){
+    const existingCount=summaryEl.querySelector('.nf-active-count');
+    if(hasFilters){
+      const countText=`${notes.length} result${notes.length!==1?'s':''} matching filters`;
+      if(existingCount)existingCount.textContent=countText;
+      else{
+        const span=document.createElement('span');
+        span.className='nf-active-count';
+        span.style.cssText='font-size:9px;color:var(--t3);margin-left:4px';
+        span.textContent=countText;
+        summaryEl.appendChild(span);
+      }
+    } else {
+      if(existingCount)existingCount.remove();
+    }
+  }
 }
 function clearNotesFilters(){
   _notesFilterText='';
