@@ -1518,7 +1518,7 @@ function taskRow(t,showActs=true){
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
-  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${esc(t.due)}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -2005,9 +2005,7 @@ function renderTaskBoard(){
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
-          ${t.due?`<span style="font-size:9px;color:var(--t3)">${esc(t.due)}</span>`:''}
-          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}
-          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
+           ${t.due?`<span style="font-size:9px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
           ${t.assignedTo?`<span style="font-size:9px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
@@ -2056,9 +2054,7 @@ function renderTaskMatrix(){
         <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
         <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
         ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
-        ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${t.due}</span>`:''}
-      </div>
-    </div>`).join('');
+        ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}      </div>    </div>`).join('');
     return `<div style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px">
       <div style="margin-bottom:10px">
         <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
@@ -3125,8 +3121,7 @@ function renderProjectsTeamKanban(header){
         <div style="display:flex;gap:6px;font-size:9px;color:var(--t3)">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
           ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
-          ${t.due?`<span>📅 ${t.due}</span>`:''}
-        </div>
+          ${t.due?`<span>📅 ${fmtDate(t.due)}</span>`:''}        </div>
         ${(t.subtasks||[]).length?`<div style="font-size:9px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
       </div>`).join('')}
       ${tasks.length===0?`<div style="font-size:10px;color:var(--t3);padding:8px;text-align:center">No active tasks</div>`:''}
@@ -3333,7 +3328,7 @@ function aiWeeklyReview(){
     </div>
   </div>
   ${tasksDone.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Wins this week</div>${tasksDone.slice(0,5).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}${tasksDone.length>5?`<div style="font-size:10px;color:var(--t3)">+${tasksDone.length-5} more</div>`:''}</div>`:''}
-  ${overdueTasks.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ Overdue tasks (${overdueTasks.length})</div>${overdueTasks.slice(0,3).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)} (due ${t.due})</div>`).join('')}</div>`:''}
+  ${overdueTasks.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ Overdue tasks (${overdueTasks.length})</div>${overdueTasks.slice(0,3).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)} (due ${fmtDate(t.due)})</div>`).join('')}</div>`:''}
   ${activeGoals.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Active Goals</div>${activeGoals.slice(0,4).map(g=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span>${esc(g.title)}</span><span style="color:var(--ac);font-weight:600">${g.pct||0}%</span></div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;margin-top:10px">
     <button class="btn btn-p" onclick="closeModal();openFA('journal')" title="Write a reflection entry">Write Reflection</button>
@@ -4479,8 +4474,7 @@ function renderMdExecList(filter){
             ${t.context?`<span style="font-size:9px;color:var(--t3)">${esc(t.context)}</span>`:''}
             ${t.startTime?`<span style="font-size:9px;color:var(--t2)">⏰ ${t.startTime}${t.endTime?' – '+t.endTime:''}</span>`:''}
           </div>
-          ${t.due?`<div style="font-size:10px;color:var(--t3);margin-top:2px">📅 Due ${t.due}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}
-          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:10px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:9px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
+          ${t.due?`<div style="font-size:10px;color:var(--t3);margin-top:2px">📅 Due ${fmtDate(t.due)}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:10px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:9px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
           ${t.notes?`<div style="font-size:10px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
@@ -7057,7 +7051,7 @@ function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
 function renderSettingsHTML(){
-  const setNav=['\ud83d\udc64 Profile','General','Appearance','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy'];
+  const setNav=['\ud83d\udc64 Profile','General','Appearance','\ud83d\udd14 Notifications','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy'];
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
@@ -7165,13 +7159,86 @@ function renderSettingsHTML(){
       <div class="tog ${!(D.prefs&&D.prefs.keyboardShortcuts===false)?'on':''}" id="tog-kbshortcuts" onclick="D.prefs=D.prefs||{};D.prefs.keyboardShortcuts=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
     </div>
   </div>
+
+  <!-- Reset to Defaults -->
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--warn)">Reset General Settings</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Restores all General settings to their defaults. Your tasks, notes, and other app data are not affected.</p>
+    <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset all General settings to defaults?')){const keep={darkMode:D.prefs.darkMode,compact:D.prefs.compact,accent:D.prefs.accent,notifications:D.prefs.notifications};D.prefs={...keep,workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true};saveAll();applyPrefs();renderScreen('settings');toast('\u2699 General settings reset to defaults');}">&#x21BA; Reset to Defaults</button>
+  </div>
   </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div><div style="font-size:10px;color:var(--t3)">Reduce padding and spacing</div></div><div class="tog ${D.prefs&&D.prefs.compact?'on':''}" id="tog-compact" onclick="toggleCompact(this)"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Accent Color</div><div style="font-size:10px;color:var(--t3)">Primary highlight color</div></div><div style="display:flex;gap:6px">${['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'].map(c=>`<div onclick="setAccent('${c}')" style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${(D.prefs&&D.prefs.accent||'#3B82F6')===c?'#fff':'transparent'}"></div>`).join('')}</div></div>
   </div>
-  <!-- Accounts --><div id="sp-3" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
+  <!-- Notifications --><div id="sp-3" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🔔 Notifications</h3>
+
+  <!-- In-App Alerts -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">In-App Alerts</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest</div><div style="font-size:10px;color:var(--t3)">Morning summary of tasks, habits, and goals for the day</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.dailyDigest===false)?'on':''}" id="tog-notif-digest" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.dailyDigest=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'📊 Daily digest on':'📊 Daily digest off')"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Reminders</div><div style="font-size:10px;color:var(--t3)">Alert when a task is due today or overdue</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.deadlineReminders===false)?'on':''}" id="tog-notif-deadline" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.deadlineReminders=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'⏰ Deadline reminders on':'⏰ Deadline reminders off')"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Habit Streak Alerts</div><div style="font-size:10px;color:var(--t3)">Notify when a streak is at risk or broken</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.habitStreaks===false)?'on':''}" id="tog-notif-habits" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.habitStreaks=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'🔥 Habit streak alerts on':'🔥 Habit streak alerts off')"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Goal Milestone Alerts</div><div style="font-size:10px;color:var(--t3)">Celebrate when a goal reaches 25%, 50%, 75%, or 100%</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.goalMilestones===false)?'on':''}" id="tog-notif-goals" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.goalMilestones=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'🎯 Goal milestone alerts on':'🎯 Goal milestone alerts off')"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">AI Insight Alerts</div><div style="font-size:10px;color:var(--t3)">Show AI-generated tips and nudges in the notification panel</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)?'on':''}" id="tog-notif-ai" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.aiInsights=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'✨ AI insight alerts on':'✨ AI insight alerts off')"></div>
+    </div>
+  </div>
+
+  <!-- Reminder Timing -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Reminder Timing</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Time</div><div style="font-size:10px;color:var(--t3)">When to show the morning summary</div></div>
+      <select class="inp" style="max-width:120px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.digestTime=this.value;saveAll()">
+        ${['06:00','07:00','08:00','09:00','10:00'].map(t=>`<option value="${t}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.digestTime||'08:00')===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Advance Notice</div><div style="font-size:10px;color:var(--t3)">How early to warn before a task is due</div></div>
+      <select class="inp" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.deadlineAdvance=this.value;saveAll()">
+        ${[{v:'same-day',l:'Same day'},{v:'1-day',l:'1 day before'},{v:'2-days',l:'2 days before'},{v:'3-days',l:'3 days before'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.deadlineAdvance||'1-day')===o.v?'selected':''}>${o.l}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <!-- Quiet Hours -->
+  <div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Quiet Hours</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Enable Quiet Hours</div><div style="font-size:10px;color:var(--t3)">Suppress all notifications during this window</div></div>
+      <div class="tog ${D.prefs&&D.prefs.notifications&&D.prefs.notifications.quietHours?'on':''}" id="tog-quiet-hours" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.quietHours=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Quiet Hours Window</div><div style="font-size:10px;color:var(--t3)">Start and end time for quiet hours</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <select class="inp" style="max-width:90px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.quietStart=this.value;saveAll()">
+          ${['20:00','21:00','22:00','23:00','00:00'].map(t=>`<option value="${t}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.quietStart||'22:00')===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <span style="font-size:11px;color:var(--t3)">to</span>
+        <select class="inp" style="max-width:90px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.quietEnd=this.value;saveAll()">
+          ${['05:00','06:00','07:00','08:00','09:00'].map(t=>`<option value="${t}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.quietEnd||'07:00')===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  </div>
+  </div>
+  <!-- Accounts --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
   <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 or Google Workspace account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
   <div id="oauth-ms-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
     <div class="lr" style="margin-bottom:8px">
@@ -7211,7 +7278,7 @@ function renderSettingsHTML(){
     <strong style="color:var(--t2)">Setup required:</strong> Add your Microsoft and Google OAuth app credentials in <strong>Settings → Integrations</strong> (Client ID &amp; Secret), then return here to connect.
   </div>
   </div>
-  <!-- Integrations --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
+  <!-- Integrations --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
   ${renderCredCard('ClickUp','CU','Bidirectional task sync','cu',['API Token|cu_key','Workspace ID|cu_ws'])}
   ${renderCredCard('NiftyPM','NP','Task sync (pending API)','np',['API Key|np_key'])}
   <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px">🔍 Contact Enrichment</h3>
@@ -7221,7 +7288,7 @@ function renderSettingsHTML(){
     <strong style="color:var(--t2)">How to get your API key:</strong> Log in to <a href="https://app.clodura.ai" target="_blank" style="color:var(--ac)">app.clodura.ai</a> → Settings → Developer → API Keys → Generate Key.
   </div>
   </div>
-  <!-- AI Features --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
+  <!-- AI Features --><div id="sp-6" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:600">AI Master Switch</div><div style="font-size:10px;color:var(--t3)">Enable/disable all AI</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Provider Keys (BYOK)</h4>
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">Keys stored locally only. Never sent to any server.</p>
@@ -7239,7 +7306,7 @@ function renderSettingsHTML(){
   <p style="font-size:10px;color:var(--t2);margin-bottom:6px">The AI assistant will proactively share info on these topics:</p>
   ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
   </div>
-  <!-- Teams --><div id="sp-6" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
+  <!-- Teams --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:10px">Manage team members and their access rights.</p>
   ${D.teams.map(team=>`<div class="team-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${esc(team.name)}</div><button class="btn btn-p" style="height:26px;font-size:10px" onclick="addTeamMember(${team.id})">+ Add Member</button></div>
   ${team.members.map(m=>`<div class="member-row"><div class="member-av" style="background:${m.color}">${m.name.split(' ').map(w=>w[0]).join('')}</div><div class="member-info"><div class="member-name">${esc(m.name)}</div><div class="member-role">${esc(m.email)} · ${m.role}</div></div>
@@ -7250,7 +7317,7 @@ function renderSettingsHTML(){
   </div>`).join('')}
   <button class="btn btn-s" onclick="addTeam()">+ Create Team</button>
   </div>
-  <!-- OneNote Import --><div id="sp-7" class="sp" style="display:none">
+  <!-- OneNote Import --><div id="sp-8" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">📓 OneNote Import</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:12px">Connect your Microsoft account to browse and import notebooks, sections, or individual pages directly into LevelUp Notes.</p>
   <!-- Connection status card -->
@@ -7318,16 +7385,16 @@ function renderSettingsHTML(){
     <div id="on-history-list"><div style="font-size:11px;color:var(--t3)">No imports yet</div></div>
   </div>
   </div>
-  <!-- Sync --><div id="sp-8" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
+  <!-- Sync --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Microsoft To Do sync</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Sync interval</div></div><select class="inp" style="max-width:160px"><option>Every 30 sec</option><option>Every 1 min</option><option>Every 5 min</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Last sync</div></div><span style="font-size:11px;color:var(--ok)">2 min ago ✓</span></div></div>
-  <!-- Backup --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
+  <!-- Backup --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:10px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:10px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
   <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:10px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
-  <!-- Privacy --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
+  <!-- Privacy --><div id="sp-11" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">AI Audit Log</div></div><button class="btn btn-s" style="font-size:11px">View Activity</button></div></div>
@@ -7345,8 +7412,8 @@ function showSetTab(el,id){
   el.parentElement.querySelectorAll('.si').forEach(x=>x.classList.remove('on'));el.classList.add('on');
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
-  if(id==='sp-3')loadOAuthStatus();
-  if(id==='sp-7')loadOnenoteStatus();
+  if(id==='sp-4')loadOAuthStatus();
+  if(id==='sp-8')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
 function exportData(){

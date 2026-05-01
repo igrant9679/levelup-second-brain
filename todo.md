@@ -193,3 +193,10 @@
 - [x] Language / Locale dropdown (English, Spanish, French, German, Portuguese)
 - [x] Auto-save toggle (persisted in D.prefs.autoSave)
 - [x] Keyboard Shortcuts toggle (persisted in D.prefs.keyboardShortcuts)
+
+## Next Steps — Settings & Date Formatting
+- [x] Apply fmtDate() to task due dates in task cards (taskRow function)
+- [x] Apply fmtDate() to task due dates in the task detail drawer
+- [x] Apply fmtDate() to task due dates in My Day, My Week, and project views
+- [x] Build Settings → Notifications panel (sp-3): daily digest, deadline reminders, habit streak alerts, goal milestone alerts, AI insight alerts, reminder timing, quiet hours — all persisted in D.prefs.notifications
+- [x] Add Reset to Defaults button at bottom of General panel (sp-1) that clears only General prefs without touching app data
