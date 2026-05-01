@@ -36,6 +36,13 @@
       "when": 1777644121978,
       "tag": "0004_uneven_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1777645261494,
+      "tag": "0005_lyrical_korvac",
+      "breakpoints": true
     }
   ]
 }

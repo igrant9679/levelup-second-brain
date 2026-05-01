@@ -164,6 +164,18 @@ export const onenoteImportJobs = mysqlTable('onenote_import_jobs', {
 export type OnenoteImportJob = typeof onenoteImportJobs.$inferSelect;
 export type InsertOnenoteImportJob = typeof onenoteImportJobs.$inferInsert;
 
+// ─── Password Reset Tokens ──────────────────────────────────────────────────
+export const passwordResetTokens = mysqlTable('password_reset_tokens', {
+  id: int('id').autoincrement().primaryKey(),
+  token: varchar('token', { length: 128 }).notNull().unique(),
+  userId: int('userId').notNull(),
+  expiresAt: timestamp('expiresAt').notNull(),
+  usedAt: timestamp('usedAt'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
 export const userLearningPreferences = mysqlTable('user_learning_preferences', {
   userId: int('userId').primaryKey(),
   showCoachMascot: int('showCoachMascot').notNull().default(1),

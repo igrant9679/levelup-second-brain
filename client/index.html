@@ -310,8 +310,11 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
         style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
         onkeydown="loginFieldKey(event)" oninput="document.getElementById('login-err').textContent=''">
     </div>
-    <div style="margin-bottom:16px">
-      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Password</label>
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <label style="font-size:11px;color:var(--t3)">Password</label>
+        <span style="font-size:11px;color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('forgot')">Forgot password?</span>
+      </div>
       <div style="position:relative">
         <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password"
           style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 36px 9px 12px;color:var(--t1);font-size:13px;outline:none"
@@ -319,10 +322,54 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
         <button onclick="toggleLoginPwVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--t3);font-size:13px;padding:0" id="login-pw-toggle">👁</button>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <input type="checkbox" id="login-remember" style="width:14px;height:14px;accent-color:var(--ac);cursor:pointer">
+      <label for="login-remember" style="font-size:11px;color:var(--t3);cursor:pointer">Remember me for 30 days</label>
+    </div>
     <div class="login-err" id="login-err"></div>
     <button class="btn btn-p" id="login-submit-btn" style="width:100%;height:38px;font-size:13px;margin-bottom:12px" onclick="attemptLogin()">Sign In</button>
     <div style="text-align:center;font-size:11px;color:var(--t3)">
       Don't have an account? <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('register')">Create one</span>
+    </div>
+  </div>
+  <!-- Forgot Password form -->
+  <div class="login-box" id="login-box-forgot" style="display:none">
+    <h2>Reset password</h2>
+    <p>Enter your email to receive a reset link</p>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Email address</label>
+      <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="forgotFieldKey(event)" oninput="document.getElementById('forgot-err').textContent=''">
+    </div>
+    <div class="login-err" id="forgot-err"></div>
+    <div id="forgot-success" style="font-size:12px;color:var(--ok);margin-bottom:10px;display:none"></div>
+    <button class="btn btn-p" id="forgot-submit-btn" style="width:100%;height:38px;font-size:13px;margin-bottom:12px" onclick="attemptForgotPassword()">Send Reset Link</button>
+    <div style="text-align:center;font-size:11px;color:var(--t3)">
+      <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('signin')">← Back to sign in</span>
+    </div>
+  </div>
+  <!-- Reset Password form (shown when URL has ?reset_token=...) -->
+  <div class="login-box" id="login-box-reset" style="display:none">
+    <h2>Set new password</h2>
+    <p>Enter and confirm your new password</p>
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">New password</label>
+      <input type="password" id="reset-password" placeholder="Min 8 characters" autocomplete="new-password"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="resetFieldKey(event)" oninput="document.getElementById('reset-err').textContent=''">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Confirm new password</label>
+      <input type="password" id="reset-confirm" placeholder="Repeat password" autocomplete="new-password"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="resetFieldKey(event)" oninput="document.getElementById('reset-err').textContent=''">
+    </div>
+    <div class="login-err" id="reset-err"></div>
+    <div id="reset-success" style="font-size:12px;color:var(--ok);margin-bottom:10px;display:none"></div>
+    <button class="btn btn-p" id="reset-submit-btn" style="width:100%;height:38px;font-size:13px;margin-bottom:12px" onclick="attemptResetPassword()">Update Password</button>
+    <div style="text-align:center;font-size:11px;color:var(--t3)">
+      <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('signin')">← Back to sign in</span>
     </div>
   </div>
   <div class="login-box" id="login-box-register" style="display:none">
@@ -6996,14 +7043,22 @@ function renderSettingsHTML(){
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
-  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Change PIN</div>
-  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Current PIN</div><input class="inp" type="password" id="pin-current" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">New PIN</div><input class="inp" type="password" id="pin-new" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Confirm PIN</div><input class="inp" type="password" id="pin-confirm" maxlength="4" placeholder="••••" style="width:80px;letter-spacing:4px;text-align:center"></div>
-    <button class="btn btn-p" style="height:32px" onclick="changePin()">Update PIN</button>
-  </div>
-  <div id="pin-change-msg" style="font-size:10px;min-height:14px"></div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔒 Change Password</div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">Current Password</div>
+      <input class="inp" type="password" id="chpw-current" placeholder="Your current password" autocomplete="current-password" style="width:100%;max-width:280px;font-size:12px">
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">New Password <span style="font-weight:400">(min 8 characters)</span></div>
+      <input class="inp" type="password" id="chpw-new" placeholder="New password" autocomplete="new-password" style="width:100%;max-width:280px;font-size:12px">
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">Confirm New Password</div>
+      <input class="inp" type="password" id="chpw-confirm" placeholder="Repeat new password" autocomplete="new-password" style="width:100%;max-width:280px;font-size:12px">
+    </div>
+    <button class="btn btn-p" id="chpw-btn" style="height:32px;font-size:12px" onclick="changePassword()">Update Password</button>
+    <div id="chpw-msg" style="font-size:11px;margin-top:6px;min-height:14px"></div>
   </div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
   <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
@@ -8220,11 +8275,20 @@ document.addEventListener('keydown',e=>{
 let _loginSelectedMember=null;
 // ---- Email + Password Login ----
 function showLoginTab(tab){
-  const signIn=document.getElementById('login-box-signin');
-  const register=document.getElementById('login-box-register');
-  if(!signIn||!register)return;
-  if(tab==='register'){signIn.style.display='none';register.style.display='';setTimeout(()=>{const n=document.getElementById('reg-name');if(n)n.focus();},50);}
-  else{register.style.display='none';signIn.style.display='';setTimeout(()=>{const e=document.getElementById('login-email');if(e)e.focus();},50);}
+  const boxes=['signin','register','forgot','reset'];
+  boxes.forEach(id=>{
+    const el=document.getElementById('login-box-'+id);
+    if(el)el.style.display='none';
+  });
+  const target=document.getElementById('login-box-'+tab);
+  if(target)target.style.display='';
+  // Focus first input in the shown box
+  setTimeout(()=>{
+    if(tab==='signin'){const e=document.getElementById('login-email');if(e)e.focus();}
+    else if(tab==='register'){const n=document.getElementById('reg-name');if(n)n.focus();}
+    else if(tab==='forgot'){const e=document.getElementById('forgot-email');if(e)e.focus();}
+    else if(tab==='reset'){const p=document.getElementById('reset-password');if(p)p.focus();}
+  },50);
 }
 function toggleLoginPwVis(){
   const pw=document.getElementById('login-password');
@@ -8239,24 +8303,40 @@ function loginFieldKey(e){
 function registerFieldKey(e){
   if(e.key==='Enter')attemptRegister();
 }
+function forgotFieldKey(e){
+  if(e.key==='Enter')attemptForgotPassword();
+}
+function resetFieldKey(e){
+  if(e.key==='Enter')attemptResetPassword();
+}
 function initLoginScreen(){
+  // Check for reset_token in URL
+  const sp=new URLSearchParams(window.location.search);
+  const resetToken=sp.get('reset_token');
+  if(resetToken){
+    // Store token for use in attemptResetPassword
+    window._pendingResetToken=resetToken;
+    showLoginTab('reset');
+    return;
+  }
   // Focus email field
   setTimeout(()=>{const e=document.getElementById('login-email');if(e)e.focus();},100);
 }
 async function attemptLogin(){
   const email=(document.getElementById('login-email')||{}).value||'';
   const password=(document.getElementById('login-password')||{}).value||'';
+  const rememberMe=!!(document.getElementById('login-remember')||{}).checked;
   const errEl=document.getElementById('login-err');
   const btn=document.getElementById('login-submit-btn');
   if(!email.trim()){if(errEl)errEl.textContent='Please enter your email address.';return;}
   if(!password){if(errEl)errEl.textContent='Please enter your password.';return;}
-  if(btn){btn.disabled=true;btn.textContent='Signing in…';}
+  if(btn){btn.disabled=true;btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Signing in…';}
   if(errEl)errEl.textContent='';
   try{
-    const res=await _trpc('emailAuth.login',{email:email.trim().toLowerCase(),password},'mutation');
+    const res=await _trpc('emailAuth.login',{email:email.trim().toLowerCase(),password,rememberMe},'mutation');
     if(res&&res.success){
       // Store minimal local session for app state
-      const userData={id:res.user.id,name:res.user.name,email:res.user.email,role:res.user.role};
+      const userData={id:res.user.id,name:res.user.name,email:res.user.email,role:res.user.role,rememberMe};
       doLoginSuccess(userData);
     } else {
       if(errEl)errEl.textContent='Login failed. Please try again.';
@@ -8277,7 +8357,7 @@ async function attemptRegister(){
   if(!name.trim()){if(errEl)errEl.textContent='Please enter your full name.';return;}
   if(!email.trim()){if(errEl)errEl.textContent='Please enter your email address.';return;}
   if(password.length<8){if(errEl)errEl.textContent='Password must be at least 8 characters.';return;}
-  if(btn){btn.disabled=true;btn.textContent='Creating account…';}
+  if(btn){btn.disabled=true;btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Creating account…';}
   if(errEl)errEl.textContent='';
   try{
     const res=await _trpc('emailAuth.register',{name:name.trim(),email:email.trim().toLowerCase(),password},'mutation');
@@ -8294,9 +8374,71 @@ async function attemptRegister(){
     if(btn){btn.disabled=false;btn.textContent='Create Account';}
   }
 }
+async function attemptForgotPassword(){
+  const email=(document.getElementById('forgot-email')||{}).value||'';
+  const errEl=document.getElementById('forgot-err');
+  const successEl=document.getElementById('forgot-success');
+  const btn=document.getElementById('forgot-submit-btn');
+  if(!email.trim()){if(errEl)errEl.textContent='Please enter your email address.';return;}
+  if(errEl)errEl.textContent='';
+  if(successEl){successEl.style.display='none';successEl.textContent='';}
+  if(btn){btn.disabled=true;btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Sending…';}
+  try{
+    const res=await _trpc('emailAuth.forgotPassword',{email:email.trim().toLowerCase(),origin:window.location.origin},'mutation');
+    if(successEl){
+      successEl.textContent='✓ Reset link sent! Check your email (or the app owner notification).';
+      successEl.style.display='block';
+    }
+    if(btn)btn.style.display='none';
+    // In dev mode, show the token directly
+    if(res&&res.devToken){
+      if(errEl){errEl.style.color='var(--ac)';errEl.textContent='Dev mode: token = '+res.devToken;}
+    }
+  } catch(err){
+    const msg=(err&&err.message)||'Failed to send reset email';
+    if(errEl)errEl.textContent=msg;
+  } finally {
+    if(btn&&btn.style.display!=='none'){btn.disabled=false;btn.textContent='Send Reset Link';}
+  }
+}
+async function attemptResetPassword(){
+  const newPw=(document.getElementById('reset-password')||{}).value||'';
+  const confirmPw=(document.getElementById('reset-confirm')||{}).value||'';
+  const token=window._pendingResetToken||new URLSearchParams(window.location.search).get('reset_token')||'';
+  const errEl=document.getElementById('reset-err');
+  const successEl=document.getElementById('reset-success');
+  const btn=document.getElementById('reset-submit-btn');
+  if(!token){if(errEl)errEl.textContent='Invalid reset link. Please request a new one.';return;}
+  if(newPw.length<8){if(errEl)errEl.textContent='Password must be at least 8 characters.';return;}
+  if(newPw!==confirmPw){if(errEl)errEl.textContent='Passwords do not match.';return;}
+  if(errEl)errEl.textContent='';
+  if(successEl){successEl.style.display='none';successEl.textContent='';}
+  if(btn){btn.disabled=true;btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Updating…';}
+  try{
+    const res=await _trpc('emailAuth.resetPassword',{token,newPassword:newPw,confirmPassword:confirmPw},'mutation');
+    if(res&&res.success){
+      if(successEl){
+        successEl.textContent='✓ Password updated! Redirecting to sign in…';
+        successEl.style.display='block';
+      }
+      // Clear token from URL and redirect to sign in
+      window._pendingResetToken=null;
+      const url=new URL(window.location.href);
+      url.searchParams.delete('reset_token');
+      window.history.replaceState({},document.title,url.toString());
+      setTimeout(()=>showLoginTab('signin'),2000);
+    }
+  } catch(err){
+    const msg=(err&&err.message)||'Failed to reset password';
+    if(errEl)errEl.textContent=msg;
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Update Password';}
+  }
+}
 function doLoginSuccess(member){
-  // Save session (8-hour expiry) — member may come from server (id,name,email,role) or local data
-  localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+8*60*60*1000}));
+  // Session duration: 30 days if rememberMe, else 1 day (matches JWT cookie)
+  const sessionMs=member.rememberMe?30*24*60*60*1000:24*60*60*1000;
+  localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+sessionMs}));
   // Update creds to reflect logged-in user
   D.creds.userName=member.name||'User';
   D.creds.email=member.email||'';
@@ -8351,35 +8493,33 @@ function applyUserPerms(member){
     document.body.classList.remove('restricted');
   }
 }
-function changePin(){
-  const curr=document.getElementById('pin-current');
-  const nw=document.getElementById('pin-new');
-  const conf=document.getElementById('pin-confirm');
-  const msg=document.getElementById('pin-change-msg');
-  if(!curr||!nw||!conf||!msg)return;
-  const currentVal=curr.value.trim();
-  const newVal=nw.value.trim();
-  const confVal=conf.value.trim();
-  if(currentVal.length!==4||newVal.length!==4||confVal.length!==4){
-    msg.style.color='var(--red)';msg.textContent='All PIN fields must be exactly 4 digits.';return;
+async function changePassword(){
+  const currEl=document.getElementById('chpw-current');
+  const newEl=document.getElementById('chpw-new');
+  const confEl=document.getElementById('chpw-confirm');
+  const msgEl=document.getElementById('chpw-msg');
+  const btn=document.getElementById('chpw-btn');
+  if(!currEl||!newEl||!confEl||!msgEl)return;
+  const currentPw=currEl.value;
+  const newPw=newEl.value;
+  const confPw=confEl.value;
+  if(!currentPw){msgEl.style.color='var(--red)';msgEl.textContent='Please enter your current password.';return;}
+  if(newPw.length<8){msgEl.style.color='var(--red)';msgEl.textContent='New password must be at least 8 characters.';return;}
+  if(newPw!==confPw){msgEl.style.color='var(--red)';msgEl.textContent='New password and confirmation do not match.';return;}
+  if(btn){btn.disabled=true;btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:4px" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Updating…';}
+  msgEl.textContent='';
+  try{
+    await _trpc('emailAuth.setPassword',{currentPassword:currentPw,newPassword:newPw,confirmPassword:confPw},'mutation');
+    currEl.value='';newEl.value='';confEl.value='';
+    msgEl.style.color='var(--ok)';msgEl.textContent='✓ Password updated successfully!';
+    setTimeout(()=>{if(msgEl)msgEl.textContent='';},4000);
+    toast('🔒 Password updated');
+  } catch(err){
+    const msg=(err&&err.message)||'Failed to update password';
+    msgEl.style.color='var(--red)';msgEl.textContent=msg;
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Update Password';}
   }
-  if(!/^\d{4}$/.test(newVal)){msg.style.color='var(--red)';msg.textContent='PIN must be 4 digits (0-9).';return;}
-  if(newVal!==confVal){msg.style.color='var(--red)';msg.textContent='New PIN and confirmation do not match.';return;}
-  // Find the logged-in member
-  const sess=JSON.parse(localStorage.getItem('lu_session')||'null');
-  if(!sess){msg.style.color='var(--red)';msg.textContent='No active session found.';return;}
-  const allMembers=D.teams.flatMap(t=>t.members);
-  const member=allMembers.find(m=>m.id===sess.memberId);
-  if(!member){msg.style.color='var(--red)';msg.textContent='User not found.';return;}
-  const correctPin=member.pin||'1234';
-  if(currentVal!==correctPin){msg.style.color='var(--red)';msg.textContent='Current PIN is incorrect.';curr.value='';curr.focus();return;}
-  // Update PIN
-  member.pin=newVal;
-  save('teams');
-  curr.value='';nw.value='';conf.value='';
-  msg.style.color='var(--ok)';msg.textContent='\u2713 PIN updated successfully!';
-  setTimeout(()=>{if(msg)msg.textContent='';},3000);
-  toast('\ud83d\udd12 PIN updated');
 }
 async function doLogout(){
   localStorage.removeItem('lu_session');

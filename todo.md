@@ -163,7 +163,22 @@
 - [x] Highlight matched text in note cards when text search is active
 
 ## Bug Fixes & Login Redesign
-- [ ] Fix tRPC error on "Connect Microsoft 365" button in Settings → Accounts
-- [ ] Fix tRPC error on "Connect Google Workspace" button in Settings → Accounts
-- [ ] Redesign login screen: replace PIN/profile selector with email + password form
-- [ ] Add password hashing for stored user passwords (bcrypt)
+- [x] Fix tRPC error on "Connect Microsoft 365" button in Settings → Accounts
+- [x] Fix tRPC error on "Connect Google Workspace" button in Settings → Accounts
+- [x] Redesign login screen: replace PIN/profile selector with email + password form
+- [x] Add password hashing for stored user passwords (bcrypt)
+
+## Login UX Enhancements & Password Management
+- [x] Forgot Password: add `emailAuth.forgotPassword` tRPC procedure (generate token, send reset email via notifyOwner/SMTP)
+- [x] Forgot Password: add `emailAuth.resetPassword` tRPC procedure (validate token, set new password)
+- [x] Forgot Password: add DB table `password_reset_tokens` (token, userId, expiresAt, usedAt)
+- [x] Forgot Password: add "Forgot password?" link on login form that shows a reset email form
+- [x] Forgot Password: add reset password page/overlay (enter new password after clicking email link)
+- [x] Remember Me: add checkbox to login form (extends session from 1 day to 30 days)
+- [x] Remember Me: pass `rememberMe` flag to `emailAuth.login` and set cookie maxAge accordingly
+- [x] Login loading spinner: show spinner on Sign In button while tRPC call is in flight, disable button
+- [x] Login loading spinner: show spinner on Register button while tRPC call is in flight
+- [x] Change Password: add "Change Password" card in Settings → Profile section
+- [x] Change Password: form with Current Password, New Password, Confirm New Password fields
+- [x] Change Password: call `emailAuth.setPassword` tRPC procedure on submit
+- [x] Change Password: show success toast and clear form on success
