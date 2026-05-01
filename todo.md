@@ -200,3 +200,10 @@
 - [x] Apply fmtDate() to task due dates in My Day, My Week, and project views
 - [x] Build Settings → Notifications panel (sp-3): daily digest, deadline reminders, habit streak alerts, goal milestone alerts, AI insight alerts, reminder timing, quiet hours — all persisted in D.prefs.notifications
 - [x] Add Reset to Defaults button at bottom of General panel (sp-1) that clears only General prefs without touching app data
+
+## Notification System Enhancements
+- [x] Wire deadline reminders to notification bell: on app load check D.prefs.notifications.deadlineReminders and deadlineAdvance, auto-populate notif panel with upcoming/overdue tasks, respecting quiet hours
+- [x] Wire habit streak alerts to notification bell: check D.prefs.notifications.habitStreaks, add notifs for at-risk/broken streaks
+- [x] Wire goal milestone alerts to notification bell: check D.prefs.notifications.goalMilestones, add notifs for 25/50/75/100% milestones
+- [x] Daily digest pop-up: on first load after configured digestTime, show modal with today's tasks/habits/goals summary, gated by dailyDigest toggle and quiet hours, shown max once per day (tracked in localStorage)
+- [x] Notification badge count: live unread count badge on bell icon, increments on new alerts, clears when panel is opened

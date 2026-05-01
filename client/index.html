@@ -616,6 +616,20 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="ai-panel-body" id="ai-chat"></div>
 <div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
 </div>
+<!-- DAILY DIGEST MODAL -->
+<div id="digest-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
+  <div style="background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:min(480px,96vw);max-height:80vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.6);padding:0">
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between">
+      <div><div style="font-size:16px;font-weight:700">☀️ Good morning!</div><div id="digest-date" style="font-size:11px;color:var(--t3);margin-top:2px"></div></div>
+      <button class="close" onclick="closeDigest()">✕</button>
+    </div>
+    <div id="digest-body" style="padding:16px 20px"></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-s" onclick="closeDigest()">Dismiss</button>
+      <button class="btn btn-p" onclick="closeDigest();nav('myday')">Start My Day →</button>
+    </div>
+  </div>
+</div>
 <!-- NOTIFICATION PANEL -->
 <div id="notif-panel" style="display:none;position:fixed;top:56px;right:12px;width:340px;max-height:480px;background:var(--s1);border:1px solid var(--bd2);border-radius:12px;z-index:200;box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden;flex-direction:column">
 <div style="padding:12px 14px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between"><span style="font-size:14px;font-weight:600">🔔 Notifications</span><div style="display:flex;gap:8px;align-items:center"><span style="font-size:10px;color:var(--ac);cursor:pointer" onclick="markAllNotifsRead()">Mark all read</span><button class="close" onclick="toggleNotifPanel()">✕</button></div></div>
@@ -1393,10 +1407,15 @@ function updateSidebarBadges(){
   // Coach: sum of overdue + habits pending (actionable items)
   const coachCount=overdueCount+habitsPending;
   setBadge('badge-coach',coachCount>0?coachCount:null);
-  // Update notification badge
-  const notifCount=buildNotifs().length;
+  // Update notification badge — only count unread (not yet seen) notifs
+  const _allNotifs=buildNotifs();
+  const _readIds=getReadNotifIds();
+  const unreadCount=_allNotifs.filter(n=>!_readIds.has(n.id)).length;
   const nb=document.getElementById('notif-badge');
-  if(nb)nb.textContent=notifCount||'';
+  if(nb){
+    if(unreadCount>0){nb.textContent=unreadCount>99?'99+':unreadCount;nb.style.display='';}
+    else{nb.textContent='';nb.style.display='none';}
+  }
 }
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
@@ -7663,7 +7682,14 @@ function toggleNotifPanel(){
   const p=document.getElementById('notif-panel');
   const isOpen=p.style.display==='flex';
   p.style.display=isOpen?'none':'flex';
-  if(!isOpen)renderNotifPanel();
+  if(!isOpen){
+    renderNotifPanel();
+    // Mark all current notifs as read when panel is opened
+    const ids=buildNotifs().map(n=>n.id);
+    markNotifsReadInStorage(ids);
+    const nb=document.getElementById('notif-badge');
+    if(nb){nb.textContent='';nb.style.display='none';}
+  }
   // Close if clicking outside
   if(!isOpen){
     setTimeout(()=>{
@@ -7677,31 +7703,150 @@ function toggleNotifPanel(){
     },10);
   }
 }
+// ---- Notification read-state helpers ----
+const NOTIF_READ_KEY='lu_notifs_read';
+function getReadNotifIds(){
+  try{return new Set(JSON.parse(localStorage.getItem(NOTIF_READ_KEY)||'[]'));}
+  catch(e){return new Set();}
+}
+function markNotifsReadInStorage(ids){
+  const existing=getReadNotifIds();
+  ids.forEach(id=>existing.add(id));
+  // Prune to last 500 to avoid unbounded growth
+  const arr=[...existing].slice(-500);
+  try{localStorage.setItem(NOTIF_READ_KEY,JSON.stringify(arr));}catch(e){}
+}
+function clearAllReadNotifIds(){
+  try{localStorage.removeItem(NOTIF_READ_KEY);}catch(e){}
+}
+// ---- Notification helpers ----
+function isInQuietHours(){
+  const n=D.prefs&&D.prefs.notifications;
+  if(!n||!n.quietHours)return false;
+  const now=new Date();
+  const hm=h=>h.split(':').map(Number);
+  const [sh,sm]=hm(n.quietStart||'22:00');
+  const [eh,em]=hm(n.quietEnd||'07:00');
+  const cur=now.getHours()*60+now.getMinutes();
+  const start=sh*60+sm;
+  const end=eh*60+em;
+  // Handles overnight window (e.g. 22:00 – 07:00)
+  if(start>end)return cur>=start||cur<end;
+  return cur>=start&&cur<end;
+}
+function deadlineAdvanceDays(){
+  const v=(D.prefs&&D.prefs.notifications&&D.prefs.notifications.deadlineAdvance)||'1-day';
+  if(v==='same-day')return 0;
+  if(v==='2-days')return 2;
+  if(v==='3-days')return 3;
+  return 1;
+}
 function buildNotifs(){
   const today=_todayStr;
   const notifs=[];
-  // Overdue tasks
-  D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).forEach(t=>{
-    notifs.push({id:'od-'+t.id,type:'warning',icon:'⚠️',title:'Overdue task',body:t.title,time:t.due,read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
-  });
-  // Tasks due today
-  D.tasks.filter(t=>t.status!=='Done'&&t.due===today).forEach(t=>{
-    notifs.push({id:'td-'+t.id,type:'info',icon:'📋',title:'Due today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
-  });
-  // Habits not done
-  D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily').forEach(h=>{
-    notifs.push({id:'hb-'+h.id,type:'habit',icon:h.icon,title:'Habit pending',body:h.title+(h.startTime?' · '+h.startTime:''),time:'Today',read:false,action:()=>{toggleNotifPanel();nav('habits');}});
-  });
-  // Goals near deadline
-  D.goals.filter(g=>g.due&&g.pct<100).forEach(g=>{
-    const daysLeft=Math.ceil((new Date(g.due)-new Date())/(1000*60*60*24));
-    if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:g.due,read:false,action:()=>{toggleNotifPanel();nav('goals');}});
-  });
-  // Snoozed tasks due back today
+  const np=D.prefs&&D.prefs.notifications||{};
+  const quiet=isInQuietHours();
+  // ---- Deadline Reminders ----
+  if(np.deadlineReminders!==false&&!quiet){
+    const advDays=deadlineAdvanceDays();
+    // Overdue tasks
+    D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).forEach(t=>{
+      notifs.push({id:'od-'+t.id,type:'warning',icon:'⚠️',title:'Overdue task',body:t.title,time:fmtDate(t.due),read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+    });
+    // Tasks due today
+    D.tasks.filter(t=>t.status!=='Done'&&t.due===today).forEach(t=>{
+      notifs.push({id:'td-'+t.id,type:'info',icon:'📋',title:'Due today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+    });
+    // Tasks due within advance window (but not today/overdue)
+    if(advDays>0){
+      const cutoff=new Date();cutoff.setDate(cutoff.getDate()+advDays);
+      const cutoffStr=cutoff.toISOString().split('T')[0];
+      D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due>today&&t.due<=cutoffStr).forEach(t=>{
+        const d=Math.ceil((new Date(t.due)-new Date())/(1000*60*60*24));
+        notifs.push({id:'up-'+t.id,type:'info',icon:'📅',title:`Due in ${d} day${d!==1?'s':''}`,body:t.title,time:fmtDate(t.due),read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
+      });
+    }
+  }
+  // ---- Habit Streak Alerts ----
+  if(np.habitStreaks!==false&&!quiet){
+    D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily').forEach(h=>{
+      const streakMsg=h.streak>0?` · 🔥 ${h.streak}d streak at risk`:'';
+      notifs.push({id:'hb-'+h.id,type:'habit',icon:h.icon,title:'Habit pending',body:h.title+streakMsg+(h.startTime?' · '+h.startTime:''),time:'Today',read:false,action:()=>{toggleNotifPanel();nav('habits');}});
+    });
+    // Broken streaks (streak was >0 yesterday but habit not done today and it's past midnight)
+    D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily'&&h.streak===0&&(h.completedDates||[]).length>0).forEach(h=>{
+      const last=(h.completedDates||[]).sort().slice(-1)[0];
+      if(last&&last<today)notifs.push({id:'bs-'+h.id,type:'warning',icon:'💔',title:'Streak broken',body:h.title+' — missed yesterday',time:'Today',read:false,action:()=>{toggleNotifPanel();nav('habits');}});
+    });
+  }
+  // ---- Goal Milestone Alerts ----
+  if(np.goalMilestones!==false&&!quiet){
+    const milestones=[25,50,75,100];
+    const seenKey='lu_goal_milestones_seen';
+    let seen={};
+    try{seen=JSON.parse(localStorage.getItem(seenKey)||'{}');}catch(e){}
+    D.goals.filter(g=>g.pct>0).forEach(g=>{
+      milestones.forEach(m=>{
+        if(g.pct>=m&&!(seen[g.id]||[]).includes(m)){
+          notifs.push({id:'gm-'+g.id+'-'+m,type:'goal',icon:'🎯',title:`Goal ${m===100?'complete':'milestone'}: ${m}%`,body:g.title,time:'Now',read:false,action:()=>{toggleNotifPanel();nav('goals');if(!(seen[g.id]||[]).includes(m)){seen[g.id]=(seen[g.id]||[]).concat(m);try{localStorage.setItem(seenKey,JSON.stringify(seen));}catch(e){}}}});
+        }
+      });
+    });
+  }
+  // ---- Goal Deadline Alerts (always on) ----
+  if(!quiet){
+    D.goals.filter(g=>g.due&&g.pct<100).forEach(g=>{
+      const daysLeft=Math.ceil((new Date(g.due)-new Date())/(1000*60*60*24));
+      if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:fmtDate(g.due),read:false,action:()=>{toggleNotifPanel();nav('goals');}});
+    });
+  }
+  // ---- Snoozed tasks due back today ----
   D.tasks.filter(t=>t.snoozeUntil===today&&t.status!=='Done').forEach(t=>{
     notifs.push({id:'sn-'+t.id,type:'snooze',icon:'⏰',title:'Snoozed task back today',body:t.title,time:'Today',read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
   });
   return notifs;
+}
+// ---- Daily Digest ----
+function closeDigest(){
+  const m=document.getElementById('digest-modal');
+  if(m)m.style.display='none';
+}
+function showDailyDigest(){
+  const np=D.prefs&&D.prefs.notifications||{};
+  if(np.dailyDigest===false)return;
+  if(isInQuietHours())return;
+  // Only show once per day
+  const today=_todayStr;
+  const lastKey='lu_digest_shown';
+  if(localStorage.getItem(lastKey)===today)return;
+  // Only show after configured digest time
+  const [dh,dm]=(np.digestTime||'08:00').split(':').map(Number);
+  const now=new Date();
+  if(now.getHours()*60+now.getMinutes()<dh*60+dm)return;
+  // Build digest content
+  const todayTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due===today);
+  const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
+  const myDayTasks=D.tasks.filter(t=>t.myDay&&t.status!=='Done');
+  const habitsPending=D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily');
+  const activeGoals=D.goals.filter(g=>g.pct<100).slice(0,3);
+  const dateEl=document.getElementById('digest-date');
+  if(dateEl)dateEl.textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
+  const section=(icon,title,items,renderFn)=>items.length?`<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${icon} ${title}</div>${items.map(renderFn).join('')}</div>`:'';
+  const taskRow=t=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span><span style="font-size:12px;flex:1">${esc(t.title)}</span></div>`;
+  const habitRow=h=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${h.icon}</span><span style="font-size:12px;flex:1">${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}d</span></div>`;
+  const goalRow=g=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${g.icon}</span><span style="font-size:12px;flex:1">${esc(g.title)}</span><div style="width:60px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${g.pct}%;background:var(--ac)"></div></div><span style="font-size:10px;color:var(--ac)">${g.pct}%</span></div>`;
+  let html='';
+  if(overdueTasks.length)html+=`<div style="background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--red)">⚠️ <strong>${overdueTasks.length} overdue task${overdueTasks.length>1?'s':''}</strong> need attention</div>`;
+  html+=section('📋','Due today',todayTasks,taskRow);
+  html+=section('☀️','My Day',myDayTasks.slice(0,5),taskRow);
+  html+=section('🔥','Habits to complete',habitsPending.slice(0,5),habitRow);
+  html+=section('🎯','Active goals',activeGoals,goalRow);
+  if(!html)html='<div style="text-align:center;padding:20px 0;color:var(--t3);font-size:12px">🎉 Nothing urgent today — enjoy a focused day!</div>';
+  const body=document.getElementById('digest-body');
+  if(body)body.innerHTML=html;
+  const m=document.getElementById('digest-modal');
+  if(m)m.style.display='flex';
+  localStorage.setItem(lastKey,today);
 }
 function renderNotifPanel(){
   const list=document.getElementById('notif-list');
@@ -7719,8 +7864,11 @@ function renderNotifPanel(){
 function markAllNotifsRead(){
   const list=document.getElementById('notif-list');
   if(list)list.innerHTML='<div style="text-align:center;padding:24px 0;color:var(--t3);font-size:12px">🎉 All caught up! No new notifications.</div>';
+  // Persist read state for all current notifs
+  const ids=buildNotifs().map(n=>n.id);
+  markNotifsReadInStorage(ids);
   const badge=document.getElementById('notif-badge');
-  if(badge)badge.textContent='';
+  if(badge){badge.textContent='';badge.style.display='none';}
   toast('All notifications marked as read');
 }
 function appendAIChat(role,msg){
@@ -8646,6 +8794,8 @@ function doLoginSuccess(member){
   updateProfileUI();
   renderScreen(_homeKey);
   updateSidebarBadges();
+  // Show daily digest after a short delay so the app is fully rendered
+  setTimeout(showDailyDigest,1500);
   setTimeout(startAIAssistant,5000);
   toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
   // Handle shared idea URL: ?idea=ID&token=TOKEN
