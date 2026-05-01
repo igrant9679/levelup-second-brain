@@ -298,6 +298,17 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 /* INSIGHT */
 .ins{background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:12px;margin-bottom:8px}
 .ins.obs{border-left:3px solid var(--ac)}.ins.enc{border-left:3px solid var(--ok);background:rgba(34,197,94,.03)}.ins.wrn{border-left:3px solid var(--warn);background:rgba(245,158,11,.03)}
+/* CUSTOM ASSIGNEE DROPDOWN */
+.ca-wrap{position:relative;width:100%}
+.ca-trigger{display:flex;align-items:center;gap:7px;padding:6px 10px;background:var(--s2);border:1px solid var(--bd2);border-radius:7px;cursor:pointer;font-size:12px;color:var(--t1);min-height:32px;transition:border-color .15s}
+.ca-trigger:hover{border-color:var(--ac)}
+.ca-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff}
+.ca-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ca-caret{color:var(--t3);font-size:10px;flex-shrink:0}
+.ca-menu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--s2);border:1px solid var(--bd2);border-radius:9px;box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:200;max-height:220px;overflow-y:auto;padding:4px 0}
+.ca-item{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;font-size:12px;color:var(--t1);transition:background .1s}
+.ca-item:hover{background:var(--s3)}
+.ca-item.selected{background:rgba(59,130,246,.12);color:var(--ac)}
 </style>
 </head><body>
 <div id="login-overlay">
@@ -1133,7 +1144,7 @@ function renderDrawer(type,item){
       <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Assigned To</label><select class="inp" id="dr-assignee"><option value="">Unassigned</option>${D.teams.flatMap(t=>t.members).map(m=>`<option value="${esc(m.name)}" ${item.assignedTo===m.name?'selected':''}>${esc(m.name)} (${m.role})</option>`).join('')}</select></div>
+      <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-assignee',item.assignedTo)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
     <div class="field"><label>Notes</label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
@@ -1207,6 +1218,71 @@ function renderDrawer(type,item){
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// Build a custom avatar+name assignee dropdown
+function buildAssigneeDropdown(id,currentValue){
+  const members=D.teams.flatMap(t=>t.members);
+  const sel=members.find(m=>m.name===currentValue);
+  const selInitials=sel?sel.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase():'';
+  const selColor=sel?sel.color||'var(--ac)':'var(--t3)';
+  const triggerAvatar=sel
+    ?(sel.avatar
+        ?`<img src="${esc(sel.avatar)}" class="ca-avatar" style="object-fit:cover">`
+        :`<div class="ca-avatar" style="background:${selColor}">${selInitials}</div>`)
+    :`<div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div>`;
+  const items=[`<div class="ca-item ${!currentValue?'selected':''}" onclick="_caSelect('${id}','')"><div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div><span>Unassigned</span></div>`]
+    .concat(members.map(m=>{
+      const ini=m.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+      const col=m.color||'var(--ac)';
+      const avatarEl=m.avatar
+        ?`<img src="${esc(m.avatar)}" class="ca-avatar" style="object-fit:cover">`
+        :`<div class="ca-avatar" style="background:${col}">${ini}</div>`;
+      return `<div class="ca-item ${currentValue===m.name?'selected':''}" onclick="_caSelect('${id}','${esc(m.name)}')">${avatarEl}<span>${esc(m.name)}<span style="font-size:9px;color:var(--t3);margin-left:4px">${esc(m.role)}</span></span></div>`;
+    }));
+  return `<div class="ca-wrap" id="${id}-wrap">
+    <input type="hidden" id="${id}-val" value="${esc(currentValue||'')}">
+    <div class="ca-trigger" onclick="_caToggle('${id}')">${triggerAvatar}<span class="ca-label">${sel?esc(sel.name):'Unassigned'}</span><span class="ca-caret">▾</span></div>
+    <div class="ca-menu" id="${id}-menu" style="display:none">${items.join('')}</div>
+  </div>`;
+}
+function _caToggle(id){
+  const menu=document.getElementById(id+'-menu');
+  if(!menu)return;
+  const open=menu.style.display!=='none';
+  // Close all other open ca-menus
+  document.querySelectorAll('.ca-menu').forEach(m=>{m.style.display='none';});
+  if(!open){menu.style.display='block';}
+}
+function _caSelect(id,value){
+  const hidden=document.getElementById(id+'-val');
+  if(hidden)hidden.value=value;
+  const menu=document.getElementById(id+'-menu');
+  if(menu)menu.style.display='none';
+  // Update trigger display
+  const wrap=document.getElementById(id+'-wrap');
+  if(!wrap)return;
+  const members=D.teams.flatMap(t=>t.members);
+  const sel=members.find(m=>m.name===value);
+  const trigger=wrap.querySelector('.ca-trigger');
+  if(!trigger)return;
+  const ini=sel?sel.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase():'';
+  const col=sel?sel.color||'var(--ac)':'var(--t3)';
+  const avatarEl=sel
+    ?(sel.avatar
+        ?`<img src="${esc(sel.avatar)}" class="ca-avatar" style="object-fit:cover">`
+        :`<div class="ca-avatar" style="background:${col}">${ini}</div>`)
+    :`<div class="ca-avatar" style="background:var(--s3);color:var(--t3)">—</div>`;
+  trigger.innerHTML=`${avatarEl}<span class="ca-label">${sel?esc(sel.name):'Unassigned'}</span><span class="ca-caret">▾</span>`;
+  // Update selected state in menu items
+  wrap.querySelectorAll('.ca-item').forEach(item=>{
+    item.classList.toggle('selected',item.querySelector('span')?.textContent?.trim().startsWith(value&&sel?sel.name:'__none__')||(!value&&item.textContent.includes('Unassigned')));
+  });
+}
+// Close ca-menus when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ca-wrap')){
+    document.querySelectorAll('.ca-menu').forEach(m=>{m.style.display='none';});
+  }
+});
 // ── Date / time formatting respecting General prefs ──────────────────────────
 function fmtDate(d){
   // d can be a Date object, ISO string, or YYYY-MM-DD string
@@ -1255,8 +1331,10 @@ function saveItem(type,id){
     const gSel=document.getElementById('dr-goal');
     t.linkedGoalId=gSel.value?parseInt(gSel.value):null;
     t.notes=$('#dr-notes').value;
+    // Custom assignee dropdown stores value in a hidden input with id dr-assignee-val
+    const aHidden=document.getElementById('dr-assignee-val');
     const aSel=document.getElementById('dr-assignee');
-    t.assignedTo=aSel?aSel.value||null:t.assignedTo;
+    t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;n.updated='Just now';save('notes')}}
@@ -7171,13 +7249,38 @@ function renderSettingsHTML(){
     <div style="position:absolute;bottom:0;right:0;width:18px;height:18px;background:var(--ac);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;border:2px solid var(--s2)">📷</div>
     ${D.creds.avatar?`<div onclick="event.stopPropagation();removeUserAvatar()" title="Remove photo" style="position:absolute;top:-3px;right:-3px;width:16px;height:16px;background:var(--red);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;border:1px solid var(--bg);color:#fff;font-weight:700">×</div>`:''}
   </div>
-  <div><div style="font-size:15px;font-weight:600" id="prof-name">${esc(name)}</div><div style="font-size:11px;color:var(--t3)" id="prof-email">${esc(email)}</div><div style="font-size:10px;color:var(--ac);margin-top:2px">Owner</div></div>
+  <div style="flex:1">
+    <div style="font-size:15px;font-weight:600" id="prof-name">${esc(name)}</div>
+    <div style="font-size:11px;color:var(--t3)" id="prof-email">${esc(email)}</div>
+    <div style="font-size:10px;color:var(--ac);margin-top:2px">Owner</div>
+    ${(()=>{
+      // Profile completeness: photo(25), bio(25), jobTitle(25), tz(25)
+      const fields=[
+        {label:'Photo',done:!!D.creds.avatar},
+        {label:'Bio',done:!!(D.creds.bio&&D.creds.bio.trim())},
+        {label:'Job Title',done:!!(D.creds.jobTitle&&D.creds.jobTitle.trim())},
+        {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz!=='Eastern Time')}
+      ];
+      const pct=Math.round(fields.filter(f=>f.done).length/fields.length*100);
+      const color=pct===100?'var(--ok)':pct>=50?'var(--ac)':'var(--warn)';
+      const missing=fields.filter(f=>!f.done).map(f=>f.label);
+      return `<div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:4px">
+          <span>Profile ${pct}% complete</span>
+          ${missing.length?`<span style="color:var(--t3)">Add: ${missing.join(', ')}</span>`:"<span style='color:var(--ok)'>&#10003; All done!</span>"}
+        </div>
+        <div style="height:4px;background:var(--s3);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;transition:width .4s ease"></div>
+        </div>
+      </div>`;
+    })()}
+  </div>
   </div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:10px;color:var(--t3)">Used for account identification</div></div><input class="inp" style="max-width:240px" value="${esc(email)}" oninput="D.creds.email=this.value;updateProfileUI();document.getElementById('prof-email').textContent=this.value;saveAll()"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll()"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll();updateProfileCompleteness()"></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll();updateProfileCompleteness()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll();updateProfileCompleteness()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔒 Change Password</div>
     <div style="margin-bottom:8px">
@@ -7268,8 +7371,14 @@ function renderSettingsHTML(){
     </div>
   </div>
 
-  <!-- Reset to Defaults -->
+  <!-- Replay Intro -->
   <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">Onboarding Intro</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Replay the animated intro splash screen that appeared on your first login.</p>
+    <button class="btn" style="font-size:11px;background:var(--s3);border:1px solid var(--bd2)" onclick="localStorage.removeItem('lu_splash_shown_v1');const name=(D.creds&&D.creds.userName||'User').split(' ')[0];showSplashScreen(name);">&#9654; Replay Intro</button>
+  </div>
+  <!-- Reset to Defaults -->
+  <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--warn)">Reset General Settings</div>
     <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Restores all General settings to their defaults. Your tasks, notes, and other app data are not affected.</p>
     <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset all General settings to defaults?')){const keep={darkMode:D.prefs.darkMode,compact:D.prefs.compact,accent:D.prefs.accent,notifications:D.prefs.notifications};D.prefs={...keep,workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true};saveAll();applyPrefs();renderScreen('settings');toast('\u2699 General settings reset to defaults');}">&#x21BA; Reset to Defaults</button>
@@ -8849,6 +8958,31 @@ function removeUserAvatar(){
   renderSettings();
   updateProfileUI();
   toast('🗑️ Profile photo removed');
+}
+function updateProfileCompleteness(){
+  // Update the progress bar and missing-fields text live without re-rendering the full settings panel
+  const fields=[
+    {label:'Photo',done:!!D.creds.avatar},
+    {label:'Bio',done:!!(D.creds.bio&&D.creds.bio.trim())},
+    {label:'Job Title',done:!!(D.creds.jobTitle&&D.creds.jobTitle.trim())},
+    {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz!=='Eastern Time')}
+  ];
+  const pct=Math.round(fields.filter(f=>f.done).length/fields.length*100);
+  const color=pct===100?'var(--ok)':pct>=50?'var(--ac)':'var(--warn)';
+  const missing=fields.filter(f=>!f.done).map(f=>f.label);
+  // The completeness bar is inside the profile header card — find it by its unique structure
+  const bar=document.querySelector('#sp-0 [style*="transition:width"]');
+  if(bar){bar.style.width=pct+'%';bar.style.background=color;}
+  const labels=document.querySelectorAll('#sp-0 [style*="Profile"]');
+  labels.forEach(el=>{
+    if(el.textContent&&el.textContent.includes('% complete')){
+      el.textContent='Profile '+pct+'% complete';
+    }
+    if(el.textContent&&(el.textContent.includes('Add:') || el.textContent.includes('All done'))){
+      el.textContent=missing.length?'Add: '+missing.join(', '):'\u2713 All done!';
+      el.style.color=missing.length?'var(--t3)':'var(--ok)';
+    }
+  });
 }
 
 // ====== MY DAY AUTO-RESET + HABIT RESET ======

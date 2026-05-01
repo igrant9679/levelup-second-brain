@@ -224,3 +224,8 @@
 - [x] Update favicon.svg to use the LU↑ monogram matching the new logo
 - [x] Logged-in user avatar: upload + crop in Settings → Profile, display in topbar initials circle and task assignment dropdowns
 - [x] Onboarding splash screen: animated LU↑ logo intro shown once on first login, CSS keyframe animation
+
+## Assignee Dropdown, Splash Replay & Profile Completeness
+- [x] Custom assignee dropdown: replace native <select> in task drawer with custom dropdown showing member avatar/initials + name
+- [x] Splash replay button: add "Replay intro" link in Settings → General that clears lu_splash_shown_v1 and shows the splash
+- [x] Profile completeness indicator: progress bar in Settings → Profile showing % complete (photo, bio, job title, timezone)
