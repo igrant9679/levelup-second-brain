@@ -301,20 +301,56 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
     <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
     <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
   </div>
-  <div class="login-box">
+  <div class="login-box" id="login-box-signin">
     <h2>Welcome back</h2>
-    <p>Select your profile to continue</p>
-    <div class="login-user-grid" id="login-user-grid"></div>
-    <div style="font-size:11px;color:var(--t3);text-align:center;margin-bottom:10px">Enter your 4-digit PIN</div>
-    <div class="login-pin">
-      <input type="tel" maxlength="1" id="pin0" oninput="pinInput(this,0)" onkeydown="pinKey(event,0)">
-      <input type="tel" maxlength="1" id="pin1" oninput="pinInput(this,1)" onkeydown="pinKey(event,1)">
-      <input type="tel" maxlength="1" id="pin2" oninput="pinInput(this,2)" onkeydown="pinKey(event,2)">
-      <input type="tel" maxlength="1" id="pin3" oninput="pinInput(this,3)" onkeydown="pinKey(event,3)">
+    <p>Sign in to your account</p>
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Email address</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="loginFieldKey(event)" oninput="document.getElementById('login-err').textContent=''">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Password</label>
+      <div style="position:relative">
+        <input type="password" id="login-password" placeholder="Enter your password" autocomplete="current-password"
+          style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 36px 9px 12px;color:var(--t1);font-size:13px;outline:none"
+          onkeydown="loginFieldKey(event)" oninput="document.getElementById('login-err').textContent=''">
+        <button onclick="toggleLoginPwVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--t3);font-size:13px;padding:0" id="login-pw-toggle">👁</button>
+      </div>
     </div>
     <div class="login-err" id="login-err"></div>
-    <button class="btn btn-p" style="width:100%;height:38px;font-size:13px" onclick="attemptLogin()">Sign In</button>
-    <div id="pin-hint" style="font-size:10px;color:var(--t3);text-align:center;margin-top:12px">Default PIN for all users: <strong>1234</strong> &nbsp;<span style="cursor:pointer;text-decoration:underline" onclick="document.getElementById('pin-hint').style.display='none';localStorage.setItem('lu_hidePinHint','1')">Hide</span></div>
+    <button class="btn btn-p" id="login-submit-btn" style="width:100%;height:38px;font-size:13px;margin-bottom:12px" onclick="attemptLogin()">Sign In</button>
+    <div style="text-align:center;font-size:11px;color:var(--t3)">
+      Don't have an account? <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('register')">Create one</span>
+    </div>
+  </div>
+  <div class="login-box" id="login-box-register" style="display:none">
+    <h2>Create account</h2>
+    <p>Start your second brain journey</p>
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Full name</label>
+      <input type="text" id="reg-name" placeholder="Idris Grant" autocomplete="name"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="registerFieldKey(event)" oninput="document.getElementById('reg-err').textContent=''">
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Email address</label>
+      <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="registerFieldKey(event)" oninput="document.getElementById('reg-err').textContent=''">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Password <span style="color:var(--t3);font-weight:400">(min 8 characters)</span></label>
+      <input type="password" id="reg-password" placeholder="Choose a strong password" autocomplete="new-password"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+        onkeydown="registerFieldKey(event)" oninput="document.getElementById('reg-err').textContent=''">
+    </div>
+    <div class="login-err" id="reg-err"></div>
+    <button class="btn btn-p" id="reg-submit-btn" style="width:100%;height:38px;font-size:13px;margin-bottom:12px" onclick="attemptRegister()">Create Account</button>
+    <div style="text-align:center;font-size:11px;color:var(--t3)">
+      Already have an account? <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="showLoginTab('signin')">Sign in</span>
+    </div>
   </div>
 </div>
 <div class="app">
@@ -8182,77 +8218,87 @@ document.addEventListener('keydown',e=>{
 
 // ====== LOGIN ======
 let _loginSelectedMember=null;
-function initLoginScreen(){
-  // Check for active session
-  const sess=JSON.parse(localStorage.getItem('lu_session')||'null');
-  if(sess&&sess.memberId&&sess.expires>Date.now()){
-    const allMembers=D.teams.flatMap(t=>t.members);
-    const member=allMembers.find(m=>m.id===sess.memberId);
-    if(member){doLoginSuccess(member);return;}
-  }
-  // Build user grid
-  const grid=document.getElementById('login-user-grid');
-  if(!grid)return;
-  const allMembers=D.teams.flatMap(t=>t.members);
-  grid.innerHTML=allMembers.map(m=>{
-    const initials=m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    return `<div class="login-user-btn" id="lbtn-${m.id}" onclick="selectLoginUser(${m.id})">
-      <div class="av-lg" style="background:${m.color||'var(--ac)'};color:#fff">${initials}</div>
-      <div class="u-name">${esc(m.name)}</div>
-      <div class="u-role">${m.role||'Member'}</div>
-    </div>`;
-  }).join('');
-  // Auto-select Idris (owner)
-  const owner=allMembers.find(m=>m.role==='Owner')||allMembers[0];
-  if(owner)selectLoginUser(owner.id);
-  // Hide PIN hint if user dismissed it before
-  if(localStorage.getItem('lu_hidePinHint')==='1'){
-    const h=document.getElementById('pin-hint');
-    if(h)h.style.display='none';
-  }
+// ---- Email + Password Login ----
+function showLoginTab(tab){
+  const signIn=document.getElementById('login-box-signin');
+  const register=document.getElementById('login-box-register');
+  if(!signIn||!register)return;
+  if(tab==='register'){signIn.style.display='none';register.style.display='';setTimeout(()=>{const n=document.getElementById('reg-name');if(n)n.focus();},50);}
+  else{register.style.display='none';signIn.style.display='';setTimeout(()=>{const e=document.getElementById('login-email');if(e)e.focus();},50);}
 }
-function selectLoginUser(memberId){
-  _loginSelectedMember=memberId;
-  document.querySelectorAll('.login-user-btn').forEach(b=>b.classList.remove('sel'));
-  const btn=document.getElementById('lbtn-'+memberId);
-  if(btn)btn.classList.add('sel');
-  // Clear PIN
-  [0,1,2,3].forEach(i=>{const p=document.getElementById('pin'+i);if(p)p.value='';});
-  const p0=document.getElementById('pin0');if(p0)p0.focus();
-  document.getElementById('login-err').textContent='';
+function toggleLoginPwVis(){
+  const pw=document.getElementById('login-password');
+  const btn=document.getElementById('login-pw-toggle');
+  if(!pw)return;
+  if(pw.type==='password'){pw.type='text';if(btn)btn.textContent='🙈';}
+  else{pw.type='password';if(btn)btn.textContent='👁';}
 }
-function pinInput(el,idx){
-  el.value=el.value.replace(/[^0-9]/g,'').slice(-1);
-  if(el.value&&idx<3){const next=document.getElementById('pin'+(idx+1));if(next)next.focus();}
-  if(idx===3&&el.value)attemptLogin();
-}
-function pinKey(e,idx){
-  if(e.key==='Backspace'&&!e.target.value&&idx>0){
-    const prev=document.getElementById('pin'+(idx-1));if(prev){prev.value='';prev.focus();}
-  }
+function loginFieldKey(e){
   if(e.key==='Enter')attemptLogin();
 }
-function attemptLogin(){
-  const pin=[0,1,2,3].map(i=>{const p=document.getElementById('pin'+i);return p?p.value:'';}).join('');
-  if(pin.length<4){document.getElementById('login-err').textContent='Please enter all 4 digits.';return;}
-  const allMembers=D.teams.flatMap(t=>t.members);
-  const member=allMembers.find(m=>m.id===_loginSelectedMember);
-  if(!member){document.getElementById('login-err').textContent='Please select a user.';return;}
-  // Check PIN: stored in member.pin, default 1234
-  const correctPin=member.pin||'1234';
-  if(pin!==correctPin){
-    document.getElementById('login-err').textContent='Incorrect PIN. Try again.';
-    [0,1,2,3].forEach(i=>{const p=document.getElementById('pin'+i);if(p)p.value='';});
-    const p0=document.getElementById('pin0');if(p0)p0.focus();
-    return;
+function registerFieldKey(e){
+  if(e.key==='Enter')attemptRegister();
+}
+function initLoginScreen(){
+  // Focus email field
+  setTimeout(()=>{const e=document.getElementById('login-email');if(e)e.focus();},100);
+}
+async function attemptLogin(){
+  const email=(document.getElementById('login-email')||{}).value||'';
+  const password=(document.getElementById('login-password')||{}).value||'';
+  const errEl=document.getElementById('login-err');
+  const btn=document.getElementById('login-submit-btn');
+  if(!email.trim()){if(errEl)errEl.textContent='Please enter your email address.';return;}
+  if(!password){if(errEl)errEl.textContent='Please enter your password.';return;}
+  if(btn){btn.disabled=true;btn.textContent='Signing in…';}
+  if(errEl)errEl.textContent='';
+  try{
+    const res=await _trpc('emailAuth.login',{email:email.trim().toLowerCase(),password},'mutation');
+    if(res&&res.success){
+      // Store minimal local session for app state
+      const userData={id:res.user.id,name:res.user.name,email:res.user.email,role:res.user.role};
+      doLoginSuccess(userData);
+    } else {
+      if(errEl)errEl.textContent='Login failed. Please try again.';
+    }
+  } catch(err){
+    const msg=(err&&err.message)||'Invalid email or password';
+    if(errEl)errEl.textContent=msg;
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Sign In';}
   }
-  doLoginSuccess(member);
+}
+async function attemptRegister(){
+  const name=(document.getElementById('reg-name')||{}).value||'';
+  const email=(document.getElementById('reg-email')||{}).value||'';
+  const password=(document.getElementById('reg-password')||{}).value||'';
+  const errEl=document.getElementById('reg-err');
+  const btn=document.getElementById('reg-submit-btn');
+  if(!name.trim()){if(errEl)errEl.textContent='Please enter your full name.';return;}
+  if(!email.trim()){if(errEl)errEl.textContent='Please enter your email address.';return;}
+  if(password.length<8){if(errEl)errEl.textContent='Password must be at least 8 characters.';return;}
+  if(btn){btn.disabled=true;btn.textContent='Creating account…';}
+  if(errEl)errEl.textContent='';
+  try{
+    const res=await _trpc('emailAuth.register',{name:name.trim(),email:email.trim().toLowerCase(),password},'mutation');
+    if(res&&res.success){
+      const userData={id:res.user.id,name:res.user.name,email:res.user.email,role:res.user.role};
+      doLoginSuccess(userData);
+    } else {
+      if(errEl)errEl.textContent='Registration failed. Please try again.';
+    }
+  } catch(err){
+    const msg=(err&&err.message)||'Registration failed';
+    if(errEl)errEl.textContent=msg;
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Create Account';}
+  }
 }
 function doLoginSuccess(member){
-  // Save session (8-hour expiry)
+  // Save session (8-hour expiry) — member may come from server (id,name,email,role) or local data
   localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+8*60*60*1000}));
   // Update creds to reflect logged-in user
-  D.creds.userName=member.name;
+  D.creds.userName=member.name||'User';
   D.creds.email=member.email||'';
   D.creds.role=member.role||'Member';
   D.creds.color=member.color||'var(--ac)';
@@ -8335,8 +8381,10 @@ function changePin(){
   setTimeout(()=>{if(msg)msg.textContent='';},3000);
   toast('\ud83d\udd12 PIN updated');
 }
-function doLogout(){
+async function doLogout(){
   localStorage.removeItem('lu_session');
+  // Clear the JWT session cookie via tRPC
+  try{await _trpc('auth.logout',{},'mutation');}catch(e){console.warn('Logout endpoint error:',e);}
   const ov=document.getElementById('login-overlay');
   if(ov){ov.classList.remove('hidden');initLoginScreen();}
   toast('Signed out');

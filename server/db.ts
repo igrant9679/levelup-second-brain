@@ -89,6 +89,22 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function updateUserPasswordHash(userId: number, passwordHash: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
 // ---- OAuth Token helpers ----
 
 export async function upsertOAuthToken(token: InsertOAuthToken): Promise<void> {

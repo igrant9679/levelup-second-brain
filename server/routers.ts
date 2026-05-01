@@ -5,6 +5,7 @@ import { publicProcedure, router } from "./_core/trpc";
 import { oauthSyncRouter } from "./routers/oauth-sync";
 import { helpRouter } from "./routers/help";
 import { onenoteRouter } from "./routers/onenote";
+import { emailAuthRouter } from "./routers/emailAuth";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -23,6 +24,7 @@ export const appRouter = router({
   oauthSync: oauthSyncRouter,
   help: helpRouter,
   onenote: onenoteRouter,
+  emailAuth: emailAuthRouter,
 });
 
 export type AppRouter = typeof appRouter;

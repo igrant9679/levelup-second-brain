@@ -161,3 +161,9 @@
 - [x] Wire all facets into a unified applyNotesFilters() function that combines text search + tag + date + source + sort
 - [x] Preserve filter state across note opens (don't reset filters when clicking a note)
 - [x] Highlight matched text in note cards when text search is active
+
+## Bug Fixes & Login Redesign
+- [ ] Fix tRPC error on "Connect Microsoft 365" button in Settings → Accounts
+- [ ] Fix tRPC error on "Connect Google Workspace" button in Settings → Accounts
+- [ ] Redesign login screen: replace PIN/profile selector with email + password form
+- [ ] Add password hashing for stored user passwords (bcrypt)
