@@ -2164,6 +2164,14 @@ function bulkCompleteVisible(){
   toast(`✓ ${rows.length} task(s) marked Done`);
 }
 let _notesMyOnly=false;
+let _notesFilterText='';
+let _notesFilterTags=new Set();
+let _notesFilterSources=new Set();
+let _notesFilterDatePreset='';
+let _notesFilterDateFrom='';
+let _notesFilterDateTo='';
+let _notesSort='newest';
+let _notesFilterPanelOpen=false;
 function buildNoteBacklinks(id){
   // Find notes whose body contains [[Title]] linking to this note
   const target=D.notes.find(n=>n.id===id);
@@ -2249,43 +2257,175 @@ function showNoteInEditor(id){
     bp.innerHTML=html;
   }
 }
-function renderNotesList_html(myOnly){
-  const me=D.creds.userName||'Idris Grant';
-  const notes=myOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
-  return notes.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span>${n.createdBy&&n.createdBy!==me?`<span style="font-size:8px;color:var(--t3);margin-left:auto">${n.createdBy.split(' ')[0]}</span>`:''}</div></div>`).join('') || '<p style="color:var(--t3);font-size:11px;padding:8px">No notes found.</p>';
+// ─── Unified Notes Filter Engine ─────────────────────────────────────────────
+function _parseNoteDate(n){
+  // Try to parse a note's updated field into a Date. Falls back to epoch.
+  if(!n.updated)return new Date(0);
+  const s=n.updated.trim();
+  // ISO or standard date strings
+  const d=new Date(s);
+  if(!isNaN(d))return d;
+  // Relative: 'Xd ago', 'Xh ago', 'Just now'
+  if(/just now/i.test(s))return new Date();
+  const m=s.match(/(\d+)([smhdwMy])\s*ago/i);
+  if(m){
+    const v=parseInt(m[1]),u=m[2].toLowerCase(),now=new Date();
+    if(u==='s')now.setSeconds(now.getSeconds()-v);
+    else if(u==='m')now.setMinutes(now.getMinutes()-v);
+    else if(u==='h')now.setHours(now.getHours()-v);
+    else if(u==='d')now.setDate(now.getDate()-v);
+    else if(u==='w')now.setDate(now.getDate()-v*7);
+    else if(u==='M'||u==='mo')now.setMonth(now.getMonth()-v);
+    else if(u==='y')now.setFullYear(now.getFullYear()-v);
+    return now;
+  }
+  return new Date(0);
 }
-function renderNotesList(){
-  const el=document.getElementById('notes-list-inner');
-  if(el)el.innerHTML=renderNotesList_html(_notesMyOnly);
-}
-function filterNotesList(q){
-  const el=document.getElementById('notes-list-inner');
-  if(!el)return;
-  if(!q){el.innerHTML=renderNotesList_html(_notesMyOnly);return;}
-  const ql=q.toLowerCase();
+function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
-  const notes=(_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes).filter(n=>{
-    return (n.title||'').toLowerCase().includes(ql)||
-           (n.body||'').toLowerCase().includes(ql)||
-           (n.tags||[]).some(t=>t.toLowerCase().includes(ql))||
-           (n.source||'').toLowerCase().includes(ql);
-  });
-  el.innerHTML=notes.map((n,i)=>{
-    // Highlight matching text in title
-    const hiTitle=esc(n.title).replace(new RegExp(ql.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
-    // Show matching body snippet
+  let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  // Text search
+  const q=_notesFilterText.trim().toLowerCase();
+  if(q){
+    notes=notes.filter(n=>
+      (n.title||'').toLowerCase().includes(q)||
+      (n.body||'').toLowerCase().includes(q)||
+      (n.tags||[]).some(t=>t.toLowerCase().includes(q))||
+      (n.source||'').toLowerCase().includes(q)
+    );
+  }
+  // Tag facet (multi-select AND logic)
+  if(_notesFilterTags.size>0){
+    notes=notes.filter(n=>{
+      const noteTags=(n.tags||[]).map(t=>t.toLowerCase());
+      for(const ft of _notesFilterTags){
+        if(!noteTags.includes(ft.toLowerCase()))return false;
+      }
+      return true;
+    });
+  }
+  // Source facet (multi-select OR logic)
+  if(_notesFilterSources.size>0){
+    notes=notes.filter(n=>_notesFilterSources.has((n.source||'Manual').toLowerCase()));
+  }
+  // Date range
+  const now=new Date();
+  let fromDate=null,toDate=null;
+  if(_notesFilterDatePreset==='today'){
+    fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  } else if(_notesFilterDatePreset==='week'){
+    fromDate=new Date(now); fromDate.setDate(fromDate.getDate()-7);
+  } else if(_notesFilterDatePreset==='month'){
+    fromDate=new Date(now); fromDate.setMonth(fromDate.getMonth()-1);
+  } else if(_notesFilterDatePreset==='year'){
+    fromDate=new Date(now); fromDate.setFullYear(fromDate.getFullYear()-1);
+  } else if(_notesFilterDatePreset==='custom'){
+    if(_notesFilterDateFrom)fromDate=new Date(_notesFilterDateFrom);
+    if(_notesFilterDateTo){toDate=new Date(_notesFilterDateTo);toDate.setHours(23,59,59,999);}
+  }
+  if(fromDate||toDate){
+    notes=notes.filter(n=>{
+      const d=_parseNoteDate(n);
+      if(fromDate&&d<fromDate)return false;
+      if(toDate&&d>toDate)return false;
+      return true;
+    });
+  }
+  // Sort
+  if(_notesSort==='newest')notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
+  else if(_notesSort==='oldest')notes=[...notes].sort((a,b)=>_parseNoteDate(a)-_parseNoteDate(b));
+  else if(_notesSort==='az')notes=[...notes].sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  else if(_notesSort==='za')notes=[...notes].sort((a,b)=>(b.title||'').localeCompare(a.title||''));
+  else if(_notesSort==='longest')notes=[...notes].sort((a,b)=>(b.body||'').length-(a.body||'').length);
+  else if(_notesSort==='tagged')notes=[...notes].sort((a,b)=>(b.tags||[]).length-(a.tags||[]).length);
+  // Render note cards with optional text highlight
+  const hiRe=q?new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'):null;
+  function hi(str){
+    if(!hiRe||!str)return esc(str||'');
+    return esc(str).replace(hiRe,m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
+  }
+  const html=notes.map((n,i)=>{
     const bodyLower=(n.body||'').toLowerCase();
-    const idx=bodyLower.indexOf(ql);
+    const idx=q?bodyLower.indexOf(q):-1;
     let snippet='';
     if(idx>=0){
       const start=Math.max(0,idx-30);
-      const end=Math.min((n.body||'').length,idx+ql.length+50);
-      snippet=esc((n.body||'').slice(start,end)).replace(new RegExp(ql.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
+      const end=Math.min((n.body||'').length,idx+q.length+50);
+      snippet=hi((n.body||'').slice(start,end));
       if(start>0)snippet='…'+snippet;
-      if(end<(n.body||'').length)snippet+=('…');
+      if(end<(n.body||'').length)snippet+='…';
     }
-    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hiTitle}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`;
-  }).join('')||'<p style="color:var(--t3);font-size:11px;padding:8px">No notes match "'+esc(q)+'".</p>';
+    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hi(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span style="${_notesFilterSources.has((n.source||'Manual').toLowerCase())?'color:var(--ac);font-weight:600':''}}">${esc(n.source||'Manual')}</span><span>${esc(n.updated||'')}</span></div></div>`;
+  }).join('');
+  const el=document.getElementById('notes-list-inner');
+  if(!el)return;
+  el.innerHTML=html||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes match the current filters.</p>`;
+  // Update result count in filter bar
+  const countEl=document.getElementById('notes-filter-count');
+  if(countEl)countEl.textContent=`${notes.length} note${notes.length!==1?'s':''}`;
+  // Show/hide clear button
+  const hasFilters=q||_notesFilterTags.size||_notesFilterSources.size||_notesFilterDatePreset||_notesSort!=='newest';
+  const clearBtn=document.getElementById('notes-filter-clear');
+  if(clearBtn)clearBtn.style.display=hasFilters?'inline-flex':'none';
+}
+function clearNotesFilters(){
+  _notesFilterText='';
+  _notesFilterTags=new Set();
+  _notesFilterSources=new Set();
+  _notesFilterDatePreset='';
+  _notesFilterDateFrom='';
+  _notesFilterDateTo='';
+  _notesSort='newest';
+  const si=document.getElementById('notes-search');
+  if(si)si.value='';
+  // Reset all chip/button states
+  document.querySelectorAll('.nf-tag-chip').forEach(c=>{c.dataset.active='';c.style.background='var(--s3)';c.style.color='var(--t2)';});
+  document.querySelectorAll('.nf-src-chip').forEach(c=>{c.dataset.active='';c.style.background='var(--s3)';c.style.color='var(--t2)';});
+  document.querySelectorAll('.nf-date-btn').forEach(b=>{b.dataset.active='';b.style.background='var(--s3)';b.style.color='var(--t2)';});
+  const customRow=document.getElementById('nf-custom-date-row');
+  if(customRow)customRow.style.display='none';
+  const sortSel=document.getElementById('nf-sort-select');
+  if(sortSel)sortSel.value='newest';
+  applyNotesFilters();
+}
+function toggleNotesFilterTag(tag,el){
+  const k=tag.toLowerCase();
+  if(_notesFilterTags.has(k)){_notesFilterTags.delete(k);el.dataset.active='';el.style.background='var(--s3)';el.style.color='var(--t2)';}
+  else{_notesFilterTags.add(k);el.dataset.active='1';el.style.background='var(--ac)';el.style.color='#fff';}
+  applyNotesFilters();
+}
+function toggleNotesFilterSource(src,el){
+  const k=src.toLowerCase();
+  if(_notesFilterSources.has(k)){_notesFilterSources.delete(k);el.dataset.active='';el.style.background='var(--s3)';el.style.color='var(--t2)';}
+  else{_notesFilterSources.add(k);el.dataset.active='1';el.style.background='var(--ac)';el.style.color='#fff';}
+  applyNotesFilters();
+}
+function setNotesDatePreset(preset,el){
+  const wasActive=_notesFilterDatePreset===preset;
+  _notesFilterDatePreset=wasActive?'':preset;
+  document.querySelectorAll('.nf-date-btn').forEach(b=>{b.dataset.active='';b.style.background='var(--s3)';b.style.color='var(--t2)';});
+  const customRow=document.getElementById('nf-custom-date-row');
+  if(!wasActive){
+    el.dataset.active='1';el.style.background='var(--ac)';el.style.color='#fff';
+    if(preset==='custom'&&customRow)customRow.style.display='flex';
+    else if(customRow)customRow.style.display='none';
+  } else {
+    if(customRow)customRow.style.display='none';
+  }
+  applyNotesFilters();
+}
+function renderNotesList_html(myOnly){
+  // Legacy wrapper — now delegates to the unified filter engine
+  _notesMyOnly=myOnly!==undefined?myOnly:_notesMyOnly;
+  applyNotesFilters();
+  return ''; // applyNotesFilters writes directly to notes-list-inner
+}
+function renderNotesList(){
+  applyNotesFilters();
+}
+function filterNotesList(q){
+  _notesFilterText=q||'';
+  applyNotesFilters();
 }
 function filterNotesByTag(tag,el){
   const chips=document.querySelectorAll('.notes-tag-chip');
@@ -2524,22 +2664,88 @@ function renderNotes(){
 
   // Populate Notes list panel
   const list=$('notes-list-panel');
-  list.innerHTML=`<div style="padding:10px 8px 6px;border-bottom:1px solid var(--bd1)">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-    <div style="font-size:12px;font-weight:600">Notes <span style="font-size:10px;color:var(--t3);font-weight:400">(${D.notes.length})</span></div>
-    <div style="display:flex;gap:3px">
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Note templates">📝 Tmpl</button>
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export all notes as Markdown">⬇ MD</button>
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md files as notes">📥 Import</button>
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="AI: Ask a question about your notes">🤔 Ask AI</button>
-      <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
-      <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
-      <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
+  // Build unique tags and sources from notes data for filter chips
+  const _allNoteTags=[...new Set(D.notes.flatMap(n=>n.tags||[]))].sort();
+  const _allNoteSources=[...new Set(D.notes.map(n=>n.source||'Manual'))].sort();
+  list.innerHTML=`<div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
+  <!-- Header row -->
+  <div style="padding:8px 8px 4px;border-bottom:1px solid var(--bd1);flex-shrink:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+      <div style="font-size:12px;font-weight:600">Notes <span id="notes-filter-count" style="font-size:10px;color:var(--t3);font-weight:400">${D.notes.length} notes</span></div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Templates">📝</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export MD">⬇</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md">📥</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="Ask AI">🤔</button>
+        <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
+        <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
+        <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
+      </div>
+    </div>
+    <!-- Search + Filter toggle row -->
+    <div style="display:flex;gap:4px;align-items:center">
+      <input id="notes-search" class="inp" placeholder="🔍 Search notes…" style="flex:1;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
+      <button id="notes-filter-toggle" class="btn btn-s" style="height:26px;font-size:10px;padding:0 7px;flex-shrink:0;white-space:nowrap" onclick="_notesFilterPanelOpen=!_notesFilterPanelOpen;document.getElementById('notes-filter-panel').style.display=_notesFilterPanelOpen?'block':'none';this.style.background=_notesFilterPanelOpen?'var(--ac)':'';this.style.color=_notesFilterPanelOpen?'#fff':'';" title="Toggle filters">⚙ Filter</button>
+    </div>
+    <!-- Active filter summary bar -->
+    <div id="notes-filter-summary" style="display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px">
+      <button id="notes-filter-clear" class="btn" style="display:none;height:18px;font-size:9px;padding:0 7px;background:var(--warn);color:#fff;border-radius:10px" onclick="clearNotesFilters()">✕ Clear filters</button>
     </div>
   </div>
-  <input id="notes-search" class="inp" placeholder="🔍 Search notes (title, body, tags)..." style="width:100%;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
+  <!-- Collapsible filter panel -->
+  <div id="notes-filter-panel" style="display:none;padding:8px;border-bottom:1px solid var(--bd1);background:var(--s2);flex-shrink:0;overflow-y:auto;max-height:260px">
+    <!-- Sort -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+      <span style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
+      <select id="nf-sort-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesSort=this.value;applyNotesFilters()">
+        <option value="newest">Newest first</option>
+        <option value="oldest">Oldest first</option>
+        <option value="az">A → Z</option>
+        <option value="za">Z → A</option>
+        <option value="longest">Longest body</option>
+        <option value="tagged">Most tagged</option>
+      </select>
+    </div>
+    <!-- Tag facet -->
+    <div style="margin-bottom:8px">
+      <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Tags <span style="font-weight:400;color:var(--t3)">(multi-select, AND)</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">
+        ${_allNoteTags.map(tag=>`<span class="nf-tag-chip" style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterTag('${esc(tag)}',this)">#${esc(tag)}</span>`).join('')}
+        ${_allNoteTags.length===0?'<span style="font-size:9px;color:var(--t3)">No tags yet</span>':''}
+      </div>
+    </div>
+    <!-- Source facet -->
+    <div style="margin-bottom:8px">
+      <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Source <span style="font-weight:400;color:var(--t3)">(multi-select, OR)</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">
+        ${_allNoteSources.map(src=>{
+          const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖'};
+          const icon=icons[src]||'📝';
+          return `<span class="nf-src-chip" style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
+        }).join('')}
+      </div>
+    </div>
+    <!-- Date range facet -->
+    <div>
+      <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Date modified</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">
+        ${['today','week','month','year','custom'].map(p=>{
+          const labels={today:'Today',week:'This week',month:'This month',year:'This year',custom:'Custom…'};
+          return `<button class="nf-date-btn btn btn-s" style="height:20px;font-size:9px;padding:0 7px;background:var(--s3);color:var(--t2)" onclick="setNotesDatePreset('${p}',this)">${labels[p]}</button>`;
+        }).join('')}
+      </div>
+      <div id="nf-custom-date-row" style="display:none;gap:4px;align-items:center">
+        <input type="date" id="nf-date-from" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesFilterDateFrom=this.value;applyNotesFilters()">
+        <span style="font-size:9px;color:var(--t3)">to</span>
+        <input type="date" id="nf-date-to" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesFilterDateTo=this.value;applyNotesFilters()">
+      </div>
+    </div>
   </div>
-  <div id="notes-list-inner" style="overflow-y:auto;flex:1">${renderNotesList_html(false)}</div>`;
+  <!-- Notes list -->
+  <div id="notes-list-inner" style="overflow-y:auto;flex:1"></div>
+  </div>`;
+  // Trigger initial render via unified filter engine
+  applyNotesFilters();
 
   // Populate Notes editor panel
   const editor=$('notes-editor-panel');
