@@ -182,3 +182,14 @@
 - [x] Change Password: form with Current Password, New Password, Confirm New Password fields
 - [x] Change Password: call `emailAuth.setPassword` tRPC procedure on submit
 - [x] Change Password: show success toast and clear form on success
+
+## Settings → General Panel
+- [x] Add `sp-1` General panel between Profile (sp-0) and Appearance (sp-2)
+- [x] Workspace Name field (persisted in D.prefs.workspaceName)
+- [x] Default Home Screen dropdown (Dashboard, Tasks, Calendar, Notes, Habits, Journal, Goals, Contacts)
+- [x] First Day of Week toggle (Monday / Sunday)
+- [x] Date Format dropdown (MM/DD/YYYY, DD/MM/YYYY, YYYY-MM-DD)
+- [x] Time Format toggle (12-hour / 24-hour)
+- [x] Language / Locale dropdown (English, Spanish, French, German, Portuguese)
+- [x] Auto-save toggle (persisted in D.prefs.autoSave)
+- [x] Keyboard Shortcuts toggle (persisted in D.prefs.keyboardShortcuts)

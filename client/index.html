@@ -404,7 +404,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <header class="topbar">
 <div class="logo" onclick="nav('home')">
 <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="12" r="3" fill="#3B82F6"/><circle cx="9" cy="18" r="2.5" fill="#3B82F6" opacity=".8"/><circle cx="23" cy="18" r="2.5" fill="#3B82F6" opacity=".8"/><circle cx="6" cy="10" r="2" fill="#3B82F6" opacity=".6"/><circle cx="26" cy="10" r="2" fill="#3B82F6" opacity=".6"/><circle cx="12" cy="25" r="2" fill="#3B82F6" opacity=".6"/><circle cx="20" cy="25" r="2" fill="#3B82F6" opacity=".6"/><line x1="16" y1="12" x2="9" y2="18" stroke="#3B82F6" stroke-width="1" opacity=".4"/><line x1="16" y1="12" x2="23" y2="18" stroke="#3B82F6" stroke-width="1" opacity=".4"/><line x1="9" y1="18" x2="12" y2="25" stroke="#3B82F6" stroke-width="1" opacity=".3"/><line x1="23" y1="18" x2="20" y2="25" stroke="#3B82F6" stroke-width="1" opacity=".3"/><line x1="12" y1="25" x2="20" y2="25" stroke="#3B82F6" stroke-width="1" opacity=".2"/></svg>
-<div><b>LevelUp</b><small>The Second Brain</small></div>
+<div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
 <div class="tb-a">
@@ -971,6 +971,9 @@ function applyPrefs(){
   // derive ach/acs from accent
   document.documentElement.style.setProperty('--ach',D.prefs.accent||'#60A5FA');
   document.documentElement.style.setProperty('--acs',(D.prefs.accent||'#3B82F6')+'26');
+  // Apply workspace name
+  const wl=document.getElementById('workspace-label');
+  if(wl)wl.textContent=D.prefs.workspaceName||'LevelUp';
 }
 function toggleDarkMode(el){
   el.classList.toggle('on');
@@ -1140,6 +1143,33 @@ function renderDrawer(type,item){
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// ── Date / time formatting respecting General prefs ──────────────────────────
+function fmtDate(d){
+  // d can be a Date object, ISO string, or YYYY-MM-DD string
+  if(!d)return '';
+  const dt=d instanceof Date?d:new Date(String(d).includes('T')?d:d+'T00:00');
+  if(isNaN(dt))return String(d);
+  const fmt=(D.prefs&&D.prefs.dateFormat)||'MM/DD/YYYY';
+  const mm=String(dt.getMonth()+1).padStart(2,'0');
+  const dd=String(dt.getDate()).padStart(2,'0');
+  const yyyy=dt.getFullYear();
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(fmt==='DD/MM/YYYY')return `${dd}/${mm}/${yyyy}`;
+  if(fmt==='YYYY-MM-DD')return `${yyyy}-${mm}-${dd}`;
+  if(fmt==='D MMM YYYY')return `${dt.getDate()} ${months[dt.getMonth()]} ${yyyy}`;
+  return `${mm}/${dd}/${yyyy}`; // default MM/DD/YYYY
+}
+function fmtTime(d){
+  if(!d)return '';
+  const dt=d instanceof Date?d:new Date(d);
+  if(isNaN(dt))return String(d);
+  const use24=(D.prefs&&D.prefs.timeFormat)==='24h';
+  return dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:!use24});
+}
+function fmtDateTime(d){
+  if(!d)return '';
+  return fmtDate(d)+' '+fmtTime(d);
+}
 
 function saveItem(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
@@ -3932,11 +3962,14 @@ function _calViewTabs(){
 }
 
 function renderCalWeek(){
-  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const _sunFirst=(D.prefs&&D.prefs.firstDayOfWeek)==='sunday';
+  const days=_sunFirst?['Sun','Mon','Tue','Wed','Thu','Fri','Sat']:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const today=new Date();
-  const dayOfWeek=today.getDay();
+  const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...
+  // Calculate offset to week start
+  const _startOffset=_sunFirst?(dayOfWeek):(dayOfWeek===0?6:dayOfWeek-1);
   const baseMonday=new Date(today);
-  baseMonday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1)+(_calWeekOffset*7));
+  baseMonday.setDate(today.getDate()-_startOffset+(_calWeekOffset*7));
   baseMonday.setHours(0,0,0,0);
   const baseSunday=new Date(baseMonday);baseSunday.setDate(baseMonday.getDate()+6);
   const isCurrentWeek=_calWeekOffset===0;
@@ -7066,6 +7099,73 @@ function renderSettingsHTML(){
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
   <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload()}">🗑 Reset All Data</button></div>
   </div>
+  <!-- General --><div id="sp-1" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">⚙ General</h3>
+
+  <!-- Workspace Name -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Workspace</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Workspace Name</div><div style="font-size:10px;color:var(--t3)">Shown in the sidebar header</div></div>
+      <input class="inp" id="gen-workspace-name" style="max-width:200px;font-size:12px" value="${esc(D.prefs&&D.prefs.workspaceName||'LevelUp')}" oninput="D.prefs=D.prefs||{};D.prefs.workspaceName=this.value;const wl=document.getElementById('workspace-label');if(wl)wl.textContent=this.value||'LevelUp';saveAll()">
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Home Screen</div><div style="font-size:10px;color:var(--t3)">Module shown on launch</div></div>
+      <select class="inp" id="gen-home-screen" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.homeScreen=this.value;saveAll()">
+        ${['Dashboard','Tasks','Calendar','Notes','Habits','Journal','Goals','Contacts'].map(m=>`<option value="${m}" ${(D.prefs&&D.prefs.homeScreen||'Dashboard')===m?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <!-- Date & Time -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Date &amp; Time</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">First Day of Week</div><div style="font-size:10px;color:var(--t3)">Affects Calendar and weekly views</div></div>
+      <div style="display:flex;gap:4px">
+        <button id="gen-fdow-mon" class="btn ${!(D.prefs&&D.prefs.firstDayOfWeek==='sunday')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.firstDayOfWeek='monday';document.getElementById('gen-fdow-mon').className='btn btn-p';document.getElementById('gen-fdow-sun').className='btn';saveAll()">Mon</button>
+        <button id="gen-fdow-sun" class="btn ${(D.prefs&&D.prefs.firstDayOfWeek==='sunday')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.firstDayOfWeek='sunday';document.getElementById('gen-fdow-sun').className='btn btn-p';document.getElementById('gen-fdow-mon').className='btn';saveAll()">Sun</button>
+      </div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Date Format</div><div style="font-size:10px;color:var(--t3)">How dates are displayed across the app</div></div>
+      <select class="inp" id="gen-date-format" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.dateFormat=this.value;saveAll()">
+        ${[{v:'MM/DD/YYYY',l:'MM/DD/YYYY'},{v:'DD/MM/YYYY',l:'DD/MM/YYYY'},{v:'YYYY-MM-DD',l:'YYYY-MM-DD'},{v:'D MMM YYYY',l:'D MMM YYYY'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.dateFormat||'MM/DD/YYYY')===o.v?'selected':''}>${o.l}</option>`).join('')}
+      </select>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Time Format</div><div style="font-size:10px;color:var(--t3)">12-hour (AM/PM) or 24-hour clock</div></div>
+      <div style="display:flex;gap:4px">
+        <button id="gen-tf-12" class="btn ${!(D.prefs&&D.prefs.timeFormat==='24h')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.timeFormat='12h';document.getElementById('gen-tf-12').className='btn btn-p';document.getElementById('gen-tf-24').className='btn';saveAll()">12h</button>
+        <button id="gen-tf-24" class="btn ${(D.prefs&&D.prefs.timeFormat==='24h')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.timeFormat='24h';document.getElementById('gen-tf-24').className='btn btn-p';document.getElementById('gen-tf-12').className='btn';saveAll()">24h</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Language -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Language &amp; Region</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Language</div><div style="font-size:10px;color:var(--t3)">UI display language</div></div>
+      <select class="inp" id="gen-language" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.language=this.value;saveAll()">
+        ${[{v:'en',l:'English'},{v:'es',l:'Español'},{v:'fr',l:'Français'},{v:'de',l:'Deutsch'},{v:'pt',l:'Português'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.language||'en')===o.v?'selected':''}>${o.l}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <!-- Behaviour -->
+  <div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Behaviour</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Auto-save</div><div style="font-size:10px;color:var(--t3)">Automatically save changes as you type</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.autoSave===false)?'on':''}" id="tog-autosave" onclick="D.prefs=D.prefs||{};D.prefs.autoSave=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Keyboard Shortcuts</div><div style="font-size:10px;color:var(--t3)">Enable global keyboard shortcuts (?, Cmd+K, etc.)</div></div>
+      <div class="tog ${!(D.prefs&&D.prefs.keyboardShortcuts===false)?'on':''}" id="tog-kbshortcuts" onclick="D.prefs=D.prefs||{};D.prefs.keyboardShortcuts=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
+    </div>
+  </div>
+  </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div><div style="font-size:10px;color:var(--t3)">Reduce padding and spacing</div></div><div class="tog ${D.prefs&&D.prefs.compact?'on':''}" id="tog-compact" onclick="toggleCompact(this)"></div></div>
@@ -8255,7 +8355,14 @@ function maybeSpawnRecurring(task){
 
 // ====== KEYBOARD SHORTCUTS ======
 document.addEventListener('keydown',e=>{
+  // Always allow Escape regardless of shortcut preference
+  const _kbEnabled=!(D.prefs&&D.prefs.keyboardShortcuts===false);
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  if(!_kbEnabled){
+    // Escape still works even when shortcuts are disabled
+    if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
+    return;
+  }
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('gSearch').focus()}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
@@ -8464,9 +8571,13 @@ function doLoginSuccess(member){
   applyPrefs();
   checkMyDayReset();
   scheduleMidnightReset();
-  initSidebars('home');
+  // Respect Default Home Screen preference
+  const _homeScreen=(D.prefs&&D.prefs.homeScreen||'Dashboard').toLowerCase();
+  const _homeMap={dashboard:'home',tasks:'tasks',calendar:'calendar',notes:'notes',habits:'habits',journal:'journal',goals:'goals',contacts:'contacts'};
+  const _homeKey=_homeMap[_homeScreen]||'home';
+  initSidebars(_homeKey);
   updateProfileUI();
-  renderScreen('home');
+  renderScreen(_homeKey);
   updateSidebarBadges();
   setTimeout(startAIAssistant,5000);
   toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
