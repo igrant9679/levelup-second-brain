@@ -229,3 +229,8 @@
 - [x] Custom assignee dropdown: replace native <select> in task drawer with custom dropdown showing member avatar/initials + name
 - [x] Splash replay button: add "Replay intro" link in Settings → General that clears lu_splash_shown_v1 and shows the splash
 - [x] Profile completeness indicator: progress bar in Settings → Profile showing % complete (photo, bio, job title, timezone)
+
+## OAuth Connect Fix
+- [x] Guard getAuthUrl: throw a clear error if MS_CLIENT_ID / GOOGLE_CLIENT_ID env vars are empty
+- [x] Settings Accounts panel: show a "Setup required" notice with step-by-step instructions when credentials are not configured
+- [ ] Add MS_CLIENT_ID, MS_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET to webdev secrets (requires user action)

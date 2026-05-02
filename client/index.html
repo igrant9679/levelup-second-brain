@@ -7493,8 +7493,31 @@ function renderSettingsHTML(){
       <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
     </div>
   </div>
-  <div style="padding:8px 10px;background:var(--s2);border-radius:6px;font-size:10px;color:var(--t3);margin-top:4px">
-    <strong style="color:var(--t2)">Setup required:</strong> Add your Microsoft and Google OAuth app credentials in <strong>Settings → Integrations</strong> (Client ID &amp; Secret), then return here to connect.
+  <!-- OAuth Setup Instructions -->
+  <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — OAuth Credentials</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">To enable Connect, you need to register an OAuth app with Microsoft and/or Google, then add the credentials as environment secrets. Both integrations require a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:4px">Microsoft 365</div>
+      <ol style="font-size:10px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
+        <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" style="color:var(--ac)">portal.azure.com → App registrations</a> → New registration</li>
+        <li>Set Redirect URI to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${window.location.origin}/api/oauth/microsoft/callback</code></li>
+        <li>Copy the <strong>Application (client) ID</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">MS_CLIENT_ID</code></li>
+        <li>Under Certificates &amp; secrets → New client secret → copy value → add as <code style="background:var(--s3);padding:1px 4px;border-radius:3px">MS_CLIENT_SECRET</code></li>
+      </ol>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:#EA4335;margin-bottom:4px">Google Workspace / Gmail</div>
+      <ol style="font-size:10px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
+        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--ac)">Google Cloud Console → Credentials</a> → Create OAuth 2.0 Client ID</li>
+        <li>Application type: <strong>Web application</strong></li>
+        <li>Add Authorised redirect URI: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${window.location.origin}/api/oauth/google/callback</code></li>
+        <li>Copy <strong>Client ID</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">GOOGLE_CLIENT_ID</code></li>
+        <li>Copy <strong>Client Secret</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">GOOGLE_CLIENT_SECRET</code></li>
+        <li>Enable APIs: Google Calendar API, Gmail API, People API</li>
+      </ol>
+    </div>
+    <p style="font-size:10px;color:var(--t3);margin:0">Add all four secrets in the <strong>Management UI → Settings → Secrets</strong> panel, then redeploy. The Connect buttons will become active automatically.</p>
   </div>
   </div>
   <!-- Integrations --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
@@ -11155,14 +11178,30 @@ function _updateOAuthCard(provider,status){
     if(btnCal)btnCal.style.display='';
     if(btnMail)btnMail.style.display='';
     if(btnContacts)btnContacts.style.display='';
-  } else {
-    badge.style.background='var(--s3)';badge.style.color='var(--t3)';badge.textContent='Not connected';
-    if(info)info.style.display='none';
-    if(btnConnect)btnConnect.style.display='';
+  } else if(status.credentialsConfigured===false){
+    // Credentials not set up — show warning badge, disable connect button
+    badge.style.background='var(--warn)';badge.style.color='#fff';badge.textContent='⚠ Setup required';
+    if(info){info.style.display='';info.textContent='Add Client ID & Secret in Management UI → Settings → Secrets to enable this integration.';}
+    if(btnConnect){btnConnect.style.display='';btnConnect.disabled=true;btnConnect.style.opacity='0.4';btnConnect.title='Configure credentials first';}
     if(btnDisconnect)btnDisconnect.style.display='none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
+  } else {
+    badge.style.background='var(--s3)';badge.style.color='var(--t3)';badge.textContent='Not connected';
+    if(info)info.style.display='none';
+    if(btnConnect){btnConnect.style.display='';btnConnect.disabled=false;btnConnect.style.opacity='';btnConnect.title='';}
+    if(btnDisconnect)btnDisconnect.style.display='none';
+    if(btnCal)btnCal.style.display='none';
+    if(btnMail)btnMail.style.display='none';
+    if(btnContacts)btnContacts.style.display='none';
+  }
+  // Show/hide the setup instructions box based on whether any provider still needs credentials
+  const setupBox=document.querySelector('#sp-4 [style*="Setup Required"]');
+  if(setupBox){
+    const msConfigured=document.getElementById('oauth-ms-badge')?.textContent!=='⚠ Setup required';
+    const gConfigured=document.getElementById('oauth-google-badge')?.textContent!=='⚠ Setup required';
+    (setupBox as HTMLElement).style.display=(msConfigured&&gConfigured)?'none':'';
   }
 }
 

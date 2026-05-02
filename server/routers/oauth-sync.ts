@@ -137,17 +137,33 @@ export const oauthSyncRouter = router({
     ]);
     return {
       microsoft: ms
-        ? { connected: true, email: ms.email, displayName: ms.displayName, expiresAt: ms.expiresAt }
-        : { connected: false },
+        ? { connected: true, email: ms.email, displayName: ms.displayName, expiresAt: ms.expiresAt, credentialsConfigured: true }
+        : { connected: false, credentialsConfigured: !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET) },
       google: google
-        ? { connected: true, email: google.email, displayName: google.displayName, expiresAt: google.expiresAt }
-        : { connected: false },
+        ? { connected: true, email: google.email, displayName: google.displayName, expiresAt: google.expiresAt, credentialsConfigured: true }
+        : { connected: false, credentialsConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) },
     };
   }),
 
   getAuthUrl: protectedProcedure
     .input(z.object({ provider: z.enum(["microsoft", "google"]), origin: z.string() }))
     .query(({ input, ctx }) => {
+      // Guard: ensure the required OAuth credentials are configured before redirecting
+      if (input.provider === "microsoft") {
+        if (!process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
+          throw new Error(
+            "Microsoft OAuth credentials are not configured. " +
+            "Please add MS_CLIENT_ID and MS_CLIENT_SECRET in Settings → Secrets."
+          );
+        }
+      } else {
+        if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+          throw new Error(
+            "Google OAuth credentials are not configured. " +
+            "Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Settings → Secrets."
+          );
+        }
+      }
       // Encode userId in state so callback can associate the token
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString("base64url");
       if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state) };
