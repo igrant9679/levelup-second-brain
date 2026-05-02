@@ -476,3 +476,13 @@ export async function updateSmtpImapLastTested(userId: number): Promise<void> {
     .set({ lastTestedAt: new Date() })
     .where(eq(smtpImapAccounts.userId, userId));
 }
+
+
+export async function updateOAuthTokenLastSynced(userId: number, provider: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(oauthTokens)
+    .set({ lastSyncedAt: new Date() })
+    .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)))
+    .catch(() => {}); // Ignore errors
+}

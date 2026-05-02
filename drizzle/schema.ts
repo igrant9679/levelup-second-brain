@@ -38,6 +38,7 @@ export const oauthTokens = mysqlTable("oauth_tokens", {
   scope: text("scope"),
   email: varchar("email", { length: 320 }),
   displayName: text("displayName"),
+  lastSyncedAt: timestamp("lastSyncedAt"), // Last time calendar/mail was synced from this provider
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

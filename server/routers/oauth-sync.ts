@@ -264,6 +264,10 @@ export const oauthSyncRouter = router({
         );
         if (!resp.ok) throw new Error("Microsoft Graph calendar fetch failed: " + resp.status);
         const data = await resp.json() as { value: Array<{ subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string }> };
+        
+        // Update lastSyncedAt timestamp
+        await db.updateOAuthTokenLastSynced(ctx.user.id, "microsoft");
+        
         return {
           provider: "microsoft",
           events: (data.value || []).map(e => ({

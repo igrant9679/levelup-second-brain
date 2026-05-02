@@ -466,3 +466,25 @@
 - [x] Implement actual IMAP/SMTP connection testing with nodemailer
 - [x] Add redirect URI verification note to validateCredentials
 - [x] 107 tests passing, TypeScript clean
+
+
+## Follow-up: Wire up Sync Calendar/Mail Display
+- [x] Create Calendar display component to show synced Microsoft 365 events
+- [x] Create Mail display component to show synced Microsoft 365 emails
+- [x] Add sync buttons that call syncCalendar/syncMail and display results
+- [x] Handle loading/error states during sync
+- [x] Add Calendar and Mail routes to App.tsx
+
+## Follow-up: Add Last Synced Timestamp
+- [x] Add lastSyncedAt column to oauthTokens table
+- [x] Update syncCalendar to set lastSyncedAt on success
+- [x] Display "Last synced: X minutes ago" in Calendar/Mail cards
+- [x] Add manual refresh button next to timestamp
+- [x] Added updateOAuthTokenLastSynced() helper in db.ts
+
+## Follow-up: Auto-sync on Login
+- [ ] Call syncCalendar/syncMail for all connected providers on session restore
+- [ ] Show loading spinner during auto-sync
+- [ ] Cache synced data so it displays immediately
+- [ ] Handle auto-sync errors gracefully (don't block login)
+- [ ] 107 tests passing, TypeScript clean
