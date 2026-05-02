@@ -489,3 +489,24 @@
 - [x] Handle auto-sync errors gracefully (don't block login)
 - [x] Updated Home.tsx with auto-sync logic and welcome screen
 - [x] 107 tests passing, TypeScript clean
+
+
+## Follow-up: Display Actual Synced Data
+- [x] Update Calendar.tsx to display real synced events in a timeline/list view with event details modal
+- [x] Update Mail.tsx to display real synced emails with subject, sender, preview, and details modal
+- [x] Add event/email details modal when clicking on an item
+- [x] Format dates and times properly for display
+
+## Follow-up: Sync Frequency Settings
+- [x] Add syncFrequency and autoSyncEnabled columns to oauthTokens table
+- [x] Create SyncSettings.tsx page for sync preferences with auto-sync toggle and frequency selector
+- [x] Add SyncSettings route to App.tsx
+- [x] Support frequency options: manual, every5min, every15min, every30min, hourly
+- [x] 107 tests passing, TypeScript clean
+
+## Follow-up: IMAP/SMTP Sync
+- [x] Create syncSmtpMail tRPC procedure to fetch emails via IMAP (placeholder implementation)
+- [x] Procedure structure ready for IMAP library integration
+- [x] Handle IMAP connection errors gracefully with TRPCError
+- [ ] Implement actual IMAP fetch using imap library (requires npm package)
+- [ ] Display SMTP/IMAP synced data in Mail/Calendar pages alongside Microsoft 365

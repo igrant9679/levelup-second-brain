@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Calendar from "./pages/Calendar";
 import Mail from "./pages/Mail";
+import SyncSettings from "./pages/SyncSettings";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/calendar" component={Calendar} />
       <Route path="/mail" component={Mail} />
+      <Route path="/sync-settings" component={SyncSettings} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

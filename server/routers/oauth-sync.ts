@@ -1051,4 +1051,37 @@ export const oauthSyncRouter = router({
       await db.deleteSmtpImapAccount(ctx.user.id);
       return { success: true };
     }),
+
+  /**
+   * Sync mail from SMTP/IMAP secondary account
+   * Fetches recent emails using IMAP
+   */
+  syncSmtpMail: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      limit: z.number().default(20),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const account = await db.getSmtpImapAccount(input.accountId);
+      if (!account) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "SMTP/IMAP account not found" });
+      }
+
+      try {
+        // TODO: Implement IMAP fetch using imap library
+        // For now, return empty array
+        const messages: any[] = [];
+
+        // Update lastSyncedAt
+        // TODO: Update lastSyncedAt for SMTP/IMAP account
+
+        return { messages, provider: "smtp_imap", accountEmail: account.email };
+      } catch (err) {
+        console.error("[syncSmtpMail] Error:", err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to sync SMTP/IMAP mail: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }),
 });

@@ -39,6 +39,8 @@ export const oauthTokens = mysqlTable("oauth_tokens", {
   email: varchar("email", { length: 320 }),
   displayName: text("displayName"),
   lastSyncedAt: timestamp("lastSyncedAt"), // Last time calendar/mail was synced from this provider
+  autoSyncEnabled: tinyint("autoSyncEnabled").default(1).notNull(), // 1 = enabled, 0 = disabled
+  syncFrequency: mysqlEnum("syncFrequency", ["manual", "every5min", "every15min", "every30min", "hourly"]).default("manual").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

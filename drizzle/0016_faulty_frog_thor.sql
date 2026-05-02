@@ -1,0 +1,2 @@
+ALTER TABLE `oauth_tokens` ADD `autoSyncEnabled` tinyint DEFAULT 1 NOT NULL;--> statement-breakpoint
+ALTER TABLE `oauth_tokens` ADD `syncFrequency` enum('manual','every5min','every15min','every30min','hourly') DEFAULT 'manual' NOT NULL;
