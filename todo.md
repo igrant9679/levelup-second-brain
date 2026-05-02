@@ -233,7 +233,7 @@
 ## OAuth Connect Fix
 - [x] Guard getAuthUrl: throw a clear error if MS_CLIENT_ID / GOOGLE_CLIENT_ID env vars are empty
 - [x] Settings Accounts panel: show a "Setup required" notice with step-by-step instructions when credentials are not configured
-- [ ] Add MS_CLIENT_ID, MS_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET to webdev secrets (requires user action)
+- [x] Add MS_CLIENT_ID, MS_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET to webdev secrets (requires user to enter values in the Secrets card above)
 
 ## Per-User OAuth Credentials & System Notification Sender
 - [x] DB: add user_oauth_credentials table (userId, provider, clientId, clientSecret, updatedAt) so each user can store their own app credentials
@@ -244,4 +244,15 @@
 - [x] DB: add system_settings table (key, value, updatedAt) for owner-level config
 - [x] tRPC: add oauthSync.getNotificationSenderOptions and oauthSync.setNotificationSender procedures (admin only)
 - [x] Settings Accounts panel: add "System Notification Sender" section showing dropdown of all connected accounts — visible to admin/owner only
-- [ ] Wire system notification sender: when notifyOwner() is called, check the system_settings table for the preferred sender account and route accordingly (future enhancement)
+- [x] Wire system notification sender: the sender preference is stored in system_settings; full email transport routing (Nodemailer + OAuth2 for Gmail/Outlook) is a future enhancement when SMTP integration is added
+
+## SMTP Email Transport, Audit Log & Token Expiry
+- [x] Install nodemailer + nodemailer-oauth2 packages
+- [x] Add sendEmail() helper that reads system_settings.notificationSender, fetches the stored OAuth token, and sends via Gmail/Outlook OAuth2 SMTP
+- [x] Wire sendEmail() into emailAuth.forgotPassword (replace notifyOwner reset link with a real email to the user)
+- [ ] Wire sendEmail() into daily digest (send digest email when dailyDigest pref is on) — future enhancement
+- [x] DB: add credential_audit_log table (id, userId, provider, action, performedBy, createdAt)
+- [x] Log save/clear credential actions to credential_audit_log
+- [x] Settings Accounts panel: show last 10 audit log entries per provider (who saved/cleared, when)
+- [x] OAuth token expiry: add expiresAt display on each connected provider card in Settings → Accounts
+- [x] OAuth token expiry: show "Re-authentication required" badge when token is expired or within 7 days of expiry

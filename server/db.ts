@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
+import { credentialAuditLog, InsertCredentialAuditLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -162,6 +162,23 @@ export async function deleteUserOauthCredential(userId: number, provider: string
   if (!db) return;
   await db.delete(userOauthCredentials)
     .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)));
+}
+
+// ---- Credential Audit Log helpers ----
+
+export async function insertCredentialAuditLog(entry: Omit<InsertCredentialAuditLog, 'id' | 'createdAt'>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(credentialAuditLog).values(entry);
+}
+
+export async function getCredentialAuditLog(userId: number, provider: string, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(credentialAuditLog)
+    .where(and(eq(credentialAuditLog.userId, userId), eq(credentialAuditLog.provider, provider)))
+    .orderBy(desc(credentialAuditLog.createdAt))
+    .limit(limit);
 }
 
 // ---- System Settings helpers ----

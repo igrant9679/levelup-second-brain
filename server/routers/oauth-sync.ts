@@ -356,6 +356,13 @@ export const oauthSyncRouter = router({
         clientId: input.clientId,
         clientSecret: input.clientSecret,
       });
+      await db.insertCredentialAuditLog({
+        userId: ctx.user.id,
+        provider: input.provider,
+        action: 'saved',
+        performedBy: ctx.user.id,
+        performedByName: ctx.user.name || undefined,
+      });
       return { success: true };
     }),
 
@@ -373,7 +380,21 @@ export const oauthSyncRouter = router({
     .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
     .mutation(async ({ input, ctx }) => {
       await db.deleteUserOauthCredential(ctx.user.id, input.provider);
+      await db.insertCredentialAuditLog({
+        userId: ctx.user.id,
+        provider: input.provider,
+        action: 'cleared',
+        performedBy: ctx.user.id,
+        performedByName: ctx.user.name || undefined,
+      });
       return { success: true };
+    }),
+
+  /** Get the last 10 audit log entries for the current user's credentials */
+  getCredentialAuditLog: protectedProcedure
+    .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
+    .query(async ({ input, ctx }) => {
+      return db.getCredentialAuditLog(ctx.user.id, input.provider, 10);
     }),
 
   // ---- Owner-only: Notification Sender ----

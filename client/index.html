@@ -7468,6 +7468,8 @@ function renderSettingsHTML(){
       <div id="oauth-ms-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
     </div>
     <div id="oauth-ms-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
+    <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
+    <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
       <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
@@ -7485,6 +7487,8 @@ function renderSettingsHTML(){
       <div id="oauth-google-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
     </div>
     <div id="oauth-google-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
+    <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
+    <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
       <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
@@ -7506,6 +7510,10 @@ function renderSettingsHTML(){
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
       </div>
       <div id="ms-cred-status" style="font-size:10px;color:var(--t3)"></div>
+      <div id="ms-audit-log" style="margin-top:6px;display:none">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('microsoft')">▶ Recent Activity</div>
+        <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
+      </div>
     </div>
     <div>
       <div style="font-size:11px;font-weight:600;color:#EA4335;margin-bottom:6px">Google Workspace / Gmail</div>
@@ -7516,6 +7524,10 @@ function renderSettingsHTML(){
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('google')" title="Remove saved credentials">✕ Clear</button>
       </div>
       <div id="google-cred-status" style="font-size:10px;color:var(--t3)"></div>
+      <div id="google-audit-log" style="margin-top:6px;display:none">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('google')">▶ Recent Activity</div>
+        <div id="google-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
+      </div>
     </div>
   </div>
   <!-- Notification Sender (owner/admin only) -->
@@ -11207,9 +11219,32 @@ function _updateOAuthCard(provider,status){
   const btnMail=document.getElementById('btn-'+p+'-sync-mail');
   const btnContacts=document.getElementById('btn-'+p+'-sync-contacts');
   if(!badge)return;
+  const expiryEl=document.getElementById('oauth-'+p+'-expiry');
   if(status.connected){
     badge.style.background='var(--ok)';badge.style.color='#fff';badge.textContent='✓ Connected';
     if(info){info.style.display='';info.textContent=(status.displayName||'')+' · '+(status.email||'');}
+    // Token expiry indicator
+    if(expiryEl&&status.expiresAt){
+      const expiresAt=new Date(status.expiresAt);
+      const diffMs=expiresAt.getTime()-Date.now();
+      const diffDays=Math.floor(diffMs/(1000*60*60*24));
+      const expiryDateStr=expiresAt.toLocaleString();
+      expiryEl.style.display='';
+      if(diffMs<=0){
+        expiryEl.style.color='var(--err,#ef4444)';
+        expiryEl.innerHTML='<strong>⚠ Re-authentication required</strong> — Token expired on '+expiryDateStr;
+      } else if(diffDays<1){
+        const diffHours=Math.floor(diffMs/(1000*60*60));
+        expiryEl.style.color='var(--err,#ef4444)';
+        expiryEl.innerHTML='<strong>⚠ Re-authentication required</strong> — Token expires in '+diffHours+'h ('+expiryDateStr+')';
+      } else if(diffDays<=7){
+        expiryEl.style.color='var(--warn,#f59e0b)';
+        expiryEl.innerHTML='<strong>⚠ Re-authentication required soon</strong> — Expires in '+diffDays+' day'+(diffDays===1?'':'s')+' ('+expiryDateStr+')';
+      } else {
+        expiryEl.style.color='var(--ok,#22c55e)';
+        expiryEl.textContent='✓ Token valid — expires in '+diffDays+' days ('+expiryDateStr+')';
+      }
+    } else if(expiryEl){expiryEl.style.display='none';}
     if(btnConnect)btnConnect.style.display='none';
     if(btnDisconnect)btnDisconnect.style.display='';
     if(btnCal)btnCal.style.display='';
@@ -11276,9 +11311,48 @@ async function loadUserCredentials(){
     }catch(e){
       // ignore
     }
+    // Always show audit log section and load entries (shows history even when no creds currently saved)
+    const auditSection=document.getElementById(p+'-audit-log');
+    if(auditSection)auditSection.style.display='';
+    await loadCredentialAuditLog(provider);
   }
 }
 
+/** Load credential audit log for a provider */
+async function loadCredentialAuditLog(provider:string){
+  const p=provider==='microsoft'?'ms':'google';
+  const entriesEl=document.getElementById(p+'-audit-log-entries');
+  if(!entriesEl)return;
+  try{
+    const entries=await _trpc('oauthSync.getCredentialAuditLog',{provider},'query');
+    if(!entries||entries.length===0){
+      entriesEl.innerHTML='<div style="padding:4px 0;color:var(--t3);font-style:italic">No activity yet</div>';
+      return;
+    }
+    entriesEl.innerHTML=entries.map((e:any)=>{
+      const when=new Date(e.createdAt).toLocaleString();
+      const actionLabel=e.action==='saved'?'✓ Credentials saved':'✕ Credentials cleared';
+      const actionColor=e.action==='saved'?'var(--ok)':'var(--err,#ef4444)';
+      const by=e.performedByName?(' by '+e.performedByName):'';
+      return '<div style="padding:3px 0;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;gap:8px">'
+        +'<span style="color:'+actionColor+'">'+actionLabel+'</span>'
+        +'<span style="color:var(--t3)">'+when+by+'</span>'
+        +'</div>';
+    }).join('');
+  }catch(e){
+    entriesEl.innerHTML='<div style="color:var(--t3);font-style:italic">Could not load activity</div>';
+  }
+}
+/** Toggle audit log entries visibility */
+function toggleAuditLog(provider:string){
+  const p=provider==='microsoft'?'ms':'google';
+  const entriesEl=document.getElementById(p+'-audit-log-entries');
+  const toggleEl=entriesEl?.previousElementSibling as HTMLElement|null;
+  if(!entriesEl)return;
+  const isOpen=entriesEl.style.display!=='none';
+  entriesEl.style.display=isOpen?'none':'';
+  if(toggleEl)toggleEl.textContent=(isOpen?'▶':'▼')+' Recent Activity';
+}
 /** Save per-user OAuth app credentials */
 async function saveOAuthCredentials(provider:string){
   const p=provider==='microsoft'?'ms':'google';
@@ -11295,6 +11369,14 @@ async function saveOAuthCredentials(provider:string){
     toast('✓ '+provider+' credentials saved');
     // Refresh status so Connect button activates
     await loadOAuthStatus();
+    // Reload audit log
+    await loadCredentialAuditLog(provider);
+    const auditSection=document.getElementById(p+'-audit-log');
+    if(auditSection)auditSection.style.display='';
+    // Reload audit log
+    await loadCredentialAuditLog(provider);
+    const auditSection=document.getElementById(p+'-audit-log');
+    if(auditSection)auditSection.style.display='';
   }catch(e){
     toast('⚠️ '+e.message);
   }
@@ -11310,6 +11392,14 @@ async function deleteOAuthCredentials(provider:string){
     if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='Credentials removed';}
     toast('✓ '+provider+' credentials removed');
     await loadOAuthStatus();
+    // Reload audit log
+    await loadCredentialAuditLog(provider);
+    const auditSection=document.getElementById(p+'-audit-log');
+    if(auditSection)auditSection.style.display='';
+    // Reload audit log
+    await loadCredentialAuditLog(provider);
+    const auditSection=document.getElementById(p+'-audit-log');
+    if(auditSection)auditSection.style.display='';
   }catch(e){
     toast('⚠️ '+e.message);
   }

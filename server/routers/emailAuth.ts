@@ -18,6 +18,7 @@ import { getDb } from '../db';
 import { passwordResetTokens } from '../../drizzle/schema';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { notifyOwner } from '../_core/notification';
+import { sendEmail } from '../_core/sendEmail';
 
 const SALT_ROUNDS = 10;
 const ONE_DAY_MS = 86_400_000;
@@ -186,15 +187,33 @@ export const emailAuthRouter = router({
       const origin = input.origin || 'https://leveluphub-ez4tinmn.manus.space';
       const resetUrl = `${origin}?reset_token=${token}`;
 
-      // Notify the app owner (fallback since no SMTP is configured)
-      try {
-        await notifyOwner({
-          title: `Password Reset Request — ${user.name || email}`,
-          content: `A password reset was requested for: **${email}**\n\nReset link (expires in 1 hour):\n${resetUrl}\n\nIf you did not request this, please ignore this message.`,
-        });
-      } catch (e) {
-        // Notification failure is non-fatal — token is still stored
-        console.warn('[forgotPassword] notifyOwner failed:', e);
+      // Try to send directly to the user via the configured SMTP sender.
+      // Fall back to notifyOwner (owner notification) if no sender is configured.
+      const emailSent = await sendEmail({
+        to: email,
+        subject: 'LevelUp — Password Reset',
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto">
+            <h2 style="color:#3B82F6">Reset your password</h2>
+            <p>Hi ${user.name || 'there'},</p>
+            <p>We received a request to reset the password for your LevelUp account.</p>
+            <p style="margin:24px 0">
+              <a href="${resetUrl}" style="background:#3B82F6;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset Password</a>
+            </p>
+            <p style="color:#888;font-size:13px">This link expires in 1 hour. If you did not request a reset, you can safely ignore this email.</p>
+          </div>`,
+      }).catch(() => false);
+
+      if (!emailSent) {
+        // Fallback: notify the owner so the reset link is not lost
+        try {
+          await notifyOwner({
+            title: `Password Reset Request — ${user.name || email}`,
+            content: `A password reset was requested for: **${email}**\n\nReset link (expires in 1 hour):\n${resetUrl}\n\nIf you did not request this, please ignore this message.`,
+          });
+        } catch (e) {
+          console.warn('[forgotPassword] notifyOwner fallback failed:', e);
+        }
       }
 
       return {

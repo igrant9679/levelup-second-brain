@@ -206,3 +206,17 @@ export const systemSettings = mysqlTable('system_settings', {
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 });
 export type SystemSetting = typeof systemSettings.$inferSelect;
+
+// ─── Credential Audit Log ────────────────────────────────────────────────────
+// Tracks save/clear actions on per-user OAuth app credentials.
+export const credentialAuditLog = mysqlTable('credential_audit_log', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),           // whose credential was changed
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
+  action: mysqlEnum('action', ['saved', 'cleared']).notNull(),
+  performedBy: int('performedBy').notNull(), // userId of who made the change
+  performedByName: varchar('performedByName', { length: 256 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type CredentialAuditLog = typeof credentialAuditLog.$inferSelect;
+export type InsertCredentialAuditLog = typeof credentialAuditLog.$inferInsert;
