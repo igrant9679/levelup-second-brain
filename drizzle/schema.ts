@@ -299,3 +299,52 @@ export const emailNotificationPrefs = mysqlTable('email_notification_prefs', {
 });
 export type EmailNotificationPrefs = typeof emailNotificationPrefs.$inferSelect;
 export type InsertEmailNotificationPrefs = typeof emailNotificationPrefs.$inferInsert;
+
+
+// ─── Email Notifications ────────────────────────────────────────────────────
+// Track notifications sent to users when new emails arrive
+export const emailNotifications = mysqlTable('email_notifications', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'smtp_imap'
+  emailSubject: text('emailSubject').notNull(),
+  emailFrom: varchar('emailFrom', { length: 320 }).notNull(),
+  emailId: varchar('emailId', { length: 255 }).notNull(),
+  read: tinyint('read').default(0).notNull(), // 0 = unread, 1 = read
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type EmailNotification = typeof emailNotifications.$inferSelect;
+export type InsertEmailNotification = typeof emailNotifications.$inferInsert;
+
+// ─── Calendar Event Reminders ───────────────────────────────────────────────
+// Track reminders for upcoming calendar events
+export const eventReminders = mysqlTable('event_reminders', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
+  eventId: varchar('eventId', { length: 255 }).notNull(),
+  eventTitle: text('eventTitle').notNull(),
+  eventStart: timestamp('eventStart').notNull(),
+  reminderType: mysqlEnum('reminderType', ['5min', '15min', '1hour']).notNull(),
+  sent: tinyint('sent').default(0).notNull(), // 0 = pending, 1 = sent
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type EventReminder = typeof eventReminders.$inferSelect;
+export type InsertEventReminder = typeof eventReminders.$inferInsert;
+
+// ─── Sync Status ────────────────────────────────────────────────────────────
+// Track sync statistics for each provider
+export const syncStatus = mysqlTable('sync_status', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google' | 'smtp_imap'
+  lastSyncAt: timestamp('lastSyncAt'),
+  lastSyncStatus: mysqlEnum('lastSyncStatus', ['success', 'failed', 'pending']).default('pending').notNull(),
+  syncErrorMessage: text('syncErrorMessage'),
+  totalEventsImported: int('totalEventsImported').default(0).notNull(),
+  totalEmailsImported: int('totalEmailsImported').default(0).notNull(),
+  totalContactsImported: int('totalContactsImported').default(0).notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type SyncStatus = typeof syncStatus.$inferSelect;
+export type InsertSyncStatus = typeof syncStatus.$inferInsert;

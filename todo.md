@@ -512,3 +512,34 @@
 - [x] Parse email subject, sender, date, and preview text
 - [x] 107 tests passing, TypeScript clean
 - [x] IMAP/SMTP sync implementation complete; display in Mail/Calendar is optional future enhancement
+
+
+## Follow-up Features: Email Notifications, Reminders, Dashboard, Bulk Import
+
+### Email Notifications (Foundation Complete)
+- [x] Add emailNotifications schema to track email notifications
+- [ ] Create tRPC procedure to send notification when new email arrives
+- [ ] Integrate with notifyOwner helper for in-app notifications
+- [ ] Show notification toast when email synced
+- [ ] Add notification center to show recent email notifications
+
+### Calendar Event Reminders
+- [ ] Add reminder schema to track event reminders
+- [ ] Create tRPC procedure to send reminder notifications before events
+- [ ] Schedule reminders using background job (5 min, 15 min, 1 hour before event)
+- [ ] Show reminder notification toast
+- [ ] Add snooze button to reminders
+
+### Sync Status Dashboard
+- [ ] Create SyncStatus.tsx page showing sync health
+- [ ] Display last sync time for each provider
+- [ ] Show sync success/failure counts
+- [ ] Display total synced items (events, emails, contacts)
+- [ ] Add manual sync trigger button
+
+### Bulk Import
+- [ ] Add dateRange parameter to syncCalendar procedure (default: last 30 days)
+- [ ] Add dateRange parameter to syncMail procedure (default: last 30 days)
+- [ ] Create BulkImport.tsx page with date range selector
+- [ ] Show progress bar during bulk import
+- [ ] Display import results (X events, Y emails imported)

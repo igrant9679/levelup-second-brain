@@ -486,3 +486,162 @@ export async function updateOAuthTokenLastSynced(userId: number, provider: strin
     .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)))
     .catch(() => {}); // Ignore errors
 }
+
+
+// ─── Email Notifications ────────────────────────────────────────────────────
+export async function createEmailNotification(input: {
+  userId: number;
+  provider: string;
+  emailSubject: string;
+  emailFrom: string;
+  emailId: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    const { emailNotifications } = await import("../drizzle/schema");
+    await db.insert(emailNotifications).values(input);
+  } catch (err) {
+    console.warn('[Database] Failed to create email notification:', err);
+  }
+}
+
+export async function getUnreadEmailNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const { emailNotifications } = await import("../drizzle/schema");
+    return await db
+      .select()
+      .from(emailNotifications)
+      .where(and(eq(emailNotifications.userId, userId), eq(emailNotifications.read, 0)))
+      .orderBy(desc(emailNotifications.createdAt));
+  } catch (err) {
+    console.warn('[Database] Failed to get unread notifications:', err);
+    return [];
+  }
+}
+
+// ─── Event Reminders ────────────────────────────────────────────────────────
+export async function createEventReminder(input: {
+  userId: number;
+  provider: string;
+  eventId: string;
+  eventTitle: string;
+  eventStart: Date;
+  reminderType: '5min' | '15min' | '1hour';
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    const { eventReminders } = await import("../drizzle/schema");
+    await db.insert(eventReminders).values([input]);
+  } catch (err) {
+    console.warn('[Database] Failed to create event reminder:', err);
+  }
+}
+
+export async function getPendingReminders() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const { eventReminders } = await import("../drizzle/schema");
+    const result = await db
+      .select()
+      .from(eventReminders)
+      .where(eq(eventReminders.sent, 0));
+    return result;
+  } catch (err) {
+    console.warn('[Database] Failed to get pending reminders:', err);
+    return [];
+  }
+}
+
+// ─── Sync Status ────────────────────────────────────────────────────────────
+export async function updateSyncStatus(input: {
+  userId: number;
+  provider: string;
+  lastSyncStatus: 'success' | 'failed' | 'pending';
+  syncErrorMessage?: string;
+  totalEventsImported?: number;
+  totalEmailsImported?: number;
+  totalContactsImported?: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  try {
+    const { syncStatus } = await import("../drizzle/schema");
+    const existing = await db
+      .select()
+      .from(syncStatus)
+      .where(and(eq(syncStatus.userId, input.userId), eq(syncStatus.provider, input.provider)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(syncStatus)
+        .set({
+          lastSyncAt: new Date(),
+          lastSyncStatus: input.lastSyncStatus,
+          syncErrorMessage: input.syncErrorMessage,
+          totalEventsImported: input.totalEventsImported ?? existing[0].totalEventsImported,
+          totalEmailsImported: input.totalEmailsImported ?? existing[0].totalEmailsImported,
+          totalContactsImported: input.totalContactsImported ?? existing[0].totalContactsImported,
+        })
+        .where(and(eq(syncStatus.userId, input.userId), eq(syncStatus.provider, input.provider)));
+    } else {
+      await db.insert(syncStatus).values({
+        userId: input.userId,
+        provider: input.provider,
+        lastSyncAt: new Date(),
+        lastSyncStatus: input.lastSyncStatus,
+        syncErrorMessage: input.syncErrorMessage,
+        totalEventsImported: input.totalEventsImported ?? 0,
+        totalEmailsImported: input.totalEmailsImported ?? 0,
+        totalContactsImported: input.totalContactsImported ?? 0,
+      });
+    }
+  } catch (err) {
+    console.warn('[Database] Failed to update sync status:', err);
+  }
+}
+
+export async function getSyncStatus(userId: number, provider: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const { syncStatus } = await import("../drizzle/schema");
+    const result = await db
+      .select()
+      .from(syncStatus)
+      .where(and(eq(syncStatus.userId, userId), eq(syncStatus.provider, provider)))
+      .limit(1);
+
+    return result.length > 0 ? result[0] : null;
+  } catch (err) {
+    console.warn('[Database] Failed to get sync status:', err);
+    return null;
+  }
+}
+
+export async function getAllSyncStatus(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    const { syncStatus } = await import("../drizzle/schema");
+    return await db
+      .select()
+      .from(syncStatus)
+      .where(eq(syncStatus.userId, userId));
+  } catch (err) {
+    console.warn('[Database] Failed to get all sync status:', err);
+    return [];
+  }
+}
