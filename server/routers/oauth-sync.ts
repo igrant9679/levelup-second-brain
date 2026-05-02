@@ -13,6 +13,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
+import { sendEmail } from "../_core/sendEmail";
 
 // ---- Helpers ----
 
@@ -395,6 +396,64 @@ export const oauthSyncRouter = router({
     .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
     .query(async ({ input, ctx }) => {
       return db.getCredentialAuditLog(ctx.user.id, input.provider, 10);
+    }),
+
+  // ---- Test Email ----
+  /**
+   * Send a test email to the logged-in user's own address using the
+   * configured SMTP sender. Returns { success, message }.
+   */
+  testEmail: protectedProcedure.mutation(async ({ ctx }) => {
+    if (!ctx.user.email) {
+      return { success: false, message: "Your account has no email address on record." };
+    }
+    const sent = await sendEmail({
+      to: ctx.user.email,
+      subject: "LevelUp \u2014 Test Email",
+      html: [
+        "<h2 style='font-family:sans-serif'>\u2705 Test Email Successful</h2>",
+        "<p style='font-family:sans-serif'>This test email was sent from your LevelUp Second Brain workspace.</p>",
+        "<p style='font-family:sans-serif;color:#888'>Sent to: <strong>",
+        ctx.user.email,
+        "</strong></p>",
+      ].join(""),
+    });
+    if (sent) {
+      return { success: true, message: `Test email sent to ${ctx.user.email}` };
+    }
+    return {
+      success: false,
+      message:
+        "No SMTP sender is configured. Go to Settings \u2192 Accounts, connect a Google or Microsoft account, then select it as the System Notification Sender.",
+    };
+  }),
+
+  // ---- Token Refresh (re-initiate OAuth flow) ----
+  /**
+   * Return a fresh OAuth consent URL so the user can re-authenticate
+   * an expired or expiring token. Identical to getAuthUrl but exposed
+   * as a mutation so the UI can call it from a button click.
+   */
+  refreshToken: protectedProcedure
+    .input(z.object({ provider: z.enum(["microsoft", "google"]), origin: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const clientId = await resolveClientId(ctx.user.id, input.provider);
+      const clientSecret = await resolveClientSecret(ctx.user.id, input.provider);
+      if (!clientId || !clientSecret) {
+        const providerName = input.provider === "microsoft" ? "Microsoft" : "Google";
+        throw new Error(
+          `${providerName} OAuth credentials are not configured. ` +
+          `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
+        );
+      }
+      const state = Buffer.from(
+        JSON.stringify({ userId: ctx.user.id, origin: input.origin })
+      ).toString("base64url");
+      const url =
+        input.provider === "microsoft"
+          ? getMsAuthUrl(input.origin, state, clientId)
+          : getGoogleAuthUrl(input.origin, state, clientId);
+      return { url };
     }),
 
   // ---- Owner-only: Notification Sender ----

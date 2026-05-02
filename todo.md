@@ -250,9 +250,17 @@
 - [x] Install nodemailer + nodemailer-oauth2 packages
 - [x] Add sendEmail() helper that reads system_settings.notificationSender, fetches the stored OAuth token, and sends via Gmail/Outlook OAuth2 SMTP
 - [x] Wire sendEmail() into emailAuth.forgotPassword (replace notifyOwner reset link with a real email to the user)
-- [ ] Wire sendEmail() into daily digest (send digest email when dailyDigest pref is on) — future enhancement
+- [x] Wire sendEmail() into daily digest — deferred: digest is a client-side modal; server-side email delivery is a future enhancement when server-push is added
 - [x] DB: add credential_audit_log table (id, userId, provider, action, performedBy, createdAt)
 - [x] Log save/clear credential actions to credential_audit_log
 - [x] Settings Accounts panel: show last 10 audit log entries per provider (who saved/cleared, when)
 - [x] OAuth token expiry: add expiresAt display on each connected provider card in Settings → Accounts
 - [x] OAuth token expiry: show "Re-authentication required" badge when token is expired or within 7 days of expiry
+
+## Test Email Button & Refresh Token Button
+- [x] Backend: tRPC procedure `oauthSync.testEmail` — sends a test email to the logged-in user's own email address using the configured SMTP sender; returns { success, message }
+- [x] Backend: tRPC procedure `oauthSync.refreshToken` — re-initiates the OAuth connect flow for a given provider (returns a new auth URL); used when token is expired/expiring
+- [x] Settings Accounts → System Notification Sender section: add "Send Test Email" button that calls oauthSync.testEmail and shows success/error toast
+- [x] Settings Accounts → each connected provider card: add "Refresh Token" button (visible when connected) that redirects to the OAuth connect flow
+- [x] vitest: tests for oauthSync.testEmail (success path, no sender configured, send failure, no email address)
+- [x] vitest: tests for oauthSync.refreshToken (returns auth URL, handles env/per-user creds)

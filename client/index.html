@@ -7469,10 +7469,10 @@ function renderSettingsHTML(){
     </div>
     <div id="oauth-ms-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
     <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
-    <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
       <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
+      <button id="btn-ms-refresh" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="refreshOAuthToken('microsoft')">🔄 Refresh Token</button>
       <button id="btn-ms-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('microsoft')">📅 Sync Calendar</button>
       <button id="btn-ms-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('microsoft')">✉ Sync Mail</button>
       <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
@@ -7488,10 +7488,10 @@ function renderSettingsHTML(){
     </div>
     <div id="oauth-google-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
     <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
-    <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
       <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
+      <button id="btn-google-refresh" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="refreshOAuthToken('google')">🔄 Refresh Token</button>
       <button id="btn-google-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('google')">📅 Sync Calendar</button>
       <button id="btn-google-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('google')">✉ Sync Mail</button>
       <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
@@ -7539,6 +7539,7 @@ function renderSettingsHTML(){
         <option value="">— Use built-in notification service —</option>
       </select>
       <button class="btn btn-p" style="height:30px;font-size:11px" onclick="saveNotificationSender()">Save</button>
+      <button id="btn-test-email" class="btn" style="height:30px;font-size:11px" onclick="testEmailSender()">📧 Test Email</button>
     </div>
     <div id="notif-sender-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
   </div>
@@ -11247,6 +11248,8 @@ function _updateOAuthCard(provider,status){
     } else if(expiryEl){expiryEl.style.display='none';}
     if(btnConnect)btnConnect.style.display='none';
     if(btnDisconnect)btnDisconnect.style.display='';
+    const btnRefresh=document.getElementById('btn-'+p+'-refresh');
+    if(btnRefresh)btnRefresh.style.display='';
     if(btnCal)btnCal.style.display='';
     if(btnMail)btnMail.style.display='';
     if(btnContacts)btnContacts.style.display='';
@@ -11256,6 +11259,8 @@ function _updateOAuthCard(provider,status){
     if(info){info.style.display='';info.textContent='Add Client ID & Secret in Management UI → Settings → Secrets to enable this integration.';}
     if(btnConnect){btnConnect.style.display='';btnConnect.disabled=true;btnConnect.style.opacity='0.4';btnConnect.title='Configure credentials first';}
     if(btnDisconnect)btnDisconnect.style.display='none';
+    const btnRefreshSetup=document.getElementById('btn-'+p+'-refresh');
+    if(btnRefreshSetup)btnRefreshSetup.style.display='none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
@@ -11264,6 +11269,8 @@ function _updateOAuthCard(provider,status){
     if(info)info.style.display='none';
     if(btnConnect){btnConnect.style.display='';btnConnect.disabled=false;btnConnect.style.opacity='';btnConnect.title='';}
     if(btnDisconnect)btnDisconnect.style.display='none';
+    const btnRefreshDisc=document.getElementById('btn-'+p+'-refresh');
+    if(btnRefreshDisc)btnRefreshDisc.style.display='none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
@@ -11352,6 +11359,44 @@ function toggleAuditLog(provider:string){
   const isOpen=entriesEl.style.display!=='none';
   entriesEl.style.display=isOpen?'none':'';
   if(toggleEl)toggleEl.textContent=(isOpen?'▶':'▼')+' Recent Activity';
+}
+/** Re-initiate the OAuth flow to refresh an expired or expiring token */
+async function refreshOAuthToken(provider:string){
+  const btn=document.getElementById('btn-'+(provider==='microsoft'?'ms':'google')+'-refresh') as HTMLButtonElement|null;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Redirecting…';}
+  try{
+    const result=await _trpc('oauthSync.refreshToken',{provider,origin:window.location.origin},'mutation');
+    if(result?.url){
+      window.location.href=result.url;
+    } else {
+      toast('⚠ Could not get refresh URL');
+      if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
+    }
+  }catch(e:any){
+    toast('⚠ '+(e?.message||'Failed to refresh token'));
+    if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
+  }
+}
+/** Send a test email using the configured SMTP sender */
+async function testEmailSender(){
+  const btn=document.getElementById('btn-test-email') as HTMLButtonElement|null;
+  const statusEl=document.getElementById('notif-sender-status');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Sending…';}
+  try{
+    const result=await _trpc('oauthSync.testEmail',{},'mutation');
+    if(result?.success){
+      toast('✅ '+result.message);
+      if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ '+result.message;}
+    } else {
+      toast('⚠ '+(result?.message||'Test email failed'));
+      if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='✗ '+(result?.message||'Test email failed');}
+    }
+  }catch(e:any){
+    toast('⚠ '+(e?.message||'Test email failed'));
+    if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='✗ '+(e?.message||'Test email failed');}
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='📧 Test Email';}
+  }
 }
 /** Save per-user OAuth app credentials */
 async function saveOAuthCredentials(provider:string){
