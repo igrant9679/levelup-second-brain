@@ -16,8 +16,40 @@ import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
+import nodemailer from "nodemailer";
 
 // ---- Helpers ----
+
+/**
+ * Test SMTP connection using nodemailer
+ * Returns { success: true } if connection works, throws error otherwise
+ */
+async function testSmtpConnection(input: {
+  smtpHost: string;
+  smtpPort: number;
+  smtpEncryption: 'ssl' | 'tls' | 'none';
+  smtpUsername: string;
+  smtpPassword: string;
+}): Promise<{ success: true }> {
+  const transporter = nodemailer.createTransport({
+    host: input.smtpHost,
+    port: input.smtpPort,
+    secure: input.smtpEncryption === 'ssl',
+    auth: {
+      user: input.smtpUsername,
+      pass: input.smtpPassword,
+    },
+    tls: input.smtpEncryption === 'tls' ? { rejectUnauthorized: false } : undefined,
+  });
+
+  try {
+    await transporter.verify();
+  } finally {
+    transporter.close();
+  }
+
+  return { success: true };
+}
 
 /** Resolve the effective client ID for a provider, preferring per-user credentials */
 async function resolveClientId(userId: number, provider: "microsoft" | "google"): Promise<string> {
@@ -80,26 +112,7 @@ function getMsTokenUrl(tenantId?: string | null): string {
   return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
 }
 
-function getGoogleAuthUrl(origin: string, state: string, clientId: string): string {
-  const scopes = [
-    "openid",
-    "email",
-    "profile",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/contacts",
-  ].join(" ");
-  const params = new URLSearchParams({
-    client_id: clientId,
-    response_type: "code",
-    redirect_uri: `${origin}/api/oauth/google/callback`,
-    scope: scopes,
-    access_type: "offline",
-    prompt: "consent",
-    state,
-  });
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-}
+// Google OAuth removed — replaced with SMTP/IMAP secondary account
 
 async function refreshMsToken(token: { refreshToken: string | null; userId: number }): Promise<string | null> {
   if (!token.refreshToken) return null;
@@ -203,7 +216,7 @@ export const oauthSyncRouter = router({
   }),
 
   getAuthUrl: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft", "google"]), origin: z.string() }))
+    .input(z.object({ provider: z.enum(["microsoft"]), origin: z.string() }))
     .query(async ({ input, ctx }) => {
       // Prefer per-user credentials, fall back to global env vars
       const clientId = await resolveClientId(ctx.user.id, input.provider);
@@ -225,7 +238,7 @@ export const oauthSyncRouter = router({
       // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
       if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId, tenantId, msScopes) };
-      return { url: getGoogleAuthUrl(input.origin, state, clientId) };
+      throw new Error("Google OAuth has been removed. Use SMTP/IMAP for secondary email accounts.");
     }),
 
   disconnect: protectedProcedure
@@ -882,7 +895,7 @@ export const oauthSyncRouter = router({
         // Any other response (including errors about tenant/grant) means the credentials were accepted
         // Persist lastVerifiedAt so the UI can show "Last verified: X ago"
         await db.setCredentialLastVerified(ctx.user.id, provider).catch(() => {});
-        return { valid: true };
+        return { valid: true, note: "Credentials verified. Make sure to register the redirect URI in Azure Portal: Authentication → Redirect URIs → Add https://leveluphub-ez4tinmn.manus.space/api/oauth/microsoft/callback" };
       } else {
         // Google: use the token info endpoint to check if the client_id is registered
         // We attempt a token exchange with a dummy code — Google will return
@@ -973,6 +986,20 @@ export const oauthSyncRouter = router({
       smtpPassword: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Test SMTP connection before saving
+      try {
+        await testSmtpConnection({
+          smtpHost: input.smtpHost,
+          smtpPort: input.smtpPort,
+          smtpEncryption: input.smtpEncryption,
+          smtpUsername: input.smtpUsername,
+          smtpPassword: input.smtpPassword,
+        });
+      } catch (err) {
+        throw new Error(`SMTP connection failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      // If connection test passed, save the account
       await db.upsertSmtpImapAccount({
         userId: ctx.user.id,
         email: input.email,

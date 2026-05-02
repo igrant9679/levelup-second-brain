@@ -3,7 +3,7 @@
  * Registered in server/_core/index.ts
  *
  * GET /api/oauth/microsoft/callback
- * GET /api/oauth/google/callback
+ * (Google OAuth removed — replaced with SMTP/IMAP secondary account)
  */
 
 import type { Express, Request, Response } from "express";
@@ -125,84 +125,5 @@ export function registerProviderOAuthCallbacks(app: Express) {
   });
 
   // ---- Google ----
-  app.get("/api/oauth/google/callback", async (req: Request, res: Response) => {
-    const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
-    const error = getQueryParam(req, "error");
-
-    if (error) {
-      console.error("[Google OAuth] Error:", error);
-      res.redirect("/?oauth_error=google_denied");
-      return;
-    }
-
-    if (!code || !state) {
-      res.status(400).send("Missing code or state");
-      return;
-    }
-
-    const stateData = parseState(state);
-    if (!stateData) {
-      res.status(400).send("Invalid state");
-      return;
-    }
-
-    // Use per-user credentials if available, otherwise fall back to env vars
-    const userCred = await db.getUserOauthCredential(stateData.userId, "google");
-    const clientId = (userCred?.clientId || process.env.GOOGLE_CLIENT_ID) ?? "";
-    const clientSecret = (userCred?.clientSecret || process.env.GOOGLE_CLIENT_SECRET) ?? "";
-    const redirectUri = `${stateData.origin}/api/oauth/google/callback`;
-
-    try {
-      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }).toString(),
-      });
-
-      if (!tokenResp.ok) {
-        const body = await tokenResp.text();
-        console.error("[Google OAuth] Token exchange failed:", body);
-        res.redirect("/?oauth_error=google_token");
-        return;
-      }
-
-      const tokenData = await tokenResp.json() as {
-        access_token: string;
-        refresh_token?: string;
-        expires_in: number;
-        scope: string;
-      };
-
-      // Get user profile
-      const profileResp = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` },
-      });
-      const profile = profileResp.ok
-        ? await profileResp.json() as { email?: string; name?: string }
-        : {};
-
-      await db.upsertOAuthToken({
-        userId: stateData.userId,
-        provider: "google",
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token ?? null,
-        expiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
-        scope: tokenData.scope,
-        email: profile.email ?? null,
-        displayName: profile.name ?? null,
-      });
-
-      res.redirect("/?oauth_success=google");
-    } catch (err) {
-      console.error("[Google OAuth] Callback error:", err);
-      res.redirect("/?oauth_error=google_server");
-    }
-  });
+  // Google OAuth removed — replaced with SMTP/IMAP secondary account
 }

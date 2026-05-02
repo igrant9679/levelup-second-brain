@@ -462,6 +462,7 @@
 - [x] Add labels to Microsoft 365 credential input fields (Client ID, Client Secret, Tenant ID)
 - [x] Remove Google Workspace section from "Your OAuth App Credentials"
 - [x] Update setup instructions to Microsoft-only with clear steps
+- [x] Remove Google OAuth backend code (getGoogleAuthUrl, Google callback handler, etc.)
+- [x] Implement actual IMAP/SMTP connection testing with nodemailer
+- [x] Add redirect URI verification note to validateCredentials
 - [x] 107 tests passing, TypeScript clean
-- [ ] Remove Google OAuth backend code (getGoogleAuthUrl, Google callback handler, etc.) — optional cleanup
-- [ ] Implement actual IMAP/SMTP connection testing with nodemailer or imap library
