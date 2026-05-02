@@ -3963,13 +3963,26 @@ function openComposeModal(){
   document.getElementById('modal-capture').classList.add('show');
   setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
 }
-function sendComposedMail(){
+async async function sendComposedMail(){
   const to=document.getElementById('cmp-to')?.value.trim();
   if(!to){toast('⚠ Recipient required');return;}
   const sub=document.getElementById('cmp-sub')?.value||'(no subject)';
   const body=luRTE_getText('cmp-body');
-  closeModal();
-  toast('✓ Message sent to '+to);
+  const sendBtn=document.querySelector('#modal-capture .btn-p');
+  if(sendBtn){sendBtn.disabled=true;sendBtn.textContent='Sending…';}
+  try{
+    await _trpc('oauthSync.sendComposedMail',{to,subject:sub,body},'mutation');
+    closeModal();
+    toast('✅ Message sent to '+to);
+    if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
+    if(!D.mail.sent)D.mail.sent=[];
+    D.mail.sent.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString(),read:true});
+    saveD();
+  }catch(e){
+    const msg=(e&&e.message)||'Failed to send email';
+    toast('❌ '+msg);
+    if(sendBtn){sendBtn.disabled=false;sendBtn.textContent='✉ Send';}
+  }
 }
 function switchMailTab(el,tab){
   document.querySelectorAll('#mail-tabs .tab').forEach(t=>t.classList.remove('on'));
@@ -7479,6 +7492,7 @@ function renderSettingsHTML(){
       <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
       <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
       <button id="btn-ms-refresh" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="refreshOAuthToken('microsoft')">🔄 Refresh Token</button>
+      <button id="btn-ms-test" class="btn btn-s" style="font-size:11px;padding:4px 10px;display:none" onclick="testOAuthConnection('microsoft')">🔌 Test Connection</button>
       <button id="btn-ms-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('microsoft')">📅 Sync Calendar</button>
       <button id="btn-ms-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('microsoft')">✉ Sync Mail</button>
       <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
@@ -7498,6 +7512,7 @@ function renderSettingsHTML(){
       <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
       <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
       <button id="btn-google-refresh" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="refreshOAuthToken('google')">🔄 Refresh Token</button>
+      <button id="btn-google-test" class="btn btn-s" style="font-size:11px;padding:4px 10px;display:none" onclick="testOAuthConnection('google')">🔌 Test Connection</button>
       <button id="btn-google-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('google')">📅 Sync Calendar</button>
       <button id="btn-google-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('google')">✉ Sync Mail</button>
       <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
@@ -7742,6 +7757,16 @@ function renderSettingsHTML(){
       <!-- Pagination -->
       <div id="admin-log-pagination" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:10px"></div>
     </div>
+    <!-- Log Retention Period -->
+    <div style="margin-top:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">&#x23F1; Log Retention Period</div>
+      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Logs older than this many days are deleted during each scheduled run (min 7, max 3650).</p>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <input id="admin-retention-days" class="inp" type="number" min="7" max="3650" style="width:100px;font-size:12px" placeholder="90" />
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="saveLogRetentionDays()">Save</button>
+        <span id="admin-retention-status" style="font-size:10px;color:var(--t3)"></span>
+      </div>
+    </div>
     <!-- Scheduled Task History -->
     <div style="margin-top:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -7759,7 +7784,7 @@ function renderCredCard(title,icon,desc,prefix,fields,isAI=false){
   const connected=fields.some(f=>D.creds[f.split('|')[1]]);
   return `<div class="cred"><div class="cred-h"><div class="cred-icon" style="background:var(--s3);color:var(--ac)">${icon}</div><div style="flex:1"><div class="cred-title">${title}</div><div class="cred-desc">${desc}</div></div><div class="cred-st"><span class="dot ${connected?'dot-g':'dot-x'}"></span><span style="color:${connected?'var(--ok)':'var(--t3)'}">${connected?'Configured':'Not set'}</span></div></div>
   ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:10px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${key}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:10px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
-  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="toast('Testing ${title}... (placeholder)')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
+  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="testIntegrationCred('${prefix}','${title}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
 }
 
 function showSetTab(el,id){
@@ -7767,7 +7792,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
-  if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();}
+  if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
@@ -11315,6 +11340,8 @@ function _updateOAuthCard(provider,status){
     if(btnDisconnect)btnDisconnect.style.display='';
     const btnRefresh=document.getElementById('btn-'+p+'-refresh');
     if(btnRefresh)btnRefresh.style.display='';
+    const btnTest=document.getElementById('btn-'+p+'-test');
+    if(btnTest)btnTest.style.display='';
     if(btnCal)btnCal.style.display='';
     if(btnMail)btnMail.style.display='';
     if(btnContacts)btnContacts.style.display='';
@@ -11326,6 +11353,8 @@ function _updateOAuthCard(provider,status){
     if(btnDisconnect)btnDisconnect.style.display='none';
     const btnRefreshSetup=document.getElementById('btn-'+p+'-refresh');
     if(btnRefreshSetup)btnRefreshSetup.style.display='none';
+    const btnTestSetup=document.getElementById('btn-'+p+'-test');
+    if(btnTestSetup)btnTestSetup.style.display='none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
@@ -11336,6 +11365,8 @@ function _updateOAuthCard(provider,status){
     if(btnDisconnect)btnDisconnect.style.display='none';
     const btnRefreshDisc=document.getElementById('btn-'+p+'-refresh');
     if(btnRefreshDisc)btnRefreshDisc.style.display='none';
+    const btnTestDisc=document.getElementById('btn-'+p+'-test');
+    if(btnTestDisc)btnTestDisc.style.display='none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
@@ -11620,6 +11651,76 @@ async function loadAdminDeliveryLog(page=1){
     el.innerHTML='<span style="color:var(--err,#ef4444)">\u2717 '+(e?.message||'Failed to load log')+'</span>';
   }
 }
+async function testOAuthConnection(provider){
+  const btnId = provider === 'microsoft' ? 'btn-ms-test' : 'btn-google-test';
+  const btn = document.getElementById(btnId);
+  const origText = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='Testing...'; }
+  try{
+    const res = await _trpc('oauthSync.testOAuthConnection','mutation',{provider});
+    if(res.error){ toast('Connection failed: '+res.error.message,'error'); }
+    else{
+      const d = res.result?.data;
+      const label = provider==='microsoft'?'Microsoft 365':'Google Workspace';
+      toast('Connected as '+(d?.displayName||d?.email||'unknown')+' via '+label,'success');
+    }
+  }catch(e){ toast('Test failed: '+e.message,'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent=origText; } }
+}
+
+async function testIntegrationCred(prefix, title){
+  // Read the saved API key from the credential card
+  const keyInput = document.querySelector('[data-prefix="'+prefix+'"] .cred-key-input, #cred-'+prefix+'-key');
+  const apiKey = keyInput ? keyInput.value.trim() : '';
+  if(!apiKey){ toast('Enter an API key first','error'); return; }
+  const btn = event.currentTarget;
+  const origText = btn.textContent;
+  btn.disabled=true; btn.textContent='Testing...';
+  try{
+    const res = await _trpc('oauthSync.testIntegration','mutation',{integration: prefix, apiKey});
+    if(res.error){ toast(title+' test failed: '+res.error.message,'error'); }
+    else{
+      const d = res.result?.data;
+      const who = d?.username || d?.name || d?.email || 'OK';
+      toast(title+' connected — '+who,'success');
+    }
+  }catch(e){ toast(title+' test failed: '+e.message,'error'); }
+  finally{ btn.disabled=false; btn.textContent=origText; }
+}
+
+async function saveLogRetentionDays(){
+  const input = document.getElementById('admin-retention-days');
+  const status = document.getElementById('admin-retention-status');
+  const days = parseInt(input?.value||'90',10);
+  if(isNaN(days)||days<7||days>3650){ toast('Enter a value between 7 and 3650','error'); return; }
+  const btn = event.currentTarget;
+  const origText = btn.textContent;
+  btn.disabled=true; btn.textContent='Saving...';
+  if(status) status.textContent='';
+  try{
+    const res = await _trpc('oauthSync.setLogRetentionDays','mutation',{days});
+    if(res.error){ toast('Failed to save: '+res.error.message,'error'); }
+    else{
+      toast('Retention period saved: '+days+' days','success');
+      if(status) status.textContent='Saved: '+days+' days';
+    }
+  }catch(e){ toast('Failed: '+e.message,'error'); }
+  finally{ btn.disabled=false; btn.textContent=origText; }
+}
+
+async function loadLogRetentionDays(){
+  const input = document.getElementById('admin-retention-days');
+  const status = document.getElementById('admin-retention-status');
+  if(!input) return;
+  try{
+    const res = await _trpc('oauthSync.getLogRetentionDays','query',{});
+    if(!res.error && res.result?.data){
+      input.value = String(res.result.data.days);
+      if(status) status.textContent = 'Current: '+res.result.data.days+' days';
+    }
+  }catch(e){ /* silent */ }
+}
+
 async function adminSendExpiryEmails(){
   const statusEl=document.getElementById('admin-expiry-email-status');
   const btn=event.currentTarget;

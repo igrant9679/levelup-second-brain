@@ -11,6 +11,7 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { sendEmail } from "../_core/sendEmail";
@@ -477,7 +478,7 @@ export const oauthSyncRouter = router({
 
   /** List all connected OAuth accounts across all users (owner only) */
   getNotificationSenderOptions: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new Error("Admin only");
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
     const accounts = await db.getAllConnectedOAuthAccounts();
     const current = await db.getSystemSetting("notificationSender");
     return { accounts, current: current ?? null };
@@ -490,7 +491,7 @@ export const oauthSyncRouter = router({
       senderKey: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
       await db.setSystemSetting("notificationSender", input.senderKey);
       return { success: true };
     }),
@@ -509,7 +510,7 @@ export const oauthSyncRouter = router({
       pageSize: z.number().int().min(1).max(100).default(20),
     }))
     .query(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
       return db.getAdminEmailDeliveryLog(input);
     }),
 
@@ -519,7 +520,7 @@ export const oauthSyncRouter = router({
    * Admin-only. Idempotent per day.
    */
   notifyExpiringTokensPerUser: protectedProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new Error("Admin only");
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
     const today = new Date().toISOString().slice(0, 10);
     const dedupeKey = `expiry_email_sent_${today}`;
     const alreadySent = await db.getSystemSetting(dedupeKey);
@@ -570,7 +571,7 @@ export const oauthSyncRouter = router({
   }),
 
   checkAndNotifyExpiry: protectedProcedure.mutation(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new Error("Admin only");
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const dedupeKey = `expiry_notif_sent_${today}`;
@@ -607,7 +608,172 @@ export const oauthSyncRouter = router({
   getScheduledTaskLog: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
     .query(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
       return db.getScheduledTaskLog(input?.limit ?? 20);
+    }),
+
+  /**
+   * Send a composed email on behalf of the logged-in user via their connected
+   * Google or Microsoft OAuth account (whichever is connected).
+   */
+  sendComposedMail: protectedProcedure
+    .input(z.object({
+      to: z.string().email("Invalid recipient email"),
+      subject: z.string().min(1).max(998),
+      body: z.string(),
+      provider: z.enum(["google", "microsoft"]).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Determine which provider to use: explicit > google > microsoft
+      const providers: Array<"google" | "microsoft"> = input.provider
+        ? [input.provider]
+        : ["google", "microsoft"];
+
+      let accessToken: string | null = null;
+      let chosenProvider: "google" | "microsoft" | null = null;
+
+      for (const p of providers) {
+        const token = await getValidAccessToken(ctx.user.id, p);
+        if (token) { accessToken = token; chosenProvider = p; break; }
+      }
+
+      if (!accessToken || !chosenProvider) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "No connected email account found. Please connect Google or Microsoft in Settings → Accounts.",
+        });
+      }
+
+      if (chosenProvider === "google") {
+        // Build RFC 2822 message and base64url-encode it
+        const raw = [
+          `To: ${input.to}`,
+          `Subject: ${input.subject}`,
+          `Content-Type: text/html; charset=utf-8`,
+          `MIME-Version: 1.0`,
+          ``,
+          input.body,
+        ].join("\r\n");
+        const encoded = Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const resp = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ raw: encoded }),
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Gmail send failed: ${resp.status} ${err}` });
+        }
+        return { success: true, provider: "google" };
+      }
+
+      // Microsoft — send via Graph API
+      const resp = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: {
+            subject: input.subject,
+            body: { contentType: "HTML", content: input.body },
+            toRecipients: [{ emailAddress: { address: input.to } }],
+          },
+          saveToSentItems: true,
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Microsoft send failed: ${resp.status} ${err}` });
+      }
+      return { success: true, provider: "microsoft" };
+    }),
+
+  /**
+   * Test an OAuth connection by making a lightweight API call
+   */
+  testOAuthConnection: protectedProcedure
+    .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
+    .mutation(async ({ ctx, input }) => {
+      const { getOAuthToken } = await import("../db");
+      const { refreshOAuthTokenSilently } = await import("../_core/refreshOAuthToken");
+      let token = await getOAuthToken(ctx.user.id, input.provider);
+      if (!token) {
+        throw new TRPCError({ code: "NOT_FOUND", message: `No ${input.provider} token found. Please connect first.` });
+      }
+      // Try silent refresh if expired
+      const now = Date.now();
+      if (token.expiresAt && token.expiresAt.getTime() < now) {
+        const refreshed = await refreshOAuthTokenSilently(ctx.user.id, input.provider);
+        if (!refreshed) throw new TRPCError({ code: "UNAUTHORIZED", message: `${input.provider} token is expired. Please refresh.` });
+        // Re-fetch the token after refresh
+        const updatedToken = await getOAuthToken(ctx.user.id, input.provider);
+        if (!updatedToken) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Token refresh failed" });
+        token = updatedToken;
+      }
+      const accessToken = token.accessToken;
+      if (input.provider === "microsoft") {
+        const resp = await fetch("https://graph.microsoft.com/v1.0/me?$select=displayName,mail", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!resp.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Microsoft API returned ${resp.status}` });
+        const data = await resp.json() as { displayName?: string; mail?: string };
+        return { success: true, provider: "microsoft", displayName: data.displayName, email: data.mail };
+      } else {
+        const resp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo?fields=name,email", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!resp.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Google API returned ${resp.status}` });
+        const data = await resp.json() as { name?: string; email?: string };
+        return { success: true, provider: "google", displayName: data.name, email: data.email };
+      }
+    }),
+
+  /**
+   * Test a third-party integration (ClickUp, Clodura, etc.)
+   */
+  testIntegration: protectedProcedure
+    .input(z.object({ integration: z.enum(["clickup", "clodura"]), apiKey: z.string().min(1), workspaceId: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      if (input.integration === "clickup") {
+        const resp = await fetch("https://api.clickup.com/api/v2/user", {
+          headers: { Authorization: input.apiKey },
+        });
+        if (!resp.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: `ClickUp API returned ${resp.status} — check your API token.` });
+        const data = await resp.json() as { user?: { username?: string; email?: string } };
+        return { success: true, integration: "clickup", username: data.user?.username, email: data.user?.email };
+      } else if (input.integration === "clodura") {
+        const resp = await fetch("https://api.clodura.ai/api/v1/user/profile", {
+          headers: { Authorization: `Bearer ${input.apiKey}`, "Content-Type": "application/json" },
+        });
+        if (!resp.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: `Clodura API returned ${resp.status} — check your API key.` });
+        const data = await resp.json() as { name?: string; email?: string };
+        return { success: true, integration: "clodura", name: data.name, email: data.email };
+      }
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Unknown integration" });
+    }),
+
+  /**
+   * Get the log retention period in days (default 90)
+   */
+  getLogRetentionDays: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+    }
+    const { getSystemSetting } = await import("../db");
+    const val = await getSystemSetting("logRetentionDays");
+    return { days: val ? parseInt(val, 10) : 90 };
+  }),
+
+  /**
+   * Set the log retention period in days
+   */
+  setLogRetentionDays: protectedProcedure
+    .input(z.object({ days: z.number().int().min(7).max(3650) }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      }
+      const { setSystemSetting } = await import("../db");
+      await setSystemSetting("logRetentionDays", String(input.days));
+      return { success: true, days: input.days };
     }),
 });

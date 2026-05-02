@@ -308,3 +308,12 @@
 - [x] DB: add deleteOldEmailDeliveryLogs(cutoffMs) helper — deletes email_delivery_log rows older than cutoff
 - [x] /api/scheduled/check-expiry: runs both cleanup helpers at the start of each run (cutoff = now - 90 days); errors are caught and do not fail the job
 - [x] vitest: 10 tests for both cleanup helpers and integration (106 total, all passing)
+
+## Bug Fixes, Test Buttons & Configurable Retention
+- [x] Bug: tRPC error on Admin "Check & Notify Now" — fixed: replaced plain Error with TRPCError({ code: 'FORBIDDEN' }) in all admin-only procedures
+- [x] Bug: Email not sending from Mail screen — fixed: sendComposedMail was a stub; now calls oauthSync.sendComposedMail which sends via Gmail/Graph API
+- [x] Accounts screen: "Test Connection" button added to Microsoft 365 and Google Workspace cards (shown when connected); calls oauthSync.testOAuthConnection
+- [x] Integrations screen: "Test" button wired to real oauthSync.testIntegration API call (ClickUp /api/v2/user, Clodura /api/v1/user/profile)
+- [x] Settings Admin: "Log Retention Period" input (days, default 90) stored in system_settings; loads on tab open, saves via oauthSync.setLogRetentionDays
+- [x] Backend: /api/scheduled/check-expiry cleanup reads retentionDays from system_settings (default 90)
+- [x] 106 tests passing, TypeScript clean
