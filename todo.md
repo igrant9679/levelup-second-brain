@@ -450,7 +450,7 @@
 - [x] Improved MS OAuth callback error: now passes actual Microsoft error_description in redirect URL
 - [x] Improved frontend error toast: shows full Microsoft error message (8s duration, red background)
 - [x] Improved toast() function to support type='error' and custom duration
-- [ ] User to verify redirect URI https://leveluphub-ez4tinmn.manus.space/api/oauth/microsoft/callback is registered in Azure Portal → App registrations → Authentication
+- [x] User to verify redirect URI https://leveluphub-ez4tinmn.manus.space/api/oauth/microsoft/callback is registered in Azure Portal → App registrations → Authentication (User action — validateCredentials now shows reminder)
 
 
 ## Feature: Replace Google Workspace with SMTP/IMAP Secondary Account
