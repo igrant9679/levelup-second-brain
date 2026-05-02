@@ -7455,6 +7455,21 @@ function renderSettingsHTML(){
     </div>
   </div>
 
+  <!-- Email Notifications -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">Email Notifications</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Control which system emails LevelUp sends to your account. Changes take effect immediately.</p>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:10px;color:var(--t3)">Receive an email when your Microsoft 365 or Google Workspace token is about to expire</div></div>
+      <div class="tog on" id="tog-email-expiry" onclick="toggleEmailNotifPref('optOutExpiryEmails',this)"></div>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Emails</div><div style="font-size:10px;color:var(--t3)">Receive a daily email summary of your tasks, habits, and goals</div></div>
+      <div class="tog on" id="tog-email-digest" onclick="toggleEmailNotifPref('optOutDigestEmails',this)"></div>
+    </div>
+    <div id="email-notif-prefs-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
+  </div>
+
   <!-- Quiet Hours -->
   <div>
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Quiet Hours</div>
@@ -7488,6 +7503,15 @@ function renderSettingsHTML(){
     </div>
     <div id="oauth-ms-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
     <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
+    <!-- Step indicator (shown when not connected) -->
+    <div id="oauth-ms-steps" style="display:flex;gap:4px;align-items:center;margin-bottom:8px;font-size:9px;color:var(--t3)">
+      <span id="oauth-ms-step1" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">1</span> Save credentials</span>
+      <span style="color:var(--t3)">›</span>
+      <span id="oauth-ms-step2" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span> Connect</span>
+      <span style="color:var(--t3)">›</span>
+      <span id="oauth-ms-step3" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">3</span> Test</span>
+    </div>
+    <div id="oauth-ms-guide" style="font-size:10px;color:var(--t3);margin-bottom:8px;display:none">Click <strong>Connect Microsoft 365</strong> to open the Microsoft consent page. You will be redirected back automatically after authorising.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
       <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
@@ -7508,6 +7532,15 @@ function renderSettingsHTML(){
     </div>
     <div id="oauth-google-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
     <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
+    <!-- Step indicator (shown when not connected) -->
+    <div id="oauth-google-steps" style="display:flex;gap:4px;align-items:center;margin-bottom:8px;font-size:9px;color:var(--t3)">
+      <span id="oauth-google-step1" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">1</span> Save credentials</span>
+      <span style="color:var(--t3)">›</span>
+      <span id="oauth-google-step2" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span> Connect</span>
+      <span style="color:var(--t3)">›</span>
+      <span id="oauth-google-step3" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">3</span> Test</span>
+    </div>
+    <div id="oauth-google-guide" style="font-size:10px;color:var(--t3);margin-bottom:8px;display:none">Click <strong>Connect Google Workspace</strong> to open the Google consent page. You will be redirected back automatically after authorising.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
       <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
@@ -7528,9 +7561,11 @@ function renderSettingsHTML(){
         <input id="ms-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Application (Client) ID" />
         <input id="ms-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
         <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('microsoft')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-ms-verify-creds" onclick="verifyOAuthCredentials('microsoft')" title="Check if these credentials are accepted by Microsoft">🔍 Verify</button>
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
       </div>
       <div id="ms-cred-status" style="font-size:10px;color:var(--t3)"></div>
+      <div id="ms-verify-status" style="font-size:10px;margin-top:2px"></div>
       <div id="ms-audit-log" style="margin-top:6px;display:none">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('microsoft')">▶ Recent Activity</div>
         <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
@@ -7542,9 +7577,11 @@ function renderSettingsHTML(){
         <input id="google-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Client ID" />
         <input id="google-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
         <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('google')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-google-verify-creds" onclick="verifyOAuthCredentials('google')" title="Check if these credentials are accepted by Google">🔍 Verify</button>
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('google')" title="Remove saved credentials">✕ Clear</button>
       </div>
       <div id="google-cred-status" style="font-size:10px;color:var(--t3)"></div>
+      <div id="google-verify-status" style="font-size:10px;margin-top:2px"></div>
       <div id="google-audit-log" style="margin-top:6px;display:none">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('google')">▶ Recent Activity</div>
         <div id="google-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
@@ -7792,6 +7829,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
+  if(id==='sp-3')loadEmailNotifPrefs();
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
 }
@@ -11311,6 +11349,20 @@ function _updateOAuthCard(provider,status){
   const btnContacts=document.getElementById('btn-'+p+'-sync-contacts');
   if(!badge)return;
   const expiryEl=document.getElementById('oauth-'+p+'-expiry');
+  const stepsEl=document.getElementById('oauth-'+p+'-steps');
+  const guideEl=document.getElementById('oauth-'+p+'-guide');
+
+  // Helper: update step indicator visual state
+  function setStep(stepNum,active,done){
+    const el=document.getElementById('oauth-'+p+'-step'+stepNum);
+    if(!el)return;
+    const dot=el.querySelector('span');
+    if(!dot)return;
+    if(done){dot.style.background='var(--ok)';dot.style.color='#fff';dot.textContent='✓';el.style.color='var(--ok)';}
+    else if(active){dot.style.background='var(--ac)';dot.style.color='#fff';dot.textContent=stepNum;el.style.color='var(--t1,#fff)';el.style.fontWeight='600';}
+    else{dot.style.background='var(--s3)';dot.style.color='var(--t2)';dot.textContent=stepNum;el.style.color='var(--t3)';el.style.fontWeight='';}
+  }
+
   if(status.connected){
     badge.style.background='var(--ok)';badge.style.color='#fff';badge.textContent='✓ Connected';
     if(info){info.style.display='';info.textContent=(status.displayName||'')+' · '+(status.email||'');}
@@ -11345,6 +11397,10 @@ function _updateOAuthCard(provider,status){
     if(btnCal)btnCal.style.display='';
     if(btnMail)btnMail.style.display='';
     if(btnContacts)btnContacts.style.display='';
+    // Step indicators: all done
+    if(stepsEl)stepsEl.style.display='none';
+    if(guideEl)guideEl.style.display='none';
+    if(btnConnect)btnConnect.style.boxShadow='';
   } else if(status.credentialsConfigured===false){
     // Credentials not set up — show warning badge, disable connect button
     badge.style.background='var(--warn)';badge.style.color='#fff';badge.textContent='⚠ Setup required';
@@ -11358,6 +11414,10 @@ function _updateOAuthCard(provider,status){
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
+    // Step indicators: step 1 active (save credentials)
+    if(stepsEl)stepsEl.style.display='';
+    if(guideEl)guideEl.style.display='none';
+    setStep(1,true,false);setStep(2,false,false);setStep(3,false,false);
   } else {
     badge.style.background='var(--s3)';badge.style.color='var(--t3)';badge.textContent='Not connected';
     if(info)info.style.display='none';
@@ -11370,6 +11430,18 @@ function _updateOAuthCard(provider,status){
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
+    // Step indicators: credentials saved → step 2 active (connect); no credentials → step 1 active
+    if(stepsEl)stepsEl.style.display='';
+    if(status.hasUserCredentials){
+      setStep(1,false,true);setStep(2,true,false);setStep(3,false,false);
+      // Pulse the Connect button to draw attention
+      if(btnConnect)btnConnect.style.boxShadow='0 0 0 3px var(--ac)';
+      if(guideEl)guideEl.style.display='';
+    } else {
+      setStep(1,true,false);setStep(2,false,false);setStep(3,false,false);
+      if(btnConnect)btnConnect.style.boxShadow='';
+      if(guideEl)guideEl.style.display='none';
+    }
   }
   // Show/hide the setup instructions box based on whether any provider still needs credentials
   const setupBox=document.querySelector('#sp-4 [style*="Setup Required"]');
@@ -11844,6 +11916,80 @@ async function deleteOAuthCredentials(provider){
   }catch(e){
     toast('⚠️ '+e.message);
   }
+}
+
+/** Load and apply the user's email notification preferences to the toggle UI */
+async function loadEmailNotifPrefs(){
+  const statusEl=document.getElementById('email-notif-prefs-status');
+  try{
+    const prefs=await _trpc('oauthSync.getEmailNotifPrefs',undefined,'query');
+    if(!prefs)return;
+    const expiryTog=document.getElementById('tog-email-expiry');
+    const digestTog=document.getElementById('tog-email-digest');
+    // Toggle is 'on' when NOT opted out (i.e. subscribed)
+    if(expiryTog){
+      expiryTog.classList.toggle('on',!prefs.optOutExpiryEmails);
+    }
+    if(digestTog){
+      digestTog.classList.toggle('on',!prefs.optOutDigestEmails);
+    }
+    if(statusEl)statusEl.textContent='';
+  }catch(e){
+    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='Could not load preferences: '+e.message;}
+  }
+}
+
+/** Toggle an email notification preference and save it to the server */
+async function toggleEmailNotifPref(field,togEl){
+  const statusEl=document.getElementById('email-notif-prefs-status');
+  const isCurrentlyOn=togEl.classList.contains('on');
+  // Toggle the visual state immediately (optimistic)
+  togEl.classList.toggle('on');
+  const newSubscribed=togEl.classList.contains('on');
+  const optOut=!newSubscribed;
+  try{
+    await _trpc('oauthSync.setEmailNotifPrefs',{[field]:optOut},'mutation');
+    const label=field==='optOutExpiryEmails'?'Expiry emails':'Digest emails';
+    toast((newSubscribed?'✓ '+label+' enabled':'🔕 '+label+' disabled'),'info');
+    if(statusEl)statusEl.textContent='';
+  }catch(e){
+    // Revert on error
+    togEl.classList.toggle('on',isCurrentlyOn);
+    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='Failed to save: '+e.message;}
+    toast('⚠️ Failed to save preference: '+e.message,'error');
+  }
+}
+
+/** Verify OAuth app credentials (client ID + secret) without completing the full OAuth flow */
+async function verifyOAuthCredentials(provider){
+  const p=provider==='microsoft'?'ms':'google';
+  const idEl=document.getElementById(p+'-cred-id');
+  const secretEl=document.getElementById(p+'-cred-secret');
+  const statusEl=document.getElementById(p+'-verify-status');
+  const btn=document.getElementById('btn-'+p+'-verify-creds');
+  const clientId=(idEl?.value||'').trim();
+  const clientSecret=(secretEl?.value||'').trim();
+  if(!clientId||!clientSecret){
+    if(statusEl){statusEl.style.color='var(--warn)';statusEl.textContent='⚠ Enter Client ID and Client Secret to verify';}
+    return;
+  }
+  if(btn){btn.disabled=true;btn.textContent='Verifying…';}
+  if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='Checking with '+provider+'…';}
+  try{
+    const res=await _trpc('oauthSync.validateCredentials',{provider,clientId,clientSecret},'mutation');
+    if(res.valid){
+      if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Credentials accepted by '+(provider==='microsoft'?'Microsoft':'Google');}
+      toast('✓ '+provider+' credentials are valid','success');
+    } else {
+      const errMsg=res.error||'Invalid credentials';
+      if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='✗ '+errMsg;}
+      toast('✗ Credentials rejected: '+errMsg,'error');
+    }
+  }catch(e){
+    if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='✗ Verification failed: '+(e.message||'Unknown error');}
+    toast('✗ Verification failed: '+(e.message||'Unknown error'),'error');
+  }
+  if(btn){btn.disabled=false;btn.textContent='🔍 Verify';}
 }
 
 /** Load notification sender options (admin only) */

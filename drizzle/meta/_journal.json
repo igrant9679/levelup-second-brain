@@ -71,6 +71,13 @@
       "when": 1777742760440,
       "tag": "0009_new_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1777745980794,
+      "tag": "0010_lumpy_tempest",
+      "breakpoints": true
     }
   ]
 }

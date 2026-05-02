@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, emailDeliveryLog, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -345,4 +345,36 @@ export async function deleteOldEmailDeliveryLogs(cutoffMs: number): Promise<numb
     .delete(emailDeliveryLog)
     .where(lte(emailDeliveryLog.createdAt, cutoffDate));
   return (result as any)?.[0]?.affectedRows ?? 0;
+}
+
+// ─── Email Notification Preferences ─────────────────────────────────────────
+
+/** Get the email notification preferences for a user (returns null if not set). */
+export async function getEmailNotifPrefs(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(emailNotificationPrefs)
+    .where(eq(emailNotificationPrefs.userId, userId))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+/** Upsert email notification preferences for a user. */
+export async function setEmailNotifPrefs(
+  userId: number,
+  prefs: { optOutExpiryEmails?: boolean; optOutDigestEmails?: boolean }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const values = {
+    userId,
+    optOutExpiryEmails: prefs.optOutExpiryEmails !== undefined ? (prefs.optOutExpiryEmails ? 1 : 0) : 0,
+    optOutDigestEmails: prefs.optOutDigestEmails !== undefined ? (prefs.optOutDigestEmails ? 1 : 0) : 0,
+  };
+  await db.insert(emailNotificationPrefs).values(values).onDuplicateKeyUpdate({
+    set: {
+      ...(prefs.optOutExpiryEmails !== undefined ? { optOutExpiryEmails: values.optOutExpiryEmails } : {}),
+      ...(prefs.optOutDigestEmails !== undefined ? { optOutDigestEmails: values.optOutDigestEmails } : {}),
+    },
+  });
 }

@@ -247,3 +247,14 @@ export const scheduledTaskLog = mysqlTable('scheduled_task_log', {
 });
 export type ScheduledTaskLog = typeof scheduledTaskLog.$inferSelect;
 export type InsertScheduledTaskLog = typeof scheduledTaskLog.$inferInsert;
+
+// ─── Email Notification Preferences ─────────────────────────────────────────
+// Per-user opt-out flags for system-generated emails.
+export const emailNotificationPrefs = mysqlTable('email_notification_prefs', {
+  userId: int('userId').primaryKey(),
+  optOutExpiryEmails: tinyint('optOutExpiryEmails').notNull().default(0), // 0 = subscribed, 1 = opted out
+  optOutDigestEmails: tinyint('optOutDigestEmails').notNull().default(0),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type EmailNotificationPrefs = typeof emailNotificationPrefs.$inferSelect;
+export type InsertEmailNotificationPrefs = typeof emailNotificationPrefs.$inferInsert;

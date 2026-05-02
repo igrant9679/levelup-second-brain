@@ -535,6 +535,10 @@ export const oauthSyncRouter = router({
       const userEmail = t.userEmail;
       if (!userEmail) continue;
 
+      // Skip users who have opted out of expiry emails
+      const notifPrefs = await db.getEmailNotifPrefs(t.userId);
+      if (notifPrefs?.optOutExpiryEmails) continue;
+
       const expiresAt = t.expiresAt instanceof Date ? t.expiresAt : new Date(t.expiresAt);
       const diffMs = expiresAt.getTime() - Date.now();
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -775,5 +779,92 @@ export const oauthSyncRouter = router({
       const { setSystemSetting } = await import("../db");
       await setSystemSetting("logRetentionDays", String(input.days));
       return { success: true, days: input.days };
+    }),
+
+  /**
+   * Validate OAuth app credentials (client ID + secret) without completing the full OAuth flow.
+   * Makes a lightweight token-endpoint request to check if the credentials are accepted.
+   */
+  validateCredentials: protectedProcedure
+    .input(z.object({
+      provider: z.enum(["microsoft", "google"]),
+      clientId: z.string().min(1),
+      clientSecret: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const { provider, clientId, clientSecret } = input;
+
+      if (provider === "microsoft") {
+        // Use the client_credentials grant with a dummy scope to validate credentials.
+        // We expect either a token response or a specific error about the tenant/scope,
+        // NOT an "invalid_client" error which would mean bad credentials.
+        const body = new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: "client_credentials",
+          scope: "https://graph.microsoft.com/.default",
+        });
+        const resp = await fetch(
+          "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+          { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+        const data = await resp.json() as { error?: string; error_description?: string; access_token?: string };
+        // invalid_client = bad credentials; other errors (e.g. unsupported_grant_type on /common) = credentials are valid
+        if (data.error === "invalid_client") {
+          return { valid: false, error: data.error_description ?? "Invalid client credentials" };
+        }
+        // Any other response (including errors about tenant/grant) means the credentials were accepted
+        return { valid: true };
+      } else {
+        // Google: use the token info endpoint to check if the client_id is registered
+        // We attempt a token exchange with a dummy code — Google will return
+        // "invalid_client" for bad credentials vs other errors for bad code
+        const body = new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: "authorization_code",
+          code: "VALIDATION_PROBE",
+          redirect_uri: "https://localhost",
+        });
+        const resp = await fetch(
+          "https://oauth2.googleapis.com/token",
+          { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+        const data = await resp.json() as { error?: string; error_description?: string };
+        if (data.error === "invalid_client") {
+          return { valid: false, error: data.error_description ?? "Invalid client credentials" };
+        }
+        // "invalid_grant" or other errors = credentials are valid, just the probe code is bad
+        return { valid: true };
+      }
+    }),
+
+  /**
+   * Get the current user's email notification preferences
+   */
+  getEmailNotifPrefs: protectedProcedure.query(async ({ ctx }) => {
+    const { getEmailNotifPrefs } = await import("../db");
+    const prefs = await getEmailNotifPrefs(ctx.user.id);
+    return {
+      optOutExpiryEmails: prefs?.optOutExpiryEmails ?? false,
+      optOutDigestEmails: prefs?.optOutDigestEmails ?? false,
+    };
+  }),
+
+  /**
+   * Update the current user's email notification preferences
+   */
+  setEmailNotifPrefs: protectedProcedure
+    .input(z.object({
+      optOutExpiryEmails: z.boolean().optional(),
+      optOutDigestEmails: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { setEmailNotifPrefs } = await import("../db");
+      await setEmailNotifPrefs(ctx.user.id, {
+        optOutExpiryEmails: input.optOutExpiryEmails,
+        optOutDigestEmails: input.optOutDigestEmails,
+      });
+      return { success: true };
     }),
 });

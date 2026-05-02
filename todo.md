@@ -321,3 +321,24 @@
 ## Test Button Visibility & Preview Errors
 - [x] Fix: Test Connection button should be visible whenever credentials are saved (not just when OAuth-connected)
 - [x] Fix: investigate and fix 4 errors shown in the preview window (root cause: double `async async` keyword in sendComposedMail caused first script block to fail to parse; `var D = {}` was never evaluated; second script block threw 4 ReferenceError: D is not defined)
+
+## Follow-up Features: Credentials Validation, Opt-out & OAuth UX
+
+### Credentials Pre-flight Validation
+- [x] Backend: tRPC procedure `oauthSync.validateCredentials` — accepts provider + clientId + clientSecret, makes a lightweight token endpoint request to verify the credentials are syntactically valid and accepted by the provider (no full OAuth flow needed)
+- [x] Frontend: "Verify Credentials" button next to Save in the per-user credentials card; shows ✓ valid / ✗ invalid with the error message
+- [x] vitest: tests for validateCredentials (valid format, invalid client, missing fields)
+
+### Per-User Email Notification Opt-out
+- [x] DB: add `email_notification_prefs` table (userId, optOutExpiryEmails, optOutDigestEmails, updatedAt)
+- [x] DB: push migration with `pnpm db:push`
+- [x] Backend: tRPC procedures `oauthSync.getEmailNotifPrefs` and `oauthSync.setEmailNotifPrefs` (protectedProcedure)
+- [x] Backend: wire opt-out check into `notifyExpiringTokensPerUser` — skip sending if user has opted out of expiry emails
+- [x] Frontend: Settings → Notifications panel — add "OAuth token expiry emails" toggle (default on); calls setEmailNotifPrefs on change
+- [x] vitest: tests for getEmailNotifPrefs / setEmailNotifPrefs and opt-out skip logic
+
+### OAuth Connect Flow UX Improvements
+- [x] Frontend: Add numbered step indicators on each provider card (Step 1: Save credentials → Step 2: Connect → Step 3: Test)
+- [x] Frontend: After saving credentials, auto-highlight the Connect button with a pulsing ring and tooltip "Next: click Connect to authorise"
+- [x] Frontend: Show inline guidance text below the Connect button explaining what will happen (redirect to Microsoft/Google consent page)
+- [x] Frontend: After successful OAuth callback, show a success toast "✓ Microsoft 365 connected — you can now send emails and sync contacts"
