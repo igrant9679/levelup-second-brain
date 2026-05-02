@@ -323,3 +323,26 @@ export async function getScheduledTaskLog(limit = 20, taskName?: string) {
   }
   return q;
 }
+
+/** Delete scheduled_task_log rows whose ranAt is older than the given cutoff timestamp (ms). */
+export async function deleteOldScheduledTaskLogs(cutoffMs: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const cutoffDate = new Date(cutoffMs);
+  const result = await db
+    .delete(scheduledTaskLog)
+    .where(lte(scheduledTaskLog.ranAt, cutoffDate));
+  // mysql2 returns an OkPacket; affectedRows is the count
+  return (result as any)?.[0]?.affectedRows ?? 0;
+}
+
+/** Delete email_delivery_log rows whose createdAt is older than the given cutoff timestamp (ms). */
+export async function deleteOldEmailDeliveryLogs(cutoffMs: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const cutoffDate = new Date(cutoffMs);
+  const result = await db
+    .delete(emailDeliveryLog)
+    .where(lte(emailDeliveryLog.createdAt, cutoffDate));
+  return (result as any)?.[0]?.affectedRows ?? 0;
+}

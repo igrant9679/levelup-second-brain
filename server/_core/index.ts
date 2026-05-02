@@ -12,7 +12,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
-import { insertScheduledTaskLog } from "../db";
+import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduledTaskLog } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -56,6 +56,16 @@ async function startServer() {
       }
 
       const today = new Date().toISOString().slice(0, 10);
+
+      // --- 90-day log retention cleanup ---
+      const cutoffMs = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const [deletedTaskLogs, deletedEmailLogs] = await Promise.all([
+        deleteOldScheduledTaskLogs(cutoffMs).catch(() => 0),
+        deleteOldEmailDeliveryLogs(cutoffMs).catch(() => 0),
+      ]);
+      if (deletedTaskLogs > 0 || deletedEmailLogs > 0) {
+        console.log(`[check-expiry] Cleaned up ${deletedTaskLogs} task log(s) and ${deletedEmailLogs} email log(s) older than 90 days`);
+      }
 
       // --- Per-user emails (7-day window) ---
       const emailDedupeKey = `expiry_email_sent_${today}`;

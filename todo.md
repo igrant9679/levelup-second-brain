@@ -302,3 +302,9 @@
 - [x] Settings Admin panel: add "Send Expiry Emails Now" button with confirmation dialog that calls oauthSync.notifyExpiringTokensPerUser
 - [x] Settings Admin panel: add "Scheduled Task History" sub-section showing last 20 runs from getScheduledTaskLog
 - [x] vitest: 14 tests for emailTemplate() helper and getScheduledTaskLog procedure (96 total, all passing)
+
+## Log Retention Cleanup (90-day)
+- [x] DB: add deleteOldScheduledTaskLogs(cutoffMs) helper — deletes scheduled_task_log rows older than cutoff
+- [x] DB: add deleteOldEmailDeliveryLogs(cutoffMs) helper — deletes email_delivery_log rows older than cutoff
+- [x] /api/scheduled/check-expiry: runs both cleanup helpers at the start of each run (cutoff = now - 90 days); errors are caught and do not fail the job
+- [x] vitest: 10 tests for both cleanup helpers and integration (106 total, all passing)
