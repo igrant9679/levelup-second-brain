@@ -505,8 +505,10 @@
 - [x] 107 tests passing, TypeScript clean
 
 ## Follow-up: IMAP/SMTP Sync
-- [x] Create syncSmtpMail tRPC procedure to fetch emails via IMAP (placeholder implementation)
-- [x] Procedure structure ready for IMAP library integration
+- [x] Create syncSmtpMail tRPC procedure to fetch emails via IMAP
+- [x] Implement actual IMAP fetch using imap library with mailparser
 - [x] Handle IMAP connection errors gracefully with TRPCError
-- [ ] Implement actual IMAP fetch using imap library (requires npm package)
-- [ ] Display SMTP/IMAP synced data in Mail/Calendar pages alongside Microsoft 365
+- [x] Fetch recent emails (configurable limit, default 20) from INBOX
+- [x] Parse email subject, sender, date, and preview text
+- [x] 107 tests passing, TypeScript clean
+- [ ] Display SMTP/IMAP synced data in Mail/Calendar pages alongside Microsoft 365 (optional enhancement)

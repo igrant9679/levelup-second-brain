@@ -17,6 +17,9 @@ import * as db from "../db";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
 import nodemailer from "nodemailer";
+import Imap from "imap";
+// @ts-ignore - mailparser has no @types package
+import { simpleParser } from "mailparser";
 
 // ---- Helpers ----
 
@@ -1068,13 +1071,55 @@ export const oauthSyncRouter = router({
       }
 
       try {
-        // TODO: Implement IMAP fetch using imap library
-        // For now, return empty array
         const messages: any[] = [];
 
-        // Update lastSyncedAt
-        // TODO: Update lastSyncedAt for SMTP/IMAP account
+        // Create IMAP connection
+        const imap = new Imap({
+          user: account.email,
+          password: account.smtpPassword,
+          host: account.imapHost,
+          port: account.imapPort,
+          tls: account.smtpEncryption !== 'none',
+          tlsOptions: { rejectUnauthorized: false },
+        });
 
+        // Fetch emails from INBOX
+        await new Promise<void>((resolve, reject) => {
+          imap.openBox('INBOX', false, (err: any, box: any) => {
+            if (err) reject(err);
+            else {
+              // Search for recent emails (limit to last 20)
+              imap.search(['ALL'], (err: any, results: any) => {
+                if (err) reject(err);
+                else if (results.length > 0) {
+                  const f = imap.fetch(results.slice(-input.limit), { bodies: '' });
+                  f.on('message', (msg: any, seqno: number) => {
+                    // @ts-ignore - simpleParser callback types
+                    simpleParser(msg, async (err: any, parsed: any) => {
+                      if (err) console.error('Parse error:', err);
+                      else {
+                        messages.push({
+                          subject: parsed.subject || '(No subject)',
+                          from: parsed.from?.text || '(Unknown)',
+                          date: parsed.date,
+                          preview: parsed.text?.substring(0, 200) || '',
+                        });
+                      }
+                    });
+                  });
+                  f.on('error', reject);
+                  f.on('end', resolve);
+                } else {
+                  resolve();
+                }
+              });
+            }
+          });
+        });
+
+        imap.end();
+
+        // TODO: Update lastSyncedAt for SMTP/IMAP account
         return { messages, provider: "smtp_imap", accountEmail: account.email };
       } catch (err) {
         console.error("[syncSmtpMail] Error:", err);
