@@ -483,8 +483,9 @@
 - [x] Added updateOAuthTokenLastSynced() helper in db.ts
 
 ## Follow-up: Auto-sync on Login
-- [ ] Call syncCalendar/syncMail for all connected providers on session restore
-- [ ] Show loading spinner during auto-sync
-- [ ] Cache synced data so it displays immediately
-- [ ] Handle auto-sync errors gracefully (don't block login)
-- [ ] 107 tests passing, TypeScript clean
+- [x] Call syncCalendar/syncMail for all connected providers on session restore
+- [x] Show loading spinner during auto-sync
+- [x] Display sync status messages ("Syncing calendar...", "Sync complete!")
+- [x] Handle auto-sync errors gracefully (don't block login)
+- [x] Updated Home.tsx with auto-sync logic and welcome screen
+- [x] 107 tests passing, TypeScript clean
