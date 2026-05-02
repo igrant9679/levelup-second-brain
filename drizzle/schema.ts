@@ -183,3 +183,26 @@ export const userLearningPreferences = mysqlTable('user_learning_preferences', {
   completedOnboarding: int('completedOnboarding').notNull().default(0),
   preferredTourSpeed: mysqlEnum('preferredTourSpeed', ['slow', 'normal', 'fast']).default('normal'),
 });
+
+// ─── Per-User OAuth App Credentials ─────────────────────────────────────────
+// Each user can store their own OAuth app Client ID + Secret so they can
+// connect their own Microsoft / Google accounts independently.
+export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
+  clientId: varchar('clientId', { length: 512 }).notNull(),
+  clientSecret: text('clientSecret').notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type UserOauthCredential = typeof userOauthCredentials.$inferSelect;
+export type InsertUserOauthCredential = typeof userOauthCredentials.$inferInsert;
+
+// ─── System Settings ─────────────────────────────────────────────────────────
+// Key-value store for owner-level configuration (e.g. notification sender).
+export const systemSettings = mysqlTable('system_settings', {
+  key: varchar('key', { length: 128 }).primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type SystemSetting = typeof systemSettings.$inferSelect;

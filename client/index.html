@@ -7493,6 +7493,43 @@ function renderSettingsHTML(){
       <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
     </div>
   </div>
+  <!-- Per-User Credential Entry -->
+  <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 Your OAuth App Credentials</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Enter your own Client ID &amp; Secret to connect your personal Microsoft or Google account. These are stored securely in the database and only used for your account. Leave blank to use the app-wide credentials (if configured by the owner).</p>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:6px">Microsoft 365</div>
+      <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+        <input id="ms-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Application (Client) ID" />
+        <input id="ms-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
+        <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('microsoft')">Save</button>
+        <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
+      </div>
+      <div id="ms-cred-status" style="font-size:10px;color:var(--t3)"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#EA4335;margin-bottom:6px">Google Workspace / Gmail</div>
+      <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+        <input id="google-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Client ID" />
+        <input id="google-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
+        <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('google')">Save</button>
+        <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('google')" title="Remove saved credentials">✕ Clear</button>
+      </div>
+      <div id="google-cred-status" style="font-size:10px;color:var(--t3)"></div>
+    </div>
+  </div>
+  <!-- Notification Sender (owner/admin only) -->
+  <div id="notif-sender-section" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📤 System Notification Sender</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Choose which connected account is used to send all system notifications (password reset emails, digest emails, alerts). Only accounts that are currently connected appear here.</p>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="notif-sender-select" class="inp" style="flex:1;font-size:11px">
+        <option value="">— Use built-in notification service —</option>
+      </select>
+      <button class="btn btn-p" style="height:30px;font-size:11px" onclick="saveNotificationSender()">Save</button>
+    </div>
+    <div id="notif-sender-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
+  </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — OAuth Credentials</div>
@@ -11215,9 +11252,109 @@ async function loadOAuthStatus(){
   }catch(e){
     // Not logged in or server not available — silently ignore
   }
+  // Also load per-user credentials and notification sender
+  await loadUserCredentials();
+  await loadNotificationSenderOptions();
 }
 
-async function connectOAuth(provider){
+/** Load existing per-user credential clientIds (secrets are never returned) */
+async function loadUserCredentials(){
+  for(const provider of ['microsoft','google']){
+    const p=provider==='microsoft'?'ms':'google';
+    const statusEl=document.getElementById(p+'-cred-status');
+    const idEl=document.getElementById(p+'-cred-id') as HTMLInputElement|null;
+    try{
+      const cred=await _trpc('oauthSync.getCredentials',{provider},'query');
+      if(cred&&statusEl){
+        statusEl.style.color='var(--ok)';
+        const savedAt=cred.updatedAt?new Date(cred.updatedAt).toLocaleString():'';
+        statusEl.textContent='✓ Saved — Client ID: '+cred.clientId.slice(0,8)+'…'+(savedAt?' · Last updated: '+savedAt:'');
+        if(idEl)idEl.placeholder='(saved — enter new to replace)';
+      } else if(statusEl){
+        statusEl.textContent='';
+      }
+    }catch(e){
+      // ignore
+    }
+  }
+}
+
+/** Save per-user OAuth app credentials */
+async function saveOAuthCredentials(provider:string){
+  const p=provider==='microsoft'?'ms':'google';
+  const idEl=document.getElementById(p+'-cred-id') as HTMLInputElement|null;
+  const secretEl=document.getElementById(p+'-cred-secret') as HTMLInputElement|null;
+  const statusEl=document.getElementById(p+'-cred-status');
+  const clientId=(idEl?.value||'').trim();
+  const clientSecret=(secretEl?.value||'').trim();
+  if(!clientId||!clientSecret){toast('⚠️ Enter both Client ID and Client Secret');return;}
+  try{
+    await _trpc('oauthSync.saveCredentials',{provider,clientId,clientSecret},'mutation');
+    if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Saved successfully';}
+    if(secretEl)secretEl.value='';
+    toast('✓ '+provider+' credentials saved');
+    // Refresh status so Connect button activates
+    await loadOAuthStatus();
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+/** Delete per-user OAuth app credentials */
+async function deleteOAuthCredentials(provider:string){
+  if(!confirm('Remove your saved '+provider+' credentials?'))return;
+  const p=provider==='microsoft'?'ms':'google';
+  const statusEl=document.getElementById(p+'-cred-status');
+  try{
+    await _trpc('oauthSync.deleteCredentials',{provider},'mutation');
+    if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='Credentials removed';}
+    toast('✓ '+provider+' credentials removed');
+    await loadOAuthStatus();
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+/** Load notification sender options (admin only) */
+async function loadNotificationSenderOptions(){
+  const section=document.getElementById('notif-sender-section');
+  const sel=document.getElementById('notif-sender-select') as HTMLSelectElement|null;
+  if(!section||!sel)return;
+  try{
+    const data=await _trpc('oauthSync.getNotificationSenderOptions',undefined,'query');
+    if(!data)return;
+    // Show section for admins
+    section.style.display='';
+    // Rebuild options
+    sel.innerHTML='<option value="">— Use built-in notification service —</option>';
+    (data.accounts||[]).forEach((acc:any)=>{
+      const key=acc.provider+':'+acc.userId;
+      const opt=document.createElement('option');
+      opt.value=key;
+      opt.textContent=(acc.provider==='microsoft'?'Microsoft':'Google')+' — '+(acc.displayName||acc.email||acc.userId);
+      if(data.current===key)opt.selected=true;
+      sel.appendChild(opt);
+    });
+  }catch(e){
+    // Not admin — keep section hidden
+  }
+}
+
+/** Save notification sender selection (admin only) */
+async function saveNotificationSender(){
+  const sel=document.getElementById('notif-sender-select') as HTMLSelectElement|null;
+  const statusEl=document.getElementById('notif-sender-status');
+  const senderKey=sel?.value||'';
+  try{
+    await _trpc('oauthSync.setNotificationSender',{senderKey},'mutation');
+    if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Saved';}
+    toast('✓ Notification sender updated');
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+
+async function connectOAuth(provider){{
   try{
     const origin=window.location.origin;
     const data=await _trpc('oauthSync.getAuthUrl',{provider,origin},'query');

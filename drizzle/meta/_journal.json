@@ -43,6 +43,13 @@
       "when": 1777645261494,
       "tag": "0005_lyrical_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1777737719209,
+      "tag": "0006_chilly_jackpot",
+      "breakpoints": true
     }
   ]
 }

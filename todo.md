@@ -234,3 +234,14 @@
 - [x] Guard getAuthUrl: throw a clear error if MS_CLIENT_ID / GOOGLE_CLIENT_ID env vars are empty
 - [x] Settings Accounts panel: show a "Setup required" notice with step-by-step instructions when credentials are not configured
 - [ ] Add MS_CLIENT_ID, MS_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET to webdev secrets (requires user action)
+
+## Per-User OAuth Credentials & System Notification Sender
+- [x] DB: add user_oauth_credentials table (userId, provider, clientId, clientSecret, updatedAt) so each user can store their own app credentials
+- [x] tRPC: add oauthSync.saveCredentials, oauthSync.getCredentials, oauthSync.deleteCredentials procedures (protectedProcedure, scoped to ctx.user.id)
+- [x] Settings Accounts panel: add "Your OAuth App Credentials" card per provider with Client ID + Client Secret inputs, Save button, and clear button — visible to all logged-in users
+- [x] oauthSync.getAuthUrl: prefer per-user credentials from DB over global env vars when building the OAuth URL
+- [x] oauthSync.status: expose whether per-user credentials are saved alongside global credentialsConfigured flag
+- [x] DB: add system_settings table (key, value, updatedAt) for owner-level config
+- [x] tRPC: add oauthSync.getNotificationSenderOptions and oauthSync.setNotificationSender procedures (admin only)
+- [x] Settings Accounts panel: add "System Notification Sender" section showing dropdown of all connected accounts — visible to admin/owner only
+- [ ] Wire system notification sender: when notifyOwner() is called, check the system_settings table for the preferred sender account and route accordingly (future enhancement)

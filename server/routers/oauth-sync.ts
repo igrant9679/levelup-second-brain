@@ -16,8 +16,25 @@ import * as db from "../db";
 
 // ---- Helpers ----
 
-function getMsAuthUrl(origin: string, state: string): string {
-  const clientId = process.env.MS_CLIENT_ID ?? "";
+/** Resolve the effective client ID for a provider, preferring per-user credentials */
+async function resolveClientId(userId: number, provider: "microsoft" | "google"): Promise<string> {
+  const userCred = await db.getUserOauthCredential(userId, provider);
+  if (userCred?.clientId) return userCred.clientId;
+  return provider === "microsoft"
+    ? (process.env.MS_CLIENT_ID ?? "")
+    : (process.env.GOOGLE_CLIENT_ID ?? "");
+}
+
+/** Resolve the effective client secret for a provider, preferring per-user credentials */
+async function resolveClientSecret(userId: number, provider: "microsoft" | "google"): Promise<string> {
+  const userCred = await db.getUserOauthCredential(userId, provider);
+  if (userCred?.clientSecret) return userCred.clientSecret;
+  return provider === "microsoft"
+    ? (process.env.MS_CLIENT_SECRET ?? "")
+    : (process.env.GOOGLE_CLIENT_SECRET ?? "");
+}
+
+function getMsAuthUrl(origin: string, state: string, clientId: string): string {
   const scopes = [
     "offline_access",
     "User.Read",
@@ -37,8 +54,7 @@ function getMsAuthUrl(origin: string, state: string): string {
   return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
 }
 
-function getGoogleAuthUrl(origin: string, state: string): string {
-  const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
+function getGoogleAuthUrl(origin: string, state: string, clientId: string): string {
   const scopes = [
     "openid",
     "email",
@@ -131,43 +147,42 @@ async function getValidAccessToken(userId: number, provider: "microsoft" | "goog
 
 export const oauthSyncRouter = router({
   status: protectedProcedure.query(async ({ ctx }) => {
-    const [ms, google] = await Promise.all([
+    const [ms, google, msCred, googleCred] = await Promise.all([
       db.getOAuthToken(ctx.user.id, "microsoft"),
       db.getOAuthToken(ctx.user.id, "google"),
+      db.getUserOauthCredential(ctx.user.id, "microsoft"),
+      db.getUserOauthCredential(ctx.user.id, "google"),
     ]);
+    const msCredOk = !!(msCred?.clientId || (process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET));
+    const googleCredOk = !!(googleCred?.clientId || (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET));
     return {
       microsoft: ms
-        ? { connected: true, email: ms.email, displayName: ms.displayName, expiresAt: ms.expiresAt, credentialsConfigured: true }
-        : { connected: false, credentialsConfigured: !!(process.env.MS_CLIENT_ID && process.env.MS_CLIENT_SECRET) },
+        ? { connected: true, email: ms.email, displayName: ms.displayName, expiresAt: ms.expiresAt, credentialsConfigured: true, hasUserCredentials: !!msCred?.clientId }
+        : { connected: false, credentialsConfigured: msCredOk, hasUserCredentials: !!msCred?.clientId },
       google: google
-        ? { connected: true, email: google.email, displayName: google.displayName, expiresAt: google.expiresAt, credentialsConfigured: true }
-        : { connected: false, credentialsConfigured: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) },
+        ? { connected: true, email: google.email, displayName: google.displayName, expiresAt: google.expiresAt, credentialsConfigured: true, hasUserCredentials: !!googleCred?.clientId }
+        : { connected: false, credentialsConfigured: googleCredOk, hasUserCredentials: !!googleCred?.clientId },
     };
   }),
 
   getAuthUrl: protectedProcedure
     .input(z.object({ provider: z.enum(["microsoft", "google"]), origin: z.string() }))
-    .query(({ input, ctx }) => {
-      // Guard: ensure the required OAuth credentials are configured before redirecting
-      if (input.provider === "microsoft") {
-        if (!process.env.MS_CLIENT_ID || !process.env.MS_CLIENT_SECRET) {
-          throw new Error(
-            "Microsoft OAuth credentials are not configured. " +
-            "Please add MS_CLIENT_ID and MS_CLIENT_SECRET in Settings → Secrets."
-          );
-        }
-      } else {
-        if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-          throw new Error(
-            "Google OAuth credentials are not configured. " +
-            "Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Settings → Secrets."
-          );
-        }
+    .query(async ({ input, ctx }) => {
+      // Prefer per-user credentials, fall back to global env vars
+      const clientId = await resolveClientId(ctx.user.id, input.provider);
+      const clientSecret = await resolveClientSecret(ctx.user.id, input.provider);
+      // Guard: ensure credentials are available from either source
+      if (!clientId || !clientSecret) {
+        const providerName = input.provider === "microsoft" ? "Microsoft" : "Google";
+        throw new Error(
+          `${providerName} OAuth credentials are not configured. ` +
+          `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
+        );
       }
       // Encode userId in state so callback can associate the token
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString("base64url");
-      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state) };
-      return { url: getGoogleAuthUrl(input.origin, state) };
+      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId) };
+      return { url: getGoogleAuthUrl(input.origin, state, clientId) };
     }),
 
   disconnect: protectedProcedure
@@ -323,5 +338,63 @@ export const oauthSyncRouter = router({
           company: c.organizations?.[0]?.name ?? "",
         })),
       };
+    }),
+
+  // ---- Per-user OAuth App Credentials management ----
+
+  /** Save (or update) the user's own OAuth app Client ID + Secret for a provider */
+  saveCredentials: protectedProcedure
+    .input(z.object({
+      provider: z.enum(["microsoft", "google"]),
+      clientId: z.string().min(1),
+      clientSecret: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await db.upsertUserOauthCredential({
+        userId: ctx.user.id,
+        provider: input.provider,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+      });
+      return { success: true };
+    }),
+
+  /** Get the stored credential metadata (clientId only — secret is never returned) */
+  getCredentials: protectedProcedure
+    .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
+    .query(async ({ input, ctx }) => {
+      const cred = await db.getUserOauthCredential(ctx.user.id, input.provider);
+      if (!cred) return null;
+      return { clientId: cred.clientId, updatedAt: cred.updatedAt };
+    }),
+
+  /** Delete the user's stored credentials for a provider */
+  deleteCredentials: protectedProcedure
+    .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
+    .mutation(async ({ input, ctx }) => {
+      await db.deleteUserOauthCredential(ctx.user.id, input.provider);
+      return { success: true };
+    }),
+
+  // ---- Owner-only: Notification Sender ----
+
+  /** List all connected OAuth accounts across all users (owner only) */
+  getNotificationSenderOptions: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new Error("Admin only");
+    const accounts = await db.getAllConnectedOAuthAccounts();
+    const current = await db.getSystemSetting("notificationSender");
+    return { accounts, current: current ?? null };
+  }),
+
+  /** Set which connected account sends system notifications (owner only) */
+  setNotificationSender: protectedProcedure
+    .input(z.object({
+      /** Format: "provider:userId" e.g. "google:3" */
+      senderKey: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      await db.setSystemSetting("notificationSender", input.senderKey);
+      return { success: true };
     }),
 });

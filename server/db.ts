@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertOAuthToken, InsertUser, oauthTokens, users } from "../drizzle/schema";
+import { InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -136,4 +136,60 @@ export async function deleteOAuthToken(userId: number, provider: string): Promis
   if (!db) return;
   await db.delete(oauthTokens)
     .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
+}
+
+// ---- Per-User OAuth App Credentials helpers ----
+
+export async function upsertUserOauthCredential(cred: InsertUserOauthCredential): Promise<void> {
+  const db = await getDb();
+  if (!db) { console.warn('[Database] Cannot upsert user oauth credential'); return; }
+  await db.insert(userOauthCredentials).values(cred).onDuplicateKeyUpdate({
+    set: { clientId: cred.clientId, clientSecret: cred.clientSecret },
+  });
+}
+
+export async function getUserOauthCredential(userId: number, provider: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(userOauthCredentials)
+    .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteUserOauthCredential(userId: number, provider: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(userOauthCredentials)
+    .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)));
+}
+
+// ---- System Settings helpers ----
+
+export async function getSystemSetting(key: string): Promise<string | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(systemSettings).where(eq(systemSettings.key, key)).limit(1);
+  return result.length > 0 ? result[0].value : undefined;
+}
+
+export async function setSystemSetting(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(systemSettings).values({ key, value }).onDuplicateKeyUpdate({ set: { value } });
+}
+
+// Get all connected OAuth accounts across all users (for owner notification sender picker)
+export async function getAllConnectedOAuthAccounts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    userId: oauthTokens.userId,
+    provider: oauthTokens.provider,
+    email: oauthTokens.email,
+    displayName: oauthTokens.displayName,
+    userName: users.name,
+  })
+  .from(oauthTokens)
+  .innerJoin(users, eq(users.id, oauthTokens.userId));
 }
