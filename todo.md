@@ -319,5 +319,5 @@
 - [x] 106 tests passing, TypeScript clean
 
 ## Test Button Visibility & Preview Errors
-- [ ] Fix: Test Connection button should be visible whenever credentials are saved (not just when OAuth-connected)
+- [x] Fix: Test Connection button should be visible whenever credentials are saved (not just when OAuth-connected)
 - [x] Fix: investigate and fix 4 errors shown in the preview window (root cause: double `async async` keyword in sendComposedMail caused first script block to fail to parse; `var D = {}` was never evaluated; second script block threw 4 ReferenceError: D is not defined)

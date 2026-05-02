@@ -11366,7 +11366,7 @@ function _updateOAuthCard(provider,status){
     const btnRefreshDisc=document.getElementById('btn-'+p+'-refresh');
     if(btnRefreshDisc)btnRefreshDisc.style.display='none';
     const btnTestDisc=document.getElementById('btn-'+p+'-test');
-    if(btnTestDisc)btnTestDisc.style.display='none';
+    if(btnTestDisc)btnTestDisc.style.display=status.hasUserCredentials?'':'none';
     if(btnCal)btnCal.style.display='none';
     if(btnMail)btnMail.style.display='none';
     if(btnContacts)btnContacts.style.display='none';
@@ -11662,9 +11662,18 @@ async function testOAuthConnection(provider){
     else{
       const d = res.result?.data;
       const label = provider==='microsoft'?'Microsoft 365':'Google Workspace';
-      toast('Connected as '+(d?.displayName||d?.email||'unknown')+' via '+label,'success');
+      toast('✓ Connected as '+(d?.displayName||d?.email||'unknown')+' via '+label,'success');
     }
-  }catch(e){ toast('Test failed: '+e.message,'error'); }
+  }catch(e){
+    const msg = e.message||'';
+    if(msg.includes('No ')&&msg.includes('token found')){
+      toast('Not connected yet — click "Connect" to authorise this provider first','error');
+    } else if(msg.includes('expired')){
+      toast('Token expired — click "Refresh Token" to re-authorise','error');
+    } else {
+      toast('Test failed: '+msg,'error');
+    }
+  }
   finally{ if(btn){ btn.disabled=false; btn.textContent=origText; } }
 }
 
