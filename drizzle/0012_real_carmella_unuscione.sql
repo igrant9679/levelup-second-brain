@@ -1,0 +1,1 @@
+ALTER TABLE `user_oauth_credentials` ADD `tenantId` varchar(128);

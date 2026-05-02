@@ -49,6 +49,7 @@ describe('oauthSync.saveCredentials', () => {
       provider: 'google',
       clientId: 'client-id-123',
       clientSecret: 'secret-abc',
+      tenantId: null,
     });
 
     expect(db.insertCredentialAuditLog).toHaveBeenCalledWith(

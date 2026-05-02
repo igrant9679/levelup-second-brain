@@ -14,10 +14,10 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function parseState(state: string): { userId: number; origin: string } | null {
+function parseState(state: string): { userId: number; origin: string; tenantId?: string | null } | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { userId: number; origin: string };
+    const parsed = JSON.parse(decoded) as { userId: number; origin: string; tenantId?: string | null };
     if (!parsed.userId || !parsed.origin) return null;
     return parsed;
   } catch {
@@ -49,13 +49,18 @@ export function registerProviderOAuthCallbacks(app: Express) {
       return;
     }
 
-    const clientId = process.env.MS_CLIENT_ID ?? "";
-    const clientSecret = process.env.MS_CLIENT_SECRET ?? "";
+    // Use per-user credentials if available, otherwise fall back to env vars
+    const userCred = await db.getUserOauthCredential(stateData.userId, "microsoft");
+    const clientId = userCred?.clientId || (process.env.MS_CLIENT_ID ?? "");
+    const clientSecret = userCred?.clientSecret || (process.env.MS_CLIENT_SECRET ?? "");
+    // Use tenant-specific endpoint if tenantId was encoded in state (single-tenant apps)
+    const tenantId = stateData.tenantId?.trim() || userCred?.tenantId?.trim() || "common";
+    const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const redirectUri = `${stateData.origin}/api/oauth/microsoft/callback`;
 
     try {
       // Exchange code for tokens
-      const tokenResp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+      const tokenResp = await fetch(tokenEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({

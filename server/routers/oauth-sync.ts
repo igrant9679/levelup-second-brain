@@ -37,7 +37,12 @@ async function resolveClientSecret(userId: number, provider: "microsoft" | "goog
     : (process.env.GOOGLE_CLIENT_SECRET ?? "");
 }
 
-function getMsAuthUrl(origin: string, state: string, clientId: string): string {
+/**
+ * Build the Microsoft OAuth consent URL.
+ * When tenantId is provided (single-tenant app), use the tenant-specific endpoint.
+ * When omitted, use /common (multi-tenant apps).
+ */
+function getMsAuthUrl(origin: string, state: string, clientId: string, tenantId?: string | null): string {
   const scopes = [
     "offline_access",
     "User.Read",
@@ -54,7 +59,14 @@ function getMsAuthUrl(origin: string, state: string, clientId: string): string {
     response_mode: "query",
     state,
   });
-  return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+  const tenant = tenantId?.trim() || "common";
+  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
+}
+
+/** Build the Microsoft token endpoint URL (tenant-specific or /common) */
+function getMsTokenUrl(tenantId?: string | null): string {
+  const tenant = tenantId?.trim() || "common";
+  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
 }
 
 function getGoogleAuthUrl(origin: string, state: string, clientId: string): string {
@@ -188,9 +200,14 @@ export const oauthSyncRouter = router({
           `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
         );
       }
-      // Encode userId in state so callback can associate the token
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString("base64url");
-      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId) };
+      // Resolve tenantId for Microsoft (needed for single-tenant app registrations)
+      const userCred = input.provider === "microsoft"
+        ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
+        : null;
+      const tenantId = userCred?.tenantId ?? null;
+      // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
+      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
+      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId, tenantId) };
       return { url: getGoogleAuthUrl(input.origin, state, clientId) };
     }),
 
@@ -357,6 +374,8 @@ export const oauthSyncRouter = router({
       provider: z.enum(["microsoft", "google"]),
       clientId: z.string().min(1),
       clientSecret: z.string().min(1),
+      // Optional Azure AD Tenant ID (Directory ID) for single-tenant app registrations
+      tenantId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await db.upsertUserOauthCredential({
@@ -364,6 +383,7 @@ export const oauthSyncRouter = router({
         provider: input.provider,
         clientId: input.clientId,
         clientSecret: input.clientSecret,
+        tenantId: input.tenantId ?? null,
       });
       await db.insertCredentialAuditLog({
         userId: ctx.user.id,
@@ -387,6 +407,7 @@ export const oauthSyncRouter = router({
           sharedWithTeam: cred.sharedWithTeam === 1,
           lastVerifiedAt: cred.lastVerifiedAt ?? null,
           isSharedFromAdmin: false,
+          tenantId: cred.tenantId ?? null,
         };
       }
       // Fallback: check if an admin has shared credentials for this provider
@@ -398,6 +419,7 @@ export const oauthSyncRouter = router({
           sharedWithTeam: true,
           lastVerifiedAt: shared.lastVerifiedAt ?? null,
           isSharedFromAdmin: true,
+          tenantId: shared.tenantId ?? null,
         };
       }
       return null;
@@ -474,12 +496,17 @@ export const oauthSyncRouter = router({
           `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
         );
       }
+      // Resolve tenantId for Microsoft single-tenant apps
+      const userCred = input.provider === "microsoft"
+        ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
+        : null;
+      const tenantId = userCred?.tenantId ?? null;
       const state = Buffer.from(
-        JSON.stringify({ userId: ctx.user.id, origin: input.origin })
+        JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })
       ).toString("base64url");
       const url =
         input.provider === "microsoft"
-          ? getMsAuthUrl(input.origin, state, clientId)
+          ? getMsAuthUrl(input.origin, state, clientId, tenantId)
           : getGoogleAuthUrl(input.origin, state, clientId);
       return { url };
     }),

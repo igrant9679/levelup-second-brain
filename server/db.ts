@@ -144,7 +144,7 @@ export async function upsertUserOauthCredential(cred: InsertUserOauthCredential)
   const db = await getDb();
   if (!db) { console.warn('[Database] Cannot upsert user oauth credential'); return; }
   await db.insert(userOauthCredentials).values(cred).onDuplicateKeyUpdate({
-    set: { clientId: cred.clientId, clientSecret: cred.clientSecret },
+    set: { clientId: cred.clientId, clientSecret: cred.clientSecret, tenantId: cred.tenantId ?? null },
   });
 }
 

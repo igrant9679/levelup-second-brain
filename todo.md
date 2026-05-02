@@ -363,3 +363,25 @@
 - [x] Backend: `oauthSync.getCredentials` — include `lastVerifiedAt` in response
 - [x] Frontend: credentials card shows "Last verified: X ago" when lastVerifiedAt is set
 - [x] vitest: test that validateCredentials updates lastVerifiedAt (covered by validateCredentials test suite)
+
+## Bug Fix: AADSTS50194 Microsoft OAuth Single-Tenant Error
+
+- [x] DB: add optional `tenantId` varchar column to `user_oauth_credentials` table; migrated
+- [x] Backend: update `getAuthUrl` / `refreshToken` to use tenant-specific endpoint when tenantId is set, falling back to `/common` for multi-tenant apps
+- [x] Backend: update `saveCredentials` to accept and store optional `tenantId`
+- [x] Backend: update `getCredentials` to return `tenantId` in response
+- [x] Frontend: add optional "Tenant ID (Directory ID)" input to Microsoft credentials card with guidance text and link to Azure portal
+- [x] Frontend: show inline help explaining single-tenant vs multi-tenant and how to find the Tenant ID
+- [x] vitest: updated oauthSync.auditLog.test.ts to include tenantId: null in expected call
+
+## Bug Fix: OAuth Connection Errors (Microsoft AADSTS50194 + Google redirect_uri_mismatch)
+
+- [x] DB: add optional `tenantId` varchar(128) column to `user_oauth_credentials`; migrated
+- [x] Backend: update `getMsAuthUrl` to use tenant-specific endpoint when tenantId is set
+- [x] Backend: encode tenantId in OAuth state so callback uses the right token endpoint
+- [x] Backend: update `saveCredentials` to accept and store optional tenantId
+- [x] Backend: update `getCredentials` to return tenantId
+- [x] Frontend: add "Tenant ID (Directory ID)" optional input to Microsoft credentials card
+- [x] Frontend: show exact redirect URIs for both Microsoft and Google in the credentials card with Copy button
+- [x] Frontend: show inline help explaining single-tenant vs multi-tenant and how to find Tenant ID in Azure portal
+- [x] vitest: all 106 tests pass

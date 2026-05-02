@@ -7564,6 +7564,11 @@ function renderSettingsHTML(){
         <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-ms-verify-creds" onclick="verifyOAuthCredentials('microsoft')" title="Check if these credentials are accepted by Microsoft">🔍 Verify</button>
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
       </div>
+      <div style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
+        <input id="ms-cred-tenant" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Tenant ID (Directory ID) — leave blank for multi-tenant" />
+        <span style="font-size:10px;color:var(--t3);white-space:nowrap" title="Required if your Azure app registration is set to single-tenant (accounts in this directory only). Find it in Azure Portal → App registrations → your app → Directory (tenant) ID.">ℹ️ Single-tenant only</span>
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Azure Portal → App registrations → your app → Authentication: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')"><span id="ms-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')">Copy</button></div>
       <div id="ms-cred-status" style="font-size:10px;color:var(--t3)"></div>
       <div id="ms-verify-status" style="font-size:10px;margin-top:2px"></div>
       <div id="ms-audit-log" style="margin-top:6px;display:none">
@@ -7580,6 +7585,7 @@ function renderSettingsHTML(){
         <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-google-verify-creds" onclick="verifyOAuthCredentials('google')" title="Check if these credentials are accepted by Google">🔍 Verify</button>
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('google')" title="Remove saved credentials">✕ Clear</button>
       </div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Google Cloud Console → Credentials → your OAuth client → Authorised redirect URIs: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/google/callback');toast('✓ Copied')"><span id="google-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/google/callback');toast('✓ Copied')">Copy</button></div>
       <div id="google-cred-status" style="font-size:10px;color:var(--t3)"></div>
       <div id="google-verify-status" style="font-size:10px;margin-top:2px"></div>
       <div id="google-audit-log" style="margin-top:6px;display:none">
@@ -7828,7 +7834,7 @@ function showSetTab(el,id){
   el.parentElement.querySelectorAll('.si').forEach(x=>x.classList.remove('on'));el.classList.add('on');
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
-  if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
+  if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
   if(id==='sp-3')loadEmailNotifPrefs();
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -11516,6 +11522,11 @@ async function loadUserCredentials(){
         if(cred.isSharedFromAdmin)statusText='👥 Shared by admin — Client ID: '+cred.clientId.slice(0,8)+'…';
         statusEl.textContent=statusText;
         if(idEl&&!cred.isSharedFromAdmin)idEl.placeholder='(saved — enter new to replace)';
+        // Pre-fill Tenant ID field for Microsoft
+        if(provider==='microsoft'&&cred.tenantId){
+          const tenantEl=document.getElementById('ms-cred-tenant');
+          if(tenantEl&&!tenantEl.value)tenantEl.value=cred.tenantId;
+        }
         // Last verified row
         if(statusEl.parentElement){
           const verRow=document.createElement('div');
@@ -11971,20 +11982,30 @@ function clearAdminLogFilters(){
   if(t)t.value='';
   loadAdminDeliveryLog(1);
 }
+/** Populate the redirect URI display spans in the credentials card */
+function populateRedirectUris(){
+  const msEl=document.getElementById('ms-redirect-uri');
+  const gEl=document.getElementById('google-redirect-uri');
+  if(msEl)msEl.textContent=window.location.origin+'/api/oauth/microsoft/callback';
+  if(gEl)gEl.textContent=window.location.origin+'/api/oauth/google/callback';
+}
+
 /** Save per-user OAuth app credentials */
 async function saveOAuthCredentials(provider){
   const p=provider==='microsoft'?'ms':'google';
   const idEl=document.getElementById(p+'-cred-id');
   const secretEl=document.getElementById(p+'-cred-secret');
+  const tenantEl=provider==='microsoft'?document.getElementById('ms-cred-tenant'):null;
   const statusEl=document.getElementById(p+'-cred-status');
   const clientId=(idEl?.value||'').trim();
   const clientSecret=(secretEl?.value||'').trim();
+  const tenantId=(tenantEl?.value||'').trim()||undefined;
   if(!clientId||!clientSecret){toast('⚠️ Enter both Client ID and Client Secret');return;}
   try{
-    await _trpc('oauthSync.saveCredentials',{provider,clientId,clientSecret},'mutation');
+    await _trpc('oauthSync.saveCredentials',{provider,clientId,clientSecret,tenantId},'mutation');
     if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Saved successfully';}
     if(secretEl)secretEl.value='';
-    toast('✓ '+provider+' credentials saved');
+    toast('✓ '+provider+' credentials saved'+(tenantId?' (Tenant: '+tenantId.slice(0,8)+'…)':''));
     // Refresh status so Connect button activates
     await loadOAuthStatus();
     // Reload audit log

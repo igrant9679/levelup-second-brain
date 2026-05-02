@@ -198,6 +198,9 @@ export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
   sharedWithTeam: tinyint('sharedWithTeam').default(0).notNull(),
   // Timestamp of last successful credential verification (via validateCredentials)
   lastVerifiedAt: timestamp('lastVerifiedAt').default(sql`null`),
+  // Optional Azure AD Tenant ID (Directory ID) — required for single-tenant app registrations.
+  // When set, OAuth URLs use the tenant-specific endpoint instead of /common.
+  tenantId: varchar('tenantId', { length: 128 }),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 });
 export type UserOauthCredential = typeof userOauthCredentials.$inferSelect;
