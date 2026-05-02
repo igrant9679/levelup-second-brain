@@ -444,3 +444,10 @@
 - [x] Added loading spinner ("Restoring session…") shown while auth.me check is in flight
 - [x] Microsoft/Google OAuth callbacks now return to app seamlessly without requiring manual re-login
 - [x] 107 tests passing, TypeScript clean
+
+## Bug Fix: Microsoft OAuth "microsoft_token" error
+- [x] Diagnose token exchange failure — root cause is redirect URI not registered in Azure Portal
+- [x] Improved MS OAuth callback error: now passes actual Microsoft error_description in redirect URL
+- [x] Improved frontend error toast: shows full Microsoft error message (8s duration, red background)
+- [x] Improved toast() function to support type='error' and custom duration
+- [ ] User to verify redirect URI https://leveluphub-ez4tinmn.manus.space/api/oauth/microsoft/callback is registered in Azure Portal → App registrations → Authentication

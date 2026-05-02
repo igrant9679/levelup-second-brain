@@ -1113,7 +1113,7 @@ document.addEventListener('click',e=>{const i=e.target.closest('.si[data-n]');if
 // ====== UTILITY ======
 function pillClass(p){return p==='High'?'p-h':p==='Medium'?'p-m':p==='Low'?'p-l':''}
 function statusPill(s){const m={'In Progress':'p-ip',Pending:'p-pe','Not Started':'p-ns',Scheduled:'p-sc',Done:'p-dn',Active:'p-ip'};return m[s]||'p-ns'}
-function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2500)}
+function toast(m,type,duration){const t=document.createElement('div');t.className='toast';t.textContent=m;if(type==='error')t.style.cssText='background:#ef4444;color:#fff';document.body.appendChild(t);setTimeout(()=>t.remove(),duration||2500)}
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html)e.innerHTML=html;return e}
 
 // ====== DETAIL DRAWER ======
@@ -9627,8 +9627,13 @@ function doLoginSuccess(member){
   }
   if(window._pendingOAuthError){
     const _err=window._pendingOAuthError;
+    const _detail=window._pendingOAuthErrorDetail;
     window._pendingOAuthError=null;
-    toast('\u26a0\ufe0f OAuth error: '+_err.replace(/_/g,' '),'error');
+    window._pendingOAuthErrorDetail=null;
+    const _msg=_err==='microsoft_token'&&_detail
+      ?'⚠️ Microsoft token error: '+_detail
+      :'⚠️ OAuth error: '+_err.replace(/_/g,' ');
+    toast(_msg,'error',8000);
   }
 
   // Handle deep-link URL: ?goto=accounts[&provider=microsoft|google]
@@ -12411,12 +12416,14 @@ async function syncOAuthContacts(provider){
 // Store them before the IIFE cleans the URL so doLoginSuccess can use them
 window._pendingOAuthSuccess=null;
 window._pendingOAuthError=null;
+window._pendingOAuthErrorDetail=null;
 (function(){
   const p=new URLSearchParams(window.location.search);
   const success=p.get('oauth_success');
   const error=p.get('oauth_error');
+  const msErr=p.get('ms_err');
   if(success){window._pendingOAuthSuccess=success;history.replaceState(null,'',window.location.pathname);}
-  if(error){window._pendingOAuthError=error;history.replaceState(null,'',window.location.pathname);}
+  if(error){window._pendingOAuthError=error;if(msErr)window._pendingOAuthErrorDetail=msErr;history.replaceState(null,'',window.location.pathname);}
 })();
 
 // ====== TOUR ENGINE ======

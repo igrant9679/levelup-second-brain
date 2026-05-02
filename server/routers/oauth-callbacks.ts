@@ -75,7 +75,19 @@ export function registerProviderOAuthCallbacks(app: Express) {
       if (!tokenResp.ok) {
         const body = await tokenResp.text();
         console.error("[MS OAuth] Token exchange failed:", body);
-        res.redirect("/?oauth_error=microsoft_token");
+        // Parse the error description from Microsoft's response for better UX
+        let msErrorDesc = "token_exchange_failed";
+        try {
+          const errJson = JSON.parse(body) as { error?: string; error_description?: string };
+          if (errJson.error_description) {
+            // Truncate and sanitise for URL safety
+            msErrorDesc = errJson.error_description.split('\n')[0].slice(0, 120).replace(/[^a-zA-Z0-9 _:.-]/g, ' ');
+          } else if (errJson.error) {
+            msErrorDesc = errJson.error;
+          }
+        } catch { /* not JSON */ }
+        console.error("[MS OAuth] Parsed error:", msErrorDesc);
+        res.redirect(`/?oauth_error=microsoft_token&ms_err=${encodeURIComponent(msErrorDesc)}`);
         return;
       }
 
