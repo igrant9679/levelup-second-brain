@@ -42,11 +42,12 @@ async function exchangeRefreshToken(
   provider: "google" | "microsoft",
   refreshToken: string,
   clientId: string,
-  clientSecret: string
+  clientSecret: string,
+  tenantId?: string | null
 ): Promise<TokenRefreshResult | null> {
   const url =
     provider === "microsoft"
-      ? "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+      ? `https://login.microsoftonline.com/${tenantId?.trim() || "common"}/oauth2/v2.0/token`
       : "https://oauth2.googleapis.com/token";
 
   const body = new URLSearchParams({
@@ -102,11 +103,16 @@ export async function refreshOAuthTokenSilently(
       return false;
     }
 
+    // Use tenant-specific endpoint for Microsoft single-tenant apps
+    const userCred = await getUserOauthCredential(userId, provider);
+    const tenantId = provider === "microsoft" ? (userCred?.tenantId ?? null) : null;
+
     const result = await exchangeRefreshToken(
       provider,
       token.refreshToken,
       creds.clientId,
-      creds.clientSecret
+      creds.clientSecret,
+      tenantId
     );
     if (!result) return false;
 
@@ -127,5 +133,76 @@ export async function refreshOAuthTokenSilently(
   } catch (err) {
     console.error(`[refreshOAuthToken] Unexpected error for ${provider} user ${userId}:`, err);
     return false;
+  }
+}
+
+/**
+ * Force-refresh an OAuth token regardless of expiry time.
+ * Used by the explicit "Refresh Token" button in the UI.
+ *
+ * Returns { success, message, expiresAt } — never throws.
+ */
+export async function forceRefreshOAuthToken(
+  userId: number,
+  provider: "google" | "microsoft"
+): Promise<{ success: boolean; message: string; expiresAt?: Date }> {
+  try {
+    const token = await getOAuthToken(userId, provider);
+    if (!token || !token.refreshToken) {
+      return {
+        success: false,
+        message: "No refresh token stored — please Disconnect and Connect again to get a new token.",
+      };
+    }
+
+    const creds = await resolveClientCredentials(userId, provider);
+    if (!creds) {
+      return {
+        success: false,
+        message: "No OAuth credentials configured. Please save your Client ID and Secret first.",
+      };
+    }
+
+    const userCred = await getUserOauthCredential(userId, provider);
+    const tenantId = provider === "microsoft" ? (userCred?.tenantId ?? null) : null;
+
+    const result = await exchangeRefreshToken(
+      provider,
+      token.refreshToken,
+      creds.clientId,
+      creds.clientSecret,
+      tenantId
+    );
+    if (!result) {
+      return {
+        success: false,
+        message: "Token refresh failed — the refresh token may have been revoked. Please Disconnect and Connect again.",
+      };
+    }
+
+    const newExpiresAt = new Date(Date.now() + result.expires_in * 1000);
+    await upsertOAuthToken({
+      userId,
+      provider,
+      accessToken: result.access_token,
+      refreshToken: result.refresh_token ?? token.refreshToken,
+      expiresAt: newExpiresAt,
+      scope: result.scope ?? token.scope ?? undefined,
+      email: token.email ?? undefined,
+      displayName: token.displayName ?? undefined,
+    });
+
+    console.info(`[refreshOAuthToken] Force-refreshed ${provider} token for user ${userId}`);
+    return {
+      success: true,
+      message: "Token refreshed successfully.",
+      expiresAt: newExpiresAt,
+    };
+  } catch (err) {
+    console.error(`[refreshOAuthToken] Force-refresh error for ${provider} user ${userId}:`, err);
+    return {
+      success: false,
+      message: "Unexpected error during token refresh. Please try again.",
+    };
   }
 }

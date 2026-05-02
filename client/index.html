@@ -11724,20 +11724,22 @@ function toggleAuditLog(provider){
   entriesEl.style.display=isOpen?'none':'';
   if(toggleEl)toggleEl.textContent=(isOpen?'▶':'▼')+' Recent Activity';
 }
-/** Re-initiate the OAuth flow to refresh an expired or expiring token */
+/** Silently refresh an OAuth token server-side using the stored refresh token */
 async function refreshOAuthToken(provider){
   const btn=document.getElementById('btn-'+(provider==='microsoft'?'ms':'google')+'-refresh');
-  if(btn){btn.disabled=true;btn.textContent='⏳ Redirecting…';}
+  if(btn){btn.disabled=true;btn.textContent='⏳ Refreshing…';}
   try{
-    const result=await _trpc('oauthSync.refreshToken',{provider,origin:window.location.origin},'mutation');
-    if(result?.url){
-      window.location.href=result.url;
+    const result=await _trpc('oauthSync.refreshToken',{provider},'mutation');
+    if(result?.success){
+      toast('✅ Token refreshed successfully');
+      // Reload OAuth status to update expiry bar and card
+      await loadOAuthStatus();
     } else {
-      toast('⚠ Could not get refresh URL');
-      if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
+      toast('⚠ '+(result?.message||'Token refresh failed'));
     }
   }catch(e){
     toast('⚠ '+(e?.message||'Failed to refresh token'));
+  }finally{
     if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
   }
 }

@@ -51,10 +51,10 @@ export function registerProviderOAuthCallbacks(app: Express) {
 
     // Use per-user credentials if available, otherwise fall back to env vars
     const userCred = await db.getUserOauthCredential(stateData.userId, "microsoft");
-    const clientId = userCred?.clientId || (process.env.MS_CLIENT_ID ?? "");
-    const clientSecret = userCred?.clientSecret || (process.env.MS_CLIENT_SECRET ?? "");
+    const clientId = (userCred?.clientId || process.env.MS_CLIENT_ID) ?? "";
+    const clientSecret = (userCred?.clientSecret || process.env.MS_CLIENT_SECRET) ?? "";
     // Use tenant-specific endpoint if tenantId was encoded in state (single-tenant apps)
-    const tenantId = stateData.tenantId?.trim() || userCred?.tenantId?.trim() || "common";
+    const tenantId = (stateData.tenantId?.trim() || userCred?.tenantId?.trim()) ?? "common";
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const redirectUri = `${stateData.origin}/api/oauth/microsoft/callback`;
 
@@ -137,8 +137,8 @@ export function registerProviderOAuthCallbacks(app: Express) {
 
     // Use per-user credentials if available, otherwise fall back to env vars
     const userCred = await db.getUserOauthCredential(stateData.userId, "google");
-    const clientId = userCred?.clientId || (process.env.GOOGLE_CLIENT_ID ?? "");
-    const clientSecret = userCred?.clientSecret || (process.env.GOOGLE_CLIENT_SECRET ?? "");
+    const clientId = (userCred?.clientId || process.env.GOOGLE_CLIENT_ID) ?? "";
+    const clientSecret = (userCred?.clientSecret || process.env.GOOGLE_CLIENT_SECRET) ?? "";
     const redirectUri = `${stateData.origin}/api/oauth/google/callback`;
 
     try {

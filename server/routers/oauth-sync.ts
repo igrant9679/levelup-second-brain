@@ -15,7 +15,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { sendEmail } from "../_core/sendEmail";
-import { refreshOAuthTokenSilently } from "../_core/refreshOAuthToken";
+import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
 
 // ---- Helpers ----
 
@@ -103,8 +103,12 @@ function getGoogleAuthUrl(origin: string, state: string, clientId: string): stri
 
 async function refreshMsToken(token: { refreshToken: string | null; userId: number }): Promise<string | null> {
   if (!token.refreshToken) return null;
-  const clientId = process.env.MS_CLIENT_ID ?? "";
-  const clientSecret = process.env.MS_CLIENT_SECRET ?? "";
+  const clientId = await resolveClientId(token.userId, "microsoft");
+  const clientSecret = await resolveClientSecret(token.userId, "microsoft");
+  if (!clientId || !clientSecret) return null;
+  // Use tenant-specific endpoint for single-tenant apps
+  const userCred = await db.getUserOauthCredential(token.userId, "microsoft");
+  const tenantId = userCred?.tenantId?.trim() || "common";
   const body = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
@@ -112,7 +116,7 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
     grant_type: "refresh_token",
     scope: "offline_access User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send Contacts.ReadWrite",
   });
-  const resp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+  const resp = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -132,8 +136,9 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
 
 async function refreshGoogleToken(token: { refreshToken: string | null; userId: number }): Promise<string | null> {
   if (!token.refreshToken) return null;
-  const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+  const clientId = await resolveClientId(token.userId, "google");
+  const clientSecret = await resolveClientSecret(token.userId, "google");
+  if (!clientId || !clientSecret) return null;
   const body = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
@@ -495,37 +500,21 @@ export const oauthSyncRouter = router({
     };
   }),
 
-  // ---- Token Refresh (re-initiate OAuth flow) ----
+  // ---- Token Refresh (silent server-side refresh) ----
   /**
-   * Return a fresh OAuth consent URL so the user can re-authenticate
-   * an expired or expiring token. Identical to getAuthUrl but exposed
-   * as a mutation so the UI can call it from a button click.
+   * Silently refresh an OAuth token using the stored refresh token.
+   * Does NOT redirect to the consent page — exchanges the refresh token
+   * for a new access token server-side.
    */
   refreshToken: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft", "google"]), origin: z.string() }))
+    .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
     .mutation(async ({ input, ctx }) => {
-      const clientId = await resolveClientId(ctx.user.id, input.provider);
-      const clientSecret = await resolveClientSecret(ctx.user.id, input.provider);
-      if (!clientId || !clientSecret) {
-        const providerName = input.provider === "microsoft" ? "Microsoft" : "Google";
-        throw new Error(
-          `${providerName} OAuth credentials are not configured. ` +
-          `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
-        );
-      }
-      // Resolve tenantId for Microsoft single-tenant apps
-      const userCred = input.provider === "microsoft"
-        ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
-        : null;
-      const tenantId = userCred?.tenantId ?? null;
-      const state = Buffer.from(
-        JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })
-      ).toString("base64url");
-      const url =
-        input.provider === "microsoft"
-          ? getMsAuthUrl(input.origin, state, clientId, tenantId)
-          : getGoogleAuthUrl(input.origin, state, clientId);
-      return { url };
+      const result = await forceRefreshOAuthToken(ctx.user.id, input.provider);
+      return {
+        success: result.success,
+        message: result.message,
+        expiresAt: result.expiresAt ?? null,
+      };
     }),
 
   // ---- Email Delivery Log ----

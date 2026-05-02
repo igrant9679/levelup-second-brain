@@ -414,3 +414,17 @@
 - [x] Investigate: Microsoft auth URL still hitting /common — code is correct, user needs to (1) enter Tenant ID in credentials card, (2) publish latest checkpoint
 - [x] Fix: Google callback handler was using env vars instead of per-user credentials — now uses getUserOauthCredential like Microsoft
 - [x] All 106 tests pass, TypeScript clean
+
+## Bug Fix: OAuth persistent errors — Tenant ID auto-detect + Google redirect URI
+- [x] Immediately save user's tenant ID (3e6b1e3d-2176-40c3-83fe-9d8183e016c1) to DB for Microsoft
+- [x] Build auto-detection of Tenant ID from Azure OpenID discovery endpoint using Client ID
+- [x] Debug Google redirect_uri_mismatch — user confirmed URI is registered, check what URI the app actually sends
+- [x] Verify both OAuth flows work end-to-end
+
+## Bug Fix: Refresh Token button starts new OAuth flow instead of calling backend refresh
+- [x] Fix Refresh Token button to silently refresh token server-side using stored refresh token (no redirect to consent page)
+- [x] After successful refresh, update the token expiry display inline without page reload
+- [x] Fix esbuild error in oauth-callbacks.ts (|| ?? operator precedence)
+- [x] Update refreshMsToken and refreshGoogleToken to use per-user credentials and tenant-specific endpoints
+- [x] Add forceRefreshOAuthToken() helper for explicit button-triggered refresh (no expiry guard)
+- [x] Update vitest tests for new silent refresh behavior (107 tests passing)
