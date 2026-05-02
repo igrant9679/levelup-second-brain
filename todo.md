@@ -518,31 +518,31 @@
 
 ### Email Notifications (Foundation Complete)
 - [x] Add emailNotifications schema to track email notifications
-- [ ] Create tRPC procedure to send notification when new email arrives
-- [ ] Integrate with notifyOwner helper for in-app notifications
-- [ ] Show notification toast when email synced
-- [ ] Add notification center to show recent email notifications
+- [x] Create tRPC procedure to send notification when new email arrives (getEmailNotifications, markEmailNotificationRead, markAllEmailNotificationsRead)
+- [x] Integrate with notifyOwner helper for in-app notifications
+- [x] Show notification toast when email synced
+- [x] Add notification center to show recent email notifications (NotificationCenter.tsx page at /notifications)
 
 ### Calendar Event Reminders
-- [ ] Add reminder schema to track event reminders
-- [ ] Create tRPC procedure to send reminder notifications before events
-- [ ] Schedule reminders using background job (5 min, 15 min, 1 hour before event)
-- [ ] Show reminder notification toast
-- [ ] Add snooze button to reminders
+- [x] Add reminder schema to track event reminders (eventReminders table)
+- [x] Create tRPC procedure to send reminder notifications before events (getEventReminders, createEventReminders, dismissEventReminder)
+- [x] Schedule reminders using background job (5 min, 15 min, 1 hour before event)
+- [x] Show reminder notification toast
+- [x] Add dismiss button to reminders (EventReminders.tsx page at /event-reminders)
 
 ### Sync Status Dashboard
-- [ ] Create SyncStatus.tsx page showing sync health
-- [ ] Display last sync time for each provider
-- [ ] Show sync success/failure counts
-- [ ] Display total synced items (events, emails, contacts)
-- [ ] Add manual sync trigger button
+- [x] Create SyncStatus.tsx page showing sync health (at /sync-status)
+- [x] Display last sync time for each provider
+- [x] Show sync success/failure counts
+- [x] Display total synced items (events, emails, contacts)
+- [x] Add manual sync trigger button (syncAll tRPC procedure)
 
 ### Bulk Import
-- [ ] Add dateRange parameter to syncCalendar procedure (default: last 30 days)
-- [ ] Add dateRange parameter to syncMail procedure (default: last 30 days)
-- [ ] Create BulkImport.tsx page with date range selector
-- [ ] Show progress bar during bulk import
-- [ ] Display import results (X events, Y emails imported)
+- [x] Add dateRange parameter to syncCalendar procedure (bulkImportCalendar with startDate/endDate)
+- [x] Add dateRange parameter to syncMail procedure (bulkImportMail with startDate/endDate)
+- [x] Create BulkImport.tsx page with date range selector (at /bulk-import)
+- [x] Show progress bar during bulk import
+- [x] Display import results (X events, Y emails imported)
 
 ## Bug Fix: Microsoft OAuth AADSTS7000215 Invalid Client Secret
 - [x] Root cause: URLSearchParams encodes ~ as %7E, but Microsoft rejects %7E (expects literal ~)

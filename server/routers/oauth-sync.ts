@@ -1144,4 +1144,274 @@ export const oauthSyncRouter = router({
         });
       }
     }),
+
+  // ─── Email Notifications ──────────────────────────────────────────────────
+
+  /**
+   * Get unread email notifications for the current user
+   */
+  getEmailNotifications: protectedProcedure
+    .query(async ({ ctx }) => {
+      const notifications = await db.getUnreadEmailNotifications(ctx.user.id);
+      return notifications;
+    }),
+
+  /**
+   * Mark a single email notification as read
+   */
+  markEmailNotificationRead: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const dbInstance = await (await import('../db')).getDb();
+      if (!dbInstance) return { success: false };
+      const { emailNotifications } = await import('../../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      await dbInstance
+        .update(emailNotifications)
+        .set({ read: 1 })
+        .where(and(eq(emailNotifications.id, input.id), eq(emailNotifications.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  /**
+   * Mark all email notifications as read for the current user
+   */
+  markAllEmailNotificationsRead: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const dbInstance = await (await import('../db')).getDb();
+      if (!dbInstance) return { success: false };
+      const { emailNotifications } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      await dbInstance
+        .update(emailNotifications)
+        .set({ read: 1 })
+        .where(eq(emailNotifications.userId, ctx.user.id));
+      return { success: true };
+    }),
+
+  // ─── Calendar Event Reminders ─────────────────────────────────────────────
+
+  /**
+   * Get pending (unsent) event reminders for the current user
+   */
+  getEventReminders: protectedProcedure
+    .query(async ({ ctx }) => {
+      const dbInstance = await (await import('../db')).getDb();
+      if (!dbInstance) return [];
+      const { eventReminders } = await import('../../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      const result = await dbInstance
+        .select()
+        .from(eventReminders)
+        .where(and(eq(eventReminders.userId, ctx.user.id), eq(eventReminders.sent, 0)))
+        .orderBy(eventReminders.eventStart);
+      return result;
+    }),
+
+  /**
+   * Create event reminders for upcoming events (called after calendar sync)
+   * Creates 5min, 15min, and 1hour reminders for each event
+   */
+  createEventReminders: protectedProcedure
+    .input(z.object({
+      events: z.array(z.object({
+        eventId: z.string(),
+        eventTitle: z.string(),
+        eventStart: z.string(), // ISO date string
+        provider: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      let created = 0;
+      for (const event of input.events) {
+        const startDate = new Date(event.eventStart);
+        // Only create reminders for future events
+        if (startDate.getTime() <= Date.now()) continue;
+        const reminderTypes: Array<'5min' | '15min' | '1hour'> = ['5min', '15min', '1hour'];
+        for (const reminderType of reminderTypes) {
+          await db.createEventReminder({
+            userId: ctx.user.id,
+            provider: event.provider,
+            eventId: event.eventId,
+            eventTitle: event.eventTitle,
+            eventStart: startDate,
+            reminderType,
+          });
+          created++;
+        }
+      }
+      return { created };
+    }),
+
+  /**
+   * Dismiss (mark sent) an event reminder
+   */
+  dismissEventReminder: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const dbInstance = await (await import('../db')).getDb();
+      if (!dbInstance) return { success: false };
+      const { eventReminders } = await import('../../drizzle/schema');
+      const { eq, and } = await import('drizzle-orm');
+      await dbInstance
+        .update(eventReminders)
+        .set({ sent: 1 })
+        .where(and(eq(eventReminders.id, input.id), eq(eventReminders.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  // ─── Sync Status Dashboard ────────────────────────────────────────────────
+
+  /**
+   * Get sync status for all providers for the current user
+   */
+  getSyncStatusAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const allStatus = await db.getAllSyncStatus(ctx.user.id);
+      const oauthStatus = await db.getOAuthToken(ctx.user.id, 'microsoft');
+      return {
+        providers: allStatus,
+        microsoftLastSyncedAt: oauthStatus?.lastSyncedAt ?? null,
+      };
+    }),
+
+  /**
+   * Trigger a full sync for all connected providers and return results
+   */
+  syncAll: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const results: Record<string, { success: boolean; message: string; eventsCount?: number; emailsCount?: number }> = {};
+      // Check Microsoft connection
+      const msToken = await db.getOAuthToken(ctx.user.id, 'microsoft');
+      if (msToken?.accessToken) {
+        try {
+          const accessToken = await getValidAccessToken(ctx.user.id, 'microsoft');
+          if (accessToken) {
+            // Sync calendar
+            const calResp = await fetch(
+              `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${new Date().toISOString()}&endDateTime=${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()}&$top=50&$select=subject,start,end,location,bodyPreview`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const calData = calResp.ok ? await calResp.json() as { value: any[] } : { value: [] };
+            const eventsCount = calData.value?.length ?? 0;
+            // Sync mail
+            const mailResp = await fetch(
+              `https://graph.microsoft.com/v1.0/me/messages?$top=20&$select=subject,from,receivedDateTime,bodyPreview,isRead&$orderby=receivedDateTime desc`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            const mailData = mailResp.ok ? await mailResp.json() as { value: any[] } : { value: [] };
+            const emailsCount = mailData.value?.length ?? 0;
+            await db.updateOAuthTokenLastSynced(ctx.user.id, 'microsoft');
+            await db.updateSyncStatus({
+              userId: ctx.user.id,
+              provider: 'microsoft',
+              lastSyncStatus: 'success',
+              totalEventsImported: eventsCount,
+              totalEmailsImported: emailsCount,
+            });
+            results['microsoft'] = { success: true, message: `Synced ${eventsCount} events, ${emailsCount} emails`, eventsCount, emailsCount };
+          } else {
+            results['microsoft'] = { success: false, message: 'Access token unavailable' };
+          }
+        } catch (err) {
+          await db.updateSyncStatus({
+            userId: ctx.user.id,
+            provider: 'microsoft',
+            lastSyncStatus: 'failed',
+            syncErrorMessage: err instanceof Error ? err.message : String(err),
+          });
+          results['microsoft'] = { success: false, message: err instanceof Error ? err.message : String(err) };
+        }
+      }
+      // Check SMTP/IMAP
+      const smtpAccount = await db.getSmtpImapAccount(ctx.user.id);
+      if (smtpAccount) {
+        results['smtp_imap'] = { success: true, message: 'SMTP/IMAP account configured' };
+      }
+      return results;
+    }),
+
+  // ─── Bulk Import ──────────────────────────────────────────────────────────
+
+  /**
+   * Bulk import calendar events from a date range
+   */
+  bulkImportCalendar: protectedProcedure
+    .input(z.object({
+      provider: z.enum(['microsoft', 'google']),
+      startDate: z.string(), // ISO date string
+      endDate: z.string(),   // ISO date string
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
+      if (!accessToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Not connected to ${input.provider}` });
+      const startISO = new Date(input.startDate).toISOString();
+      const endISO = new Date(input.endDate).toISOString();
+      if (input.provider === 'microsoft') {
+        const resp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${startISO}&endDateTime=${endISO}&$top=100&$select=subject,start,end,location,bodyPreview`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!resp.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Microsoft Graph calendar fetch failed: ${resp.status}` });
+        const data = await resp.json() as { value: Array<{ subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string }> };
+        const events = (data.value || []).map(e => ({
+          title: e.subject,
+          start: e.start.dateTime,
+          end: e.end.dateTime,
+          location: e.location?.displayName ?? '',
+          notes: e.bodyPreview ?? '',
+        }));
+        await db.updateOAuthTokenLastSynced(ctx.user.id, 'microsoft');
+        await db.updateSyncStatus({
+          userId: ctx.user.id,
+          provider: 'microsoft',
+          lastSyncStatus: 'success',
+          totalEventsImported: events.length,
+        });
+        return { provider: 'microsoft', events, count: events.length };
+      }
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `Provider ${input.provider} not supported for bulk import` });
+    }),
+
+  /**
+   * Bulk import emails from a date range
+   */
+  bulkImportMail: protectedProcedure
+    .input(z.object({
+      provider: z.enum(['microsoft', 'google']),
+      startDate: z.string(), // ISO date string
+      endDate: z.string(),   // ISO date string
+      limit: z.number().default(100),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
+      if (!accessToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `Not connected to ${input.provider}` });
+      const startISO = new Date(input.startDate).toISOString();
+      const endISO = new Date(input.endDate).toISOString();
+      if (input.provider === 'microsoft') {
+        const filter = `receivedDateTime ge ${startISO} and receivedDateTime le ${endISO}`;
+        const resp = await fetch(
+          `https://graph.microsoft.com/v1.0/me/messages?$top=${input.limit}&$select=subject,from,receivedDateTime,bodyPreview,isRead&$filter=${encodeURIComponent(filter)}&$orderby=receivedDateTime desc`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        if (!resp.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Microsoft Graph mail fetch failed: ${resp.status}` });
+        const data = await resp.json() as { value: Array<{ subject: string; from: { emailAddress: { name: string; address: string } }; receivedDateTime: string; bodyPreview: string; isRead: boolean }> };
+        const messages = (data.value || []).map(m => ({
+          subject: m.subject,
+          from: m.from.emailAddress.name || m.from.emailAddress.address,
+          fromEmail: m.from.emailAddress.address,
+          date: m.receivedDateTime,
+          preview: m.bodyPreview,
+          read: m.isRead,
+        }));
+        await db.updateSyncStatus({
+          userId: ctx.user.id,
+          provider: 'microsoft',
+          lastSyncStatus: 'success',
+          totalEmailsImported: messages.length,
+        });
+        return { provider: 'microsoft', messages, count: messages.length };
+      }
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `Provider ${input.provider} not supported for bulk import` });
+    }),
 });

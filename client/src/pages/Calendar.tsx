@@ -2,15 +2,18 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { RefreshCw, Loader2, Calendar as CalendarIcon, MapPin, Clock } from "lucide-react";
+import { RefreshCw, Loader2, Calendar as CalendarIcon, MapPin, Clock, AlarmClock } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export default function Calendar() {
   const { user } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [creatingReminders, setCreatingReminders] = useState(false);
 
   const syncCalendarMutation = trpc.oauthSync.syncCalendar.useMutation();
+  const createRemindersMutation = trpc.oauthSync.createEventReminders.useMutation();
   const getOAuthStatusQuery = trpc.oauthSync.status.useQuery(
     undefined,
     { enabled: !!user }
@@ -24,6 +27,30 @@ export default function Calendar() {
       console.error("Sync failed:", err);
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleCreateReminders = async () => {
+    const events = syncCalendarMutation.data?.events;
+    if (!events || events.length === 0) {
+      toast.error("No events to create reminders for. Sync calendar first.");
+      return;
+    }
+    setCreatingReminders(true);
+    try {
+      const result = await createRemindersMutation.mutateAsync({
+        events: events.map((e: any, idx: number) => ({
+          eventId: String(idx), // Use index as ID since we don't have the MS event ID in the current data
+          eventTitle: e.title,
+          eventStart: e.start,
+          provider: "microsoft",
+        })),
+      });
+      toast.success(`Created ${result.created} reminder(s) for upcoming events`);
+    } catch (err) {
+      toast.error("Failed to create reminders: " + (err instanceof Error ? err.message : "Unknown error"));
+    } finally {
+      setCreatingReminders(false);
     }
   };
 
@@ -58,24 +85,46 @@ export default function Calendar() {
               <p className="text-sm text-gray-500">Never synced</p>
             )}
           </div>
-          <Button
-            onClick={handleSync}
-            disabled={syncing}
-            variant="outline"
-            size="sm"
-          >
-            {syncing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Syncing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Sync Now
-              </>
+          <div className="flex items-center gap-2">
+            {events.length > 0 && (
+              <Button
+                onClick={handleCreateReminders}
+                disabled={creatingReminders}
+                variant="outline"
+                size="sm"
+              >
+                {creatingReminders ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <AlarmClock className="w-4 h-4 mr-2" />
+                    Create Reminders
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={handleSync}
+              disabled={syncing}
+              variant="outline"
+              size="sm"
+            >
+              {syncing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Sync Now
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {events.length > 0 && (
@@ -84,7 +133,7 @@ export default function Calendar() {
               {events.length} {events.length === 1 ? "event" : "events"} found
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {events.map((event, idx) => (
+              {events.map((event: any, idx: number) => (
                 <div
                   key={idx}
                   onClick={() => setSelectedEvent(event)}

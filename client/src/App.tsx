@@ -8,6 +8,10 @@ import Home from "./pages/Home";
 import Calendar from "./pages/Calendar";
 import Mail from "./pages/Mail";
 import SyncSettings from "./pages/SyncSettings";
+import NotificationCenter from "./pages/NotificationCenter";
+import EventReminders from "./pages/EventReminders";
+import SyncStatus from "./pages/SyncStatus";
+import BulkImport from "./pages/BulkImport";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,6 +21,10 @@ function Router() {
       <Route path="/calendar" component={Calendar} />
       <Route path="/mail" component={Mail} />
       <Route path="/sync-settings" component={SyncSettings} />
+      <Route path="/notifications" component={NotificationCenter} />
+      <Route path="/event-reminders" component={EventReminders} />
+      <Route path="/sync-status" component={SyncStatus} />
+      <Route path="/bulk-import" component={BulkImport} />
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
