@@ -953,4 +953,71 @@ export const oauthSyncRouter = router({
       });
       return { success: true };
     }),
+
+  /**
+   * Save SMTP/IMAP credentials for a secondary email account
+   */
+  saveSmtpImapAccount: protectedProcedure
+    .input(z.object({
+      email: z.string().email(),
+      displayName: z.string().optional(),
+      imapHost: z.string().min(1),
+      imapPort: z.number().int().min(1).max(65535),
+      imapEncryption: z.enum(['ssl', 'tls', 'none']),
+      imapUsername: z.string().min(1),
+      imapPassword: z.string().min(1),
+      smtpHost: z.string().min(1),
+      smtpPort: z.number().int().min(1).max(65535),
+      smtpEncryption: z.enum(['ssl', 'tls', 'none']),
+      smtpUsername: z.string().min(1),
+      smtpPassword: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await db.upsertSmtpImapAccount({
+        userId: ctx.user.id,
+        email: input.email,
+        displayName: input.displayName || null,
+        imapHost: input.imapHost,
+        imapPort: input.imapPort,
+        imapEncryption: input.imapEncryption,
+        imapUsername: input.imapUsername,
+        imapPassword: input.imapPassword,
+        smtpHost: input.smtpHost,
+        smtpPort: input.smtpPort,
+        smtpEncryption: input.smtpEncryption,
+        smtpUsername: input.smtpUsername,
+        smtpPassword: input.smtpPassword,
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Get SMTP/IMAP account for current user
+   */
+  getSmtpImapAccount: protectedProcedure
+    .query(async ({ ctx }) => {
+      const account = await db.getSmtpImapAccount(ctx.user.id);
+      if (!account) return null;
+      return {
+        id: account.id,
+        email: account.email,
+        displayName: account.displayName,
+        imapHost: account.imapHost,
+        imapPort: account.imapPort,
+        imapEncryption: account.imapEncryption,
+        smtpHost: account.smtpHost,
+        smtpPort: account.smtpPort,
+        smtpEncryption: account.smtpEncryption,
+        lastTestedAt: account.lastTestedAt,
+      };
+    }),
+
+  /**
+   * Delete SMTP/IMAP account
+   */
+  deleteSmtpImapAccount: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      await db.deleteSmtpImapAccount(ctx.user.id);
+      return { success: true };
+    }),
 });

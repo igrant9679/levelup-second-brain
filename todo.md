@@ -451,3 +451,13 @@
 - [x] Improved frontend error toast: shows full Microsoft error message (8s duration, red background)
 - [x] Improved toast() function to support type='error' and custom duration
 - [ ] User to verify redirect URI https://leveluphub-ez4tinmn.manus.space/api/oauth/microsoft/callback is registered in Azure Portal → App registrations → Authentication
+
+
+## Feature: Replace Google Workspace with SMTP/IMAP Secondary Account
+- [x] Add DB schema for SMTP/IMAP credentials (email, host, port, username, password, encryption)
+- [x] Add tRPC procedures: saveSmtpImapAccount, getSmtpImapAccount, deleteSmtpImapAccount
+- [x] Replace Google Workspace OAuth card with SMTP/IMAP form in Settings → Accounts
+- [x] Add frontend functions: showSmtpImapForm, saveSmtpImapAccount, testSmtpImapConnection, loadSmtpImapAccount, deleteSmtpImapAccount
+- [x] 107 tests passing, TypeScript clean
+- [ ] Remove Google OAuth backend code (getGoogleAuthUrl, Google callback handler, etc.) — optional cleanup
+- [ ] Implement actual IMAP/SMTP connection testing with nodemailer or imap library

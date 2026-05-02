@@ -1,0 +1,20 @@
+CREATE TABLE `smtp_imap_accounts` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`userId` int NOT NULL,
+	`email` varchar(320) NOT NULL,
+	`displayName` varchar(255),
+	`imapHost` varchar(255) NOT NULL,
+	`imapPort` int NOT NULL DEFAULT 993,
+	`imapEncryption` enum('ssl','tls','none') NOT NULL DEFAULT 'ssl',
+	`imapUsername` varchar(255) NOT NULL,
+	`imapPassword` text NOT NULL,
+	`smtpHost` varchar(255) NOT NULL,
+	`smtpPort` int NOT NULL DEFAULT 587,
+	`smtpEncryption` enum('ssl','tls','none') NOT NULL DEFAULT 'tls',
+	`smtpUsername` varchar(255) NOT NULL,
+	`smtpPassword` text NOT NULL,
+	`lastTestedAt` timestamp DEFAULT null,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `smtp_imap_accounts_id` PRIMARY KEY(`id`)
+);

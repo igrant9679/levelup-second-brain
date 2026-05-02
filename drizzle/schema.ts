@@ -209,6 +209,33 @@ export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
 export type UserOauthCredential = typeof userOauthCredentials.$inferSelect;
 export type InsertUserOauthCredential = typeof userOauthCredentials.$inferInsert;
 
+// ─── SMTP/IMAP Secondary Email Accounts ────────────────────────────────────
+// Store SMTP/IMAP credentials for secondary email accounts (non-OAuth)
+export const smtpImapAccounts = mysqlTable('smtp_imap_accounts', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  email: varchar('email', { length: 320 }).notNull(),
+  displayName: varchar('displayName', { length: 255 }),
+  // IMAP settings
+  imapHost: varchar('imapHost', { length: 255 }).notNull(),
+  imapPort: int('imapPort').notNull().default(993),
+  imapEncryption: mysqlEnum('imapEncryption', ['ssl', 'tls', 'none']).default('ssl').notNull(),
+  imapUsername: varchar('imapUsername', { length: 255 }).notNull(),
+  imapPassword: text('imapPassword').notNull(), // Encrypted in app layer
+  // SMTP settings
+  smtpHost: varchar('smtpHost', { length: 255 }).notNull(),
+  smtpPort: int('smtpPort').notNull().default(587),
+  smtpEncryption: mysqlEnum('smtpEncryption', ['ssl', 'tls', 'none']).default('tls').notNull(),
+  smtpUsername: varchar('smtpUsername', { length: 255 }).notNull(),
+  smtpPassword: text('smtpPassword').notNull(), // Encrypted in app layer
+  // Metadata
+  lastTestedAt: timestamp('lastTestedAt').default(sql`null`),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type SmtpImapAccount = typeof smtpImapAccounts.$inferSelect;
+export type InsertSmtpImapAccount = typeof smtpImapAccounts.$inferInsert;
+
 // ─── System Settings ─────────────────────────────────────────────────────────
 // Key-value store for owner-level configuration (e.g. notification sender).
 export const systemSettings = mysqlTable('system_settings', {

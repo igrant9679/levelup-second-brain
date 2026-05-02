@@ -7539,42 +7539,49 @@ function renderSettingsHTML(){
       <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
     </div>
   </div>
-  <div id="oauth-google-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
+  <!-- Secondary Email Account (SMTP/IMAP) -->
+  <div id="smtp-imap-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
     <div class="lr" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:32px;height:32px;background:#EA4335;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">G</div>
-        <div><div style="font-size:12px;font-weight:600">Google Workspace</div><div style="font-size:10px;color:var(--t3)">Gmail · Google Calendar · Contacts</div></div>
+        <div style="width:32px;height:32px;background:#6366f1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">✉</div>
+        <div><div style="font-size:12px;font-weight:600">Secondary Email Account</div><div style="font-size:10px;color:var(--t3)">SMTP/IMAP · Any Email Provider</div></div>
       </div>
-      <div id="oauth-google-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
+      <div id="smtp-imap-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not configured</div>
     </div>
-    <div id="oauth-google-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
-    <div id="oauth-google-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
-    <div id="oauth-google-expiry-bar-wrap" style="display:none;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span id="oauth-google-expiry-label" style="font-size:10px;color:var(--t2)"></span>
-        <span id="oauth-google-expiry-days" style="font-size:10px;font-weight:600"></span>
+    <div id="smtp-imap-form" style="display:none;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="smtp-email" class="inp" type="email" placeholder="Email address" style="font-size:11px" />
+        <input id="smtp-display-name" class="inp" type="text" placeholder="Display name (optional)" style="font-size:11px" />
       </div>
-      <div style="height:4px;border-radius:2px;background:var(--s3);overflow:hidden">
-        <div id="oauth-google-expiry-bar" style="height:100%;border-radius:2px;transition:width 0.4s ease"></div>
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP Settings</div>
+      <div style="display:grid;grid-template-columns:1fr 120px 120px;gap:6px;margin-bottom:6px">
+        <input id="smtp-imap-host" class="inp" type="text" placeholder="IMAP Host (e.g., imap.gmail.com)" style="font-size:11px" />
+        <input id="smtp-imap-port" class="inp" type="number" placeholder="Port" value="993" style="font-size:11px" />
+        <select id="smtp-imap-encryption" class="inp" style="font-size:11px"><option value="ssl">SSL</option><option value="tls">TLS</option><option value="none">None</option></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="smtp-imap-username" class="inp" type="text" placeholder="IMAP Username" style="font-size:11px" />
+        <input id="smtp-imap-password" class="inp" type="password" placeholder="IMAP Password" style="font-size:11px" />
+      </div>
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP Settings</div>
+      <div style="display:grid;grid-template-columns:1fr 120px 120px;gap:6px;margin-bottom:6px">
+        <input id="smtp-smtp-host" class="inp" type="text" placeholder="SMTP Host (e.g., smtp.gmail.com)" style="font-size:11px" />
+        <input id="smtp-smtp-port" class="inp" type="number" placeholder="Port" value="587" style="font-size:11px" />
+        <select id="smtp-smtp-encryption" class="inp" style="font-size:11px"><option value="ssl">SSL</option><option value="tls" selected>TLS</option><option value="none">None</option></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <input id="smtp-smtp-username" class="inp" type="text" placeholder="SMTP Username" style="font-size:11px" />
+        <input id="smtp-smtp-password" class="inp" type="password" placeholder="SMTP Password" style="font-size:11px" />
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-p" style="font-size:11px;padding:4px 10px;flex:1" onclick="saveSmtpImapAccount()">💾 Save Account</button>
+        <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="testSmtpImapConnection()">🔌 Test</button>
       </div>
     </div>
-    <!-- Step indicator (shown when not connected) -->
-    <div id="oauth-google-steps" style="display:flex;gap:4px;align-items:center;margin-bottom:8px;font-size:9px;color:var(--t3)">
-      <span id="oauth-google-step1" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">1</span> Save credentials</span>
-      <span style="color:var(--t3)">›</span>
-      <span id="oauth-google-step2" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span> Connect</span>
-      <span style="color:var(--t3)">›</span>
-      <span id="oauth-google-step3" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center">3</span> Test</span>
-    </div>
-    <div id="oauth-google-guide" style="font-size:10px;color:var(--t3);margin-bottom:8px;display:none">Click <strong>Connect Google Workspace</strong> to open the Google consent page. You will be redirected back automatically after authorising.</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button id="btn-google-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('google')">🔗 Connect Google Workspace</button>
-      <button id="btn-google-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('google')">✕ Disconnect</button>
-      <button id="btn-google-refresh" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="refreshOAuthToken('google')">🔄 Refresh Token</button>
-      <button id="btn-google-test" class="btn btn-s" style="font-size:11px;padding:4px 10px;display:none" onclick="testOAuthConnection('google')">🔌 Test Connection</button>
-      <button id="btn-google-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('google')">📅 Sync Calendar</button>
-      <button id="btn-google-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('google')">✉ Sync Mail</button>
-      <button id="btn-google-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('google')">👥 Sync Contacts</button>
+    <div id="smtp-imap-buttons" style="display:flex;gap:6px;flex-wrap:wrap">
+      <button id="btn-smtp-add" class="btn" style="font-size:11px;padding:4px 10px" onclick="showSmtpImapForm()">➕ Add Account</button>
+      <button id="btn-smtp-edit" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="showSmtpImapForm()">✏️ Edit</button>
+      <button id="btn-smtp-delete" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="deleteSmtpImapAccount()">✕ Remove</button>
     </div>
   </div>
   <!-- Per-User Credential Entry -->
@@ -12723,6 +12730,127 @@ function showProactiveHint(hint){
   </div>`;
   document.body.appendChild(el);
   setTimeout(()=>el.remove(),12000);
+}
+
+// ====== SMTP/IMAP SECONDARY EMAIL ======
+function showSmtpImapForm(){
+  const form=document.getElementById('smtp-imap-form');
+  const buttons=document.getElementById('smtp-imap-buttons');
+  if(form.style.display==='none'){
+    form.style.display='block';
+    buttons.style.display='none';
+  }else{
+    form.style.display='none';
+    buttons.style.display='flex';
+  }
+}
+
+async function saveSmtpImapAccount(){
+  const data={
+    email:document.getElementById('smtp-email').value,
+    displayName:document.getElementById('smtp-display-name').value||null,
+    imapHost:document.getElementById('smtp-imap-host').value,
+    imapPort:parseInt(document.getElementById('smtp-imap-port').value),
+    imapEncryption:document.getElementById('smtp-imap-encryption').value,
+    imapUsername:document.getElementById('smtp-imap-username').value,
+    imapPassword:document.getElementById('smtp-imap-password').value,
+    smtpHost:document.getElementById('smtp-smtp-host').value,
+    smtpPort:parseInt(document.getElementById('smtp-smtp-port').value),
+    smtpEncryption:document.getElementById('smtp-smtp-encryption').value,
+    smtpUsername:document.getElementById('smtp-smtp-username').value,
+    smtpPassword:document.getElementById('smtp-smtp-password').value,
+  };
+  if(!data.email||!data.imapHost||!data.imapUsername||!data.imapPassword||!data.smtpHost||!data.smtpUsername||!data.smtpPassword){
+    toast('Please fill in all required fields','error',5000);
+    return;
+  }
+  try{
+    const res=await _trpc('oauthSync.saveSmtpImapAccount',data,'mutation');
+    if(res.success){
+      toast('Email account saved successfully','success');
+      showSmtpImapForm();
+      loadSmtpImapAccount();
+    }else{
+      toast('Failed to save account','error');
+    }
+  }catch(e){
+    toast('Error: '+e.message,'error',8000);
+  }
+}
+
+async function testSmtpImapConnection(){
+  const data={
+    imapHost:document.getElementById('smtp-imap-host').value,
+    imapPort:parseInt(document.getElementById('smtp-imap-port').value),
+    imapEncryption:document.getElementById('smtp-imap-encryption').value,
+    imapUsername:document.getElementById('smtp-imap-username').value,
+    imapPassword:document.getElementById('smtp-imap-password').value,
+    smtpHost:document.getElementById('smtp-smtp-host').value,
+    smtpPort:parseInt(document.getElementById('smtp-smtp-port').value),
+    smtpEncryption:document.getElementById('smtp-smtp-encryption').value,
+    smtpUsername:document.getElementById('smtp-smtp-username').value,
+    smtpPassword:document.getElementById('smtp-smtp-password').value,
+  };
+  try{
+    const res=await _trpc('oauthSync.testSmtpImapConnection',data,'mutation');
+    if(res.success){
+      toast('Connection test passed','success');
+    }else{
+      toast('Connection test failed: '+(res.message||'Unknown error'),'error',8000);
+    }
+  }catch(e){
+    toast('Connection test error: '+e.message,'error',8000);
+  }
+}
+
+async function loadSmtpImapAccount(){
+  try{
+    const account=await _trpc('oauthSync.getSmtpImapAccount',{},'query');
+    if(account){
+      document.getElementById('smtp-imap-badge').textContent='Configured';
+      document.getElementById('smtp-imap-badge').style.background='var(--ac)';
+      document.getElementById('smtp-imap-badge').style.color='#fff';
+      document.getElementById('btn-smtp-add').style.display='none';
+      document.getElementById('btn-smtp-edit').style.display='inline-block';
+      document.getElementById('btn-smtp-delete').style.display='inline-block';
+      document.getElementById('smtp-email').value=account.email;
+      document.getElementById('smtp-display-name').value=account.displayName||'';
+      document.getElementById('smtp-imap-host').value=account.imapHost;
+      document.getElementById('smtp-imap-port').value=account.imapPort;
+      document.getElementById('smtp-imap-encryption').value=account.imapEncryption;
+      document.getElementById('smtp-imap-username').value=account.imapUsername||'';
+      document.getElementById('smtp-smtp-host').value=account.smtpHost;
+      document.getElementById('smtp-smtp-port').value=account.smtpPort;
+      document.getElementById('smtp-smtp-encryption').value=account.smtpEncryption;
+      document.getElementById('smtp-smtp-username').value=account.smtpUsername||'';
+    }else{
+      document.getElementById('smtp-imap-badge').textContent='Not configured';
+      document.getElementById('smtp-imap-badge').style.background='var(--s3)';
+      document.getElementById('smtp-imap-badge').style.color='var(--t3)';
+      document.getElementById('btn-smtp-add').style.display='inline-block';
+      document.getElementById('btn-smtp-edit').style.display='none';
+      document.getElementById('btn-smtp-delete').style.display='none';
+    }
+  }catch(e){
+    console.error('Failed to load SMTP/IMAP account:',e);
+  }
+}
+
+async function deleteSmtpImapAccount(){
+  if(!confirm('Are you sure you want to remove this email account?'))return;
+  try{
+    const res=await _trpc('oauthSync.deleteSmtpImapAccount',{},'mutation');
+    if(res.success){
+      toast('Email account removed','success');
+      document.getElementById('smtp-imap-form').style.display='none';
+      document.getElementById('smtp-imap-buttons').style.display='flex';
+      loadSmtpImapAccount();
+    }else{
+      toast('Failed to remove account','error');
+    }
+  }catch(e){
+    toast('Error: '+e.message,'error',8000);
+  }
 }
 
 // ====== INIT ======

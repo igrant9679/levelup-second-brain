@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -423,4 +423,56 @@ export async function setEmailNotifPrefs(
       ...(prefs.optOutDigestEmails !== undefined ? { optOutDigestEmails: values.optOutDigestEmails } : {}),
     },
   });
+}
+
+
+// ---- SMTP/IMAP Secondary Email Accounts helpers ----
+
+export async function upsertSmtpImapAccount(account: InsertSmtpImapAccount): Promise<SmtpImapAccount | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  await db.insert(smtpImapAccounts).values(account).onDuplicateKeyUpdate({
+    set: {
+      email: account.email,
+      displayName: account.displayName,
+      imapHost: account.imapHost,
+      imapPort: account.imapPort,
+      imapEncryption: account.imapEncryption,
+      imapUsername: account.imapUsername,
+      imapPassword: account.imapPassword,
+      smtpHost: account.smtpHost,
+      smtpPort: account.smtpPort,
+      smtpEncryption: account.smtpEncryption,
+      smtpUsername: account.smtpUsername,
+      smtpPassword: account.smtpPassword,
+      lastTestedAt: account.lastTestedAt,
+    },
+  });
+  const result = await db.select().from(smtpImapAccounts)
+    .where(and(eq(smtpImapAccounts.userId, account.userId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getSmtpImapAccount(userId: number): Promise<SmtpImapAccount | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(smtpImapAccounts)
+    .where(eq(smtpImapAccounts.userId, userId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteSmtpImapAccount(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(smtpImapAccounts).where(eq(smtpImapAccounts.userId, userId));
+}
+
+export async function updateSmtpImapLastTested(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(smtpImapAccounts)
+    .set({ lastTestedAt: new Date() })
+    .where(eq(smtpImapAccounts.userId, userId));
 }
