@@ -459,5 +459,6 @@
 - [x] Replace Google Workspace OAuth card with SMTP/IMAP form in Settings → Accounts
 - [x] Add frontend functions: showSmtpImapForm, saveSmtpImapAccount, testSmtpImapConnection, loadSmtpImapAccount, deleteSmtpImapAccount
 - [x] 107 tests passing, TypeScript clean
+- [x] Remove Google Workspace from token expiry banner (now only shows Microsoft 365)
 - [ ] Remove Google OAuth backend code (getGoogleAuthUrl, Google callback handler, etc.) — optional cleanup
 - [ ] Implement actual IMAP/SMTP connection testing with nodemailer or imap library

@@ -11845,9 +11845,7 @@ async function checkTokenExpiryBanner(){
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
       providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
     }
-    if(status?.google?.connected&&status.google.expiresAt){
-      providers.push({key:'google',label:'Google Workspace',expiresAt:new Date(status.google.expiresAt)});
-    }
+    // Google Workspace OAuth removed — replaced with SMTP/IMAP secondary account
     // Find the soonest-expiring provider within 7 days
     const sevenDaysMs=7*24*60*60*1000;
     const expiring=providers.filter(p=>p.expiresAt&&(p.expiresAt.getTime()-Date.now())<sevenDaysMs)
