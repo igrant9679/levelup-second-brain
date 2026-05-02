@@ -50,6 +50,7 @@ describe('oauthSync.saveCredentials', () => {
       clientId: 'client-id-123',
       clientSecret: 'secret-abc',
       tenantId: null,
+      msScopes: null,
     });
 
     expect(db.insertCredentialAuditLog).toHaveBeenCalledWith(

@@ -42,15 +42,26 @@ async function resolveClientSecret(userId: number, provider: "microsoft" | "goog
  * When tenantId is provided (single-tenant app), use the tenant-specific endpoint.
  * When omitted, use /common (multi-tenant apps).
  */
-function getMsAuthUrl(origin: string, state: string, clientId: string, tenantId?: string | null): string {
-  const scopes = [
-    "offline_access",
-    "User.Read",
-    "Calendars.ReadWrite",
-    "Mail.ReadWrite",
-    "Mail.Send",
-    "Contacts.ReadWrite",
-  ].join(" ");
+const DEFAULT_MS_SCOPES = [
+  "offline_access",
+  "User.Read",
+  "Calendars.ReadWrite",
+  "Mail.ReadWrite",
+  "Mail.Send",
+  "Contacts.ReadWrite",
+];
+
+function getMsAuthUrl(origin: string, state: string, clientId: string, tenantId?: string | null, customScopes?: string | null): string {
+  // Use custom scopes if provided, otherwise use defaults
+  // Always include offline_access and User.Read as required base scopes
+  let scopeList = DEFAULT_MS_SCOPES;
+  if (customScopes) {
+    const custom = customScopes.split(',').map(s => s.trim()).filter(Boolean);
+    // Ensure base scopes are always present
+    const base = ['offline_access', 'User.Read'];
+    scopeList = Array.from(new Set([...base, ...custom]));
+  }
+  const scopes = scopeList.join(" ");
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -200,14 +211,15 @@ export const oauthSyncRouter = router({
           `Enter your Client ID and Secret in the Accounts panel, or ask the app owner to add them as environment secrets.`
         );
       }
-      // Resolve tenantId for Microsoft (needed for single-tenant app registrations)
+      // Resolve tenantId and msScopes for Microsoft (needed for single-tenant app registrations and custom scopes)
       const userCred = input.provider === "microsoft"
         ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
         : null;
       const tenantId = userCred?.tenantId ?? null;
+      const msScopes = userCred?.msScopes ?? null;
       // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
-      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId, tenantId) };
+      if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId, tenantId, msScopes) };
       return { url: getGoogleAuthUrl(input.origin, state, clientId) };
     }),
 
@@ -376,6 +388,8 @@ export const oauthSyncRouter = router({
       clientSecret: z.string().min(1),
       // Optional Azure AD Tenant ID (Directory ID) for single-tenant app registrations
       tenantId: z.string().optional(),
+      // Optional comma-separated Microsoft Graph scopes (Microsoft only)
+      msScopes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       await db.upsertUserOauthCredential({
@@ -384,6 +398,7 @@ export const oauthSyncRouter = router({
         clientId: input.clientId,
         clientSecret: input.clientSecret,
         tenantId: input.tenantId ?? null,
+        msScopes: input.msScopes ?? null,
       });
       await db.insertCredentialAuditLog({
         userId: ctx.user.id,
@@ -408,6 +423,7 @@ export const oauthSyncRouter = router({
           lastVerifiedAt: cred.lastVerifiedAt ?? null,
           isSharedFromAdmin: false,
           tenantId: cred.tenantId ?? null,
+          msScopes: cred.msScopes ?? null,
         };
       }
       // Fallback: check if an admin has shared credentials for this provider
@@ -420,6 +436,7 @@ export const oauthSyncRouter = router({
           lastVerifiedAt: shared.lastVerifiedAt ?? null,
           isSharedFromAdmin: true,
           tenantId: shared.tenantId ?? null,
+          msScopes: (shared as any).msScopes ?? null,
         };
       }
       return null;

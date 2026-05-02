@@ -385,3 +385,27 @@
 - [x] Frontend: show exact redirect URIs for both Microsoft and Google in the credentials card with Copy button
 - [x] Frontend: show inline help explaining single-tenant vs multi-tenant and how to find Tenant ID in Azure portal
 - [x] vitest: all 106 tests pass
+
+## Follow-up Features: Post-OAuth UX, Expiry Countdown, Scope Selector
+
+### Auto-run Test Connection after OAuth callback
+- [ ] Frontend: detect `?oauth_success=microsoft|google` query param on page load (set by OAuth callback redirect)
+- [ ] Frontend: after detecting success param, auto-call `testOAuthConnection(provider)` and show result inline on the provider card
+- [ ] Frontend: show a success toast "✓ Microsoft 365 connected — running connection test…" then update with test result
+- [ ] Frontend: clean the query param from the URL after handling (replaceState)
+
+### Token expiry countdown progress bar
+- [ ] Frontend: in `_updateOAuthCard`, when connected, compute days-until-expiry from `expiresAt`
+- [ ] Frontend: render a thin progress bar below the connected badge (green >14 days, amber 7–14 days, red <7 days)
+- [ ] Frontend: show "Expires in X days" label next to the bar; show "Expired" in red if past expiry
+- [ ] Frontend: update bar on every `loadOAuthStatus()` call
+
+### Microsoft Graph permission scope selector
+- [ ] DB: add `ms_scopes` varchar column to `user_oauth_credentials` table (comma-separated list, default all)
+- [ ] DB: push migration with `pnpm db:push`
+- [ ] Backend: update `getAuthUrl` / `refreshToken` to use the user's selected scopes when building the Microsoft auth URL
+- [ ] Backend: update `saveCredentials` to accept optional `scopes` array for Microsoft
+- [ ] Backend: update `getCredentials` to return selected scopes
+- [ ] Frontend: add scope checkboxes to Microsoft credentials card (Mail, Calendar, Contacts — all checked by default)
+- [ ] Frontend: pass selected scopes to `saveOAuthCredentials` and display currently selected scopes when credentials are loaded
+- [ ] vitest: test that custom scopes are passed to getMsAuthUrl correctly

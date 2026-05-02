@@ -201,6 +201,9 @@ export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
   // Optional Azure AD Tenant ID (Directory ID) — required for single-tenant app registrations.
   // When set, OAuth URLs use the tenant-specific endpoint instead of /common.
   tenantId: varchar('tenantId', { length: 128 }),
+  // Comma-separated Microsoft Graph scopes the user has selected (e.g. 'Mail.ReadWrite,Calendars.ReadWrite,Contacts.ReadWrite')
+  // NULL means use all default scopes. Only applies to Microsoft provider.
+  msScopes: varchar('msScopes', { length: 512 }),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 });
 export type UserOauthCredential = typeof userOauthCredentials.$inferSelect;

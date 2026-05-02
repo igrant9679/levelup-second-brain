@@ -1,0 +1,1 @@
+ALTER TABLE `user_oauth_credentials` ADD `msScopes` varchar(512);
