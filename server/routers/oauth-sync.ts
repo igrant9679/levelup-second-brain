@@ -380,8 +380,27 @@ export const oauthSyncRouter = router({
     .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
     .query(async ({ input, ctx }) => {
       const cred = await db.getUserOauthCredential(ctx.user.id, input.provider);
-      if (!cred) return null;
-      return { clientId: cred.clientId, updatedAt: cred.updatedAt };
+      if (cred) {
+        return {
+          clientId: cred.clientId,
+          updatedAt: cred.updatedAt,
+          sharedWithTeam: cred.sharedWithTeam === 1,
+          lastVerifiedAt: cred.lastVerifiedAt ?? null,
+          isSharedFromAdmin: false,
+        };
+      }
+      // Fallback: check if an admin has shared credentials for this provider
+      const shared = await db.getSharedAdminCredential(input.provider);
+      if (shared) {
+        return {
+          clientId: shared.clientId,
+          updatedAt: shared.updatedAt,
+          sharedWithTeam: true,
+          lastVerifiedAt: shared.lastVerifiedAt ?? null,
+          isSharedFromAdmin: true,
+        };
+      }
+      return null;
     }),
 
   /** Delete the user's stored credentials for a provider */
@@ -546,18 +565,27 @@ export const oauthSyncRouter = router({
       const timeStr = diffMs <= 0 ? "has expired" : `expires in ${diffDays} day${diffDays === 1 ? "" : "s"}`;
       const connectedEmail = t.email ?? "your connected account";
 
+      // Build a direct deep-link to Settings → Accounts for this provider
+      const siteBase = (process.env.VITE_OAUTH_PORTAL_URL ?? "").replace(/\/+$/, "");
+      const reconnectUrl = siteBase
+        ? `${siteBase}/?goto=accounts&provider=${t.provider}`
+        : "";
+
       const html = `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-          <h2 style="color:#7c3aed">⚠ Action required: Reconnect your ${providerLabel} account</h2>
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0b0f1a;color:#e2e8f0;border-radius:12px">
+          <h2 style="color:#a78bfa;margin-top:0">⚠ Action required: Reconnect your ${providerLabel} account</h2>
           <p>Your <strong>${providerLabel}</strong> connection (<em>${connectedEmail}</em>) ${timeStr}.</p>
           <p>Once expired, LevelUp will no longer be able to sync your calendar, mail, or contacts from this account.</p>
           <p style="margin-top:24px">
-            <a href="${process.env.VITE_OAUTH_PORTAL_URL ?? ""}" 
-               style="background:#7c3aed;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">
-              Open LevelUp Settings
-            </a>
+            ${reconnectUrl
+              ? `<a href="${reconnectUrl}"
+                   style="background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
+                   🔗 Reconnect ${providerLabel} now
+                 </a>`
+              : `<span style="color:#888">Log in to LevelUp and go to Settings → Accounts → ${providerLabel} → Refresh Token.</span>`
+            }
           </p>
-          <p style="color:#888;font-size:12px;margin-top:24px">Go to Settings → Accounts → ${providerLabel} → Refresh Token to reconnect.</p>
+          <p style="color:#888;font-size:12px;margin-top:24px">Or go to Settings → Accounts → ${providerLabel} → Refresh Token to reconnect manually.</p>
         </div>
       `;
 
@@ -791,7 +819,7 @@ export const oauthSyncRouter = router({
       clientId: z.string().min(1),
       clientSecret: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { provider, clientId, clientSecret } = input;
 
       if (provider === "microsoft") {
@@ -814,6 +842,8 @@ export const oauthSyncRouter = router({
           return { valid: false, error: data.error_description ?? "Invalid client credentials" };
         }
         // Any other response (including errors about tenant/grant) means the credentials were accepted
+        // Persist lastVerifiedAt so the UI can show "Last verified: X ago"
+        await db.setCredentialLastVerified(ctx.user.id, provider).catch(() => {});
         return { valid: true };
       } else {
         // Google: use the token info endpoint to check if the client_id is registered
@@ -835,8 +865,26 @@ export const oauthSyncRouter = router({
           return { valid: false, error: data.error_description ?? "Invalid client credentials" };
         }
         // "invalid_grant" or other errors = credentials are valid, just the probe code is bad
+        await db.setCredentialLastVerified(ctx.user.id, provider).catch(() => {});
         return { valid: true };
       }
+    }),
+
+  /**
+   * Toggle the sharedWithTeam flag on the current user's credentials.
+   * Admin-only: only admins can share credentials with the team.
+   */
+  setCredentialSharing: protectedProcedure
+    .input(z.object({
+      provider: z.enum(["microsoft", "google"]),
+      shared: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Only admins can share credentials with the team" });
+      }
+      await db.setCredentialSharing(ctx.user.id, input.provider, input.shared);
+      return { success: true };
     }),
 
   /**

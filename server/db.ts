@@ -164,6 +164,47 @@ export async function deleteUserOauthCredential(userId: number, provider: string
     .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)));
 }
 
+/** Toggle the sharedWithTeam flag for an admin's credentials */
+export async function setCredentialSharing(userId: number, provider: string, shared: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(userOauthCredentials)
+    .set({ sharedWithTeam: shared ? 1 : 0 })
+    .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)));
+}
+
+/** Set lastVerifiedAt to now for a user's credentials */
+export async function setCredentialLastVerified(userId: number, provider: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(userOauthCredentials)
+    .set({ lastVerifiedAt: new Date() })
+    .where(and(eq(userOauthCredentials.userId, userId), eq(userOauthCredentials.provider, provider)));
+}
+
+/**
+ * Find the first admin-owned credential for a provider that has sharedWithTeam=1.
+ * Used as a fallback when the requesting user has no own credentials.
+ */
+export async function getSharedAdminCredential(provider: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  // Join with users table to filter by admin role
+  const result = await db
+    .select({ cred: userOauthCredentials })
+    .from(userOauthCredentials)
+    .innerJoin(users, eq(users.id, userOauthCredentials.userId))
+    .where(
+      and(
+        eq(userOauthCredentials.provider, provider),
+        eq(userOauthCredentials.sharedWithTeam, 1),
+        eq(users.role, 'admin')
+      )
+    )
+    .limit(1);
+  return result.length > 0 ? result[0].cred : undefined;
+}
+
 // ---- Credential Audit Log helpers ----
 
 export async function insertCredentialAuditLog(entry: Omit<InsertCredentialAuditLog, 'id' | 'createdAt'>): Promise<void> {

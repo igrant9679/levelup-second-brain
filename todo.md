@@ -342,3 +342,24 @@
 - [x] Frontend: After saving credentials, auto-highlight the Connect button with a pulsing ring and tooltip "Next: click Connect to authorise"
 - [x] Frontend: Show inline guidance text below the Connect button explaining what will happen (redirect to Microsoft/Google consent page)
 - [x] Frontend: After successful OAuth callback, show a success toast "✓ Microsoft 365 connected — you can now send emails and sync contacts"
+
+## Follow-up Features: Deep-link, Credential Sharing & Last Verified
+
+### Reconnect Deep-link in Expiry Emails
+- [x] Backend: include a direct deep-link URL in expiry notification emails pointing to Settings → Accounts for the relevant provider
+- [x] Backend: generate the deep-link using the site's base URL (from env or request origin)
+- [x] vitest: test that the expiry email body contains the deep-link (covered by expiryNotification.test.ts)
+
+### Credential Sharing Toggle for Team Admins
+- [x] DB: add `sharedWithTeam` tinyint + `lastVerifiedAt` timestamp columns to `user_oauth_credentials` table; migrated via 0011_fat_pestilence.sql
+- [x] Backend: `oauthSync.setCredentialSharing` mutation (adminProcedure) — toggle sharedWithTeam flag
+- [x] Backend: `oauthSync.getCredentials` — when user has no own credentials, fall back to admin's shared credentials via getSharedAdminCredential
+- [x] Frontend: Settings → Accounts → per-user credentials card — show "Share with team" toggle for admins
+- [x] vitest: tests for credential sharing fallback logic (covered by oauthSync.auditLog.test.ts + existing credential tests)
+
+### Last Verified Timestamp on Credentials Card
+- [x] DB: add `lastVerifiedAt` timestamp column to `oauth_user_credentials` table; migrated
+- [x] Backend: `oauthSync.validateCredentials` — persist `lastVerifiedAt` on successful verification
+- [x] Backend: `oauthSync.getCredentials` — include `lastVerifiedAt` in response
+- [x] Frontend: credentials card shows "Last verified: X ago" when lastVerifiedAt is set
+- [x] vitest: test that validateCredentials updates lastVerifiedAt (covered by validateCredentials test suite)

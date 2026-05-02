@@ -1,4 +1,5 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, tinyint, varchar } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Core user table backing auth flow.
@@ -193,6 +194,10 @@ export const userOauthCredentials = mysqlTable('user_oauth_credentials', {
   provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
   clientId: varchar('clientId', { length: 512 }).notNull(),
   clientSecret: text('clientSecret').notNull(),
+  // Admin can mark their credentials as shared so team members can use them (1=shared, 0=private)
+  sharedWithTeam: tinyint('sharedWithTeam').default(0).notNull(),
+  // Timestamp of last successful credential verification (via validateCredentials)
+  lastVerifiedAt: timestamp('lastVerifiedAt').default(sql`null`),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 });
 export type UserOauthCredential = typeof userOauthCredentials.$inferSelect;

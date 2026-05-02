@@ -9542,6 +9542,35 @@ function doLoginSuccess(member){
     if(_si){setTimeout(()=>{nav('ideas');openIdeaDetail(_si.id);toast('🔗 Viewing shared idea: '+_si.title);},300);}
     else{toast('⚠️ Shared idea link is invalid or has been revoked.');}
   }
+  // Handle deep-link URL: ?goto=accounts[&provider=microsoft|google]
+  // Used by expiry notification emails to take the user directly to Settings → Accounts
+  const _goto=_sp.get('goto');
+  if(_goto==='accounts'){
+    const _provider=_sp.get('provider');
+    history.replaceState(null,'',window.location.pathname);
+    setTimeout(()=>{
+      nav('settings');
+      setTimeout(()=>{
+        // Switch to the Accounts tab (sp-4)
+        const tabs=document.querySelectorAll('[data-sb] .si, .si[onclick*="showSetTab"]');
+        const accountsBtn=Array.from(document.querySelectorAll('.si')).find(x=>x.textContent.trim()==='Accounts');
+        if(accountsBtn)accountsBtn.click();
+        else{
+          document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
+          const sp4=document.getElementById('sp-4');
+          if(sp4){sp4.style.display='';loadOAuthStatus();loadEmailDeliveryLog();}
+        }
+        // Highlight the relevant provider card
+        if(_provider){
+          setTimeout(()=>{
+            const card=document.getElementById('oauth-'+(_provider==='microsoft'?'ms':_provider)+'-card');
+            if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='2px solid var(--ac)';setTimeout(()=>card.style.outline='',3000);}
+          },400);
+        }
+        toast('🔗 Go to Settings → Accounts to reconnect your provider');
+      },300);
+    },500);
+  }
 }
 function applyUserPerms(member){
   const perms=member.perms||{};
@@ -11473,13 +11502,52 @@ async function loadUserCredentials(){
     const p=provider==='microsoft'?'ms':'google';
     const statusEl=document.getElementById(p+'-cred-status');
     const idEl=document.getElementById(p+'-cred-id');
+    // Remove any previously injected share/verified rows to avoid duplicates
+    ['cred-share-row','cred-verified-row'].forEach(id=>{
+      const old=document.getElementById(p+'-'+id);
+      if(old)old.remove();
+    });
     try{
       const cred=await _trpc('oauthSync.getCredentials',{provider},'query');
       if(cred&&statusEl){
         statusEl.style.color='var(--ok)';
         const savedAt=cred.updatedAt?new Date(cred.updatedAt).toLocaleString():'';
-        statusEl.textContent='✓ Saved — Client ID: '+cred.clientId.slice(0,8)+'…'+(savedAt?' · Last updated: '+savedAt:'');
-        if(idEl)idEl.placeholder='(saved — enter new to replace)';
+        let statusText='✓ Saved — Client ID: '+cred.clientId.slice(0,8)+'…'+(savedAt?' · Last updated: '+savedAt:'');
+        if(cred.isSharedFromAdmin)statusText='👥 Shared by admin — Client ID: '+cred.clientId.slice(0,8)+'…';
+        statusEl.textContent=statusText;
+        if(idEl&&!cred.isSharedFromAdmin)idEl.placeholder='(saved — enter new to replace)';
+        // Last verified row
+        if(statusEl.parentElement){
+          const verRow=document.createElement('div');
+          verRow.id=p+'-cred-verified-row';
+          verRow.style.cssText='font-size:10px;color:var(--t3);margin-top:2px';
+          if(cred.lastVerifiedAt){
+            const ago=_timeAgo(new Date(cred.lastVerifiedAt));
+            verRow.textContent='✅ Last verified: '+ago;
+            verRow.style.color='var(--ok)';
+          } else {
+            verRow.textContent='Not yet verified — click 🔍 Verify to check your credentials';
+          }
+          statusEl.parentElement.insertBefore(verRow,statusEl.nextSibling);
+        }
+        // Admin-only: Share with team toggle
+        if(D.creds.role==='Admin'||D.creds.role==='Owner'){
+          const credSection=document.getElementById(p+'-cred-section')||statusEl.closest('.cred-section')||statusEl.parentElement?.parentElement;
+          if(credSection&&!cred.isSharedFromAdmin){
+            const shareRow=document.createElement('div');
+            shareRow.id=p+'-cred-share-row';
+            shareRow.style.cssText='display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 8px;background:var(--bg2,rgba(255,255,255,0.04));border-radius:6px;border:1px solid var(--brd)';
+            const isShared=!!cred.sharedWithTeam;
+            shareRow.innerHTML=`
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t2);flex:1">
+                <input type="checkbox" id="${p}-share-toggle" ${isShared?'checked':''} onchange="toggleCredentialSharing('${provider}',this.checked)" style="cursor:pointer">
+                <span>👥 Share these credentials with team members who have no own credentials</span>
+              </label>
+              <span style="font-size:10px;color:var(--t3)">${isShared?'<span style="color:var(--ok)">Shared</span>':'Private'}</span>
+            `;
+            credSection.appendChild(shareRow);
+          }
+        }
       } else if(statusEl){
         statusEl.textContent='';
       }
@@ -11490,6 +11558,35 @@ async function loadUserCredentials(){
     const auditSection=document.getElementById(p+'-audit-log');
     if(auditSection)auditSection.style.display='';
     await loadCredentialAuditLog(provider);
+  }
+}
+
+/** Human-readable relative time (e.g. "3 minutes ago") */
+function _timeAgo(date){
+  const diffMs=Date.now()-date.getTime();
+  const secs=Math.floor(diffMs/1000);
+  if(secs<60)return secs+' second'+(secs===1?'':'s')+' ago';
+  const mins=Math.floor(secs/60);
+  if(mins<60)return mins+' minute'+(mins===1?'':'s')+' ago';
+  const hrs=Math.floor(mins/60);
+  if(hrs<24)return hrs+' hour'+(hrs===1?'':'s')+' ago';
+  const days=Math.floor(hrs/24);
+  return days+' day'+(days===1?'':'s')+' ago';
+}
+
+/** Admin: toggle credential sharing for a provider */
+async function toggleCredentialSharing(provider,shared){
+  const p=provider==='microsoft'?'ms':'google';
+  const statusSpan=document.querySelector('#'+p+'-cred-share-row span:last-child');
+  try{
+    await _trpc('oauthSync.setCredentialSharing',{provider,shared},'mutation');
+    if(statusSpan)statusSpan.innerHTML=shared?'<span style="color:var(--ok)">Shared</span>':'Private';
+    toast(shared?'👥 Credentials shared with team':'Credentials set to private');
+  }catch(e){
+    toast('⚠️ Could not update sharing: '+(e?.message||e));
+    // Revert checkbox
+    const cb=document.getElementById(p+'-share-toggle');
+    if(cb)cb.checked=!shared;
   }
 }
 
@@ -11980,6 +12077,9 @@ async function verifyOAuthCredentials(provider){
     if(res.valid){
       if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Credentials accepted by '+(provider==='microsoft'?'Microsoft':'Google');}
       toast('✓ '+provider+' credentials are valid','success');
+      // Update the Last verified row to show 'just now'
+      const verRow=document.getElementById(p+'-cred-verified-row');
+      if(verRow){verRow.textContent='✅ Last verified: just now';verRow.style.color='var(--ok)';}
     } else {
       const errMsg=res.error||'Invalid credentials';
       if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='✗ '+errMsg;}

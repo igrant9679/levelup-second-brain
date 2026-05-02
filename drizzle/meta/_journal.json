@@ -78,6 +78,13 @@
       "when": 1777745980794,
       "tag": "0010_lumpy_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1777746803419,
+      "tag": "0011_fat_pestilence",
+      "breakpoints": true
     }
   ]
 }
