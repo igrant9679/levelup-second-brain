@@ -759,16 +759,21 @@ export const oauthSyncRouter = router({
     .input(z.object({ provider: z.enum(["microsoft", "google"]) }))
     .mutation(async ({ ctx, input }) => {
       const { getOAuthToken } = await import("../db");
-      const { refreshOAuthTokenSilently } = await import("../_core/refreshOAuthToken");
+      const { forceRefreshOAuthToken } = await import("../_core/refreshOAuthToken");
       let token = await getOAuthToken(ctx.user.id, input.provider);
       if (!token) {
         throw new TRPCError({ code: "NOT_FOUND", message: `No ${input.provider} token found. Please connect first.` });
       }
-      // Try silent refresh if expired
+      // Try to refresh if expired (use force refresh which always tries regardless of expiry guard)
       const now = Date.now();
       if (token.expiresAt && token.expiresAt.getTime() < now) {
-        const refreshed = await refreshOAuthTokenSilently(ctx.user.id, input.provider);
-        if (!refreshed) throw new TRPCError({ code: "UNAUTHORIZED", message: `${input.provider} token is expired. Please refresh.` });
+        const refreshResult = await forceRefreshOAuthToken(ctx.user.id, input.provider);
+        if (!refreshResult.success) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: `Token expired and refresh failed — please Disconnect and Connect again to re-authorise. (${refreshResult.message})`,
+          });
+        }
         // Re-fetch the token after refresh
         const updatedToken = await getOAuthToken(ctx.user.id, input.provider);
         if (!updatedToken) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Token refresh failed" });

@@ -11927,13 +11927,10 @@ async function testOAuthConnection(provider){
   const origText = btn ? btn.textContent : '';
   if(btn){ btn.disabled=true; btn.textContent='Testing...'; }
   try{
-    const res = await _trpc('oauthSync.testOAuthConnection','mutation',{provider});
-    if(res.error){ toast('Connection failed: '+res.error.message,'error'); }
-    else{
-      const d = res.result?.data;
-      const label = provider==='microsoft'?'Microsoft 365':'Google Workspace';
-      toast('✓ Connected as '+(d?.displayName||d?.email||'unknown')+' via '+label,'success');
-    }
+    const res = await _trpc('oauthSync.testOAuthConnection',{provider},'mutation');
+    // _trpc already unwraps the result — res is { success, provider, displayName, email }
+    const label = provider==='microsoft'?'Microsoft 365':'Google Workspace';
+    toast('✓ Connected as '+(res?.displayName||res?.email||'unknown')+' via '+label,'success');
   }catch(e){
     const msg = e.message||'';
     if(msg.includes('No ')&&msg.includes('token found')){
@@ -11956,13 +11953,10 @@ async function testIntegrationCred(prefix, title){
   const origText = btn.textContent;
   btn.disabled=true; btn.textContent='Testing...';
   try{
-    const res = await _trpc('oauthSync.testIntegration','mutation',{integration: prefix, apiKey});
-    if(res.error){ toast(title+' test failed: '+res.error.message,'error'); }
-    else{
-      const d = res.result?.data;
-      const who = d?.username || d?.name || d?.email || 'OK';
-      toast(title+' connected — '+who,'success');
-    }
+    const res = await _trpc('oauthSync.testIntegration',{integration: prefix, apiKey},'mutation');
+    // _trpc already unwraps the result — res is { success, integration, username?, name?, email? }
+    const who = res?.username || res?.name || res?.email || 'OK';
+    toast(title+' connected — '+who,'success');
   }catch(e){ toast(title+' test failed: '+e.message,'error'); }
   finally{ btn.disabled=false; btn.textContent=origText; }
 }
@@ -11977,12 +11971,9 @@ async function saveLogRetentionDays(){
   btn.disabled=true; btn.textContent='Saving...';
   if(status) status.textContent='';
   try{
-    const res = await _trpc('oauthSync.setLogRetentionDays','mutation',{days});
-    if(res.error){ toast('Failed to save: '+res.error.message,'error'); }
-    else{
-      toast('Retention period saved: '+days+' days','success');
-      if(status) status.textContent='Saved: '+days+' days';
-    }
+    await _trpc('oauthSync.setLogRetentionDays',{days},'mutation');
+    toast('Retention period saved: '+days+' days','success');
+    if(status) status.textContent='Saved: '+days+' days';
   }catch(e){ toast('Failed: '+e.message,'error'); }
   finally{ btn.disabled=false; btn.textContent=origText; }
 }
@@ -11992,10 +11983,11 @@ async function loadLogRetentionDays(){
   const status = document.getElementById('admin-retention-status');
   if(!input) return;
   try{
-    const res = await _trpc('oauthSync.getLogRetentionDays','query',{});
-    if(!res.error && res.result?.data){
-      input.value = String(res.result.data.days);
-      if(status) status.textContent = 'Current: '+res.result.data.days+' days';
+    const res = await _trpc('oauthSync.getLogRetentionDays',{},'query');
+    // _trpc already unwraps the result — res is { days: number }
+    if(res?.days !== undefined){
+      input.value = String(res.days);
+      if(status) status.textContent = 'Current: '+res.days+' days';
     }
   }catch(e){ /* silent */ }
 }

@@ -428,3 +428,12 @@
 - [x] Update refreshMsToken and refreshGoogleToken to use per-user credentials and tenant-specific endpoints
 - [x] Add forceRefreshOAuthToken() helper for explicit button-triggered refresh (no expiry guard)
 - [x] Update vitest tests for new silent refresh behavior (107 tests passing)
+
+## Bug Fix: Refresh Token error + Test Connection tRPC error
+- [x] Fix Refresh Token button: when refresh fails because token is expired/revoked, show clear actionable message guiding user to Disconnect and reconnect
+- [x] Fix Test Connection tRPC error — wrong argument order in _trpc() call (was passing 'mutation' as input and {provider} as method)
+- [x] Fix Test Connection result parsing — _trpc already unwraps result, removed double-unwrap res.result?.data
+- [x] Fix testIntegrationCred same wrong argument order and result parsing issues
+- [x] Fix setLogRetentionDays and loadLogRetentionDays same issues
+- [x] Improve testOAuthConnection to use forceRefreshOAuthToken (not refreshOAuthTokenSilently) for expired tokens
+- [x] 107 tests passing, TypeScript clean
