@@ -14,6 +14,17 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Build a URL-encoded form body that preserves ~ as a literal character.
+ * URLSearchParams encodes ~ as %7E, but Microsoft's token endpoint rejects this.
+ * RFC 3986 marks ~ as an unreserved character that SHOULD NOT be percent-encoded.
+ */
+function buildFormBody(params: Record<string, string>): string {
+  return Object.entries(params)
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v).replace(/%7E/gi, '~'))
+    .join('&');
+}
+
 function parseState(state: string): { userId: number; origin: string; tenantId?: string | null } | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf-8");
@@ -60,16 +71,18 @@ export function registerProviderOAuthCallbacks(app: Express) {
 
     try {
       // Exchange code for tokens
+      // NOTE: buildFormBody is used instead of URLSearchParams because URLSearchParams
+      // encodes ~ as %7E, but Microsoft's token endpoint rejects this encoding.
       const tokenResp = await fetch(tokenEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
+        body: buildFormBody({
           client_id: clientId,
           client_secret: clientSecret,
           code,
           redirect_uri: redirectUri,
           grant_type: "authorization_code",
-        }).toString(),
+        }),
       });
 
       if (!tokenResp.ok) {

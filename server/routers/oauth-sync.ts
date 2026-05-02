@@ -54,6 +54,17 @@ async function testSmtpConnection(input: {
   return { success: true };
 }
 
+/**
+ * Build a URL-encoded form body that preserves ~ as a literal character.
+ * URLSearchParams encodes ~ as %7E, but Microsoft's token endpoint rejects this.
+ * RFC 3986 marks ~ as an unreserved character that SHOULD NOT be percent-encoded.
+ */
+function buildFormBody(params: Record<string, string>): string {
+  return Object.entries(params)
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v).replace(/%7E/gi, '~'))
+    .join('&');
+}
+
 /** Resolve the effective client ID for a provider, preferring per-user credentials */
 async function resolveClientId(userId: number, provider: "microsoft" | "google"): Promise<string> {
   const userCred = await db.getUserOauthCredential(userId, provider);
@@ -125,17 +136,16 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
   // Use tenant-specific endpoint for single-tenant apps
   const userCred = await db.getUserOauthCredential(token.userId, "microsoft");
   const tenantId = userCred?.tenantId?.trim() || "common";
-  const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    refresh_token: token.refreshToken,
-    grant_type: "refresh_token",
-    scope: "offline_access User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send Contacts.ReadWrite",
-  });
   const resp = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
+    body: buildFormBody({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: token.refreshToken,
+      grant_type: "refresh_token",
+      scope: "offline_access User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send Contacts.ReadWrite",
+    }),
   });
   if (!resp.ok) return null;
   const data = await resp.json() as { access_token: string; expires_in: number; refresh_token?: string };
@@ -155,16 +165,15 @@ async function refreshGoogleToken(token: { refreshToken: string | null; userId: 
   const clientId = await resolveClientId(token.userId, "google");
   const clientSecret = await resolveClientSecret(token.userId, "google");
   if (!clientId || !clientSecret) return null;
-  const body = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    refresh_token: token.refreshToken,
-    grant_type: "refresh_token",
-  });
   const resp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
+    body: buildFormBody({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: token.refreshToken,
+      grant_type: "refresh_token",
+    }),
   });
   if (!resp.ok) return null;
   const data = await resp.json() as { access_token: string; expires_in: number };
@@ -884,15 +893,18 @@ export const oauthSyncRouter = router({
         // Use the client_credentials grant with a dummy scope to validate credentials.
         // We expect either a token response or a specific error about the tenant/scope,
         // NOT an "invalid_client" error which would mean bad credentials.
-        const body = new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          grant_type: "client_credentials",
-          scope: "https://graph.microsoft.com/.default",
-        });
         const resp = await fetch(
           "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-          { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          {
+            method: "POST",
+            body: buildFormBody({
+              client_id: clientId,
+              client_secret: clientSecret,
+              grant_type: "client_credentials",
+              scope: "https://graph.microsoft.com/.default",
+            }),
+            headers: { "Content-Type": "application/x-www-form-urlencoded" }
+          }
         );
         const data = await resp.json() as { error?: string; error_description?: string; access_token?: string };
         // invalid_client = bad credentials; other errors (e.g. unsupported_grant_type on /common) = credentials are valid
@@ -907,16 +919,19 @@ export const oauthSyncRouter = router({
         // Google: use the token info endpoint to check if the client_id is registered
         // We attempt a token exchange with a dummy code — Google will return
         // "invalid_client" for bad credentials vs other errors for bad code
-        const body = new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          grant_type: "authorization_code",
-          code: "VALIDATION_PROBE",
-          redirect_uri: "https://localhost",
-        });
         const resp = await fetch(
           "https://oauth2.googleapis.com/token",
-          { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          {
+            method: "POST",
+            body: buildFormBody({
+              client_id: clientId,
+              client_secret: clientSecret,
+              grant_type: "authorization_code",
+              code: "VALIDATION_PROBE",
+              redirect_uri: "https://localhost",
+            }),
+            headers: { "Content-Type": "application/x-www-form-urlencoded" }
+          }
         );
         const data = await resp.json() as { error?: string; error_description?: string };
         if (data.error === "invalid_client") {

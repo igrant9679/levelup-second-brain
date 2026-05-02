@@ -543,3 +543,9 @@
 - [ ] Create BulkImport.tsx page with date range selector
 - [ ] Show progress bar during bulk import
 - [ ] Display import results (X events, Y emails imported)
+
+## Bug Fix: Microsoft OAuth AADSTS7000215 Invalid Client Secret
+- [x] Root cause: URLSearchParams encodes ~ as %7E, but Microsoft rejects %7E (expects literal ~)
+- [x] Fix: Added buildFormBody() helper in oauth-callbacks.ts and oauth-sync.ts that preserves ~ as literal
+- [x] Fixed all token exchange calls: MS callback, refreshMsToken, refreshGoogleToken, validateCredentials
+- [x] 107 tests passing, TypeScript clean, server restarted cleanly
