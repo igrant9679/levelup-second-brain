@@ -3963,7 +3963,7 @@ function openComposeModal(){
   document.getElementById('modal-capture').classList.add('show');
   setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
 }
-async async function sendComposedMail(){
+async function sendComposedMail(){
   const to=document.getElementById('cmp-to')?.value.trim();
   if(!to){toast('⚠ Recipient required');return;}
   const sub=document.getElementById('cmp-sub')?.value||'(no subject)';
