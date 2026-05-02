@@ -14,6 +14,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { sendEmail } from "../_core/sendEmail";
+import { refreshOAuthTokenSilently } from "../_core/refreshOAuthToken";
 
 // ---- Helpers ----
 
@@ -148,6 +149,12 @@ async function getValidAccessToken(userId: number, provider: "microsoft" | "goog
 
 export const oauthSyncRouter = router({
   status: protectedProcedure.query(async ({ ctx }) => {
+    // Attempt silent token refresh for expired/near-expiry tokens before returning status
+    await Promise.allSettled([
+      refreshOAuthTokenSilently(ctx.user.id, "microsoft"),
+      refreshOAuthTokenSilently(ctx.user.id, "google"),
+    ]);
+
     const [ms, google, msCred, googleCred] = await Promise.all([
       db.getOAuthToken(ctx.user.id, "microsoft"),
       db.getOAuthToken(ctx.user.id, "google"),
@@ -487,4 +494,60 @@ export const oauthSyncRouter = router({
       await db.setSystemSetting("notificationSender", input.senderKey);
       return { success: true };
     }),
+
+  // ---- Admin: Full Email Delivery Log ----
+  /**
+   * Paginated full delivery log across all users.
+   * Admin-only. Supports optional status and date range filters.
+   */
+  getAdminEmailDeliveryLog: protectedProcedure
+    .input(z.object({
+      status: z.enum(["sent", "failed", "skipped"]).optional(),
+      from: z.date().optional(),
+      to: z.date().optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(100).default(20),
+    }))
+    .query(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      return db.getAdminEmailDeliveryLog(input);
+    }),
+
+  // ---- Admin: Check & Notify Expiring Tokens ----
+  /**
+   * Check all users' OAuth tokens. For any that expired or expire within 3 days,
+   * send a single consolidated notifyOwner alert.
+   * Admin-only. Idempotent — uses a system_settings key to avoid duplicate alerts
+   * within the same calendar day.
+   */
+  checkAndNotifyExpiry: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new Error("Admin only");
+
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const dedupeKey = `expiry_notif_sent_${today}`;
+    const alreadySent = await db.getSystemSetting(dedupeKey);
+    if (alreadySent) return { notified: false, reason: "Already notified today" };
+
+    const expiring = await db.getAllExpiringTokens(3);
+    if (!expiring.length) return { notified: false, reason: "No expiring tokens" };
+
+    const lines = expiring.map(t => {
+      const expiresAt = t.expiresAt instanceof Date ? t.expiresAt : new Date(t.expiresAt);
+      const diffMs = expiresAt.getTime() - Date.now();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const timeStr = diffMs <= 0 ? "EXPIRED" : `expires in ${diffDays} day${diffDays === 1 ? "" : "s"}`;
+      const name = t.userName ?? t.userEmail ?? `User #${t.userId}`;
+      return `• ${name} — ${t.provider} (${t.email ?? "no email"}) — ${timeStr}`;
+    });
+
+    const { notifyOwner } = await import("../_core/notification");
+    await notifyOwner({
+      title: `⚠ ${expiring.length} OAuth token${expiring.length === 1 ? "" : "s"} expiring soon`,
+      content: `The following connected OAuth tokens are expiring or have expired:\n\n${lines.join("\n")}\n\nAsk affected users to reconnect their accounts in Settings → Accounts.`,
+    });
+
+    // Mark as sent for today to prevent duplicate alerts
+    await db.setSystemSetting(dedupeKey, "1");
+    return { notified: true, count: expiring.length };
+  }),
 });

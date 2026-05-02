@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { credentialAuditLog, emailDeliveryLog, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -218,6 +218,71 @@ export async function getEmailDeliveryLog(userId: number, limit = 5) {
     .where(eq(emailDeliveryLog.userId, userId))
     .orderBy(desc(emailDeliveryLog.createdAt))
     .limit(limit);
+}
+
+export async function getAdminEmailDeliveryLog(opts: {
+  status?: 'sent' | 'failed' | 'skipped';
+  from?: Date;
+  to?: Date;
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { entries: [], total: 0 };
+  const { status, from, to, page = 1, pageSize = 20 } = opts;
+  const offset = (page - 1) * pageSize;
+
+  // Build where conditions
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (status) conditions.push(eq(emailDeliveryLog.status, status));
+  if (from) conditions.push(gte(emailDeliveryLog.createdAt, from));
+  if (to) conditions.push(lte(emailDeliveryLog.createdAt, to));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [entries, countRows] = await Promise.all([
+    db.select({
+      id: emailDeliveryLog.id,
+      userId: emailDeliveryLog.userId,
+      to: emailDeliveryLog.to,
+      subject: emailDeliveryLog.subject,
+      status: emailDeliveryLog.status,
+      errorMessage: emailDeliveryLog.errorMessage,
+      createdAt: emailDeliveryLog.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(emailDeliveryLog)
+    .leftJoin(users, eq(users.id, emailDeliveryLog.userId))
+    .where(where)
+    .orderBy(desc(emailDeliveryLog.createdAt))
+    .limit(pageSize)
+    .offset(offset),
+    db.select({ count: sql<number>`count(*)` })
+    .from(emailDeliveryLog)
+    .where(where),
+  ]);
+
+  return { entries, total: Number(countRows[0]?.count ?? 0) };
+}
+
+/** Return all oauth tokens that expire within the given number of days. */
+export async function getAllExpiringTokens(withinDays = 3) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000);
+  return db.select({
+    userId: oauthTokens.userId,
+    provider: oauthTokens.provider,
+    expiresAt: oauthTokens.expiresAt,
+    email: oauthTokens.email,
+    displayName: oauthTokens.displayName,
+    userName: users.name,
+    userEmail: users.email,
+  })
+  .from(oauthTokens)
+  .innerJoin(users, eq(users.id, oauthTokens.userId))
+  .where(lte(oauthTokens.expiresAt, cutoff));
 }
 
 // Get all connected OAuth accounts across all users (for owner notification sender picker)

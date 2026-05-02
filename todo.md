@@ -275,3 +275,13 @@
 - [x] Settings Accounts → Disconnect button: replace direct disconnect with a confirmation modal ("Disconnect [Provider]? Your synced data will stop updating.")
 - [x] vitest: tests for email delivery log (insert + query helpers, getEmailDeliveryLog procedure)
 - [x] vitest: tests for disconnect confirmation (modal shown — covered by showConfirmModal unit logic)
+
+## Admin Delivery Log, Token Auto-Refresh & Owner Expiry Notification
+- [x] Backend: tRPC adminProcedure oauthSync.getAdminEmailDeliveryLog — returns paginated log across all users with optional status/date filters
+- [x] Backend: refreshOAuthTokenSilently() helper — uses stored refreshToken to get a new accessToken from Google/Microsoft and upserts the token row; called automatically when accessToken is expired or within 1 hour of expiry
+- [x] Backend: wire refreshOAuthTokenSilently() into oauthSync.status — if token is expired/near-expiry and refreshToken exists, attempt silent refresh before returning status
+- [x] Backend: tRPC procedure oauthSync.checkAndNotifyExpiry — checks all users' tokens, sends notifyOwner alert for any that expired or expire within 3 days (owner-only, idempotent via localStorage-style DB flag)
+- [x] Settings → Admin section: add "Email Delivery Log" sub-panel showing full log table with status filter (All / Sent / Failed / Skipped) and date range filter, paginated (20 per page)
+- [x] vitest: tests for getAdminEmailDeliveryLog (admin-only gate, filtering, pagination)
+- [x] vitest: tests for refreshOAuthTokenSilently (success path, no refreshToken, within-1h threshold, HTTP error)
+- [x] vitest: tests for checkAndNotifyExpiry (sends notification, skips if none, idempotent)

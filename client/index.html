@@ -7236,7 +7236,7 @@ function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
 function renderSettingsHTML(){
-  const setNav=['\ud83d\udc64 Profile','General','Appearance','\ud83d\udd14 Notifications','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy'];
+  const setNav=['\ud83d\udc64 Profile','General','Appearance','\ud83d\udd14 Notifications','Accounts','Integrations','AI Features','Teams','OneNote Import','Sync','Backup','Privacy','\ud83d\udee1 Admin'];
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
@@ -7701,6 +7701,39 @@ function renderSettingsHTML(){
   <p style="font-size:10px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">AI Audit Log</div></div><button class="btn btn-s" style="font-size:11px">View Activity</button></div></div>
+  <!-- Admin --><div id="sp-12" class="sp" style="display:none">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">\ud83d\udee1 Admin Tools</h3>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Visible to administrators only. Manage system-wide email delivery and OAuth token health.</p>
+    <!-- Expiry Notification -->
+    <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:4px">\u26a0 OAuth Token Expiry Check</div>
+      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Check all users' connected OAuth tokens and send an owner notification if any expire within 3 days. Runs at most once per day.</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="adminCheckTokenExpiry()">Check &amp; Notify Now</button>
+        <span id="admin-expiry-status" style="font-size:10px;color:var(--t3)"></span>
+      </div>
+    </div>
+    <!-- Email Delivery Log -->
+    <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">\ud83d\udce7 Email Delivery Log</div>
+      <!-- Filters -->
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <select id="admin-log-status" class="inp" style="width:100px;font-size:11px;height:28px" onchange="loadAdminDeliveryLog(1)">
+          <option value="">All statuses</option>
+          <option value="sent">Sent</option>
+          <option value="failed">Failed</option>
+          <option value="skipped">Skipped</option>
+        </select>
+        <input type="date" id="admin-log-from" class="inp" style="font-size:11px;height:28px;width:130px" onchange="loadAdminDeliveryLog(1)">
+        <input type="date" id="admin-log-to" class="inp" style="font-size:11px;height:28px;width:130px" onchange="loadAdminDeliveryLog(1)">
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="clearAdminLogFilters()">Clear</button>
+      </div>
+      <!-- Table -->
+      <div id="admin-delivery-log" style="font-size:10px;color:var(--t3)">Loading\u2026</div>
+      <!-- Pagination -->
+      <div id="admin-log-pagination" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:10px"></div>
+    </div>
+  </div>
   </div></div>`;
 }
 
@@ -7716,6 +7749,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
+  if(id==='sp-12')loadAdminDeliveryLog(1);
   if(id==='sp-8')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
@@ -11492,6 +11526,90 @@ function dismissExpiryBanner(){
     localStorage.setItem('expiry-banner-dismiss-'+provider,String(tomorrow));
   }
   banner.style.display='none';
+}
+/** Admin: Check all tokens and send owner notification for expiring ones */
+async function adminCheckTokenExpiry(){
+  const statusEl=document.getElementById('admin-expiry-status');
+  if(statusEl)statusEl.textContent='\u23f3 Checking...';
+  try{
+    const result=await _trpc('oauthSync.checkAndNotifyExpiry',{},'mutation');
+    if(result?.notified){
+      if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='\u2713 Notified owner about '+result.count+' expiring token'+(result.count===1?'':'s');}
+      toast('\u2705 Owner notified about '+result.count+' expiring token'+(result.count===1?'':'s'));
+    } else {
+      if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent=result?.reason||'Nothing to notify';}
+      toast('\u2139 '+(result?.reason||'No expiring tokens found'));
+    }
+  }catch(e:any){
+    if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='\u2717 '+(e?.message||'Error');}
+    toast('\u26a0 '+(e?.message||'Check failed'));
+  }
+}
+/** Admin: Load paginated email delivery log with filters */
+let _adminLogPage=1;
+async function loadAdminDeliveryLog(page=1){
+  _adminLogPage=page;
+  const el=document.getElementById('admin-delivery-log');
+  const pgEl=document.getElementById('admin-log-pagination');
+  if(!el)return;
+  el.innerHTML='<span style="color:var(--t3);font-style:italic">Loading...</span>';
+  const status=(document.getElementById('admin-log-status') as HTMLSelectElement)?.value||undefined;
+  const fromVal=(document.getElementById('admin-log-from') as HTMLInputElement)?.value;
+  const toVal=(document.getElementById('admin-log-to') as HTMLInputElement)?.value;
+  const input:any={page,pageSize:20};
+  if(status)input.status=status;
+  if(fromVal)input.from=new Date(fromVal);
+  if(toVal){const d=new Date(toVal);d.setHours(23,59,59,999);input.to=d;}
+  try{
+    const result=await _trpc('oauthSync.getAdminEmailDeliveryLog',input,'query');
+    const entries=result?.entries||[];
+    const total=result?.total||0;
+    if(!entries.length){el.innerHTML='<span style="color:var(--t3);font-style:italic">No entries found.</span>';if(pgEl)pgEl.innerHTML='';return;}
+    const statusColor=(s:string)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
+    const statusIcon=(s:string)=>s==='sent'?'\u2713':s==='failed'?'\u2717':'\u2014';
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:10px">
+      <thead><tr style="border-bottom:1px solid var(--brd);color:var(--t3)">
+        <th style="text-align:left;padding:4px 6px;font-weight:600">Status</th>
+        <th style="text-align:left;padding:4px 6px;font-weight:600">To</th>
+        <th style="text-align:left;padding:4px 6px;font-weight:600">Subject</th>
+        <th style="text-align:left;padding:4px 6px;font-weight:600">User</th>
+        <th style="text-align:left;padding:4px 6px;font-weight:600">Time</th>
+      </tr></thead>
+      <tbody>${entries.map((e:any)=>{
+        const sc=statusColor(e.status);const si=statusIcon(e.status);
+        const dt=new Date(e.createdAt).toLocaleString();
+        const user=e.userName||(e.userEmail?e.userEmail.split('@')[0]:'System');
+        const errTip=e.errorMessage?` title="${e.errorMessage.replace(/"/g,'&quot;')}"`:\'\'';
+        return `<tr style="border-bottom:1px solid var(--brd)" ${errTip}>
+          <td style="padding:4px 6px;color:${sc};font-weight:700">${si} ${e.status}</td>
+          <td style="padding:4px 6px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.to}</td>
+          <td style="padding:4px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.subject}</td>
+          <td style="padding:4px 6px;color:var(--t3)">${user}</td>
+          <td style="padding:4px 6px;color:var(--t3);white-space:nowrap">${dt}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+    // Pagination
+    if(pgEl){
+      const totalPages=Math.ceil(total/20);
+      const start=(page-1)*20+1;const end=Math.min(page*20,total);
+      pgEl.innerHTML=`<span style="color:var(--t3)">${start}-${end} of ${total}</span>
+        <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px" ${page<=1?'disabled':''} onclick="loadAdminDeliveryLog(${page-1})">\u2190</button>
+        <span style="color:var(--t3)">Page ${page}/${totalPages}</span>
+        <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px" ${page>=totalPages?'disabled':''} onclick="loadAdminDeliveryLog(${page+1})">\u2192</button>`;
+    }
+  }catch(e:any){
+    el.innerHTML='<span style="color:var(--err,#ef4444)">\u2717 '+(e?.message||'Failed to load log')+'</span>';
+  }
+}
+function clearAdminLogFilters(){
+  const s=document.getElementById('admin-log-status') as HTMLSelectElement|null;
+  const f=document.getElementById('admin-log-from') as HTMLInputElement|null;
+  const t=document.getElementById('admin-log-to') as HTMLInputElement|null;
+  if(s)s.value='';
+  if(f)f.value='';
+  if(t)t.value='';
+  loadAdminDeliveryLog(1);
 }
 /** Save per-user OAuth app credentials */
 async function saveOAuthCredentials(provider:string){
