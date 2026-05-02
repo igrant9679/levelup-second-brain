@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, emailDeliveryLog, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -298,4 +298,28 @@ export async function getAllConnectedOAuthAccounts() {
   })
   .from(oauthTokens)
   .innerJoin(users, eq(users.id, oauthTokens.userId));
+}
+
+// ─── Scheduled Task Log ──────────────────────────────────────────────────────
+
+/** Insert a record for a completed scheduled task run. */
+export async function insertScheduledTaskLog(entry: InsertScheduledTaskLog): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(scheduledTaskLog).values(entry);
+}
+
+/** Return the last N runs for a given task name (or all tasks if taskName is omitted). */
+export async function getScheduledTaskLog(limit = 20, taskName?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const q = db
+    .select()
+    .from(scheduledTaskLog)
+    .orderBy(desc(scheduledTaskLog.ranAt))
+    .limit(limit);
+  if (taskName) {
+    return q.where(eq(scheduledTaskLog.taskName, taskName));
+  }
+  return q;
 }

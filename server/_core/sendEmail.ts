@@ -10,6 +10,7 @@ import { getDb } from "../db";
 import { insertEmailDeliveryLog } from "../db";
 import { systemSettings, oauthTokens } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { emailTemplate } from "./emailTemplate";
 
 export interface EmailPayload {
   to: string;
@@ -156,12 +157,18 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       return false;
     }
 
+    // Wrap the body in the shared branded template unless it already contains <!DOCTYPE
+    const rawHtml = payload.html;
+    const wrappedHtml = rawHtml.trimStart().toLowerCase().startsWith("<!doctype")
+      ? rawHtml
+      : emailTemplate({ subject: payload.subject, body: rawHtml });
+
     await transport.transporter.sendMail({
       from: transport.from,
       to: payload.to,
       subject: payload.subject,
-      html: payload.html,
-      text: payload.text ?? payload.html.replace(/<[^>]+>/g, ""),
+      html: wrappedHtml,
+      text: payload.text ?? rawHtml.replace(/<[^>]+>/g, ""),
     });
 
     await insertEmailDeliveryLog({

@@ -292,3 +292,13 @@
 - [x] Backend: /api/scheduled/check-expiry POST endpoint — per-user emails (7-day) + consolidated owner notification (3-day), authenticated via session cookie
 - [x] Scheduled task: daily at 8 AM — POST to /api/scheduled/check-expiry
 - [x] vitest: 8 tests for per-user expiry email path and scheduled endpoint logic (82 total, all passing)
+
+## Email Template Branding, Admin Expiry Button & Scheduled Task Log
+- [x] Backend: create shared emailTemplate() helper in server/_core/emailTemplate.ts — wraps any HTML body in a branded layout (logo, header, footer with app name)
+- [x] Backend: update sendEmail() to wrap outgoing HTML through emailTemplate() automatically
+- [x] DB: add scheduled_task_log table (id, taskName, ranAt, emailsSent, ownerNotified, error, durationMs)
+- [x] Backend: write to scheduled_task_log at the end of every /api/scheduled/check-expiry run
+- [x] Backend: tRPC adminProcedure oauthSync.getScheduledTaskLog — returns last 20 entries
+- [x] Settings Admin panel: add "Send Expiry Emails Now" button with confirmation dialog that calls oauthSync.notifyExpiringTokensPerUser
+- [x] Settings Admin panel: add "Scheduled Task History" sub-section showing last 20 runs from getScheduledTaskLog
+- [x] vitest: 14 tests for emailTemplate() helper and getScheduledTaskLog procedure (96 total, all passing)

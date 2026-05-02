@@ -12,6 +12,7 @@ import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
+import { insertScheduledTaskLog } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -46,6 +47,7 @@ async function startServer() {
   // Called by the Manus scheduled task agent via POST with the session cookie.
   // Sends per-user expiry emails (7-day window) AND a consolidated owner notification (3-day window).
   app.post("/api/scheduled/check-expiry", async (req, res) => {
+    const startMs = Date.now();
     try {
       const user = await sdk.authenticateRequest(req).catch(() => null);
       if (!user) {
@@ -108,10 +110,29 @@ async function startServer() {
         }
       }
 
-      res.json({ success: true, emailResult, ownerResult });
+      const durationMs = Date.now() - startMs;
+      await insertScheduledTaskLog({
+        taskName: "check-expiry",
+        emailsSent: emailResult.count ?? 0,
+        ownerNotified: ownerResult.notified ? 1 : 0,
+        durationMs,
+        error: null,
+      });
+
+      res.json({ success: true, emailResult, ownerResult, durationMs });
     } catch (err) {
+      const durationMs = Date.now() - startMs;
+      const errorMsg = String(err);
       console.error("[check-expiry] Error:", err);
-      res.status(500).json({ error: String(err) });
+      // Still log the failure
+      await insertScheduledTaskLog({
+        taskName: "check-expiry",
+        emailsSent: 0,
+        ownerNotified: 0,
+        durationMs,
+        error: errorMsg,
+      }).catch(() => {});
+      res.status(500).json({ error: errorMsg });
     }
   });
 

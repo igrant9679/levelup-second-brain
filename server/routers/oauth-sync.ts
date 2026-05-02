@@ -599,4 +599,15 @@ export const oauthSyncRouter = router({
     await db.setSystemSetting(dedupeKey, "1");
     return { notified: true, count: expiring.length };
   }),
+
+  /**
+   * Return the last 20 scheduled task log entries.
+   * Admin-only.
+   */
+  getScheduledTaskLog: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") throw new Error("Admin only");
+      return db.getScheduledTaskLog(input?.limit ?? 20);
+    }),
 });

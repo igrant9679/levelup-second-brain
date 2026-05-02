@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, tinyint, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -234,3 +234,16 @@ export const emailDeliveryLog = mysqlTable('email_delivery_log', {
 });
 export type EmailDeliveryLog = typeof emailDeliveryLog.$inferSelect;
 export type InsertEmailDeliveryLog = typeof emailDeliveryLog.$inferInsert;
+// ─── Scheduled Task Log ──────────────────────────────────────────────────────
+// Records every run of a scheduled task endpoint for observability.
+export const scheduledTaskLog = mysqlTable('scheduled_task_log', {
+  id: int('id').autoincrement().primaryKey(),
+  taskName: varchar('taskName', { length: 128 }).notNull(), // e.g. 'check-expiry'
+  ranAt: timestamp('ranAt').defaultNow().notNull(),
+  durationMs: int('durationMs'),                // wall-clock time for the run
+  emailsSent: int('emailsSent').default(0).notNull(),
+  ownerNotified: tinyint('ownerNotified').default(0).notNull(), // 0 = false, 1 = true
+  error: text('error'),                         // null on success
+});
+export type ScheduledTaskLog = typeof scheduledTaskLog.$inferSelect;
+export type InsertScheduledTaskLog = typeof scheduledTaskLog.$inferInsert;

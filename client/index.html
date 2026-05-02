@@ -7713,7 +7713,16 @@ function renderSettingsHTML(){
         <span id="admin-expiry-status" style="font-size:10px;color:var(--t3)"></span>
       </div>
     </div>
-    <!-- Email Delivery Log -->
+    <!-- Send Expiry Emails Now -->
+    <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:4px">📨 Send Expiry Warning Emails</div>
+      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Send a direct expiry warning email to each user whose OAuth token expires within 7 days. Idempotent — runs at most once per day.</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="adminSendExpiryEmails()">Send Expiry Emails Now</button>
+        <span id="admin-expiry-email-status" style="font-size:10px;color:var(--t3)"></span>
+      </div>
+    </div>
+        <!-- Email Delivery Log -->
     <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:600;margin-bottom:8px">\ud83d\udce7 Email Delivery Log</div>
       <!-- Filters -->
@@ -7733,6 +7742,15 @@ function renderSettingsHTML(){
       <!-- Pagination -->
       <div id="admin-log-pagination" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:10px"></div>
     </div>
+    <!-- Scheduled Task History -->
+    <div style="margin-top:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:600">⏱ Scheduled Task History</div>
+        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="loadScheduledTaskLog()">↻ Refresh</button>
+      </div>
+      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 20 runs of the daily OAuth token expiry check job.</p>
+      <div id="admin-task-log" style="font-size:10px;color:var(--t3)">Loading…</div>
+    </div>
   </div>
   </div></div>`;
 }
@@ -7749,7 +7767,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
-  if(id==='sp-12')loadAdminDeliveryLog(1);
+  if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();}
   if(id==='sp-8')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
@@ -11600,6 +11618,69 @@ async function loadAdminDeliveryLog(page=1){
     }
   }catch(e){
     el.innerHTML='<span style="color:var(--err,#ef4444)">\u2717 '+(e?.message||'Failed to load log')+'</span>';
+  }
+}
+async function adminSendExpiryEmails(){
+  const statusEl=document.getElementById('admin-expiry-email-status');
+  const btn=event.currentTarget;
+  const ok=await showConfirmModal(
+    'Send Expiry Warning Emails',
+    'This will send a direct email to every user whose OAuth token expires within 7 days. Idempotent \u2014 will not send duplicates if already sent today. Continue?',
+    'Send Emails','Cancel'
+  );
+  if(!ok)return;
+  btn.disabled=true;
+  if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='Sending\u2026';}
+  try{
+    const result=await _trpc('oauthSync.notifyExpiringTokensPerUser',{},'mutation');
+    if(result&&result.alreadySent){
+      if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='\u2139 Already sent today';}
+      toast('\u2139 Expiry emails already sent today');
+    } else if(result&&result.count===0){
+      if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='\u2713 No tokens expiring within 7 days';}
+      toast('\u2713 No tokens expiring \u2014 no emails sent');
+    } else {
+      const c=result&&result.count!=null?result.count:0;
+      if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='\u2713 Sent to '+c+' user'+(c===1?'':'s');}
+      toast('\u2705 Expiry emails sent to '+c+' user'+(c===1?'':'s'));
+    }
+  }catch(e){
+    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='\u2717 '+(e.message||'Error');}
+    toast('\u274c Failed: '+(e.message||'Unknown error'));
+  }finally{
+    btn.disabled=false;
+  }
+}
+async function loadScheduledTaskLog(){
+  const el=document.getElementById('admin-task-log');
+  if(!el)return;
+  el.textContent='Loading\u2026';
+  try{
+    const rows=await _trpc('oauthSync.getScheduledTaskLog',{limit:20},'query');
+    if(!rows||rows.length===0){el.innerHTML='<em style="color:var(--t3)">No runs recorded yet.</em>';return;}
+    const fmt=function(ts){return ts?new Date(ts).toLocaleString():'\u2014';};
+    const dur=function(ms){return ms!=null?(ms<1000?ms+'ms':(ms/1000).toFixed(1)+'s'):'\u2014';};
+    const statusBadge=function(err){return err?'<span style="color:var(--err);font-weight:600">\u2717 Error</span>':'<span style="color:var(--ok);font-weight:600">\u2713 OK</span>';};
+    let html='<table style="width:100%;border-collapse:collapse;font-size:10px">';
+    html+='<tr style="color:var(--t2);border-bottom:1px solid var(--brd)"><th style="text-align:left;padding:3px 6px">Time</th><th style="text-align:left;padding:3px 6px">Task</th><th style="padding:3px 6px">Status</th><th style="padding:3px 6px">Emails</th><th style="padding:3px 6px">Owner</th><th style="padding:3px 6px">Duration</th></tr>';
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      html+='<tr style="border-bottom:1px solid var(--brd)">';
+      html+='<td style="padding:3px 6px;color:var(--t2)">'+fmt(r.ranAt)+'</td>';
+      html+='<td style="padding:3px 6px">'+r.taskName+'</td>';
+      html+='<td style="padding:3px 6px;text-align:center">'+statusBadge(r.error)+'</td>';
+      html+='<td style="padding:3px 6px;text-align:center">'+(r.emailsSent||0)+'</td>';
+      html+='<td style="padding:3px 6px;text-align:center">'+(r.ownerNotified?'\u2713':'\u2014')+'</td>';
+      html+='<td style="padding:3px 6px;text-align:center">'+dur(r.durationMs)+'</td>';
+      html+='</tr>';
+      if(r.error){
+        html+='<tr><td colspan="6" style="padding:2px 6px 6px;color:var(--err);font-size:9px">'+r.error+'</td></tr>';
+      }
+    }
+    html+='</table>';
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML='<span style="color:var(--err)">\u2717 '+(e.message||'Failed to load')+'</span>';
   }
 }
 function clearAdminLogFilters(){
