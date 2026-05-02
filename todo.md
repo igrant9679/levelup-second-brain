@@ -437,3 +437,10 @@
 - [x] Fix setLogRetentionDays and loadLogRetentionDays same issues
 - [x] Improve testOAuthConnection to use forceRefreshOAuthToken (not refreshOAuthTokenSilently) for expired tokens
 - [x] 107 tests passing, TypeScript clean
+
+## Bug Fix: Microsoft Connect button logs user out
+- [x] Root cause: initLoginScreen() never called auth.me to check JWT cookie — always showed login form on page load
+- [x] Fix: initLoginScreen() now calls auth.me on load; if cookie is valid, auto-restores session and skips login form
+- [x] Added loading spinner ("Restoring session…") shown while auth.me check is in flight
+- [x] Microsoft/Google OAuth callbacks now return to app seamlessly without requiring manual re-login
+- [x] 107 tests passing, TypeScript clean
