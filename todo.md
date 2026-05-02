@@ -285,3 +285,10 @@
 - [x] vitest: tests for getAdminEmailDeliveryLog (admin-only gate, filtering, pagination)
 - [x] vitest: tests for refreshOAuthTokenSilently (success path, no refreshToken, within-1h threshold, HTTP error)
 - [x] vitest: tests for checkAndNotifyExpiry (sends notification, skips if none, idempotent)
+
+## Sign In Fix, Daily Expiry Check & Per-User Expiry Email
+- [x] Bug: Sign In button on login screen does nothing — root cause: TypeScript cast syntax (`as HTMLElement`) in inline `<script>` block caused silent browser parse failure; all 18 occurrences removed
+- [x] Backend: new tRPC procedure oauthSync.notifyExpiringTokensPerUser — sends a direct expiry warning email to each affected user (7-day window), idempotent per day
+- [x] Backend: /api/scheduled/check-expiry POST endpoint — per-user emails (7-day) + consolidated owner notification (3-day), authenticated via session cookie
+- [x] Scheduled task: daily at 8 AM — POST to /api/scheduled/check-expiry
+- [x] vitest: 8 tests for per-user expiry email path and scheduled endpoint logic (82 total, all passing)

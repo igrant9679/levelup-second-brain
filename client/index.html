@@ -11327,7 +11327,7 @@ function _updateOAuthCard(provider,status){
   if(setupBox){
     const msConfigured=document.getElementById('oauth-ms-badge')?.textContent!=='⚠ Setup required';
     const gConfigured=document.getElementById('oauth-google-badge')?.textContent!=='⚠ Setup required';
-    (setupBox as HTMLElement).style.display=(msConfigured&&gConfigured)?'none':'';
+    (setupBox).style.display=(msConfigured&&gConfigured)?'none':'';
   }
 }
 
@@ -11351,7 +11351,7 @@ async function loadUserCredentials(){
   for(const provider of ['microsoft','google']){
     const p=provider==='microsoft'?'ms':'google';
     const statusEl=document.getElementById(p+'-cred-status');
-    const idEl=document.getElementById(p+'-cred-id') as HTMLInputElement|null;
+    const idEl=document.getElementById(p+'-cred-id');
     try{
       const cred=await _trpc('oauthSync.getCredentials',{provider},'query');
       if(cred&&statusEl){
@@ -11373,7 +11373,7 @@ async function loadUserCredentials(){
 }
 
 /** Load credential audit log for a provider */
-async function loadCredentialAuditLog(provider:string){
+async function loadCredentialAuditLog(provider){
   const p=provider==='microsoft'?'ms':'google';
   const entriesEl=document.getElementById(p+'-audit-log-entries');
   if(!entriesEl)return;
@@ -11383,7 +11383,7 @@ async function loadCredentialAuditLog(provider:string){
       entriesEl.innerHTML='<div style="padding:4px 0;color:var(--t3);font-style:italic">No activity yet</div>';
       return;
     }
-    entriesEl.innerHTML=entries.map((e:any)=>{
+    entriesEl.innerHTML=entries.map((e)=>{
       const when=new Date(e.createdAt).toLocaleString();
       const actionLabel=e.action==='saved'?'✓ Credentials saved':'✕ Credentials cleared';
       const actionColor=e.action==='saved'?'var(--ok)':'var(--err,#ef4444)';
@@ -11398,18 +11398,18 @@ async function loadCredentialAuditLog(provider:string){
   }
 }
 /** Toggle audit log entries visibility */
-function toggleAuditLog(provider:string){
+function toggleAuditLog(provider){
   const p=provider==='microsoft'?'ms':'google';
   const entriesEl=document.getElementById(p+'-audit-log-entries');
-  const toggleEl=entriesEl?.previousElementSibling as HTMLElement|null;
+  const toggleEl=entriesEl?.previousElementSibling;
   if(!entriesEl)return;
   const isOpen=entriesEl.style.display!=='none';
   entriesEl.style.display=isOpen?'none':'';
   if(toggleEl)toggleEl.textContent=(isOpen?'▶':'▼')+' Recent Activity';
 }
 /** Re-initiate the OAuth flow to refresh an expired or expiring token */
-async function refreshOAuthToken(provider:string){
-  const btn=document.getElementById('btn-'+(provider==='microsoft'?'ms':'google')+'-refresh') as HTMLButtonElement|null;
+async function refreshOAuthToken(provider){
+  const btn=document.getElementById('btn-'+(provider==='microsoft'?'ms':'google')+'-refresh');
   if(btn){btn.disabled=true;btn.textContent='⏳ Redirecting…';}
   try{
     const result=await _trpc('oauthSync.refreshToken',{provider,origin:window.location.origin},'mutation');
@@ -11419,14 +11419,14 @@ async function refreshOAuthToken(provider:string){
       toast('⚠ Could not get refresh URL');
       if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
     }
-  }catch(e:any){
+  }catch(e){
     toast('⚠ '+(e?.message||'Failed to refresh token'));
     if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
   }
 }
 /** Send a test email using the configured SMTP sender */
 async function testEmailSender(){
-  const btn=document.getElementById('btn-test-email') as HTMLButtonElement|null;
+  const btn=document.getElementById('btn-test-email');
   const statusEl=document.getElementById('notif-sender-status');
   if(btn){btn.disabled=true;btn.textContent='⏳ Sending…';}
   try{
@@ -11438,7 +11438,7 @@ async function testEmailSender(){
       toast('⚠ '+(result?.message||'Test email failed'));
       if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='✗ '+(result?.message||'Test email failed');}
     }
-  }catch(e:any){
+  }catch(e){
     toast('⚠ '+(e?.message||'Test email failed'));
     if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='✗ '+(e?.message||'Test email failed');}
   } finally {
@@ -11457,9 +11457,9 @@ async function loadEmailDeliveryLog(){
       el.innerHTML='<span style="color:var(--t3);font-style:italic">No emails sent yet.</span>';
       return;
     }
-    const statusColor=(s:string)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
-    const statusIcon=(s:string)=>s==='sent'?'✓':s==='failed'?'✗':'—';
-    el.innerHTML=entries.map((e:any)=>{
+    const statusColor=(s)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
+    const statusIcon=(s)=>s==='sent'?'✓':s==='failed'?'✗':'—';
+    el.innerHTML=entries.map((e)=>{
       const date=new Date(e.createdAt).toLocaleString();
       const errNote=e.errorMessage?` <span style="color:var(--err,#ef4444)">(${e.errorMessage})</span>`:'';
       return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--brd)">
@@ -11481,7 +11481,7 @@ async function checkTokenExpiryBanner(){
   if(!banner)return;
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
-    const providers:Array<{key:'microsoft'|'google';label:string;expiresAt:Date|null}>=[];
+    const providers=[];
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
       providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
     }
@@ -11491,20 +11491,20 @@ async function checkTokenExpiryBanner(){
     // Find the soonest-expiring provider within 7 days
     const sevenDaysMs=7*24*60*60*1000;
     const expiring=providers.filter(p=>p.expiresAt&&(p.expiresAt.getTime()-Date.now())<sevenDaysMs)
-      .sort((a,b)=>(a.expiresAt!.getTime())-(b.expiresAt!.getTime()));
+      .sort((a,b)=>(a.expiresAt.getTime())-(b.expiresAt.getTime()));
     if(!expiring.length){banner.style.display='none';return;}
     const soonest=expiring[0];
     const dismissKey='expiry-banner-dismiss-'+soonest.key;
     const dismissedUntil=localStorage.getItem(dismissKey);
     if(dismissedUntil&&Date.now()<parseInt(dismissedUntil,10)){banner.style.display='none';return;}
-    const diffMs=soonest.expiresAt!.getTime()-Date.now();
+    const diffMs=soonest.expiresAt.getTime()-Date.now();
     const diffDays=Math.floor(diffMs/(1000*60*60*24));
     const diffHours=Math.floor(diffMs/(1000*60*60));
     const timeStr=diffMs<=0?'expired':(diffDays<1?`in ${diffHours}h`:`in ${diffDays} day${diffDays===1?'':'s'}`);
     const textEl=document.getElementById('token-expiry-banner-text');
     if(textEl)textEl.textContent=`⚠ Your ${soonest.label} token ${diffMs<=0?'has expired':'expires'} ${timeStr} — refresh it to keep sync working.`;
     // Store which provider needs refresh for the button handler
-    (banner as any)._expiringProvider=soonest.key;
+    (banner)._expiringProvider=soonest.key;
     banner.style.display='flex';
   }catch{
     // Silently ignore — banner is non-critical
@@ -11513,14 +11513,14 @@ async function checkTokenExpiryBanner(){
 /** Handle Refresh Token click from the expiry banner */
 async function handleBannerRefresh(){
   const banner=document.getElementById('token-expiry-banner');
-  const provider=(banner as any)?._expiringProvider;
+  const provider=(banner)?._expiringProvider;
   if(provider)await refreshOAuthToken(provider);
 }
 /** Dismiss the expiry banner until tomorrow */
 function dismissExpiryBanner(){
   const banner=document.getElementById('token-expiry-banner');
   if(!banner){return;}
-  const provider=(banner as any)?._expiringProvider;
+  const provider=(banner)?._expiringProvider;
   if(provider){
     const tomorrow=Date.now()+24*60*60*1000;
     localStorage.setItem('expiry-banner-dismiss-'+provider,String(tomorrow));
@@ -11540,7 +11540,7 @@ async function adminCheckTokenExpiry(){
       if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent=result?.reason||'Nothing to notify';}
       toast('\u2139 '+(result?.reason||'No expiring tokens found'));
     }
-  }catch(e:any){
+  }catch(e){
     if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='\u2717 '+(e?.message||'Error');}
     toast('\u26a0 '+(e?.message||'Check failed'));
   }
@@ -11553,10 +11553,10 @@ async function loadAdminDeliveryLog(page=1){
   const pgEl=document.getElementById('admin-log-pagination');
   if(!el)return;
   el.innerHTML='<span style="color:var(--t3);font-style:italic">Loading...</span>';
-  const status=(document.getElementById('admin-log-status') as HTMLSelectElement)?.value||undefined;
-  const fromVal=(document.getElementById('admin-log-from') as HTMLInputElement)?.value;
-  const toVal=(document.getElementById('admin-log-to') as HTMLInputElement)?.value;
-  const input:any={page,pageSize:20};
+  const status=(document.getElementById('admin-log-status'))?.value||undefined;
+  const fromVal=(document.getElementById('admin-log-from'))?.value;
+  const toVal=(document.getElementById('admin-log-to'))?.value;
+  const input ={page,pageSize:20};
   if(status)input.status=status;
   if(fromVal)input.from=new Date(fromVal);
   if(toVal){const d=new Date(toVal);d.setHours(23,59,59,999);input.to=d;}
@@ -11565,8 +11565,8 @@ async function loadAdminDeliveryLog(page=1){
     const entries=result?.entries||[];
     const total=result?.total||0;
     if(!entries.length){el.innerHTML='<span style="color:var(--t3);font-style:italic">No entries found.</span>';if(pgEl)pgEl.innerHTML='';return;}
-    const statusColor=(s:string)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
-    const statusIcon=(s:string)=>s==='sent'?'\u2713':s==='failed'?'\u2717':'\u2014';
+    const statusColor=(s)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
+    const statusIcon=(s)=>s==='sent'?'\u2713':s==='failed'?'\u2717':'\u2014';
     el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:10px">
       <thead><tr style="border-bottom:1px solid var(--brd);color:var(--t3)">
         <th style="text-align:left;padding:4px 6px;font-weight:600">Status</th>
@@ -11575,11 +11575,11 @@ async function loadAdminDeliveryLog(page=1){
         <th style="text-align:left;padding:4px 6px;font-weight:600">User</th>
         <th style="text-align:left;padding:4px 6px;font-weight:600">Time</th>
       </tr></thead>
-      <tbody>${entries.map((e:any)=>{
+      <tbody>${entries.map((e)=>{
         const sc=statusColor(e.status);const si=statusIcon(e.status);
         const dt=new Date(e.createdAt).toLocaleString();
         const user=e.userName||(e.userEmail?e.userEmail.split('@')[0]:'System');
-        const errTip=e.errorMessage?` title="${e.errorMessage.replace(/"/g,'&quot;')}"`:\'\'';
+        const errTip=e.errorMessage?' title="'+e.errorMessage.replace(/"/g,'&quot;')+'"':'';
         return `<tr style="border-bottom:1px solid var(--brd)" ${errTip}>
           <td style="padding:4px 6px;color:${sc};font-weight:700">${si} ${e.status}</td>
           <td style="padding:4px 6px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.to}</td>
@@ -11598,24 +11598,24 @@ async function loadAdminDeliveryLog(page=1){
         <span style="color:var(--t3)">Page ${page}/${totalPages}</span>
         <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px" ${page>=totalPages?'disabled':''} onclick="loadAdminDeliveryLog(${page+1})">\u2192</button>`;
     }
-  }catch(e:any){
+  }catch(e){
     el.innerHTML='<span style="color:var(--err,#ef4444)">\u2717 '+(e?.message||'Failed to load log')+'</span>';
   }
 }
 function clearAdminLogFilters(){
-  const s=document.getElementById('admin-log-status') as HTMLSelectElement|null;
-  const f=document.getElementById('admin-log-from') as HTMLInputElement|null;
-  const t=document.getElementById('admin-log-to') as HTMLInputElement|null;
+  const s=document.getElementById('admin-log-status');
+  const f=document.getElementById('admin-log-from');
+  const t=document.getElementById('admin-log-to');
   if(s)s.value='';
   if(f)f.value='';
   if(t)t.value='';
   loadAdminDeliveryLog(1);
 }
 /** Save per-user OAuth app credentials */
-async function saveOAuthCredentials(provider:string){
+async function saveOAuthCredentials(provider){
   const p=provider==='microsoft'?'ms':'google';
-  const idEl=document.getElementById(p+'-cred-id') as HTMLInputElement|null;
-  const secretEl=document.getElementById(p+'-cred-secret') as HTMLInputElement|null;
+  const idEl=document.getElementById(p+'-cred-id');
+  const secretEl=document.getElementById(p+'-cred-secret');
   const statusEl=document.getElementById(p+'-cred-status');
   const clientId=(idEl?.value||'').trim();
   const clientSecret=(secretEl?.value||'').trim();
@@ -11631,17 +11631,13 @@ async function saveOAuthCredentials(provider:string){
     await loadCredentialAuditLog(provider);
     const auditSection=document.getElementById(p+'-audit-log');
     if(auditSection)auditSection.style.display='';
-    // Reload audit log
-    await loadCredentialAuditLog(provider);
-    const auditSection=document.getElementById(p+'-audit-log');
-    if(auditSection)auditSection.style.display='';
   }catch(e){
     toast('⚠️ '+e.message);
   }
 }
 
 /** Delete per-user OAuth app credentials */
-async function deleteOAuthCredentials(provider:string){
+async function deleteOAuthCredentials(provider){
   if(!confirm('Remove your saved '+provider+' credentials?'))return;
   const p=provider==='microsoft'?'ms':'google';
   const statusEl=document.getElementById(p+'-cred-status');
@@ -11654,10 +11650,6 @@ async function deleteOAuthCredentials(provider:string){
     await loadCredentialAuditLog(provider);
     const auditSection=document.getElementById(p+'-audit-log');
     if(auditSection)auditSection.style.display='';
-    // Reload audit log
-    await loadCredentialAuditLog(provider);
-    const auditSection=document.getElementById(p+'-audit-log');
-    if(auditSection)auditSection.style.display='';
   }catch(e){
     toast('⚠️ '+e.message);
   }
@@ -11666,7 +11658,7 @@ async function deleteOAuthCredentials(provider:string){
 /** Load notification sender options (admin only) */
 async function loadNotificationSenderOptions(){
   const section=document.getElementById('notif-sender-section');
-  const sel=document.getElementById('notif-sender-select') as HTMLSelectElement|null;
+  const sel=document.getElementById('notif-sender-select');
   if(!section||!sel)return;
   try{
     const data=await _trpc('oauthSync.getNotificationSenderOptions',undefined,'query');
@@ -11675,7 +11667,7 @@ async function loadNotificationSenderOptions(){
     section.style.display='';
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
-    (data.accounts||[]).forEach((acc:any)=>{
+    (data.accounts||[]).forEach((acc)=>{
       const key=acc.provider+':'+acc.userId;
       const opt=document.createElement('option');
       opt.value=key;
@@ -11690,7 +11682,7 @@ async function loadNotificationSenderOptions(){
 
 /** Save notification sender selection (admin only) */
 async function saveNotificationSender(){
-  const sel=document.getElementById('notif-sender-select') as HTMLSelectElement|null;
+  const sel=document.getElementById('notif-sender-select');
   const statusEl=document.getElementById('notif-sender-status');
   const senderKey=sel?.value||'';
   try{
@@ -11702,7 +11694,7 @@ async function saveNotificationSender(){
   }
 }
 
-async function connectOAuth(provider){{
+async function connectOAuth(provider){
   try{
     const origin=window.location.origin;
     const data=await _trpc('oauthSync.getAuthUrl',{provider,origin},'query');

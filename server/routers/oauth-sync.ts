@@ -515,11 +515,60 @@ export const oauthSyncRouter = router({
 
   // ---- Admin: Check & Notify Expiring Tokens ----
   /**
-   * Check all users' OAuth tokens. For any that expired or expire within 3 days,
-   * send a single consolidated notifyOwner alert.
-   * Admin-only. Idempotent — uses a system_settings key to avoid duplicate alerts
-   * within the same calendar day.
+   * Send a direct expiry warning email to each user whose token is expiring.
+   * Admin-only. Idempotent per day.
    */
+  notifyExpiringTokensPerUser: protectedProcedure.mutation(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new Error("Admin only");
+    const today = new Date().toISOString().slice(0, 10);
+    const dedupeKey = `expiry_email_sent_${today}`;
+    const alreadySent = await db.getSystemSetting(dedupeKey);
+    if (alreadySent) return { notified: false, reason: "Already sent today", count: 0 };
+
+    // Use 7-day window so users get advance warning
+    const expiring = await db.getAllExpiringTokens(7);
+    if (!expiring.length) return { notified: false, reason: "No expiring tokens", count: 0 };
+
+    let sent = 0;
+    for (const t of expiring) {
+      const userEmail = t.userEmail;
+      if (!userEmail) continue;
+
+      const expiresAt = t.expiresAt instanceof Date ? t.expiresAt : new Date(t.expiresAt);
+      const diffMs = expiresAt.getTime() - Date.now();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const providerLabel = t.provider === "microsoft" ? "Microsoft 365" : "Google Workspace";
+      const timeStr = diffMs <= 0 ? "has expired" : `expires in ${diffDays} day${diffDays === 1 ? "" : "s"}`;
+      const connectedEmail = t.email ?? "your connected account";
+
+      const html = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+          <h2 style="color:#7c3aed">⚠ Action required: Reconnect your ${providerLabel} account</h2>
+          <p>Your <strong>${providerLabel}</strong> connection (<em>${connectedEmail}</em>) ${timeStr}.</p>
+          <p>Once expired, LevelUp will no longer be able to sync your calendar, mail, or contacts from this account.</p>
+          <p style="margin-top:24px">
+            <a href="${process.env.VITE_OAUTH_PORTAL_URL ?? ""}" 
+               style="background:#7c3aed;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">
+              Open LevelUp Settings
+            </a>
+          </p>
+          <p style="color:#888;font-size:12px;margin-top:24px">Go to Settings → Accounts → ${providerLabel} → Refresh Token to reconnect.</p>
+        </div>
+      `;
+
+      const ok = await sendEmail({
+        to: userEmail,
+        subject: `Action required: Your ${providerLabel} connection ${timeStr}`,
+        html,
+        senderUserId: ctx.user.id,
+      });
+      if (ok) sent++;
+    }
+
+    await db.setSystemSetting(dedupeKey, "1");
+    return { notified: true, count: sent };
+  }),
+
   checkAndNotifyExpiry: protectedProcedure.mutation(async ({ ctx }) => {
     if (ctx.user.role !== "admin") throw new Error("Admin only");
 
