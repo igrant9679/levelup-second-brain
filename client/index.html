@@ -7590,16 +7590,23 @@ function renderSettingsHTML(){
     <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Enter your own Client ID &amp; Secret to connect your personal Microsoft or Google account. These are stored securely in the database and only used for your account. Leave blank to use the app-wide credentials (if configured by the owner).</p>
     <div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:6px">Microsoft 365</div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Application (Client) ID</label>
+        <input id="ms-cred-id" class="inp" style="width:100%;font-size:11px" type="text" placeholder="e.g., b7bdcd01-c4e0-4c4c-8e16-606b9457fc6e" />
+      </div>
+      <div style="margin-bottom:6px">
+        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Client Secret (Value)</label>
+        <input id="ms-cred-secret" class="inp" style="width:100%;font-size:11px" type="password" placeholder="e.g., 6~q8Q~cZgq6LVyPn-4hkJW0llzPfVqDVQJwxKa5m" />
+      </div>
       <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-        <input id="ms-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Application (Client) ID" />
-        <input id="ms-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
         <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('microsoft')">Save</button>
         <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-ms-verify-creds" onclick="verifyOAuthCredentials('microsoft')" title="Check if these credentials are accepted by Microsoft">🔍 Verify</button>
         <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
       </div>
-      <div style="display:flex;gap:6px;margin-bottom:4px;align-items:center">
-        <input id="ms-cred-tenant" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Tenant ID (Directory ID) — leave blank for multi-tenant" />
-        <span style="font-size:10px;color:var(--t3);white-space:nowrap" title="Required if your Azure app registration is set to single-tenant (accounts in this directory only). Find it in Azure Portal → App registrations → your app → Directory (tenant) ID.">ℹ️ Single-tenant only</span>
+      <div style="margin-bottom:6px">
+        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Tenant ID (Optional — single-tenant apps only)</label>
+        <input id="ms-cred-tenant" class="inp" style="width:100%;font-size:11px" type="text" placeholder="e.g., 3e6b1e3d-2176-40c3-83fe-9d8183e016c1" />
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">Leave blank for multi-tenant. Required if your Azure app is single-tenant. Find in Azure Portal → App registrations → your app → Directory (tenant) ID.</div>
       </div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Azure Portal → App registrations → your app → Authentication: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')"><span id="ms-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')">Copy</button></div>
       <!-- Microsoft Graph Scope Selector -->
@@ -7619,23 +7626,7 @@ function renderSettingsHTML(){
         <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
       </div>
     </div>
-    <div>
-      <div style="font-size:11px;font-weight:600;color:#EA4335;margin-bottom:6px">Google Workspace / Gmail</div>
-      <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-        <input id="google-cred-id" class="inp" style="flex:1;min-width:120px;font-size:11px" type="text" placeholder="Client ID" />
-        <input id="google-cred-secret" class="inp" style="flex:1;min-width:120px;font-size:11px" type="password" placeholder="Client Secret" />
-        <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('google')">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-google-verify-creds" onclick="verifyOAuthCredentials('google')" title="Check if these credentials are accepted by Google">🔍 Verify</button>
-        <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('google')" title="Remove saved credentials">✕ Clear</button>
-      </div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Google Cloud Console → Credentials → your OAuth client → Authorised redirect URIs: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/google/callback');toast('✓ Copied')"><span id="google-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/google/callback');toast('✓ Copied')">Copy</button></div>
-      <div id="google-cred-status" style="font-size:10px;color:var(--t3)"></div>
-      <div id="google-verify-status" style="font-size:10px;margin-top:2px"></div>
-      <div id="google-audit-log" style="margin-top:6px;display:none">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('google')">▶ Recent Activity</div>
-        <div id="google-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
-      </div>
-    </div>
+
   </div>
   <!-- Notification Sender (owner/admin only) -->
   <div id="notif-sender-section" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -7657,52 +7648,20 @@ function renderSettingsHTML(){
   </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — OAuth Credentials</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">To enable Connect, you need to register an OAuth app with Microsoft and/or Google, then add the credentials as environment secrets. Both integrations require a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — Microsoft 365 OAuth</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">To enable the Connect button, register an OAuth app with Microsoft and enter your credentials above. You need a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
     <div style="margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:4px">Microsoft 365</div>
+      <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:4px">Steps to register your app:</div>
       <ol style="font-size:10px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
         <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" style="color:var(--ac)">portal.azure.com → App registrations</a> → New registration</li>
-        <li>Set Redirect URI to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${window.location.origin}/api/oauth/microsoft/callback</code></li>
-        <li>Copy the <strong>Application (client) ID</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">MS_CLIENT_ID</code></li>
-        <li>Under Certificates &amp; secrets → New client secret → copy value → add as <code style="background:var(--s3);padding:1px 4px;border-radius:3px">MS_CLIENT_SECRET</code></li>
+        <li>Set <strong>Redirect URI</strong> to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all">${window.location.origin}/api/oauth/microsoft/callback</code></li>
+        <li>Copy the <strong>Application (client) ID</strong> → paste into the field above</li>
+        <li>Go to <strong>Certificates &amp; secrets</strong> → <strong>New client secret</strong> → copy the <strong>Value</strong> → paste into the field above</li>
+        <li>Optional: If your app is single-tenant, copy the <strong>Directory (tenant) ID</strong> → paste into the Tenant ID field above</li>
       </ol>
     </div>
-    <div style="margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;color:#EA4335;margin-bottom:4px">Google Workspace / Gmail</div>
-      <ol style="font-size:10px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
-        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:var(--ac)">Google Cloud Console → Credentials</a> → Create OAuth 2.0 Client ID</li>
-        <li>Application type: <strong>Web application</strong></li>
-        <li>Add Authorised redirect URI: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${window.location.origin}/api/oauth/google/callback</code></li>
-        <li>Copy <strong>Client ID</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">GOOGLE_CLIENT_ID</code></li>
-        <li>Copy <strong>Client Secret</strong> → add as secret <code style="background:var(--s3);padding:1px 4px;border-radius:3px">GOOGLE_CLIENT_SECRET</code></li>
-        <li>Enable APIs: Google Calendar API, Gmail API, People API</li>
-      </ol>
-    </div>
-    <p style="font-size:10px;color:var(--t3);margin:0">Add all four secrets in the <strong>Management UI → Settings → Secrets</strong> panel, then redeploy. The Connect buttons will become active automatically.</p>
   </div>
-  </div>
-  <!-- Integrations --><div id="sp-5" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">External Task Sync</h3>
-  ${renderCredCard('ClickUp','CU','Bidirectional task sync','cu',['API Token|cu_key','Workspace ID|cu_ws'])}
-  ${renderCredCard('NiftyPM','NP','Task sync (pending API)','np',['API Key|np_key'])}
-  <h3 style="font-size:14px;font-weight:600;margin:16px 0 8px">🔍 Contact Enrichment</h3>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:8px">Enrich contact records with verified emails, phone numbers, job titles, LinkedIn profiles, and 40+ firmographic attributes via Clodura.AI.</p>
-  ${renderCredCard('Clodura.AI','CL','Contact & company enrichment — 600M+ contacts database','clo',['API Key|clo_key'])}
-  <div style="margin-top:8px;padding:8px 10px;background:var(--s2);border-radius:6px;font-size:10px;color:var(--t3)">
-    <strong style="color:var(--t2)">How to get your API key:</strong> Log in to <a href="https://app.clodura.ai" target="_blank" style="color:var(--ac)">app.clodura.ai</a> → Settings → Developer → API Keys → Generate Key.
-  </div>
-  </div>
-  <!-- AI Features --><div id="sp-6" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">AI Configuration</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:600">AI Master Switch</div><div style="font-size:10px;color:var(--t3)">Enable/disable all AI</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-  <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Provider Keys (BYOK)</h4>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:8px">Keys stored locally only. Never sent to any server.</p>
-  ${renderCredCard('Anthropic (Claude)','A','claude-sonnet-4, claude-opus-4','anth',['API Key|anth_key'],true)}
-  ${renderCredCard('OpenAI (GPT)','OA','gpt-4o, o1','oai',['API Key|oai_key'],true)}
-  ${renderCredCard('Google (Gemini)','G','gemini-2.5-pro/flash','gem',['API Key|gem_key'],true)}
-  <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Per-Feature Toggles</h4>
-  <table class="aim"><thead><tr><th>Feature</th><th>Enabled</th><th>Provider</th></tr></thead><tbody>
-  ${['Smart capture parsing','Inbox triage hints','Note linking','Journal patterns','Sentiment analysis','Weekly review prep','Encouragement','Warnings','Effort calibration','Second-brain chat','Habit-mood correlation','Suggested My Day'].map(f=>`<tr><td>${f}</td><td><div class="tog" onclick="this.classList.toggle('on')"></div></td><td><select class="inp" style="width:100px;height:24px;font-size:10px"><option>Anthropic</option><option>OpenAI</option><option>Google</option></select></td></tr>`).join('')}
-  </tbody></table>
+  <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
   <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Usage & Cost Caps</h4>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Monthly cap (USD)</div></div><input class="inp" style="max-width:80px" value="$20.00"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">This month's usage</div></div><span style="font-size:12px;font-weight:500;color:var(--ok)">$3.42 / $20.00</span></div>

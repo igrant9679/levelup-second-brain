@@ -458,7 +458,10 @@
 - [x] Add tRPC procedures: saveSmtpImapAccount, getSmtpImapAccount, deleteSmtpImapAccount
 - [x] Replace Google Workspace OAuth card with SMTP/IMAP form in Settings → Accounts
 - [x] Add frontend functions: showSmtpImapForm, saveSmtpImapAccount, testSmtpImapConnection, loadSmtpImapAccount, deleteSmtpImapAccount
-- [x] 107 tests passing, TypeScript clean
 - [x] Remove Google Workspace from token expiry banner (now only shows Microsoft 365)
+- [x] Add labels to Microsoft 365 credential input fields (Client ID, Client Secret, Tenant ID)
+- [x] Remove Google Workspace section from "Your OAuth App Credentials"
+- [x] Update setup instructions to Microsoft-only with clear steps
+- [x] 107 tests passing, TypeScript clean
 - [ ] Remove Google OAuth backend code (getGoogleAuthUrl, Google callback handler, etc.) — optional cleanup
 - [ ] Implement actual IMAP/SMTP connection testing with nodemailer or imap library
