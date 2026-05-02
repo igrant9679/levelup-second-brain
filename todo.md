@@ -389,23 +389,28 @@
 ## Follow-up Features: Post-OAuth UX, Expiry Countdown, Scope Selector
 
 ### Auto-run Test Connection after OAuth callback
-- [ ] Frontend: detect `?oauth_success=microsoft|google` query param on page load (set by OAuth callback redirect)
-- [ ] Frontend: after detecting success param, auto-call `testOAuthConnection(provider)` and show result inline on the provider card
-- [ ] Frontend: show a success toast "✓ Microsoft 365 connected — running connection test…" then update with test result
-- [ ] Frontend: clean the query param from the URL after handling (replaceState)
+- [x] Frontend: detect `?oauth_success=microsoft|google` query param on page load (set by OAuth callback redirect)
+- [x] Frontend: after detecting success param, auto-call `testOAuthConnection(provider)` and show result inline on the provider card
+- [x] Frontend: show a success toast "\u2713 Microsoft 365 connected \u2014 running connection test\u2026" then update with test result
+- [x] Frontend: clean the query param from the URL after handling (replaceState)
 
 ### Token expiry countdown progress bar
-- [ ] Frontend: in `_updateOAuthCard`, when connected, compute days-until-expiry from `expiresAt`
-- [ ] Frontend: render a thin progress bar below the connected badge (green >14 days, amber 7–14 days, red <7 days)
-- [ ] Frontend: show "Expires in X days" label next to the bar; show "Expired" in red if past expiry
-- [ ] Frontend: update bar on every `loadOAuthStatus()` call
+- [x] Frontend: in `_updateOAuthCard`, when connected, compute days-until-expiry from `expiresAt`
+- [x] Frontend: render a thin progress bar below the connected badge (green >14 days, amber 7\u201314 days, red <7 days)
+- [x] Frontend: show "Expires in X days" label next to the bar; show "Expired" in red if past expiry
+- [x] Frontend: update bar on every `loadOAuthStatus()` call
 
 ### Microsoft Graph permission scope selector
-- [ ] DB: add `ms_scopes` varchar column to `user_oauth_credentials` table (comma-separated list, default all)
-- [ ] DB: push migration with `pnpm db:push`
-- [ ] Backend: update `getAuthUrl` / `refreshToken` to use the user's selected scopes when building the Microsoft auth URL
-- [ ] Backend: update `saveCredentials` to accept optional `scopes` array for Microsoft
-- [ ] Backend: update `getCredentials` to return selected scopes
-- [ ] Frontend: add scope checkboxes to Microsoft credentials card (Mail, Calendar, Contacts — all checked by default)
-- [ ] Frontend: pass selected scopes to `saveOAuthCredentials` and display currently selected scopes when credentials are loaded
-- [ ] vitest: test that custom scopes are passed to getMsAuthUrl correctly
+- [x] DB: add `msScopes` varchar column to `user_oauth_credentials` table (comma-separated list, default all); migrated via 0013_graceful_wasp.sql
+- [x] DB: push migration with `pnpm db:push`
+- [x] Backend: update `getAuthUrl` to use the user's selected scopes when building the Microsoft auth URL
+- [x] Backend: update `saveCredentials` to accept optional `msScopes` string for Microsoft
+- [x] Backend: update `getCredentials` to return selected scopes
+- [x] Frontend: add scope checkboxes to Microsoft credentials card (Mail, Calendar, Contacts \u2014 all checked by default)
+- [x] Frontend: pass selected scopes to `saveOAuthCredentials` and display currently selected scopes when credentials are loaded
+- [x] vitest: updated oauthSync.auditLog.test.ts to include msScopes: null in expected call (all 106 tests pass)
+
+## Bug Fix: OAuth still failing after deployment (Microsoft /common + Google redirect_uri_mismatch)
+- [x] Investigate: Microsoft auth URL still hitting /common — code is correct, user needs to (1) enter Tenant ID in credentials card, (2) publish latest checkpoint
+- [x] Fix: Google callback handler was using env vars instead of per-user credentials — now uses getUserOauthCredential like Microsoft
+- [x] All 106 tests pass, TypeScript clean

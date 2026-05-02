@@ -135,8 +135,10 @@ export function registerProviderOAuthCallbacks(app: Express) {
       return;
     }
 
-    const clientId = process.env.GOOGLE_CLIENT_ID ?? "";
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET ?? "";
+    // Use per-user credentials if available, otherwise fall back to env vars
+    const userCred = await db.getUserOauthCredential(stateData.userId, "google");
+    const clientId = userCred?.clientId || (process.env.GOOGLE_CLIENT_ID ?? "");
+    const clientSecret = userCred?.clientSecret || (process.env.GOOGLE_CLIENT_SECRET ?? "");
     const redirectUri = `${stateData.origin}/api/oauth/google/callback`;
 
     try {
