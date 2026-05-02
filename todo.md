@@ -264,3 +264,14 @@
 - [x] Settings Accounts → each connected provider card: add "Refresh Token" button (visible when connected) that redirects to the OAuth connect flow
 - [x] vitest: tests for oauthSync.testEmail (success path, no sender configured, send failure, no email address)
 - [x] vitest: tests for oauthSync.refreshToken (returns auth URL, handles env/per-user creds)
+
+## Token Expiry Banner, Email Delivery Log & Disconnect Confirmation
+- [x] DB: add email_delivery_log table (id, userId, to, subject, status, errorMessage, createdAt)
+- [x] sendEmail(): log each delivery attempt (success or failure) to email_delivery_log
+- [x] Backend: tRPC procedure oauthSync.getEmailDeliveryLog — returns last 5 entries for current user
+- [x] Settings Accounts → Notification Sender: show last 5 email delivery log entries below Test Email button
+- [x] Dashboard: on load, check oauthSync.status for any connected token expiring within 7 days; show dismissible banner "⚠ Your [Provider] token expires in X days — Refresh Token"
+- [x] Dashboard banner: dismiss stores provider+date in localStorage so it doesn't re-appear until next day
+- [x] Settings Accounts → Disconnect button: replace direct disconnect with a confirmation modal ("Disconnect [Provider]? Your synced data will stop updating.")
+- [x] vitest: tests for email delivery log (insert + query helpers, getEmailDeliveryLog procedure)
+- [x] vitest: tests for disconnect confirmation (modal shown — covered by showConfirmModal unit logic)

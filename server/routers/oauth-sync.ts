@@ -417,6 +417,7 @@ export const oauthSyncRouter = router({
         ctx.user.email,
         "</strong></p>",
       ].join(""),
+      senderUserId: ctx.user.id,
     });
     if (sent) {
       return { success: true, message: `Test email sent to ${ctx.user.email}` };
@@ -455,6 +456,15 @@ export const oauthSyncRouter = router({
           : getGoogleAuthUrl(input.origin, state, clientId);
       return { url };
     }),
+
+  // ---- Email Delivery Log ----
+  /**
+   * Return the last 5 email delivery log entries for the current user.
+   * Used by the Notification Sender section to show recent send history.
+   */
+  getEmailDeliveryLog: protectedProcedure.query(async ({ ctx }) => {
+    return db.getEmailDeliveryLog(ctx.user.id, 5);
+  }),
 
   // ---- Owner-only: Notification Sender ----
 

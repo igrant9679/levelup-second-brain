@@ -3,9 +3,11 @@
  * Google or Microsoft OAuth2 account selected as the system notification sender.
  *
  * Falls back to a plain-text log when no sender is configured (dev mode).
+ * Every attempt (success, failure, or skipped) is recorded in email_delivery_log.
  */
 import nodemailer from "nodemailer";
 import { getDb } from "../db";
+import { insertEmailDeliveryLog } from "../db";
 import { systemSettings, oauthTokens } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -14,6 +16,8 @@ export interface EmailPayload {
   subject: string;
   html: string;
   text?: string;
+  /** userId of the sender (for delivery log). Pass null for system-initiated emails. */
+  senderUserId?: number | null;
 }
 
 /**
@@ -115,24 +119,40 @@ async function buildTransporter(
 /**
  * Send an email using the configured system notification sender.
  * Returns true on success, false if no sender is configured or send fails.
+ * Every attempt is recorded in email_delivery_log.
  */
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
+  const logUserId = payload.senderUserId ?? null;
+
   try {
     const sender = await resolveNotificationSender();
     if (!sender) {
-      // No sender configured — log in dev, silently skip in prod
+      // No sender configured — log as skipped
       console.warn(
         "[sendEmail] No system notification sender configured. Email not sent:",
         payload.subject
       );
+      await insertEmailDeliveryLog({
+        userId: logUserId,
+        to: payload.to,
+        subject: payload.subject,
+        status: "skipped",
+        errorMessage: "No SMTP sender configured",
+      });
       return false;
     }
 
     const transport = await buildTransporter(sender.provider, sender.userId);
     if (!transport) {
-      console.warn(
-        "[sendEmail] Could not build transporter — no OAuth token found for sender."
-      );
+      const msg = "Could not build transporter — no OAuth token found for sender.";
+      console.warn("[sendEmail]", msg);
+      await insertEmailDeliveryLog({
+        userId: logUserId,
+        to: payload.to,
+        subject: payload.subject,
+        status: "failed",
+        errorMessage: msg,
+      });
       return false;
     }
 
@@ -144,9 +164,24 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       text: payload.text ?? payload.html.replace(/<[^>]+>/g, ""),
     });
 
+    await insertEmailDeliveryLog({
+      userId: logUserId,
+      to: payload.to,
+      subject: payload.subject,
+      status: "sent",
+    });
+
     return true;
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("[sendEmail] Failed to send email:", err);
+    await insertEmailDeliveryLog({
+      userId: logUserId,
+      to: payload.to,
+      subject: payload.subject,
+      status: "failed",
+      errorMessage,
+    });
     return false;
   }
 }

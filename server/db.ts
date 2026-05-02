@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, InsertCredentialAuditLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, oauthTokens, systemSettings, userOauthCredentials, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -194,6 +194,30 @@ export async function setSystemSetting(key: string, value: string): Promise<void
   const db = await getDb();
   if (!db) return;
   await db.insert(systemSettings).values({ key, value }).onDuplicateKeyUpdate({ set: { value } });
+}
+
+// ---- Email Delivery Log helpers ----
+
+export async function insertEmailDeliveryLog(
+  entry: Omit<InsertEmailDeliveryLog, 'id' | 'createdAt'>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(emailDeliveryLog).values(entry);
+  } catch (err) {
+    // Never let logging failures bubble up and break the caller
+    console.warn('[Database] Failed to insert email delivery log:', err);
+  }
+}
+
+export async function getEmailDeliveryLog(userId: number, limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(emailDeliveryLog)
+    .where(eq(emailDeliveryLog.userId, userId))
+    .orderBy(desc(emailDeliveryLog.createdAt))
+    .limit(limit);
 }
 
 // Get all connected OAuth accounts across all users (for owner notification sender picker)

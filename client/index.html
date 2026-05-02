@@ -430,6 +430,12 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 <div class="av" id="topbar-avatar" onclick="nav('settings')">IG</div>
 </div>
 </header>
+<!-- Token Expiry Warning Banner (shown when a connected OAuth token expires within 7 days) -->
+<div id="token-expiry-banner" style="display:none;position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#f59e0b,#d97706);color:#fff;padding:8px 16px;font-size:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap">
+  <span style="flex:1" id="token-expiry-banner-text">⚠ A connected OAuth token is expiring soon.</span>
+  <button id="token-expiry-banner-refresh" onclick="handleBannerRefresh()" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap">🔄 Refresh Token</button>
+  <button onclick="dismissExpiryBanner()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;padding:0 4px;line-height:1" title="Dismiss until tomorrow">✕</button>
+</div>
 <template id="sb-tpl">
 <div style="padding:0 4px">
 <div class="si" data-n="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="l">Home</span></div>
@@ -7542,6 +7548,11 @@ function renderSettingsHTML(){
       <button id="btn-test-email" class="btn" style="height:30px;font-size:11px" onclick="testEmailSender()">📧 Test Email</button>
     </div>
     <div id="notif-sender-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
+    <!-- Email Delivery Log -->
+    <div style="margin-top:10px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📋 Recent Delivery Log</div>
+      <div id="email-delivery-log" style="font-size:10px;color:var(--t3)">Loading…</div>
+    </div>
   </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -7704,7 +7715,7 @@ function showSetTab(el,id){
   el.parentElement.querySelectorAll('.si').forEach(x=>x.classList.remove('on'));el.classList.add('on');
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
-  if(id==='sp-4')loadOAuthStatus();
+  if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();}
   if(id==='sp-8')loadOnenoteStatus();
 }
 // ====== EXPORT / IMPORT ======
@@ -9372,6 +9383,8 @@ function doLoginSuccess(member){
   // Hide login overlay
   const ov=document.getElementById('login-overlay');
   if(ov)ov.classList.add('hidden');
+  // Check for expiring OAuth tokens and show banner if needed
+  setTimeout(()=>checkTokenExpiryBanner(),1500);
   // Migrate: ensure example Full Add tasks exist
   const exampleIds=[201,202,203];
   exampleIds.forEach(eid=>{
@@ -11396,7 +11409,89 @@ async function testEmailSender(){
     if(statusEl){statusEl.style.color='var(--err,#ef4444)';statusEl.textContent='✗ '+(e?.message||'Test email failed');}
   } finally {
     if(btn){btn.disabled=false;btn.textContent='📧 Test Email';}
+    // Refresh delivery log after each test
+    loadEmailDeliveryLog();
   }
+}
+/** Load and render the last 5 email delivery log entries */
+async function loadEmailDeliveryLog(){
+  const el=document.getElementById('email-delivery-log');
+  if(!el)return;
+  try{
+    const entries=await _trpc('oauthSync.getEmailDeliveryLog',undefined,'query');
+    if(!entries||!entries.length){
+      el.innerHTML='<span style="color:var(--t3);font-style:italic">No emails sent yet.</span>';
+      return;
+    }
+    const statusColor=(s:string)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
+    const statusIcon=(s:string)=>s==='sent'?'✓':s==='failed'?'✗':'—';
+    el.innerHTML=entries.map((e:any)=>{
+      const date=new Date(e.createdAt).toLocaleString();
+      const errNote=e.errorMessage?` <span style="color:var(--err,#ef4444)">(${e.errorMessage})</span>`:'';
+      return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--brd)">
+        <span style="color:${statusColor(e.status)};font-weight:700;min-width:12px">${statusIcon(e.status)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${e.to}</div>
+          <div style="color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.subject}${errNote}</div>
+          <div style="color:var(--t3);font-size:9px">${date}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch{
+    el.innerHTML='<span style="color:var(--t3);font-style:italic">Could not load delivery log.</span>';
+  }
+}
+/** Check OAuth token expiry and show banner if any token expires within 7 days */
+async function checkTokenExpiryBanner(){
+  const banner=document.getElementById('token-expiry-banner');
+  if(!banner)return;
+  try{
+    const status=await _trpc('oauthSync.status',undefined,'query');
+    const providers:Array<{key:'microsoft'|'google';label:string;expiresAt:Date|null}>=[];
+    if(status?.microsoft?.connected&&status.microsoft.expiresAt){
+      providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
+    }
+    if(status?.google?.connected&&status.google.expiresAt){
+      providers.push({key:'google',label:'Google Workspace',expiresAt:new Date(status.google.expiresAt)});
+    }
+    // Find the soonest-expiring provider within 7 days
+    const sevenDaysMs=7*24*60*60*1000;
+    const expiring=providers.filter(p=>p.expiresAt&&(p.expiresAt.getTime()-Date.now())<sevenDaysMs)
+      .sort((a,b)=>(a.expiresAt!.getTime())-(b.expiresAt!.getTime()));
+    if(!expiring.length){banner.style.display='none';return;}
+    const soonest=expiring[0];
+    const dismissKey='expiry-banner-dismiss-'+soonest.key;
+    const dismissedUntil=localStorage.getItem(dismissKey);
+    if(dismissedUntil&&Date.now()<parseInt(dismissedUntil,10)){banner.style.display='none';return;}
+    const diffMs=soonest.expiresAt!.getTime()-Date.now();
+    const diffDays=Math.floor(diffMs/(1000*60*60*24));
+    const diffHours=Math.floor(diffMs/(1000*60*60));
+    const timeStr=diffMs<=0?'expired':(diffDays<1?`in ${diffHours}h`:`in ${diffDays} day${diffDays===1?'':'s'}`);
+    const textEl=document.getElementById('token-expiry-banner-text');
+    if(textEl)textEl.textContent=`⚠ Your ${soonest.label} token ${diffMs<=0?'has expired':'expires'} ${timeStr} — refresh it to keep sync working.`;
+    // Store which provider needs refresh for the button handler
+    (banner as any)._expiringProvider=soonest.key;
+    banner.style.display='flex';
+  }catch{
+    // Silently ignore — banner is non-critical
+  }
+}
+/** Handle Refresh Token click from the expiry banner */
+async function handleBannerRefresh(){
+  const banner=document.getElementById('token-expiry-banner');
+  const provider=(banner as any)?._expiringProvider;
+  if(provider)await refreshOAuthToken(provider);
+}
+/** Dismiss the expiry banner until tomorrow */
+function dismissExpiryBanner(){
+  const banner=document.getElementById('token-expiry-banner');
+  if(!banner){return;}
+  const provider=(banner as any)?._expiringProvider;
+  if(provider){
+    const tomorrow=Date.now()+24*60*60*1000;
+    localStorage.setItem('expiry-banner-dismiss-'+provider,String(tomorrow));
+  }
+  banner.style.display='none';
 }
 /** Save per-user OAuth app credentials */
 async function saveOAuthCredentials(provider:string){
@@ -11501,14 +11596,46 @@ async function connectOAuth(provider){{
 }
 
 async function disconnectOAuth(provider){
-  if(!confirm('Disconnect '+provider+'? This will remove stored tokens.'))return;
+  // Show confirmation modal instead of native confirm()
+  const providerLabel=provider==='microsoft'?'Microsoft 365':'Google Workspace';
+  const confirmed=await showConfirmModal(
+    'Disconnect '+providerLabel+'?',
+    'Your synced calendar, mail, and contacts data will stop updating. You can reconnect at any time from Settings → Accounts.',
+    'Disconnect',
+    'Cancel'
+  );
+  if(!confirmed)return;
   try{
     await _trpc('oauthSync.disconnect',{provider},'mutation');
     _updateOAuthCard(provider,{connected:false});
-    toast('✓ '+provider+' disconnected');
+    toast('✓ '+providerLabel+' disconnected');
   }catch(e){
     toast('⚠️ '+e.message);
   }
+}
+/** Generic confirmation modal. Returns a Promise<boolean>. */
+function showConfirmModal(title,message,confirmLabel='Confirm',cancelLabel='Cancel'){
+  return new Promise(resolve=>{
+    // Remove any existing modal
+    document.getElementById('confirm-modal-overlay')?.remove();
+    const overlay=document.createElement('div');
+    overlay.id='confirm-modal-overlay';
+    overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+    overlay.innerHTML=`
+      <div style="background:var(--s2);border:1px solid var(--brd);border-radius:12px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+        <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--t1)">${title}</div>
+        <p style="font-size:12px;color:var(--t3);margin-bottom:20px;line-height:1.6">${message}</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="cm-cancel" class="btn" style="font-size:12px;padding:6px 16px">${cancelLabel}</button>
+          <button id="cm-confirm" class="btn btn-d" style="font-size:12px;padding:6px 16px">${confirmLabel}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const cleanup=(result)=>{overlay.remove();resolve(result);};
+    document.getElementById('cm-confirm').onclick=()=>cleanup(true);
+    document.getElementById('cm-cancel').onclick=()=>cleanup(false);
+    overlay.addEventListener('click',e=>{if(e.target===overlay)cleanup(false);});
+  });
 }
 
 async function syncOAuthCalendar(provider){

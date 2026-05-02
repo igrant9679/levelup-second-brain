@@ -220,3 +220,17 @@ export const credentialAuditLog = mysqlTable('credential_audit_log', {
 });
 export type CredentialAuditLog = typeof credentialAuditLog.$inferSelect;
 export type InsertCredentialAuditLog = typeof credentialAuditLog.$inferInsert;
+
+// ─── Email Delivery Log ──────────────────────────────────────────────────────
+// Records every sendEmail() attempt (success or failure) for auditability.
+export const emailDeliveryLog = mysqlTable('email_delivery_log', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId'),                          // sender's userId (null = system)
+  to: varchar('to', { length: 320 }).notNull(),
+  subject: varchar('subject', { length: 512 }).notNull(),
+  status: mysqlEnum('status', ['sent', 'failed', 'skipped']).notNull(),
+  errorMessage: text('errorMessage'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+});
+export type EmailDeliveryLog = typeof emailDeliveryLog.$inferSelect;
+export type InsertEmailDeliveryLog = typeof emailDeliveryLog.$inferInsert;
