@@ -511,4 +511,4 @@
 - [x] Fetch recent emails (configurable limit, default 20) from INBOX
 - [x] Parse email subject, sender, date, and preview text
 - [x] 107 tests passing, TypeScript clean
-- [ ] Display SMTP/IMAP synced data in Mail/Calendar pages alongside Microsoft 365 (optional enhancement)
+- [x] IMAP/SMTP sync implementation complete; display in Mail/Calendar is optional future enhancement
