@@ -729,3 +729,23 @@ export async function getCalendarEvents(userId: number, opts?: { from?: Date; to
     return [];
   }
 }
+
+/**
+ * Delete a single calendar event from the local DB.
+ * Scoped to userId so users can only delete their own events.
+ */
+export async function deleteCalendarEvent(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return { deleted: false };
+
+  try {
+    const { calendarEvents } = await import("../drizzle/schema");
+    await db
+      .delete(calendarEvents)
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)));
+    return { deleted: true };
+  } catch (err) {
+    console.warn('[Database] Failed to delete calendar event:', err);
+    return { deleted: false };
+  }
+}

@@ -564,3 +564,11 @@
 - [x] Add DB helpers for upsert/get calendar events (upsertCalendarEvent, getCalendarEvents)
 - [x] Update syncCalendar tRPC procedure to upsert events to DB (both Microsoft and Google)
 - [x] Update Calendar page to load events from DB (persists across page refresh, getCalendarEventsFromDB query)
+
+## Follow-up: Calendar Event Timestamps & Delete
+
+- [x] Add deleteCalendarEvent DB helper (delete by id + userId for safety)
+- [x] Add deleteCalendarEvent tRPC procedure
+- [x] Show "last synced" updatedAt tooltip on each Calendar event card (info icon with Tooltip)
+- [x] Add delete button per event card (hover to reveal Trash2 icon, AlertDialog confirmation)
+- [x] Optimistically remove deleted event from the list (setData + invalidate on error)

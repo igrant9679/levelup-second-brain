@@ -1237,6 +1237,16 @@ export const oauthSyncRouter = router({
       return events;
     }),
 
+  /**
+   * Delete a single calendar event from the local DB.
+   * Only the owning user can delete their own events.
+   */
+  deleteCalendarEvent: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return await db.deleteCalendarEvent(ctx.user.id, input.id);
+    }),
+
   // ─── Email Notifications ──────────────────────────────────────────────────
 
   /**
