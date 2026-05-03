@@ -615,8 +615,9 @@ export const oauthSyncRouter = router({
   getAdminEmailDeliveryLog: protectedProcedure
     .input(z.object({
       status: z.enum(["sent", "failed", "skipped"]).optional(),
-      from: z.date().optional(),
-      to: z.date().optional(),
+      // Accept ISO date strings (JSON.stringify converts Date → string in _trpc helper)
+      from: z.union([z.date(), z.string()]).optional().transform(v => v ? new Date(v) : undefined),
+      to: z.union([z.date(), z.string()]).optional().transform(v => v ? new Date(v) : undefined),
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(1).max(100).default(20),
     }))

@@ -852,3 +852,6 @@
 
 ### SMTP Port 465 SSL Fix
 - [x] Fix: TLS config is correct (requireTLS only set for port 587 STARTTLS, not port 465 SSL) — root cause was incorrect credentials (535 Auth Failed), not a TLS issue. Resolved by user re-entering correct Mailpool password.
+
+### Email Delivery Log tRPC Fix
+- [x] Fix: getAdminEmailDeliveryLog tRPC error — changed z.date() to z.union([z.date(), z.string()]).transform() so both Date objects and ISO strings are accepted; no frontend change needed
