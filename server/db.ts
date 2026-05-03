@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1403,5 +1403,118 @@ export async function resendTeamInvite(id: number, newToken: string, newExpiresA
   } catch (err) {
     console.warn('[Database] Failed to resend team invite:', err);
     return null;
+  }
+}
+
+// ---- Activity Log helpers ----
+
+/**
+ * Log a user activity event.
+ */
+export async function logActivity(
+  userId: number,
+  action: string,
+  entityType?: string,
+  entityTitle?: string,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(userActivityLog).values({
+      userId,
+      action,
+      entityType: entityType ?? null,
+      entityTitle: entityTitle ?? null,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    });
+  } catch (err) {
+    // Never let logging failures break the caller
+    console.warn('[Database] Failed to log activity:', err);
+  }
+}
+
+/**
+ * Get recent activity for a list of user IDs, joined with users table for name/email.
+ */
+export async function getActivityFeed(
+  userIds: number[],
+  limit = 50,
+  since?: Date
+) {
+  const db = await getDb();
+  if (!db) return [];
+  if (userIds.length === 0) return [];
+  try {
+    const baseQuery = db
+      .select({
+        id: userActivityLog.id,
+        userId: userActivityLog.userId,
+        action: userActivityLog.action,
+        entityType: userActivityLog.entityType,
+        entityTitle: userActivityLog.entityTitle,
+        metadata: userActivityLog.metadata,
+        createdAt: userActivityLog.createdAt,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(userActivityLog)
+      .innerJoin(users, eq(users.id, userActivityLog.userId))
+      .orderBy(desc(userActivityLog.createdAt))
+      .limit(limit);
+
+    if (since) {
+      return baseQuery.where(and(inArray(userActivityLog.userId, userIds), gte(userActivityLog.createdAt, since)));
+    }
+    return baseQuery.where(inArray(userActivityLog.userId, userIds));
+  } catch (err) {
+    console.warn('[Database] Failed to get activity feed:', err);
+    return [];
+  }
+}
+
+/**
+ * Get action counts by type for a single user (for stats cards).
+ */
+export async function getActivitySummary(userId: number, since?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const baseQuery = db
+      .select({
+        action: userActivityLog.action,
+        count: sql<number>`count(*)`.as('count'),
+      })
+      .from(userActivityLog)
+      .groupBy(userActivityLog.action)
+      .orderBy(desc(sql`count(*)`));
+
+    if (since) {
+      return baseQuery.where(and(eq(userActivityLog.userId, userId), gte(userActivityLog.createdAt, since)));
+    }
+    return baseQuery.where(eq(userActivityLog.userId, userId));
+  } catch (err) {
+    console.warn('[Database] Failed to get activity summary:', err);
+    return [];
+  }
+}
+
+/**
+ * Get all team members for the activity feed.
+ */
+export async function getTeamMembers() {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    return db.select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      lastSignedIn: users.lastSignedIn,
+    }).from(users).orderBy(desc(users.lastSignedIn));
+  } catch (err) {
+    console.warn('[Database] Failed to get team members:', err);
+    return [];
   }
 }

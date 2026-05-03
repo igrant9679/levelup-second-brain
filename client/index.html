@@ -1653,10 +1653,12 @@ function doCapture(){
     const due=document.getElementById('cap-due')?.value;const dueLabel=due?new Date(due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
     D.tasks.push({id:nextId(D.tasks),title,priority:document.getElementById('cap-pri')?.value||'Medium',due:dueLabel||'No date',context:document.getElementById('cap-ctx')?.value||'Inbox',project:document.getElementById('cap-proj')?.value||'',status:'Not Started',myDay:false,energy:'',notes:document.getElementById('cap-body')?.value||''});
     save('tasks');
+    _trpc('activityFeed.log',{action:'task_created',entityType:'task',entityTitle:title},'mutation').catch(()=>{});
   } else if(capType==='Note'){
     const tags=(document.getElementById('cap-tags')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);
     D.notes.push({id:nextId(D.notes),title,tags,source:document.getElementById('cap-source')?.value||'Quick Capture',updated:'Just now',starred:false,body:document.getElementById('cap-body')?.value||''});
     save('notes');
+    _trpc('activityFeed.log',{action:'note_created',entityType:'note',entityTitle:title},'mutation').catch(()=>{});
   } else if(capType==='Project'){
     const due=document.getElementById('cap-due')?.value;const dueLabel=due?new Date(due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
     D.projects.push({id:nextId(D.projects),name:title,color:document.getElementById('cap-color')?.value||'#3B82F6',status:document.getElementById('cap-status')?.value||'Active',due:dueLabel||'TBD',pct:0,desc:document.getElementById('cap-body')?.value||''});
@@ -2116,6 +2118,7 @@ function toggleTask(id){
   const wasDone=t.status==='Done';
   t.status=wasDone?'Not Started':'Done';
   save('tasks');
+  if(!wasDone)_trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});
   if(!wasDone&&t.recurring&&t.recurring!=='None')maybeSpawnRecurring(t);
   // Auto-recalc linked goal progress (both directions: goal.linkedTaskIds and task.linkedGoalId)
   const affectedGoalIds=new Set();
@@ -7662,7 +7665,23 @@ function renderTeam(){
       </div>
       <div id="invite-list-wrap"><div style="font-size:11px;color:var(--t3)">Loading invites...</div></div>
     </div>
-  </div>`;
+  </div>
+  <div id="activity-feed-section" class="admin-only" style="margin-top:24px">
+    <div class="cd" style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h2 style="font-size:15px;font-weight:600;margin:0">📊 Team Activity Feed</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="inp" id="activity-filter-member" style="height:28px;font-size:11px;width:140px" onchange="filterActivityFeed()">
+            <option value="">All Members</option>
+          </select>
+          <button class="btn btn-s" style="height:28px;font-size:11px" onclick="loadActivityFeed()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="activity-feed-content">
+        <div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center">Loading activity feed...</div>
+      </div>
+    </div>
+  </div>\`;
   const totalTasks=D.tasks.length;
   const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
@@ -7677,6 +7696,134 @@ function renderTeam(){
   <div style="font-size:10px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
   ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+  // Auto-load activity feed for admins
+  if(D.creds.role==="Admin"||D.creds.role==="Owner"||D.creds.role==="admin")setTimeout(loadActivityFeed,100);
+}
+
+// ====== TEAM ACTIVITY FEED ======
+let _activityFeedData = [];
+let _activityFeedMembers = [];
+
+const ACTION_ICONS = {
+  login: '🔑',
+  logout: '🚪',
+  task_created: '✅',
+  task_completed: '🏆',
+  note_created: '📝',
+  bookmark_created: '🔖',
+  account_created: '👤',
+  calendar_synced: '📅',
+  default: '📌'
+};
+
+const ACTION_LABELS = {
+  login: 'Logged in',
+  logout: 'Logged out',
+  task_created: 'Created a task',
+  task_completed: 'Completed a task',
+  note_created: 'Created a note',
+  bookmark_created: 'Saved a bookmark',
+  account_created: 'Joined the team',
+  calendar_synced: 'Synced calendar',
+  default: 'Activity'
+};
+
+function getActionIcon(action) {
+  return ACTION_ICONS[action] || ACTION_ICONS.default;
+}
+
+function getActionLabel(action) {
+  return ACTION_LABELS[action] || action.replace(/_/g, ' ');
+}
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getInitials(name) {
+  return (name || '?').split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
+}
+
+function renderActivityFeed(items) {
+  const el = document.getElementById('activity-feed-content');
+  if (!el) return;
+  if (!items || items.length === 0) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:20px 0;text-align:center">No activity recorded yet. Activity will appear here as team members use the app.</div>';
+    return;
+  }
+  const groups = {};
+  items.forEach(function(item) {
+    const d = item.createdAt ? new Date(item.createdAt) : new Date();
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    let label;
+    if (d.toDateString() === today.toDateString()) label = 'Today';
+    else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
+    else label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(item);
+  });
+  const html = Object.entries(groups).map(function([label, groupItems]) {
+    const rows = groupItems.map(function(item) {
+      const icon = getActionIcon(item.action);
+      const actionLabel = getActionLabel(item.action);
+      const initials = getInitials(item.userName);
+      const entityHtml = item.entityTitle ? '<span style="color:var(--t2);font-style:italic"> — ' + esc(item.entityTitle) + '</span>' : '';
+      const timeStr = timeAgo(item.createdAt);
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd1)">' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--ac);flex-shrink:0">' + initials + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:500">' + esc(item.userName || 'Unknown') + '</div>' +
+          '<div style="font-size:11px;color:var(--t2)">' + icon + ' ' + actionLabel + entityHtml + '</div>' +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--t3);white-space:nowrap;flex-shrink:0">' + timeStr + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div style="margin-bottom:8px">' +
+      '<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.05em;padding:6px 0;border-bottom:2px solid var(--bd2);margin-bottom:4px">' + label + '</div>' +
+      rows +
+    '</div>';
+  }).join('');
+  el.innerHTML = html;
+}
+
+async function loadActivityFeed() {
+  const el = document.getElementById('activity-feed-content');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center">Loading...</div>';
+  try {
+    const result = await _trpc('activityFeed.getTeamFeed', { limit: 100 }, 'query');
+    _activityFeedData = result.feed || [];
+    _activityFeedMembers = result.members || [];
+    const sel = document.getElementById('activity-filter-member');
+    if (sel) {
+      const currentVal = sel.value;
+      sel.innerHTML = '<option value="">All Members</option>' +
+        _activityFeedMembers.map(function(m) { return '<option value="' + m.id + '">' + esc(m.name) + '</option>'; }).join('');
+      sel.value = currentVal;
+    }
+    renderActivityFeed(_activityFeedData);
+  } catch (err) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--red);padding:12px 0;text-align:center">Could not load activity feed. Admin access required.</div>';
+  }
+}
+
+function filterActivityFeed() {
+  const sel = document.getElementById('activity-filter-member');
+  const memberId = sel ? parseInt(sel.value) : 0;
+  if (!memberId) {
+    renderActivityFeed(_activityFeedData);
+  } else {
+    renderActivityFeed(_activityFeedData.filter(function(item) { return item.userId === memberId; }));
+  }
 }
 
 // ====== TEAM INVITES ======

@@ -221,6 +221,8 @@ export const teamInvitesRouter = router({
       }
 
       await db.acceptTeamInvite(input.token, userId);
+      // Log account creation activity (best-effort)
+      db.logActivity(userId, 'account_created', 'user', input.name).catch(() => {});
       return { success: true, email: invite.email };
     }),
 });

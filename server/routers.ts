@@ -13,6 +13,7 @@ import { wordImportRouter } from "./routers/wordImport";
 import { bookmarksRouter } from "./routers/bookmarks";
 import { newsRouter } from "./routers/news";
 import { teamInvitesRouter } from "./routers/teamInvites";
+import { activityFeedRouter } from "./routers/activityFeed";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -40,6 +41,7 @@ export const appRouter = router({
   bookmarks: bookmarksRouter,
   news: newsRouter,
   teamInvites: teamInvitesRouter,
+  activityFeed: activityFeedRouter,
 });
 
 export type AppRouter = typeof appRouter;

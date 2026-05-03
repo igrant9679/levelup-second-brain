@@ -54,6 +54,8 @@ export const emailAuthRouter = router({
       }
       // Update lastSignedIn
       await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+      // Log login activity
+      await db.logActivity(user.id, 'login');
       // Determine session duration based on rememberMe
       const sessionDurationMs = input.rememberMe ? THIRTY_DAYS_MS : ONE_DAY_MS;
       // Create JWT session cookie

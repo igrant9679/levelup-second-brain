@@ -197,12 +197,12 @@ export const bookmarksRouter = router({
       if (!bookmark) {
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create bookmark' });
       }
-
+      // Log activity (best-effort)
+      db.logActivity(ctx.user.id, 'bookmark_created', 'bookmark', bookmark.title || input.url).catch(() => {});
       return bookmark;
     }),
-
   /**
-   * List bookmarks with pagination, search, tag filter, and sort.
+   * List bookmarks with pagination, search, tag filter, and sort.t.
    */
   list: protectedProcedure
     .input(z.object({

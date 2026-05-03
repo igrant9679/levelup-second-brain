@@ -855,3 +855,25 @@
 
 ### Email Delivery Log tRPC Fix
 - [x] Fix: getAdminEmailDeliveryLog tRPC error — changed z.date() to z.union([z.date(), z.string()]).transform() so both Date objects and ISO strings are accepted; no frontend change needed
+
+## Team Member Activity Feed
+
+### DB & Backend
+- [x] DB: add `user_activity_log` table (id, userId, action, entityType, entityTitle, metadata JSON, createdAt)
+- [x] DB: add `lastSeenAt` column to users table to track last login time (uses existing lastSignedIn)
+- [x] DB: run pnpm db:push to apply migration
+- [x] DB helpers: logActivity(userId, action, entityType?, entityTitle?, metadata?), getActivityFeed(teamUserIds, limit), getMemberStats(userId, since)
+- [x] Backend: tRPC `activityFeed.log` (protectedProcedure) — called by frontend on key actions
+- [x] Backend: tRPC `activityFeed.getTeamFeed` (adminProcedure) — paginated feed across all team members
+- [x] Backend: tRPC `activityFeed.getMemberStats` (adminProcedure) — per-member summary (logins, tasks, notes, etc.)
+- [x] Backend: update login handler to set lastSeenAt and log a login activity event
+
+### Frontend
+- [x] Team screen: add Activity Feed section to Team screen (admin-only, auto-loads on render)
+- [x] Activity feed: chronological list of all team member actions with avatar, name, action, entity, and timestamp
+- [x] Activity feed: filter by member (member dropdown filter)
+- [ ] Team member cards: show last seen time and 7-day activity count badge
+- [ ] Member detail drawer: show per-member activity timeline and stats (tasks created, notes, logins this week)
+
+### Tests
+- [x] vitest: logActivity, getActivityFeed, getMemberStats procedures (11 tests, all passing)

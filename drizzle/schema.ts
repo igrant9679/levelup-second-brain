@@ -526,3 +526,31 @@ export const teamInvites = mysqlTable('team_invites', {
 }));
 export type TeamInvite = typeof teamInvites.$inferSelect;
 export type InsertTeamInvite = typeof teamInvites.$inferInsert;
+
+// ─── User Activity Log ───────────────────────────────────────────────────────
+// Tracks key engagement actions per user for the Team Activity Feed.
+export const userActivityLog = mysqlTable('user_activity_log', {
+  id: int('id').autoincrement().primaryKey(),
+  /** The user who performed the action */
+  userId: int('userId').notNull(),
+  /**
+   * Action type — one of a fixed set of verbs:
+   *   login | task_created | task_completed | note_created | note_updated |
+   *   goal_created | habit_completed | bookmark_created | file_uploaded |
+   *   calendar_event_created | contact_added | project_created | invite_sent
+   */
+  action: varchar('action', { length: 64 }).notNull(),
+  /** Optional entity type the action applies to (e.g. 'task', 'note') */
+  entityType: varchar('entityType', { length: 32 }),
+  /** Human-readable title of the entity (e.g. task title, note title) */
+  entityTitle: varchar('entityTitle', { length: 255 }),
+  /** Optional JSON metadata (e.g. { "taskId": 42, "priority": "high" }) */
+  metadata: text('metadata'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUserId: index('idx_ual_user_id').on(t.userId),
+  idxAction: index('idx_ual_action').on(t.action),
+  idxCreatedAt: index('idx_ual_created_at').on(t.createdAt),
+}));
+export type UserActivityLog = typeof userActivityLog.$inferSelect;
+export type InsertUserActivityLog = typeof userActivityLog.$inferInsert;
