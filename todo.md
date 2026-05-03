@@ -832,5 +832,5 @@
 - [x] Frontend: "Repeat" dropdown in edit event form (pre-filled from existing recurrence value)
 - [x] Frontend: event detail modal shows 🔁 recurrence label when set
 - [x] Frontend: recurrence stored in local _calEvents state and synced from DB
-- [ ] Frontend: "Repeat" dropdown in new event create form (future enhancement)
-- [ ] Frontend: when deleting a recurring event, offer "Delete this event only" vs "Delete all occurrences" (future enhancement)
+- [x] Frontend: "Repeat" dropdown in new event create form (already present: none/daily/weekly/biweekly/monthly)
+- [x] Frontend: when deleting a recurring event, offer "Delete this event only" vs "Delete all occurrences" (custom dialog)

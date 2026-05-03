@@ -4589,21 +4589,61 @@ async function saveEditCalEvent(id){
 async function deleteCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
   if(!ev)return;
-  if(!confirm('Delete "'+ev.title+'"? This cannot be undone.'))return;
+  // Check if this is a recurring event (has recurId or repeat field set)
+  const isRecurring=ev.recurId||(ev.repeat&&ev.repeat!=='none')||(ev.recurrence&&ev.recurrence!=='none');
+  let deleteAll=false;
+  if(isRecurring){
+    // Show a custom choice dialog instead of plain confirm
+    const choice=await new Promise(resolve=>{
+      const ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+      ov.innerHTML=`<div style="background:var(--bg);border:1px solid var(--br);border-radius:12px;padding:24px;max-width:340px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.3)">
+        <h3 style="font-size:15px;font-weight:600;margin:0 0 8px">Delete recurring event?</h3>
+        <p style="font-size:12px;color:var(--t2);margin:0 0 18px">"${ev.title.replace(/"/g,'&quot;')}" repeats. What would you like to delete?</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" id="del-one">🗑 Delete this event only</button>
+          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px;color:var(--red)" id="del-all">🗑 Delete all occurrences</button>
+          <button class="btn btn-s" style="text-align:left;padding:8px 12px;font-size:12px" id="del-cancel">Cancel</button>
+        </div>
+      </div>`;
+      document.body.appendChild(ov);
+      ov.querySelector('#del-one').onclick=()=>{document.body.removeChild(ov);resolve('one');};
+      ov.querySelector('#del-all').onclick=()=>{document.body.removeChild(ov);resolve('all');};
+      ov.querySelector('#del-cancel').onclick=()=>{document.body.removeChild(ov);resolve(null);};
+    });
+    if(!choice)return;
+    deleteAll=choice==='all';
+  }else{
+    if(!confirm('Delete "'+ev.title+'"? This cannot be undone.'))return;
+  }
   // Remove from local array
-  const idx=_calEvents.findIndex(e=>e.id===id);
-  if(idx>-1)_calEvents.splice(idx,1);
+  if(deleteAll&&(ev.recurId||ev.repeat)){
+    const recurId=ev.recurId;
+    const repeat=ev.repeat;
+    const title=ev.title;
+    const before=_calEvents.length;
+    // Remove all events with same recurId or same title+repeat (for older format)
+    for(let i=_calEvents.length-1;i>=0;i--){
+      const e=_calEvents[i];
+      if((recurId&&e.recurId===recurId)||(repeat&&e.repeat===repeat&&e.title===title)){
+        _calEvents.splice(i,1);
+      }
+    }
+    const removed=before-_calEvents.length;
+    toast(`✓ Deleted ${removed} occurrence${removed!==1?'s':''}`);
+  }else{
+    const idx=_calEvents.findIndex(e=>e.id===id);
+    if(idx>-1)_calEvents.splice(idx,1);
+    toast('✓ Event deleted');
+  }
   localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
   // If event has a DB ID, delete from server too
   if(ev.dbId){
     try{
       await _trpc('oauthSync.deleteCalendarEvent',{id:ev.dbId},'mutate');
-      toast('✓ Event deleted from calendar and server');
     }catch(e){
-      toast('✓ Event deleted locally (server: '+e.message+')');
+      console.warn('Server delete failed:',e.message);
     }
-  }else{
-    toast('✓ Event deleted');
   }
   closeModal();
   renderCal();
