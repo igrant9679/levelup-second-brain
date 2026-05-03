@@ -1238,7 +1238,41 @@ function renderDrawer(type,item){
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field"><label>Tags (comma separated)</label><input class="inp" value="${(item.tags||[]).join(', ')}" id="dr-tags"></div>
     <div class="field"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
-    <div class="field"><label>Content</label><textarea class="inp" style="min-height:200px" id="dr-body">${esc(item.body||'')}</textarea></div>
+    <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
+    <div class="field" style="margin-top:8px">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        <span>📝 Free-form Body <span style="font-size:9px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span>
+        <span id="dr-note-rte-wc" style="font-size:9px;color:var(--t3)">0 words</span>
+      </label>
+      <!-- Note Drawer RTE Toolbar -->
+      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      </div>
+      <div id="dr-note-rte" contenteditable="true" spellcheck="true"
+        style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
+        data-placeholder="Continue your note here…"
+        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-note-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
+      >${item.bodyHtml||''}</div>
+      <!-- AI Assistance in Note Drawer -->
+      <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('expand')">📝 Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('summarise')">📌 Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('link')">🔗 Link Concepts</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('autotag')">🏷 Auto-tag</button>
+        </div>
+        <div id="dr-note-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('note',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('note',${item.id})">Delete</button>
@@ -1282,7 +1316,39 @@ function renderDrawer(type,item){
     <div class="field"><label>Date</label><input class="inp" value="${esc(item.date)}" id="dr-date"></div>
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
-    ${item.diaryBody?`<div class="field"><label>Diary Entry</label><div style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;line-height:1.7;color:var(--t1);max-height:300px;overflow-y:auto">${item.diaryBody}</div></div>`:''}
+    <div class="field" style="margin-top:10px">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        <span>📓 Diary Entry <span style="font-size:9px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span>
+        <span id="dr-jrnl-wc" style="font-size:9px;color:var(--t3)">0 words</span>
+      </label>
+      <!-- Drawer RTE Toolbar -->
+      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      </div>
+      <div id="dr-diary-rte" contenteditable="true" spellcheck="true"
+        style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
+        data-placeholder="Continue your diary entry here…"
+        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-jrnl-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
+      >${item.diaryBody||''}</div>
+      <!-- AI Assistance in Drawer -->
+      <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('expand')">📝 Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">📌 Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">📊 Mood</button>
+        </div>
+        <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
     <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
@@ -1410,7 +1476,7 @@ function saveItem(type,id){
     t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;n.updated='Just now';save('notes')}}
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;n.updated='Just now';save('notes')}}
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
@@ -1423,7 +1489,7 @@ function saveItem(type,id){
     g.linkedTaskIds=[...document.querySelectorAll('.goal-task-cb:checked')].map(cb=>parseInt(cb.dataset.tid));
     save('goals');
   }}
-  if(type==='journal'){const j=D.journal.find(x=>x.id===id);if(j){j.title=$('#dr-title').value;j.date=$('#dr-date').value;j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;save('journal')}}
+  if(type==='journal'){const j=D.journal.find(x=>x.id===id);if(j){j.title=$('#dr-title').value;j.date=$('#dr-date').value;j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;const drRte=document.getElementById('dr-diary-rte');if(drRte)j.diaryBody=drRte.innerHTML;save('journal')}}
   closeDrawer();toast('Saved!');renderScreen(curScreen);
 }
 function deleteItem(type,id){
@@ -12005,17 +12071,15 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId){
   if(!el)return;
   el.style.display='block';
   el.textContent='⏳ Thinking...';
+  // Pick provider + key from user settings
+  const provider=(D.creds&&D.creds.aiProvider)||'manus';
+  const keyMap={openai:D.creds&&D.creds.openaiKey,claude:D.creds&&D.creds.claudeKey,gemini:D.creds&&D.creds.geminiKey};
+  const apiKey=keyMap[provider]||undefined;
   try{
-    const res=await _trpc('ai.assist',{systemPrompt,userContent},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
     el.textContent=res?.result||res?.text||'No response generated.';
   }catch(e){
-    // Fallback: use suggestFollowUps endpoint with the prompt as body
-    try{
-      const res2=await _trpc('oauthSync.suggestFollowUps',{subject:systemPrompt.slice(0,80),body:userContent},'mutation');
-      el.textContent=(res2?.suggestions||[]).join('\n\n')||'No response generated.';
-    }catch(e2){
-      el.textContent='⚠ AI error: '+(e2?.message||'unknown');
-    }
+    el.textContent='⚠ AI error: '+(e?.message||'unknown');
   }
 }
 
@@ -12033,6 +12097,39 @@ async function rteJournalAI(mode){
   if(!text&&mode!=='questions'){toast('Write something first, then use AI assistance.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
   await _rteAIGeneral(systemPrompt,text,resultEl);
+}
+
+async function drJrnlAI(mode){
+  const rte=document.getElementById('dr-diary-rte');
+  const resultEl='dr-jrnl-ai-result';
+  const text=(rte?.innerText||'').trim();
+  const prompts={
+    expand:`You are a reflective journaling coach. The user has written the following diary entry. Expand it with deeper reflection, emotional nuance, and specific details. Keep the first-person voice.\n\nEntry:\n${text}`,
+    reflect:`You are a mindful journaling coach. Read this diary entry and offer 3-5 thoughtful reflection questions to help the user go deeper. Be empathetic and insightful.\n\nEntry:\n${text}`,
+    summarise:`Summarise this journal entry in 2-3 sentences, capturing the key emotions, events, and insights.\n\nEntry:\n${text}`,
+    mood:`Analyse the emotional tone of this journal entry. Identify the primary mood, secondary emotions, and any patterns worth noting. Be concise and supportive.\n\nEntry:\n${text}`,
+  };
+  if(!text){toast('Write something in the diary entry first.');return;}
+  const systemPrompt=prompts[mode]||prompts.expand;
+  await _rteAIGeneral(systemPrompt,text,resultEl);
+}
+
+async function drNoteAI(mode){
+  const rte=document.getElementById('dr-note-rte');
+  const title=document.getElementById('dr-title')?.value.trim()||'';
+  const mdBody=document.getElementById('dr-body')?.value.trim()||'';
+  const resultEl='dr-note-ai-result';
+  const body=(rte?.innerText||'').trim()||mdBody;
+  const context=`Note: ${title}\n\n${body}`;
+  const prompts={
+    expand:`You are a knowledge management expert. Expand this note with additional context, examples, and related concepts. Keep it concise and useful.\n\n${context}`,
+    summarise:`Summarise this note in 3 bullet points, capturing the key ideas and insights.\n\n${context}`,
+    link:`You are a second brain assistant. Identify 3-5 key concepts in this note and suggest related topics, frameworks, or ideas the user should explore or link to.\n\n${context}`,
+    autotag:`Suggest 5-8 relevant tags for this note. Return them as a comma-separated list. Be specific and useful for future retrieval.\n\n${context}`,
+  };
+  if(!title&&!body){toast('Add a title or content first.');return;}
+  const systemPrompt=prompts[mode]||prompts.expand;
+  await _rteAIGeneral(systemPrompt,body,resultEl);
 }
 
 async function rteIdeaAI(mode){

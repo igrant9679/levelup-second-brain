@@ -671,3 +671,6 @@
 - [x] Add rich text editor + AI assistance panel to Journal entry (diary body field, AI prompts: expand, reflect, summarise, mood)
 - [x] Add rich text editor + AI assistance to Ideas → New Idea entry screen (description field, AI prompts: validate, premortem, ICE score, expand)
 - [x] Add rich text editor + AI assistance to Notes → +New entry screen (body field, AI prompts: expand, summarise, link concepts, auto-tag)
+- [x] Add editable RTE to journal drawer so diary body can be updated and saved
+- [x] Add note body viewer showing saved bodyHtml in note detail view
+- [x] Implement server-side AI provider routing (OpenAI/Claude/Gemini) in ai.assist procedure
