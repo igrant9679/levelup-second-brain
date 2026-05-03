@@ -696,3 +696,6 @@
 - [x] Journal export filter scope: option to export current filter only vs all entries
 - [x] Color picker for Task titles: assign color label to tasks, shown in all task views
 - [x] Color picker for Note titles: assign color label to notes, shown in all note views
+
+## Bug Fix (May 2026)
+- [x] Fix missing closing brace in renderDrawer task if-block causing "Unexpected end of input" and "applyPrefs is not defined" errors

@@ -1241,6 +1241,7 @@ function renderDrawer(type,item){
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
+  }
    if(type==='note'){
     return `<h2>\ud83d\udcdd Edit Note ${pinBtn('note',item.id)}${cb}</h2>
     <div class="field-row" style="align-items:flex-end">
