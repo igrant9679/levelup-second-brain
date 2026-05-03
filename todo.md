@@ -679,3 +679,9 @@
 - [x] Add editable RTE to Ideas drawer for bodyHtml (view/edit rich text body on existing ideas)
 - [x] Add Insert-into-body button to all AI result panels (Journal new, Journal drawer, Note new, Note drawer, Idea new)
 - [x] Add Test Connection button for each AI provider key in Settings → AI Features
+
+## Next Feature Batch (May 2026)
+- [x] Idea export (MD + PDF) includes bodyHtml rich text content
+- [x] AI result history panel (last 3 responses) on all RTE surfaces
+- [x] Bulk AI auto-tag button in Notes list header
+- [x] Replace OneNote Import with Word Doc Note Import (.docx multi-note parser per spec)

@@ -9,6 +9,7 @@ import { emailAuthRouter } from "./routers/emailAuth";
 import { teamRouter } from "./routers/team";
 import { userProfileRouter } from "./routers/userProfile";
 import { aiRouter } from "./routers/ai";
+import { wordImportRouter } from "./routers/wordImport";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -31,6 +32,7 @@ export const appRouter = router({
   team: teamRouter,
   userProfile: userProfileRouter,
   ai: aiRouter,
+  wordImport: wordImportRouter,
 });
 
 export type AppRouter = typeof appRouter;
