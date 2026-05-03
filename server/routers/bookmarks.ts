@@ -450,4 +450,139 @@ export const bookmarksRouter = router({
       );
       return bookmarks;
     }),
+
+  // ─── Collections sub-router ────────────────────────────────────────────────
+  collections: router({
+    /** Create a new collection. */
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1).max(128),
+        description: z.string().optional(),
+        color: z.string().max(32).optional(),
+        icon: z.string().max(8).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        return db.createCollection(ctx.user.id, input);
+      }),
+
+    /** List all collections for the current user (with bookmark counts). */
+    list: protectedProcedure
+      .query(async ({ ctx }) => {
+        return db.getCollections(ctx.user.id);
+      }),
+
+    /** Update a collection's name, description, color, or icon. */
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number().int(),
+        name: z.string().min(1).max(128).optional(),
+        description: z.string().optional(),
+        color: z.string().max(32).optional(),
+        icon: z.string().max(8).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        const updated = await db.updateCollection(id, ctx.user.id, data);
+        if (!updated) throw new TRPCError({ code: 'NOT_FOUND', message: 'Collection not found' });
+        return updated;
+      }),
+
+    /** Delete a collection (and all its items). */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteCollection(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    /** Add a bookmark to a collection. */
+    addBookmark: protectedProcedure
+      .input(z.object({
+        collectionId: z.number().int(),
+        bookmarkId: z.number().int(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // Verify ownership
+        const col = await db.getCollection(input.collectionId, ctx.user.id);
+        if (!col) throw new TRPCError({ code: 'NOT_FOUND', message: 'Collection not found' });
+        const bm = await db.getBookmarkById(input.bookmarkId, ctx.user.id);
+        if (!bm) throw new TRPCError({ code: 'NOT_FOUND', message: 'Bookmark not found' });
+        await db.addBookmarkToCollection(input.collectionId, input.bookmarkId, ctx.user.id);
+        return { success: true };
+      }),
+
+    /** Remove a bookmark from a collection. */
+    removeBookmark: protectedProcedure
+      .input(z.object({
+        collectionId: z.number().int(),
+        bookmarkId: z.number().int(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.removeBookmarkFromCollection(input.collectionId, input.bookmarkId, ctx.user.id);
+        return { success: true };
+      }),
+
+    /** Get all bookmarks in a collection. */
+    getBookmarks: protectedProcedure
+      .input(z.object({ collectionId: z.number().int() }))
+      .query(async ({ input, ctx }) => {
+        const col = await db.getCollection(input.collectionId, ctx.user.id);
+        if (!col) throw new TRPCError({ code: 'NOT_FOUND', message: 'Collection not found' });
+        return db.getCollectionBookmarks(input.collectionId, ctx.user.id);
+      }),
+
+    /** Get which collections a bookmark belongs to. */
+    getForBookmark: protectedProcedure
+      .input(z.object({ bookmarkId: z.number().int() }))
+      .query(async ({ input, ctx }) => {
+        return db.getBookmarkCollections(input.bookmarkId, ctx.user.id);
+      }),
+  }),
+
+  // ─── Shares sub-router ─────────────────────────────────────────────────────
+  shares: router({
+    /** Create a shareable link for a collection or a selection of bookmarks. */
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().max(256).optional(),
+        description: z.string().optional(),
+        shareType: z.enum(['collection', 'selection']),
+        collectionId: z.number().int().optional(),
+        bookmarkIds: z.array(z.number().int()).optional(),
+        expiresInDays: z.number().int().min(1).max(365).optional(), // null = never
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.shareType === 'collection' && !input.collectionId) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'collectionId required for collection share' });
+        }
+        if (input.shareType === 'selection' && (!input.bookmarkIds || input.bookmarkIds.length === 0)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'bookmarkIds required for selection share' });
+        }
+        const expiresAt = input.expiresInDays
+          ? new Date(Date.now() + input.expiresInDays * 86_400_000)
+          : undefined;
+        return db.createBookmarkShare(ctx.user.id, {
+          title: input.title,
+          description: input.description,
+          shareType: input.shareType,
+          collectionId: input.collectionId,
+          bookmarkIds: input.bookmarkIds,
+          expiresAt,
+        });
+      }),
+
+    /** List all shares created by the current user. */
+    list: protectedProcedure
+      .query(async ({ ctx }) => {
+        return db.getSharesByUser(ctx.user.id);
+      }),
+
+    /** Delete a share link. */
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int() }))
+      .mutation(async ({ input, ctx }) => {
+        await db.deleteBookmarkShare(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
 });

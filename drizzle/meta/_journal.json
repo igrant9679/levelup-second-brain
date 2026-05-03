@@ -162,6 +162,13 @@
       "when": 1777825899823,
       "tag": "0022_damp_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1777828312170,
+      "tag": "0023_tiresome_gorilla_man",
+      "breakpoints": true
     }
   ]
 }

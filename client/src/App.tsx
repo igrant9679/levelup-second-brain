@@ -13,24 +13,32 @@ import NotificationCenter from "./pages/NotificationCenter";
 import EventReminders from "./pages/EventReminders";
 import SyncStatus from "./pages/SyncStatus";
 import BulkImport from "./pages/BulkImport";
+import ShareView from "./pages/ShareView";
 
 function Router() {
   return (
-    <AppLayout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/calendar" component={Calendar} />
-        <Route path="/mail" component={Mail} />
-        <Route path="/sync-settings" component={SyncSettings} />
-        <Route path="/notifications" component={NotificationCenter} />
-        <Route path="/event-reminders" component={EventReminders} />
-        <Route path="/sync-status" component={SyncStatus} />
-        <Route path="/bulk-import" component={BulkImport} />
-        <Route path="/404" component={NotFound} />
-        {/* Final fallback route */}
-        <Route component={NotFound} />
-      </Switch>
-    </AppLayout>
+    <Switch>
+      {/* Public share page — no auth or app shell needed */}
+      <Route path="/share/:token" component={ShareView} />
+      {/* All other routes go through AppLayout */}
+      <Route>
+        <AppLayout>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/calendar" component={Calendar} />
+            <Route path="/mail" component={Mail} />
+            <Route path="/sync-settings" component={SyncSettings} />
+            <Route path="/notifications" component={NotificationCenter} />
+            <Route path="/event-reminders" component={EventReminders} />
+            <Route path="/sync-status" component={SyncStatus} />
+            <Route path="/bulk-import" component={BulkImport} />
+            <Route path="/404" component={NotFound} />
+            {/* Final fallback route */}
+            <Route component={NotFound} />
+          </Switch>
+        </AppLayout>
+      </Route>
+    </Switch>
   );
 }
 

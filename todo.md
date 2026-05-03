@@ -747,3 +747,20 @@
 - [x] tRPC: bookmarks.linkToEntity, bookmarks.unlinkFromEntity, bookmarks.getLinkedBookmarks
 - [x] Tests: vitest coverage for new bookmark link procedures (192 total passing)
 - [x] Fix blank Add Bookmark modal — openModal() only handled Quick Capture; replaced with openBkModal() helper for all bookmark modals (Add, Edit, Bookmarklet)
+
+## Bookmark Collections & Sharing (May 2026)
+- [x] DB: bookmark_collections table (id, userId, name, description, color, icon, createdAt, updatedAt)
+- [x] DB: bookmark_collection_items table (collectionId, bookmarkId, addedAt)
+- [x] DB helpers: createCollection, getCollections, updateCollection, deleteCollection, addToCollection, removeFromCollection, getCollectionBookmarks
+- [x] tRPC: bookmarks.collections.create, list, update, delete, addBookmark, removeBookmark, getBookmarks
+- [x] Frontend: Collections panel in Bookmarks sidebar with color-coded collection list
+- [x] Frontend: "Add to Collection" button on bookmark cards (folder icon picker modal)
+- [x] Frontend: Collection detail view showing bookmarks in that collection
+- [x] Frontend: Create/edit/delete collection modals
+- [x] DB: bookmark_shares table (id, userId, token, title, description, shareType, collectionId, bookmarkIds JSON, expiresAt, createdAt)
+- [x] DB helpers: createShare, getShareByToken, getSharesByUser, deleteShare, incrementShareViewCount
+- [x] tRPC: bookmarks.shares.create, list, delete
+- [x] Public Express endpoint: GET /api/share/:token (no auth, returns JSON; React page at /share/:token)
+- [x] Frontend: Share button on bookmark cards and collection headers
+- [x] Frontend: Share modal with copy-link button and expiry options; Share Manager panel
+- [x] Tests: vitest coverage for collections and shares procedures (7 tests, all passing)

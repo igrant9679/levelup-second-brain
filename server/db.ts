@@ -1077,3 +1077,177 @@ export async function getEntityLinksForBookmark(bookmarkId: number, userId: numb
   return db.select().from(bookmarkLinks)
     .where(and(eq(bookmarkLinks.bookmarkId, bookmarkId), eq(bookmarkLinks.userId, userId)));
 }
+
+
+// ─── Bookmark Collections ─────────────────────────────────────────────────────
+
+export async function createCollection(userId: number, data: { name: string; description?: string; color?: string; icon?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkCollections } = await import('../drizzle/schema');
+  const [result] = await db.insert(bookmarkCollections).values({
+    userId,
+    name: data.name,
+    description: data.description ?? null,
+    color: data.color ?? '#3B82F6',
+    icon: data.icon ?? '📁',
+  });
+  const id = (result as { insertId: number }).insertId;
+  const rows = await db.select().from(bookmarkCollections).where(eq(bookmarkCollections.id, id));
+  return rows[0];
+}
+
+export async function getCollections(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkCollections, bookmarkCollectionItems } = await import('../drizzle/schema');
+  const cols = await db.select().from(bookmarkCollections)
+    .where(eq(bookmarkCollections.userId, userId))
+    .orderBy(bookmarkCollections.createdAt);
+  // Attach item counts
+  const counts = await db.select({
+    collectionId: bookmarkCollectionItems.collectionId,
+    cnt: sql<number>`count(*)`,
+  }).from(bookmarkCollectionItems)
+    .where(eq(bookmarkCollectionItems.userId, userId))
+    .groupBy(bookmarkCollectionItems.collectionId);
+  const countMap: Record<number, number> = {};
+  for (const c of counts) countMap[c.collectionId] = Number(c.cnt);
+  return cols.map(c => ({ ...c, bookmarkCount: countMap[c.id] ?? 0 }));
+}
+
+export async function getCollection(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { bookmarkCollections } = await import('../drizzle/schema');
+  const rows = await db.select().from(bookmarkCollections)
+    .where(and(eq(bookmarkCollections.id, id), eq(bookmarkCollections.userId, userId)));
+  return rows[0] ?? null;
+}
+
+export async function updateCollection(id: number, userId: number, data: { name?: string; description?: string; color?: string; icon?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkCollections } = await import('../drizzle/schema');
+  await db.update(bookmarkCollections).set({ ...data }).where(and(eq(bookmarkCollections.id, id), eq(bookmarkCollections.userId, userId)));
+  const rows = await db.select().from(bookmarkCollections).where(eq(bookmarkCollections.id, id));
+  return rows[0] ?? null;
+}
+
+export async function deleteCollection(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkCollections, bookmarkCollectionItems } = await import('../drizzle/schema');
+  // Remove all items first
+  await db.delete(bookmarkCollectionItems).where(and(eq(bookmarkCollectionItems.collectionId, id), eq(bookmarkCollectionItems.userId, userId)));
+  await db.delete(bookmarkCollections).where(and(eq(bookmarkCollections.id, id), eq(bookmarkCollections.userId, userId)));
+}
+
+export async function addBookmarkToCollection(collectionId: number, bookmarkId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkCollectionItems } = await import('../drizzle/schema');
+  // Ignore duplicate (upsert-style)
+  try {
+    await db.insert(bookmarkCollectionItems).values({ collectionId, bookmarkId, userId });
+  } catch (_e) {
+    // Unique constraint violation = already in collection, that's fine
+  }
+}
+
+export async function removeBookmarkFromCollection(collectionId: number, bookmarkId: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkCollectionItems } = await import('../drizzle/schema');
+  await db.delete(bookmarkCollectionItems).where(and(
+    eq(bookmarkCollectionItems.collectionId, collectionId),
+    eq(bookmarkCollectionItems.bookmarkId, bookmarkId),
+    eq(bookmarkCollectionItems.userId, userId),
+  ));
+}
+
+export async function getCollectionBookmarks(collectionId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkCollectionItems, bookmarks } = await import('../drizzle/schema');
+  const rows = await db.select({ bookmark: bookmarks })
+    .from(bookmarkCollectionItems)
+    .innerJoin(bookmarks, eq(bookmarkCollectionItems.bookmarkId, bookmarks.id))
+    .where(and(eq(bookmarkCollectionItems.collectionId, collectionId), eq(bookmarkCollectionItems.userId, userId)))
+    .orderBy(desc(bookmarkCollectionItems.addedAt));
+  return rows.map(r => r.bookmark);
+}
+
+export async function getBookmarkCollections(bookmarkId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkCollectionItems, bookmarkCollections } = await import('../drizzle/schema');
+  const rows = await db.select({ collection: bookmarkCollections })
+    .from(bookmarkCollectionItems)
+    .innerJoin(bookmarkCollections, eq(bookmarkCollectionItems.collectionId, bookmarkCollections.id))
+    .where(and(eq(bookmarkCollectionItems.bookmarkId, bookmarkId), eq(bookmarkCollectionItems.userId, userId)));
+  return rows.map(r => r.collection);
+}
+
+// ─── Bookmark Shares ──────────────────────────────────────────────────────────
+
+export async function createBookmarkShare(userId: number, data: {
+  title?: string;
+  description?: string;
+  shareType: 'collection' | 'selection';
+  collectionId?: number;
+  bookmarkIds?: number[];
+  expiresAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkShares } = await import('../drizzle/schema');
+  // Generate a random URL-safe token
+  const { randomBytes } = await import('crypto');
+  const token = randomBytes(24).toString('base64url');
+  await db.insert(bookmarkShares).values({
+    userId,
+    token,
+    title: data.title ?? null,
+    description: data.description ?? null,
+    shareType: data.shareType,
+    collectionId: data.collectionId ?? null,
+    bookmarkIds: data.bookmarkIds ? JSON.stringify(data.bookmarkIds) : null,
+    expiresAt: data.expiresAt ?? null,
+  });
+  const rows = await db.select().from(bookmarkShares).where(eq(bookmarkShares.token, token));
+  return rows[0];
+}
+
+export async function getShareByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const { bookmarkShares } = await import('../drizzle/schema');
+  const rows = await db.select().from(bookmarkShares).where(eq(bookmarkShares.token, token));
+  return rows[0] ?? null;
+}
+
+export async function getSharesByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkShares } = await import('../drizzle/schema');
+  return db.select().from(bookmarkShares)
+    .where(eq(bookmarkShares.userId, userId))
+    .orderBy(desc(bookmarkShares.createdAt));
+}
+
+export async function deleteBookmarkShare(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error('DB unavailable');
+  const { bookmarkShares } = await import('../drizzle/schema');
+  await db.delete(bookmarkShares).where(and(eq(bookmarkShares.id, id), eq(bookmarkShares.userId, userId)));
+}
+
+export async function incrementShareViewCount(token: string) {
+  const db = await getDb();
+  if (!db) return;
+  const { bookmarkShares } = await import('../drizzle/schema');
+  await db.update(bookmarkShares)
+    .set({ viewCount: sql`${bookmarkShares.viewCount} + 1` })
+    .where(eq(bookmarkShares.token, token));
+}

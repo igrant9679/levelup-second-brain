@@ -222,6 +222,52 @@ async function startServer() {
     }
   });
 
+  // ---- Public bookmark share endpoint: GET /api/share/:token ----
+  // Returns share metadata + bookmarks for a given share token (no auth required).
+  app.get('/api/share/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      if (!token || token.length > 64) {
+        res.status(400).json({ error: 'Invalid token' });
+        return;
+      }
+      const { getShareByToken, getCollectionBookmarks, getBookmarkById } = await import('../db');
+      const share = await getShareByToken(token);
+      if (!share) {
+        res.status(404).json({ error: 'Share not found' });
+        return;
+      }
+      // Check expiry
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        res.status(410).json({ error: 'This share link has expired' });
+        return;
+      }
+      // Increment view count (fire-and-forget)
+      const { incrementShareViewCount } = await import('../db');
+      incrementShareViewCount(token).catch(() => {});
+      // Fetch bookmarks
+      let bookmarks: any[] = [];
+      if (share.shareType === 'collection' && share.collectionId) {
+        bookmarks = await getCollectionBookmarks(share.collectionId, share.userId);
+      } else if (share.shareType === 'selection' && share.bookmarkIds) {
+        const ids: number[] = JSON.parse(share.bookmarkIds as string);
+        const results = await Promise.all(ids.map(id => getBookmarkById(id, share.userId)));
+        bookmarks = results.filter(Boolean);
+      }
+      res.json({
+        title: share.title,
+        description: share.description,
+        shareType: share.shareType,
+        createdAt: share.createdAt,
+        expiresAt: share.expiresAt,
+        bookmarks,
+      });
+    } catch (err) {
+      console.error('[share] Error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

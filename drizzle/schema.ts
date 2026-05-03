@@ -437,3 +437,57 @@ export const bookmarkLinks = mysqlTable('bookmark_links', {
 }));
 export type BookmarkLink = typeof bookmarkLinks.$inferSelect;
 export type InsertBookmarkLink = typeof bookmarkLinks.$inferInsert;
+
+// ─── Bookmark Collections (Folders) ────────────────────────────────────────
+// Named collections for organising bookmarks (alternative to tags)
+export const bookmarkCollections = mysqlTable('bookmark_collections', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  name: varchar('name', { length: 128 }).notNull(),
+  description: text('description'),
+  color: varchar('color', { length: 32 }).default('#3B82F6'), // hex color
+  icon: varchar('icon', { length: 8 }).default('📁'),         // emoji icon
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_bc_user').on(t.userId),
+}));
+export type BookmarkCollection = typeof bookmarkCollections.$inferSelect;
+export type InsertBookmarkCollection = typeof bookmarkCollections.$inferInsert;
+
+// Junction table: which bookmarks belong to which collection
+export const bookmarkCollectionItems = mysqlTable('bookmark_collection_items', {
+  id: int('id').autoincrement().primaryKey(),
+  collectionId: int('collectionId').notNull(),
+  bookmarkId: int('bookmarkId').notNull(),
+  userId: int('userId').notNull(),
+  addedAt: timestamp('addedAt').defaultNow().notNull(),
+}, (t) => ({
+  idxCollection: index('idx_bci_collection').on(t.collectionId),
+  idxBookmark: index('idx_bci_bookmark').on(t.bookmarkId),
+  uniqueItem: unique('uq_bci_col_bm').on(t.collectionId, t.bookmarkId),
+}));
+export type BookmarkCollectionItem = typeof bookmarkCollectionItems.$inferSelect;
+export type InsertBookmarkCollectionItem = typeof bookmarkCollectionItems.$inferInsert;
+
+// ─── Bookmark Shares ────────────────────────────────────────────────────────
+// Shareable links for individual bookmarks or whole collections
+export const bookmarkShares = mysqlTable('bookmark_shares', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  token: varchar('token', { length: 64 }).notNull().unique(), // random URL-safe token
+  title: varchar('title', { length: 256 }),
+  description: text('description'),
+  // What is being shared: 'collection' | 'selection'
+  shareType: mysqlEnum('shareType', ['collection', 'selection']).notNull().default('selection'),
+  collectionId: int('collectionId'),    // set when shareType = 'collection'
+  bookmarkIds: text('bookmarkIds'),     // JSON array of bookmark IDs when shareType = 'selection'
+  expiresAt: timestamp('expiresAt'),    // null = never expires
+  viewCount: int('viewCount').notNull().default(0),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_bs_user').on(t.userId),
+  idxToken: index('idx_bs_token').on(t.token),
+}));
+export type BookmarkShare = typeof bookmarkShares.$inferSelect;
+export type InsertBookmarkShare = typeof bookmarkShares.$inferInsert;

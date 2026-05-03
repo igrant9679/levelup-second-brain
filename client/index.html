@@ -11839,6 +11839,15 @@ function aiContactDuplicates(){
 // ====== BOOKMARKS ======
 let _bkSearch='',_bkTagFilter='',_bkFavFilter=false,_bkReadFilter='',_bkSort='newest',_bkPage=1,_bkPageSize=30;
 let _bkData=[],_bkTotal=0,_bkTags=[],_bkLoading=false;
+// Collections state
+let _bkCollections=[],_bkCollFilter=null; // null = All Bookmarks
+let _bkShares=[];
+async function loadCollections(){
+  try{_bkCollections=await _trpc('bookmarks.collections.list',null,'query');}catch(e){_bkCollections=[];}
+}
+async function loadShares(){
+  try{_bkShares=await _trpc('bookmarks.shares.list',null,'query');}catch(e){_bkShares=[];}
+}
 
 async function loadBookmarks(){
   _bkLoading=true;
@@ -11857,6 +11866,8 @@ async function loadBookmarks(){
 
 function renderBookmarks(){
   loadBookmarks().then(()=>paintBookmarks());
+  loadCollections().then(()=>paintBookmarks());
+  loadShares();
   paintBookmarks(); // show loading state immediately
 }
 
@@ -11971,25 +11982,66 @@ function paintBookmarks(){
   // Tag pills for filter
   const tagPills=_bkTags.map(t=>`<span class="pill" style="cursor:pointer;margin:2px;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${esc(t)}'?'':'${esc(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('');
 
+  // Collections sidebar
+  const collSidebar=`
+    <div style="width:190px;flex-shrink:0;border-right:1px solid var(--bd1);padding-right:12px;margin-right:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Collections</span>
+        <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="showCreateCollection()" title="New collection">+</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div class="lr" style="border-radius:6px;padding:5px 8px;cursor:pointer;background:${_bkCollFilter===null?'var(--acs)':'transparent'};color:${_bkCollFilter===null?'var(--ac)':'inherit'}" onclick="_bkCollFilter=null;_bkPage=1;renderBookmarks()">
+          <span style="font-size:12px">&#128278;</span><span style="font-size:11px;font-weight:500">All Bookmarks</span><span style="font-size:9px;color:var(--t3);margin-left:auto">${_bkTotal}</span>
+        </div>
+        ${_bkCollections.map(c=>`
+          <div class="lr" style="border-radius:6px;padding:5px 8px;cursor:pointer;background:${_bkCollFilter===c.id?'var(--acs)':'transparent'};color:${_bkCollFilter===c.id?'var(--ac)':'inherit'}" onclick="_bkCollFilter=${c.id};_bkPage=1;loadCollectionView(${c.id})">
+            <span style="font-size:12px">${esc(c.icon||'&#128193;')}</span>
+            <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
+            <span style="font-size:9px;color:var(--t3)">${c.bookmarkCount||0}</span>
+            <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
+              <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px" onclick="editCollection(${c.id})" title="Edit">&#9999;</button>
+              <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px;color:var(--red)" onclick="deleteCollection(${c.id})" title="Delete">&#128465;</button>
+            </div>
+          </div>`).join('')}
+        ${_bkCollections.length===0?'<div style="font-size:10px;color:var(--t3);padding:8px 4px;font-style:italic">No collections yet</div>':''}
+      </div>
+      <div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Shared Links</span>
+          <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="showShareManager()" title="Manage shares">&#9881;</button>
+        </div>
+        ${_bkShares.length===0?'<div style="font-size:10px;color:var(--t3);font-style:italic">No shared links</div>':''}
+        ${_bkShares.slice(0,5).map(s=>`
+          <div style="margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
+            <div style="font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)">${esc(s.title||'Untitled share')}</div>
+            <div style="font-size:9px;color:var(--t3);margin-bottom:3px">${s.viewCount||0} views</div>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 5px" onclick="copyShareLink('${esc(s.token)}')">&#128203; Copy</button>
+              <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 5px;color:var(--red)" onclick="deleteShare(${s.id})">&#128465;</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
   // Bookmark cards
   let cards='';
   if(_bkLoading){
     cards='<div style="text-align:center;padding:40px;color:var(--t3)">Loading bookmarks...</div>';
   }else if(_bkData.length===0){
     cards=`<div style="text-align:center;padding:60px 20px">
-      <div style="font-size:48px;margin-bottom:12px">🔖</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:4px">No bookmarks yet</div>
-      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">Save web pages to build your knowledge library</div>
-      <button class="btn btn-p" onclick="showAddBookmark()">+ Add Your First Bookmark</button>
+      <div style="font-size:48px;margin-bottom:12px">&#128278;</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px">${_bkCollFilter?'No bookmarks in this collection':'No bookmarks yet'}</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">${_bkCollFilter?'Add bookmarks using the folder button on any card':'Save web pages to build your knowledge library'}</div>
+      ${_bkCollFilter?'':`<button class="btn btn-p" onclick="showAddBookmark()">+ Add Your First Bookmark</button>`}
     </div>`;
   }else{
     cards=_bkData.map(b=>{
       const tags=b.tags?JSON.parse(b.tags):[];
       const tagHtml=tags.map(t=>`<span class="pill" style="background:var(--s3);color:var(--t2);font-size:9px;margin-right:3px">${esc(t)}</span>`).join('');
-      const favicon=b.favicon?`<img src="${esc(b.favicon)}" style="width:16px;height:16px;border-radius:2px;flex-shrink:0" onerror="this.style.display='none'">`:'<span style="font-size:14px">🌐</span>';
+      const favicon=b.favicon?`<img src="${esc(b.favicon)}" style="width:16px;height:16px;border-radius:2px;flex-shrink:0" onerror="this.style.display='none'">`:'<span style="font-size:14px">&#127760;</span>';
       const domain=(() => { try { return new URL(b.url).hostname.replace(/^www\./,''); } catch { return ''; } })();
       const readMins=b.wordCount?Math.max(1,Math.round(b.wordCount/200)):null;
-      const readTimeHtml=readMins?`<span style="font-size:9px;color:var(--t3)">⏱ ${readMins} min read</span>`:'';
+      const readTimeHtml=readMins?`<span style="font-size:9px;color:var(--t3)">&#9201; ${readMins} min read</span>`:'';
       return `<div class="cd" style="cursor:pointer;transition:border-color .15s;position:relative${b.isRead?';opacity:.75':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor=''" onclick="window.open('${esc(b.url)}','_blank')">
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
@@ -12003,56 +12055,66 @@ function paintBookmarks(){
               ${tagHtml}
               ${readTimeHtml}
               <span style="font-size:9px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
-              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:9px">✓ Read</span>':''}
+              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:9px">&#10003; Read</span>':''}
             </div>
           </div>
           ${b.ogImage?`<img src="${esc(b.ogImage)}" style="width:80px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`:''}
         </div>
         <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px" onclick="event.stopPropagation()">
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'⭐':'☆'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'📖 Unread':'📕 Read'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">✏️</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">🗑</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'&#11088;':'&#9734;'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'Unread':'Read'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();showAddToCollection(${b.id})" title="Add to collection">&#128193;</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();shareBookmark(${b.id})" title="Share">&#128279;</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">&#9999;</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">&#128465;</button>
         </div>
       </div>`;
     }).join('');
   }
 
+  const collTitle=_bkCollFilter?(_bkCollections.find(c=>c.id===_bkCollFilter)||{name:'Collection'}).name:'All Bookmarks';
+
   el.innerHTML=`<div class="pg-h ph-r">
-    <div><h1>🔖 Bookmarks</h1><p style="font-size:12px;color:var(--t2)">Your saved web pages &amp; reading list</p></div>
+    <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'}</p></div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">🔖 Bookmarklet</button>
+      <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">&#128278; Bookmarklet</button>
+      ${_bkCollFilter?`<button class="btn btn-s" style="font-size:11px" onclick="shareCollection(${_bkCollFilter})">&#128279; Share Collection</button>`:''}
       <button class="btn btn-p" onclick="showAddBookmark()">+ Add Bookmark</button>
     </div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-    <div class="tb-s" style="max-width:280px;flex:1">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input placeholder="Search bookmarks..." value="${esc(_bkSearch)}" oninput="_bkSearch=this.value;_bkPage=1;clearTimeout(window._bkDebounce);window._bkDebounce=setTimeout(renderBookmarks,300)">
+  <div style="display:flex;gap:0;align-items:flex-start">
+    ${collSidebar}
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <div class="tb-s" style="max-width:280px;flex:1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input placeholder="Search bookmarks..." value="${esc(_bkSearch)}" oninput="_bkSearch=this.value;_bkPage=1;clearTimeout(window._bkDebounce);window._bkDebounce=setTimeout(renderBookmarks,300)">
+        </div>
+        <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkSort=this.value;_bkPage=1;renderBookmarks()">
+          <option value="newest" ${_bkSort==='newest'?'selected':''}>Newest</option>
+          <option value="oldest" ${_bkSort==='oldest'?'selected':''}>Oldest</option>
+          <option value="alpha" ${_bkSort==='alpha'?'selected':''}>A-Z</option>
+        </select>
+        ${!_bkCollFilter?`
+        <button class="btn ${_bkFavFilter?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkFavFilter=!_bkFavFilter;_bkPage=1;renderBookmarks()">&#11088; Favorites</button>
+        <button class="btn ${_bkReadFilter==='unread'?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkReadFilter=_bkReadFilter==='unread'?'':'unread';_bkPage=1;renderBookmarks()">&#128218; Reading List</button>
+        <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkReadFilter=this.value;_bkPage=1;renderBookmarks()">
+          <option value="" ${_bkReadFilter===''?'selected':''}>All</option>
+          <option value="unread" ${_bkReadFilter==='unread'?'selected':''}>Unread</option>
+          <option value="read" ${_bkReadFilter==='read'?'selected':''}>Read</option>
+        </select>`:''}
+      </div>
+      ${_bkTags.length&&!_bkCollFilter?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:10px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
+      <div id="bk-cards">${cards}</div>
+      ${_bkTotal>_bkPageSize?`<div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px">
+        <button class="btn btn-s" ${_bkPage<=1?'disabled':''} onclick="_bkPage--;renderBookmarks()">&#8592; Prev</button>
+        <span style="font-size:11px;color:var(--t3)">Page ${_bkPage} of ${totalPages}</span>
+        <button class="btn btn-s" ${_bkPage>=totalPages?'disabled':''} onclick="_bkPage++;renderBookmarks()">Next &#8594;</button>
+      </div>`:''}
+      <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>
     </div>
-    <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkSort=this.value;_bkPage=1;renderBookmarks()">
-      <option value="newest" ${_bkSort==='newest'?'selected':''}>Newest</option>
-      <option value="oldest" ${_bkSort==='oldest'?'selected':''}>Oldest</option>
-      <option value="alpha" ${_bkSort==='alpha'?'selected':''}>A-Z</option>
-    </select>
-    <button class="btn ${_bkFavFilter?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkFavFilter=!_bkFavFilter;_bkPage=1;renderBookmarks()">⭐ Favorites</button>
-    <button class="btn ${_bkReadFilter==='unread'?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkReadFilter=_bkReadFilter==='unread'?'':'unread';_bkPage=1;renderBookmarks()">📚 Reading List</button>
-    <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkReadFilter=this.value;_bkPage=1;renderBookmarks()">
-      <option value="" ${_bkReadFilter===''?'selected':''}>All</option>
-      <option value="unread" ${_bkReadFilter==='unread'?'selected':''}>Unread</option>
-      <option value="read" ${_bkReadFilter==='read'?'selected':''}>Read</option>
-    </select>
-  </div>
-  ${_bkTags.length?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:10px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
-  <div id="bk-cards">${cards}</div>
-  ${_bkTotal>_bkPageSize?`<div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px">
-    <button class="btn btn-s" ${_bkPage<=1?'disabled':''} onclick="_bkPage--;renderBookmarks()">← Prev</button>
-    <span style="font-size:11px;color:var(--t3)">Page ${_bkPage} of ${totalPages}</span>
-    <button class="btn btn-s" ${_bkPage>=totalPages?'disabled':''} onclick="_bkPage++;renderBookmarks()">Next →</button>
-  </div>`:''}
-  <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>`;
+  </div>`;
 }
-
 function openBkModal(title,body,buttons){
   const m=$('modal-content');
   if(!m)return;
@@ -12192,6 +12254,232 @@ async function deleteBookmark(id){
     toast('Bookmark deleted');
     renderBookmarks();
   }catch(e){toast('Error: '+e.message);}
+}
+
+// ====== BOOKMARK COLLECTIONS ======
+
+async function loadCollectionView(collectionId){
+  _bkLoading=true;
+  paintBookmarks();
+  try{
+    const items=await _trpc('bookmarks.collections.getBookmarks',{collectionId},'query');
+    _bkData=items||[];
+    _bkTotal=_bkData.length;
+  }catch(e){console.error('Failed to load collection',e);_bkData=[];_bkTotal=0;}
+  _bkLoading=false;
+  paintBookmarks();
+}
+
+function showCreateCollection(){
+  openBkModal('📁 New Collection',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div class="field"><label>Name *</label><input class="inp" id="col-name" placeholder="e.g. Research, Recipes, Dev Tools"></div>' +
+    '<div class="field"><label>Description</label><input class="inp" id="col-desc" placeholder="Optional description"></div>' +
+    '<div style="display:flex;gap:12px">' +
+    '<div class="field" style="flex:1"><label>Icon (emoji)</label><input class="inp" id="col-icon" value="📁" maxlength="4" style="font-size:20px;text-align:center"></div>' +
+    '<div class="field" style="flex:1"><label>Color</label><input type="color" id="col-color" value="#3B82F6" style="width:100%;height:36px;border:none;border-radius:6px;cursor:pointer"></div>' +
+    '</div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Create Collection',cls:'btn-p',action:'doCreateCollection()'}]
+  );
+}
+
+async function doCreateCollection(){
+  const name=document.getElementById('col-name')?.value?.trim();
+  if(!name){toast('Please enter a collection name');return;}
+  const description=document.getElementById('col-desc')?.value?.trim()||undefined;
+  const icon=document.getElementById('col-icon')?.value?.trim()||'📁';
+  const color=document.getElementById('col-color')?.value||'#3B82F6';
+  try{
+    await _trpc('bookmarks.collections.create',{name,description,icon,color},'mutate');
+    closeModal();
+    toast('Collection created!');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function editCollection(id){
+  const c=_bkCollections.find(x=>x.id===id);
+  if(!c)return;
+  openBkModal('✏️ Edit Collection',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    `<div class="field"><label>Name *</label><input class="inp" id="col-edit-name" value="${esc(c.name)}"></div>` +
+    `<div class="field"><label>Description</label><input class="inp" id="col-edit-desc" value="${esc(c.description||'')}"></div>` +
+    '<div style="display:flex;gap:12px">' +
+    `<div class="field" style="flex:1"><label>Icon</label><input class="inp" id="col-edit-icon" value="${esc(c.icon||'📁')}" maxlength="4" style="font-size:20px;text-align:center"></div>` +
+    `<div class="field" style="flex:1"><label>Color</label><input type="color" id="col-edit-color" value="${esc(c.color||'#3B82F6')}" style="width:100%;height:36px;border:none;border-radius:6px;cursor:pointer"></div>` +
+    '</div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Changes',cls:'btn-p',action:`doEditCollection(${id})`}]
+  );
+}
+
+async function doEditCollection(id){
+  const name=document.getElementById('col-edit-name')?.value?.trim();
+  if(!name){toast('Name is required');return;}
+  const description=document.getElementById('col-edit-desc')?.value?.trim()||undefined;
+  const icon=document.getElementById('col-edit-icon')?.value?.trim()||'📁';
+  const color=document.getElementById('col-edit-color')?.value||'#3B82F6';
+  try{
+    await _trpc('bookmarks.collections.update',{id,name,description,icon,color},'mutate');
+    closeModal();
+    toast('Collection updated!');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function deleteCollection(id){
+  const c=_bkCollections.find(x=>x.id===id);
+  if(!confirm(`Delete collection "${c?.name||'this collection'}"? Bookmarks will not be deleted.`))return;
+  try{
+    await _trpc('bookmarks.collections.delete',{id},'mutate');
+    if(_bkCollFilter===id){_bkCollFilter=null;}
+    toast('Collection deleted');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function showAddToCollection(bookmarkId){
+  const b=_bkData.find(x=>x.id===bookmarkId);
+  const title=b?b.title||b.url:'this bookmark';
+  const collItems=_bkCollections.map(c=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="doAddToCollection(${c.id},${bookmarkId},this)">
+      <span style="font-size:16px">${esc(c.icon||'📁')}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
+        <div style="font-size:10px;color:var(--t3)">${c.bookmarkCount||0} bookmarks</div>
+      </div>
+      <button class="btn btn-s" style="font-size:10px;padding:2px 8px">Add</button>
+    </div>`).join('');
+  openBkModal('📁 Add to Collection',
+    `<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Adding: <strong>${esc(title.slice(0,60))}</strong></div>` +
+    (collItems||'<div style="text-align:center;padding:20px;color:var(--t3)">No collections yet. <a href="#" onclick="closeModal();showCreateCollection()">Create one first</a>.</div>'),
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'}]
+  );
+}
+
+async function doAddToCollection(collectionId,bookmarkId,rowEl){
+  try{
+    await _trpc('bookmarks.collections.addBookmark',{collectionId,bookmarkId},'mutate');
+    if(rowEl)rowEl.style.background='var(--oks)';
+    toast('Added to collection!');
+    setTimeout(closeModal,600);
+    loadCollections().then(()=>paintBookmarks());
+  }catch(e){toast('Error: '+e.message);}
+}
+
+// ====== BOOKMARK SHARES ======
+
+function shareBookmark(bookmarkId){
+  const b=_bkData.find(x=>x.id===bookmarkId);
+  const title=b?b.title||b.url:'Shared Bookmark';
+  openBkModal('🔗 Share Bookmark',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    `<div style="font-size:12px;color:var(--t2)">Creating a public link for: <strong>${esc(title.slice(0,60))}</strong></div>` +
+    '<div class="field"><label>Share Title (optional)</label><input class="inp" id="sh-title" placeholder="e.g. Useful React resources"></div>' +
+    '<div class="field"><label>Description (optional)</label><textarea class="inp" id="sh-desc" placeholder="What is this about?" style="min-height:60px"></textarea></div>' +
+    '<div class="field"><label>Expires in (optional)</label><select class="inp" id="sh-expires"><option value="">Never</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Create Share Link',cls:'btn-p',action:`doShareBookmarks([${bookmarkId}])`}]
+  );
+}
+
+function shareCollection(collectionId){
+  const c=_bkCollections.find(x=>x.id===collectionId);
+  openBkModal('🔗 Share Collection',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    `<div style="font-size:12px;color:var(--t2)">Sharing collection: <strong>${esc(c?.name||'Collection')}</strong> (${c?.bookmarkCount||0} bookmarks)</div>` +
+    '<div class="field"><label>Share Title (optional)</label><input class="inp" id="sh-title" placeholder="e.g. My dev bookmarks"></div>' +
+    '<div class="field"><label>Description (optional)</label><textarea class="inp" id="sh-desc" placeholder="What is this about?" style="min-height:60px"></textarea></div>' +
+    '<div class="field"><label>Expires in (optional)</label><select class="inp" id="sh-expires"><option value="">Never</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Create Share Link',cls:'btn-p',action:`doShareCollection(${collectionId})`}]
+  );
+}
+
+async function doShareBookmarks(bookmarkIds){
+  const title=document.getElementById('sh-title')?.value?.trim()||undefined;
+  const description=document.getElementById('sh-desc')?.value?.trim()||undefined;
+  const expiresRaw=document.getElementById('sh-expires')?.value;
+  const expiresInDays=expiresRaw?parseInt(expiresRaw):undefined;
+  try{
+    const share=await _trpc('bookmarks.shares.create',{title,description,shareType:'selection',bookmarkIds,expiresInDays},'mutate');
+    closeModal();
+    const url=window.location.origin+'/share/'+share.token;
+    showShareSuccess(url);
+    loadShares().then(()=>paintBookmarks());
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function doShareCollection(collectionId){
+  const title=document.getElementById('sh-title')?.value?.trim()||undefined;
+  const description=document.getElementById('sh-desc')?.value?.trim()||undefined;
+  const expiresRaw=document.getElementById('sh-expires')?.value;
+  const expiresInDays=expiresRaw?parseInt(expiresRaw):undefined;
+  try{
+    const share=await _trpc('bookmarks.shares.create',{title,description,shareType:'collection',collectionId,expiresInDays},'mutate');
+    closeModal();
+    const url=window.location.origin+'/share/'+share.token;
+    showShareSuccess(url);
+    loadShares().then(()=>paintBookmarks());
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function showShareSuccess(url){
+  openBkModal('✅ Share Link Created',
+    `<div style="display:flex;flex-direction:column;gap:12px">` +
+    `<div style="background:var(--s2);border-radius:8px;padding:12px;display:flex;align-items:center;gap:8px">` +
+    `<input class="inp" id="share-url-input" value="${esc(url)}" readonly onclick="this.select()" style="flex:1;font-size:11px">` +
+    `<button class="btn btn-p" style="flex-shrink:0" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>` +
+    `</div>` +
+    `<div style="font-size:11px;color:var(--t3)">Anyone with this link can view these bookmarks without logging in.</div>` +
+    `</div>`,
+    [{label:'Close',cls:'btn-s',action:'closeModal()'}]
+  );
+}
+
+function copyShareLink(token,directUrl){
+  const url=directUrl||(window.location.origin+'/share/'+token);
+  navigator.clipboard.writeText(url).then(()=>toast('Link copied to clipboard!')).catch(()=>{
+    const el=document.createElement('textarea');
+    el.value=url;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
+    toast('Link copied!');
+  });
+}
+
+async function deleteShare(id){
+  if(!confirm('Delete this share link? Anyone with the link will no longer be able to access it.'))return;
+  try{
+    await _trpc('bookmarks.shares.delete',{id},'mutate');
+    toast('Share link deleted');
+    loadShares().then(()=>paintBookmarks());
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function showShareManager(){
+  const rows=_bkShares.map(s=>{
+    const url=window.location.origin+'/share/'+s.token;
+    const exp=s.expiresAt?new Date(s.expiresAt).toLocaleDateString():'Never';
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--bd1)">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${esc(s.title||'Untitled')}</div>
+          <div style="font-size:10px;color:var(--t3)">${s.shareType==='collection'?'Collection':'Selection'} &bull; ${s.viewCount||0} views &bull; Expires: ${exp}</div>
+          <div style="font-size:10px;color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-s" style="height:24px;font-size:10px" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>
+          <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red)" onclick="deleteShare(${s.id})">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  openBkModal('🔗 Shared Links',
+    _bkShares.length===0
+      ?'<div style="text-align:center;padding:30px;color:var(--t3)">No shared links yet. Use the 🔗 button on any bookmark or collection to create one.</div>'
+      :rows,
+    [{label:'Close',cls:'btn-s',action:'closeModal()'}]
+  );
 }
 
 // ====== CONTACTS & CLODURA ENRICHMENT ======
