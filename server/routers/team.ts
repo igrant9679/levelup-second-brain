@@ -1,6 +1,9 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
+import * as db from "../db";
+import { ENV } from "../_core/env";
 
 export const teamRouter = router({
   /**
@@ -33,5 +36,26 @@ export const teamRouter = router({
 
       const { url } = await storagePut(key, buffer, mimeType);
       return { url };
+    }),
+
+  /**
+   * Delete a team member by user ID.
+   * Cannot delete yourself or the platform owner.
+   */
+  deleteMember: adminProcedure
+    .input(z.object({ userId: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      // Prevent self-deletion
+      if (ctx.user.id === input.userId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'You cannot delete your own account.' });
+      }
+      // Prevent deleting the platform owner
+      const targetUser = await db.getUserById(input.userId);
+      if (!targetUser) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
+      if (ENV.ownerOpenId && targetUser.openId === ENV.ownerOpenId) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'The platform owner cannot be deleted.' });
+      }
+      await db.deleteTeamMember(input.userId);
+      return { success: true };
     }),
 });

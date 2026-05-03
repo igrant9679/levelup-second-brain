@@ -883,3 +883,7 @@
 - [x] Sync DB role to admin on every owner login (ensure owner always gets admin role in DB)
 - [x] Add role badge (Owner/Admin/Member/Viewer) on team member cards with colour-coding
 - [x] Add invite status tracking: show pending invites with Resend and Cancel options (already implemented)
+
+## Team Member Management
+- [x] Fix tRPC error when sending team invites (Error loading invites: tRPC error)
+- [x] Add delete team member functionality (admin-only, with confirmation dialog)

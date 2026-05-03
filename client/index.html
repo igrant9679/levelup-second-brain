@@ -7661,6 +7661,7 @@ function renderTeam(){
       <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
       ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:9px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
+      ${isAdminOrOwner&&m.id?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.id},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
@@ -7959,6 +7960,21 @@ async function revokeInvite(id){
   }
 }
 
+async function deleteTeamMember(userId, memberName){
+  if(!confirm(`Remove ${memberName} from the team? This action cannot be undone and will permanently delete their account.`))return;
+  try{
+    await _trpc('team.deleteMember',{userId},'mutate');
+    toast('✓ '+memberName+' has been removed from the team');
+    // Remove from local D.teams data
+    D.teams.forEach(t=>{
+      t.members=t.members.filter(m=>m.id!==userId);
+    });
+    save();
+    renderTeam();
+  }catch(e){
+    toast('⚠ '+e.message);
+  }
+}
 // ============================================================
 // HELP CENTER
 // ============================================================

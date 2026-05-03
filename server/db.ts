@@ -1518,3 +1518,18 @@ export async function getTeamMembers() {
     return [];
   }
 }
+
+// ── Delete a team member (admin-only) ──────────────────────────────────────
+export async function deleteTeamMember(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error('Database unavailable');
+  await db.delete(users).where(eq(users.id, userId));
+}
+
+// ── Get user by ID ──────────────────────────────────────────────────────────
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
