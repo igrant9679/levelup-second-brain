@@ -689,3 +689,10 @@
 ## Export Enhancements (May 2026)
 - [x] Journal export: add MD and PDF export buttons to Journal view (includes diaryBody rich text)
 - [x] Notes bulk MD export: include bodyHtml rich text field in exported markdown files
+
+## Export + Color Features (May 2026)
+- [x] Single-entry journal export: MD and PDF buttons in journal entry drawer
+- [x] Notes PDF export: 🖨 PDF button in Notes header exports all visible notes
+- [x] Journal export filter scope: option to export current filter only vs all entries
+- [x] Color picker for Task titles: assign color label to tasks, shown in all task views
+- [x] Color picker for Note titles: assign color label to notes, shown in all note views

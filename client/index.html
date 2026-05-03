@@ -1190,7 +1190,16 @@ function renderDrawer(type,item){
     const subHtml=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
     const doneCount=subs.filter(s=>s.done).length;
     return `<h2>📋 Edit Task ${pinBtn('task',item.id)}${cb}</h2>
-    <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
+    <div class="field-row" style="align-items:flex-end">
+      <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
+      <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
+        <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
+          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
+          <input type="color" id="dr-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
+          <input type="hidden" id="dr-title-color-val" value="${item.titleColor||''}">
+        </div>
+      </div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Priority</label><select class="inp" id="dr-pri"><option ${item.priority==='High'?'selected':''}>High</option><option ${item.priority==='Medium'?'selected':''}>Medium</option><option ${item.priority==='Low'?'selected':''}>Low</option></select></div>
       <div class="field"><label>Status</label><select class="inp" id="dr-status"><option ${item.status==='Not Started'?'selected':''}>Not Started</option><option ${item.status==='Pending'?'selected':''}>Pending</option><option ${item.status==='In Progress'?'selected':''}>In Progress</option><option ${item.status==='Scheduled'?'selected':''}>Scheduled</option><option ${item.status==='Done'?'selected':''}>Done</option></select></div>
@@ -1232,10 +1241,17 @@ function renderDrawer(type,item){
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
-  }
-  if(type==='note'){
-    return `<h2>📝 Edit Note ${pinBtn('note',item.id)}${cb}</h2>
-    <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
+   if(type==='note'){
+    return `<h2>\ud83d\udcdd Edit Note ${pinBtn('note',item.id)}${cb}</h2>
+    <div class="field-row" style="align-items:flex-end">
+      <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
+      <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
+        <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
+          ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-note-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-note-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
+          <input type="color" id="dr-note-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
+        </div>
+      </div>
+    </div>
     <div class="field"><label>Tags (comma separated)</label><input class="inp" value="${(item.tags||[]).join(', ')}" id="dr-tags"></div>
     <div class="field"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
@@ -1352,6 +1368,8 @@ function renderDrawer(type,item){
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
     <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
+    <button class="btn btn-s" onclick="exportSingleJournalMD(${item.id})" title="Export this entry as Markdown">⬇ MD</button>
+    <button class="btn btn-s" onclick="exportSingleJournalPDF(${item.id})" title="Export this entry as PDF">🖨 PDF</button>
     <button class="btn btn-d" onclick="deleteItem('journal',${item.id})">Delete</button></div>`;
   }
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
@@ -1453,6 +1471,7 @@ function fmtDateTime(d){
 function saveItem(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
     t.title=$('#dr-title').value;
+    t.titleColor=$('#dr-title-color')?.value||'';
     t.priority=$('#dr-pri').value;
     t.status=$('#dr-status').value;
     t.startDate=$('#dr-startdate').value;
@@ -1476,7 +1495,7 @@ function saveItem(type,id){
     t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;n.updated='Just now';save('notes')}}
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;n.updated='Just now';save('notes')}}
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
@@ -1829,7 +1848,7 @@ function taskRow(t,showActs=true){
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
-  return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -2313,7 +2332,7 @@ function renderTaskBoard(){
     const cards=colTasks.map(t=>{
       const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
       return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-        <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3">${esc(t.title)}</div>
+        <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
            ${t.due?`<span style="font-size:9px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
@@ -2929,7 +2948,7 @@ function filterNotesBySmart(filter,el){
     emptyMsg='All notes have wiki-links!';
   }
   const el2=document.getElementById('notes-list-inner');
-  if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">${emptyMsg}</p>`;
+  if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t" style="${n.titleColor?`color:${n.titleColor};font-weight:700`:''}">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">${emptyMsg}</p>`;
   if(filtered.length)showNoteInEditor(filtered[0].id);
 }
 function exportNotesMarkdown(){
@@ -2964,6 +2983,38 @@ function exportNotesMarkdown(){
   a.click();
   URL.revokeObjectURL(a.href);
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
+}
+function exportNotesPDF(){
+  const me=D.creds.userName||'Idris Grant';
+  const notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  if(!notes.length){toast('No notes to export.');return;}
+  let notesHtml='';
+  notes.forEach((n,idx)=>{
+    const tagBadges=(n.tags||[]).map(t=>`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px;margin-right:3px">#${t}</span>`).join('');
+    const titleColor=n.titleColor?`color:${n.titleColor}`:'color:#111';
+    const bodyHtml=n.body?`<div style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0;white-space:pre-wrap">${n.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:'';
+    const richHtml=n.bodyHtml?`<div style="margin-top:8px;padding:8px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 5px 5px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:5px">Rich Text Body</div><div style="font-size:11px;color:#374151;line-height:1.7">${n.bodyHtml}</div></div>`:'';
+    notesHtml+=`<div style="page-break-inside:avoid;margin-bottom:20px;padding-bottom:16px;${idx<notes.length-1?'border-bottom:1px solid #e5e7eb':''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
+        <h2 style="font-size:14px;font-weight:700;margin:0;${titleColor}">${n.title||'Untitled'}</h2>
+        <div style="font-size:10px;color:#9ca3af;white-space:nowrap;margin-left:8px">${n.updated||''}</div>
+      </div>
+      ${tagBadges?`<div style="margin-bottom:6px">${tagBadges}</div>`:''}
+      ${n.source?`<div style="font-size:10px;color:#9ca3af;margin-bottom:6px">Source: ${n.source}</div>`:''}
+      ${bodyHtml}${richHtml}
+    </div>`;
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Notes Export</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
+  <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
+    <h1 style="font-size:22px;font-weight:800;margin:0 0 4px">\ud83d\udcdd Notes Export</h1>
+    <div style="font-size:12px;color:#6b7280">${notes.length} note${notes.length===1?'':'s'} \u2022 Exported ${new Date().toLocaleDateString()}</div>
+  </div>
+  ${notesHtml}
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
+</body></html>`;
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+  toast('\ud83d\udda8 Opening print dialog\u2026 ('+notes.length+' notes)');
 }
 function importMarkdownFiles(files){
   if(!files||!files.length)return;
@@ -3145,7 +3196,8 @@ function renderNotes(){
       <div style="font-size:12px;font-weight:600">Notes <span id="notes-filter-count" style="font-size:10px;color:var(--t3);font-weight:400">${D.notes.length} notes</span></div>
       <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="openNoteTemplates()" title="Templates">📝</button>
-        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export MD">⬇</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export all notes as Markdown">⬇ MD</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesPDF()" title="Export all notes as PDF">🖨 PDF</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md">📥</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="Ask AI">🤔</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:#8B5CF6" onclick="bulkAutoTagNotes()" title="AI auto-tag all untagged notes">🏷 Auto-tag all</button>
@@ -3414,7 +3466,7 @@ function renderNoteEditor(n){
   </div>
   <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
-  <h2 style="font-size:18px;font-weight:600;margin-bottom:6px">${esc(n.title)}</h2>
+  <h2 style="font-size:18px;font-weight:600;margin-bottom:6px;${n.titleColor?`color:${n.titleColor}`:''}">${esc(n.title)}</h2>
   <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
   <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${n.updated||''}${n.createdBy?` · by ${n.createdBy}`:''}</div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`;
@@ -3946,7 +3998,7 @@ function renderJournal(){
     if(!el)return;
     el.innerHTML=entries.length?entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):'<div style="text-align:center;padding:24px;color:var(--t3);font-size:12px">No '+(_jrnlFilter==='All'?'':_jrnlFilter+' ')+' journal entries yet.<br><span style="color:var(--ac);cursor:pointer" onclick="openFA(\'journal\')">+ Write your first entry</span></div>';
   }
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiJournalSentiment()" title="AI: Sentiment trend analysis">📈 Sentiment</button><button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiJournalThemes()" title="AI: Detect recurring themes">🔍 Themes</button><button class="btn btn-s" style="font-size:11px;color:var(--grn)" onclick="aiJournalPrompt()" title="AI: Get a guided writing prompt">✏ Prompt</button><button class="btn btn-s" style="font-size:11px" onclick="exportJournalMD()" title="Export all journal entries as Markdown">⬇ MD</button><button class="btn btn-s" style="font-size:11px" onclick="exportJournalPDF()" title="Export all journal entries as PDF">🖨 PDF</button><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiJournalSentiment()" title="AI: Sentiment trend analysis">📈 Sentiment</button><button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiJournalThemes()" title="AI: Detect recurring themes">🔍 Themes</button><button class="btn btn-s" style="font-size:11px;color:var(--grn)" onclick="aiJournalPrompt()" title="AI: Get a guided writing prompt">✏ Prompt</button><button class="btn btn-s" style="font-size:11px" onclick="openJournalExportModal('md')" title="Export journal entries as Markdown">⬇ MD</button><button class="btn btn-s" style="font-size:11px" onclick="openJournalExportModal('pdf')" title="Export journal entries as PDF">🖨 PDF</button><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
   <div class="tabs" id="jrnl-tabs">${journalTabs.map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="document.querySelectorAll('#jrnl-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderJournalList('${t}')">${t}</div>`).join('')}</div>
   <div id="jrnl-entries">${D.journal.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join('')}</div>`;
   const streak=calcJournalStreak();
@@ -6528,6 +6580,136 @@ function _htmlToMd(html){
     .replace(/<[^>]+>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
     .trim();
+}
+
+// ====== SINGLE ENTRY JOURNAL EXPORT ======
+function _buildJournalEntryMD(j){
+  let md=`## ${j.title||'Untitled Entry'}\n\n`;
+  md+=`**Date:** ${j.date||''}  \n`;
+  if(j.mood)md+=`**Mood:** ${j.mood}  \n`;
+  if(j.energy)md+=`**Energy:** ${j.energy}  \n`;
+  if(j.type)md+=`**Type:** ${j.type}  \n`;
+  md+=`\n`;
+  if(j.body)md+=`${j.body}\n\n`;
+  if(j.diaryBody){const bodyMd=_htmlToMd(j.diaryBody);if(bodyMd)md+=`### Diary Entry\n\n${bodyMd}\n\n`;}
+  if(j.gratitude&&j.gratitude.filter(Boolean).length)md+=`### Gratitude\n\n${j.gratitude.filter(Boolean).map(g=>`- ${g}`).join('\n')}\n\n`;
+  if(j.wins&&j.wins.filter(Boolean).length)md+=`### Wins\n\n${j.wins.filter(Boolean).map(w=>`- ${w}`).join('\n')}\n\n`;
+  if(j.improvements&&j.improvements.filter(Boolean).length)md+=`### Improvements\n\n${j.improvements.filter(Boolean).map(i=>`- ${i}`).join('\n')}\n\n`;
+  return md;
+}
+function exportSingleJournalMD(id){
+  const j=D.journal.find(x=>x.id===id);
+  if(!j){toast('\u26a0 Entry not found');return;}
+  const md=`# ${j.title||'Journal Entry'}\n\nExported ${new Date().toLocaleDateString()}\n\n---\n\n`+_buildJournalEntryMD(j);
+  const blob=new Blob([md],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=((j.title||'journal-entry').replace(/[^a-z0-9]/gi,'_').toLowerCase())+'-'+j.date+'.md';
+  a.click();
+  toast('\u2713 Entry exported as Markdown');
+}
+function exportSingleJournalPDF(id){
+  const j=D.journal.find(x=>x.id===id);
+  if(!j){toast('\u26a0 Entry not found');return;}
+  const moodBadge=j.mood?`<span style="font-size:22px;margin-left:8px">${j.mood}</span>`:'';
+  const metaBadges=[
+    j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:2px 10px;font-size:11px">${j.energy}</span>`:'',
+    j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:2px 10px;font-size:11px">${j.type}</span>`:'',
+  ].filter(Boolean).join(' ');
+  const bodyHtml=j.body?`<p style="font-size:12px;color:#374151;line-height:1.7;margin:10px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
+  const diaryHtml=j.diaryBody?`<div style="margin-top:12px;padding:12px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:8px">\ud83d\udcd3 Diary Entry</div><div style="font-size:12px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
+  const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
+  const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
+  const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:12px;color:#374151;padding:3px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${j.title||'Journal Entry'}</title><style>body{font-family:system-ui,sans-serif;max-width:680px;margin:0 auto;padding:36px;color:#111}@media print{body{padding:0}}</style></head><body>
+  <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <h1 style="font-size:22px;font-weight:800;margin:0;flex:1">${j.title||'Journal Entry'}${moodBadge}</h1>
+      <div style="font-size:12px;color:#6b7280">${j.date||''}</div>
+    </div>
+    ${metaBadges?`<div>${metaBadges}</div>`:''}
+  </div>
+  ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
+  <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
+</body></html>`;
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+  toast('\ud83d\udda8 Opening print dialog\u2026');
+}
+
+// ====== JOURNAL EXPORT SCOPE PICKER ======
+let _jrnlExportFormat='md';
+function openJournalExportModal(fmt){
+  _jrnlExportFormat=fmt||'md';
+  const activeTab=document.querySelector('#jrnl-tabs .tab.on');
+  const currentFilter=activeTab?activeTab.textContent.trim():'All';
+  const totalCount=D.journal.length;
+  const filteredCount=currentFilter==='All'?totalCount:D.journal.filter(j=>j.type===currentFilter).length;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${fmt==='pdf'?'\ud83d\udda8':'\u2b07'} Export Journal as ${fmt==='pdf'?'PDF':'Markdown'}</h2>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Choose which entries to include in the export:</p>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+    <label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--bd2);border-radius:7px;cursor:pointer" onclick="this.style.borderColor='var(--ac)';document.getElementById('jrnl-exp-filter').style.borderColor='var(--bd2)'">
+      <input type="radio" name="jrnl-exp-scope" value="all" checked style="accent-color:var(--ac)">
+      <div><div style="font-size:12px;font-weight:600">All entries</div><div style="font-size:11px;color:var(--t3)">${totalCount} entr${totalCount===1?'y':'ies'} total</div></div>
+    </label>
+    <label id="jrnl-exp-filter" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--bd2);border-radius:7px;cursor:pointer" onclick="this.style.borderColor='var(--ac)';this.previousElementSibling.style.borderColor='var(--bd2)'">
+      <input type="radio" name="jrnl-exp-scope" value="filter" style="accent-color:var(--ac)">
+      <div><div style="font-size:12px;font-weight:600">Current filter: <span style="color:var(--ac)">${currentFilter}</span></div><div style="font-size:11px;color:var(--t3)">${filteredCount} entr${filteredCount===1?'y':'ies'} matching</div></div>
+    </label>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-p" onclick="doJournalExport('${currentFilter}')">Export</button>
+    <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function doJournalExport(currentFilter){
+  const scope=document.querySelector('input[name="jrnl-exp-scope"]:checked')?.value||'all';
+  let entries=D.journal;
+  if(scope==='filter'&&currentFilter!=='All'){
+    entries=D.journal.filter(j=>j.type===currentFilter);
+  }
+  if(!entries.length){toast('\u26a0 No entries match the selected filter');closeModal();return;}
+  closeModal();
+  if(_jrnlExportFormat==='pdf'){
+    _exportJournalPDFEntries(entries);
+  } else {
+    _exportJournalMDEntries(entries);
+  }
+}
+function _exportJournalMDEntries(entries){
+  const sorted=[...entries].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let md=`# Journal Export\n\nExported ${new Date().toLocaleDateString()} \u2014 ${sorted.length} entr${sorted.length===1?'y':'ies'}\n\n---\n\n`;
+  sorted.forEach(j=>md+=_buildJournalEntryMD(j)+'---\n\n');
+  const blob=new Blob([md],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`journal-export-${new Date().toISOString().split('T')[0]}.md`;
+  a.click();
+  toast('\u2713 Journal exported as Markdown ('+sorted.length+' entries)');
+}
+function _exportJournalPDFEntries(entries){
+  const sorted=[...entries].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let entriesHtml='';
+  sorted.forEach((j,idx)=>{
+    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
+    const metaBadges=[j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px">${j.energy}</span>`:'',j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:10px">${j.type}</span>`:''].filter(Boolean).join(' ');
+    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:6px">\ud83d\udcd3 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#d97706;margin-bottom:4px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
+    entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
+      <div style="display:flex;align-items:center;margin-bottom:8px"><h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2><div style="font-size:11px;color:#6b7280">${j.date||''}</div></div>
+      ${metaBadges?`<div style="margin-bottom:8px">${metaBadges}</div>`:''}
+      ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
+    </div>`;
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body><div style="margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #4f46e5"><h1 style="font-size:24px;font-weight:800;margin:0 0 4px">\u270f\ufe0f Journal Export</h1><div style="font-size:12px;color:#6b7280">${sorted.length} entr${sorted.length===1?'y':'ies'} \u2022 Exported ${new Date().toLocaleDateString()}</div></div>${entriesHtml}<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div></body></html>`;
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+  toast('\ud83d\udda8 Opening print dialog\u2026 ('+sorted.length+' entries)');
 }
 
 function exportJournalMD(){
