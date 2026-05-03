@@ -396,3 +396,27 @@ export const syncStatus = mysqlTable('sync_status', {
 });
 export type SyncStatus = typeof syncStatus.$inferSelect;
 export type InsertSyncStatus = typeof syncStatus.$inferInsert;
+
+// ─── Bookmarks ─────────────────────────────────────────────────────────────
+// Web page bookmarks — part of the "Second Brain" knowledge capture system.
+export const bookmarks = mysqlTable('bookmarks', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  url: text('url').notNull(),
+  title: varchar('title', { length: 512 }),
+  description: text('description'),
+  favicon: text('favicon'),           // URL to the site's favicon
+  ogImage: text('ogImage'),           // Open Graph image URL
+  siteName: varchar('siteName', { length: 256 }), // e.g. "GitHub", "Medium"
+  tags: text('tags'),                 // JSON array of tag strings, e.g. '["dev","react"]'
+  notes: text('notes'),               // user's personal notes about this bookmark
+  isRead: tinyint('isRead').default(0).notNull(), // 0 = unread, 1 = read
+  isFavorite: tinyint('isFavorite').default(0).notNull(), // 0 = normal, 1 = favorited
+  color: varchar('color', { length: 32 }),  // optional color label (matches app color system)
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUserCreated: index('idx_bookmarks_user_created').on(t.userId, t.createdAt),
+}));
+export type Bookmark = typeof bookmarks.$inferSelect;
+export type InsertBookmark = typeof bookmarks.$inferInsert;

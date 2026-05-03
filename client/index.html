@@ -479,6 +479,7 @@ Refresh Token
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
 <div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
 <div class="si" data-n="contacts" data-tour-id="nav-contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
+<div class="si" data-n="bookmarks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="l">Bookmarks</span><span class="c" id="badge-bookmarks"></span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
 </div><div class="sd"></div><div style="padding:0 4px">
 <div class="si" data-n="help" data-tour-id="nav-help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="l">Help &amp; Learning</span></div>
@@ -558,6 +559,8 @@ Refresh Token
 
 <!-- ===== S-CONTACTS ===== -->
 <div class="scr" id="s-contacts"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="contacts-main"></main><aside class="rr" id="contacts-rail" style="width:280px"></aside></div></div>
+
+<div class="scr" id="s-bookmarks"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="bookmarks-main"></main></div></div>
 
 <!-- DETAIL DRAWER -->
 <div class="drawer-overlay" id="drawer-ov" onclick="if(event.target===this)closeDrawer()">
@@ -1740,6 +1743,7 @@ function renderScreen(s){
   if(s==='ideas')renderIdeas();
   if(s==='focus')renderFocus();
   if(s==='contacts')renderContacts();
+  if(s==='bookmarks')renderBookmarks();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -11809,6 +11813,199 @@ function aiContactDuplicates(){
     <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
   }
   document.getElementById('modal-capture').classList.add('show');
+}
+
+// ====== BOOKMARKS ======
+let _bkSearch='',_bkTagFilter='',_bkFavFilter=false,_bkReadFilter='',_bkSort='newest',_bkPage=1,_bkPageSize=30;
+let _bkData=[],_bkTotal=0,_bkTags=[],_bkLoading=false;
+
+async function loadBookmarks(){
+  _bkLoading=true;
+  try{
+    const params={search:_bkSearch||undefined,tag:_bkTagFilter||undefined,sort:_bkSort,page:_bkPage,pageSize:_bkPageSize};
+    if(_bkFavFilter) params.isFavorite=true;
+    if(_bkReadFilter==='read') params.isRead=true;
+    else if(_bkReadFilter==='unread') params.isRead=false;
+    const res=await _trpc('bookmarks.list',params,'query');
+    _bkData=res.bookmarks||[];
+    _bkTotal=res.total||0;
+  }catch(e){console.error('Failed to load bookmarks',e);_bkData=[];_bkTotal=0;}
+  try{_bkTags=await _trpc('bookmarks.tags',null,'query');}catch(e){_bkTags=[];}
+  _bkLoading=false;
+}
+
+function renderBookmarks(){
+  loadBookmarks().then(()=>paintBookmarks());
+  paintBookmarks(); // show loading state immediately
+}
+
+function paintBookmarks(){
+  const el=$('bookmarks-main');
+  if(!el)return;
+  const totalPages=Math.ceil(_bkTotal/_bkPageSize)||1;
+
+  // Tag pills for filter
+  const tagPills=_bkTags.map(t=>`<span class="pill" style="cursor:pointer;margin:2px;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${esc(t)}'?'':'${esc(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('');
+
+  // Bookmark cards
+  let cards='';
+  if(_bkLoading){
+    cards='<div style="text-align:center;padding:40px;color:var(--t3)">Loading bookmarks...</div>';
+  }else if(_bkData.length===0){
+    cards=`<div style="text-align:center;padding:60px 20px">
+      <div style="font-size:48px;margin-bottom:12px">🔖</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px">No bookmarks yet</div>
+      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">Save web pages to build your knowledge library</div>
+      <button class="btn btn-p" onclick="showAddBookmark()">+ Add Your First Bookmark</button>
+    </div>`;
+  }else{
+    cards=_bkData.map(b=>{
+      const tags=b.tags?JSON.parse(b.tags):[];
+      const tagHtml=tags.map(t=>`<span class="pill" style="background:var(--s3);color:var(--t2);font-size:9px;margin-right:3px">${esc(t)}</span>`).join('');
+      const favicon=b.favicon?`<img src="${esc(b.favicon)}" style="width:16px;height:16px;border-radius:2px;flex-shrink:0" onerror="this.style.display='none'">`:'<span style="font-size:14px">🌐</span>';
+      const domain=(() => { try { return new URL(b.url).hostname.replace(/^www\./,''); } catch { return ''; } })();
+      return `<div class="cd" style="cursor:pointer;transition:border-color .15s;position:relative" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor=''" onclick="window.open('${esc(b.url)}','_blank')">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              ${favicon}
+              <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(b.title||'Untitled')}</span>
+              <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(domain)}</span>
+            </div>
+            ${b.description?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(b.description)}</div>`:''}
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              ${tagHtml}
+              <span style="font-size:9px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
+              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok)">Read</span>':''}
+            </div>
+          </div>
+          ${b.ogImage?`<img src="${esc(b.ogImage)}" style="width:80px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`:''}
+        </div>
+        <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px" onclick="event.stopPropagation()">
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'⭐':'☆'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'📖':'📕'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">✏️</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  el.innerHTML=`<div class="pg-h ph-r">
+    <div><h1>🔖 Bookmarks</h1><p style="font-size:12px;color:var(--t2)">Your saved web pages &amp; reading list</p></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-p" onclick="showAddBookmark()">+ Add Bookmark</button>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <div class="tb-s" style="max-width:280px;flex:1">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input placeholder="Search bookmarks..." value="${esc(_bkSearch)}" oninput="_bkSearch=this.value;_bkPage=1;clearTimeout(window._bkDebounce);window._bkDebounce=setTimeout(renderBookmarks,300)">
+    </div>
+    <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkSort=this.value;_bkPage=1;renderBookmarks()">
+      <option value="newest" ${_bkSort==='newest'?'selected':''}>Newest</option>
+      <option value="oldest" ${_bkSort==='oldest'?'selected':''}>Oldest</option>
+      <option value="alpha" ${_bkSort==='alpha'?'selected':''}>A-Z</option>
+    </select>
+    <button class="btn ${_bkFavFilter?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkFavFilter=!_bkFavFilter;_bkPage=1;renderBookmarks()">⭐ Favorites</button>
+    <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkReadFilter=this.value;_bkPage=1;renderBookmarks()">
+      <option value="" ${_bkReadFilter===''?'selected':''}>All</option>
+      <option value="unread" ${_bkReadFilter==='unread'?'selected':''}>Unread</option>
+      <option value="read" ${_bkReadFilter==='read'?'selected':''}>Read</option>
+    </select>
+  </div>
+  ${_bkTags.length?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:10px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
+  <div id="bk-cards">${cards}</div>
+  ${_bkTotal>_bkPageSize?`<div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px">
+    <button class="btn btn-s" ${_bkPage<=1?'disabled':''} onclick="_bkPage--;renderBookmarks()">← Prev</button>
+    <span style="font-size:11px;color:var(--t3)">Page ${_bkPage} of ${totalPages}</span>
+    <button class="btn btn-s" ${_bkPage>=totalPages?'disabled':''} onclick="_bkPage++;renderBookmarks()">Next →</button>
+  </div>`:''}
+  <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>`;
+}
+
+function showAddBookmark(){
+  openModal('Add Bookmark','<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div class="field"><label>URL</label><input class="inp" id="bk-url" placeholder="https://example.com" autofocus></div>' +
+    '<div class="field"><label>Title (optional, auto-fetched)</label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
+    '<div class="field"><label>Tags (comma-separated)</label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
+    '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your notes about this page..."></textarea></div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
+  );
+}
+
+async function doAddBookmark(){
+  const url=$('bk-url')?.value?.trim();
+  if(!url){toast('Please enter a URL');return;}
+  try{
+    new URL(url);
+  }catch{toast('Please enter a valid URL');return;}
+  const title=$('bk-title')?.value?.trim()||undefined;
+  const tagsRaw=$('bk-tags')?.value?.trim();
+  const tags=tagsRaw?tagsRaw.split(',').map(t=>t.trim()).filter(Boolean):undefined;
+  const notes=$('bk-notes')?.value?.trim()||undefined;
+  try{
+    toast('Saving bookmark...');
+    await _trpc('bookmarks.create',{url,title,tags,notes},'mutate');
+    closeModal();
+    toast('✅ Bookmark saved!');
+    renderBookmarks();
+  }catch(e){
+    toast('Failed to save bookmark: '+(e.message||e));
+  }
+}
+
+async function toggleBookmarkFav(id,current){
+  try{
+    await _trpc('bookmarks.update',{id,isFavorite:!current},'mutate');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function toggleBookmarkRead(id,current){
+  try{
+    await _trpc('bookmarks.update',{id,isRead:!current},'mutate');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function editBookmark(id){
+  const b=_bkData.find(x=>x.id===id);
+  if(!b)return;
+  const tags=b.tags?JSON.parse(b.tags):[];
+  openModal('Edit Bookmark','<div style="display:flex;flex-direction:column;gap:12px">' +
+    `<div class="field"><label>URL</label><input class="inp" value="${esc(b.url)}" disabled style="opacity:.6"></div>` +
+    `<div class="field"><label>Title</label><input class="inp" id="bk-edit-title" value="${esc(b.title||'')}"></div>` +
+    `<div class="field"><label>Description</label><textarea class="inp" id="bk-edit-desc">${esc(b.description||'')}</textarea></div>` +
+    `<div class="field"><label>Tags (comma-separated)</label><input class="inp" id="bk-edit-tags" value="${esc(tags.join(', '))}"></div>` +
+    `<div class="field"><label>Notes</label><textarea class="inp" id="bk-edit-notes">${esc(b.notes||'')}</textarea></div>` +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Changes',cls:'btn-p',action:`doEditBookmark(${id})`}]
+  );
+}
+
+async function doEditBookmark(id){
+  const title=$('bk-edit-title')?.value?.trim();
+  const description=$('bk-edit-desc')?.value?.trim();
+  const tagsRaw=$('bk-edit-tags')?.value?.trim();
+  const tags=tagsRaw?tagsRaw.split(',').map(t=>t.trim()).filter(Boolean):[];
+  const notes=$('bk-edit-notes')?.value?.trim();
+  try{
+    await _trpc('bookmarks.update',{id,title,description,tags,notes},'mutate');
+    closeModal();
+    toast('✅ Bookmark updated!');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
+}
+
+async function deleteBookmark(id){
+  if(!confirm('Delete this bookmark?'))return;
+  try{
+    await _trpc('bookmarks.delete',{id},'mutate');
+    toast('Bookmark deleted');
+    renderBookmarks();
+  }catch(e){toast('Error: '+e.message);}
 }
 
 // ====== CONTACTS & CLODURA ENRICHMENT ======

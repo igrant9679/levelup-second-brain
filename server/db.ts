@@ -849,3 +849,143 @@ export async function deleteSecretExpiry(userId: number, id: number) {
     return { deleted: false };
   }
 }
+
+// ─── Bookmark helpers ──────────────────────────────────────────────────────
+
+export async function createBookmark(data: {
+  userId: number;
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  favicon?: string | null;
+  ogImage?: string | null;
+  siteName?: string | null;
+  tags?: string | null;
+  notes?: string | null;
+  color?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { bookmarks } = await import("../drizzle/schema");
+  const result = await db.insert(bookmarks).values(data);
+  const insertId = result[0].insertId;
+  const rows = await db.select().from(bookmarks).where(eq(bookmarks.id, insertId)).limit(1);
+  return rows[0];
+}
+
+export async function getBookmarkById(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { bookmarks } = await import("../drizzle/schema");
+  const rows = await db.select().from(bookmarks)
+    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .limit(1);
+  return rows[0];
+}
+
+export async function getBookmarks(opts: {
+  userId: number;
+  search?: string;
+  tag?: string;
+  isRead?: boolean;
+  isFavorite?: boolean;
+  sort?: 'newest' | 'oldest' | 'alpha';
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { bookmarks: [], total: 0 };
+  const { bookmarks } = await import("../drizzle/schema");
+  const { page = 1, pageSize = 30, sort = 'newest' } = opts;
+  const offset = (page - 1) * pageSize;
+
+  const conditions: ReturnType<typeof eq>[] = [eq(bookmarks.userId, opts.userId)];
+  if (opts.isRead !== undefined) conditions.push(eq(bookmarks.isRead, opts.isRead ? 1 : 0));
+  if (opts.isFavorite !== undefined) conditions.push(eq(bookmarks.isFavorite, opts.isFavorite ? 1 : 0));
+
+  // Build where clause
+  let whereClause = and(...conditions);
+
+  // For search and tag, we use raw SQL since drizzle doesn't have a built-in LIKE
+  if (opts.search) {
+    const searchTerm = `%${opts.search}%`;
+    conditions.push(sql`(${bookmarks.title} LIKE ${searchTerm} OR ${bookmarks.url} LIKE ${searchTerm} OR ${bookmarks.description} LIKE ${searchTerm} OR ${bookmarks.notes} LIKE ${searchTerm})` as any);
+    whereClause = and(...conditions);
+  }
+  if (opts.tag) {
+    const tagPattern = `%"${opts.tag}"%`;
+    conditions.push(sql`${bookmarks.tags} LIKE ${tagPattern}` as any);
+    whereClause = and(...conditions);
+  }
+
+  // Sort
+  let orderBy;
+  if (sort === 'oldest') orderBy = bookmarks.createdAt;
+  else if (sort === 'alpha') orderBy = bookmarks.title;
+  else orderBy = desc(bookmarks.createdAt);
+
+  const rows = await db.select().from(bookmarks)
+    .where(whereClause)
+    .orderBy(orderBy)
+    .limit(pageSize)
+    .offset(offset);
+
+  const countResult = await db.select({ count: sql<number>`count(*)` }).from(bookmarks).where(whereClause);
+  const total = countResult[0]?.count ?? 0;
+
+  return { bookmarks: rows, total };
+}
+
+export async function updateBookmark(id: number, userId: number, data: {
+  title?: string | null;
+  description?: string | null;
+  tags?: string | null;
+  notes?: string | null;
+  isRead?: number;
+  isFavorite?: number;
+  color?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { bookmarks } = await import("../drizzle/schema");
+  await db.update(bookmarks).set(data).where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
+  const rows = await db.select().from(bookmarks)
+    .where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)))
+    .limit(1);
+  return rows[0];
+}
+
+export async function deleteBookmark(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return false;
+  const { bookmarks } = await import("../drizzle/schema");
+  await db.delete(bookmarks).where(and(eq(bookmarks.id, id), eq(bookmarks.userId, userId)));
+  return true;
+}
+
+export async function getBookmarkCount(userId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const { bookmarks } = await import("../drizzle/schema");
+  const result = await db.select({ count: sql<number>`count(*)` }).from(bookmarks)
+    .where(eq(bookmarks.userId, userId));
+  return result[0]?.count ?? 0;
+}
+
+export async function getAllBookmarkTags(userId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarks } = await import("../drizzle/schema");
+  const rows = await db.select({ tags: bookmarks.tags }).from(bookmarks)
+    .where(and(eq(bookmarks.userId, userId), sql`${bookmarks.tags} IS NOT NULL AND ${bookmarks.tags} != '[]'`));
+  const tagSet = new Set<string>();
+  for (const row of rows) {
+    if (row.tags) {
+      try {
+        const parsed = JSON.parse(row.tags);
+        if (Array.isArray(parsed)) parsed.forEach((t: string) => tagSet.add(t));
+      } catch { /* skip malformed */ }
+    }
+  }
+  return Array.from(tagSet).sort();
+}

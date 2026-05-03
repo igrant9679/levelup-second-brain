@@ -706,3 +706,29 @@
 - [x] Fix tRPC error when updating password in Settings → Profile (setPassword procedure was already correct; UI now shows clear error messages)
 - [x] Ensure all users can update email and password without being locked out
 - [x] Add updateName procedure so display name changes persist to DB
+
+## Forgot Password Reset Flow (May 2026)
+- [x] Backend: forgotPassword procedure — generates secure token, stores in DB, sends reset email (already implemented)
+- [x] Backend: resetPassword procedure — validates token, updates password hash, invalidates token (already implemented)
+- [x] DB: password_reset_tokens table (already present in schema)
+- [x] Email: send password reset link with expiry + owner notification fallback (already implemented)
+- [x] Frontend: "Forgot Password?" link on login screen (already implemented)
+- [x] Frontend: Reset password page/form that accepts token and new password (already implemented)
+- [x] Tests: vitest coverage for forgotPassword and resetPassword procedures (11 tests passing)
+
+## Bookmarking Feature (May 2026)
+- [x] DB: bookmarks table (url, title, description, favicon, ogImage, tags, userId, readStatus, createdAt, updatedAt)
+- [x] DB: push migration for bookmarks table
+- [x] DB helpers: createBookmark, getBookmarks (paginated, filterable), getBookmarkById, updateBookmark, deleteBookmark, searchBookmarks
+- [x] tRPC: bookmarks.create — accepts URL, server-side fetches metadata (title, description, favicon, og:image)
+- [x] tRPC: bookmarks.list — paginated with search, tag filter, sort options
+- [x] tRPC: bookmarks.get — single bookmark by ID
+- [x] tRPC: bookmarks.update — edit title, description, tags, read status
+- [x] tRPC: bookmarks.delete — remove bookmark
+- [x] Frontend: Add "Bookmarks" sidebar entry with icon and count badge
+- [x] Frontend: Bookmark list/card view with favicon, title, description, tags
+- [x] Frontend: Quick-add form — paste URL, auto-fetch metadata, add tags before saving
+- [x] Frontend: Search bar and tag filter for bookmarks
+- [x] Frontend: Favorite/read status toggles
+- [x] Frontend: Edit and delete bookmark actions
+- [x] Tests: vitest coverage for bookmarks CRUD procedures (17 tests passing)
