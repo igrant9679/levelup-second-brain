@@ -887,3 +887,5 @@
 ## Team Member Management
 - [x] Fix tRPC error when sending team invites (Error loading invites: tRPC error)
 - [x] Add delete team member functionality (admin-only, with confirmation dialog)
+
+- [ ] Fix invite feature not working in deployed/staging environment (works in dev)

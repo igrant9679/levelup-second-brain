@@ -11,16 +11,9 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import * as db from '../db';
-import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
+import { publicProcedure, protectedProcedure, adminProcedure, router } from '../_core/trpc';
 import { sendEmail } from '../_core/sendEmail';
 
-// ─── Guard: admin only ────────────────────────────────────────────────────────
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
-  }
-  return next({ ctx });
-});
 
 // ─── Email helpers ────────────────────────────────────────────────────────────
 function buildInviteEmailHtml(opts: {

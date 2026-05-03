@@ -6,18 +6,10 @@
  * - getMemberStats: adminProcedure — action counts per type for a member
  * - getTeamMembers: adminProcedure — list all users with last sign-in
  */
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import * as db from '../db';
-import { protectedProcedure, router } from '../_core/trpc';
+import { protectedProcedure, adminProcedure, router } from '../_core/trpc';
 
-// ─── Guard: admin only ────────────────────────────────────────────────────────
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
-  }
-  return next({ ctx });
-});
 
 export const activityFeedRouter = router({
   /**
