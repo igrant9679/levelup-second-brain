@@ -43,7 +43,10 @@ export const oauthTokens = mysqlTable("oauth_tokens", {
   syncFrequency: mysqlEnum("syncFrequency", ["manual", "every5min", "every15min", "every30min", "hourly"]).default("manual").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  // Ensure only one token row per user per provider so upsert works correctly
+  uniqueUserProvider: unique('uq_oauth_token_user_provider').on(t.userId, t.provider),
+}));
 
 export type OAuthToken = typeof oauthTokens.$inferSelect;
 export type InsertOAuthToken = typeof oauthTokens.$inferInsert;

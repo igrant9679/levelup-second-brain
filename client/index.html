@@ -140,6 +140,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
 .modal-ov.show{display:flex}
 .modal{background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:20px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;animation:popIn .2s ease}
+.modal.compose-modal{width:680px;max-width:96vw;max-height:90vh;padding:0;display:flex;flex-direction:column}
+.cmp-hd{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--bd1);flex-shrink:0}
+.cmp-hd h2{flex:1;font-size:14px;font-weight:600;margin:0}
+.cmp-body-wrap{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.cmp-ft{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--bd1);flex-shrink:0}
+.cmp-field{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)}
+.cmp-field label{font-size:11px;color:var(--t3);width:52px;flex-shrink:0;font-weight:500}
+.cmp-field input{flex:1;background:transparent;border:none;outline:none;font-size:13px;color:var(--t1);padding:2px 0}
+.cmp-field input::placeholder{color:var(--t3)}
+.cmp-toggle{font-size:10px;color:var(--ac);cursor:pointer;padding:2px 6px;border-radius:4px;background:var(--acs);border:none;flex-shrink:0}
+.cmp-rte-wrap{flex:1;margin-top:4px}
 /* ===== FULL ADD MODAL ===== */
 .fa-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-start;justify-content:center;backdrop-filter:blur(4px);padding:24px 16px;overflow-y:auto}
 .fa-modal-ov.show{display:flex}
@@ -760,9 +771,44 @@ function luRTE_render(opts={}){
   const ph=opts.placeholder||'Start writing...';
   const h=opts.height||'200px';
   const val=opts.value||'';
-  // Convert plain markdown-ish text to HTML for display
+  const allowHtmlPaste=opts.allowHtmlPaste?'true':'false';
   const initHtml=luRTE_mdToHtml(val);
-  return `<div class="rte-wrap" id="${id}-wrap">
+  const extraToolbar=opts.allowHtmlPaste?`
+  <div class="rte-sep"></div>
+  <select class="rte-sel" title="Font" style="width:90px" onchange="document.execCommand('fontName',false,this.value);document.getElementById('${id}').focus()">
+    <option value="">Font</option>
+    <option value="Arial">Arial</option>
+    <option value="Georgia">Georgia</option>
+    <option value="Courier New">Courier New</option>
+    <option value="Times New Roman">Times New Roman</option>
+    <option value="Trebuchet MS">Trebuchet</option>
+    <option value="Verdana">Verdana</option>
+  </select>
+  <select class="rte-sel" title="Size" style="width:52px" onchange="document.execCommand('fontSize',false,this.value);document.getElementById('${id}').focus()">
+    <option value="">Size</option>
+    <option value="1">8pt</option>
+    <option value="2">10pt</option>
+    <option value="3">12pt</option>
+    <option value="4">14pt</option>
+    <option value="5">18pt</option>
+    <option value="6">24pt</option>
+    <option value="7">36pt</option>
+  </select>
+  <div class="rte-sep"></div>
+  <label title="Text colour" style="display:inline-flex;align-items:center;cursor:pointer">
+    <span style="font-size:11px;font-weight:600;color:var(--t1)">A</span>
+    <input type="color" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;background:transparent" onchange="document.execCommand('foreColor',false,this.value);document.getElementById('${id}').focus()" title="Text colour">
+  </label>
+  <label title="Highlight" style="display:inline-flex;align-items:center;cursor:pointer">
+    <span style="font-size:11px;font-weight:600;background:yellow;color:#000;padding:0 2px">H</span>
+    <input type="color" value="#ffff00" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;background:transparent" onchange="document.execCommand('hiliteColor',false,this.value);document.getElementById('${id}').focus()" title="Highlight colour">
+  </label>
+  <div class="rte-sep"></div>
+  <button class="rte-btn" title="Align Left" onmousedown="event.preventDefault();document.execCommand('justifyLeft');document.getElementById('${id}').focus()">⇐</button>
+  <button class="rte-btn" title="Align Center" onmousedown="event.preventDefault();document.execCommand('justifyCenter');document.getElementById('${id}').focus()">☰</button>
+  <button class="rte-btn" title="Align Right" onmousedown="event.preventDefault();document.execCommand('justifyRight');document.getElementById('${id}').focus()">⇒</button>`
+  :'';
+  return `<div class="rte-wrap" id="${id}-wrap" data-allow-html-paste="${allowHtmlPaste}">
 <div class="rte-toolbar" id="${id}-tb">
   <button class="rte-btn" title="Bold (Ctrl+B)" onmousedown="event.preventDefault();luRTE_cmd('bold','${id}')"><b>B</b></button>
   <button class="rte-btn" title="Italic (Ctrl+I)" onmousedown="event.preventDefault();luRTE_cmd('italic','${id}')"><i>I</i></button>
@@ -789,6 +835,7 @@ function luRTE_render(opts={}){
   <div class="rte-sep"></div>
   <button class="rte-btn" title="Undo (Ctrl+Z)" onmousedown="event.preventDefault();luRTE_cmd('undo','${id}')">↩</button>
   <button class="rte-btn" title="Redo (Ctrl+Y)" onmousedown="event.preventDefault();luRTE_cmd('redo','${id}')">↪</button>
+  ${extraToolbar}
 </div>
 <div class="rte-body" id="${id}" contenteditable="true" data-placeholder="${ph}" style="min-height:${h}"
   onkeydown="luRTE_keydown(event,'${id}')"
@@ -859,7 +906,17 @@ function luRTE_onInput(id){
 }
 
 function luRTE_onPaste(e,id){
-  // Strip HTML on paste, keep plain text
+  const wrap=document.getElementById(id+'-wrap');
+  if(wrap&&wrap.dataset.allowHtmlPaste==='true'){// camelCase of data-allow-html-paste
+    // Allow rich HTML paste for compose
+    e.preventDefault();
+    const html=(e.clipboardData||window.clipboardData).getData('text/html');
+    const text=(e.clipboardData||window.clipboardData).getData('text/plain');
+    if(html){document.execCommand('insertHTML',false,html);}
+    else{document.execCommand('insertText',false,text);}
+    return;
+  }
+  // Strip HTML on paste, keep plain text (default for notes/journal)
   e.preventDefault();
   const text=(e.clipboardData||window.clipboardData).getData('text/plain');
   document.execCommand('insertText',false,text);
@@ -1433,6 +1490,7 @@ function openModal(type,preType){
     m.innerHTML=renderCaptureModal(capType);
   }
   $('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
   const ti=document.getElementById('cap-title');if(ti)setTimeout(()=>ti.focus(),80);
 }
 function renderCaptureModal(active){
@@ -1484,7 +1542,7 @@ function renderCaptureModal(active){
   }
   return '';
 }
-function closeModal(){$('modal-capture').classList.remove('show')}
+function closeModal(){$('modal-capture').classList.remove('show');document.body.style.overflow='';const mc=$('modal-content');if(mc)mc.className='modal';}
 function doCapture(){
   const title=document.getElementById('cap-title')?.value.trim();if(!title){toast('Title is required');return}
   const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -3881,14 +3939,14 @@ function aiSmartReply(id){
   <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Re: ${esc(mail.subject)}</div>
   <textarea id="smart-reply-body" class="inp" style="height:200px;font-size:12px;font-family:inherit;resize:vertical">${draft}</textarea>
   <div style="display:flex;gap:8px;margin-top:10px">
-  <button class="btn btn-p" onclick="openComposeModal();setTimeout(()=>{document.getElementById('cmp-to').value='${mail.email}';document.getElementById('cmp-sub').value='Re: ${esc(mail.subject)}';luRTE_setText('cmp-body',document.getElementById('smart-reply-body').value);},100);closeModal()">Use in Compose</button>
+  <button class="btn btn-p" onclick="const body=document.getElementById('smart-reply-body').value;closeModal();openComposeModal({to:'${mail.email}',subject:'Re: ${esc(mail.subject)}',body:body})">Use in Compose</button>
   <button class="btn btn-s" onclick="navigator.clipboard.writeText(document.getElementById('smart-reply-body').value).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">Copy</button>
   <button class="btn btn-s" onclick="closeModal()">Discard</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
 }
-
-function aiSummarizeThread(id){
+function aiSummarizeThread(id){{
   const mail=_mailItems.find(m=>m.id===id);
   if(!mail)return;
   const body=mail.body||'';
@@ -3957,30 +4015,60 @@ function renderMail(){
 </div></div>`;
 }
 
-function openComposeModal(){
+function openComposeModal(opts={}){
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">✉ New Message</h2>
-  <div style="display:flex;flex-direction:column;gap:8px">
-  <div class="field"><label>To</label><input class="inp" id="cmp-to" placeholder="recipient@example.com"></div>
-  <div class="field"><label>Subject</label><input class="inp" id="cmp-sub" placeholder="Subject..."></div>
-  <div class="field"><label>Message</label>${luRTE_render({id:'cmp-body', placeholder:'Write your message...', height:'160px'})}</div>
+  m.className='modal compose-modal';
+  m.innerHTML=`
+  <div class="cmp-hd">
+    <span style="font-size:16px">✉</span>
+    <h2>New Message</h2>
+    <button class="btn btn-s" style="font-size:10px;padding:3px 8px" onclick="closeModal()">✕ Discard</button>
   </div>
-  <div style="display:flex;gap:8px;margin-top:12px">
-  <button class="btn btn-p" onclick="sendComposedMail()">✉ Send</button>
-  <button class="btn btn-s" onclick="closeModal()">Discard</button>
+  <div class="cmp-body-wrap">
+    <div class="cmp-field"><label>To</label><input id="cmp-to" placeholder="recipient@example.com" value="${opts.to||''}"></div>
+    <div class="cmp-field" id="cmp-cc-row" style="display:none"><label>Cc</label><input id="cmp-cc" placeholder="cc@example.com"></div>
+    <div class="cmp-field" id="cmp-bcc-row" style="display:none"><label>Bcc</label><input id="cmp-bcc" placeholder="bcc@example.com"></div>
+    <div class="cmp-field">
+      <label>Subject</label>
+      <input id="cmp-sub" placeholder="Subject..." value="${opts.subject||''}">
+      <button class="cmp-toggle" onclick="document.getElementById('cmp-cc-row').style.display=document.getElementById('cmp-cc-row').style.display==='none'?'flex':'none'">Cc</button>
+      <button class="cmp-toggle" onclick="document.getElementById('cmp-bcc-row').style.display=document.getElementById('cmp-bcc-row').style.display==='none'?'flex':'none'">Bcc</button>
+    </div>
+    <div class="cmp-rte-wrap">${luRTE_render({id:'cmp-body', placeholder:'Write your message...', height:'260px', showCharCount:false, allowHtmlPaste:true})}</div>
+  </div>
+  <div class="cmp-ft">
+    <button class="btn btn-p" onclick="sendComposedMail()">✉ Send</button>
+    <button class="btn btn-s" onclick="saveCmpDraft()">Save Draft</button>
+    <div style="flex:1"></div>
+    <span style="font-size:10px;color:var(--t3)" id="cmp-status"></span>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+  if(opts.body){setTimeout(()=>luRTE_setValue('cmp-body',opts.body),80);}
   setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
+}
+function saveCmpDraft(){
+  const to=document.getElementById('cmp-to')?.value.trim();
+  const sub=document.getElementById('cmp-sub')?.value||'(no subject)';
+  const body=luRTE_getValue('cmp-body');
+  if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
+  if(!D.mail.drafts)D.mail.drafts=[];
+  D.mail.drafts.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString()});
+  saveD();
+  document.getElementById('cmp-status').textContent='Draft saved';
+  setTimeout(()=>{const s=document.getElementById('cmp-status');if(s)s.textContent='';},2000);
 }
 async function sendComposedMail(){
   const to=document.getElementById('cmp-to')?.value.trim();
   if(!to){toast('⚠ Recipient required');return;}
   const sub=document.getElementById('cmp-sub')?.value||'(no subject)';
-  const body=luRTE_getText('cmp-body');
+  const cc=document.getElementById('cmp-cc')?.value.trim()||'';
+  const bcc=document.getElementById('cmp-bcc')?.value.trim()||'';
+  const body=luRTE_getValue('cmp-body');// send HTML
   const sendBtn=document.querySelector('#modal-capture .btn-p');
   if(sendBtn){sendBtn.disabled=true;sendBtn.textContent='Sending…';}
   try{
-    await _trpc('oauthSync.sendComposedMail',{to,subject:sub,body},'mutation');
+    await _trpc('oauthSync.sendComposedMail',{to,subject:sub,body,cc:cc||undefined,bcc:bcc||undefined},'mutation');
     closeModal();
     toast('✅ Message sent to '+to);
     if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};

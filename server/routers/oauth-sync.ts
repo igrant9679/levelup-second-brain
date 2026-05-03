@@ -784,6 +784,8 @@ export const oauthSyncRouter = router({
       to: z.string().email("Invalid recipient email"),
       subject: z.string().min(1).max(998),
       body: z.string(),
+      cc: z.string().optional(),
+      bcc: z.string().optional(),
       provider: z.enum(["google", "microsoft"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -803,20 +805,22 @@ export const oauthSyncRouter = router({
       if (!accessToken || !chosenProvider) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "No connected email account found. Please connect Google or Microsoft in Settings → Accounts.",
+          message: "No connected email account found. Please connect Google or Microsoft in Settings \u2192 Accounts.",
         });
       }
 
       if (chosenProvider === "google") {
         // Build RFC 2822 message and base64url-encode it
-        const raw = [
+        const headers: string[] = [
           `To: ${input.to}`,
           `Subject: ${input.subject}`,
           `Content-Type: text/html; charset=utf-8`,
           `MIME-Version: 1.0`,
-          ``,
-          input.body,
-        ].join("\r\n");
+        ];
+        if (input.cc) headers.push(`Cc: ${input.cc}`);
+        if (input.bcc) headers.push(`Bcc: ${input.bcc}`);
+        headers.push(``, input.body);
+        const raw = headers.join("\r\n");
         const encoded = Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         const resp = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
           method: "POST",
@@ -830,18 +834,18 @@ export const oauthSyncRouter = router({
         return { success: true, provider: "google" };
       }
 
-      // Microsoft — send via Graph API
+      // Microsoft \u2014 send via Graph API
+      const msMsg: Record<string, unknown> = {
+        subject: input.subject,
+        body: { contentType: "HTML", content: input.body },
+        toRecipients: [{ emailAddress: { address: input.to } }],
+      };
+      if (input.cc) msMsg.ccRecipients = input.cc.split(',').map((a: string) => ({ emailAddress: { address: a.trim() } }));
+      if (input.bcc) msMsg.bccRecipients = input.bcc.split(',').map((a: string) => ({ emailAddress: { address: a.trim() } }));
       const resp = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: {
-            subject: input.subject,
-            body: { contentType: "HTML", content: input.body },
-            toRecipients: [{ emailAddress: { address: input.to } }],
-          },
-          saveToSentItems: true,
-        }),
+        body: JSON.stringify({ message: msMsg, saveToSentItems: true }),
       });
       if (!resp.ok) {
         const err = await resp.text();

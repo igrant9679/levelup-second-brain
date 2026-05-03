@@ -613,3 +613,14 @@
 - [x] Auto-refresh token silently when <5 min remaining (checkTokenExpiryBanner auto-calls refreshOAuthToken when diffMs<5min and not expired)
 - [x] Add "Connected as email@domain.com" grey label next to Refresh Token button in topbar (topbar-connected-as span, populated from oauthSync.status)
 - [x] Fix blank Sync page — Settings → Sync tab (sp-9) now shows live provider status, Cal/Mail/Contacts sync buttons, Sync All Now button, and recent sync log; wired to loadSyncPanel() on tab activation
+
+## Bug: tRPC Error When Sending Mail
+- [x] Diagnose tRPC error in sendMail / sendOAuthMail procedure
+- [x] Fix oauth_tokens duplicate rows — add unique constraint on (userId, provider) + run dedup migration
+- [x] Fix compose modal: background scrolls while typing in the message body (scroll-lock body when modal open)
+- [x] Upgrade compose modal to full rich-text editor (larger editor, font family/size, text colour, image insert, full toolbar)
+- [x] Add Cc/Bcc fields to compose modal
+- [x] Save Draft button in compose modal
+- [x] Send HTML body (not plain text) to server
+- [x] Server: accept cc/bcc fields in sendComposedMail procedure
+- [ ] Verify mail can be sent successfully after fixes

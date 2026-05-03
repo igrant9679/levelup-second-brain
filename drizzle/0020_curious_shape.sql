@@ -1,0 +1,1 @@
+ALTER TABLE `oauth_tokens` ADD CONSTRAINT `uq_oauth_token_user_provider` UNIQUE(`userId`,`provider`);
