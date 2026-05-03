@@ -877,3 +877,9 @@
 
 ### Tests
 - [x] vitest: logActivity, getActivityFeed, getMemberStats procedures (11 tests, all passing)
+
+## Role & Invite Improvements
+
+- [x] Sync DB role to admin on every owner login (ensure owner always gets admin role in DB)
+- [x] Add role badge (Owner/Admin/Member/Viewer) on team member cards with colour-coding
+- [x] Add invite status tracking: show pending invites with Resend and Cancel options (already implemented)

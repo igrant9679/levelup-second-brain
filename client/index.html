@@ -7648,7 +7648,7 @@ function renderTeam(){
           <div style="font-size:10px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
           <div style="font-size:10px;color:var(--t3);margin-top:2px">🕐 Last seen: ${lastSeenStr}</div>
         </div>
-        <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600">${m.role}</span>
+        ${(()=>{const r=(m.role||'').toLowerCase();const cfg=r==='owner'?{bg:'var(--purps)',c:'var(--purp)',label:'Owner'}:r==='admin'?{bg:'var(--acs)',c:'var(--ac)',label:'Admin'}:r==='viewer'?{bg:'rgba(100,116,139,.15)',c:'var(--t3)',label:'Viewer'}:{bg:'rgba(100,116,139,.12)',c:'var(--t2)',label:'Member'};return`<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:${cfg.bg};color:${cfg.c};font-weight:600;letter-spacing:.3px">${cfg.label}</span>`;})()}
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ac)">${tasks.length}</div><div style="font-size:8px;color:var(--t3)">Tasks</div></div>

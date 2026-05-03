@@ -19,6 +19,7 @@ import { passwordResetTokens } from '../../drizzle/schema';
 import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { notifyOwner } from '../_core/notification';
 import { sendEmail } from '../_core/sendEmail';
+import { ENV } from '../_core/env';
 
 const SALT_ROUNDS = 10;
 const ONE_DAY_MS = 86_400_000;
@@ -52,8 +53,11 @@ export const emailAuthRouter = router({
       if (!valid) {
         throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Invalid email or password' });
       }
-      // Update lastSignedIn
-      await db.upsertUser({ openId: user.openId, lastSignedIn: new Date() });
+      // Update lastSignedIn and ensure owner always has admin role in DB
+      const isOwner = ENV.ownerOpenId && user.openId === ENV.ownerOpenId;
+      await db.upsertUser({ openId: user.openId, lastSignedIn: new Date(), ...(isOwner ? { role: 'admin' as const } : {}) });
+      // Refresh user to get updated role if it changed
+      const freshUser = await db.getUserByEmail(input.email.toLowerCase().trim()) ?? user;
       // Log login activity
       await db.logActivity(user.id, 'login');
       // Determine session duration based on rememberMe
@@ -68,10 +72,10 @@ export const emailAuthRouter = router({
       return {
         success: true,
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          id: freshUser.id,
+          name: freshUser.name,
+          email: freshUser.email,
+          role: freshUser.role,
         },
       };
     }),
