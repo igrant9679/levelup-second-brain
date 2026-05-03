@@ -3889,6 +3889,43 @@ function _getSentItems(){
   if(D&&D.mail&&D.mail.sent&&D.mail.sent.length)return D.mail.sent;
   return [];
 }
+function openInlineReply(id){
+  const el=document.getElementById('inline-reply-'+id);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+  if(el.style.display==='block'){
+    const rte=document.getElementById('inline-reply-rte-'+id);
+    if(rte)setTimeout(()=>rte.focus(),50);
+  }
+}
+async function sendInlineReply(id){
+  const items=_getMailItems();
+  const mail=items.find(m=>m.id===id);
+  if(!mail)return;
+  const rte=document.getElementById('inline-reply-rte-'+id);
+  const body=rte?rte.innerHTML:'';
+  if(!body.trim()||body==='<br>')return toast('⚠️ Reply body is empty');
+  const to=mail.fromEmail||mail.email||mail.from||'';
+  const subject='Re: '+(mail.subject||'').replace(/^Re:\s*/i,'');
+  const btn=document.querySelector(`#inline-reply-${id} .btn-p`);
+  if(btn){btn.disabled=true;btn.textContent='Sending...';}
+  try{
+    await _trpc('oauthSync.sendComposedMail',{to,subject,body,cc:'',bcc:'',via:'microsoft'},'mutation');
+    toast('✓ Reply sent');
+    const el=document.getElementById('inline-reply-'+id);
+    if(el)el.style.display='none';
+    if(rte)rte.innerHTML='';
+    // Add to sent
+    if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
+    if(!D.mail.sent)D.mail.sent=[];
+    D.mail.sent.unshift({id:'sent-'+Date.now(),to,subject,body,sentDateTime:new Date().toISOString(),read:true});
+    save('mail');
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Send Reply';}
+  }
+}
 function _fmtMailDate(d){
   if(!d)return '';
   const dt=new Date(d);
@@ -3920,7 +3957,7 @@ function openMailItem(id){
   const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
   det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
   <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:10px;color:var(--t3)">${dateStr}</div></div>
-  <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:10px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})" >Forward</button>`:''}</div>
+   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:10px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})">Forward</button>`:''}</div>
   </div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?mail.body:esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
   ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
@@ -3929,20 +3966,30 @@ function openMailItem(id){
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openFA('task')">Create Task</button>
   <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="aiSummarizeThread('${id}')">✨ Summarize</button>
   <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--grn)" onclick="aiFollowUpReminder('${id}')">⏰ Follow-up</button>
+  </div>
+  <div id="inline-reply-${id}" style="display:none;margin-top:12px;border:1px solid var(--bd1);border-radius:8px;padding:12px;background:var(--s2)">
+    <div style="font-size:11px;font-weight:600;margin-bottom:8px">↩ Reply to ${esc(mail.from||mail.fromEmail||'')}</div>
+    <div id="inline-reply-rte-${id}" style="min-height:100px;border:1px solid var(--bd1);border-radius:6px;background:var(--s1);padding:8px;font-size:12px;outline:none" contenteditable="true" placeholder="Write your reply..."></div>
+    <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
+      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="document.getElementById('inline-reply-${id}').style.display='none'">Cancel</button>
+      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="sendInlineReply('${id}')">Send Reply</button>
+    </div>
   </div>`:''}`;
 }
-function renderMailInboxList(){
-  const items=_getMailItems();
-  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No messages yet.<br><button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncOAuthMail('microsoft')">Sync from Office 365</button></div>`;
+function renderMailInboxList(q=''){
+  let items=_getMailItems();
+  if(q)items=items.filter(m=>(m.from||'').toLowerCase().includes(q)||(m.subject||'').toLowerCase().includes(q)||(m.preview||m.body||'').toLowerCase().includes(q));
+  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">${q?'No results for "'+esc(q)+'"':'No messages yet.'}<br>${q?'':`<button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncOAuthMail('microsoft')">Sync from Office 365</button>`}</div>`;
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.receivedDateTime);
     return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
-function renderMailSentList(){
-  const items=_getSentItems();
-  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No sent messages yet.<br><button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncSentMail()">Sync from Office 365</button></div>`;
+function renderMailSentList(q=''){
+  let items=_getSentItems();
+  if(q)items=items.filter(m=>(m.to||m.toEmail||'').toLowerCase().includes(q)||(m.subject||'').toLowerCase().includes(q)||(m.preview||m.body||'').toLowerCase().includes(q));
+  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">${q?'No results for "'+esc(q)+'"':'No sent messages yet.'}<br>${q?'':`<button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncSentMail()">Sync from Office 365</button>`}</div>`;
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.sentDateTime);
@@ -4076,11 +4123,22 @@ function _renderMailSentPanel(){
 }
 function renderMail(){
   _mailTab='inbox';
-  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
+  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:6px;align-items:center"><input id="mail-search" type="search" placeholder="🔍 Search mail..." style="height:28px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);border-radius:6px;background:var(--s2);color:var(--t1);width:180px" oninput="filterMail(this.value)"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
 <div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'sent')">Sent</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
 <div id="mail-tab-body">${_renderMailInboxPanel()}</div>`;
 }
 
+let _mailSearchQuery='';
+function filterMail(q){
+  _mailSearchQuery=(q||'').toLowerCase().trim();
+  const listEl=document.getElementById('mail-inbox-list');
+  if(!listEl)return;
+  if(_mailTab==='sent'){
+    listEl.innerHTML=renderMailSentList(_mailSearchQuery);
+  }else{
+    listEl.innerHTML=renderMailInboxList(_mailSearchQuery);
+  }
+}
 let _cmpAutosaveTimer=null;
 let _smtpAccountsCache=null;
 async function openComposeModal(opts={}){
@@ -4115,9 +4173,11 @@ async function openComposeModal(opts={}){
     </div>
     <div class="cmp-rte-wrap">${luRTE_render({id:'cmp-body', placeholder:'Write your message...', height:'260px', showCharCount:false, allowHtmlPaste:true})}</div>
   </div>
+  <div id="cmp-followup-chips" style="display:none;padding:8px 14px 0;gap:6px;flex-wrap:wrap"></div>
   <div class="cmp-ft">
     <button class="btn btn-p" onclick="sendComposedMail()">✉ Send</button>
     <button class="btn btn-s" onclick="saveCmpDraft()">Save Draft</button>
+    <button class="btn btn-s" id="cmp-suggest-btn" onclick="suggestFollowUps()" style="font-size:10px">✨ Suggest Follow-ups</button>
     <div style="flex:1"></div>
     <span style="font-size:10px;color:var(--t3)" id="cmp-status"></span>
   </div>`;
@@ -4132,6 +4192,45 @@ async function openComposeModal(opts={}){
     if(!s)return clearInterval(_cmpAutosaveTimer);
     saveCmpDraft();
   },30000);
+}
+async function suggestFollowUps(){
+  const btn=document.getElementById('cmp-suggest-btn');
+  const chipsEl=document.getElementById('cmp-followup-chips');
+  if(!btn||!chipsEl)return;
+  const sub=document.getElementById('cmp-sub')?.value||'';
+  const body=luRTE_getValue('cmp-body');
+  // Strip HTML tags for LLM input
+  const bodyText=body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  btn.disabled=true;
+  btn.textContent='⏳ Thinking...';
+  chipsEl.style.display='none';
+  chipsEl.innerHTML='';
+  try{
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:sub,body:bodyText},'mutation');
+    const suggestions=res?.suggestions||[];
+    if(!suggestions.length){toast('No suggestions returned');return;}
+    chipsEl.style.display='flex';
+    chipsEl.innerHTML=suggestions.map((s,i)=>`<div class="chip" style="cursor:pointer;background:var(--s3);border:1px solid var(--bd);border-radius:12px;padding:4px 10px;font-size:10px;max-width:100%;white-space:normal;line-height:1.4" onclick="_insertFollowUp(${i})" title="Click to insert">${esc(s)}</div>`).join('');
+    // Store suggestions for insertion
+    window._followUpSuggestions=suggestions;
+  }catch(e){
+    toast('Failed to get suggestions: '+(e?.message||'unknown error'));
+  }finally{
+    btn.disabled=false;
+    btn.textContent='✨ Suggest Follow-ups';
+  }
+}
+function _insertFollowUp(idx){
+  const suggestions=window._followUpSuggestions||[];
+  const text=suggestions[idx];
+  if(!text)return;
+  const existing=luRTE_getValue('cmp-body');
+  const divider=existing?'<br><br>':''
+  luRTE_setValue('cmp-body',existing+divider+esc(text).replace(/\n/g,'<br>'));
+  // Hide chips after inserting
+  const chipsEl=document.getElementById('cmp-followup-chips');
+  if(chipsEl)chipsEl.style.display='none';
+  toast('Follow-up inserted');
 }
 function saveCmpDraft(){
   const to=document.getElementById('cmp-to')?.value.trim();
@@ -4358,7 +4457,7 @@ function renderCalWeek(){
     return{label:`${d} ${dt.getDate()}`,isToday,dt};
   });
   const weekDayStrs=weekDays.map(wd=>wd.dt.toISOString().split('T')[0]);
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
@@ -4419,7 +4518,7 @@ function renderCalDay(){
       </div>
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiExtractActions()" title="AI: Extract action items from today's meeting notes">✓ Extract Actions</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiMeetingPrepBrief()" title="AI: Meeting prep brief">📝 Prep Brief</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiExtractActions()" title="AI: Extract action items from today's meeting notes">✓ Extract Actions</button><button class="btn btn-s" id="cal-sync-btn-day" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
@@ -4532,7 +4631,7 @@ function renderCalMonth(){
       ${evDots}${moreCount}
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📅 Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiCalNLP()" title="AI: Create event from natural language">💬 NL Event</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiScheduleOptimize()" title="AI: Optimize schedule">✨ Optimize</button><button class="btn btn-s" id="cal-sync-btn-month" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
   ${dayNames.map(d=>`<div style="text-align:center;font-size:10px;font-weight:600;color:var(--t3);padding:4px 0">${d}</div>`).join('')}
   ${cellsHtml}
@@ -7846,13 +7945,70 @@ function renderSettingsHTML(){
       </ol>
     </div>
   </div>
-  <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-  <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Usage & Cost Caps</h4>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Monthly cap (USD)</div></div><input class="inp" style="max-width:80px" value="$20.00"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">This month's usage</div></div><span style="font-size:12px;font-weight:500;color:var(--ok)">$3.42 / $20.00</span></div>
-  <h4 style="font-size:12px;font-weight:600;margin:12px 0 6px">Assistant Topics</h4>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:6px">The AI assistant will proactively share info on these topics:</p>
-  ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
+   </div>
+  <!-- Integrations --><div id="sp-5" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🔌 Integrations</h3>
+  <!-- Contact Enrichment -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔍 Contact Enrichment — Clodura</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Add your Clodura API key to enable one-click contact enrichment with verified email, phone, LinkedIn, and 40+ firmographic fields.</p>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <input id="clo-api-key" class="inp" type="password" placeholder="Clodura API Key" style="flex:1;font-size:11px" value="${esc(D.creds.clo_key||'')}" oninput="D.creds.clo_key=this.value;saveAll()">
+      <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('clo-api-key').type=document.getElementById('clo-api-key').type==='password'?'text':'password'">👁</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="D.creds.clo_key=document.getElementById('clo-api-key').value;saveAll();toast('✅ Clodura API key saved')">Save</button>
+      ${D.creds.clo_key?`<button class="btn btn-d" style="height:28px;font-size:10px" onclick="D.creds.clo_key='';saveAll();renderScreen('settings');toast('Clodura key removed')">✕ Remove</button>`:''}
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:6px">${D.creds.clo_key?'<span style="color:var(--ok)">✓ Configured</span>':'Not configured — <a href="https://clodura.ai" target="_blank" style="color:var(--ac)">Get a Clodura API key</a>'}</div>
+  </div>
+  <!-- External Task Sync / Webhooks -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 External Task Sync — Webhook</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Send tasks from Zapier, Make, or any HTTP source directly into LevelUp. POST JSON to the endpoint below with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">{title, due, priority, context}</code>.</p>
+    <div style="font-size:10px;color:var(--t2);margin-bottom:4px">Webhook Endpoint:</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <code style="background:var(--s3);padding:4px 8px;border-radius:4px;font-size:10px;flex:1;user-select:all;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${window.location.origin}/api/webhook/tasks</code>
+      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/webhook/tasks');toast('✓ Copied')">Copy</button>
+    </div>
+  </div>
+  <!-- Calendar Integration -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📅 Calendar Integrations</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Calendar sync is managed via your Connected Accounts (Settings → Accounts). Once connected, use the ☁ Sync O365 button in the Calendar view to pull events.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="font-size:11px" onclick="nav('settings');setTimeout(()=>{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');document.getElementById('sp-4').style.display='';document.querySelectorAll('.si').forEach((x,i)=>{x.classList.toggle('on',i===4)});loadOAuthStatus()},50)">→ Go to Accounts</button>
+      <button class="btn btn-s" style="font-size:11px" onclick="nav('mail')">→ Open Calendar</button>
+    </div>
+  </div>
+  </div>
+  <!-- AI Features --><div id="sp-6" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">✨ AI Features</h3>
+  <!-- Usage & Cost Caps -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">💰 Usage & Cost Caps</h4>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Monthly cap (USD)</div><div style="font-size:10px;color:var(--t3)">AI features stop when this limit is reached</div></div><input class="inp" style="max-width:80px" value="$20.00"></div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">This month's usage</div></div><span style="font-size:12px;font-weight:500;color:var(--ok)">$3.42 / $20.00</span></div>
+  </div>
+  <!-- AI Feature Toggles -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">🤖 AI Feature Toggles</h4>
+    ${[{key:'aiTasks',label:'Task AI',desc:'Smart decomposition, priority scoring, delegation suggestions'},{key:'aiCalendar',label:'Calendar AI',desc:'Meeting prep briefs, schedule optimisation, NL event creation'},{key:'aiMail',label:'Mail AI',desc:'Smart reply drafts, triage scoring, thread summarisation'},{key:'aiNotes',label:'Notes AI',desc:'Concept linking, gap detection, Q&A over notes'},{key:'aiHabits',label:'Habits & Journal AI',desc:'Mood correlation, streak coaching, sentiment trends'},{key:'aiContacts',label:'Contacts AI',desc:'Relationship health score, conversation starters, duplicates'}].map(f=>`<div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">${f.label}</div><div style="font-size:10px;color:var(--t3)">${f.desc}</div></div><div class="tog ${!(D.prefs&&D.prefs[f.key]===false)?'on':''}" onclick="D.prefs=D.prefs||{};D.prefs['${f.key}']=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'${f.label} on':'${f.label} off')"></div></div>`).join('')}
+  </div>
+  <!-- Assistant Topics -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:6px">📰 Assistant Topics</h4>
+    <p style="font-size:10px;color:var(--t2);margin-bottom:8px">The AI assistant will proactively share info on these topics:</p>
+    ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
+  </div>
+  <!-- AI Follow-ups in Compose -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">✉ AI Compose Features</h4>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">AI-powered tools available in the compose modal.</p>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">✨ Suggest Follow-ups</div><div style="font-size:10px;color:var(--t3)">Generate 3 follow-up message suggestions based on your draft</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">🤖 Smart Reply Drafts</div><div style="font-size:10px;color:var(--t3)">One-click AI draft based on email thread context</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">📋 Thread Summarisation</div><div style="font-size:10px;color:var(--t3)">Collapse long chains into a 3-sentence summary</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
+  </div>
   </div>
   <!-- Teams --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
   <p style="font-size:10px;color:var(--t2);margin-bottom:10px">Manage team members and their access rights.</p>
@@ -12623,6 +12779,15 @@ function showConfirmModal(title,message,confirmLabel='Confirm',cancelLabel='Canc
     document.getElementById('cm-cancel').onclick=()=>cleanup(false);
     overlay.addEventListener('click',e=>{if(e.target===overlay)cleanup(false);});
   });
+}
+
+async function syncCalendarO365(btn){
+  if(btn){btn.disabled=true;btn.textContent='⏳ Syncing...';}
+  try{
+    await syncOAuthCalendar('microsoft');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='☁ Sync O365';}
+  }
 }
 
 async function syncOAuthCalendar(provider){

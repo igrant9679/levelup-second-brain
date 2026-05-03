@@ -1680,4 +1680,54 @@ export const oauthSyncRouter = router({
       }
       throw new TRPCError({ code: 'BAD_REQUEST', message: `Provider ${input.provider} not supported for bulk import` });
     }),
+
+  suggestFollowUps: protectedProcedure
+    .input(z.object({
+      subject: z.string(),
+      body: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import('../_core/llm');
+      const prompt = `You are an email assistant. Based on the following email draft, suggest exactly 3 concise follow-up messages the sender could use if they don't receive a reply within a few days. Each suggestion should be a complete, ready-to-send short message (1-3 sentences). Return ONLY a JSON array of 3 strings, no other text.
+
+Subject: ${input.subject || '(no subject)'}
+
+Body:
+${input.body || '(empty)'}`;
+      const response = await invokeLLM({
+        messages: [
+          { role: 'system', content: 'You are a helpful email writing assistant. Always respond with valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'follow_up_suggestions',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                suggestions: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Array of 3 follow-up message suggestions',
+                },
+              },
+              required: ['suggestions'],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+      const rawContent = response.choices?.[0]?.message?.content;
+      const content = typeof rawContent === 'string' ? rawContent : '{"suggestions":[]}';
+      let suggestions: string[] = [];
+      try {
+        const parsed = JSON.parse(content);
+        suggestions = Array.isArray(parsed) ? parsed : (parsed.suggestions || []);
+      } catch {
+        suggestions = [];
+      }
+      return { suggestions: suggestions.slice(0, 3) };
+    }),
 });

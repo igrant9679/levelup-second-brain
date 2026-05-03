@@ -642,7 +642,7 @@
 - [x] Update frontend auto-sync to not attempt Google mail sync
 - [x] Keep Google OAuth for Calendar/Contacts only (not mail)
 - [x] Fix keyboard shortcut: added isContentEditable check to prevent nav when typing in compose
-- [ ] Verify mail sending works via Microsoft Graph after deployment
+- [x] Verify mail sending works via Microsoft Graph after deployment (confirmed: returns {success:true,provider:'microsoft'} on deployed site)
 
 ## Fix Send Email Error + Mail Features
 - [x] Fix: saveD is not defined error when sending mail (replaced with save('mail'))
@@ -658,3 +658,10 @@
 - [x] Compose autosave: saves draft to localStorage every 30s while typing
 - [x] closeModal clears autosave timer
 - [x] SMTP accounts cached per session in openComposeModal
+
+## New Features: Mail + Calendar Enhancements
+- [x] Office 365 calendar sync button: sync O365 calendar events into app Calendar view (two-way)
+- [x] Reply to email: inline reply form in mail detail view (pre-fills To/Subject, sends via same account)
+- [x] Mail search bar: filter inbox/sent list by keyword in real-time
+- [x] Compose modal AI follow-up suggestions: after composing, suggest 2-3 follow-up actions (create task, set reminder, schedule meeting)
+- [x] Fix blank Settings sub-pages: Integrations, AI Features, Teams, OneNote Import, Sync, Backup, Privacy, Admin
