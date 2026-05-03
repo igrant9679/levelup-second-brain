@@ -354,87 +354,43 @@ export const oauthSyncRouter = router({
     }),
 
   syncMail: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft", "google"]), limit: z.number().default(20) }))
+    .input(z.object({ provider: z.enum(["microsoft"]).default("microsoft"), limit: z.number().default(20) }))
     .mutation(async ({ input, ctx }) => {
-      const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
-      if (!accessToken) throw new Error("Not connected to " + input.provider);
+      // Only Microsoft (Office 365) is supported for mail sync
+      const accessToken = await getValidAccessToken(ctx.user.id, "microsoft");
+      if (!accessToken) throw new Error("Not connected to Microsoft 365. Please connect your Office 365 account in Settings \u2192 Accounts.");
 
-      if (input.provider === "microsoft") {
-        const resp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/messages?$top=${input.limit}&$select=subject,from,receivedDateTime,bodyPreview,isRead,id&$orderby=receivedDateTime desc`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!resp.ok) throw new Error("Microsoft Graph mail fetch failed: " + resp.status);
-        const data = await resp.json() as { value: Array<{ id: string; subject: string; from: { emailAddress: { name: string; address: string } }; receivedDateTime: string; bodyPreview: string; isRead: boolean }> };
-        const messages = (data.value || []).map(m => ({
-          subject: m.subject,
-          from: m.from.emailAddress.name || m.from.emailAddress.address,
-          fromEmail: m.from.emailAddress.address,
-          date: m.receivedDateTime,
-          preview: m.bodyPreview,
-          read: m.isRead,
-          id: m.id,
-        }));
-        // Auto-create email notifications for unread messages
-        const unreadMessages = messages.filter(m => !m.read);
-        for (const msg of unreadMessages) {
-          await db.createEmailNotification({
-            userId: ctx.user.id,
-            provider: 'microsoft',
-            emailSubject: msg.subject || '(No subject)',
-            emailFrom: msg.from,
-            emailId: msg.id,
-          });
-        }
-        return {
-          provider: "microsoft",
-          messages,
-          notificationsCreated: unreadMessages.length,
-        };
-      }
-
-      // Google
-      const listResp = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${input.limit}&labelIds=INBOX`,
+      const resp = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages?$top=${input.limit}&$select=subject,from,receivedDateTime,bodyPreview,isRead,id&$orderby=receivedDateTime desc`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (!listResp.ok) throw new Error("Gmail list failed: " + listResp.status);
-      const listData = await listResp.json() as { messages?: Array<{ id: string }> };
-      const ids = (listData.messages || []).map(m => m.id);
-
-      const messages = await Promise.all(ids.slice(0, input.limit).map(async id => {
-        const msgResp = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!msgResp.ok) return null;
-        const msg = await msgResp.json() as { id: string; snippet: string; labelIds: string[]; payload: { headers: Array<{ name: string; value: string }> } };
-        const headers = msg.payload.headers;
-        const get = (name: string) => headers.find(h => h.name === name)?.value ?? "";
-        return {
-          id: msg.id,
-          subject: get("Subject"),
-          from: get("From"),
-          fromEmail: get("From"),
-          date: get("Date"),
-          preview: msg.snippet,
-          read: !msg.labelIds.includes("UNREAD"),
-        };
+      if (!resp.ok) throw new Error("Microsoft Graph mail fetch failed: " + resp.status);
+      const data = await resp.json() as { value: Array<{ id: string; subject: string; from: { emailAddress: { name: string; address: string } }; receivedDateTime: string; bodyPreview: string; isRead: boolean }> };
+      const messages = (data.value || []).map(m => ({
+        subject: m.subject,
+        from: m.from.emailAddress.name || m.from.emailAddress.address,
+        fromEmail: m.from.emailAddress.address,
+        date: m.receivedDateTime,
+        preview: m.bodyPreview,
+        read: m.isRead,
+        id: m.id,
       }));
-
-      const validMessages = messages.filter(Boolean) as NonNullable<typeof messages[number]>[];
-      // Auto-create email notifications for unread Gmail messages
-      const unreadGmail = validMessages.filter(m => !m.read);
-      for (const msg of unreadGmail) {
+      // Auto-create email notifications for unread messages
+      const unreadMessages = messages.filter(m => !m.read);
+      for (const msg of unreadMessages) {
         await db.createEmailNotification({
           userId: ctx.user.id,
-          provider: 'google',
+          provider: 'microsoft',
           emailSubject: msg.subject || '(No subject)',
           emailFrom: msg.from,
           emailId: msg.id,
         });
       }
-      return { provider: "google", messages: validMessages, notificationsCreated: unreadGmail.length };
+      return {
+        provider: "microsoft",
+        messages,
+        notificationsCreated: unreadMessages.length,
+      };
     }),
 
   syncContacts: protectedProcedure
@@ -777,7 +733,7 @@ export const oauthSyncRouter = router({
 
   /**
    * Send a composed email on behalf of the logged-in user via their connected
-   * Google or Microsoft OAuth account (whichever is connected).
+   * Microsoft 365 (Office 365) account. Gmail/Google Workspace is not supported.
    */
   sendComposedMail: protectedProcedure
     .input(z.object({
@@ -786,55 +742,17 @@ export const oauthSyncRouter = router({
       body: z.string(),
       cc: z.string().optional(),
       bcc: z.string().optional(),
-      provider: z.enum(["google", "microsoft"]).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Determine which provider to use: explicit > google > microsoft
-      const providers: Array<"google" | "microsoft"> = input.provider
-        ? [input.provider]
-        : ["google", "microsoft"];
-
-      let accessToken: string | null = null;
-      let chosenProvider: "google" | "microsoft" | null = null;
-
-      for (const p of providers) {
-        const token = await getValidAccessToken(ctx.user.id, p);
-        if (token) { accessToken = token; chosenProvider = p; break; }
-      }
-
-      if (!accessToken || !chosenProvider) {
+      // Only Microsoft (Office 365) is supported for sending mail
+      const accessToken = await getValidAccessToken(ctx.user.id, "microsoft");
+      if (!accessToken) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: "No connected email account found. Please connect Google or Microsoft in Settings \u2192 Accounts.",
+          message: "No connected Microsoft 365 account found. Please connect your Office 365 account in Settings \u2192 Accounts.",
         });
       }
 
-      if (chosenProvider === "google") {
-        // Build RFC 2822 message and base64url-encode it
-        const headers: string[] = [
-          `To: ${input.to}`,
-          `Subject: ${input.subject}`,
-          `Content-Type: text/html; charset=utf-8`,
-          `MIME-Version: 1.0`,
-        ];
-        if (input.cc) headers.push(`Cc: ${input.cc}`);
-        if (input.bcc) headers.push(`Bcc: ${input.bcc}`);
-        headers.push(``, input.body);
-        const raw = headers.join("\r\n");
-        const encoded = Buffer.from(raw).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-        const resp = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ raw: encoded }),
-        });
-        if (!resp.ok) {
-          const err = await resp.text();
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Gmail send failed: ${resp.status} ${err}` });
-        }
-        return { success: true, provider: "google" };
-      }
-
-      // Microsoft \u2014 send via Graph API
       const msMsg: Record<string, unknown> = {
         subject: input.subject,
         body: { contentType: "HTML", content: input.body },

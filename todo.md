@@ -628,3 +628,18 @@
 ## Bug: JS Errors After Compose Modal Upgrade
 - [x] Fix SyntaxError: Unexpected end of input — caused by double brace on aiSummarizeThread(id){{ at line 3949
 - [x] Fix ReferenceError: applyPrefs is not defined — resolved by fixing the double brace (function was swallowing all subsequent global functions)
+
+## Bug: Compose Modal Still Scrolling + tRPC Error Still Present
+- [x] Reproduce background scroll/jump while typing in compose modal body
+- [x] Reproduce tRPC error when sending mail — actual error: Gmail API not enabled in GCP project (403)
+- [x] Fix background scroll/jump issue — root cause: keyboard shortcut handler not checking contenteditable elements
+- [x] Fix tRPC send mail error — removed Gmail/Google Workspace mail entirely, kept only Office 365 + SMTP/IMAP
+
+## Remove Gmail/Google Workspace Mail Functionality
+- [x] Remove Gmail send logic from sendComposedMail (sendViaGoogle helper)
+- [x] Remove Google from provider fallback order in sendComposedMail
+- [x] Remove Google mail sync/fetch from oauth-sync router (syncMail Google branch)
+- [x] Update frontend auto-sync to not attempt Google mail sync
+- [x] Keep Google OAuth for Calendar/Contacts only (not mail)
+- [x] Fix keyboard shortcut: added isContentEditable check to prevent nav when typing in compose
+- [ ] Verify mail sending works via Microsoft Graph after deployment
