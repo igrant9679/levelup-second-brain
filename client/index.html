@@ -7664,7 +7664,10 @@ function renderTeam(){
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
-  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div><button class="btn btn-p admin-only" onclick="showInvitePanel()">✉️ Invite Member</button></div>
+  // Check role from DB creds AND from local team member data (local data uses Owner/Admin, DB uses admin/user)
+  const _localMemberRole=(D.teams.flatMap(t=>t.members).find(m=>m.name===D.creds.userName)||{}).role||'';
+  const isAdminOrOwner=((D.creds.role||'').toLowerCase()==='admin'||(D.creds.role||'').toLowerCase()==='owner'||(_localMemberRole.toLowerCase()==='admin')||(_localMemberRole.toLowerCase()==='owner'));
+  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div>${isAdminOrOwner?'<button class="btn btn-p" onclick="showInvitePanel()">✉️ Invite Member</button>':''}</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>
   <div id="invite-panel" class="admin-only" style="display:none;margin-top:24px">
     <div class="cd" style="padding:16px">
