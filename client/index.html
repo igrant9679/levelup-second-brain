@@ -13590,7 +13590,14 @@ async function wdiParseFile(){
     const base64=await new Promise((resolve,reject)=>{
       const reader=new FileReader();
       reader.onload=e=>{
-        const b64=btoa(String.fromCharCode(...new Uint8Array(e.target.result)));
+        // Chunked base64 encoding — avoids call stack overflow on large files (>500KB)
+        const bytes=new Uint8Array(e.target.result);
+        let b64str='';
+        const chunk=8192;
+        for(let c=0;c<bytes.length;c+=chunk){
+          b64str+=String.fromCharCode.apply(null,bytes.subarray(c,c+chunk));
+        }
+        const b64=btoa(b64str);
         resolve(b64);
       };
       reader.onerror=reject;
