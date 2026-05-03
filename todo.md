@@ -834,3 +834,9 @@
 - [x] Frontend: recurrence stored in local _calEvents state and synced from DB
 - [x] Frontend: "Repeat" dropdown in new event create form (already present: none/daily/weekly/biweekly/monthly)
 - [x] Frontend: when deleting a recurring event, offer "Delete this event only" vs "Delete all occurrences" (custom dialog)
+
+## Bug Fixes (May 2026)
+
+### SMTP/IMAP Account Save & Test
+- [x] Fix: tRPC error when clicking Test button — added `testSmtpImapConnection` procedure (frontend was calling a non-existent procedure name)
+- [x] Fix: Save Account button silently failed — removed mandatory pre-save SMTP connection test from `saveSmtpImapAccount`; save now always succeeds if fields are valid

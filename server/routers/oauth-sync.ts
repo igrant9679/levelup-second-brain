@@ -1060,20 +1060,7 @@ export const oauthSyncRouter = router({
       smtpPassword: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      // Test SMTP connection before saving
-      try {
-        await testSmtpConnection({
-          smtpHost: input.smtpHost,
-          smtpPort: input.smtpPort,
-          smtpEncryption: input.smtpEncryption,
-          smtpUsername: input.smtpUsername,
-          smtpPassword: input.smtpPassword,
-        });
-      } catch (err) {
-        throw new Error(`SMTP connection failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-
-      // If connection test passed, save the account
+      // Save account directly — use testSmtpImapConnection to verify separately
       await db.upsertSmtpImapAccount({
         userId: ctx.user.id,
         email: input.email,
@@ -1090,6 +1077,41 @@ export const oauthSyncRouter = router({
         smtpPassword: input.smtpPassword,
       });
       return { success: true };
+    }),
+
+  /**
+   * testSmtpImapConnection — verify SMTP credentials without saving.
+   * Called by the "Test" button in Settings → Mail.
+   */
+  testSmtpImapConnection: protectedProcedure
+    .input(z.object({
+      imapHost: z.string().min(1),
+      imapPort: z.number().int().min(1).max(65535),
+      imapEncryption: z.enum(['ssl', 'tls', 'none']),
+      imapUsername: z.string().min(1),
+      imapPassword: z.string().min(1),
+      smtpHost: z.string().min(1),
+      smtpPort: z.number().int().min(1).max(65535),
+      smtpEncryption: z.enum(['ssl', 'tls', 'none']),
+      smtpUsername: z.string().min(1),
+      smtpPassword: z.string().min(1),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        await testSmtpConnection({
+          smtpHost: input.smtpHost,
+          smtpPort: input.smtpPort,
+          smtpEncryption: input.smtpEncryption,
+          smtpUsername: input.smtpUsername,
+          smtpPassword: input.smtpPassword,
+        });
+        return { success: true, message: 'SMTP connection verified successfully.' };
+      } catch (err) {
+        return {
+          success: false,
+          message: `SMTP connection failed: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
     }),
 
   /**
