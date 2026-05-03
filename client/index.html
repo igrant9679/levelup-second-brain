@@ -6064,6 +6064,52 @@ function renderIdeaDetail(idea){
       ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:10px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
     </div>
 
+    <!-- Free-form body RTE -->
+    <div style="margin-bottom:20px;border:1px solid var(--bd2);border-radius:8px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s2);cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:600">📝 Full Description</span>
+          <span style="font-size:10px;color:var(--t3)">Rich text — edit freely</span>
+        </div>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span id="idea-rte-wc-${idea.id}" style="font-size:9px;color:var(--t3)">${idea.bodyHtml?(idea.bodyHtml.replace(/<[^>]+>/g,'').trim().split(/\s+/).filter(Boolean).length+' words'):'0 words'}</span>
+          <span style="font-size:12px;color:var(--t3)">▾</span>
+        </span>
+      </div>
+      <div style="padding:0">
+        <!-- RTE Toolbar -->
+        <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 8px;background:var(--s1);border-top:1px solid var(--bd1);border-bottom:1px solid var(--bd1)">
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+          <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+          <div style="flex:1"></div>
+          <button type="button" class="btn btn-p" style="height:22px;padding:0 8px;font-size:10px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
+        </div>
+        <div id="idea-body-rte-${idea.id}" contenteditable="true" spellcheck="true"
+          style="min-height:140px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);font-size:12px;line-height:1.7;color:var(--t1);outline:none"
+          data-placeholder="Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?"
+          oninput="(function(el,id){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('idea-rte-wc-'+id);if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this,${idea.id})"
+        >${idea.bodyHtml||''}</div>
+        <!-- AI Assistance -->
+        <div style="padding:8px;background:var(--s2);border-top:1px solid var(--bd1)">
+          <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'validate')">✅ Validate</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'premortem')">💥 Pre-mortem</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'expand')">📝 Expand</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'competitors')">🔭 Competitors</button>
+          </div>
+          <div id="idea-detail-ai-result-${idea.id}" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Question sections per stage -->
     ${['spark','develop','stress_test'].filter(s=>stages.indexOf(s)<=stageIdx).map(s=>{
       const stageQs=qs[s]||[];
@@ -6159,6 +6205,30 @@ function renderIdeaDetail(idea){
       </div>
     </div>`;
   }
+}
+
+function saveIdeaBodyHtml(id){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const rte=document.getElementById('idea-body-rte-'+id);
+  if(rte){idea.bodyHtml=rte.innerHTML;idea.updatedAt=new Date().toISOString();save('ideas');toast('\u2713 Description saved!');}
+}
+
+async function ideaDetailAI(id,mode){
+  const idea=D.ideas.find(x=>x.id===id);
+  if(!idea)return;
+  const rte=document.getElementById('idea-body-rte-'+id);
+  const body=(rte?.innerText||'').trim();
+  const context=`Idea: ${idea.title}\nOne-liner: ${idea.description||''}\nDescription: ${body}`;
+  const resultEl='idea-detail-ai-result-'+id;
+  const prompts={
+    validate:`You are a startup advisor. Validate this idea: identify the core value proposition, target market, and 3 key risks. Be direct and constructive.\n\n${context}`,
+    premortem:`You are a critical thinker. Imagine this idea has failed 2 years from now. List the 5 most likely reasons it failed. Be specific and actionable.\n\n${context}`,
+    expand:`You are a product strategist. Expand this idea with additional use cases, potential features, monetisation angles, and adjacent opportunities.\n\n${context}`,
+    competitors:`You are a market researcher. List 5 potential competitors or alternatives to this idea. For each, note their key strength and how this idea could differentiate.\n\n${context}`,
+  };
+  const systemPrompt=prompts[mode]||prompts.validate;
+  await _rteAIGeneral(systemPrompt,body||idea.title,resultEl,'idea-body-rte-'+id);
 }
 
 function updateIdeaTitle(id,title){
@@ -8113,7 +8183,9 @@ function renderSettingsHTML(){
         <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc(D.creds.openai_key||'')}">
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
         <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.openai_key=document.getElementById('ai-openai-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.openai_key?'✅ OpenAI key saved':'OpenAI key cleared')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-openai" onclick="testAIProvider('openai','ai-openai-key','btn-test-openai')">⚡ Test</button>
       </div>
+      <div id="ai-openai-status" style="font-size:9px;margin-top:4px;display:none"></div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--ac)">platform.openai.com/api-keys</a></div>
     </div>
     <!-- Claude -->
@@ -8127,7 +8199,9 @@ function renderSettingsHTML(){
         <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc(D.creds.claude_key||'')}">
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
         <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.claude_key=document.getElementById('ai-claude-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.claude_key?'✅ Claude key saved':'Claude key cleared')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-claude" onclick="testAIProvider('claude','ai-claude-key','btn-test-claude')">⚡ Test</button>
       </div>
+      <div id="ai-claude-status" style="font-size:9px;margin-top:4px;display:none"></div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--ac)">console.anthropic.com</a></div>
     </div>
     <!-- Gemini -->
@@ -8141,7 +8215,9 @@ function renderSettingsHTML(){
         <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc(D.creds.gemini_key||'')}">
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
         <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.gemini_key=document.getElementById('ai-gemini-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.gemini_key?'✅ Gemini key saved':'Gemini key cleared')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-gemini" onclick="testAIProvider('gemini','ai-gemini-key','btn-test-gemini')">⚡ Test</button>
       </div>
+      <div id="ai-gemini-status" style="font-size:9px;margin-top:4px;display:none"></div>
       <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">aistudio.google.com</a></div>
     </div>
   </div>
@@ -12066,20 +12142,84 @@ async function _rteAICall(prompt,resultElId,loadingText){
     el.textContent='⚠ AI error: '+(e?.message||'unknown');
   }
 }
-async function _rteAIGeneral(systemPrompt,userContent,resultElId){
+async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   const el=document.getElementById(resultElId);
   if(!el)return;
   el.style.display='block';
-  el.textContent='⏳ Thinking...';
+  el.innerHTML='<span style="color:var(--t3)">⏳ Thinking...</span>';
   // Pick provider + key from user settings
   const provider=(D.creds&&D.creds.aiProvider)||'manus';
   const keyMap={openai:D.creds&&D.creds.openaiKey,claude:D.creds&&D.creds.claudeKey,gemini:D.creds&&D.creds.geminiKey};
   const apiKey=keyMap[provider]||undefined;
   try{
     const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
-    el.textContent=res?.result||res?.text||'No response generated.';
+    const text=res?.result||res?.text||'No response generated.';
+    // Render result with optional Insert button
+    const insertBtn=targetRteId?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteInsert('${targetRteId}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`:
+      `<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteCopyToClipboard(this)">📋 Copy</button>`;
+    el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(text)}</div>${insertBtn}`;
   }catch(e){
     el.textContent='⚠ AI error: '+(e?.message||'unknown');
+  }
+}
+
+function _rteInsert(rteId,text){
+  const rte=document.getElementById(rteId);
+  if(!rte)return;
+  rte.focus();
+  // Append a line break then the text
+  const br=document.createElement('br');
+  const textNode=document.createTextNode(text);
+  rte.appendChild(br);
+  rte.appendChild(textNode);
+  // Move cursor to end
+  const range=document.createRange();
+  range.selectNodeContents(rte);
+  range.collapse(false);
+  const sel=window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  // Trigger word count update
+  rte.dispatchEvent(new Event('input',{bubbles:true}));
+  toast('✓ Inserted into body');
+}
+
+function _rteCopyToClipboard(btn){
+  const text=btn.previousElementSibling?.textContent||'';
+  navigator.clipboard.writeText(text).then(()=>toast('📋 Copied!')).catch(()=>toast('Copy failed'));
+}
+
+async function testAIProvider(provider,inputId,btnId){
+  const keyInput=document.getElementById(inputId);
+  const btn=document.getElementById(btnId);
+  const statusEl=document.getElementById('ai-'+provider+'-status');
+  const key=(keyInput?.value||'').trim();
+  if(!key){toast('Enter an API key first, then click Test.');return;}
+  if(btn){btn.disabled=true;btn.textContent='⏳ Testing...';}
+  if(statusEl){statusEl.style.display='none';statusEl.textContent='';}
+  try{
+    const res=await _trpc('ai.assist',{
+      systemPrompt:'You are a helpful assistant.',
+      userContent:'Reply with exactly: OK',
+      provider,
+      apiKey:key
+    },'mutation');
+    const ok=!!(res?.result||res?.text);
+    if(statusEl){
+      statusEl.style.display='block';
+      statusEl.style.color=ok?'var(--ok)':'var(--err)';
+      statusEl.textContent=ok?'✅ Connection successful — key is valid':'❌ Unexpected empty response';
+    }
+    if(btn){btn.disabled=false;btn.textContent='⚡ Test';}
+    toast(ok?'✅ '+provider.charAt(0).toUpperCase()+provider.slice(1)+' key is working!':'❌ Empty response from '+provider);
+  }catch(e){
+    if(statusEl){
+      statusEl.style.display='block';
+      statusEl.style.color='var(--err)';
+      statusEl.textContent='❌ Error: '+(e?.message||'Connection failed');
+    }
+    if(btn){btn.disabled=false;btn.textContent='⚡ Test';}
+    toast('❌ '+provider+' key test failed: '+(e?.message||'unknown error'));
   }
 }
 
@@ -12096,7 +12236,7 @@ async function rteJournalAI(mode){
   };
   if(!text&&mode!=='questions'){toast('Write something first, then use AI assistance.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
-  await _rteAIGeneral(systemPrompt,text,resultEl);
+  await _rteAIGeneral(systemPrompt,text,resultEl,'fa-jrnl-rte');
 }
 
 async function drJrnlAI(mode){
@@ -12111,7 +12251,7 @@ async function drJrnlAI(mode){
   };
   if(!text){toast('Write something in the diary entry first.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
-  await _rteAIGeneral(systemPrompt,text,resultEl);
+  await _rteAIGeneral(systemPrompt,text,resultEl,'dr-diary-rte');
 }
 
 async function drNoteAI(mode){
@@ -12129,7 +12269,7 @@ async function drNoteAI(mode){
   };
   if(!title&&!body){toast('Add a title or content first.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
-  await _rteAIGeneral(systemPrompt,body,resultEl);
+  await _rteAIGeneral(systemPrompt,body,resultEl,'dr-note-rte');
 }
 
 async function rteIdeaAI(mode){
@@ -12148,7 +12288,7 @@ async function rteIdeaAI(mode){
   };
   if(!title&&!body){toast('Add a title or description first.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
-  await _rteAIGeneral(systemPrompt,context,resultEl);
+  await _rteAIGeneral(systemPrompt,context,resultEl,'ni-body-rte');
 }
 
 async function rteNoteAI(mode){
@@ -12167,7 +12307,7 @@ async function rteNoteAI(mode){
   };
   if(!title&&!body){toast('Add a title or content first.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
-  await _rteAIGeneral(systemPrompt,body,resultEl);
+  await _rteAIGeneral(systemPrompt,body,resultEl,'fa-note-rte');
 }
 
 function _updateOAuthCard(provider,status){

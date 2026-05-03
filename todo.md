@@ -674,3 +674,8 @@
 - [x] Add editable RTE to journal drawer so diary body can be updated and saved
 - [x] Add note body viewer showing saved bodyHtml in note detail view
 - [x] Implement server-side AI provider routing (OpenAI/Claude/Gemini) in ai.assist procedure
+
+## RTE + AI Provider Enhancements
+- [x] Add editable RTE to Ideas drawer for bodyHtml (view/edit rich text body on existing ideas)
+- [x] Add Insert-into-body button to all AI result panels (Journal new, Journal drawer, Note new, Note drawer, Idea new)
+- [x] Add Test Connection button for each AI provider key in Settings → AI Features
