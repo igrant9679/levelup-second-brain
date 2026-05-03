@@ -3946,7 +3946,7 @@ function aiSmartReply(id){
   document.getElementById('modal-capture').classList.add('show');
   document.body.style.overflow='hidden';
 }
-function aiSummarizeThread(id){{
+function aiSummarizeThread(id){
   const mail=_mailItems.find(m=>m.id===id);
   if(!mail)return;
   const body=mail.body||'';

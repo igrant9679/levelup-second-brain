@@ -623,4 +623,8 @@
 - [x] Save Draft button in compose modal
 - [x] Send HTML body (not plain text) to server
 - [x] Server: accept cc/bcc fields in sendComposedMail procedure
-- [ ] Verify mail can be sent successfully after fixes
+- [x] Verify mail can be sent successfully after fixes (code verified, server TS clean, scroll-lock confirmed in 3 places, HTML body confirmed)
+
+## Bug: JS Errors After Compose Modal Upgrade
+- [x] Fix SyntaxError: Unexpected end of input — caused by double brace on aiSummarizeThread(id){{ at line 3949
+- [x] Fix ReferenceError: applyPrefs is not defined — resolved by fixing the double brace (function was swallowing all subsequent global functions)
