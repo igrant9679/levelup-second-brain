@@ -849,3 +849,6 @@
 - [x] Fix: SMTP "Greeting Never Received" — added requireTLS: true for STARTTLS (port 587), connectionTimeout/greetingTimeout/socketTimeout to all 3 nodemailer transporter configs
 - [x] Fix: Save Account not persisting — added unique constraint on userId to smtp_imap_accounts table so onDuplicateKeyUpdate works as a true upsert; migration applied
 - [x] Fix: tRPC error when sending mail — same TLS fix applied to sendComposedMail transporter; send now uses correct smtpPassword field
+
+### SMTP Port 465 SSL Fix
+- [x] Fix: TLS config is correct (requireTLS only set for port 587 STARTTLS, not port 465 SSL) — root cause was incorrect credentials (535 Auth Failed), not a TLS issue. Resolved by user re-entering correct Mailpool password.
