@@ -319,21 +319,35 @@ export const oauthSyncRouter = router({
 
       if (input.provider === "microsoft") {
         const resp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/messages?$top=${input.limit}&$select=subject,from,receivedDateTime,bodyPreview,isRead&$orderby=receivedDateTime desc`,
+          `https://graph.microsoft.com/v1.0/me/messages?$top=${input.limit}&$select=subject,from,receivedDateTime,bodyPreview,isRead,id&$orderby=receivedDateTime desc`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!resp.ok) throw new Error("Microsoft Graph mail fetch failed: " + resp.status);
-        const data = await resp.json() as { value: Array<{ subject: string; from: { emailAddress: { name: string; address: string } }; receivedDateTime: string; bodyPreview: string; isRead: boolean }> };
+        const data = await resp.json() as { value: Array<{ id: string; subject: string; from: { emailAddress: { name: string; address: string } }; receivedDateTime: string; bodyPreview: string; isRead: boolean }> };
+        const messages = (data.value || []).map(m => ({
+          subject: m.subject,
+          from: m.from.emailAddress.name || m.from.emailAddress.address,
+          fromEmail: m.from.emailAddress.address,
+          date: m.receivedDateTime,
+          preview: m.bodyPreview,
+          read: m.isRead,
+          id: m.id,
+        }));
+        // Auto-create email notifications for unread messages
+        const unreadMessages = messages.filter(m => !m.read);
+        for (const msg of unreadMessages) {
+          await db.createEmailNotification({
+            userId: ctx.user.id,
+            provider: 'microsoft',
+            emailSubject: msg.subject || '(No subject)',
+            emailFrom: msg.from,
+            emailId: msg.id,
+          });
+        }
         return {
           provider: "microsoft",
-          messages: (data.value || []).map(m => ({
-            subject: m.subject,
-            from: m.from.emailAddress.name || m.from.emailAddress.address,
-            fromEmail: m.from.emailAddress.address,
-            date: m.receivedDateTime,
-            preview: m.bodyPreview,
-            read: m.isRead,
-          })),
+          messages,
+          notificationsCreated: unreadMessages.length,
         };
       }
 
@@ -356,6 +370,7 @@ export const oauthSyncRouter = router({
         const headers = msg.payload.headers;
         const get = (name: string) => headers.find(h => h.name === name)?.value ?? "";
         return {
+          id: msg.id,
           subject: get("Subject"),
           from: get("From"),
           fromEmail: get("From"),
@@ -365,7 +380,19 @@ export const oauthSyncRouter = router({
         };
       }));
 
-      return { provider: "google", messages: messages.filter(Boolean) };
+      const validMessages = messages.filter(Boolean) as NonNullable<typeof messages[number]>[];
+      // Auto-create email notifications for unread Gmail messages
+      const unreadGmail = validMessages.filter(m => !m.read);
+      for (const msg of unreadGmail) {
+        await db.createEmailNotification({
+          userId: ctx.user.id,
+          provider: 'google',
+          emailSubject: msg.subject || '(No subject)',
+          emailFrom: msg.from,
+          emailId: msg.id,
+        });
+      }
+      return { provider: "google", messages: validMessages, notificationsCreated: unreadGmail.length };
     }),
 
   syncContacts: protectedProcedure

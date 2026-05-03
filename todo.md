@@ -549,3 +549,9 @@
 - [x] Fix: Added buildFormBody() helper in oauth-callbacks.ts and oauth-sync.ts that preserves ~ as literal
 - [x] Fixed all token exchange calls: MS callback, refreshMsToken, refreshGoogleToken, validateCredentials
 - [x] 107 tests passing, TypeScript clean, server restarted cleanly
+
+## Follow-up: Sidebar Links, Auto-Notifications, Badge
+
+- [x] Add sidebar navigation links for Notifications, Event Reminders, Sync Status, Bulk Import (AppLayout.tsx sidebar with all 8 nav items)
+- [x] Wire email notification creation into syncMail procedure (auto-create on sync for both Microsoft and Google)
+- [x] Add notification badge to sidebar bell icon showing unread count (red badge with count in AppLayout)
