@@ -15,8 +15,14 @@
 :root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#64748B;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px;--brd:rgba(255,255,255,.10)}
 body.light-mode{--bg:#F1F5F9;--s1:#FFFFFF;--s2:#F8FAFC;--s3:#EEF2F7;--s4:#E2E8F0;--bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.10);--bd3:rgba(0,0,0,.16);--t1:#0F172A;--t2:#475569;--t3:#94A3B8;--t4:#CBD5E1;--brd:rgba(0,0,0,.10)}
 /* ROLE-BASED GATING: hide admin-only elements for non-admin users */
-body[data-role="user"] .admin-only{display:none!important}
-body[data-role="user"] .admin-only-inline{visibility:hidden!important;pointer-events:none!important}
+body[data-role="user"] .admin-only,
+body[data-role="User"] .admin-only,
+body[data-role="member"] .admin-only,
+body[data-role="Member"] .admin-only{display:none!important}
+body[data-role="user"] .admin-only-inline,
+body[data-role="User"] .admin-only-inline,
+body[data-role="member"] .admin-only-inline,
+body[data-role="Member"] .admin-only-inline{visibility:hidden!important;pointer-events:none!important}
 body.compact-mode .lr{padding:2px 0!important}
 body.compact-mode .cd{padding:8px!important}
 body.compact-mode h1{font-size:16px!important}
