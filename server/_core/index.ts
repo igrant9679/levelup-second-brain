@@ -153,6 +153,75 @@ async function startServer() {
     }
   });
 
+  // ---- Bookmarklet endpoint: GET /api/bookmarklet/save?url=...&title=... ----
+  // Called by the browser bookmarklet. Authenticates via session cookie,
+  // creates the bookmark, then redirects back to the app's bookmarks page.
+  app.get("/api/bookmarklet/save", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      if (!user) {
+        // Not logged in — redirect to login with a return path
+        const loginUrl = process.env.VITE_OAUTH_PORTAL_URL || '/';
+        res.redirect(`${loginUrl}?return=/bookmarks`);
+        return;
+      }
+
+      const rawUrl = req.query.url as string;
+      const rawTitle = req.query.title as string | undefined;
+
+      if (!rawUrl) {
+        res.status(400).send('<html><body><h2>Error: No URL provided.</h2><script>window.close();</script></body></html>');
+        return;
+      }
+
+      // Validate URL
+      try { new URL(rawUrl); } catch {
+        res.status(400).send('<html><body><h2>Error: Invalid URL.</h2><script>window.close();</script></body></html>');
+        return;
+      }
+
+      // Import db helpers inline to avoid circular deps
+      const { createBookmark, getBookmarkByUrl } = await import('../db');
+
+      // Check for duplicate
+      const existing = await getBookmarkByUrl(rawUrl, user.id);
+      if (existing) {
+        res.send(`<html><head><title>Already saved</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
+          <h2>\u2705 Already in your bookmarks</h2>
+          <p style="color:#666">${rawUrl}</p>
+          <script>setTimeout(()=>window.close(),1500);</script>
+        </body></html>`);
+        return;
+      }
+
+      // Fetch metadata
+      const { extractPageMetadata } = await import('../routers/bookmarks');
+      const meta = await extractPageMetadata(rawUrl);
+
+      await createBookmark({
+        userId: user.id,
+        url: rawUrl,
+        title: rawTitle || meta.title || new URL(rawUrl).hostname,
+        description: meta.description,
+        favicon: meta.favicon,
+        ogImage: meta.ogImage,
+        siteName: meta.siteName,
+        tags: null,
+        notes: null,
+        color: null,
+      });
+
+      res.send(`<html><head><title>Saved!</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2>\u2705 Bookmark saved!</h2>
+        <p style="color:#666">${meta.title || rawUrl}</p>
+        <script>setTimeout(()=>window.close(),1500);</script>
+      </body></html>`);
+    } catch (err) {
+      console.error('[bookmarklet] Error:', err);
+      res.status(500).send('<html><body><h2>Error saving bookmark. Please try again.</h2><script>window.close();</script></body></html>');
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

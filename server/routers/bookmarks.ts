@@ -23,6 +23,10 @@ interface PageMetadata {
  * Fetch a URL and extract Open Graph / meta tag metadata.
  * Uses a 10-second timeout and follows redirects.
  */
+export async function extractPageMetadata(url: string): Promise<PageMetadata> {
+  return extractMetadata(url);
+}
+
 async function extractMetadata(url: string): Promise<PageMetadata> {
   const result: PageMetadata = {
     title: null,
@@ -284,6 +288,74 @@ export const bookmarksRouter = router({
   tags: protectedProcedure
     .query(async ({ ctx }) => {
       return db.getAllBookmarkTags(ctx.user.id);
+    }),
+
+  /**
+   * Suggest tags for a URL using the LLM.
+   * Fetches page metadata then asks the AI to suggest 3-5 relevant tags.
+   */
+  suggestTags: protectedProcedure
+    .input(z.object({
+      url: z.string().url(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // Use provided metadata or fetch it
+      let title = input.title;
+      let description = input.description;
+
+      if (!title || !description) {
+        const meta = await extractMetadata(input.url);
+        title = title || meta.title || new URL(input.url).hostname;
+        description = description || meta.description || '';
+      }
+
+      const { invokeLLM } = await import('../_core/llm');
+
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a bookmark tagging assistant. Given a web page title, description, and URL, suggest 3 to 5 concise, lowercase tags that categorize the content. Return ONLY a JSON array of strings, no explanation. Example: ["javascript", "tutorial", "react", "frontend"]',
+          },
+          {
+            role: 'user',
+            content: `Title: ${title}\nDescription: ${description || '(none)'}\nURL: ${input.url}`,
+          },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'tag_suggestions',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                tags: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: '3 to 5 lowercase tags for this bookmark',
+                },
+              },
+              required: ['tags'],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+
+      try {
+        const content = response.choices?.[0]?.message?.content;
+        if (!content) return { tags: [] };
+        const parsed = JSON.parse(typeof content === 'string' ? content : JSON.stringify(content));
+        const tags: string[] = Array.isArray(parsed.tags)
+          ? parsed.tags.slice(0, 8).map((t: unknown) => String(t).toLowerCase().trim()).filter(Boolean)
+          : [];
+        return { tags };
+      } catch {
+        return { tags: [] };
+      }
     }),
 
   /**

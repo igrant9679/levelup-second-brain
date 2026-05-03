@@ -732,3 +732,8 @@
 - [x] Frontend: Favorite/read status toggles
 - [x] Frontend: Edit and delete bookmark actions
 - [x] Tests: vitest coverage for bookmarks CRUD procedures (17 tests passing)
+
+## Bookmarks Fixes & Enhancements (May 2026)
+- [x] Fix Bookmarks tab navigation — clicking sidebar entry doesn't show the screen (missing SM entry)
+- [x] Browser bookmarklet — one-click save from any page via draggable bookmarklet (GET /api/bookmarklet/save endpoint + UI in Bookmarks page)
+- [x] AI auto-tagging — suggest tags automatically using LLM when creating a bookmark (bookmarks.suggestTags procedure + ✨ AI Suggest button in Add Bookmark form)

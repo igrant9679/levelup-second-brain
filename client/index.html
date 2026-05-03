@@ -1149,7 +1149,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts',help:'s-help'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -11894,6 +11894,7 @@ function paintBookmarks(){
   el.innerHTML=`<div class="pg-h ph-r">
     <div><h1>🔖 Bookmarks</h1><p style="font-size:12px;color:var(--t2)">Your saved web pages &amp; reading list</p></div>
     <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">🔖 Bookmarklet</button>
       <button class="btn btn-p" onclick="showAddBookmark()">+ Add Bookmark</button>
     </div>
   </div>
@@ -11924,15 +11925,67 @@ function paintBookmarks(){
   <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>`;
 }
 
+function showBookmarklet(){
+  const base=window.location.origin;
+  // Bookmarklet code: opens a small popup to /api/bookmarklet/save?url=...&title=...
+  const code=`javascript:(function(){var u=encodeURIComponent(location.href);var t=encodeURIComponent(document.title);window.open('${base}/api/bookmarklet/save?url='+u+'&title='+t,'_blank','width=400,height=300,menubar=no,toolbar=no,location=no');})();`;
+  openModal('Browser Bookmarklet',
+    '<div style="display:flex;flex-direction:column;gap:16px">' +
+    '<div style="background:var(--s2);border-radius:8px;padding:16px;text-align:center">' +
+    '<div style="font-size:32px;margin-bottom:8px">🔖</div>' +
+    '<div style="font-size:13px;font-weight:600;margin-bottom:4px">Save to LevelUp in one click</div>' +
+    '<div style="font-size:11px;color:var(--t2)">Drag the button below to your browser\'s bookmarks bar, then click it on any page to instantly save it to your LevelUp bookmarks.</div>' +
+    '</div>' +
+    '<div style="text-align:center">' +
+    `<a href="${code}" style="display:inline-block;padding:10px 20px;background:var(--ac);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:grab" onclick="event.preventDefault();toast(\'Drag this to your bookmarks bar!\')">🔖 Save to LevelUp</a>` +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--t3)">' +
+    '<strong>How to install:</strong><br>' +
+    '1. Show your browser\'s bookmarks bar (Ctrl+Shift+B or Cmd+Shift+B)<br>' +
+    '2. Drag the button above to the bookmarks bar<br>' +
+    '3. Visit any page and click the bookmarklet to save it instantly' +
+    '</div>' +
+    '<div style="font-size:10px;color:var(--t3)">Or copy the code manually:</div>' +
+    `<textarea class="inp" style="font-size:9px;font-family:monospace;height:60px" readonly onclick="this.select()">${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>` +
+    '</div>',
+    [{label:'Close',cls:'btn-s',action:'closeModal()'}]
+  );
+}
+
 function showAddBookmark(){
   openModal('Add Bookmark','<div style="display:flex;flex-direction:column;gap:12px">' +
     '<div class="field"><label>URL</label><input class="inp" id="bk-url" placeholder="https://example.com" autofocus></div>' +
     '<div class="field"><label>Title (optional, auto-fetched)</label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
-    '<div class="field"><label>Tags (comma-separated)</label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags (comma-separated)<button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="doSuggestBookmarkTags()">\u2728 AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
     '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your notes about this page..."></textarea></div>' +
     '</div>',
     [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
   );
+}
+
+async function doSuggestBookmarkTags(){
+  const url=$('bk-url')?.value?.trim();
+  if(!url){toast('Enter a URL first');return;}
+  try{
+    new URL(url);
+  }catch{toast('Please enter a valid URL first');return;}
+  const title=$('bk-title')?.value?.trim()||undefined;
+  const btn=document.querySelector('#modal-body button[onclick="doSuggestBookmarkTags()"]');
+  if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
+  try{
+    const res=await _trpc('bookmarks.suggestTags',{url,title},'mutate');
+    if(res.tags&&res.tags.length){
+      const tagsInput=$('bk-tags');
+      if(tagsInput)tagsInput.value=res.tags.join(', ');
+      toast('\u2728 AI suggested '+res.tags.length+' tags!');
+    }else{
+      toast('No tags suggested — try adding a title first');
+    }
+  }catch(e){
+    toast('AI tagging failed: '+(e.message||e));
+  }finally{
+    if(btn){btn.textContent='\u2728 AI Suggest';btn.disabled=false;}
+  }
 }
 
 async function doAddBookmark(){

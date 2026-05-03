@@ -989,3 +989,13 @@ export async function getAllBookmarkTags(userId: number): Promise<string[]> {
   }
   return Array.from(tagSet).sort();
 }
+
+export async function getBookmarkByUrl(url: string, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { bookmarks } = await import("../drizzle/schema");
+  const rows = await db.select().from(bookmarks)
+    .where(and(eq(bookmarks.url, url), eq(bookmarks.userId, userId)))
+    .limit(1);
+  return rows[0];
+}
