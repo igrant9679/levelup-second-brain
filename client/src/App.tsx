@@ -13,13 +13,16 @@ import NotificationCenter from "./pages/NotificationCenter";
 import EventReminders from "./pages/EventReminders";
 import SyncStatus from "./pages/SyncStatus";
 import BulkImport from "./pages/BulkImport";
-import ShareView from "./pages/ShareView";
+import ShareView from "@/pages/ShareView";
+import AcceptInvite from "@/pages/AcceptInvite";
 
 function Router() {
   return (
     <Switch>
       {/* Public share page — no auth or app shell needed */}
       <Route path="/share/:token" component={ShareView} />
+      {/* Public invite accept page — no auth needed */}
+      <Route path="/invite/:token" component={AcceptInvite} />
       {/* All other routes go through AppLayout */}
       <Route>
         <AppLayout>

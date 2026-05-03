@@ -1321,6 +1321,27 @@ export const oauthSyncRouter = router({
       return await db.deleteCalendarEvent(ctx.user.id, input.id);
     }),
 
+  /**
+   * updateCalendarEvent — edit a locally-stored calendar event.
+   * Only the owning user can update their own events.
+   */
+  updateCalendarEvent: protectedProcedure
+    .input(z.object({
+      id: z.number().int(),
+      title: z.string().min(1).max(512).optional(),
+      start: z.date().optional(),
+      end: z.date().optional(),
+      location: z.string().max(512).nullable().optional(),
+      description: z.string().max(4096).nullable().optional(),
+      isAllDay: z.number().int().min(0).max(1).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updates } = input;
+      const result = await db.updateCalendarEvent(ctx.user.id, id, updates);
+      if (!result) throw new TRPCError({ code: 'NOT_FOUND', message: 'Calendar event not found' });
+      return result;
+    }),
+
   // ─── Secret Expiry Reminders ──────────────────────────────────────────────
 
   /** List all secret expiry reminders for the current user */

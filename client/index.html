@@ -4469,18 +4469,129 @@ function openCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
   if(!ev)return;
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:16px;font-weight:600;margin-bottom:12px">${esc(ev.title)}</h2>
+  const dateDisplay=ev.dateStr||'This week';
+  const timeDisplay=(ev.start||ev.time||'')+' – '+(ev.end||'');
+  m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h2 style="font-size:16px;font-weight:600;margin:0">${esc(ev.title)}</h2>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>
+    </div>
+  </div>
   <div style="display:flex;flex-direction:column;gap:10px">
-  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${ev.time} – ${ev.end}</div><div style="font-size:10px;color:var(--t3)">This week</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:10px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">📍</span><div style="font-size:12px">${esc(ev.location||'No location')}</div></div>
-  <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||'No description')}</div></div>
-  <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${(ev.attendees||[]).map(a=>`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px">${a}</span>`).join('')}</div></div></div>
+  <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||ev.description||'No description')}</div></div>
+  ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
-  <button class="btn btn-p" style="height:28px;font-size:11px" onclick="toast('Joining meeting...');closeModal()">Join Meeting</button>
+  ${ev.meetingUrl||ev.onlineMeeting?`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="window.open('${esc(ev.meetingUrl||ev.onlineMeeting||'')}','_blank')">Join Meeting</button>`:''}
   <button class="btn btn-s" style="height:28px;font-size:11px" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+}
+
+function openEditCalEvent(id){
+  const ev=_calEvents.find(e=>e.id===id);
+  if(!ev)return;
+  const m=document.getElementById('modal-content');
+  // Parse existing time values
+  const startTime=ev.start||ev.time||'09:00';
+  const endTime=ev.end||'10:00';
+  const dateVal=ev.dateStr||new Date().toISOString().slice(0,10);
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">✏️ Edit Event</h2>
+  <div style="display:flex;flex-direction:column;gap:10px">
+  <div class="field"><label>Title</label><input class="inp" id="cev-title" value="${esc(ev.title)}"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Date</label><input type="date" class="inp" id="cev-date" value="${esc(dateVal)}"></div>
+    <div class="field"><label>All Day</label><select class="inp" id="cev-allday"><option value="0" ${!ev.isAllDay?'selected':''}>No</option><option value="1" ${ev.isAllDay?'selected':''}>Yes</option></select></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="field"><label>Start Time</label><input type="time" class="inp" id="cev-start" value="${esc(startTime)}"></div>
+    <div class="field"><label>End Time</label><input type="time" class="inp" id="cev-end" value="${esc(endTime)}"></div>
+  </div>
+  <div class="field"><label>Location</label><input class="inp" id="cev-loc" value="${esc(ev.location||'')}"></div>
+  <div class="field"><label>Description</label><textarea class="inp" id="cev-desc" style="min-height:60px">${esc(ev.desc||ev.description||'')}</textarea></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:12px">
+  <button class="btn btn-p" onclick="saveEditCalEvent(${id})">&#10003; Save Changes</button>
+  <button class="btn btn-s" onclick="openCalEvent(${id})">Cancel</button>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('cev-title')?.focus(),100);
+}
+
+async function saveEditCalEvent(id){
+  const ev=_calEvents.find(e=>e.id===id);
+  if(!ev)return;
+  const title=document.getElementById('cev-title')?.value.trim();
+  if(!title){toast('⚠ Title is required');return;}
+  const dateVal=document.getElementById('cev-date')?.value;
+  const startTime=document.getElementById('cev-start')?.value||'09:00';
+  const endTime=document.getElementById('cev-end')?.value||'10:00';
+  const location=document.getElementById('cev-loc')?.value.trim()||null;
+  const desc=document.getElementById('cev-desc')?.value.trim()||null;
+  const isAllDay=parseInt(document.getElementById('cev-allday')?.value||'0');
+  const startHour=parseInt(startTime.split(':')[0]);
+  const endHour=parseInt(endTime.split(':')[0])||startHour+1;
+  // Update local state
+  ev.title=title;
+  ev.dateStr=dateVal;
+  ev.start=startTime;
+  ev.time=startTime;
+  ev.end=endTime;
+  ev.hour=startHour;
+  ev.endHour=endHour;
+  ev.location=location;
+  ev.desc=desc;
+  ev.isAllDay=isAllDay;
+  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  // If event has a DB ID, persist to server
+  if(ev.dbId){
+    try{
+      const startDate=dateVal?new Date(dateVal+'T'+startTime+':00'):null;
+      const endDate=dateVal?new Date(dateVal+'T'+endTime+':00'):null;
+      await _trpc('oauthSync.updateCalendarEvent',{
+        id:ev.dbId,
+        title,
+        ...(startDate?{start:startDate}:{}),
+        ...(endDate?{end:endDate}:{}),
+        location,
+        description:desc,
+        isAllDay,
+      },'mutate');
+      toast('✓ Event updated and saved to server');
+    }catch(e){
+      toast('✓ Event updated locally (server sync failed: '+e.message+')');
+    }
+  }else{
+    toast('✓ Event updated');
+  }
+  closeModal();
+  renderCal();
+}
+
+async function deleteCalEvent(id){
+  const ev=_calEvents.find(e=>e.id===id);
+  if(!ev)return;
+  if(!confirm('Delete "'+ev.title+'"? This cannot be undone.'))return;
+  // Remove from local array
+  const idx=_calEvents.findIndex(e=>e.id===id);
+  if(idx>-1)_calEvents.splice(idx,1);
+  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  // If event has a DB ID, delete from server too
+  if(ev.dbId){
+    try{
+      await _trpc('oauthSync.deleteCalendarEvent',{id:ev.dbId},'mutate');
+      toast('✓ Event deleted from calendar and server');
+    }catch(e){
+      toast('✓ Event deleted locally (server: '+e.message+')');
+    }
+  }else{
+    toast('✓ Event deleted');
+  }
+  closeModal();
+  renderCal();
 }
 function blockTaskTime(taskId){
   const t=D.tasks.find(x=>x.id===taskId);
@@ -7480,8 +7591,23 @@ function renderTeam(){
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
-  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>`;
+  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div><button class="btn btn-p" onclick="showInvitePanel()">✉️ Invite Member</button></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>
+  <div id="invite-panel" style="display:none;margin-top:24px">
+    <div class="cd" style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <h2 style="font-size:15px;font-weight:600;margin:0">✉️ Invite Team Members</h2>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="document.getElementById('invite-panel').style.display='none'">× Close</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-bottom:16px">
+        <div class="field" style="margin:0"><label style="font-size:10px">Email</label><input class="inp" id="inv-email" placeholder="colleague@company.com" style="height:32px"></div>
+        <div class="field" style="margin:0"><label style="font-size:10px">Name (optional)</label><input class="inp" id="inv-name" placeholder="Jane Smith" style="height:32px"></div>
+        <div class="field" style="margin:0"><label style="font-size:10px">Role</label><select class="inp" id="inv-role" style="height:32px"><option value="user">Member</option><option value="admin">Admin</option></select></div>
+        <button class="btn btn-p" style="height:32px;font-size:12px;white-space:nowrap" onclick="sendInvite()">✉️ Send Invite</button>
+      </div>
+      <div id="invite-list-wrap"><div style="font-size:11px;color:var(--t3)">Loading invites...</div></div>
+    </div>
+  </div>`;
   const totalTasks=D.tasks.length;
   const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
@@ -7496,6 +7622,121 @@ function renderTeam(){
   <div style="font-size:10px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
   ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:9px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+}
+
+// ====== TEAM INVITES ======
+function showInvitePanel(){
+  const panel=document.getElementById('invite-panel');
+  if(!panel)return;
+  panel.style.display='block';
+  loadInviteList();
+}
+
+async function loadInviteList(){
+  const wrap=document.getElementById('invite-list-wrap');
+  if(!wrap)return;
+  try{
+    const invites=await _trpc('teamInvites.list',null,'query');
+    if(!invites||!invites.length){
+      wrap.innerHTML='<div style="font-size:11px;color:var(--t3);padding:8px 0">No invites sent yet.</div>';
+      return;
+    }
+    const now=Date.now();
+    const rows=invites.map(inv=>{
+      const expired=new Date(inv.expiresAt).getTime()<now;
+      const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:9px">✓ Accepted</span>'
+        :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:9px">Expired</span>'
+        :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:9px">Pending</span>';
+      const inviteUrl=window.location.origin+'/invite/'+inv.token;
+      const actions=inv.accepted?''
+        :`<button class="btn btn-s" style="height:22px;font-size:10px" onclick="copyInviteLink('${inv.token}')" title="Copy invite link">📋 Copy Link</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;color:var(--red)" onclick="revokeInvite(${inv.id})" title="Revoke invite">🗑️ Revoke</button>`;
+      return`<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${esc(inv.email)}</div>
+          <div style="font-size:10px;color:var(--t3)">${inv.name?esc(inv.name)+' · ':''}<span style="text-transform:capitalize">${inv.role}</span> · Expires ${new Date(inv.expiresAt).toLocaleDateString()}</div>
+        </div>
+        ${status}
+        <div style="display:flex;gap:4px;flex-shrink:0">${actions}</div>
+      </div>`;
+    }).join('');
+    wrap.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">${invites.length} invite${invites.length===1?'':'s'}</div>${rows}`;
+  }catch(e){
+    wrap.innerHTML=`<div style="font-size:11px;color:var(--red)">Error loading invites: ${esc(e.message)}</div>`;
+  }
+}
+
+async function sendInvite(){
+  const email=document.getElementById('inv-email')?.value.trim();
+  const name=document.getElementById('inv-name')?.value.trim()||null;
+  const role=document.getElementById('inv-role')?.value||'user';
+  if(!email){toast('⚠ Email is required');return;}
+  try{
+    const inv=await _trpc('teamInvites.create',{email,name,role,expiryDays:7},'mutate');
+    const inviteUrl=window.location.origin+'/invite/'+inv.token;
+    toast('✓ Invite created! Copying link...');
+    await navigator.clipboard.writeText(inviteUrl).catch(()=>{});
+    document.getElementById('inv-email').value='';
+    document.getElementById('inv-name').value='';
+    loadInviteList();
+    // Show the link in a modal so admin can copy/share it
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">✉️ Invite Link Created</h2>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">Share this link with <strong>${esc(email)}</strong>. It expires in 7 days.</p>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="inp" value="${esc(inviteUrl)}" id="inv-link-box" readonly style="flex:1;font-size:11px">
+        <button class="btn btn-p" style="height:32px;font-size:11px;white-space:nowrap" onclick="navigator.clipboard.writeText(document.getElementById('inv-link-box').value);toast('✓ Copied!')">📋 Copy</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn btn-s" onclick="closeModal()">Close</button>
+      </div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){
+    toast('⚠ '+e.message);
+  }
+}
+
+function copyInviteLink(token){
+  const url=window.location.origin+'/invite/'+token;
+  navigator.clipboard.writeText(url).then(()=>toast('✓ Invite link copied!')).catch(()=>{
+    prompt('Copy this invite link:',url);
+  });
+}
+
+async function resendInvite(id){
+  try{
+    const updated=await _trpc('teamInvites.resend',{id,expiryDays:7},'mutate');
+    const url=window.location.origin+'/invite/'+updated.token;
+    toast('✓ Invite regenerated! Copying new link...');
+    await navigator.clipboard.writeText(url).catch(()=>{});
+    loadInviteList();
+    // Show new link
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">🔄 Invite Resent</h2>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:10px">New link for <strong>${esc(updated.email)}</strong>. Expires in 7 days.</p>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="inp" value="${esc(url)}" id="inv-link-box2" readonly style="flex:1;font-size:11px">
+        <button class="btn btn-p" style="height:32px;font-size:11px;white-space:nowrap" onclick="navigator.clipboard.writeText(document.getElementById('inv-link-box2').value);toast('✓ Copied!')">📋 Copy</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn btn-s" onclick="closeModal()">Close</button>
+      </div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){
+    toast('⚠ '+e.message);
+  }
+}
+
+async function revokeInvite(id){
+  if(!confirm('Revoke this invite? The link will stop working.'))return;
+  try{
+    await _trpc('teamInvites.delete',{id},'mutate');
+    toast('✓ Invite revoked');
+    loadInviteList();
+  }catch(e){
+    toast('⚠ '+e.message);
+  }
 }
 
 // ============================================================
@@ -9108,31 +9349,55 @@ function handleOneNoteFiles(files){
 }
 
 // ====== AI ASSISTANT ======
-const aiMsgs=[
+// Static non-news messages (always shown)
+const aiStaticMsgs=[
   {type:'reminder',msg:'📅 Budget Review meeting starts in 20 minutes. Prep docs are in SharePoint.'},
   {type:'warning',msg:'⚠️ 3 tasks are overdue. Consider processing them in GTD.'},
   {type:'encourage',msg:'🌟 You\'ve completed 5 tasks already today! That\'s 35% above your daily average.'},
   {type:'info',msg:'💡 Tip: Use the My Day screen to plan your morning. It takes just 5 minutes.'},
   {type:'reminder',msg:'📅 Client Onboarding Call with Acme Inc. is in 1 hour.'},
   {type:'warning',msg:'🌤️ Weather alert: Rain expected this afternoon in your area. Consider rescheduling outdoor meetings.'},
-  {type:'news',msg:'📰 Tech: OpenAI announced a new reasoning model. May be relevant to your AI research notes.'},
   {type:'encourage',msg:'🔥 Your meditation streak hit 22 days! You\'re building a powerful habit.'},
   {type:'info',msg:'📊 Your most productive time this week has been 9-11 AM. Try scheduling deep work there.'},
-  {type:'news',msg:'🌍 World: G7 summit begins today. Economic policy discussions may affect Q2 forecasts.'},
 ];
-let aiMsgIdx=0,aiTimer=null;
+let aiMsgs=[...aiStaticMsgs]; // will be extended with live headlines
+let aiMsgIdx=0,aiTimer=null,_newsLoaded=false;
+
+async function loadLiveNews(){
+  if(_newsLoaded)return;
+  try{
+    const topics=D.aiTopics&&D.aiTopics.length?D.aiTopics:['Technology','World News'];
+    const headlines=await _trpc('news.getHeadlines',{topics,countPerTopic:3},'query');
+    if(headlines&&headlines.length){
+      const topicEmoji={'Technology':'📱','World News':'🌍','Business':'💼','Science':'🔬','Politics':'🏛️','Health':'🏥','Entertainment':'🎬','Sports':'⚽','Finance':'📈'};
+      const newsMsgs=headlines.map(h=>{
+        const emoji=topicEmoji[h.topic]||'📰';
+        return {type:'news',msg:`${emoji} ${h.topic}: ${h.title}`,link:h.link};
+      });
+      // Replace any existing news entries with live ones
+      aiMsgs=[...aiStaticMsgs,...newsMsgs];
+      // Shuffle for variety
+      for(let i=aiMsgs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[aiMsgs[i],aiMsgs[j]]=[aiMsgs[j],aiMsgs[i]];}
+      _newsLoaded=true;
+    }
+  }catch(e){console.warn('[news] Failed to load live headlines:',e);}
+}
 
 function startAIAssistant(){
   if(aiTimer)return;
-  showAIMsg();
-  aiTimer=setInterval(showAIMsg,45000); // every 45 seconds
+  // Load live news first, then start cycling
+  loadLiveNews().then(()=>{
+    showAIMsg();
+    aiTimer=setInterval(showAIMsg,45000); // every 45 seconds
+  });
 }
 function showAIMsg(){
   const bubble=document.getElementById('ai-bubble');
   const m=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;
   const div=document.createElement('div');
   div.className='ai-msg';
-  div.innerHTML=`<button class="ai-close" onclick="this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div><div>${m.msg}</div>`;
+  const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:9px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
+  div.innerHTML=`<button class="ai-close" onclick="this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
   if('speechSynthesis' in window && D.creds.aiSpeak){
@@ -11842,6 +12107,7 @@ let _bkData=[],_bkTotal=0,_bkTags=[],_bkLoading=false;
 // Collections state
 let _bkCollections=[],_bkCollFilter=null; // null = All Bookmarks
 let _bkShares=[];
+let _bkMultiSelect=false,_bkSelected=new Set(); // bulk selection state
 async function loadCollections(){
   try{_bkCollections=await _trpc('bookmarks.collections.list',null,'query');}catch(e){_bkCollections=[];}
 }
@@ -12042,7 +12308,9 @@ function paintBookmarks(){
       const domain=(() => { try { return new URL(b.url).hostname.replace(/^www\./,''); } catch { return ''; } })();
       const readMins=b.wordCount?Math.max(1,Math.round(b.wordCount/200)):null;
       const readTimeHtml=readMins?`<span style="font-size:9px;color:var(--t3)">&#9201; ${readMins} min read</span>`:'';
-      return `<div class="cd" style="cursor:pointer;transition:border-color .15s;position:relative${b.isRead?';opacity:.75':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor=''" onclick="window.open('${esc(b.url)}','_blank')">
+      const isSelected=_bkSelected.has(b.id);
+      return `<div class="cd" style="cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative${b.isRead?';opacity:.75':''}${isSelected?';border-color:var(--ac);box-shadow:0 0 0 2px var(--acs)':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor='${isSelected?'var(--ac)':''}'" onclick="_bkMultiSelect?toggleBkSelect(${b.id}):window.open('${esc(b.url)}','_blank')">
+        ${_bkMultiSelect?`<div style="position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px;border-radius:4px;border:2px solid ${isSelected?'var(--ac)':'var(--bd2)'};background:${isSelected?'var(--ac)':'var(--s1)'};display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="event.stopPropagation();toggleBkSelect(${b.id})">${isSelected?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>':''}</div>`:''}
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -12064,6 +12332,7 @@ function paintBookmarks(){
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'&#11088;':'&#9734;'}</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'Unread':'Read'}</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();showAddToCollection(${b.id})" title="Add to collection">&#128193;</button>
+          ${_bkCollFilter?`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--warn)" onclick="event.stopPropagation();removeFromCollection(${_bkCollFilter},${b.id})" title="Remove from this collection">&#128197;</button>`:''}
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();shareBookmark(${b.id})" title="Share">&#128279;</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">&#9999;</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">&#128465;</button>
@@ -12079,6 +12348,7 @@ function paintBookmarks(){
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">&#128278; Bookmarklet</button>
       ${_bkCollFilter?`<button class="btn btn-s" style="font-size:11px" onclick="shareCollection(${_bkCollFilter})">&#128279; Share Collection</button>`:''}
+      <button class="btn ${_bkMultiSelect?'btn-p':'btn-s'}" style="font-size:11px" onclick="toggleBkMultiSelect()" title="Select multiple bookmarks">&#9745; Select</button>
       <button class="btn btn-p" onclick="showAddBookmark()">+ Add Bookmark</button>
     </div>
   </div>
@@ -12105,6 +12375,13 @@ function paintBookmarks(){
         </select>`:''}
       </div>
       ${_bkTags.length&&!_bkCollFilter?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:10px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
+      ${_bkMultiSelect&&_bkSelected.size>0?`<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:200;background:var(--s2);border:1px solid var(--ac);border-radius:12px;padding:10px 18px;display:flex;gap:10px;align-items:center;box-shadow:0 4px 24px rgba(0,0,0,.4)">
+        <span style="font-size:12px;color:var(--t2)">${_bkSelected.size} selected</span>
+        <button class="btn btn-s" style="font-size:11px" onclick="bulkAddToCollection()">&#128193; Add to Collection</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="bulkShareBookmarks()">&#128279; Share Selected</button>
+        <button class="btn btn-s" style="font-size:11px;color:var(--warn)" onclick="_bkSelected.clear();paintBookmarks()">&#10005; Clear</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="toggleBkMultiSelect()">Done</button>
+      </div>`:''}
       <div id="bk-cards">${cards}</div>
       ${_bkTotal>_bkPageSize?`<div style="display:flex;justify-content:center;align-items:center;gap:12px;margin-top:16px">
         <button class="btn btn-s" ${_bkPage<=1?'disabled':''} onclick="_bkPage--;renderBookmarks()">&#8592; Prev</button>
@@ -12366,6 +12643,60 @@ async function doAddToCollection(collectionId,bookmarkId,rowEl){
     setTimeout(closeModal,600);
     loadCollections().then(()=>paintBookmarks());
   }catch(e){toast('Error: '+e.message);}
+}
+
+async function removeFromCollection(collectionId,bookmarkId){
+  const b=_bkData.find(x=>x.id===bookmarkId);
+  const title=b?b.title||b.url:'this bookmark';
+  if(!confirm(`Remove "${title.slice(0,60)}" from this collection?`))return;
+  try{
+    await _trpc('bookmarks.collections.removeBookmark',{collectionId,bookmarkId},'mutate');
+    toast('Removed from collection');
+    loadCollections();
+    loadCollectionView(collectionId);
+  }catch(e){toast('Error: '+e.message);}
+}
+
+// ====== BULK MULTI-SELECT ======
+function toggleBkMultiSelect(){
+  _bkMultiSelect=!_bkMultiSelect;
+  if(!_bkMultiSelect)_bkSelected.clear();
+  paintBookmarks();
+}
+function toggleBkSelect(id){
+  if(_bkSelected.has(id))_bkSelected.delete(id);
+  else _bkSelected.add(id);
+  paintBookmarks();
+}
+function bulkAddToCollection(){
+  if(!_bkSelected.size)return;
+  const ids=[..._bkSelected];
+  const colOpts=_bkCollections.map(c=>`<div class="lr" style="border-radius:6px;padding:6px 8px;cursor:pointer" onclick="doBulkAddToCollection(${c.id},[${ids}],this)"><span style="font-size:14px">${esc(c.icon||'📁')}</span><span style="font-size:12px">${esc(c.name)}</span></div>`).join('');
+  openBkModal('📁 Add '+ids.length+' Bookmarks to Collection',
+    colOpts||'<div style="color:var(--t3);font-size:12px">No collections yet. Create one first.</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'}]
+  );
+}
+async function doBulkAddToCollection(collectionId,bookmarkIds,rowEl){
+  try{
+    await Promise.all(bookmarkIds.map(id=>_trpc('bookmarks.collections.addBookmark',{collectionId,bookmarkId:id},'mutate')));
+    if(rowEl)rowEl.style.background='var(--oks)';
+    toast(bookmarkIds.length+' bookmarks added to collection!');
+    setTimeout(closeModal,600);
+    loadCollections().then(()=>paintBookmarks());
+  }catch(e){toast('Error: '+e.message);}
+}
+function bulkShareBookmarks(){
+  if(!_bkSelected.size)return;
+  const ids=[..._bkSelected];
+  openBkModal('🔗 Share '+ids.length+' Bookmarks',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div class="field"><label>Share Title</label><input class="inp" id="sh-title" placeholder="e.g. Useful React resources"></div>' +
+    '<div class="field"><label>Description (optional)</label><textarea class="inp" id="sh-desc" placeholder="What is this about?" style="min-height:60px"></textarea></div>' +
+    '<div class="field"><label>Expires in</label><select class="inp" id="sh-expires"><option value="">Never</option><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></div>' +
+    '</div>',
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Create Share Link',cls:'btn-p',action:`doShareBookmarks([${ids}])`}]
+  );
 }
 
 // ====== BOOKMARK SHARES ======
@@ -14588,6 +14919,9 @@ async function syncOAuthCalendar(provider){
     const result=await _trpc('oauthSync.syncCalendar',{provider,daysAhead:30},'mutation');
     const events=result?.events||[];
     if(!events.length){toast('No upcoming events found.');return;}
+    // After sync, load DB events to get their numeric IDs
+    let dbEvents=[];
+    try{dbEvents=await _trpc('oauthSync.getCalendarEventsFromDB',null,'query');}catch(e){}
     // Merge into _calEvents
     let added=0;
     events.forEach(ev=>{
@@ -14598,7 +14932,9 @@ async function syncOAuthCalendar(provider){
       const endHour=endD.getHours()||hour+1;
       const exists=_calEvents.find(e=>e.title===ev.title&&e.dateStr===dateStr);
       if(!exists){
-        _calEvents.push({id:Date.now()+Math.random(),title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider});
+        // Try to find DB ID for this event
+        const dbEv=dbEvents.find(d=>d.title===ev.title&&new Date(d.start).toISOString().slice(0,10)===dateStr);
+        _calEvents.push({id:Date.now()+Math.random(),dbId:dbEv?.id||null,title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider,isAllDay:ev.isAllDay||0});
         added++;
       }
     });

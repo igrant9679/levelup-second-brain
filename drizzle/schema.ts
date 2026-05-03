@@ -491,3 +491,34 @@ export const bookmarkShares = mysqlTable('bookmark_shares', {
 }));
 export type BookmarkShare = typeof bookmarkShares.$inferSelect;
 export type InsertBookmarkShare = typeof bookmarkShares.$inferInsert;
+
+// ─── Team Invites ────────────────────────────────────────────────────────────
+// Admin-generated invite tokens that allow new users to register with a password.
+export const teamInvites = mysqlTable('team_invites', {
+  id: int('id').autoincrement().primaryKey(),
+  /** The admin who created the invite */
+  invitedBy: int('invitedBy').notNull(),
+  /** Email address the invite was sent to */
+  email: varchar('email', { length: 320 }).notNull(),
+  /** Display name hint for the invitee */
+  name: varchar('name', { length: 128 }),
+  /** Role to assign on acceptance */
+  role: mysqlEnum('role', ['user', 'admin']).default('user').notNull(),
+  /** Cryptographically random URL-safe token */
+  token: varchar('token', { length: 64 }).notNull().unique(),
+  /** Whether the invite has been accepted */
+  accepted: tinyint('accepted').default(0).notNull(),
+  /** When the invite was accepted (null if pending) */
+  acceptedAt: timestamp('acceptedAt'),
+  /** User ID created on acceptance */
+  acceptedUserId: int('acceptedUserId'),
+  /** When the invite expires (null = 7 days from creation) */
+  expiresAt: timestamp('expiresAt').notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxInvitedBy: index('idx_ti_invited_by').on(t.invitedBy),
+  idxEmail: index('idx_ti_email').on(t.email),
+  idxToken: index('idx_ti_token').on(t.token),
+}));
+export type TeamInvite = typeof teamInvites.$inferSelect;
+export type InsertTeamInvite = typeof teamInvites.$inferInsert;

@@ -764,3 +764,47 @@
 - [x] Frontend: Share button on bookmark cards and collection headers
 - [x] Frontend: Share modal with copy-link button and expiry options; Share Manager panel
 - [x] Tests: vitest coverage for collections and shares procedures (7 tests, all passing)
+
+## Live News Feed, Collection UX & Team Invites (May 2026)
+
+### Live News Feed
+- [x] Backend: tRPC `news.getHeadlines` — fetches real BBC RSS headlines filtered by user topic preferences
+- [x] Frontend: AI assistant bubbles now load live headlines from tRPC on startup
+- [x] Frontend: Settings → AI Features topic checkboxes control which BBC RSS feeds are fetched
+
+### Remove from Collection
+- [x] Frontend: "Remove from collection" button on bookmark cards when viewing a collection detail view
+- [x] tRPC: bookmarks.collections.removeBookmark procedure
+- [x] DB helper: removeFromCollection(collectionId, bookmarkId, userId)
+
+### Bulk Multi-Select & Bulk Share
+- [x] Frontend: Checkbox multi-select mode toggle button in Bookmarks toolbar
+- [x] Frontend: Select-all checkbox in header when multi-select is active
+- [x] Frontend: Floating action bar at bottom when items are selected (count, Share Selected, Add to Collection, Cancel)
+- [x] Frontend: Bulk share modal — create share from selected bookmark IDs
+- [x] Frontend: Bulk add-to-collection modal — add all selected bookmarks to a chosen collection
+
+### Admin Team Member Invites
+- [x] DB: team_invites table (id, invitedBy, email, name, token, role, accepted, acceptedAt, acceptedUserId, expiresAt, createdAt)
+- [x] DB helpers: createTeamInvite, getAllTeamInvites, getTeamInviteByToken, deleteTeamInvite, acceptTeamInvite, resendTeamInvite
+- [x] Backend: tRPC `teamInvites.create` (adminProcedure) — generate token, return invite record
+- [x] Backend: tRPC `teamInvites.list` (adminProcedure) — list all invites with status
+- [x] Backend: tRPC `teamInvites.delete` (adminProcedure) — revoke an invite
+- [x] Backend: tRPC `teamInvites.resend` (adminProcedure) — regenerate token, extend expiry 7 days
+- [x] Backend: tRPC `teamInvites.validate` (publicProcedure) — validate token, return invite metadata
+- [x] Backend: tRPC `teamInvites.accept` (publicProcedure) — create user account with hashed password, mark invite accepted
+- [x] Frontend: Team screen → ✉️ Invite Member button opens inline invite panel
+- [x] Frontend: Invite form (email, name, role) + Send Invite button → shows copyable link modal
+- [x] Frontend: Invite table with Pending/Accepted/Expired badges, Copy Link / Resend / Revoke buttons
+- [x] Frontend: Resend regenerates token, shows new link modal, refreshes table
+- [x] Frontend: Accept-invite page at /invite/:token — shows invite details, name + password form
+- [x] Frontend: Route /invite/:token registered in App.tsx (public, outside AppLayout)
+- [x] Tests: 14 vitest tests covering create, list, delete, resend, validate (all 213 tests pass)
+
+### Calendar Entry Edit & Delete
+- [x] Backend: tRPC `oauthSync.updateCalendarEvent` — update title, description, start, end, location, allDay
+- [x] Backend: tRPC `oauthSync.deleteCalendarEvent` — delete a user-owned calendar event by ID
+- [x] Frontend: Edit button on calendar event detail modal (opens pre-filled edit form)
+- [x] Frontend: Delete button on calendar event detail modal (confirm dialog)
+- [x] Frontend: Edit form fields: title, date, start time, end time, location, description, all-day toggle
+- [x] Frontend: Calendar re-renders after edit/delete without full page reload

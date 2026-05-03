@@ -778,6 +778,47 @@ export async function deleteCalendarEvent(userId: number, id: number) {
   }
 }
 
+// ─── Calendar Event Update ───────────────────────────────────────────────────
+
+export async function updateCalendarEvent(
+  userId: number,
+  id: number,
+  updates: {
+    title?: string;
+    start?: Date;
+    end?: Date;
+    location?: string | null;
+    description?: string | null;
+    isAllDay?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { calendarEvents } = await import('../drizzle/schema');
+    // Verify ownership
+    const [existing] = await db
+      .select()
+      .from(calendarEvents)
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)))
+      .limit(1);
+    if (!existing) return null;
+    await db
+      .update(calendarEvents)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)));
+    const [updated] = await db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.id, id))
+      .limit(1);
+    return updated ?? null;
+  } catch (err) {
+    console.warn('[Database] Failed to update calendar event:', err);
+    return null;
+  }
+}
+
 // ─── Secret Expiry Reminders ──────────────────────────────────────────────────
 
 export async function getSecretExpiries(userId: number) {
@@ -1250,4 +1291,116 @@ export async function incrementShareViewCount(token: string) {
   await db.update(bookmarkShares)
     .set({ viewCount: sql`${bookmarkShares.viewCount} + 1` })
     .where(eq(bookmarkShares.token, token));
+}
+
+// ─── Team Invites ─────────────────────────────────────────────────────────────
+
+export async function createTeamInvite(data: {
+  invitedBy: number;
+  email: string;
+  name?: string | null;
+  role: 'user' | 'admin';
+  token: string;
+  expiresAt: Date;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    await db.insert(teamInvites).values({
+      invitedBy: data.invitedBy,
+      email: data.email.toLowerCase().trim(),
+      name: data.name ?? null,
+      role: data.role,
+      token: data.token,
+      expiresAt: data.expiresAt,
+    });
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, data.token)).limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.warn('[Database] Failed to create team invite:', err);
+    return null;
+  }
+}
+
+export async function getTeamInvites(invitedBy: number) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    return await db.select().from(teamInvites).where(eq(teamInvites.invitedBy, invitedBy)).orderBy(teamInvites.createdAt);
+  } catch (err) {
+    console.warn('[Database] Failed to get team invites:', err);
+    return [];
+  }
+}
+
+export async function getAllTeamInvites() {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    return await db.select().from(teamInvites).orderBy(teamInvites.createdAt);
+  } catch (err) {
+    console.warn('[Database] Failed to get all team invites:', err);
+    return [];
+  }
+}
+
+export async function getTeamInviteByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, token)).limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.warn('[Database] Failed to get team invite by token:', err);
+    return null;
+  }
+}
+
+export async function deleteTeamInvite(id: number, invitedBy: number) {
+  const db = await getDb();
+  if (!db) return { deleted: false };
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    await db.delete(teamInvites).where(and(eq(teamInvites.id, id), eq(teamInvites.invitedBy, invitedBy)));
+    return { deleted: true };
+  } catch (err) {
+    console.warn('[Database] Failed to delete team invite:', err);
+    return { deleted: false };
+  }
+}
+
+export async function acceptTeamInvite(token: string, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    await db.update(teamInvites)
+      .set({ accepted: 1, acceptedAt: new Date(), acceptedUserId: userId })
+      .where(eq(teamInvites.token, token));
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.token, token)).limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.warn('[Database] Failed to accept team invite:', err);
+    return null;
+  }
+}
+
+export async function resendTeamInvite(id: number, newToken: string, newExpiresAt: Date) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { teamInvites } = await import('../drizzle/schema');
+    await db.update(teamInvites)
+      .set({ token: newToken, expiresAt: newExpiresAt })
+      .where(and(eq(teamInvites.id, id), eq(teamInvites.accepted, 0)));
+    const [row] = await db.select().from(teamInvites).where(eq(teamInvites.id, id)).limit(1);
+    return row ?? null;
+  } catch (err) {
+    console.warn('[Database] Failed to resend team invite:', err);
+    return null;
+  }
 }

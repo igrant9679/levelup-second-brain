@@ -169,6 +169,13 @@
       "when": 1777828312170,
       "tag": "0023_tiresome_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1777829961476,
+      "tag": "0024_elite_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }
