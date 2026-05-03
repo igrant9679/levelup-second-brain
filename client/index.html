@@ -7690,7 +7690,7 @@ function renderTeam(){
         <div style="font-size:11px;color:var(--t3);padding:12px 0;text-align:center">Loading activity feed...</div>
       </div>
     </div>
-  </div>\`;
+    </div>`;
   const totalTasks=D.tasks.length;
   const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
