@@ -7619,6 +7619,13 @@ function renderTeam(){
     const goals=D.goals.filter(g=>g.createdBy===m.name);
     const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+g.pct,0)/goals.length):null;
     const initials=m.name.split(' ').map(w=>w[0]).join('');
+    // Last seen + 7-day activity badge from activity feed data
+    const memberFeedData=_activityFeedData.filter(a=>a.userName===m.name||a.userId===m.id);
+    const sevenDaysAgo=new Date(Date.now()-7*24*60*60*1000);
+    const weekActivity=memberFeedData.filter(a=>new Date(a.createdAt)>=sevenDaysAgo).length;
+    const lastActivityDate=memberFeedData.length?new Date(memberFeedData[0].createdAt):null;
+    const lastSeenStr=lastActivityDate?timeAgo(lastActivityDate.toISOString()):'Never';
+    const activityBadge=weekActivity>0?`<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
     const avatarHtml=m.avatar
       ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
       :`<div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
@@ -7631,8 +7638,9 @@ function renderTeam(){
           ${removeAvatarBtn}
         </div>
         <div style="flex:1">
-          <div style="font-size:14px;font-weight:600">${esc(m.name)}</div>
+          <div style="font-size:14px;font-weight:600">${esc(m.name)}${activityBadge}</div>
           <div style="font-size:10px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">🕐 Last seen: ${lastSeenStr}</div>
         </div>
         <span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600">${m.role}</span>
       </div>
@@ -7646,6 +7654,7 @@ function renderTeam(){
       ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
       <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
       ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+      ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:9px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';

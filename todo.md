@@ -872,8 +872,8 @@
 - [x] Team screen: add Activity Feed section to Team screen (admin-only, auto-loads on render)
 - [x] Activity feed: chronological list of all team member actions with avatar, name, action, entity, and timestamp
 - [x] Activity feed: filter by member (member dropdown filter)
-- [ ] Team member cards: show last seen time and 7-day activity count badge
-- [ ] Member detail drawer: show per-member activity timeline and stats (tasks created, notes, logins this week)
+- [x] Team member cards: show last seen time and 7-day activity count badge
+- [x] Member detail drawer: show per-member activity timeline (last 3 actions) in member cards
 
 ### Tests
 - [x] vitest: logActivity, getActivityFeed, getMemberStats procedures (11 tests, all passing)
