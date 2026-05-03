@@ -2719,7 +2719,11 @@ function showNoteInEditor(id){
 // ─── Unified Notes Filter Engine ─────────────────────────────────────────────
 function _parseNoteDate(n){
   // Try to parse a note's updated/created field into a Date. Falls back to epoch.
-  const raw=n.updated||n.created||'';
+  const rawVal=n.updated||n.created;
+  if(rawVal===undefined||rawVal===null||rawVal==='')return new Date(0);
+  // Handle numeric timestamps (ms since epoch) directly — avoids raw.trim() error
+  if(typeof rawVal==='number')return new Date(rawVal);
+  const raw=String(rawVal);
   if(!raw)return new Date(0);
   const s=raw.trim();
   // 1. ISO / RFC2822 / standard parseable strings
@@ -13734,12 +13738,12 @@ async function wdiImportSelected(){
       if(dupMode==='skip'){skipped++;continue;}
       if(dupMode==='overwrite'){
         const idx=D.notes.findIndex(x=>x.title===n.name);
-        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].updated=Date.now();overwritten++;continue;}
+        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});overwritten++;continue;}
       }
       // rename mode: fall through with modified name
     }
     const finalName=isDup&&dupMode==='rename'?n.name+' (imported)':n.name;
-    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,tags:[],source:'Word Import',created:Date.now(),updated:Date.now()});
+    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,tags:[],source:'Word Import',created:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
     imported++;
   }
   save('notes');

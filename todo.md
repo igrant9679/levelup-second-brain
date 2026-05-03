@@ -923,3 +923,6 @@
 - [x] Frontend: File picker accepting .pdf, .docx, .txt files
 - [x] Frontend: Show progress spinner during extraction, then create note with extracted content
 - [x] Frontend: Tag imported note with source matching file type (e.g. 'PDF Import', 'Word Import', 'Text Import')
+
+## Word Doc Import Bug
+- [x] Fix "raw.trim is not a function" error — root cause: wdiImportSelected stored updated as Date.now() (number); _parseNoteDate called .trim() on a number. Fixed by: (1) making _parseNoteDate handle numeric timestamps directly, (2) storing updated as a locale date string in wdiImportSelected
