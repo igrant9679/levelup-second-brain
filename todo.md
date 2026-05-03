@@ -593,3 +593,9 @@
 - [x] Integrate widget into Home.tsx dashboard alongside existing widgets
 - [x] Show empty state when not connected or no upcoming events
 - [x] Auto-refresh every 5 minutes (refetchInterval: 5 * 60 * 1000)
+
+## Bug: Sync Settings Page Blank / Navigation Broken
+
+- [ ] Fix blank SyncSettings page (diagnose render error)
+- [ ] Fix sidebar "Sync" link to point to /sync-settings
+- [ ] Verify PerUserCredentials component renders correctly
