@@ -432,6 +432,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
 <div class="tb-a">
+<span id="topbar-connected-as" style="display:none;font-size:10px;color:var(--t3);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;align-self:center" title="Connected Microsoft 365 account"></span>
 <button id="topbar-token-refresh" class="bn" onclick="handleTopbarTokenRefresh()" style="display:none;background:#f59e0b;gap:5px" title="OAuth token expiring soon — click to refresh">
 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
 Refresh Token
@@ -7748,10 +7749,37 @@ function renderSettingsHTML(){
     <div id="on-history-list"><div style="font-size:11px;color:var(--t3)">No imports yet</div></div>
   </div>
   </div>
-  <!-- Sync --><div id="sp-9" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Sync</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Microsoft To Do sync</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Sync interval</div></div><select class="inp" style="max-width:160px"><option>Every 30 sec</option><option>Every 1 min</option><option>Every 5 min</option></select></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Last sync</div></div><span style="font-size:11px;color:var(--ok)">2 min ago ✓</span></div></div>
+  <!-- Sync --><div id="sp-9" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Sync</h3>
+  <!-- Live sync status card -->
+  <div id="sync-panel-status" style="background:var(--bg2,rgba(255,255,255,0.04));border:1px solid var(--brd);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--t2)">Connected Providers</div>
+    <div id="sync-panel-ms" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)">
+      <div style="width:28px;height:28px;border-radius:6px;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">M</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500">Microsoft 365</div>
+        <div id="sync-panel-ms-status" style="font-size:10px;color:var(--t3)">Loading…</div>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
+        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthMail('microsoft')">✉ Mail</button>
+        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthContacts('microsoft')">👥 Contacts</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
+      <div style="width:28px;height:28px;border-radius:6px;background:#4285f4;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">G</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500">Google Workspace</div>
+        <div id="sync-panel-google-status" style="font-size:10px;color:var(--t3)">Not connected</div>
+      </div>
+    </div>
+  </div>
+  <!-- Sync all button -->
+  <button class="btn btn-p" style="width:100%;font-size:12px;margin-bottom:12px" onclick="syncAllProviders()">🔄 Sync All Now</button>
+  <!-- Sync log -->
+  <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">Recent Sync Activity</div>
+  <div id="sync-panel-log" style="font-size:10px;color:var(--t3);background:var(--bg2,rgba(0,0,0,0.04));border-radius:6px;padding:8px;max-height:160px;overflow-y:auto">Loading…</div>
+  </div>
   <!-- Backup --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:10px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
@@ -7840,6 +7868,7 @@ function showSetTab(el,id){
   if(id==='sp-3')loadEmailNotifPrefs();
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
+  if(id==='sp-9')loadSyncPanel();
 }
 // ====== EXPORT / IMPORT ======
 function exportData(){
@@ -11796,13 +11825,102 @@ async function loadEmailDeliveryLog(){
     el.innerHTML='<span style="color:var(--t3);font-style:italic">Could not load delivery log.</span>';
   }
 }
-/** Check OAuth token expiry and update topbar button state.
+/** Load the Sync settings panel (sp-9) with live provider status and recent sync log */
+async function loadSyncPanel(){
+  const msStatusEl=document.getElementById('sync-panel-ms-status');
+  const googleStatusEl=document.getElementById('sync-panel-google-status');
+  const logEl=document.getElementById('sync-panel-log');
+  try{
+    const status=await _trpc('oauthSync.status',undefined,'query');
+    if(msStatusEl){
+      if(status?.microsoft?.connected){
+        const exp=status.microsoft.expiresAt?new Date(status.microsoft.expiresAt):null;
+        const expStr=exp?(' · Token expires '+exp.toLocaleTimeString()):''
+        msStatusEl.style.color='var(--ok,#22c55e)';
+        msStatusEl.textContent='✓ Connected'+(status.microsoft.email?' as '+status.microsoft.email:'')+expStr;
+      } else {
+        msStatusEl.style.color='var(--t3)';
+        msStatusEl.textContent='Not connected — go to Accounts to connect';
+      }
+    }
+    if(googleStatusEl){
+      if(status?.google?.connected){
+        googleStatusEl.style.color='var(--ok,#22c55e)';
+        googleStatusEl.textContent='✓ Connected'+(status.google.email?' as '+status.google.email:'');
+      } else {
+        googleStatusEl.style.color='var(--t3)';
+        googleStatusEl.textContent='Not connected — go to Accounts to connect';
+      }
+    }
+  }catch{
+    if(msStatusEl)msStatusEl.textContent='Could not load status';
+  }
+  // Load recent sync log from syncStatus
+  if(logEl){
+    try{
+      const syncData=await _trpc('oauthSync.getSyncStatusAll',undefined,'query');
+      if(!syncData||!syncData.length){
+        logEl.innerHTML='<span style="color:var(--t3);font-style:italic">No sync activity yet. Click Sync All Now to start.</span>';
+      } else {
+        logEl.innerHTML=syncData.map(s=>{
+          const lastSync=s.lastSyncAt?new Date(s.lastSyncAt).toLocaleString():'Never';
+          const icon=s.lastStatus==='success'?'✓':s.lastStatus==='error'?'✗':'—';
+          const color=s.lastStatus==='success'?'var(--ok,#22c55e)':s.lastStatus==='error'?'var(--err,#ef4444)':'var(--t3)';
+          return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid var(--brd)">
+            <span style="color:${color};font-weight:700;min-width:12px">${icon}</span>
+            <div style="flex:1;min-width:0">
+              <span style="color:var(--t2)">${s.provider} / ${s.syncType}</span>
+              <span style="color:var(--t3);margin-left:6px">${lastSync}</span>
+              ${s.itemCount?`<span style="color:var(--t3);margin-left:6px">${s.itemCount} items</span>`:''}
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }catch{
+      logEl.innerHTML='<span style="color:var(--t3);font-style:italic">Could not load sync log.</span>';
+    }
+  }
+}
+/** Trigger sync for all connected providers */
+async function syncAllProviders(){
+  toast('🔄 Syncing all providers…');
+  const promises=[];
+  try{
+    const status=await _trpc('oauthSync.status',undefined,'query');
+    if(status?.microsoft?.connected){
+      promises.push(syncOAuthCalendar('microsoft').catch(()=>{}));
+      promises.push(syncOAuthMail('microsoft').catch(()=>{}));
+      promises.push(syncOAuthContacts('microsoft').catch(()=>{}));
+    }
+    if(status?.google?.connected){
+      promises.push(syncOAuthCalendar('google').catch(()=>{}));
+      promises.push(syncOAuthMail('google').catch(()=>{}));
+    }
+    await Promise.all(promises);
+    toast('✓ Sync complete');
+    loadSyncPanel();
+  }catch(e){
+    toast('⚠ Sync failed: '+(e?.message||'Unknown error'));
+  }
+}
+/** Check OAuth token expiry, update topbar button state, show Connected-as label, and auto-refresh if <5 min.
  * Button is hidden when healthy, orange within 5 min, red when expired. */
 async function checkTokenExpiryBanner(){
   const btn=document.getElementById('topbar-token-refresh');
+  const connLabel=document.getElementById('topbar-connected-as');
   if(!btn)return;
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
+    // Update Connected-as label
+    if(connLabel){
+      if(status?.microsoft?.connected&&status.microsoft.email){
+        connLabel.textContent=status.microsoft.email;
+        connLabel.style.display='inline-block';
+        connLabel.title='Connected Microsoft 365: '+status.microsoft.email+(status.microsoft.displayName?' ('+status.microsoft.displayName+')':'');
+      } else {
+        connLabel.style.display='none';
+      }
+    }
     const providers=[];
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
       providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
@@ -11819,6 +11937,18 @@ async function checkTokenExpiryBanner(){
     const soonest=expiring[0];
     const diffMs=soonest.expiresAt.getTime()-Date.now();
     const expired=diffMs<=0;
+    // Auto-refresh silently if token is expiring within 5 min (and not already expired)
+    if(!expired&&diffMs<fiveMinMs&&!btn._autoRefreshing){
+      btn._autoRefreshing=true;
+      try{
+        await refreshOAuthToken(soonest.key);
+        // Re-check after auto-refresh
+        await checkTokenExpiryBanner();
+      } catch{} finally{
+        btn._autoRefreshing=false;
+      }
+      return;
+    }
     btn.style.display='flex';
     btn.style.background=expired?'#ef4444':'#f59e0b';
     btn.title=expired

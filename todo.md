@@ -608,3 +608,8 @@
 - [x] Button turns red when token is expired
 - [x] Clicking button calls refreshOAuthToken and shows success/error toast; re-checks state after refresh
 - [x] Button re-checks every 60 seconds via setInterval
+
+## Feature: Auto-refresh Token + Connected-as Label + Sync Page Fix
+- [x] Auto-refresh token silently when <5 min remaining (checkTokenExpiryBanner auto-calls refreshOAuthToken when diffMs<5min and not expired)
+- [x] Add "Connected as email@domain.com" grey label next to Refresh Token button in topbar (topbar-connected-as span, populated from oauthSync.status)
+- [x] Fix blank Sync page — Settings → Sync tab (sp-9) now shows live provider status, Cal/Mail/Contacts sync buttons, Sync All Now button, and recent sync log; wired to loadSyncPanel() on tab activation
