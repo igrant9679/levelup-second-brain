@@ -361,6 +361,22 @@ export const calendarEvents = mysqlTable('calendar_events', {
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
 export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
 
+// ─── Secret Expiry Reminders ───────────────────────────────────────────────────────
+// Tracks expiry dates for OAuth app secrets so users can be reminded before they lapse.
+export const secretExpiryReminders = mysqlTable('secret_expiry_reminders', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
+  label: varchar('label', { length: 128 }).notNull(),      // human-readable name, e.g. "Azure App Secret"
+  expiresAt: timestamp('expiresAt').notNull(),             // when the secret expires
+  notifyDaysBefore: int('notifyDaysBefore').default(30).notNull(), // how many days before expiry to remind
+  lastNotifiedAt: timestamp('lastNotifiedAt'),             // null = not yet notified
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+});
+export type SecretExpiryReminder = typeof secretExpiryReminders.$inferSelect;
+export type InsertSecretExpiryReminder = typeof secretExpiryReminders.$inferInsert;
+
 // ─── Sync Status ────────────────────────────────────────────────────────────
 // Track sync statistics for each provider
 export const syncStatus = mysqlTable('sync_status', {

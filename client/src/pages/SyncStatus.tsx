@@ -12,13 +12,29 @@ import {
   XCircle,
   Clock,
   Zap,
+  Wifi,
+  WifiOff,
+  Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+type TestResult = {
+  ok: boolean;
+  provider: string;
+  displayName?: string | null;
+  email?: string | null;
+  latencyMs?: number;
+  error?: string;
+};
+
 export default function SyncStatus() {
   const { user } = useAuth();
   const [syncing, setSyncing] = useState(false);
+  const [testingMs, setTestingMs] = useState(false);
+  const [testingGoogle, setTestingGoogle] = useState(false);
+  const [msTestResult, setMsTestResult] = useState<TestResult | null>(null);
+  const [googleTestResult, setGoogleTestResult] = useState<TestResult | null>(null);
 
   const syncStatusQuery = trpc.oauthSync.getSyncStatusAll.useQuery(
     undefined,
@@ -34,29 +50,50 @@ export default function SyncStatus() {
     onSuccess: (results) => {
       const successCount = Object.values(results).filter((r) => r.success).length;
       const failCount = Object.values(results).filter((r) => !r.success).length;
-      if (successCount > 0) {
-        toast.success(`Sync complete: ${successCount} provider(s) synced`);
-      }
-      if (failCount > 0) {
-        toast.error(`${failCount} provider(s) failed to sync`);
-      }
+      if (successCount > 0) toast.success(`Sync complete: ${successCount} provider(s) synced`);
+      if (failCount > 0) toast.error(`${failCount} provider(s) failed to sync`);
       syncStatusQuery.refetch();
     },
-    onError: (err) => {
-      toast.error(`Sync failed: ${err.message}`);
-    },
+    onError: (err) => toast.error(`Sync failed: ${err.message}`),
     onSettled: () => setSyncing(false),
   });
+
+  const testConnectionMutation = trpc.oauthSync.testConnection.useMutation();
 
   const handleSyncAll = async () => {
     setSyncing(true);
     await syncAllMutation.mutateAsync();
   };
 
+  const handleTestConnection = async (provider: "microsoft" | "google") => {
+    const setTesting = provider === "microsoft" ? setTestingMs : setTestingGoogle;
+    const setResult = provider === "microsoft" ? setMsTestResult : setGoogleTestResult;
+    setTesting(true);
+    setResult(null);
+    try {
+      const result = await testConnectionMutation.mutateAsync({ provider });
+      setResult(result);
+      if (result.ok) {
+        toast.success(
+          `${provider === "microsoft" ? "Microsoft 365" : "Google"} connection OK — ${result.latencyMs}ms`
+        );
+      } else {
+        toast.error(`Connection failed: ${result.error}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setResult({ ok: false, provider, error: msg });
+      toast.error(`Test failed: ${msg}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const statusData = syncStatusQuery.data;
   const oauthStatus = oauthStatusQuery.data;
   const providers = statusData?.providers ?? [];
   const msConnected = oauthStatus?.microsoft?.connected;
+  const googleConnected = oauthStatus?.google?.connected;
 
   function formatTime(date: Date | string | null | undefined) {
     if (!date) return "Never";
@@ -82,6 +119,28 @@ export default function SyncStatus() {
 
   const msStatus = providers.find((p) => p.provider === "microsoft");
   const smtpStatus = providers.find((p) => p.provider === "smtp_imap");
+
+  function TestResultBadge({ result }: { result: TestResult | null }) {
+    if (!result) return null;
+    if (result.ok) {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1 mt-2">
+          <Wifi className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>
+            Connected as <strong>{result.displayName ?? result.email ?? "unknown"}</strong>
+            {result.email && result.displayName ? ` (${result.email})` : ""}
+            {result.latencyMs !== undefined ? ` · ${result.latencyMs}ms` : ""}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1 mt-2">
+        <WifiOff className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <span>{result.error}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -128,9 +187,7 @@ export default function SyncStatus() {
               <Calendar className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">
-                {msStatus?.totalEventsImported ?? 0}
-              </p>
+              <p className="text-2xl font-bold">{msStatus?.totalEventsImported ?? 0}</p>
               <p className="text-sm text-gray-500">Events synced</p>
             </div>
           </div>
@@ -154,9 +211,7 @@ export default function SyncStatus() {
               <Users className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold">
-                {msStatus?.totalContactsImported ?? 0}
-              </p>
+              <p className="text-2xl font-bold">{msStatus?.totalContactsImported ?? 0}</p>
               <p className="text-sm text-gray-500">Contacts synced</p>
             </div>
           </div>
@@ -169,10 +224,10 @@ export default function SyncStatus() {
         {/* Microsoft 365 */}
         <Card className="p-4">
           <div className="flex items-start justify-between">
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
               {getStatusIcon(msStatus?.lastSyncStatus)}
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold">Microsoft 365</p>
                   <span
                     className={`px-2 py-0.5 text-xs font-medium rounded ${
@@ -191,16 +246,70 @@ export default function SyncStatus() {
                   Last sync: {formatTime(msStatus?.lastSyncAt ?? statusData?.microsoftLastSyncedAt)}
                 </p>
                 {msStatus?.syncErrorMessage && (
-                  <p className="text-sm text-red-600 mt-1">
-                    Error: {msStatus.syncErrorMessage}
-                  </p>
+                  <p className="text-sm text-red-600 mt-1">Error: {msStatus.syncErrorMessage}</p>
                 )}
+                {/* Test connection result */}
+                <TestResultBadge result={msTestResult} />
+                {/* Test connection button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-7 text-xs"
+                  onClick={() => handleTestConnection("microsoft")}
+                  disabled={testingMs || !msConnected}
+                >
+                  {testingMs ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Testing…</>
+                  ) : (
+                    <><Wifi className="w-3 h-3 mr-1" />Test Connection</>
+                  )}
+                </Button>
               </div>
             </div>
-            <div className="text-right text-sm text-gray-500">
+            <div className="text-right text-sm text-gray-500 flex-shrink-0 ml-4">
               <p>{msStatus?.totalEventsImported ?? 0} events</p>
               <p>{msStatus?.totalEmailsImported ?? 0} emails</p>
               <p>{msStatus?.totalContactsImported ?? 0} contacts</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Google */}
+        <Card className="p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              {getStatusIcon(null)}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold">Google</p>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-medium rounded ${
+                      googleConnected ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {googleConnected ? "Connected" : "Not connected"}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Last sync: {formatTime(null)}
+                </p>
+                {/* Test connection result */}
+                <TestResultBadge result={googleTestResult} />
+                {/* Test connection button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-7 text-xs"
+                  onClick={() => handleTestConnection("google")}
+                  disabled={testingGoogle || !googleConnected}
+                >
+                  {testingGoogle ? (
+                    <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Testing…</>
+                  ) : (
+                    <><Wifi className="w-3 h-3 mr-1" />Test Connection</>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
@@ -215,7 +324,7 @@ export default function SyncStatus() {
                   <p className="font-semibold">SMTP/IMAP Account</p>
                   <span
                     className={`px-2 py-0.5 text-xs font-medium rounded ${
-                      oauthStatus ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                      smtpStatus ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
                     }`}
                   >
                     {smtpStatus ? "Configured" : "Not configured"}
@@ -238,11 +347,11 @@ export default function SyncStatus() {
         </Card>
       </div>
 
-      {!msConnected && (
+      {!msConnected && !googleConnected && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-sm text-amber-900">
             No accounts connected. Go to <strong>Settings → Accounts</strong> to connect Microsoft 365
-            or add an SMTP/IMAP account to start syncing.
+            or Google to start syncing.
           </p>
         </div>
       )}

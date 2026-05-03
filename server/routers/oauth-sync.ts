@@ -1247,6 +1247,41 @@ export const oauthSyncRouter = router({
       return await db.deleteCalendarEvent(ctx.user.id, input.id);
     }),
 
+  // ─── Secret Expiry Reminders ──────────────────────────────────────────────
+
+  /** List all secret expiry reminders for the current user */
+  getSecretExpiries: protectedProcedure
+    .query(async ({ ctx }) => {
+      return await db.getSecretExpiries(ctx.user.id);
+    }),
+
+  /** Create or update a secret expiry reminder */
+  upsertSecretExpiry: protectedProcedure
+    .input(z.object({
+      id: z.number().optional(),
+      provider: z.enum(['microsoft', 'google']),
+      label: z.string().min(1).max(128),
+      expiresAt: z.date(),
+      notifyDaysBefore: z.number().int().min(1).max(365).default(30),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return await db.upsertSecretExpiry({
+        id: input.id,
+        userId: ctx.user.id,
+        provider: input.provider,
+        label: input.label,
+        expiresAt: input.expiresAt,
+        notifyDaysBefore: input.notifyDaysBefore,
+      });
+    }),
+
+  /** Delete a secret expiry reminder */
+  deleteSecretExpiry: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return await db.deleteSecretExpiry(ctx.user.id, input.id);
+    }),
+
   // ─── Email Notifications ──────────────────────────────────────────────────
 
   /**
@@ -1363,6 +1398,61 @@ export const oauthSyncRouter = router({
     }),
 
   // ─── Sync Status Dashboard ────────────────────────────────────────────────
+
+  /**
+   * Test the connection to a provider by making a lightweight /me API call.
+   * Returns { ok, provider, displayName?, email?, latencyMs } or { ok: false, error }.
+   */
+  testConnection: protectedProcedure
+    .input(z.object({ provider: z.enum(['microsoft', 'google']) }))
+    .mutation(async ({ ctx, input }) => {
+      const start = Date.now();
+      try {
+        const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
+        if (!accessToken) {
+          return { ok: false as const, provider: input.provider, error: 'No access token — connect this provider first.' };
+        }
+
+        if (input.provider === 'microsoft') {
+          const resp = await fetch(
+            'https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName',
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!resp.ok) {
+            const text = await resp.text();
+            return { ok: false as const, provider: input.provider, error: `Microsoft Graph returned ${resp.status}: ${text.slice(0, 200)}` };
+          }
+          const data = await resp.json() as { displayName?: string; mail?: string; userPrincipalName?: string };
+          return {
+            ok: true as const,
+            provider: input.provider,
+            displayName: data.displayName ?? null,
+            email: data.mail ?? data.userPrincipalName ?? null,
+            latencyMs: Date.now() - start,
+          };
+        } else {
+          // Google
+          const resp = await fetch(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!resp.ok) {
+            const text = await resp.text();
+            return { ok: false as const, provider: input.provider, error: `Google API returned ${resp.status}: ${text.slice(0, 200)}` };
+          }
+          const data = await resp.json() as { name?: string; email?: string };
+          return {
+            ok: true as const,
+            provider: input.provider,
+            displayName: data.name ?? null,
+            email: data.email ?? null,
+            latencyMs: Date.now() - start,
+          };
+        }
+      } catch (err) {
+        return { ok: false as const, provider: input.provider, error: err instanceof Error ? err.message : 'Unknown error' };
+      }
+    }),
 
   /**
    * Get sync status for all providers for the current user

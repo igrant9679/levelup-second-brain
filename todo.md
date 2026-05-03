@@ -572,3 +572,16 @@
 - [x] Show "last synced" updatedAt tooltip on each Calendar event card (info icon with Tooltip)
 - [x] Add delete button per event card (hover to reveal Trash2 icon, AlertDialog confirmation)
 - [x] Optimistically remove deleted event from the list (setData + invalidate on error)
+
+## Follow-up: Secret Expiry Reminder, Per-User Credentials, Connection Health Check
+
+- [x] Add secretExpiryReminders table to schema and push migration (migration 0019)
+- [x] Add DB helpers: upsertSecretExpiry, getSecretExpiries, deleteSecretExpiry
+- [x] Add tRPC procedures: getSecretExpiries, upsertSecretExpiry, deleteSecretExpiry
+- [x] Build SecretExpirySettings UI (add/edit/delete expiry dates with provider label, status badges)
+- [x] Integrate SecretExpirySettings into Settings page (SyncSettings.tsx)
+- [x] Add per-user Microsoft credentials section to Settings page (PerUserCredentials component)
+- [x] Add per-user Google credentials section to Settings page (PerUserCredentials component)
+- [x] Wire save/clear per-user credentials to existing user_oauth_credentials tRPC procedures
+- [x] Add testConnection tRPC procedure (lightweight /me call for Microsoft Graph and Google userinfo)
+- [x] Add "Test Connection" button to Sync Status page with live status indicator (latency + account name)

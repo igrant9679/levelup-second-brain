@@ -749,3 +749,75 @@ export async function deleteCalendarEvent(userId: number, id: number) {
     return { deleted: false };
   }
 }
+
+// ─── Secret Expiry Reminders ──────────────────────────────────────────────────
+
+export async function getSecretExpiries(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const { secretExpiryReminders } = await import("../drizzle/schema");
+    return await db
+      .select()
+      .from(secretExpiryReminders)
+      .where(eq(secretExpiryReminders.userId, userId))
+      .orderBy(secretExpiryReminders.expiresAt);
+  } catch (err) {
+    console.warn('[Database] Failed to get secret expiries:', err);
+    return [];
+  }
+}
+
+export async function upsertSecretExpiry(data: {
+  id?: number;
+  userId: number;
+  provider: string;
+  label: string;
+  expiresAt: Date;
+  notifyDaysBefore: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const { secretExpiryReminders } = await import("../drizzle/schema");
+    if (data.id) {
+      await db
+        .update(secretExpiryReminders)
+        .set({
+          provider: data.provider,
+          label: data.label,
+          expiresAt: data.expiresAt,
+          notifyDaysBefore: data.notifyDaysBefore,
+        })
+        .where(and(eq(secretExpiryReminders.id, data.id), eq(secretExpiryReminders.userId, data.userId)));
+      return { id: data.id };
+    } else {
+      const [result] = await db.insert(secretExpiryReminders).values({
+        userId: data.userId,
+        provider: data.provider,
+        label: data.label,
+        expiresAt: data.expiresAt,
+        notifyDaysBefore: data.notifyDaysBefore,
+      });
+      return { id: (result as any).insertId };
+    }
+  } catch (err) {
+    console.warn('[Database] Failed to upsert secret expiry:', err);
+    return null;
+  }
+}
+
+export async function deleteSecretExpiry(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) return { deleted: false };
+  try {
+    const { secretExpiryReminders } = await import("../drizzle/schema");
+    await db
+      .delete(secretExpiryReminders)
+      .where(and(eq(secretExpiryReminders.id, id), eq(secretExpiryReminders.userId, userId)));
+    return { deleted: true };
+  } catch (err) {
+    console.warn('[Database] Failed to delete secret expiry:', err);
+    return { deleted: false };
+  }
+}

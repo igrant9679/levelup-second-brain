@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Settings as SettingsIcon, Loader2 } from "lucide-react";
 import { useState } from "react";
+import SecretExpirySettings from "@/components/SecretExpirySettings";
+import PerUserCredentials from "@/components/PerUserCredentials";
 
 type SyncFrequency = "manual" | "every5min" | "every15min" | "every30min" | "hourly";
 
@@ -124,6 +126,14 @@ export default function SyncSettings() {
           </Button>
         </div>
       </Card>
+
+      <div className="mb-6">
+        <PerUserCredentials />
+      </div>
+
+      <div className="mb-6">
+        <SecretExpirySettings />
+      </div>
 
       <Card className="p-6">
         <h2 className="text-lg font-semibold mb-4">Sync Status</h2>
