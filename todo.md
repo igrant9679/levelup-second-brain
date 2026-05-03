@@ -737,3 +737,13 @@
 - [x] Fix Bookmarks tab navigation — clicking sidebar entry doesn't show the screen (missing SM entry)
 - [x] Browser bookmarklet — one-click save from any page via draggable bookmarklet (GET /api/bookmarklet/save endpoint + UI in Bookmarks page)
 - [x] AI auto-tagging — suggest tags automatically using LLM when creating a bookmark (bookmarks.suggestTags procedure + ✨ AI Suggest button in Add Bookmark form)
+
+## Reading List & Bookmark Links (May 2026)
+- [x] Reading List view: Unread filter tab in Bookmarks with estimated read time per bookmark
+- [x] Estimated read time: calculate from word count fetched during metadata extraction, store in DB
+- [x] Related Bookmarks in Ideas: show linked bookmarks in Idea drawer, allow adding/removing links
+- [x] Related Bookmarks in Notes: show linked bookmarks in Note drawer, allow adding/removing links
+- [x] DB: bookmark_links table (bookmarkId, entityType, entityId) for polymorphic links
+- [x] tRPC: bookmarks.linkToEntity, bookmarks.unlinkFromEntity, bookmarks.getLinkedBookmarks
+- [x] Tests: vitest coverage for new bookmark link procedures (192 total passing)
+- [x] Fix blank Add Bookmark modal — openModal() only handled Quick Capture; replaced with openBkModal() helper for all bookmark modals (Add, Edit, Bookmarklet)

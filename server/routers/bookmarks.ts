@@ -17,6 +17,7 @@ interface PageMetadata {
   favicon: string | null;
   ogImage: string | null;
   siteName: string | null;
+  wordCount: number | null;
 }
 
 /**
@@ -34,6 +35,7 @@ async function extractMetadata(url: string): Promise<PageMetadata> {
     favicon: null,
     ogImage: null,
     siteName: null,
+    wordCount: null,
   };
 
   try {
@@ -97,6 +99,17 @@ async function extractMetadata(url: string): Promise<PageMetadata> {
     const faviconMatch = html.match(/<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i)
       || html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i);
     result.favicon = resolveUrl(faviconMatch?.[1], origin) || `${origin}/favicon.ico`;
+
+    // Word count: strip scripts/styles/tags from body and count words
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const bodyText = (bodyMatch?.[1] || html)
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&[a-z]+;/gi, ' ')
+      .trim();
+    const words = bodyText.split(/\s+/).filter(w => w.length > 1);
+    result.wordCount = words.length > 0 ? words.length : null;
 
   } catch (err) {
     // Metadata extraction is best-effort; return what we have
@@ -178,6 +191,7 @@ export const bookmarksRouter = router({
         tags: input.tags && input.tags.length > 0 ? JSON.stringify(input.tags) : null,
         notes: input.notes || null,
         color: input.color || null,
+        wordCount: meta.wordCount,
       });
 
       if (!bookmark) {
@@ -375,5 +389,65 @@ export const bookmarksRouter = router({
         description: meta.description || existing.description,
       });
       return updated;
+    }),
+
+  /**
+   * Link a bookmark to an entity (note, idea, task, etc.).
+   */
+  linkToEntity: protectedProcedure
+    .input(z.object({
+      bookmarkId: z.number().int(),
+      entityType: z.enum(['note', 'idea', 'task', 'project', 'goal']),
+      entityId: z.number().int(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify the bookmark belongs to the user
+      const bookmark = await db.getBookmarkById(input.bookmarkId, ctx.user.id);
+      if (!bookmark) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Bookmark not found' });
+      }
+      const link = await db.linkBookmarkToEntity(
+        input.bookmarkId,
+        input.entityType as 'idea' | 'note',
+        input.entityId,
+        ctx.user.id
+      );
+      return link;
+    }),
+
+  /**
+   * Unlink a bookmark from an entity.
+   */
+  unlinkFromEntity: protectedProcedure
+    .input(z.object({
+      bookmarkId: z.number().int(),
+      entityType: z.enum(['note', 'idea', 'task', 'project', 'goal']),
+      entityId: z.number().int(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await db.unlinkBookmarkFromEntity(
+        input.bookmarkId,
+        input.entityType as 'idea' | 'note',
+        input.entityId,
+        ctx.user.id
+      );
+      return { success: true };
+    }),
+
+  /**
+   * Get all bookmarks linked to a specific entity.
+   */
+  getLinkedBookmarks: protectedProcedure
+    .input(z.object({
+      entityType: z.enum(['note', 'idea', 'task', 'project', 'goal']),
+      entityId: z.number().int(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const bookmarks = await db.getLinkedBookmarks(
+        input.entityType as 'idea' | 'note',
+        input.entityId,
+        ctx.user.id
+      );
+      return bookmarks;
     }),
 });

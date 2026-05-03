@@ -863,6 +863,7 @@ export async function createBookmark(data: {
   tags?: string | null;
   notes?: string | null;
   color?: string | null;
+  wordCount?: number | null;
 }) {
   const db = await getDb();
   if (!db) return undefined;
@@ -998,4 +999,81 @@ export async function getBookmarkByUrl(url: string, userId: number) {
     .where(and(eq(bookmarks.url, url), eq(bookmarks.userId, userId)))
     .limit(1);
   return rows[0];
+}
+
+// ─── Bookmark Links ───────────────────────────────────────────────────────────
+
+export async function linkBookmarkToEntity(
+  bookmarkId: number,
+  entityType: 'idea' | 'note',
+  entityId: number,
+  userId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  const { bookmarkLinks } = await import('../drizzle/schema');
+  // Upsert: ignore if link already exists
+  const existing = await db.select().from(bookmarkLinks)
+    .where(and(
+      eq(bookmarkLinks.bookmarkId, bookmarkId),
+      eq(bookmarkLinks.entityType, entityType),
+      eq(bookmarkLinks.entityId, entityId),
+      eq(bookmarkLinks.userId, userId)
+    )).limit(1);
+  if (existing.length > 0) return existing[0];
+  await db.insert(bookmarkLinks).values({ bookmarkId, entityType, entityId, userId });
+  const rows = await db.select().from(bookmarkLinks)
+    .where(and(
+      eq(bookmarkLinks.bookmarkId, bookmarkId),
+      eq(bookmarkLinks.entityType, entityType),
+      eq(bookmarkLinks.entityId, entityId),
+      eq(bookmarkLinks.userId, userId)
+    )).limit(1);
+  return rows[0];
+}
+
+export async function unlinkBookmarkFromEntity(
+  bookmarkId: number,
+  entityType: 'idea' | 'note',
+  entityId: number,
+  userId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+  const { bookmarkLinks } = await import('../drizzle/schema');
+  await db.delete(bookmarkLinks).where(and(
+    eq(bookmarkLinks.bookmarkId, bookmarkId),
+    eq(bookmarkLinks.entityType, entityType),
+    eq(bookmarkLinks.entityId, entityId),
+    eq(bookmarkLinks.userId, userId)
+  ));
+}
+
+export async function getLinkedBookmarks(
+  entityType: 'idea' | 'note',
+  entityId: number,
+  userId: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkLinks, bookmarks } = await import('../drizzle/schema');
+  const rows = await db
+    .select({ bookmark: bookmarks })
+    .from(bookmarkLinks)
+    .innerJoin(bookmarks, eq(bookmarkLinks.bookmarkId, bookmarks.id))
+    .where(and(
+      eq(bookmarkLinks.entityType, entityType),
+      eq(bookmarkLinks.entityId, entityId),
+      eq(bookmarkLinks.userId, userId)
+    ))
+    .orderBy(desc(bookmarkLinks.createdAt));
+  return rows.map(r => r.bookmark);
+}
+
+export async function getEntityLinksForBookmark(bookmarkId: number, userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { bookmarkLinks } = await import('../drizzle/schema');
+  return db.select().from(bookmarkLinks)
+    .where(and(eq(bookmarkLinks.bookmarkId, bookmarkId), eq(bookmarkLinks.userId, userId)));
 }

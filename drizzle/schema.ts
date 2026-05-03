@@ -413,6 +413,7 @@ export const bookmarks = mysqlTable('bookmarks', {
   isRead: tinyint('isRead').default(0).notNull(), // 0 = unread, 1 = read
   isFavorite: tinyint('isFavorite').default(0).notNull(), // 0 = normal, 1 = favorited
   color: varchar('color', { length: 32 }),  // optional color label (matches app color system)
+  wordCount: int('wordCount'),              // estimated word count of the page content
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
@@ -420,3 +421,19 @@ export const bookmarks = mysqlTable('bookmarks', {
 }));
 export type Bookmark = typeof bookmarks.$inferSelect;
 export type InsertBookmark = typeof bookmarks.$inferInsert;
+
+// Polymorphic links between bookmarks and other entities (ideas, notes)
+export const bookmarkLinks = mysqlTable('bookmark_links', {
+  id: int('id').autoincrement().primaryKey(),
+  bookmarkId: int('bookmarkId').notNull(),
+  entityType: varchar('entityType', { length: 32 }).notNull(), // 'idea' | 'note'
+  entityId: int('entityId').notNull(),
+  userId: int('userId').notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxBookmark: index('idx_bl_bookmark').on(t.bookmarkId),
+  idxEntity: index('idx_bl_entity').on(t.entityType, t.entityId),
+  idxUser: index('idx_bl_user').on(t.userId),
+}));
+export type BookmarkLink = typeof bookmarkLinks.$inferSelect;
+export type InsertBookmarkLink = typeof bookmarkLinks.$inferInsert;

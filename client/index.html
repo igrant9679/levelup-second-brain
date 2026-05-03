@@ -1183,6 +1183,8 @@ function openDrawer(type,item){
   const ov=document.getElementById('drawer-ov');
   d.innerHTML=renderDrawer(type,item);
   ov.classList.add('show');
+  // Load related bookmarks for note drawers
+  if(type==='note' && item?.id) setTimeout(()=>loadRelatedBookmarks('note', item.id), 0);
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
 function renderDrawer(type,item){
@@ -1292,6 +1294,14 @@ function renderDrawer(type,item){
         </div>
         <div id="dr-note-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
+    </div>
+    <!-- Related Bookmarks Section -->
+    <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Related Bookmarks</span>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${item.id})">+ Link</button>
+      </div>
+      <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('note',${item.id})">Save Changes</button>
@@ -6075,6 +6085,8 @@ function openIdeaDetail(id){
   if(!idea)return;
   _currentIdeaId=id;
   renderIdeaDetail(idea);
+  // Load related bookmarks for the idea rail
+  setTimeout(()=>loadRelatedBookmarks('idea', id), 0);
 }
 
 function renderIdeaDetail(idea){
@@ -6265,7 +6277,7 @@ function renderIdeaDetail(idea){
       </div>
 
       <!-- Activity log -->
-      <div>
+      <div style="margin-bottom:16px">
         <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Activity</div>
         <div style="font-size:11px;color:var(--t3)">
           <div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
@@ -6273,6 +6285,15 @@ function renderIdeaDetail(idea){
           ${idea.stress_test_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Stress Test ${new Date(idea.stress_test_at).toLocaleDateString()}</div>`:''}
           ${idea.verdict_at?`<div style="padding:4px 0">Verdict: ${idea.verdict_outcome} ${new Date(idea.verdict_at).toLocaleDateString()}</div>`:''}
         </div>
+      </div>
+
+      <!-- Related Bookmarks -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">🔗 Related Bookmarks</div>
+          <button class="btn btn-s" style="font-size:9px;padding:2px 6px" onclick="showLinkBookmarkPanel('idea',${idea.id})">+ Link</button>
+        </div>
+        <div id="related-bk-idea-${idea.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
       </div>
     </div>`;
   }
@@ -11839,6 +11860,109 @@ function renderBookmarks(){
   paintBookmarks(); // show loading state immediately
 }
 
+// ─── Related Bookmarks helpers ───────────────────────────────────────────────
+
+async function loadRelatedBookmarks(entityType, entityId){
+  const containerId = `related-bk-${entityType}-${entityId}`;
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  try {
+    const result = await _trpc('bookmarks.getLinkedBookmarks', { entityType, entityId });
+    const items = result?.bookmarks || result || [];
+    if(!items.length){
+      el.innerHTML = `<div style="color:var(--t3);font-size:11px;font-style:italic">No linked bookmarks yet. Click + Link to add one.</div>`;
+      return;
+    }
+    el.innerHTML = items.map(b => `
+      <div style="display:flex;align-items:flex-start;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1)">
+        ${b.favicon ? `<img src="${b.favicon}" style="width:14px;height:14px;margin-top:2px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:12px;flex-shrink:0">🔖</span>'}
+        <div style="flex:1;min-width:0">
+          <a href="${b.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ac);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
+          ${b.description ? `<div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
+        </div>
+        <button class="btn btn-s" style="font-size:9px;padding:1px 5px;color:var(--err);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--err);font-size:11px">Failed to load linked bookmarks.</div>`;
+  }
+}
+
+async function unlinkBookmarkFromEntity(entityType, entityId, bookmarkId){
+  try {
+    await _trpc('bookmarks.unlinkFromEntity', { entityType, entityId, bookmarkId });
+    loadRelatedBookmarks(entityType, entityId);
+    toast('Bookmark unlinked.');
+  } catch(e) {
+    toast('Failed to unlink bookmark.');
+  }
+}
+
+function showLinkBookmarkPanel(entityType, entityId){
+  const html = `
+    <div style="padding:4px 0">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔗 Link a Bookmark</div>
+      <input class="inp" id="bk-link-search" placeholder="Search your bookmarks…" oninput="filterLinkBookmarkList(this.value)" style="margin-bottom:8px">
+      <div id="bk-link-list" style="max-height:260px;overflow-y:auto">
+        <div style="color:var(--t3);font-size:11px;text-align:center;padding:20px 0">Loading bookmarks…</div>
+      </div>
+    </div>
+  `;
+  openBkModal('Link Bookmark', html, [
+    { label: 'Cancel', cls: 'btn-s', action: 'closeBkModal()' }
+  ]);
+  // Load bookmarks into the list
+  _trpc('bookmarks.list', { page: 1, pageSize: 50 }).then(result => {
+    const items = result?.bookmarks || [];
+    window._bkLinkItems = items;
+    window._bkLinkEntityType = entityType;
+    window._bkLinkEntityId = entityId;
+    renderLinkBookmarkList(items, entityType, entityId);
+  }).catch(() => {
+    const listEl = document.getElementById('bk-link-list');
+    if(listEl) listEl.innerHTML = '<div style="color:var(--err);font-size:11px">Failed to load bookmarks.</div>';
+  });
+}
+
+function filterLinkBookmarkList(query){
+  const items = window._bkLinkItems || [];
+  const filtered = query.trim() ? items.filter(b => (b.title||'').toLowerCase().includes(query.toLowerCase()) || (b.url||'').toLowerCase().includes(query.toLowerCase())) : items;
+  renderLinkBookmarkList(filtered, window._bkLinkEntityType, window._bkLinkEntityId);
+}
+
+function renderLinkBookmarkList(items, entityType, entityId){
+  const listEl = document.getElementById('bk-link-list');
+  if(!listEl) return;
+  if(!items.length){
+    listEl.innerHTML = '<div style="color:var(--t3);font-size:11px;text-align:center;padding:16px 0">No bookmarks found.</div>';
+    return;
+  }
+  listEl.innerHTML = items.map(b => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="doLinkBookmark('${entityType}',${entityId},${b.id},this)">
+      ${b.favicon ? `<img src="${b.favicon}" style="width:16px;height:16px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:14px">🔖</span>'}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.title||b.url)}</div>
+        <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.url)}</div>
+      </div>
+      <button class="btn btn-s" style="font-size:10px;padding:2px 8px;flex-shrink:0">Link</button>
+    </div>
+  `).join('');
+}
+
+async function doLinkBookmark(entityType, entityId, bookmarkId, rowEl){
+  try {
+    await _trpc('bookmarks.linkToEntity', { entityType, entityId, bookmarkId });
+    if(rowEl) rowEl.style.background = 'var(--ok)22';
+    loadRelatedBookmarks(entityType, entityId);
+    toast('Bookmark linked!');
+    setTimeout(closeBkModal, 600);
+  } catch(e) {
+    toast('Failed to link bookmark.');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function paintBookmarks(){
   const el=$('bookmarks-main');
   if(!el)return;
@@ -11864,7 +11988,9 @@ function paintBookmarks(){
       const tagHtml=tags.map(t=>`<span class="pill" style="background:var(--s3);color:var(--t2);font-size:9px;margin-right:3px">${esc(t)}</span>`).join('');
       const favicon=b.favicon?`<img src="${esc(b.favicon)}" style="width:16px;height:16px;border-radius:2px;flex-shrink:0" onerror="this.style.display='none'">`:'<span style="font-size:14px">🌐</span>';
       const domain=(() => { try { return new URL(b.url).hostname.replace(/^www\./,''); } catch { return ''; } })();
-      return `<div class="cd" style="cursor:pointer;transition:border-color .15s;position:relative" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor=''" onclick="window.open('${esc(b.url)}','_blank')">
+      const readMins=b.wordCount?Math.max(1,Math.round(b.wordCount/200)):null;
+      const readTimeHtml=readMins?`<span style="font-size:9px;color:var(--t3)">⏱ ${readMins} min read</span>`:'';
+      return `<div class="cd" style="cursor:pointer;transition:border-color .15s;position:relative${b.isRead?';opacity:.75':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor=''" onclick="window.open('${esc(b.url)}','_blank')">
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -11875,15 +12001,16 @@ function paintBookmarks(){
             ${b.description?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(b.description)}</div>`:''}
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${tagHtml}
+              ${readTimeHtml}
               <span style="font-size:9px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
-              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok)">Read</span>':''}
+              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:9px">✓ Read</span>':''}
             </div>
           </div>
           ${b.ogImage?`<img src="${esc(b.ogImage)}" style="width:80px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`:''}
         </div>
         <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px" onclick="event.stopPropagation()">
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'⭐':'☆'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'📖':'📕'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'📖 Unread':'📕 Read'}</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">✏️</button>
           <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">🗑</button>
         </div>
@@ -11909,6 +12036,7 @@ function paintBookmarks(){
       <option value="alpha" ${_bkSort==='alpha'?'selected':''}>A-Z</option>
     </select>
     <button class="btn ${_bkFavFilter?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkFavFilter=!_bkFavFilter;_bkPage=1;renderBookmarks()">⭐ Favorites</button>
+    <button class="btn ${_bkReadFilter==='unread'?'btn-p':'btn-s'}" style="height:32px;font-size:11px" onclick="_bkReadFilter=_bkReadFilter==='unread'?'':'unread';_bkPage=1;renderBookmarks()">📚 Reading List</button>
     <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkReadFilter=this.value;_bkPage=1;renderBookmarks()">
       <option value="" ${_bkReadFilter===''?'selected':''}>All</option>
       <option value="unread" ${_bkReadFilter==='unread'?'selected':''}>Unread</option>
@@ -11925,41 +12053,45 @@ function paintBookmarks(){
   <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>`;
 }
 
+function openBkModal(title,body,buttons){
+  const m=$('modal-content');
+  if(!m)return;
+  const btns=(buttons||[]).map(b=>`<button class="btn ${b.cls||'btn-s'}" onclick="${b.action}">${b.label}</button>`).join('');
+  m.innerHTML=`<h2 style="margin:0 0 16px;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:space-between">${title}<button class="close" onclick="closeModal()">✕</button></h2><div id="bk-modal-body">${body}</div>${btns?`<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">${btns}</div>`:''}` ;
+  $('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>{const fi=m.querySelector('input,textarea');if(fi)fi.focus();},80);
+}
+
 function showBookmarklet(){
   const base=window.location.origin;
-  // Bookmarklet code: opens a small popup to /api/bookmarklet/save?url=...&title=...
   const code=`javascript:(function(){var u=encodeURIComponent(location.href);var t=encodeURIComponent(document.title);window.open('${base}/api/bookmarklet/save?url='+u+'&title='+t,'_blank','width=400,height=300,menubar=no,toolbar=no,location=no');})();`;
-  openModal('Browser Bookmarklet',
-    '<div style="display:flex;flex-direction:column;gap:16px">' +
-    '<div style="background:var(--s2);border-radius:8px;padding:16px;text-align:center">' +
-    '<div style="font-size:32px;margin-bottom:8px">🔖</div>' +
-    '<div style="font-size:13px;font-weight:600;margin-bottom:4px">Save to LevelUp in one click</div>' +
-    '<div style="font-size:11px;color:var(--t2)">Drag the button below to your browser\'s bookmarks bar, then click it on any page to instantly save it to your LevelUp bookmarks.</div>' +
-    '</div>' +
-    '<div style="text-align:center">' +
-    `<a href="${code}" style="display:inline-block;padding:10px 20px;background:var(--ac);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:grab" onclick="event.preventDefault();toast(\'Drag this to your bookmarks bar!\')">🔖 Save to LevelUp</a>` +
-    '</div>' +
-    '<div style="font-size:11px;color:var(--t3)">' +
-    '<strong>How to install:</strong><br>' +
-    '1. Show your browser\'s bookmarks bar (Ctrl+Shift+B or Cmd+Shift+B)<br>' +
-    '2. Drag the button above to the bookmarks bar<br>' +
-    '3. Visit any page and click the bookmarklet to save it instantly' +
-    '</div>' +
-    '<div style="font-size:10px;color:var(--t3)">Or copy the code manually:</div>' +
-    `<textarea class="inp" style="font-size:9px;font-family:monospace;height:60px" readonly onclick="this.select()">${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>` +
-    '</div>',
+  const safeCode=code.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  openBkModal('🔖 Browser Bookmarklet',
+    `<div style="display:flex;flex-direction:column;gap:16px">` +
+    `<div style="background:var(--s2);border-radius:8px;padding:16px;text-align:center">` +
+    `<div style="font-size:32px;margin-bottom:8px">🔖</div>` +
+    `<div style="font-size:13px;font-weight:600;margin-bottom:4px">Save to LevelUp in one click</div>` +
+    `<div style="font-size:11px;color:var(--t2)">Drag the button below to your browser's bookmarks bar, then click it on any page to instantly save it to your LevelUp bookmarks.</div>` +
+    `</div>` +
+    `<div style="text-align:center"><a href="${code}" style="display:inline-block;padding:10px 20px;background:var(--ac);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:grab" onclick="event.preventDefault();toast('Drag this to your bookmarks bar!')">🔖 Save to LevelUp</a></div>` +
+    `<div style="font-size:11px;color:var(--t3)"><strong>How to install:</strong><br>1. Show your browser's bookmarks bar (Ctrl+Shift+B or Cmd+Shift+B)<br>2. Drag the button above to the bookmarks bar<br>3. Visit any page and click the bookmarklet to save it instantly</div>` +
+    `<div style="font-size:10px;color:var(--t3)">Or copy the code manually:</div>` +
+    `<textarea class="inp" style="font-size:9px;font-family:monospace;height:60px" readonly onclick="this.select()">${safeCode}</textarea>` +
+    `</div>`,
     [{label:'Close',cls:'btn-s',action:'closeModal()'}]
   );
 }
 
 function showAddBookmark(){
-  openModal('Add Bookmark','<div style="display:flex;flex-direction:column;gap:12px">' +
-    '<div class="field"><label>URL</label><input class="inp" id="bk-url" placeholder="https://example.com" autofocus></div>' +
-    '<div class="field"><label>Title (optional, auto-fetched)</label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
-    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags (comma-separated)<button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="doSuggestBookmarkTags()">\u2728 AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
-    '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your notes about this page..."></textarea></div>' +
+  openBkModal('🔖 Add Bookmark',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
+    '<div class="field"><label>URL *</label><input class="inp" id="bk-url" placeholder="https://example.com"></div>' +
+    '<div class="field"><label>Title <span style="color:var(--t3);font-weight:400">(optional — auto-fetched from page)</span></label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="doSuggestBookmarkTags()">✨ AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
+    '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your notes about this page..." style="min-height:80px"></textarea></div>' +
     '</div>',
-    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
   );
 }
 
@@ -12027,14 +12159,15 @@ function editBookmark(id){
   const b=_bkData.find(x=>x.id===id);
   if(!b)return;
   const tags=b.tags?JSON.parse(b.tags):[];
-  openModal('Edit Bookmark','<div style="display:flex;flex-direction:column;gap:12px">' +
+  openBkModal('✏️ Edit Bookmark',
+    '<div style="display:flex;flex-direction:column;gap:12px">' +
     `<div class="field"><label>URL</label><input class="inp" value="${esc(b.url)}" disabled style="opacity:.6"></div>` +
     `<div class="field"><label>Title</label><input class="inp" id="bk-edit-title" value="${esc(b.title||'')}"></div>` +
-    `<div class="field"><label>Description</label><textarea class="inp" id="bk-edit-desc">${esc(b.description||'')}</textarea></div>` +
+    `<div class="field"><label>Description</label><textarea class="inp" id="bk-edit-desc" style="min-height:60px">${esc(b.description||'')}</textarea></div>` +
     `<div class="field"><label>Tags (comma-separated)</label><input class="inp" id="bk-edit-tags" value="${esc(tags.join(', '))}"></div>` +
-    `<div class="field"><label>Notes</label><textarea class="inp" id="bk-edit-notes">${esc(b.notes||'')}</textarea></div>` +
+    `<div class="field"><label>Notes</label><textarea class="inp" id="bk-edit-notes" style="min-height:60px">${esc(b.notes||'')}</textarea></div>` +
     '</div>',
-    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'Save Changes',cls:'btn-p',action:`doEditBookmark(${id})`}]
+    [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Changes',cls:'btn-p',action:`doEditBookmark(${id})`}]
   );
 }
 
