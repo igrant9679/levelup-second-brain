@@ -585,3 +585,11 @@
 - [x] Wire save/clear per-user credentials to existing user_oauth_credentials tRPC procedures
 - [x] Add testConnection tRPC procedure (lightweight /me call for Microsoft Graph and Google userinfo)
 - [x] Add "Test Connection" button to Sync Status page with live status indicator (latency + account name)
+
+## Feature: Upcoming Events Dashboard Widget
+
+- [x] Add getUpcomingEvents tRPC procedure (fetch next 10 events from MS Graph, fallback to DB)
+- [x] Build UpcomingEventsWidget component (event cards with time, title, location, join link)
+- [x] Integrate widget into Home.tsx dashboard alongside existing widgets
+- [x] Show empty state when not connected or no upcoming events
+- [x] Auto-refresh every 5 minutes (refetchInterval: 5 * 60 * 1000)

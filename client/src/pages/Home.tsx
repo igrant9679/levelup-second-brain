@@ -7,6 +7,7 @@ import { getLoginUrl } from "@/const";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import UpcomingEventsWidget from "@/components/UpcomingEventsWidget";
 
 const quickLinks = [
   { icon: Calendar, label: "Calendar", path: "/calendar", description: "View synced Microsoft 365 events", color: "bg-blue-50 border-blue-200 hover:bg-blue-100" },
@@ -131,7 +132,8 @@ export default function Home() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Quick links grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           {quickLinks.map(({ icon: Icon, label, path, description, color }) => (
             <Card
               key={path}
@@ -157,6 +159,9 @@ export default function Home() {
             </Card>
           ))}
         </div>
+
+        {/* Upcoming Events widget — live Microsoft 365 calendar */}
+        <UpcomingEventsWidget limit={5} daysAhead={14} />
       </div>
     </div>
   );

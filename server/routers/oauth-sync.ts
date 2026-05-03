@@ -1238,6 +1238,83 @@ export const oauthSyncRouter = router({
     }),
 
   /**
+   * Fetch the next N upcoming events for the dashboard widget.
+   * Tries Microsoft Graph live first; falls back to the local DB cache.
+   * Returns a lightweight shape suitable for the dashboard card.
+   */
+  getUpcomingEvents: protectedProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(20).default(5),
+      daysAhead: z.number().int().min(1).max(90).default(14),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 5;
+      const daysAhead = input?.daysAhead ?? 14;
+      const now = new Date();
+      const end = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+      // Try live Microsoft Graph first
+      try {
+        const accessToken = await getValidAccessToken(ctx.user.id, 'microsoft');
+        if (accessToken) {
+          const resp = await fetch(
+            `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}&$top=${limit}&$orderby=start/dateTime&$select=id,subject,start,end,location,bodyPreview,organizer,isAllDay,onlineMeeting,webLink`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (resp.ok) {
+            const data = await resp.json() as { value: Array<{
+              id: string;
+              subject: string;
+              start: { dateTime: string; timeZone: string };
+              end: { dateTime: string; timeZone: string };
+              location?: { displayName?: string };
+              bodyPreview?: string;
+              organizer?: { emailAddress?: { name?: string; address?: string } };
+              isAllDay?: boolean;
+              onlineMeeting?: { joinUrl?: string } | null;
+              webLink?: string;
+            }> };
+            return {
+              source: 'live' as const,
+              events: data.value.map((e) => ({
+                id: e.id,
+                title: e.subject || '(No title)',
+                startAt: new Date(e.start.dateTime),
+                endAt: new Date(e.end.dateTime),
+                location: e.location?.displayName ?? null,
+                organizer: e.organizer?.emailAddress?.name ?? null,
+                isAllDay: e.isAllDay ?? false,
+                joinUrl: e.onlineMeeting?.joinUrl ?? null,
+                webLink: e.webLink ?? null,
+                bodyPreview: e.bodyPreview ?? null,
+              })),
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('[getUpcomingEvents] Live fetch failed, falling back to DB:', err);
+      }
+
+      // Fallback: return from local DB cache
+      const dbEvents = await db.getCalendarEvents(ctx.user.id, { from: now, to: end });
+      return {
+        source: 'cache' as const,
+        events: dbEvents.slice(0, limit).map((e) => ({
+          id: String(e.id),
+          title: e.title || '(No title)',
+          startAt: new Date(e.start),
+          endAt: new Date(e.end),
+          location: e.location ?? null,
+          organizer: e.organizer ?? null,
+          isAllDay: Boolean(e.isAllDay),
+          joinUrl: null,
+          webLink: null,
+          bodyPreview: e.description ?? null,
+        })),
+      };
+    }),
+
+  /**
    * Delete a single calendar event from the local DB.
    * Only the owning user can delete their own events.
    */
