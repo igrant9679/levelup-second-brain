@@ -892,3 +892,34 @@
 
 ## Word Document Importer Fix
 - [x] Fix base64 encoding performance issue in Word importer (spread operator causes call stack overflow on large files)
+
+## PDF Import Feature
+- [x] Backend: install pdf-parse npm package
+- [x] Backend: tRPC `pdfImport.parsePdf` procedure — accept base64 PDF, extract text, split into sections/pages, return array of notes
+- [x] Backend: smart section detection — split by headings (lines in ALL CAPS or short lines followed by body text) or by page
+- [x] Frontend: PDF Import panel in Notes module (alongside Word Import)
+- [x] Frontend: chunked base64 encoding (reuse Word importer pattern)
+- [x] Frontend: preview extracted notes with checkboxes before importing
+- [x] Frontend: import selected notes into D.notes with tag `pdf:FileName`
+- [x] Frontend: duplicate detection (same as Word importer)
+
+## Task Deletion Persistence Bug
+- [x] Fix deleted tasks reappearing after page refresh (deletion not persisted to DB or localStorage sync overwriting deletions)
+
+## Data Persistence (Survive Deployments)
+- [x] DB schema: add `user_app_data` table (userId unique, tasks/notes/projects/goals/journal/habits/contacts/ideas/teams/prefs as JSON mediumtext columns, updatedAt)
+- [x] Backend: tRPC `appData.save` (protectedProcedure) — upsert all user data blobs to DB
+- [x] Backend: tRPC `appData.load` (protectedProcedure) — return saved data blobs for current user
+- [x] Frontend: on login (doLoginSuccess), load server data and merge with localStorage (server wins for newer data)
+- [x] Frontend: patch save() to also push changed key to server (debounced, 2s delay)
+- [x] Fix deleted tasks/notes/items reappearing — example seed guard with lu_examples_seeded_v1 flag
+
+## Search Notes Bug
+- [x] Fix: notes-search input finds imports but not manually created notes (root cause: filterNotesByCategory bypassed applyNotesFilters; fixed by integrating category state into unified filter engine)
+
+## Document Import as Notes (PDF, DOCX, TXT)
+- [x] Backend: tRPC `notes.importDocument` — accept base64 file + filename + mimeType; extract text from PDF (pdf-parse), DOCX (mammoth), or TXT; return extracted text + title
+- [x] Frontend: Add "📄 Import Doc" button in Notes toolbar
+- [x] Frontend: File picker accepting .pdf, .docx, .txt files
+- [x] Frontend: Show progress spinner during extraction, then create note with extracted content
+- [x] Frontend: Tag imported note with source matching file type (e.g. 'PDF Import', 'Word Import', 'Text Import')

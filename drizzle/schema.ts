@@ -1,4 +1,4 @@
-import { index, int, mysqlEnum, mysqlTable, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
+import { index, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -554,3 +554,27 @@ export const userActivityLog = mysqlTable('user_activity_log', {
 }));
 export type UserActivityLog = typeof userActivityLog.$inferSelect;
 export type InsertUserActivityLog = typeof userActivityLog.$inferInsert;
+
+// ─── User App Data ───────────────────────────────────────────────────────────
+// Stores each user's full app data as JSON blobs so data survives deployments
+// and can be restored across devices/browsers.
+export const userAppData = mysqlTable('user_app_data', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull().unique(),
+  tasks: mediumtext('tasks'),         // JSON array
+  notes: mediumtext('notes'),         // JSON array
+  projects: mediumtext('projects'),   // JSON array
+  goals: mediumtext('goals'),         // JSON array
+  journal: mediumtext('journal'),     // JSON array
+  habits: mediumtext('habits'),       // JSON array
+  contacts: mediumtext('contacts'),   // JSON array
+  ideas: mediumtext('ideas'),         // JSON array
+  teams: mediumtext('teams'),         // JSON array
+  prefs: text('prefs'),               // JSON object
+  calEvents: mediumtext('calEvents'), // JSON array
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUserId: index('idx_uad_user_id').on(t.userId),
+}));
+export type UserAppData = typeof userAppData.$inferSelect;
+export type InsertUserAppData = typeof userAppData.$inferInsert;

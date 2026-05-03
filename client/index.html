@@ -2638,6 +2638,8 @@ let _notesFilterDateFrom='';
 let _notesFilterDateTo='';
 let _notesSort='newest';
 let _notesFilterPanelOpen=false;
+let _notesFilterCategory='Recent'; // Active left-nav category
+let _notesFilterSmart=null; // Active smart folder filter key
 function buildNoteBacklinks(id){
   // Find notes whose body contains [[Title]] linking to this note
   const target=D.notes.find(n=>n.id===id);
@@ -2685,19 +2687,10 @@ function renderNotesGraph(id){
 function filterNotesByCategory(cat,el){
   document.querySelectorAll('.notes-nav .nn').forEach(e=>e.classList.remove('on'));
   if(el)el.classList.add('on');
-  const catMap={
-    'Recent': n=>true,
-    'Favorites': n=>n.starred,
-    'Web Clips': n=>n.source==='Web Clipper',
-    'Meeting Notes': n=>n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'),
-    'Journal': n=>(n.tags||[]).includes('journal'),
-    'Resources': n=>n.source==='Manual'&&!(n.tags||[]).includes('meetings'),
-  };
-  const filter=catMap[cat]||(()=>true);
-  const filtered=D.notes.filter(filter);
-  const inner=$('notes-list-inner');
-  if(inner) inner.innerHTML=filtered.map(n=>renderNoteCard(n)).join('')||
-    '<div style="padding:16px;text-align:center;font-size:11px;color:var(--t3)">No notes in this category</div>';
+  _notesFilterCategory=cat;
+  // Reset smart-folder override
+  _notesFilterSmart=null;
+  applyNotesFilters();
 }
 function showNoteInEditor(id){
   const n=D.notes.find(x=>x.id===id);
@@ -2770,6 +2763,26 @@ function _parseNoteDate(n){
 function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
   let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  // Category filter (left nav)
+  if(_notesFilterSmart){
+    const now=new Date();
+    const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+    if(_notesFilterSmart==='smart_recent')notes=notes.filter(n=>{try{return new Date(n.updated)>=weekAgo;}catch(e){return false;}});
+    else if(_notesFilterSmart==='smart_notags')notes=notes.filter(n=>!n.tags||!n.tags.length);
+    else if(_notesFilterSmart==='smart_long')notes=notes.filter(n=>(n.body||'').length>500);
+    else if(_notesFilterSmart==='smart_unlinked')notes=notes.filter(n=>!((n.body||'').includes('[[')));
+  } else {
+    const catMap={
+      'Recent': n=>true,
+      'Favorites': n=>n.starred,
+      'Web Clips': n=>n.source==='Web Clipper',
+      'Meeting Notes': n=>n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'),
+      'Journal': n=>(n.tags||[]).includes('journal'),
+      'Resources': n=>n.source==='Manual'&&!(n.tags||[]).includes('meetings'),
+    };
+    const catFilter=catMap[_notesFilterCategory]||(()=>true);
+    notes=notes.filter(catFilter);
+  }
   // Text search
   const q=_notesFilterText.trim().toLowerCase();
   if(q){
@@ -2880,6 +2893,7 @@ function clearNotesFilters(){
   _notesFilterDateFrom='';
   _notesFilterDateTo='';
   _notesSort='newest';
+  _notesFilterSmart=null;
   const si=document.getElementById('notes-search');
   if(si)si.value='';
   // Reset all chip/button states
@@ -2950,33 +2964,11 @@ function filterNotesByTag(tag,el){
   }
 }
 function filterNotesBySmart(filter,el){
-  // Deactivate all nav items
   document.querySelectorAll('.nn').forEach(n=>{n.classList.remove('on');});
   el.classList.add('on');
-  const search=document.getElementById('notes-search');
-  if(search)search.value='';
-  const me=D.creds.userName||'Idris Grant';
-  const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
-  const now=new Date();
-  const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
-  let filtered=[];
-  let emptyMsg='';
-  if(filter==='smart_recent'){
-    filtered=base.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} });
-    emptyMsg='No notes modified this week.';
-  } else if(filter==='smart_notags'){
-    filtered=base.filter(n=>!n.tags||!n.tags.length);
-    emptyMsg='All notes have tags — great!';
-  } else if(filter==='smart_long'){
-    filtered=base.filter(n=>(n.body||'').length>500).sort((a,b)=>(b.body||'').length-(a.body||'').length);
-    emptyMsg='No long notes (>500 chars) yet.';
-  } else if(filter==='smart_unlinked'){
-    filtered=base.filter(n=>!((n.body||'').includes('[[')));
-    emptyMsg='All notes have wiki-links!';
-  }
-  const el2=document.getElementById('notes-list-inner');
-  if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t" style="${n.titleColor?`color:${n.titleColor};font-weight:700`:''}">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">${emptyMsg}</p>`;
-  if(filtered.length)showNoteInEditor(filtered[0].id);
+  _notesFilterSmart=filter;
+  _notesFilterCategory='Recent'; // reset category
+  applyNotesFilters();
 }
 function exportNotesMarkdown(){
   const me=D.creds.userName||'Idris Grant';
@@ -3121,6 +3113,74 @@ function importMarkdownFiles(files){
     reader.readAsText(file);
   });
 }
+// ─── Document Import (PDF / DOCX / TXT) ──────────────────────────────────────
+async function importDocumentAsNote(file){
+  if(!file)return;
+  const MAX_BYTES=20*1024*1024; // 20 MB
+  if(file.size>MAX_BYTES){toast('⚠ File too large (max 20 MB)','error');return;}
+  // Show progress toast
+  const toastId='doc-import-'+Date.now();
+  toast('⏳ Importing '+file.name+'…');
+  try{
+    // Encode file to base64 (chunked to avoid call stack overflow)
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const bytes=new Uint8Array(e.target.result);
+        let b64str='';
+        const chunk=8192;
+        for(let c=0;c<bytes.length;c+=chunk){
+          b64str+=String.fromCharCode.apply(null,bytes.subarray(c,c+chunk));
+        }
+        resolve(btoa(b64str));
+      };
+      reader.onerror=reject;
+      reader.readAsArrayBuffer(file);
+    });
+    const result=await _trpc('notesImport.importDocument',{
+      fileBase64:base64,
+      fileName:file.name,
+      mimeType:file.type||'application/octet-stream'
+    },'mutation');
+    if(result.warnings&&result.warnings.length){
+      result.warnings.forEach(w=>toast('⚠ '+w,'error',6000));
+    }
+    const notes=result.notes||[];
+    if(!notes.length){
+      toast('⚠ No content could be extracted from this file.','error');
+      return;
+    }
+    const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    notes.forEach(n=>{
+      D.notes.push({
+        id:nextId(D.notes),
+        title:n.title||file.name.replace(/\.[^.]+$/,''),
+        body:n.body||'',
+        tags:n.tags||[],
+        source:n.source||'Document Import',
+        updated:now,
+        starred:false,
+        createdBy:D.creds.userName||'Idris Grant',
+        createdAt:new Date().toISOString()
+      });
+    });
+    save('notes');
+    invalidateSearchIndex();
+    renderNotes();
+    const msg=notes.length===1
+      ?`📄 Imported "${notes[0].title}" from ${file.name}`
+      :`📄 Imported ${notes.length} notes from ${file.name}`;
+    toast(msg);
+    // Reset input so same file can be re-imported
+    const inp=document.getElementById('doc-import-input');
+    if(inp)inp.value='';
+  }catch(err){
+    console.error('Document import error',err);
+    toast('⚠ Import failed: '+(err.message||'Unknown error'),'error',8000);
+    const inp=document.getElementById('doc-import-input');
+    if(inp)inp.value='';
+  }
+}
 const _noteTemplates=[
   {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
   {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${new Date().toISOString().slice(0,10)}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
@@ -3226,9 +3286,11 @@ function renderNotes(){
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesMarkdown()" title="Export all notes as Markdown">⬇ MD</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="exportNotesPDF()" title="Export all notes as PDF">🖨 PDF</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px" onclick="document.getElementById('md-import-input').click()" title="Import .md">📥</button>
+        <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--purp)" onclick="document.getElementById('doc-import-input').click()" title="Import PDF, Word (.docx), or text file as a note">📄 Doc</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="Ask AI">🤔</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:#8B5CF6" onclick="bulkAutoTagNotes()" title="AI auto-tag all untagged notes">🏷 Auto-tag all</button>
         <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
+        <input type="file" id="doc-import-input" accept=".pdf,.docx,.doc,.txt,.rtf" style="display:none" onchange="importDocumentAsNote(this.files[0])">
         <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
         <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
       </div>
@@ -11034,16 +11096,20 @@ function doLoginSuccess(member){
   setTimeout(()=>checkTokenExpiryBanner(),1500);
   // Re-check every 60 seconds so the button state stays current
   setInterval(()=>checkTokenExpiryBanner(),60*1000);
-  // Migrate: ensure example Full Add tasks exist
-  const exampleIds=[201,202,203];
-  exampleIds.forEach(eid=>{
-    if(!D.tasks.find(t=>t.id===eid)){
-      const defaults=[{id:201,title:'Design Q3 Sprint Planning Workshop',priority:'High',due:'2026-05-10',startDate:'2026-05-08',endDate:'2026-05-10',startTime:'10:00',endTime:'12:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:true,energy:'high',tags:['planning','leadership','sprint'],notes:'Prepare agenda, invite all team leads, set up Miro board for async pre-work. Goal: align on Q3 OKRs and define sprint 8 scope with clear acceptance criteria for each story.',recurring:'None',subtasks:[{id:1,title:'Draft workshop agenda',done:false},{id:2,title:'Send calendar invites',done:false},{id:3,title:'Set up Miro collaboration board',done:false},{id:4,title:'Prepare OKR alignment slides',done:false}],linkedGoalId:1,assignedTo:'Idris Grant',createdBy:'Idris Grant'},{id:202,title:'Competitive Analysis — Top 5 Productivity Apps',priority:'Medium',due:'2026-05-15',startDate:'2026-05-12',endDate:'2026-05-15',startTime:'09:00',endTime:'11:00',estimatedMins:180,context:'Research',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',tags:['research','strategy','competitive'],notes:'Analyze Notion, Obsidian, Roam, Logseq, and Mem.ai. Focus on: pricing, AI features, target persona, onboarding flow, and key differentiators. Produce a 1-page comparison matrix.',recurring:'None',subtasks:[{id:1,title:'Create comparison matrix template',done:false},{id:2,title:'Research Notion and Obsidian',done:false},{id:3,title:'Research Roam, Logseq, Mem.ai',done:false},{id:4,title:'Write executive summary',done:false}],linkedGoalId:null,assignedTo:'Marcus Webb',createdBy:'Marcus Webb'},{id:203,title:'Prepare Monthly Stakeholder Report',priority:'High',due:'2026-04-30',startDate:'2026-04-28',endDate:'2026-04-30',startTime:'14:00',endTime:'16:00',estimatedMins:90,context:'Admin',project:'Fundraising',projectId:2,status:'In Progress',myDay:true,energy:'medium',tags:['reporting','investors','monthly'],notes:'Include: MRR growth, user acquisition metrics, key product milestones, burn rate, and 30-day outlook. Use the standard investor update template. Send by April 30 EOD.',recurring:'Monthly',subtasks:[{id:1,title:'Pull metrics from dashboard',done:true},{id:2,title:'Write narrative summary',done:false},{id:3,title:'Format with template',done:false},{id:4,title:'Review with Priya before sending',done:false}],linkedGoalId:2,assignedTo:'Idris Grant',createdBy:'Idris Grant'}];
-      const ex=defaults.find(x=>x.id===eid);
-      if(ex)D.tasks.push(ex);
-    }
-  });
-  save('tasks');
+  // Seed example tasks ONCE only — guarded by a localStorage flag so deleted tasks stay deleted
+  const _seedKey='lu_examples_seeded_v1';
+  if(!localStorage.getItem(_seedKey)){
+    const exampleIds=[201,202,203];
+    exampleIds.forEach(eid=>{
+      if(!D.tasks.find(t=>t.id===eid)){
+        const defaults=[{id:201,title:'Design Q3 Sprint Planning Workshop',priority:'High',due:'2026-05-10',startDate:'2026-05-08',endDate:'2026-05-10',startTime:'10:00',endTime:'12:00',estimatedMins:120,context:'Deep Work',project:'LevelUp Platform',projectId:1,status:'Not Started',myDay:true,energy:'high',tags:['planning','leadership','sprint'],notes:'Prepare agenda, invite all team leads, set up Miro board for async pre-work. Goal: align on Q3 OKRs and define sprint 8 scope with clear acceptance criteria for each story.',recurring:'None',subtasks:[{id:1,title:'Draft workshop agenda',done:false},{id:2,title:'Send calendar invites',done:false},{id:3,title:'Set up Miro collaboration board',done:false},{id:4,title:'Prepare OKR alignment slides',done:false}],linkedGoalId:1,assignedTo:'Idris Grant',createdBy:'Idris Grant'},{id:202,title:'Competitive Analysis — Top 5 Productivity Apps',priority:'Medium',due:'2026-05-15',startDate:'2026-05-12',endDate:'2026-05-15',startTime:'09:00',endTime:'11:00',estimatedMins:180,context:'Research',project:'Second Brain Research',projectId:3,status:'Not Started',myDay:false,energy:'medium',tags:['research','strategy','competitive'],notes:'Analyze Notion, Obsidian, Roam, Logseq, and Mem.ai. Focus on: pricing, AI features, target persona, onboarding flow, and key differentiators. Produce a 1-page comparison matrix.',recurring:'None',subtasks:[{id:1,title:'Create comparison matrix template',done:false},{id:2,title:'Research Notion and Obsidian',done:false},{id:3,title:'Research Roam, Logseq, Mem.ai',done:false},{id:4,title:'Write executive summary',done:false}],linkedGoalId:null,assignedTo:'Marcus Webb',createdBy:'Marcus Webb'},{id:203,title:'Prepare Monthly Stakeholder Report',priority:'High',due:'2026-04-30',startDate:'2026-04-28',endDate:'2026-04-30',startTime:'14:00',endTime:'16:00',estimatedMins:90,context:'Admin',project:'Fundraising',projectId:2,status:'In Progress',myDay:true,energy:'medium',tags:['reporting','investors','monthly'],notes:'Include: MRR growth, user acquisition metrics, key product milestones, burn rate, and 30-day outlook. Use the standard investor update template. Send by April 30 EOD.',recurring:'Monthly',subtasks:[{id:1,title:'Pull metrics from dashboard',done:true},{id:2,title:'Write narrative summary',done:false},{id:3,title:'Format with template',done:false},{id:4,title:'Review with Priya before sending',done:false}],linkedGoalId:2,assignedTo:'Idris Grant',createdBy:'Idris Grant'}];
+        const ex=defaults.find(x=>x.id===eid);
+        if(ex)D.tasks.push(ex);
+      }
+    });
+    save('tasks');
+    localStorage.setItem(_seedKey,'1');
+  }
   // Boot app
   applyPrefs();
   checkMyDayReset();
@@ -11056,6 +11122,8 @@ function doLoginSuccess(member){
   updateProfileUI();
   renderScreen(_homeKey);
   updateSidebarBadges();
+  // Load server-side data (restores data across deployments and devices)
+  setTimeout(loadServerData,300);
   // Show onboarding splash on first-ever login
   const _splashKey='lu_splash_shown_v1';
   if(!localStorage.getItem(_splashKey)){
@@ -15722,9 +15790,62 @@ async function deleteSmtpImapAccount(){
 applyPrefs();
 initLoginScreen();
 // App boots inside doLoginSuccess after auth
-// Patch save() to invalidate search index on data change
+// Patch save() to invalidate search index on data change AND sync to server (debounced)
 const _origSave=window.save||save;
-window.save=function(k){_origSave(k);invalidateSearchIndex()};
+// Debounce timers for server sync (one per data key)
+const _syncTimers={};
+// Keys that are synced to the server
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents']);
+async function _pushKeyToServer(k){
+  if(!_syncKeys.has(k))return;
+  try{
+    const val=JSON.stringify(D[k]);
+    await _trpc('appData.save',{[k]:val},'mutation');
+  }catch(e){
+    // Silent fail — localStorage is still the source of truth locally
+    console.warn('[appData] sync failed for key',k,e.message);
+  }
+}
+window.save=function(k){
+  _origSave(k);
+  invalidateSearchIndex();
+  // Debounce server push by 2s to batch rapid edits
+  if(_syncKeys.has(k)){
+    clearTimeout(_syncTimers[k]);
+    _syncTimers[k]=setTimeout(()=>_pushKeyToServer(k),2000);
+  }
+};
+// Load data from server and merge into D (server wins for non-empty arrays/objects)
+async function loadServerData(){
+  try{
+    const sd=await _trpc('appData.load',undefined,'query');
+    if(!sd)return; // No server data yet — first time user
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents'];
+    let changed=false;
+    keys.forEach(k=>{
+      if(sd[k]&&Array.isArray(sd[k])&&sd[k].length>0){
+        D[k]=sd[k];
+        localStorage.setItem('lu_'+k,JSON.stringify(sd[k]));
+        changed=true;
+      }
+    });
+    if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
+      D.prefs=Object.assign({},D.prefs,sd.prefs);
+      localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+      changed=true;
+    }
+    if(changed){
+      applyPrefs();
+      // Re-render current screen with restored data
+      if(typeof renderScreen==='function'&&typeof curScreen!=='undefined'){
+        renderScreen(curScreen);
+      }
+      updateSidebarBadges&&updateSidebarBadges();
+    }
+  }catch(e){
+    console.warn('[appData] load failed',e.message);
+  }
+}
 </script>
 <script
   defer
