@@ -555,3 +555,12 @@
 - [x] Add sidebar navigation links for Notifications, Event Reminders, Sync Status, Bulk Import (AppLayout.tsx sidebar with all 8 nav items)
 - [x] Wire email notification creation into syncMail procedure (auto-create on sync for both Microsoft and Google)
 - [x] Add notification badge to sidebar bell icon showing unread count (red badge with count in AppLayout)
+
+## Follow-up: Deduplication, Badge Clear, Calendar Persistence
+
+- [x] Add unique constraint on emailNotifications(userId, emailId) and use onDuplicateKeyUpdate no-op
+- [x] Add inline "×" clear-all button on sidebar notification badge (hover to reveal, calls markAllEmailNotificationsRead)
+- [x] Add calendarEvents table to schema and push migration (migration 0018)
+- [x] Add DB helpers for upsert/get calendar events (upsertCalendarEvent, getCalendarEvents)
+- [x] Update syncCalendar tRPC procedure to upsert events to DB (both Microsoft and Google)
+- [x] Update Calendar page to load events from DB (persists across page refresh, getCalendarEventsFromDB query)

@@ -127,6 +127,13 @@
       "when": 1777763723586,
       "tag": "0017_wet_serpent_society",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1777766881000,
+      "tag": "0018_spooky_jimmy_woo",
+      "breakpoints": true
     }
   ]
 }

@@ -271,25 +271,45 @@ export const oauthSyncRouter = router({
 
       if (input.provider === "microsoft") {
         const resp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}&$top=50&$select=subject,start,end,location,bodyPreview`,
+          `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${now.toISOString()}&endDateTime=${end.toISOString()}&$top=50&$select=id,subject,start,end,location,bodyPreview,organizer,isAllDay,showAs`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         if (!resp.ok) throw new Error("Microsoft Graph calendar fetch failed: " + resp.status);
-        const data = await resp.json() as { value: Array<{ subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string }> };
+        const data = await resp.json() as { value: Array<{ id: string; subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string; organizer?: { emailAddress?: { name?: string } }; isAllDay?: boolean; showAs?: string }> };
         
         // Update lastSyncedAt timestamp
         await db.updateOAuthTokenLastSynced(ctx.user.id, "microsoft");
-        
-        return {
-          provider: "microsoft",
-          events: (data.value || []).map(e => ({
-            title: e.subject,
-            start: e.start.dateTime,
-            end: e.end.dateTime,
-            location: e.location?.displayName ?? "",
-            notes: e.bodyPreview ?? "",
-          })),
-        };
+
+        const events = (data.value || []).map(e => ({
+          id: e.id,
+          title: e.subject,
+          start: e.start.dateTime,
+          end: e.end.dateTime,
+          location: e.location?.displayName ?? "",
+          notes: e.bodyPreview ?? "",
+          organizer: e.organizer?.emailAddress?.name ?? "",
+          isAllDay: e.isAllDay ? 1 : 0,
+          status: e.showAs ?? "busy",
+        }));
+
+        // Persist events to DB (upsert — safe to call on every sync)
+        for (const e of events) {
+          await db.upsertCalendarEvent({
+            userId: ctx.user.id,
+            provider: 'microsoft',
+            eventId: e.id,
+            title: e.title,
+            start: new Date(e.start),
+            end: new Date(e.end),
+            location: e.location || null,
+            description: e.notes || null,
+            organizer: e.organizer || null,
+            isAllDay: e.isAllDay,
+            status: e.status,
+          });
+        }
+
+        return { provider: "microsoft", events, eventsUpserted: events.length };
       }
 
       // Google
@@ -298,17 +318,39 @@ export const oauthSyncRouter = router({
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       if (!resp.ok) throw new Error("Google Calendar fetch failed: " + resp.status);
-      const data = await resp.json() as { items: Array<{ summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; location?: string; description?: string }> };
-      return {
-        provider: "google",
-        events: (data.items || []).map(e => ({
-          title: e.summary ?? "(No title)",
-          start: e.start.dateTime ?? e.start.date ?? "",
-          end: e.end.dateTime ?? e.end.date ?? "",
-          location: e.location ?? "",
-          notes: e.description ?? "",
-        })),
-      };
+      const data = await resp.json() as { items: Array<{ id?: string; summary?: string; start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; location?: string; description?: string; organizer?: { displayName?: string }; status?: string }> };
+
+      const googleEvents = (data.items || []).map(e => ({
+        id: e.id ?? '',
+        title: e.summary ?? "(No title)",
+        start: e.start.dateTime ?? e.start.date ?? "",
+        end: e.end.dateTime ?? e.end.date ?? "",
+        location: e.location ?? "",
+        notes: e.description ?? "",
+        organizer: e.organizer?.displayName ?? "",
+        isAllDay: !e.start.dateTime ? 1 : 0,
+        status: e.status ?? "confirmed",
+      }));
+
+      // Persist Google events to DB
+      for (const e of googleEvents) {
+        if (!e.id) continue;
+        await db.upsertCalendarEvent({
+          userId: ctx.user.id,
+          provider: 'google',
+          eventId: e.id,
+          title: e.title,
+          start: new Date(e.start),
+          end: new Date(e.end),
+          location: e.location || null,
+          description: e.notes || null,
+          organizer: e.organizer || null,
+          isAllDay: e.isAllDay,
+          status: e.status,
+        });
+      }
+
+      return { provider: "google", events: googleEvents, eventsUpserted: googleEvents.length };
     }),
 
   syncMail: protectedProcedure
@@ -1170,6 +1212,29 @@ export const oauthSyncRouter = router({
           message: `Failed to sync SMTP/IMAP mail: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
+    }),
+
+  // ─── Calendar Events (DB) ────────────────────────────────────────────────
+
+  /**
+   * Get persisted calendar events from the database for the current user.
+   * Supports optional date range filtering. Falls back to next 30 days if not specified.
+   */
+  getCalendarEventsFromDB: protectedProcedure
+    .input(z.object({
+      from: z.date().optional(),
+      to: z.date().optional(),
+      provider: z.enum(["microsoft", "google"]).optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const from = input?.from ?? new Date();
+      const to = input?.to ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const events = await db.getCalendarEvents(ctx.user.id, {
+        from,
+        to,
+        provider: input?.provider,
+      });
+      return events;
     }),
 
   // ─── Email Notifications ──────────────────────────────────────────────────

@@ -501,7 +501,11 @@ export async function createEmailNotification(input: {
   
   try {
     const { emailNotifications } = await import("../drizzle/schema");
-    await db.insert(emailNotifications).values(input);
+    // MySQL doesn't support onConflictDoNothing directly. Use onDuplicateKeyUpdate
+    // with a no-op set (id = id) to silently skip duplicate rows that violate the
+    // unique constraint uq_email_notif_user_email on (userId, emailId).
+    await db.insert(emailNotifications).values(input)
+      .onDuplicateKeyUpdate({ set: { id: sql`id` } });
   } catch (err) {
     console.warn('[Database] Failed to create email notification:', err);
   }
@@ -642,6 +646,86 @@ export async function getAllSyncStatus(userId: number) {
       .where(eq(syncStatus.userId, userId));
   } catch (err) {
     console.warn('[Database] Failed to get all sync status:', err);
+    return [];
+  }
+}
+
+// ─── Calendar Events ─────────────────────────────────────────────────────────
+
+/**
+ * Upsert a calendar event from a provider sync.
+ * Uses onDuplicateKeyUpdate to update mutable fields if the event already exists
+ * (identified by the unique constraint on userId + provider + eventId).
+ */
+export async function upsertCalendarEvent(input: {
+  userId: number;
+  provider: string;
+  eventId: string;
+  title: string;
+  start: Date;
+  end: Date;
+  location?: string | null;
+  description?: string | null;
+  organizer?: string | null;
+  isAllDay?: number;
+  status?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    const { calendarEvents } = await import("../drizzle/schema");
+    await db.insert(calendarEvents).values({
+      userId: input.userId,
+      provider: input.provider,
+      eventId: input.eventId,
+      title: input.title,
+      start: input.start,
+      end: input.end,
+      location: input.location ?? null,
+      description: input.description ?? null,
+      organizer: input.organizer ?? null,
+      isAllDay: input.isAllDay ?? 0,
+      status: input.status ?? null,
+    }).onDuplicateKeyUpdate({
+      set: {
+        title: input.title,
+        start: input.start,
+        end: input.end,
+        location: input.location ?? null,
+        description: input.description ?? null,
+        organizer: input.organizer ?? null,
+        isAllDay: input.isAllDay ?? 0,
+        status: input.status ?? null,
+      },
+    });
+  } catch (err) {
+    console.warn('[Database] Failed to upsert calendar event:', err);
+  }
+}
+
+/**
+ * Get all calendar events for a user within an optional date range.
+ * Returns events ordered by start time ascending.
+ */
+export async function getCalendarEvents(userId: number, opts?: { from?: Date; to?: Date; provider?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const { calendarEvents } = await import("../drizzle/schema");
+    const conditions = [eq(calendarEvents.userId, userId)];
+    if (opts?.from) conditions.push(gte(calendarEvents.start, opts.from));
+    if (opts?.to) conditions.push(lte(calendarEvents.start, opts.to));
+    if (opts?.provider) conditions.push(eq(calendarEvents.provider, opts.provider));
+
+    return await db
+      .select()
+      .from(calendarEvents)
+      .where(and(...conditions))
+      .orderBy(calendarEvents.start);
+  } catch (err) {
+    console.warn('[Database] Failed to get calendar events:', err);
     return [];
   }
 }

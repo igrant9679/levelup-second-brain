@@ -16,10 +16,11 @@ import {
   Settings,
   X,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { toast } from "sonner";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -51,6 +52,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   );
   const unreadCount = notificationsQuery.data?.length ?? 0;
+  const [badgeHovered, setBadgeHovered] = useState(false);
+  const clearAllMutation = trpc.oauthSync.markAllEmailNotificationsRead.useMutation({
+    onSuccess: () => {
+      notificationsQuery.refetch();
+      toast.success("All notifications marked as read");
+    },
+  });
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
@@ -135,12 +143,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   ${collapsed ? "justify-center" : ""}
                 `}
               >
-                <div className="relative flex-shrink-0">
+                <div
+                  className="relative flex-shrink-0"
+                  onMouseEnter={() => item.badge ? setBadgeHovered(true) : undefined}
+                  onMouseLeave={() => setBadgeHovered(false)}
+                >
                   <item.icon className="w-4 h-4" />
-                  {showBadge && (
+                  {showBadge && !badgeHovered && (
                     <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
                       {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
+                  )}
+                  {showBadge && badgeHovered && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearAllMutation.mutate();
+                      }}
+                      title="Mark all as read"
+                      className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
                   )}
                 </div>
                 {!collapsed && <span className="truncate">{item.label}</span>}

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, tinyint, varchar } from "drizzle-orm/mysql-core";
+import { index, int, mysqlEnum, mysqlTable, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -312,7 +312,10 @@ export const emailNotifications = mysqlTable('email_notifications', {
   emailId: varchar('emailId', { length: 255 }).notNull(),
   read: tinyint('read').default(0).notNull(), // 0 = unread, 1 = read
   createdAt: timestamp('createdAt').defaultNow().notNull(),
-});
+}, (t) => ({
+  // Prevent duplicate notifications for the same email across repeated syncs
+  uniqueUserEmail: unique('uq_email_notif_user_email').on(t.userId, t.emailId),
+}));
 export type EmailNotification = typeof emailNotifications.$inferSelect;
 export type InsertEmailNotification = typeof emailNotifications.$inferInsert;
 
@@ -331,6 +334,32 @@ export const eventReminders = mysqlTable('event_reminders', {
 });
 export type EventReminder = typeof eventReminders.$inferSelect;
 export type InsertEventReminder = typeof eventReminders.$inferInsert;
+
+// ─── Calendar Events ────────────────────────────────────────────────────────
+// Persisted calendar events synced from Microsoft/Google
+export const calendarEvents = mysqlTable('calendar_events', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  provider: varchar('provider', { length: 32 }).notNull(), // 'microsoft' | 'google'
+  eventId: varchar('eventId', { length: 512 }).notNull(),  // provider-native event ID
+  title: text('title').notNull(),
+  start: timestamp('start').notNull(),
+  end: timestamp('end').notNull(),
+  location: text('location'),
+  description: text('description'),
+  organizer: varchar('organizer', { length: 320 }),
+  isAllDay: tinyint('isAllDay').default(0).notNull(),
+  status: varchar('status', { length: 64 }),  // 'confirmed' | 'tentative' | 'cancelled'
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  // Prevent duplicate events for the same provider event across repeated syncs
+  uniqueUserProviderEvent: unique('uq_cal_event_user_provider').on(t.userId, t.provider, t.eventId),
+  // Index for fast date-range queries
+  idxUserStart: index('idx_cal_events_user_start').on(t.userId, t.start),
+}));
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = typeof calendarEvents.$inferInsert;
 
 // ─── Sync Status ────────────────────────────────────────────────────────────
 // Track sync statistics for each provider
