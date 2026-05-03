@@ -1081,7 +1081,10 @@ export const oauthSyncRouter = router({
 
   /**
    * testSmtpImapConnection — verify SMTP credentials without saving.
+  /**
+   * testSmtpImapConnection — verify SMTP and IMAP credentials simultaneously.
    * Called by the "Test" button in Settings → Mail.
+   * Runs both checks in parallel and returns individual pass/fail + latency for each.
    */
   testSmtpImapConnection: protectedProcedure
     .input(z.object({
@@ -1097,21 +1100,55 @@ export const oauthSyncRouter = router({
       smtpPassword: z.string().min(1),
     }))
     .mutation(async ({ input }) => {
-      try {
-        await testSmtpConnection({
-          smtpHost: input.smtpHost,
-          smtpPort: input.smtpPort,
-          smtpEncryption: input.smtpEncryption,
-          smtpUsername: input.smtpUsername,
-          smtpPassword: input.smtpPassword,
-        });
-        return { success: true, message: 'SMTP connection verified successfully.' };
-      } catch (err) {
-        return {
-          success: false,
-          message: `SMTP connection failed: ${err instanceof Error ? err.message : String(err)}`,
-        };
-      }
+      // Run SMTP and IMAP checks in parallel
+      const [smtpResult, imapResult] = await Promise.allSettled([
+        // --- SMTP check ---
+        (async () => {
+          const t0 = Date.now();
+          await testSmtpConnection({
+            smtpHost: input.smtpHost,
+            smtpPort: input.smtpPort,
+            smtpEncryption: input.smtpEncryption,
+            smtpUsername: input.smtpUsername,
+            smtpPassword: input.smtpPassword,
+          });
+          return { latencyMs: Date.now() - t0 };
+        })(),
+        // --- IMAP check ---
+        (async () => {
+          const t0 = Date.now();
+          await new Promise<void>((resolve, reject) => {
+            const imap = new Imap({
+              user: input.imapUsername,
+              password: input.imapPassword,
+              host: input.imapHost,
+              port: input.imapPort,
+              tls: input.imapEncryption !== 'none',
+              tlsOptions: { rejectUnauthorized: false },
+              authTimeout: 8000,
+              connTimeout: 8000,
+            });
+            imap.once('ready', () => { imap.end(); resolve(); });
+            imap.once('error', (err: Error) => reject(err));
+            imap.connect();
+          });
+          return { latencyMs: Date.now() - t0 };
+        })(),
+      ]);
+
+      const smtp = smtpResult.status === 'fulfilled'
+        ? { ok: true, latencyMs: smtpResult.value.latencyMs, message: 'Connected successfully' }
+        : { ok: false, latencyMs: null, message: smtpResult.reason instanceof Error ? smtpResult.reason.message : String(smtpResult.reason) };
+
+      const imap = imapResult.status === 'fulfilled'
+        ? { ok: true, latencyMs: imapResult.value.latencyMs, message: 'Connected successfully' }
+        : { ok: false, latencyMs: null, message: imapResult.reason instanceof Error ? imapResult.reason.message : String(imapResult.reason) };
+
+      return {
+        success: smtp.ok && imap.ok,
+        smtp,
+        imap,
+      };
     }),
 
   /**

@@ -8664,7 +8664,22 @@ function renderSettingsHTML(){
       </div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-p" style="font-size:11px;padding:4px 10px;flex:1" onclick="saveSmtpImapAccount()">💾 Save Account</button>
-        <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="testSmtpImapConnection()">🔌 Test</button>
+        <button id="btn-smtp-test" class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="testSmtpImapConnection()">🔌 Test</button>
+      </div>
+      <div id="smtp-test-results" style="display:none;margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--brd);font-size:11px">
+        <div style="font-weight:600;margin-bottom:6px">Connection Test Results</div>
+        <div id="smtp-test-smtp-row" style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span id="smtp-test-smtp-icon" style="font-size:14px">⏳</span>
+          <span style="font-weight:500;min-width:40px">SMTP</span>
+          <span id="smtp-test-smtp-msg" style="color:var(--t2)">Testing...</span>
+          <span id="smtp-test-smtp-latency" style="margin-left:auto;color:var(--t3)"></span>
+        </div>
+        <div id="smtp-test-imap-row" style="display:flex;align-items:center;gap:6px">
+          <span id="smtp-test-imap-icon" style="font-size:14px">⏳</span>
+          <span style="font-weight:500;min-width:40px">IMAP</span>
+          <span id="smtp-test-imap-msg" style="color:var(--t2)">Testing...</span>
+          <span id="smtp-test-imap-latency" style="margin-left:auto;color:var(--t3)"></span>
+        </div>
       </div>
     </div>
     <div id="smtp-imap-buttons" style="display:flex;gap:6px;flex-wrap:wrap">
@@ -15424,15 +15439,44 @@ async function testSmtpImapConnection(){
     smtpUsername:document.getElementById('smtp-smtp-username').value,
     smtpPassword:document.getElementById('smtp-smtp-password').value,
   };
+  // Validate required fields
+  if(!data.smtpHost||!data.smtpUsername||!data.smtpPassword||!data.imapHost||!data.imapUsername||!data.imapPassword){
+    toast('Please fill in all SMTP and IMAP fields before testing','error',5000);
+    return;
+  }
+  // Show result panel in loading state
+  const panel=document.getElementById('smtp-test-results');
+  const btn=document.getElementById('btn-smtp-test');
+  if(panel){panel.style.display='block';}
+  if(btn){btn.disabled=true;btn.textContent='⏳ Testing...';}
+  const setRow=(type,ok,msg,latencyMs)=>{
+    const icon=document.getElementById('smtp-test-'+type+'-icon');
+    const msgEl=document.getElementById('smtp-test-'+type+'-msg');
+    const latEl=document.getElementById('smtp-test-'+type+'-latency');
+    if(icon)icon.textContent=ok===null?'⏳':ok?'✅':'❌';
+    if(msgEl){msgEl.textContent=msg;msgEl.style.color=ok===null?'var(--t2)':ok?'var(--grn)':'var(--red)';}
+    if(latEl)latEl.textContent=latencyMs!=null?latencyMs+'ms':'';
+  };
+  setRow('smtp',null,'Testing...',null);
+  setRow('imap',null,'Testing...',null);
   try{
     const res=await _trpc('oauthSync.testSmtpImapConnection',data,'mutation');
+    setRow('smtp',res.smtp?.ok,res.smtp?.message||'Unknown',res.smtp?.latencyMs);
+    setRow('imap',res.imap?.ok,res.imap?.message||'Unknown',res.imap?.latencyMs);
     if(res.success){
-      toast('Connection test passed','success');
+      toast('✅ Both SMTP and IMAP connected successfully','success');
     }else{
-      toast('Connection test failed: '+(res.message||'Unknown error'),'error',8000);
+      const failed=[];
+      if(!res.smtp?.ok)failed.push('SMTP');
+      if(!res.imap?.ok)failed.push('IMAP');
+      toast('❌ '+failed.join(' & ')+' connection failed — see details above','error',8000);
     }
   }catch(e){
+    setRow('smtp',false,'Error: '+e.message,null);
+    setRow('imap',false,'Error: '+e.message,null);
     toast('Connection test error: '+e.message,'error',8000);
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='🔌 Test';}
   }
 }
 

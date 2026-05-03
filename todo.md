@@ -840,3 +840,7 @@
 ### SMTP/IMAP Account Save & Test
 - [x] Fix: tRPC error when clicking Test button — added `testSmtpImapConnection` procedure (frontend was calling a non-existent procedure name)
 - [x] Fix: Save Account button silently failed — removed mandatory pre-save SMTP connection test from `saveSmtpImapAccount`; save now always succeeds if fields are valid
+
+### SMTP/IMAP Simultaneous Connection Test
+- [x] Backend: added IMAP verify to `testSmtpImapConnection` — runs SMTP + IMAP checks in parallel via Promise.allSettled, returns per-connection ok/message/latencyMs
+- [x] Frontend: Test button shows inline result panel with ✅/❌ per row (SMTP and IMAP), latency in ms, and a summary toast
