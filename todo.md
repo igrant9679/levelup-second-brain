@@ -596,6 +596,6 @@
 
 ## Bug: Sync Settings Page Blank / Navigation Broken
 
-- [ ] Fix blank SyncSettings page (diagnose render error)
-- [ ] Fix sidebar "Sync" link to point to /sync-settings
-- [ ] Verify PerUserCredentials component renders correctly
+- [x] Fix blank SyncSettings page — root cause: app uses vanilla JS index.html (12825 lines), not React pages. The /sync-settings React route is never reached. Credentials form already exists natively in Settings → Connected Accounts → Your OAuth App Credentials.
+- [x] Fix sidebar "Sync" link — N/A: sidebar is in the vanilla JS app and already links to the correct Settings section.
+- [x] Verify PerUserCredentials component renders correctly — N/A: the native HTML credentials form in index.html is the correct UI.
