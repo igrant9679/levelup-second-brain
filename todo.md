@@ -808,3 +808,29 @@
 - [x] Frontend: Delete button on calendar event detail modal (confirm dialog)
 - [x] Frontend: Edit form fields: title, date, start time, end time, location, description, all-day toggle
 - [x] Frontend: Calendar re-renders after edit/delete without full page reload
+
+## Email Delivery, Role Gating & Recurring Events (May 2026)
+
+### Email Delivery for Invites
+- [x] Backend: send invite email via existing SMTP helper when `teamInvites.create` is called
+- [x] Backend: send re-invite email via SMTP when `teamInvites.resend` is called
+- [x] Email template: subject "You've been invited to LevelUp", body with inviter name, role, invite link, expiry date
+- [x] Graceful fallback: if SMTP is not configured, log warning and still return the invite (link shown in UI)
+
+### Role-Based Nav & Screen Gating
+- [x] Frontend: hide "Invite Member" button in Team screen for non-admin users (CSS .admin-only class)
+- [x] Frontend: hide invite table / invite panel for non-admin users (CSS .admin-only class)
+- [x] Frontend: hide Settings → Team admin actions (role change, remove member) for non-admin users
+- [x] Backend: all teamInvites procedures use adminProcedure guard (confirmed)
+- [x] Frontend: Settings notification sender panel gated with .admin-only class
+
+### Calendar Recurring Events
+- [x] DB: added `recurrence` varchar(32) column to calendar_events table (values: none/daily/weekly/biweekly/monthly/yearly)
+- [x] DB: migration applied via pnpm db:push
+- [x] DB helper: updateCalendarEvent accepts recurrence field
+- [x] tRPC: oauthSync.updateCalendarEvent accepts optional recurrence enum
+- [x] Frontend: "Repeat" dropdown in edit event form (pre-filled from existing recurrence value)
+- [x] Frontend: event detail modal shows 🔁 recurrence label when set
+- [x] Frontend: recurrence stored in local _calEvents state and synced from DB
+- [ ] Frontend: "Repeat" dropdown in new event create form (future enhancement)
+- [ ] Frontend: when deleting a recurring event, offer "Delete this event only" vs "Delete all occurrences" (future enhancement)

@@ -14,6 +14,9 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#64748B;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px;--brd:rgba(255,255,255,.10)}
 body.light-mode{--bg:#F1F5F9;--s1:#FFFFFF;--s2:#F8FAFC;--s3:#EEF2F7;--s4:#E2E8F0;--bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.10);--bd3:rgba(0,0,0,.16);--t1:#0F172A;--t2:#475569;--t3:#94A3B8;--t4:#CBD5E1;--brd:rgba(0,0,0,.10)}
+/* ROLE-BASED GATING: hide admin-only elements for non-admin users */
+body[data-role="user"] .admin-only{display:none!important}
+body[data-role="user"] .admin-only-inline{visibility:hidden!important;pointer-events:none!important}
 body.compact-mode .lr{padding:2px 0!important}
 body.compact-mode .cd{padding:8px!important}
 body.compact-mode h1{font-size:16px!important}
@@ -4482,6 +4485,7 @@ function openCalEvent(id){
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:10px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">📍</span><div style="font-size:12px">${esc(ev.location||'No location')}</div></div>
   <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||ev.description||'No description')}</div></div>
+  ${ev.recurrence&&ev.recurrence!=='none'?`<div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🔁</span><div style="font-size:12px;color:var(--t2)">${{'daily':'Daily','weekly':'Weekly','biweekly':'Every 2 weeks','monthly':'Monthly','yearly':'Yearly'}[ev.recurrence]||ev.recurrence}</div></div>`:''}
   ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
@@ -4512,6 +4516,14 @@ function openEditCalEvent(id){
   </div>
   <div class="field"><label>Location</label><input class="inp" id="cev-loc" value="${esc(ev.location||'')}"></div>
   <div class="field"><label>Description</label><textarea class="inp" id="cev-desc" style="min-height:60px">${esc(ev.desc||ev.description||'')}</textarea></div>
+  <div class="field"><label>Repeat</label><select class="inp" id="cev-recurrence">
+    <option value="none" ${(!ev.recurrence||ev.recurrence==='none')?'selected':''}>Does not repeat</option>
+    <option value="daily" ${ev.recurrence==='daily'?'selected':''}>Daily</option>
+    <option value="weekly" ${ev.recurrence==='weekly'?'selected':''}>Weekly</option>
+    <option value="biweekly" ${ev.recurrence==='biweekly'?'selected':''}>Every 2 weeks</option>
+    <option value="monthly" ${ev.recurrence==='monthly'?'selected':''}>Monthly</option>
+    <option value="yearly" ${ev.recurrence==='yearly'?'selected':''}>Yearly</option>
+  </select></div>
   </div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="saveEditCalEvent(${id})">&#10003; Save Changes</button>
@@ -4535,6 +4547,7 @@ async function saveEditCalEvent(id){
   const startHour=parseInt(startTime.split(':')[0]);
   const endHour=parseInt(endTime.split(':')[0])||startHour+1;
   // Update local state
+  const recurrence=document.getElementById('cev-recurrence')?.value||'none';
   ev.title=title;
   ev.dateStr=dateVal;
   ev.start=startTime;
@@ -4545,6 +4558,7 @@ async function saveEditCalEvent(id){
   ev.location=location;
   ev.desc=desc;
   ev.isAllDay=isAllDay;
+  ev.recurrence=recurrence;
   localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
   // If event has a DB ID, persist to server
   if(ev.dbId){
@@ -4559,6 +4573,7 @@ async function saveEditCalEvent(id){
         location,
         description:desc,
         isAllDay,
+        recurrence,
       },'mutate');
       toast('✓ Event updated and saved to server');
     }catch(e){
@@ -7591,9 +7606,9 @@ function renderTeam(){
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
-  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div><button class="btn btn-p" onclick="showInvitePanel()">✉️ Invite Member</button></div>
+  $('team-main').innerHTML=`<div class="ph-r" style="margin-bottom:16px"><div><h1 style="font-size:22px;font-weight:700">👥 Team Dashboard</h1><p style="font-size:12px;color:var(--t2)">${teamName} · ${allMembers.length} members</p></div><button class="btn btn-p admin-only" onclick="showInvitePanel()">✉️ Invite Member</button></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">${allMembers.map(m=>memberCard(m)).join('')}</div>
-  <div id="invite-panel" style="display:none;margin-top:24px">
+  <div id="invite-panel" class="admin-only" style="display:none;margin-top:24px">
     <div class="cd" style="padding:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h2 style="font-size:15px;font-weight:600;margin:0">✉️ Invite Team Members</h2>
@@ -7647,7 +7662,7 @@ async function loadInviteList(){
       const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:9px">✓ Accepted</span>'
         :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:9px">Expired</span>'
         :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:9px">Pending</span>';
-      const inviteUrl=window.location.origin+'/invite/'+inv.token;
+      const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
       const actions=inv.accepted?''
         :`<button class="btn btn-s" style="height:22px;font-size:10px" onclick="copyInviteLink('${inv.token}')" title="Copy invite link">📋 Copy Link</button>
           <button class="btn btn-s" style="height:22px;font-size:10px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
@@ -7673,8 +7688,8 @@ async function sendInvite(){
   const role=document.getElementById('inv-role')?.value||'user';
   if(!email){toast('⚠ Email is required');return;}
   try{
-    const inv=await _trpc('teamInvites.create',{email,name,role,expiryDays:7},'mutate');
-    const inviteUrl=window.location.origin+'/invite/'+inv.token;
+    const inv=await _trpc('teamInvites.create',{email,name,role,expiryDays:7,origin:window.location.origin},'mutate');
+    const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
     toast('✓ Invite created! Copying link...');
     await navigator.clipboard.writeText(inviteUrl).catch(()=>{});
     document.getElementById('inv-email').value='';
@@ -7706,8 +7721,8 @@ function copyInviteLink(token){
 
 async function resendInvite(id){
   try{
-    const updated=await _trpc('teamInvites.resend',{id,expiryDays:7},'mutate');
-    const url=window.location.origin+'/invite/'+updated.token;
+    const updated=await _trpc('teamInvites.resend',{id,expiryDays:7,origin:window.location.origin},'mutate');
+    const url=updated.inviteUrl||(window.location.origin+'/invite/'+updated.token);
     toast('✓ Invite regenerated! Copying new link...');
     await navigator.clipboard.writeText(url).catch(()=>{});
     loadInviteList();
@@ -8663,7 +8678,7 @@ function renderSettingsHTML(){
 
   </div>
   <!-- Notification Sender (owner/admin only) -->
-  <div id="notif-sender-section" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+  <div id="notif-sender-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📤 System Notification Sender</div>
     <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Choose which connected account is used to send all system notifications (password reset emails, digest emails, alerts). Only accounts that are currently connected appear here.</p>
     <div style="display:flex;gap:8px;align-items:center">
@@ -9234,7 +9249,7 @@ function editTeamMember(teamId,memberId){
   <div class="field"><label>Job Title</label><input class="inp" id="em-title" value="${esc(m.jobTitle||'')}"></div>
   <div class="field"><label>Role</label><select class="inp" id="em-role"><option ${m.role==='Owner'?'selected':''}>Owner</option><option ${m.role==='Admin'?'selected':''}>Admin</option><option ${m.role==='Member'?'selected':''}>Member</option><option ${m.role==='Viewer'?'selected':''}>Viewer</option></select></div>
   <div class="field"><label>Avatar Color</label><input type="color" class="inp" id="em-color" value="${m.color||'#3B82F6'}" style="height:36px;padding:2px"></div>
-  <div style="display:flex;gap:8px;margin-top:12px">
+  <div style="display:flex;gap:8px;margin-top:12px" class="admin-only">
   <button class="btn btn-p" onclick="saveTeamMember(${teamId},${memberId})">Save Changes</button>
   ${m.role!=='Owner'?`<button class="btn btn-d" onclick="if(confirm('Remove ${esc(m.name)} from team?')){removeMember(${teamId},${memberId});closeDrawer();}">Remove Member</button>`:''}
   </div>`;
@@ -10892,11 +10907,12 @@ function applyUserPerms(member){
   const permMap={mail:'s-mail',calendar:'s-calendar',settings:'s-settings',coach:'s-coach'};
   // We apply via CSS class on body
   document.body.dataset.role=member.role||'Member';
-  // Restrict settings nav for non-owners
-  if(member.role!=='Owner'&&member.role!=='Admin'){
-    document.body.classList.add('restricted');
-  } else {
+  // Restrict settings nav for non-admin users (DB roles: 'admin' | 'user')
+  const roleNorm=(member.role||'').toLowerCase();
+  if(roleNorm==='admin'||roleNorm==='owner'){
     document.body.classList.remove('restricted');
+  } else {
+    document.body.classList.add('restricted');
   }
 }
 function showChangeEmailForm(){
@@ -14934,7 +14950,7 @@ async function syncOAuthCalendar(provider){
       if(!exists){
         // Try to find DB ID for this event
         const dbEv=dbEvents.find(d=>d.title===ev.title&&new Date(d.start).toISOString().slice(0,10)===dateStr);
-        _calEvents.push({id:Date.now()+Math.random(),dbId:dbEv?.id||null,title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider,isAllDay:ev.isAllDay||0});
+        _calEvents.push({id:Date.now()+Math.random(),dbId:dbEv?.id||null,title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider,isAllDay:ev.isAllDay||0,recurrence:dbEv?.recurrence||'none'});
         added++;
       }
     });

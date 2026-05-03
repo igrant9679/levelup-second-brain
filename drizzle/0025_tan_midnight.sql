@@ -1,0 +1,1 @@
+ALTER TABLE `calendar_events` ADD `recurrence` varchar(32) DEFAULT 'none';

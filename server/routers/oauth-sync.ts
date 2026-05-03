@@ -1334,6 +1334,7 @@ export const oauthSyncRouter = router({
       location: z.string().max(512).nullable().optional(),
       description: z.string().max(4096).nullable().optional(),
       isAllDay: z.number().int().min(0).max(1).optional(),
+      recurrence: z.enum(['none', 'daily', 'weekly', 'biweekly', 'monthly', 'yearly']).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;

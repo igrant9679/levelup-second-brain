@@ -790,6 +790,7 @@ export async function updateCalendarEvent(
     location?: string | null;
     description?: string | null;
     isAllDay?: number;
+    recurrence?: string;
   }
 ) {
   const db = await getDb();

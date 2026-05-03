@@ -176,6 +176,13 @@
       "when": 1777829961476,
       "tag": "0024_elite_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1777830935002,
+      "tag": "0025_tan_midnight",
+      "breakpoints": true
     }
   ]
 }

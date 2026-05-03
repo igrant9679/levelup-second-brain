@@ -353,6 +353,7 @@ export const calendarEvents = mysqlTable('calendar_events', {
   organizer: varchar('organizer', { length: 320 }),
   isAllDay: tinyint('isAllDay').default(0).notNull(),
   status: varchar('status', { length: 64 }),  // 'confirmed' | 'tentative' | 'cancelled'
+  recurrence: varchar('recurrence', { length: 32 }).default('none'),  // 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
