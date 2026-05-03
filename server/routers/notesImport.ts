@@ -2,9 +2,9 @@
  * Notes Document Import Router
  *
  * Accepts a single document file (PDF, DOCX, or TXT) as base64 and extracts
- * its text content, returning it as a single note ready to be saved.
+ * its full text content, returning it as ONE complete note.
  *
- * For PDF: uses pdf-parse to extract text, then tries heading-based splitting.
+ * For PDF: uses pdf-parse to extract text.
  * For DOCX: uses mammoth to extract plain text.
  * For TXT/RTF: decodes the buffer directly as UTF-8.
  */
@@ -22,48 +22,10 @@ interface ImportedNote {
   tags: string[];
 }
 
-function isHeading(line: string): boolean {
-  const t = line.trim();
-  if (!t || t.length > 80) return false;
-  if (t === t.toUpperCase() && /[A-Z]{3,}/.test(t)) return true;
-  const words = t.split(/\s+/);
-  if (words.length >= 2 && words.length <= 10 && words.every((w) => /^[A-Z0-9"'(]/.test(w))) return true;
-  if (/^(\d+\.[\d.]*\s+\S|Chapter\s+\d|Section\s+\d)/i.test(t)) return true;
-  return false;
-}
-
-function splitByHeadings(text: string, fileTitle: string): ImportedNote[] | null {
-  const lines = text.split("\n");
-  const sections: Array<{ heading: string; lines: string[] }> = [];
-  let current: { heading: string; lines: string[] } | null = null;
-  let headingCount = 0;
-
-  for (const line of lines) {
-    if (isHeading(line)) {
-      headingCount++;
-      if (current) sections.push(current);
-      current = { heading: line.trim(), lines: [] };
-    } else {
-      if (current) current.lines.push(line);
-    }
-  }
-  if (current) sections.push(current);
-  if (headingCount < 2) return null;
-
-  return sections
-    .filter((s) => s.lines.some((l) => l.trim()))
-    .map((s) => ({
-      title: s.heading,
-      body: s.lines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
-      source: "Document Import",
-      tags: [fileTitle.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")],
-    }));
-}
-
 export const notesImportRouter = router({
   /**
-   * Import a single document (PDF, DOCX, TXT) and return extracted note(s).
-   * The caller decides how many notes to create from the returned array.
+   * Import a single document (PDF, DOCX, TXT) and return it as ONE note
+   * containing the full document text. No splitting is performed.
    */
   importDocument: protectedProcedure
     .input(
@@ -132,17 +94,7 @@ export const notesImportRouter = router({
         };
       }
 
-      // Try heading-based splitting first
-      const headingNotes = splitByHeadings(rawText, fileTitle);
-      if (headingNotes && headingNotes.length >= 2) {
-        // Update source on all notes
-        return {
-          notes: headingNotes.map((n) => ({ ...n, source })),
-          warnings: [] as string[],
-        };
-      }
-
-      // Fall back to single note
+      // Always return the full document as a single note
       const cleanText = rawText.replace(/\n{3,}/g, "\n\n").trim();
       return {
         notes: [

@@ -926,3 +926,6 @@
 
 ## Word Doc Import Bug
 - [x] Fix "raw.trim is not a function" error — root cause: wdiImportSelected stored updated as Date.now() (number); _parseNoteDate called .trim() on a number. Fixed by: (1) making _parseNoteDate handle numeric timestamps directly, (2) storing updated as a locale date string in wdiImportSelected
+
+## Document Import — Single Note Mode
+- [x] Remove heading-based splitting from notesImport router — always import as one complete note regardless of document structure
