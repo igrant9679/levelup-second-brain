@@ -105,6 +105,18 @@ export async function updateUserPasswordHash(userId: number, passwordHash: strin
   await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
 }
 
+export async function updateUserEmail(userId: number, newEmail: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ email: newEmail }).where(eq(users.id, userId));
+}
+
+export async function updateUserName(userId: number, newName: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ name: newName }).where(eq(users.id, userId));
+}
+
 // ---- OAuth Token helpers ----
 
 export async function upsertOAuthToken(token: InsertOAuthToken): Promise<void> {

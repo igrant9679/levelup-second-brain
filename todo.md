@@ -699,3 +699,10 @@
 
 ## Bug Fix (May 2026)
 - [x] Fix missing closing brace in renderDrawer task if-block causing "Unexpected end of input" and "applyPrefs is not defined" errors
+
+## Login / Credential Bug Fix (May 2026)
+- [x] Restore idris@levelup.app credentials (reset to original email + password LevelUp2026!)
+- [x] Fix tRPC error when updating email address in Settings → Profile (added updateEmail procedure with password confirmation + openId migration)
+- [x] Fix tRPC error when updating password in Settings → Profile (setPassword procedure was already correct; UI now shows clear error messages)
+- [x] Ensure all users can update email and password without being locked out
+- [x] Add updateName procedure so display name changes persist to DB

@@ -8071,8 +8071,8 @@ function renderSettingsHTML(){
     })()}
   </div>
   </div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll()"></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:10px;color:var(--t3)">Used for account identification</div></div><input class="inp" style="max-width:240px" value="${esc(email)}" oninput="D.creds.email=this.value;updateProfileUI();document.getElementById('prof-email').textContent=this.value;saveAll()"></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" id="prof-name-input" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll();clearTimeout(window._nameTimer);window._nameTimer=setTimeout(()=>saveNameToServer(this.value),1200)"></div>
+  <div class="lr" style="padding:8px 0;flex-direction:column;align-items:flex-start;gap:6px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:10px;color:var(--t3)">Current: <span id="current-email-display">${esc(email)}</span></div></div><button class="btn btn-s" style="font-size:11px;height:28px" onclick="showChangeEmailForm()">Change Email</button></div><div id="change-email-form" style="display:none;width:100%;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Change Email Address</div><div style="margin-bottom:6px"><div style="font-size:10px;color:var(--t3);margin-bottom:2px">New Email Address</div><input class="inp" type="email" id="new-email-input" placeholder="new@example.com" style="width:100%;max-width:280px;font-size:12px" autocomplete="email"></div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--t3);margin-bottom:2px">Current Password (required to confirm)</div><input class="inp" type="password" id="email-change-pw" placeholder="Your current password" style="width:100%;max-width:280px;font-size:12px" autocomplete="current-password"></div><div style="display:flex;gap:6px"><button class="btn btn-p" id="email-change-btn" style="height:28px;font-size:11px" onclick="doChangeEmail()">Update Email</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="document.getElementById('change-email-form').style.display='none'">Cancel</button></div><div id="email-change-msg" style="font-size:11px;margin-top:6px;min-height:14px"></div></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" value="${esc(D.creds.jobTitle||'Founder & CEO')}" oninput="D.creds.jobTitle=this.value;saveAll();updateProfileCompleteness()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll();updateProfileCompleteness()"><option ${(D.creds.tz||'Eastern Time')==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" oninput="D.creds.bio=this.value;saveAll();updateProfileCompleteness()">${esc(D.creds.bio||'Building LevelUp — a personal OS for ambitious builders.')}</textarea></div>
@@ -10607,6 +10607,59 @@ function applyUserPerms(member){
     document.body.classList.add('restricted');
   } else {
     document.body.classList.remove('restricted');
+  }
+}
+function showChangeEmailForm(){
+  const form=document.getElementById('change-email-form');
+  if(!form)return;
+  form.style.display=form.style.display==='none'?'block':'none';
+  if(form.style.display==='block'){
+    const inp=document.getElementById('new-email-input');
+    if(inp)inp.focus();
+  }
+}
+async function doChangeEmail(){
+  const newEmailEl=document.getElementById('new-email-input');
+  const pwEl=document.getElementById('email-change-pw');
+  const msgEl=document.getElementById('email-change-msg');
+  const btn=document.getElementById('email-change-btn');
+  if(!newEmailEl||!pwEl||!msgEl)return;
+  const newEmail=newEmailEl.value.trim();
+  const password=pwEl.value;
+  if(!newEmail){msgEl.style.color='var(--red)';msgEl.textContent='Please enter a new email address.';return;}
+  if(!password){msgEl.style.color='var(--red)';msgEl.textContent='Please enter your current password to confirm.';return;}
+  if(btn){btn.disabled=true;btn.textContent='Updating…';}
+  msgEl.textContent='';
+  try{
+    const res=await _trpc('emailAuth.updateEmail',{newEmail,currentPassword:password},'mutation');
+    if(res&&res.success){
+      D.creds.email=res.newEmail;
+      saveAll();
+      const disp=document.getElementById('current-email-display');
+      if(disp)disp.textContent=res.newEmail;
+      const profEmail=document.getElementById('prof-email');
+      if(profEmail)profEmail.textContent=res.newEmail;
+      msgEl.style.color='var(--ok)';
+      msgEl.textContent='✓ Email updated successfully!';
+      newEmailEl.value='';
+      pwEl.value='';
+      setTimeout(()=>{const form=document.getElementById('change-email-form');if(form)form.style.display='none';},2500);
+      toast('✉️ Email updated to '+res.newEmail);
+    }
+  }catch(err){
+    const msg=(err&&err.message)||'Failed to update email';
+    msgEl.style.color='var(--red)';
+    msgEl.textContent=msg;
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Update Email';}
+  }
+}
+async function saveNameToServer(newName){
+  if(!newName||!newName.trim())return;
+  try{
+    await _trpc('emailAuth.updateName',{newName:newName.trim()},'mutation');
+  }catch(e){
+    console.warn('[saveNameToServer] Failed:',e&&e.message);
   }
 }
 async function changePassword(){

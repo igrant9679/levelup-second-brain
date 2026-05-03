@@ -278,6 +278,64 @@ export const emailAuthRouter = router({
     }),
 
   /**
+   * Update the currently logged-in user's email address.
+   * For email-based accounts (openId starts with 'email:'), also updates the openId
+   * so future logins with the new email work correctly.
+   */
+  updateEmail: protectedProcedure
+    .input(z.object({
+      newEmail: z.string().email('Please enter a valid email address'),
+      currentPassword: z.string().min(1, 'Please enter your current password to confirm this change'),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const user = ctx.user;
+      // Require password confirmation for security
+      if (!user.passwordHash) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'No password set on this account. Please set a password first.' });
+      }
+      const valid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+      if (!valid) {
+        throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Current password is incorrect' });
+      }
+      const newEmail = input.newEmail.toLowerCase().trim();
+      // Check if new email is already taken by another user
+      const existing = await db.getUserByEmail(newEmail);
+      if (existing && existing.id !== user.id) {
+        throw new TRPCError({ code: 'CONFLICT', message: 'This email address is already in use by another account' });
+      }
+      // Update email in DB
+      await db.updateUserEmail(user.id, newEmail);
+      // For email-based accounts, also update the openId so login still works
+      if (user.openId.startsWith('email:')) {
+        const dbConn = await getDb();
+        if (dbConn) {
+          const { users } = await import('../../drizzle/schema');
+          await dbConn.update(users).set({ openId: `email:${newEmail}` }).where(eq(users.id, user.id));
+        }
+        // Re-issue session cookie with new openId
+        const sessionToken = await sdk.createSessionToken(`email:${newEmail}`, {
+          name: user.name || '',
+          expiresInMs: ONE_YEAR_MS,
+        });
+        const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      }
+      return { success: true, newEmail };
+    }),
+
+  /**
+   * Update the currently logged-in user's display name.
+   */
+  updateName: protectedProcedure
+    .input(z.object({
+      newName: z.string().min(1, 'Name cannot be empty').max(128),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      await db.updateUserName(ctx.user.id, input.newName.trim());
+      return { success: true };
+    }),
+
+  /**
    * Seed demo users with a default password (used during development/onboarding).
    * Only callable if the user has no password set yet.
    */
