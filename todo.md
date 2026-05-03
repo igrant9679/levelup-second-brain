@@ -844,3 +844,8 @@
 ### SMTP/IMAP Simultaneous Connection Test
 - [x] Backend: added IMAP verify to `testSmtpImapConnection` — runs SMTP + IMAP checks in parallel via Promise.allSettled, returns per-connection ok/message/latencyMs
 - [x] Frontend: Test button shows inline result panel with ✅/❌ per row (SMTP and IMAP), latency in ms, and a summary toast
+
+### SMTP/IMAP Send & Save Bugs
+- [x] Fix: SMTP "Greeting Never Received" — added requireTLS: true for STARTTLS (port 587), connectionTimeout/greetingTimeout/socketTimeout to all 3 nodemailer transporter configs
+- [x] Fix: Save Account not persisting — added unique constraint on userId to smtp_imap_accounts table so onDuplicateKeyUpdate works as a true upsert; migration applied
+- [x] Fix: tRPC error when sending mail — same TLS fix applied to sendComposedMail transporter; send now uses correct smtpPassword field

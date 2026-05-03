@@ -183,6 +183,13 @@
       "when": 1777830935002,
       "tag": "0025_tan_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1777833349912,
+      "tag": "0026_fine_mole_man",
+      "breakpoints": true
     }
   ]
 }

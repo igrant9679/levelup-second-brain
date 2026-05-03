@@ -37,12 +37,17 @@ async function testSmtpConnection(input: {
   const transporter = nodemailer.createTransport({
     host: input.smtpHost,
     port: input.smtpPort,
+    // ssl = implicit TLS (port 465); tls = STARTTLS (port 587); none = plain
     secure: input.smtpEncryption === 'ssl',
+    requireTLS: input.smtpEncryption === 'tls', // force STARTTLS upgrade on port 587
     auth: {
       user: input.smtpUsername,
       pass: input.smtpPassword,
     },
-    tls: input.smtpEncryption === 'tls' ? { rejectUnauthorized: false } : undefined,
+    tls: { rejectUnauthorized: false }, // accept self-signed certs
+    connectionTimeout: 10000, // 10 s
+    greetingTimeout: 10000,   // 10 s — prevents "Greeting never received" hang
+    socketTimeout: 15000,
   });
 
   try {
@@ -761,8 +766,12 @@ export const oauthSyncRouter = router({
           host: account.smtpHost,
           port: account.smtpPort,
           secure: account.smtpEncryption === 'ssl',
+          requireTLS: account.smtpEncryption === 'tls',
           auth: { user: account.smtpUsername, pass: account.smtpPassword },
-          tls: account.smtpEncryption === 'tls' ? { rejectUnauthorized: false } : undefined,
+          tls: { rejectUnauthorized: false },
+          connectionTimeout: 15000,
+          greetingTimeout: 15000,
+          socketTimeout: 20000,
         });
         try {
           await transporter.sendMail({

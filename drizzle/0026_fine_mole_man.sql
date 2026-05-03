@@ -1,0 +1,1 @@
+ALTER TABLE `smtp_imap_accounts` ADD CONSTRAINT `uq_smtp_imap_user` UNIQUE(`userId`);

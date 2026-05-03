@@ -227,18 +227,21 @@ export const smtpImapAccounts = mysqlTable('smtp_imap_accounts', {
   imapPort: int('imapPort').notNull().default(993),
   imapEncryption: mysqlEnum('imapEncryption', ['ssl', 'tls', 'none']).default('ssl').notNull(),
   imapUsername: varchar('imapUsername', { length: 255 }).notNull(),
-  imapPassword: text('imapPassword').notNull(), // Encrypted in app layer
+  imapPassword: text('imapPassword').notNull(),
   // SMTP settings
   smtpHost: varchar('smtpHost', { length: 255 }).notNull(),
   smtpPort: int('smtpPort').notNull().default(587),
   smtpEncryption: mysqlEnum('smtpEncryption', ['ssl', 'tls', 'none']).default('tls').notNull(),
   smtpUsername: varchar('smtpUsername', { length: 255 }).notNull(),
-  smtpPassword: text('smtpPassword').notNull(), // Encrypted in app layer
+  smtpPassword: text('smtpPassword').notNull(),
   // Metadata
   lastTestedAt: timestamp('lastTestedAt').default(sql`null`),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  // One SMTP/IMAP account per user — ensures onDuplicateKeyUpdate works as an upsert
+  uniqueUserId: unique('uq_smtp_imap_user').on(t.userId),
+}));
 export type SmtpImapAccount = typeof smtpImapAccounts.$inferSelect;
 export type InsertSmtpImapAccount = typeof smtpImapAccounts.$inferInsert;
 
