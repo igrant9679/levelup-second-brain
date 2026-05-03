@@ -7848,7 +7848,7 @@ function filterActivityFeed() {
 function showInvitePanel(){
   const panel=document.getElementById('invite-panel');
   if(!panel)return;
-  panel.style.display='block';
+  panel.style.setProperty('display','block','important');
   loadInviteList();
 }
 
