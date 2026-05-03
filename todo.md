@@ -665,3 +665,9 @@
 - [x] Mail search bar: filter inbox/sent list by keyword in real-time
 - [x] Compose modal AI follow-up suggestions: after composing, suggest 2-3 follow-up actions (create task, set reminder, schedule meeting)
 - [x] Fix blank Settings sub-pages: Integrations, AI Features, Teams, OneNote Import, Sync, Backup, Privacy, Admin
+
+## Custom AI Provider Keys + RTE Enhancements
+- [x] Add OpenAI / Claude / Gemini API key fields in Settings → AI Features (stored in D.creds, used as fallback/override for AI calls)
+- [x] Add rich text editor + AI assistance panel to Journal entry (diary body field, AI prompts: expand, reflect, summarise, mood)
+- [x] Add rich text editor + AI assistance to Ideas → New Idea entry screen (description field, AI prompts: validate, premortem, ICE score, expand)
+- [x] Add rich text editor + AI assistance to Notes → +New entry screen (body field, AI prompts: expand, summarise, link concepts, auto-tag)

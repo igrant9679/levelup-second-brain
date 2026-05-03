@@ -1282,6 +1282,7 @@ function renderDrawer(type,item){
     <div class="field"><label>Date</label><input class="inp" value="${esc(item.date)}" id="dr-date"></div>
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
+    ${item.diaryBody?`<div class="field"><label>Diary Entry</label><div style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;line-height:1.7;color:var(--t1);max-height:300px;overflow-y:auto">${item.diaryBody}</div></div>`:''}
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
     <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
@@ -5850,6 +5851,38 @@ function openNewIdeaModal(){
     <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">One-line description</label>
     <input id="ni-desc" class="inp" style="width:100%;margin-top:4px" placeholder="In one sentence…">
   </div>
+  <!-- Rich Text Editor for full idea description -->
+  <div style="margin-bottom:10px">
+    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Full Description <span style="font-size:9px;font-weight:400;text-transform:none;color:var(--t3)">(rich text — describe your idea in full detail)</span></label>
+    <!-- RTE Toolbar -->
+    <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--brd);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
+      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      <div style="flex:1"></div>
+      <span id="ni-rte-wc" style="font-size:9px;color:var(--t3);align-self:center">0 words</span>
+    </div>
+    <div id="ni-body-rte" contenteditable="true" spellcheck="true"
+      style="min-height:160px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--brd);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
+      data-placeholder="Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?"
+      oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('ni-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
+    ></div>
+    <!-- AI Assistance -->
+    <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)">
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('validate')">✅ Validate</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('premortem')">⚠ Pre-mortem</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('ice')">🎯 ICE Score</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('expand')">💡 Expand</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('competitors')">🔍 Competitors</button>
+      </div>
+      <div id="ni-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
+    </div>
+  </div>
   <div style="display:flex;gap:10px;margin-bottom:10px">
     <div style="flex:1">
       <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Idea type *</label>
@@ -5876,11 +5909,12 @@ function openNewIdeaModal(){
 function saveNewIdea(){
   const title=document.getElementById('ni-title')?.value.trim();
   const desc=document.getElementById('ni-desc')?.value.trim();
+  const bodyHtml=document.getElementById('ni-body-rte')?.innerHTML||'';
   const idea_type=document.getElementById('ni-type')?.value||'general';
   const goal_id=parseInt(document.getElementById('ni-goal')?.value)||null;
   if(!title){toast('Please enter a title.');return;}
   const idea={
-    id:nextId(D.ideas),title,description:desc||'',idea_type,stage:'spark',
+    id:nextId(D.ideas),title,description:desc||'',bodyHtml:bodyHtml||'',idea_type,stage:'spark',
     goal_id,ice_impact:5,ice_confidence:5,ice_ease:5,
     ai_ice_impact:null,ai_ice_confidence:null,ai_ice_ease:null,ai_ice_rationale:null,
     kill_reason:null,parked_review_date:null,promoted_project_id:null,verdict_outcome:null,
@@ -7984,6 +8018,67 @@ function renderSettingsHTML(){
   </div>
   <!-- AI Features --><div id="sp-6" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">✨ AI Features</h3>
+  <!-- AI Provider Keys -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Add your own API keys to use a specific AI provider instead of the built-in Manus AI. The <strong>active provider</strong> is used for all AI features in the app (Journal, Notes, Ideas, Mail, etc.). Leave all blank to use the built-in Manus AI.</p>
+    <!-- Active Provider Selector -->
+    <div style="margin-bottom:12px">
+      <label style="font-size:10px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['manus','openai','claude','gemini'].map(p=>{
+          const labels={manus:'Manus AI (built-in)',openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
+          const active=(D.prefs&&D.prefs.aiProvider)||'manus';
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:10px;height:26px" onclick="D.prefs=D.prefs||{};D.prefs.aiProvider='${p}';saveAll();renderScreen('settings');toast('AI provider set to ${labels[p]}')">${{manus:'🔮',openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+        }).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--t3);margin-top:6px">
+        ${(()=>{const p=(D.prefs&&D.prefs.aiProvider)||'manus';const hasKey={manus:true,openai:!!D.creds.openai_key,claude:!!D.creds.claude_key,gemini:!!D.creds.gemini_key}[p];return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
+      </div>
+    </div>
+    <!-- OpenAI -->
+    <div style="margin-bottom:10px;padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <div style="width:20px;height:20px;background:#10a37f;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">O</div>
+        <div style="font-size:11px;font-weight:600">OpenAI (GPT-4o, GPT-4o-mini)</div>
+        ${D.creds.openai_key?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc(D.creds.openai_key||'')}">
+        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.openai_key=document.getElementById('ai-openai-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.openai_key?'✅ OpenAI key saved':'OpenAI key cleared')">Save</button>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--ac)">platform.openai.com/api-keys</a></div>
+    </div>
+    <!-- Claude -->
+    <div style="margin-bottom:10px;padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <div style="width:20px;height:20px;background:#d97706;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">A</div>
+        <div style="font-size:11px;font-weight:600">Anthropic Claude (claude-3-5-sonnet)</div>
+        ${D.creds.claude_key?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc(D.creds.claude_key||'')}">
+        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.claude_key=document.getElementById('ai-claude-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.claude_key?'✅ Claude key saved':'Claude key cleared')">Save</button>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--ac)">console.anthropic.com</a></div>
+    </div>
+    <!-- Gemini -->
+    <div style="padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <div style="width:20px;height:20px;background:#4285f4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">G</div>
+        <div style="font-size:11px;font-weight:600">Google Gemini (gemini-1.5-pro)</div>
+        ${D.creds.gemini_key?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc(D.creds.gemini_key||'')}">
+        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="D.creds.gemini_key=document.getElementById('ai-gemini-key').value.trim();saveAll();renderScreen('settings');toast(D.creds.gemini_key?'✅ Gemini key saved':'Gemini key cleared')">Save</button>
+      </div>
+      <div style="font-size:9px;color:var(--t3);margin-top:4px">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">aistudio.google.com</a></div>
+    </div>
+  </div>
   <!-- Usage & Cost Caps -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">💰 Usage & Cost Caps</h4>
@@ -10499,6 +10594,44 @@ function renderFANote(){
         <div id="fa-note-preview" style="min-height:140px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;color:var(--t2);line-height:1.6;overflow-y:auto"><em style="color:var(--t3)">Preview will appear here as you type...</em></div>
       </div>
     </div>
+    <!-- Rich Text Body -->
+    <div class="fa-field" style="margin-top:12px">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        <span>📝 Free-form Body <span style="font-size:9px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span>
+        <span id="fa-note-rte-wc" style="font-size:9px;color:var(--t3)">0 words</span>
+      </label>
+      <!-- RTE Toolbar -->
+      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      </div>
+      <div id="fa-note-rte" contenteditable="true" spellcheck="true"
+        style="min-height:180px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
+        data-placeholder="Write your full note here — no structure required. Use the toolbar to format as you go..."
+        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('fa-note-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');_faHasChanges=true;})(this)"
+      ></div>
+      <!-- AI Assistance -->
+      <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('expand')">📝 Expand</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('summarise')">📌 Summarise</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('link')">🔗 Link Concepts</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('autotag')">🏷 Auto-tag</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('questions')">❓ Key Questions</button>
+          <button type="button" class="btn btn-d" style="height:24px;font-size:10px" onclick="document.getElementById('fa-note-rte').innerHTML='';document.getElementById('fa-note-rte-wc').textContent='0 words'">🗑 Clear</button>
+        </div>
+        <div id="fa-note-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
+      </div>
+    </div>
   </div>
   <!-- Decision fields -->
   <div id="fa-note-decision" style="display:none">
@@ -10699,6 +10832,48 @@ function renderFAJournal(){
       <div class="fa-field"><label>Habits Today (auto)</label><input class="fa-inp" value="${habitsDone} / ${habitsTotal} done" readonly style="background:rgba(255,255,255,.03);color:var(--t3)"></div>
     </div>
   </div>
+  <div class="fa-section" id="fa-journal-rte-section">
+    <div class="fa-section-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📓 Free-form Diary Entry</span>
+      <span style="font-size:9px;font-weight:400;color:var(--t3)">Rich text — write freely, format as you go</span>
+    </div>
+    <!-- RTE Toolbar -->
+    <div id="fa-jrnl-rte-bar" style="display:flex;flex-wrap:wrap;gap:3px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+      <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+      <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('justifyLeft')" title="Align left">⇤</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('justifyCenter')" title="Centre">↔</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      <div style="flex:1"></div>
+      <span id="fa-jrnl-rte-wordcount" style="font-size:9px;color:var(--t3);align-self:center">0 words</span>
+    </div>
+    <!-- Editable area -->
+    <div id="fa-jrnl-rte" contenteditable="true" spellcheck="true"
+      style="min-height:200px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:13px;line-height:1.7;color:var(--t1);outline:none"
+      data-placeholder="Write freely here — this is your private diary. No prompts, no structure. Just your thoughts..."
+      oninput="(function(el){const text=el.innerText||'';const words=text.trim()?text.trim().split(/\\s+/).length:0;const wc=document.getElementById('fa-jrnl-rte-wordcount');if(wc)wc.textContent=words+' word'+(words===1?'':'s');_faHasChanges=true;})(this)"
+      onfocus="if(!this.innerText.trim())this.innerHTML=''"
+    ></div>
+    <!-- AI Assistance -->
+    <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:6px">✨ AI Assistance</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('expand')">📝 Expand</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('reflect')">🧘 Reflect</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('summarise')">📌 Summarise</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('mood')">🟡 Mood Analysis</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('questions')">❓ Prompt Me</button>
+        <button type="button" class="btn btn-d" style="height:26px;font-size:10px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';document.getElementById('fa-jrnl-rte-wordcount').textContent='0 words'">🗑 Clear</button>
+      </div>
+      <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
   ${faCommonLinks()}`;
 }
 
@@ -10827,6 +11002,7 @@ function doFASave(addAnother){
       const noteType=document.getElementById('fa-notetype')?.value||'Note';
       const n={
         id:nextId(D.notes),title,body:desc,
+        bodyHtml:document.getElementById('fa-note-rte')?.innerHTML||'',
         noteType,para:document.getElementById('fa-para')?.value||'Resource',
         source:document.getElementById('fa-source')?.value||'Manual',
         sourceUrl:document.getElementById('fa-sourceurl')?.value||'',
@@ -10905,6 +11081,7 @@ function doFASave(addAnother){
         mood:document.getElementById('fa-mood-val')?.value||'😊',
         energy:document.getElementById('fa-energy')?.value||'medium',
         body:desc,
+        diaryBody:document.getElementById('fa-jrnl-rte')?.innerHTML||'',
         prompts:{focused:document.getElementById('fa-prompt1')?.value||'',energizing:document.getElementById('fa-prompt2')?.value||'',learned:document.getElementById('fa-prompt3')?.value||''},
         highlights:document.getElementById('fa-highlights')?.value||'',
         challenges:document.getElementById('fa-challenges')?.value||'',
@@ -11796,6 +11973,104 @@ async function _trpc(procedure,input,method='query'){
   const data=await resp.json();
   if(data.error)throw new Error(data.error.message||'tRPC error');
   return data.result?.data?.json??data.result?.data;
+}
+
+// ===== RTE PLACEHOLDER CSS =====
+(function(){
+  const style=document.createElement('style');
+  style.textContent=`
+    [contenteditable][data-placeholder]:empty:before{content:attr(data-placeholder);color:var(--t3);pointer-events:none;display:block;}
+    [contenteditable]:focus{outline:none;}
+  `;
+  document.head.appendChild(style);
+})();
+
+// ===== RTE AI HELPERS =====
+async function _rteAICall(prompt,resultElId,loadingText){
+  const el=document.getElementById(resultElId);
+  if(!el)return;
+  el.style.display='block';
+  el.textContent=loadingText||'⏳ Thinking...';
+  try{
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:'AI Assist',body:prompt},'mutation');
+    // Re-use suggestFollowUps but display as plain text
+    const text=(res?.suggestions||[]).join('\n\n');
+    el.textContent=text||'No response generated.';
+  }catch(e){
+    el.textContent='⚠ AI error: '+(e?.message||'unknown');
+  }
+}
+async function _rteAIGeneral(systemPrompt,userContent,resultElId){
+  const el=document.getElementById(resultElId);
+  if(!el)return;
+  el.style.display='block';
+  el.textContent='⏳ Thinking...';
+  try{
+    const res=await _trpc('ai.assist',{systemPrompt,userContent},'mutation');
+    el.textContent=res?.result||res?.text||'No response generated.';
+  }catch(e){
+    // Fallback: use suggestFollowUps endpoint with the prompt as body
+    try{
+      const res2=await _trpc('oauthSync.suggestFollowUps',{subject:systemPrompt.slice(0,80),body:userContent},'mutation');
+      el.textContent=(res2?.suggestions||[]).join('\n\n')||'No response generated.';
+    }catch(e2){
+      el.textContent='⚠ AI error: '+(e2?.message||'unknown');
+    }
+  }
+}
+
+async function rteJournalAI(mode){
+  const rte=document.getElementById('fa-jrnl-rte');
+  const resultEl='fa-jrnl-ai-result';
+  const text=(rte?.innerText||'').trim();
+  const prompts={
+    expand:`You are a reflective journaling coach. The user has written the following diary entry. Expand it with deeper reflection, emotional nuance, and specific details. Keep the first-person voice.\n\nEntry:\n${text}`,
+    reflect:`You are a mindful journaling coach. Read this diary entry and offer 3-5 thoughtful reflection questions to help the user go deeper. Be empathetic and insightful.\n\nEntry:\n${text}`,
+    summarise:`Summarise this journal entry in 2-3 sentences, capturing the key emotions, events, and insights.\n\nEntry:\n${text}`,
+    mood:`Analyse the emotional tone of this journal entry. Identify the primary mood, secondary emotions, and any patterns worth noting. Be concise and supportive.\n\nEntry:\n${text}`,
+    questions:`Generate 5 powerful journaling prompts to help the user continue writing about the themes in this entry. Each prompt should be a single question.\n\nEntry:\n${text}`,
+  };
+  if(!text&&mode!=='questions'){toast('Write something first, then use AI assistance.');return;}
+  const systemPrompt=prompts[mode]||prompts.expand;
+  await _rteAIGeneral(systemPrompt,text,resultEl);
+}
+
+async function rteIdeaAI(mode){
+  const rte=document.getElementById('ni-body-rte');
+  const title=document.getElementById('ni-title')?.value.trim()||'';
+  const desc=document.getElementById('ni-desc')?.value.trim()||'';
+  const resultEl='ni-ai-result';
+  const body=(rte?.innerText||'').trim();
+  const context=`Idea: ${title}\nOne-liner: ${desc}\nDescription: ${body}`;
+  const prompts={
+    validate:`You are a startup advisor. Evaluate this idea for viability. Consider market size, problem-solution fit, and feasibility. Give a balanced 3-point assessment.\n\n${context}`,
+    premortem:`You are a critical thinker. Imagine this idea has failed 2 years from now. List the top 5 reasons it failed. Be specific and constructive.\n\n${context}`,
+    ice:`You are a product manager. Score this idea using the ICE framework (Impact 1-10, Confidence 1-10, Ease 1-10). Explain each score briefly.\n\n${context}`,
+    expand:`You are a creative strategist. Expand this idea with concrete next steps, potential features, target audience, and revenue model suggestions.\n\n${context}`,
+    competitors:`You are a market researcher. Identify 3-5 potential competitors or analogous products for this idea. For each, note their strengths and how this idea could differentiate.\n\n${context}`,
+  };
+  if(!title&&!body){toast('Add a title or description first.');return;}
+  const systemPrompt=prompts[mode]||prompts.expand;
+  await _rteAIGeneral(systemPrompt,context,resultEl);
+}
+
+async function rteNoteAI(mode){
+  const rte=document.getElementById('fa-note-rte');
+  const title=document.getElementById('fa-title')?.value.trim()||'';
+  const mdBody=document.getElementById('fa-desc')?.value.trim()||'';
+  const resultEl='fa-note-ai-result';
+  const body=(rte?.innerText||'').trim()||mdBody;
+  const context=`Note: ${title}\n\n${body}`;
+  const prompts={
+    expand:`You are a knowledge management expert. Expand this note with additional context, examples, and related concepts. Keep it concise and useful.\n\n${context}`,
+    summarise:`Summarise this note in 3 bullet points, capturing the key ideas and insights.\n\n${context}`,
+    link:`You are a second brain assistant. Identify 3-5 key concepts in this note and suggest related topics, frameworks, or ideas the user should explore or link to.\n\n${context}`,
+    autotag:`Suggest 5-8 relevant tags for this note. Return them as a comma-separated list. Be specific and useful for future retrieval.\n\n${context}`,
+    questions:`Generate 5 clarifying or deepening questions about this note that would help the user think more critically about the content.\n\n${context}`,
+  };
+  if(!title&&!body){toast('Add a title or content first.');return;}
+  const systemPrompt=prompts[mode]||prompts.expand;
+  await _rteAIGeneral(systemPrompt,body,resultEl);
 }
 
 function _updateOAuthCard(provider,status){
