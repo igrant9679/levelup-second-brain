@@ -1542,7 +1542,7 @@ function renderCaptureModal(active){
   }
   return '';
 }
-function closeModal(){$('modal-capture').classList.remove('show');document.body.style.overflow='';const mc=$('modal-content');if(mc)mc.className='modal';}
+function closeModal(){$('modal-capture').classList.remove('show');document.body.style.overflow='';const mc=$('modal-content');if(mc)mc.className='modal';if(typeof _cmpAutosaveTimer!=='undefined'&&_cmpAutosaveTimer){clearInterval(_cmpAutosaveTimer);_cmpAutosaveTimer=null;}}
 function doCapture(){
   const title=document.getElementById('cap-title')?.value.trim();if(!title){toast('Title is required');return}
   const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -3881,43 +3881,95 @@ function renderJournal(){
   ].map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${p.title}','${p.text}')"><span style="font-size:14px;flex-shrink:0">${p.icon}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${p.title}</div><div style="font-size:10px;color:var(--t2);line-height:1.3">${p.text}</div></div></div>`).join('')}</div>`;
 }
 
-const _mailItems=[
-  {id:1,from:'Sarah Johnson',email:'sarah@acmecorp.com',subject:'Project update — Q2 milestones',time:'9:15 AM',body:'Hi Idris,\n\nJust wanted to share a quick update on the Q2 milestones. We are on track for the June 30 deadline. The design team has completed all mockups and dev is 60% done.\n\nLet me know if you need anything from my side.\n\nBest,\nSarah',read:false},
-  {id:2,from:'Michael Lee',email:'m.lee@finance.com',subject:'Q2 Budget — final numbers',time:'8:42 AM',body:'Hi Idris,\n\nAttached are the final Q2 budget numbers. Please review before the Budget Review meeting at 11 AM.\n\nKey points:\n- Marketing: 12% under budget\n- Engineering: 3% over (due to contractor costs)\n- Overall: within approved range\n\nMichael',read:false},
-  {id:3,from:'Marketing Team',email:'marketing@levelup.app',subject:'Campaign report — May results',time:'Yesterday',body:'Team,\n\nMay campaign results are in:\n- Email open rate: 34% (up from 28%)\n- Click-through: 8.2%\n- New signups from campaign: 142\n\nFull report in SharePoint.\n\n— Marketing',read:true},
-  {id:4,from:'Priya Nair',email:'priya@levelup.app',subject:'Sprint review notes',time:'Yesterday',body:'Idris,\n\nNotes from yesterday\'s sprint review are in Notion. Main action items for you:\n1. Review the auth refactor PR\n2. Sign off on the new onboarding flow\n3. Confirm demo date with advisory board\n\nPriya',read:true},
-  {id:5,from:'Marcus Webb',email:'marcus@levelup.app',subject:'AI research links',time:'2 days ago',body:'Hey,\n\nHere are those AI note-linking papers I mentioned:\n- Semantic search with embeddings (arXiv)\n- Knowledge graph approaches (Stanford)\n- Zettelkasten + AI hybrid (blog post)\n\nLet me know what you think.\nMarcus',read:true},
-];
+function _getMailItems(){
+  if(D&&D.mail&&D.mail.inbox&&D.mail.inbox.length)return D.mail.inbox;
+  return [];
+}
+function _getSentItems(){
+  if(D&&D.mail&&D.mail.sent&&D.mail.sent.length)return D.mail.sent;
+  return [];
+}
+function _fmtMailDate(d){
+  if(!d)return '';
+  const dt=new Date(d);
+  const now=new Date();
+  const diff=now-dt;
+  if(diff<86400000)return dt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  if(diff<172800000)return 'Yesterday';
+  if(diff<604800000)return Math.floor(diff/86400000)+' days ago';
+  return dt.toLocaleDateString([],{month:'short',day:'numeric'});
+}
 let _selectedMail=null;
+let _mailTab='inbox';
 function openMailItem(id){
   _selectedMail=id;
-  const mail=_mailItems.find(m=>m.id===id);
+  const items=_mailTab==='sent'?_getSentItems():_getMailItems();
+  const mail=items.find(m=>m.id===id);
   if(!mail)return;
   mail.read=true;
-  // Re-render inbox list to show read state
+  save('mail');
+  // Re-render list to show read state
   const inboxEl=document.getElementById('mail-inbox-list');
-  if(inboxEl)inboxEl.innerHTML=renderMailInboxList();
+  if(inboxEl)inboxEl.innerHTML=_mailTab==='sent'?renderMailSentList():renderMailInboxList();
   // Show detail
   const det=document.getElementById('mail-detail');
-  if(det)det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-  <div><div style="font-size:14px;font-weight:600">${esc(mail.subject)}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">From: ${esc(mail.from)} &lt;${esc(mail.email)}&gt;</div><div style="font-size:10px;color:var(--t3)">${mail.time}</div></div>
-  <div style="display:flex;gap:4px"><button class="btn btn-p" style="height:24px;font-size:10px" onclick="aiSmartReply(${id})">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Forwarded')">Forward</button></div>
+  if(!det)return;
+  const fromLine=_mailTab==='sent'
+    ?`<div style="font-size:11px;color:var(--t3);margin-top:2px">To: ${esc(mail.to||mail.toEmail||'')}</div>`
+    :`<div style="font-size:11px;color:var(--t3);margin-top:2px">From: ${esc(mail.from||'')} ${mail.fromEmail?'&lt;'+esc(mail.fromEmail)+'&gt;':''}</div>`;
+  const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
+  det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+  <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:10px;color:var(--t3)">${dateStr}</div></div>
+  <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:10px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})" >Forward</button>`:''}</div>
   </div>
-  <div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap;border-top:1px solid var(--bd1);padding-top:12px">${esc(mail.body)}</div>
-  <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
+  <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?mail.body:esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
+  ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Archived')">Archive</button>
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Flagged')">Flag</button>
   <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openFA('task')">Create Task</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="aiSummarizeThread(${id})">✨ Summarize</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--grn)" onclick="aiFollowUpReminder(${id})">⏰ Follow-up</button>
-  </div>`;
+  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="aiSummarizeThread('${id}')">✨ Summarize</button>
+  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--grn)" onclick="aiFollowUpReminder('${id}')">⏰ Follow-up</button>
+  </div>`:''}`;
 }
 function renderMailInboxList(){
-  return _mailItems.map(m=>`<div class="lr" style="cursor:pointer;background:${_selectedMail===m.id?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem(${m.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${_selectedMail===m.id?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from)}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject)}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${m.time}</span></div>`).join('');
+  const items=_getMailItems();
+  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No messages yet.<br><button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncOAuthMail('microsoft')">Sync from Office 365</button></div>`;
+  return items.map(m=>{
+    const sel=_selectedMail===m.id;
+    const dt=_fmtMailDate(m.date||m.receivedDateTime);
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+  }).join('');
+}
+function renderMailSentList(){
+  const items=_getSentItems();
+  if(!items.length)return `<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No sent messages yet.<br><button class="btn btn-s" style="margin-top:8px;font-size:10px" onclick="syncSentMail()">Sync from Office 365</button></div>`;
+  return items.map(m=>{
+    const sel=_selectedMail===m.id;
+    const dt=_fmtMailDate(m.date||m.sentDateTime);
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:400">To: ${esc(m.to||m.toEmail||'')}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:9px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+  }).join('');
+}
+async function syncSentMail(){
+  toast('⏳ Syncing sent items...');
+  try{
+    const result=await _trpc('oauthSync.syncSentMail',{limit:20},'mutation');
+    const messages=result?.messages||[];
+    if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
+    if(!D.mail.sent)D.mail.sent=[];
+    let added=0;
+    messages.forEach(m=>{
+      if(!m)return;
+      const exists=D.mail.sent.find(x=>x.id===m.id||( x.subject===m.subject&&x.to===m.to));
+      if(!exists){D.mail.sent.push({id:m.id,to:m.to,toEmail:m.toEmail,subject:m.subject,preview:m.preview,date:m.date,read:true,source:'microsoft'});added++;}
+    });
+    save('mail');
+    if(typeof renderMail==='function')renderMail();
+    toast('✓ Synced '+added+' sent items');
+  }catch(e){toast('⚠️ '+e.message);}
 }
 // ====== MAIL AI ======
 function aiSmartReply(id){
-  const mail=_mailItems.find(m=>m.id===id);
+  const mail=_getMailItems().find(m=>String(m.id)===String(id));
   if(!mail)return;
   toast('✨ Drafting smart reply...');
   const body=(mail.body||'').toLowerCase();
@@ -3947,7 +3999,7 @@ function aiSmartReply(id){
   document.body.style.overflow='hidden';
 }
 function aiSummarizeThread(id){
-  const mail=_mailItems.find(m=>m.id===id);
+  const mail=_getMailItems().find(m=>String(m.id)===String(id));
   if(!mail)return;
   const body=mail.body||'';
   if(body.length<50){toast('Email too short to summarize');return;}
@@ -3970,7 +4022,7 @@ function aiSummarizeThread(id){
 }
 
 function aiFollowUpReminder(id){
-  const mail=_mailItems.find(m=>m.id===id);
+  const mail=_getMailItems().find(m=>String(m.id)===String(id));
   if(!mail)return;
   const followUpDate=new Date();followUpDate.setDate(followUpDate.getDate()+3);
   const dateStr=followUpDate.toISOString().split('T')[0];
@@ -3984,7 +4036,7 @@ function aiTriageMail(){
   const actionWords=['please','action required','urgent','asap','deadline','confirm','approve','review by','respond','decision needed'];
   const newsletterWords=['unsubscribe','newsletter','weekly digest','monthly update','promotional','offer','deal','sale','discount'];
   const spamWords=['winner','congratulations','claim your','free gift','click here','limited time','act now','verify your account'];
-  const triaged=_mailItems.map(mail=>{
+  const triaged=_getMailItems().map(mail=>{
     const text=(mail.subject+' '+mail.body).toLowerCase();
     let category='FYI';
     if(spamWords.some(w=>text.includes(w)))category='Spam';
@@ -3997,27 +4049,53 @@ function aiTriageMail(){
   const catColors={'Action Required':'var(--red)','FYI':'var(--ac)','Newsletter':'var(--purp)','Spam':'var(--t3)'};
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ AI Inbox Triage</h2>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Classified ${_mailItems.length} emails:</div>
-  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:10px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:10px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem(${ml.id})">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
+  <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Classified ${_getMailItems().length} emails:</div>
+  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:10px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:10px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem('${ml.id}')">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
   <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
 }
 
-function renderMail(){
-  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
-<div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
-<div id="mail-tab-body"><div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
+function _renderMailInboxPanel(){
+  const unread=_getMailItems().filter(m=>!m.read).length;
+  return `<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
 <div style="border-right:1px solid var(--bd1);overflow-y:auto">
-<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span><span style="font-size:9px;color:var(--ac)">${_mailItems.filter(m=>!m.read).length} unread</span></div>
+<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span>${unread?`<span style="font-size:9px;color:var(--ac)">${unread} unread</span>`:''}<button class="btn btn-s" style="font-size:9px;height:20px;padding:0 6px" onclick="syncOAuthMail('microsoft')">Sync</button></div>
 <div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
 </div>
 <div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
-</div></div>`;
+</div>`;
+}
+function _renderMailSentPanel(){
+  return `<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
+<div style="border-right:1px solid var(--bd1);overflow-y:auto">
+<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Sent</span><button class="btn btn-s" style="font-size:9px;height:20px;padding:0 6px" onclick="syncSentMail()">Sync</button></div>
+<div id="mail-inbox-list" style="padding:4px">${renderMailSentList()}</div>
+</div>
+<div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select a message to view</div></div>
+</div>`;
+}
+function renderMail(){
+  _mailTab='inbox';
+  $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
+<div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'sent')">Sent</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
+<div id="mail-tab-body">${_renderMailInboxPanel()}</div>`;
 }
 
-function openComposeModal(opts={}){
+let _cmpAutosaveTimer=null;
+let _smtpAccountsCache=null;
+async function openComposeModal(opts={}){
   const m=document.getElementById('modal-content');
   m.className='modal compose-modal';
+  // Fetch SMTP accounts from server (cached per session)
+  if(!_smtpAccountsCache){
+    try{_smtpAccountsCache=await _trpc('oauthSync.getAllSmtpAccounts',{},'query');}catch(e){_smtpAccountsCache=[];}
+  }
+  const smtpAccounts=_smtpAccountsCache||[];
+  const msEmail=(D&&D.creds&&D.creds.msEmail)||'';
+  const accountOptions=[
+    `<option value="microsoft">Office 365${msEmail?' ('+msEmail+')':''}</option>`,
+    ...smtpAccounts.map(a=>`<option value="smtp:${a.id}">${a.displayName||a.email} (SMTP)</option>`)
+  ].join('');
   m.innerHTML=`
   <div class="cmp-hd">
     <span style="font-size:16px">✉</span>
@@ -4025,6 +4103,7 @@ function openComposeModal(opts={}){
     <button class="btn btn-s" style="font-size:10px;padding:3px 8px" onclick="closeModal()">✕ Discard</button>
   </div>
   <div class="cmp-body-wrap">
+    <div class="cmp-field"><label>From</label><select id="cmp-from" style="flex:1;font-size:11px;background:var(--s2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;color:var(--t1)">${accountOptions}</select></div>
     <div class="cmp-field"><label>To</label><input id="cmp-to" placeholder="recipient@example.com" value="${opts.to||''}"></div>
     <div class="cmp-field" id="cmp-cc-row" style="display:none"><label>Cc</label><input id="cmp-cc" placeholder="cc@example.com"></div>
     <div class="cmp-field" id="cmp-bcc-row" style="display:none"><label>Bcc</label><input id="cmp-bcc" placeholder="bcc@example.com"></div>
@@ -4046,6 +4125,13 @@ function openComposeModal(opts={}){
   document.body.style.overflow='hidden';
   if(opts.body){setTimeout(()=>luRTE_setValue('cmp-body',opts.body),80);}
   setTimeout(()=>document.getElementById('cmp-to')?.focus(),100);
+  // Autosave every 30 seconds
+  if(_cmpAutosaveTimer)clearInterval(_cmpAutosaveTimer);
+  _cmpAutosaveTimer=setInterval(()=>{
+    const s=document.getElementById('cmp-status');
+    if(!s)return clearInterval(_cmpAutosaveTimer);
+    saveCmpDraft();
+  },30000);
 }
 function saveCmpDraft(){
   const to=document.getElementById('cmp-to')?.value.trim();
@@ -4054,7 +4140,7 @@ function saveCmpDraft(){
   if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
   if(!D.mail.drafts)D.mail.drafts=[];
   D.mail.drafts.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString()});
-  saveD();
+  save('mail');
   document.getElementById('cmp-status').textContent='Draft saved';
   setTimeout(()=>{const s=document.getElementById('cmp-status');if(s)s.textContent='';},2000);
 }
@@ -4065,16 +4151,28 @@ async function sendComposedMail(){
   const cc=document.getElementById('cmp-cc')?.value.trim()||'';
   const bcc=document.getElementById('cmp-bcc')?.value.trim()||'';
   const body=luRTE_getValue('cmp-body');// send HTML
+  const fromVal=document.getElementById('cmp-from')?.value||'microsoft';
   const sendBtn=document.querySelector('#modal-capture .btn-p');
   if(sendBtn){sendBtn.disabled=true;sendBtn.textContent='Sending…';}
   try{
-    await _trpc('oauthSync.sendComposedMail',{to,subject:sub,body,cc:cc||undefined,bcc:bcc||undefined},'mutation');
+    // Determine via: microsoft or smtp with account index
+    let payload={to,subject:sub,body,cc:cc||undefined,bcc:bcc||undefined};
+    if(fromVal.startsWith('smtp:')){
+      const accountId=parseInt(fromVal.split(':')[1],10);
+      if(!accountId){toast('⚠ SMTP account not found');if(sendBtn){sendBtn.disabled=false;sendBtn.textContent='✉ Send';}return;}
+      payload.via='smtp';
+      payload.smtpAccountId=accountId;
+    } else {
+      payload.via='microsoft';
+    }
+    await _trpc('oauthSync.sendComposedMail',payload,'mutation');
+    if(_cmpAutosaveTimer){clearInterval(_cmpAutosaveTimer);_cmpAutosaveTimer=null;}
     closeModal();
     toast('✅ Message sent to '+to);
     if(!D.mail)D.mail={inbox:[],sent:[],drafts:[]};
     if(!D.mail.sent)D.mail.sent=[];
-    D.mail.sent.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString(),read:true});
-    saveD();
+    D.mail.sent.unshift({id:Date.now(),to,subject:sub,body,date:new Date().toISOString(),read:true,via:fromVal});
+    save('mail');
   }catch(e){
     const msg=(e&&e.message)||'Failed to send email';
     toast('❌ '+msg);
@@ -4084,16 +4182,14 @@ async function sendComposedMail(){
 function switchMailTab(el,tab){
   document.querySelectorAll('#mail-tabs .tab').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
+  _mailTab=tab;
+  _selectedMail=null;
   const body=document.getElementById('mail-tab-body');
   if(!body)return;
   if(tab==='inbox'){
-    body.innerHTML=`<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
-<div style="border-right:1px solid var(--bd1);overflow-y:auto">
-<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span><span style="font-size:9px;color:var(--ac)">${_mailItems.filter(m=>!m.read).length} unread</span></div>
-<div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
-</div>
-<div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
-</div>`;
+    body.innerHTML=_renderMailInboxPanel();
+  } else if(tab==='sent'){
+    body.innerHTML=_renderMailSentPanel();
   } else if(tab==='calendar'){
     const today=new Date();
     const dayOfWeek=today.getDay();

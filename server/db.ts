@@ -469,6 +469,22 @@ export async function deleteSmtpImapAccount(userId: number): Promise<void> {
   await db.delete(smtpImapAccounts).where(eq(smtpImapAccounts.userId, userId));
 }
 
+export async function getSmtpImapAccountById(userId: number, accountId: number): Promise<SmtpImapAccount | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(smtpImapAccounts)
+    .where(and(eq(smtpImapAccounts.userId, userId), eq(smtpImapAccounts.id, accountId)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAllSmtpImapAccounts(userId: number): Promise<SmtpImapAccount[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(smtpImapAccounts)
+    .where(eq(smtpImapAccounts.userId, userId));
+}
+
 export async function updateSmtpImapLastTested(userId: number): Promise<void> {
   const db = await getDb();
   if (!db) return;

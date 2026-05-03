@@ -643,3 +643,18 @@
 - [x] Keep Google OAuth for Calendar/Contacts only (not mail)
 - [x] Fix keyboard shortcut: added isContentEditable check to prevent nav when typing in compose
 - [ ] Verify mail sending works via Microsoft Graph after deployment
+
+## Fix Send Email Error + Mail Features
+- [x] Fix: saveD is not defined error when sending mail (replaced with save('mail'))
+- [x] Show incoming new messages in the Mail view (D.mail.inbox populated by syncOAuthMail)
+- [x] Show Sent items in the Mail view (Sent tab + syncSentMail + D.mail.sent)
+- [x] SMTP/IMAP account integration already in place (Settings → Accounts)
+- [x] Account selector in compose modal: choose Office 365 or SMTP account from dropdown
+- [x] getAllSmtpAccounts tRPC procedure added to populate compose From selector
+- [x] getSmtpImapAccountById + getAllSmtpImapAccounts added to db.ts
+- [x] Server sendComposedMail: routes to SMTP via nodemailer when via='smtp'
+- [x] syncSentMail: fetches sent items from Microsoft Graph sentItems folder
+- [x] Mail body rendered as HTML (not escaped text) in detail view
+- [x] Compose autosave: saves draft to localStorage every 30s while typing
+- [x] closeModal clears autosave timer
+- [x] SMTP accounts cached per session in openComposeModal

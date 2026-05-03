@@ -742,9 +742,44 @@ export const oauthSyncRouter = router({
       body: z.string(),
       cc: z.string().optional(),
       bcc: z.string().optional(),
+      via: z.enum(["microsoft", "smtp"]).default("microsoft"),
+      smtpAccountId: z.number().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Only Microsoft (Office 365) is supported for sending mail
+      if (input.via === "smtp") {
+        // Send via SMTP/IMAP account — use specific account if smtpAccountId provided
+        const account = input.smtpAccountId
+          ? await db.getSmtpImapAccountById(ctx.user.id, input.smtpAccountId)
+          : await db.getSmtpImapAccount(ctx.user.id);
+        if (!account) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "No SMTP/IMAP account configured. Please add one in Settings \u2192 Accounts.",
+          });
+        }
+        const transporter = nodemailer.createTransport({
+          host: account.smtpHost,
+          port: account.smtpPort,
+          secure: account.smtpEncryption === 'ssl',
+          auth: { user: account.smtpUsername, pass: account.smtpPassword },
+          tls: account.smtpEncryption === 'tls' ? { rejectUnauthorized: false } : undefined,
+        });
+        try {
+          await transporter.sendMail({
+            from: account.displayName ? `"${account.displayName}" <${account.email}>` : account.email,
+            to: input.to,
+            cc: input.cc || undefined,
+            bcc: input.bcc || undefined,
+            subject: input.subject,
+            html: input.body,
+          });
+        } finally {
+          transporter.close();
+        }
+        return { success: true, provider: "smtp", fromEmail: account.email };
+      }
+
+      // Send via Microsoft (Office 365)
       const accessToken = await getValidAccessToken(ctx.user.id, "microsoft");
       if (!accessToken) {
         throw new TRPCError({
@@ -770,6 +805,32 @@ export const oauthSyncRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Microsoft send failed: ${resp.status} ${err}` });
       }
       return { success: true, provider: "microsoft" };
+    }),
+
+  /**
+   * Sync sent items from Microsoft 365
+   */
+  syncSentMail: protectedProcedure
+    .input(z.object({ limit: z.number().default(20) }))
+    .mutation(async ({ input, ctx }) => {
+      const accessToken = await getValidAccessToken(ctx.user.id, "microsoft");
+      if (!accessToken) throw new Error("Not connected to Microsoft 365.");
+
+      const resp = await fetch(
+        `https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages?$top=${input.limit}&$select=subject,toRecipients,sentDateTime,bodyPreview,id&$orderby=sentDateTime desc`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!resp.ok) throw new Error("Microsoft Graph sent mail fetch failed: " + resp.status);
+      const data = await resp.json() as { value: Array<{ id: string; subject: string; toRecipients: Array<{ emailAddress: { name: string; address: string } }>; sentDateTime: string; bodyPreview: string }> };
+      const messages = (data.value || []).map(m => ({
+        id: m.id,
+        subject: m.subject,
+        to: m.toRecipients?.map(r => r.emailAddress.name || r.emailAddress.address).join(', ') || '',
+        toEmail: m.toRecipients?.[0]?.emailAddress?.address || '',
+        date: m.sentDateTime,
+        preview: m.bodyPreview,
+      }));
+      return { provider: "microsoft", messages };
     }),
 
   /**
@@ -1050,6 +1111,20 @@ export const oauthSyncRouter = router({
         smtpEncryption: account.smtpEncryption,
         lastTestedAt: account.lastTestedAt,
       };
+    }),
+
+  /**
+   * Get all SMTP/IMAP accounts for the current user (for compose From selector)
+   */
+  getAllSmtpAccounts: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await db.getAllSmtpImapAccounts(ctx.user.id);
+      return accounts.map(a => ({
+        id: a.id,
+        email: a.email,
+        displayName: a.displayName,
+        smtpHost: a.smtpHost,
+      }));
     }),
 
   /**
