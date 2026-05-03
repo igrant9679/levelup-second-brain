@@ -599,3 +599,12 @@
 - [x] Fix blank SyncSettings page — root cause: app uses vanilla JS index.html (12825 lines), not React pages. The /sync-settings React route is never reached. Credentials form already exists natively in Settings → Connected Accounts → Your OAuth App Credentials.
 - [x] Fix sidebar "Sync" link — N/A: sidebar is in the vanilla JS app and already links to the correct Settings section.
 - [x] Verify PerUserCredentials component renders correctly — N/A: the native HTML credentials form in index.html is the correct UI.
+
+## Feature: Token Refresh Button in Top Bar
+- [x] Remove orange token expiry banner (replaced with topbar button, banner disabled)
+- [x] Add Token Refresh button to top bar left of +New button (id=topbar-token-refresh)
+- [x] Button is hidden when token is healthy (>5min remaining)
+- [x] Button turns orange when token expires within 5 minutes
+- [x] Button turns red when token is expired
+- [x] Clicking button calls refreshOAuthToken and shows success/error toast; re-checks state after refresh
+- [x] Button re-checks every 60 seconds via setInterval

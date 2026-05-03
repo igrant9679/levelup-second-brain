@@ -432,18 +432,18 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
 <div class="tb-a">
+<button id="topbar-token-refresh" class="bn" onclick="handleTopbarTokenRefresh()" style="display:none;background:#f59e0b;gap:5px" title="OAuth token expiring soon — click to refresh">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+Refresh Token
+</button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
 <button class="tbtn" onclick="toggleAIPanel()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="bg" id="ai-badge">3</span></button>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" onclick="nav('settings')">IG</div>
 </div>
 </header>
-<!-- Token Expiry Warning Banner (shown when a connected OAuth token expires within 7 days) -->
-<div id="token-expiry-banner" style="display:none;position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#f59e0b,#d97706);color:#fff;padding:8px 16px;font-size:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap">
-  <span style="flex:1" id="token-expiry-banner-text">⚠ A connected OAuth token is expiring soon.</span>
-  <button id="token-expiry-banner-refresh" onclick="handleBannerRefresh()" style="background:rgba(255,255,255,0.25);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap">🔄 Refresh Token</button>
-  <button onclick="dismissExpiryBanner()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:14px;padding:0 4px;line-height:1" title="Dismiss until tomorrow">✕</button>
-</div>
+<!-- Token Expiry Warning Banner (disabled — replaced by topbar button) -->
+<div id="token-expiry-banner" style="display:none"></div>
 <template id="sb-tpl">
 <div style="padding:0 4px">
 <div class="si" data-n="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="l">Home</span></div>
@@ -9529,6 +9529,8 @@ function doLoginSuccess(member){
   if(ov)ov.classList.add('hidden');
   // Check for expiring OAuth tokens and show banner if needed
   setTimeout(()=>checkTokenExpiryBanner(),1500);
+  // Re-check every 60 seconds so the button state stays current
+  setInterval(()=>checkTokenExpiryBanner(),60*1000);
   // Migrate: ensure example Full Add tasks exist
   const exampleIds=[201,202,203];
   exampleIds.forEach(eid=>{
@@ -11794,46 +11796,57 @@ async function loadEmailDeliveryLog(){
     el.innerHTML='<span style="color:var(--t3);font-style:italic">Could not load delivery log.</span>';
   }
 }
-/** Check OAuth token expiry and show banner if any token expires within 7 days */
+/** Check OAuth token expiry and update topbar button state.
+ * Button is hidden when healthy, orange within 5 min, red when expired. */
 async function checkTokenExpiryBanner(){
-  const banner=document.getElementById('token-expiry-banner');
-  if(!banner)return;
+  const btn=document.getElementById('topbar-token-refresh');
+  if(!btn)return;
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
     const providers=[];
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
       providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
     }
-    // Google Workspace OAuth removed — replaced with SMTP/IMAP secondary account
-    // Find the soonest-expiring provider within 7 days
-    const sevenDaysMs=7*24*60*60*1000;
-    const expiring=providers.filter(p=>p.expiresAt&&(p.expiresAt.getTime()-Date.now())<sevenDaysMs)
+    // Find the soonest-expiring provider
+    const fiveMinMs=5*60*1000;
+    const expiring=providers.filter(p=>p.expiresAt&&(p.expiresAt.getTime()-Date.now())<fiveMinMs)
       .sort((a,b)=>(a.expiresAt.getTime())-(b.expiresAt.getTime()));
-    if(!expiring.length){banner.style.display='none';return;}
+    if(!expiring.length){
+      btn.style.display='none';
+      btn._expiringProvider=null;
+      return;
+    }
     const soonest=expiring[0];
-    const dismissKey='expiry-banner-dismiss-'+soonest.key;
-    const dismissedUntil=localStorage.getItem(dismissKey);
-    if(dismissedUntil&&Date.now()<parseInt(dismissedUntil,10)){banner.style.display='none';return;}
     const diffMs=soonest.expiresAt.getTime()-Date.now();
-    const diffDays=Math.floor(diffMs/(1000*60*60*24));
-    const diffHours=Math.floor(diffMs/(1000*60*60));
-    const timeStr=diffMs<=0?'expired':(diffDays<1?`in ${diffHours}h`:`in ${diffDays} day${diffDays===1?'':'s'}`);
-    const textEl=document.getElementById('token-expiry-banner-text');
-    if(textEl)textEl.textContent=`⚠ Your ${soonest.label} token ${diffMs<=0?'has expired':'expires'} ${timeStr} — refresh it to keep sync working.`;
-    // Store which provider needs refresh for the button handler
-    (banner)._expiringProvider=soonest.key;
-    banner.style.display='flex';
+    const expired=diffMs<=0;
+    btn.style.display='flex';
+    btn.style.background=expired?'#ef4444':'#f59e0b';
+    btn.title=expired
+      ?`${soonest.label} token has expired — click to refresh`
+      :`${soonest.label} token expires in ${Math.max(0,Math.floor(diffMs/60000))}m — click to refresh`;
+    btn._expiringProvider=soonest.key;
   }catch{
-    // Silently ignore — banner is non-critical
+    // Silently ignore — button is non-critical
   }
 }
-/** Handle Refresh Token click from the expiry banner */
+/** Handle Refresh Token click from the expiry banner (legacy — kept for compat) */
 async function handleBannerRefresh(){
   const banner=document.getElementById('token-expiry-banner');
   const provider=(banner)?._expiringProvider;
   if(provider)await refreshOAuthToken(provider);
 }
-/** Dismiss the expiry banner until tomorrow */
+/** Handle Refresh Token click from the topbar button */
+async function handleTopbarTokenRefresh(){
+  const btn=document.getElementById('topbar-token-refresh');
+  const provider=btn?._expiringProvider||'microsoft';
+  const origText=btn?btn.innerHTML:'';
+  if(btn){btn.disabled=true;btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Refreshing…';}
+  await refreshOAuthToken(provider);
+  // Re-check expiry state after refresh
+  await checkTokenExpiryBanner();
+  if(btn){btn.disabled=false;if(btn.style.display!=='none')btn.innerHTML=origText;}
+}
+/** Dismiss the expiry banner until tomorrow (legacy) */
 function dismissExpiryBanner(){
   const banner=document.getElementById('token-expiry-banner');
   if(!banner){return;}
