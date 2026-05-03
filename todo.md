@@ -685,3 +685,7 @@
 - [x] AI result history panel (last 3 responses) on all RTE surfaces
 - [x] Bulk AI auto-tag button in Notes list header
 - [x] Replace OneNote Import with Word Doc Note Import (.docx multi-note parser per spec)
+
+## Export Enhancements (May 2026)
+- [x] Journal export: add MD and PDF export buttons to Journal view (includes diaryBody rich text)
+- [x] Notes bulk MD export: include bodyHtml rich text field in exported markdown files

@@ -2936,14 +2936,27 @@ function exportNotesMarkdown(){
   const me=D.creds.userName||'Idris Grant';
   const notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
   if(!notes.length){toast('No notes to export.');return;}
-  const md=notes.map(n=>[
-    `# ${n.title}`,
-    `> **Tags:** ${(n.tags||[]).map(t=>'#'+t).join(' ')} | **Source:** ${n.source||''} | **Updated:** ${n.updated||''}`,
-    '',
-    n.body||'',
-    '',
-    '---'
-  ].join('\n')).join('\n\n');
+  const md=notes.map(n=>{
+    const lines=[
+      `# ${n.title}`,
+      `> **Tags:** ${(n.tags||[]).map(t=>'#'+t).join(' ')} | **Source:** ${n.source||''} | **Updated:** ${n.updated||''}`,
+      '',
+      n.body||'',
+    ];
+    // Include rich text body (bodyHtml) if present
+    if(n.bodyHtml){
+      const bodyMd=typeof _htmlToMd==='function'?_htmlToMd(n.bodyHtml):n.bodyHtml.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').trim();
+      if(bodyMd){
+        lines.push('');
+        lines.push('## Rich Text Body');
+        lines.push('');
+        lines.push(bodyMd);
+      }
+    }
+    lines.push('');
+    lines.push('---');
+    return lines.join('\n');
+  }).join('\n\n');
   const blob=new Blob([md],{type:'text/markdown'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -3933,7 +3946,7 @@ function renderJournal(){
     if(!el)return;
     el.innerHTML=entries.length?entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):'<div style="text-align:center;padding:24px;color:var(--t3);font-size:12px">No '+(_jrnlFilter==='All'?'':_jrnlFilter+' ')+' journal entries yet.<br><span style="color:var(--ac);cursor:pointer" onclick="openFA(\'journal\')">+ Write your first entry</span></div>';
   }
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiJournalSentiment()" title="AI: Sentiment trend analysis">📈 Sentiment</button><button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiJournalThemes()" title="AI: Detect recurring themes">🔍 Themes</button><button class="btn btn-s" style="font-size:11px;color:var(--grn)" onclick="aiJournalPrompt()" title="AI: Get a guided writing prompt">✏ Prompt</button><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">Reflect, plan, and track your thoughts.</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiJournalSentiment()" title="AI: Sentiment trend analysis">📈 Sentiment</button><button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiJournalThemes()" title="AI: Detect recurring themes">🔍 Themes</button><button class="btn btn-s" style="font-size:11px;color:var(--grn)" onclick="aiJournalPrompt()" title="AI: Get a guided writing prompt">✏ Prompt</button><button class="btn btn-s" style="font-size:11px" onclick="exportJournalMD()" title="Export all journal entries as Markdown">⬇ MD</button><button class="btn btn-s" style="font-size:11px" onclick="exportJournalPDF()" title="Export all journal entries as PDF">🖨 PDF</button><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
   <div class="tabs" id="jrnl-tabs">${journalTabs.map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="document.querySelectorAll('#jrnl-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderJournalList('${t}')">${t}</div>`).join('')}</div>
   <div id="jrnl-entries">${D.journal.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join('')}</div>`;
   const streak=calcJournalStreak();
@@ -6495,6 +6508,100 @@ function exportIdeaPDF(id){
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
   toast('🖨 Opening print dialog…');
 }
+// ====== JOURNAL EXPORT ======
+function _htmlToMd(html){
+  if(!html)return '';
+  return html
+    .replace(/<h1[^>]*>(.*?)<\/h1>/gi,'# $1\n')
+    .replace(/<h2[^>]*>(.*?)<\/h2>/gi,'## $1\n')
+    .replace(/<h3[^>]*>(.*?)<\/h3>/gi,'### $1\n')
+    .replace(/<strong[^>]*>(.*?)<\/strong>/gi,'**$1**')
+    .replace(/<b[^>]*>(.*?)<\/b>/gi,'**$1**')
+    .replace(/<em[^>]*>(.*?)<\/em>/gi,'*$1*')
+    .replace(/<i[^>]*>(.*?)<\/i>/gi,'*$1*')
+    .replace(/<u[^>]*>(.*?)<\/u>/gi,'_$1_')
+    .replace(/<a[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi,'[$2]($1)')
+    .replace(/<li[^>]*>(.*?)<\/li>/gi,'- $1\n')
+    .replace(/<br\s*\/?>/gi,'\n')
+    .replace(/<p[^>]*>(.*?)<\/p>/gi,'$1\n\n')
+    .replace(/<div[^>]*>(.*?)<\/div>/gi,'$1\n')
+    .replace(/<[^>]+>/g,'')
+    .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
+    .trim();
+}
+
+function exportJournalMD(){
+  if(!D.journal||!D.journal.length){toast('⚠ No journal entries to export');return;}
+  const sorted=[...D.journal].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let md=`# Journal Export\n\nExported ${new Date().toLocaleDateString()} — ${sorted.length} entr${sorted.length===1?'y':'ies'}\n\n---\n\n`;
+  sorted.forEach(j=>{
+    md+=`## ${j.title||'Untitled Entry'}\n\n`;
+    md+=`**Date:** ${j.date||''}  \n`;
+    if(j.mood)md+=`**Mood:** ${j.mood}  \n`;
+    if(j.energy)md+=`**Energy:** ${j.energy}  \n`;
+    if(j.type)md+=`**Type:** ${j.type}  \n`;
+    md+=`\n`;
+    if(j.body)md+=`${j.body}\n\n`;
+    if(j.diaryBody){
+      const bodyMd=_htmlToMd(j.diaryBody);
+      if(bodyMd)md+=`### Diary Entry\n\n${bodyMd}\n\n`;
+    }
+    if(j.gratitude&&j.gratitude.filter(Boolean).length){
+      md+=`### Gratitude\n\n${j.gratitude.filter(Boolean).map(g=>`- ${g}`).join('\n')}\n\n`;
+    }
+    if(j.wins&&j.wins.filter(Boolean).length){
+      md+=`### Wins\n\n${j.wins.filter(Boolean).map(w=>`- ${w}`).join('\n')}\n\n`;
+    }
+    if(j.improvements&&j.improvements.filter(Boolean).length){
+      md+=`### Improvements\n\n${j.improvements.filter(Boolean).map(i=>`- ${i}`).join('\n')}\n\n`;
+    }
+    md+=`---\n\n`;
+  });
+  const blob=new Blob([md],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`journal-export-${new Date().toISOString().split('T')[0]}.md`;
+  a.click();
+  toast('✓ Journal exported as Markdown ('+sorted.length+' entries)');
+}
+
+function exportJournalPDF(){
+  if(!D.journal||!D.journal.length){toast('⚠ No journal entries to export');return;}
+  const sorted=[...D.journal].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let entriesHtml='';
+  sorted.forEach((j,idx)=>{
+    const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
+    const metaBadges=[
+      j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px">${j.energy}</span>`:'',
+      j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:10px">${j.type}</span>`:'',
+    ].filter(Boolean).join(' ');
+    const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:6px">📓 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#d97706;margin-bottom:4px">🙏 Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${g}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px">🌟 Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${w}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px">🔄 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${i}</div>`).join('')}</div>`:'';
+    entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
+      <div style="display:flex;align-items:center;margin-bottom:8px">
+        <h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2>
+        <div style="font-size:11px;color:#6b7280">${j.date||''}</div>
+      </div>
+      ${metaBadges?`<div style="margin-bottom:8px">${metaBadges}</div>`:''}
+      ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
+    </div>`;
+  });
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
+  <div style="margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
+    <h1 style="font-size:24px;font-weight:800;margin:0 0 4px">✏️ Journal Export</h1>
+    <div style="font-size:12px;color:#6b7280">${sorted.length} entr${sorted.length===1?'y':'ies'} &bull; Exported ${new Date().toLocaleDateString()}</div>
+  </div>
+  ${entriesHtml}
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
+</body></html>`;
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+  toast('🖨 Opening print dialog… ('+sorted.length+' entries)');
+}
+
 function openVerdictModal(id){
   const idea=D.ideas.find(x=>x.id===id);
   if(!idea)return;
