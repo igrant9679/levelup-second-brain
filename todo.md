@@ -934,3 +934,7 @@
 - [x] DOCX: use mammoth.convertToHtml with image handler to extract embedded images, upload to storage, embed as ![img](url) in note body
 - [x] PDF: use pdfimages (poppler-utils) to extract embedded raster images, upload to storage, append as markdown image refs
 - [x] Note editor/viewer: render markdown ![img](url) tags as actual <img> elements in the note body display (placeholder technique to survive HTML escaping)
+
+## Team Member Management Issues
+- [x] Fix tRPC errors when removing team members (fixed _trpc error handler to properly extract tRPC error messages)
+- [x] Fix invitation email to include password setup flow for new members (AcceptInvite page already exists and is wired; email backend is correct)
