@@ -331,6 +331,68 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .ca-item.selected{background:rgba(59,130,246,.12);color:var(--ac)}
 </style>
 </head><body>
+
+<!-- ===== INVITE ACCEPT SCREEN ===== -->
+<div id="invite-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;padding:16px">
+  <div style="width:100%;max-width:400px">
+    <div style="text-align:center;margin-bottom:24px">
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
+      <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
+      <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
+    </div>
+    <div class="login-box">
+      <div id="invite-loading" style="text-align:center;padding:20px 0">
+        <svg style="animation:spin 1s linear infinite;color:var(--ac)" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        <div style="font-size:12px;color:var(--t3);margin-top:8px">Validating invite…</div>
+      </div>
+      <div id="invite-form-inner" style="display:none">
+        <h2 style="font-size:18px;font-weight:700;margin:0 0 4px">You've been invited!</h2>
+        <p style="font-size:12px;color:var(--t3);margin:0 0 16px">Set up your LevelUp account to get started.</p>
+        <div id="invite-details" style="background:var(--s3);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px;color:var(--t2)"></div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Your Name</label>
+          <input type="text" id="invite-name" placeholder="Jane Smith" autocomplete="name"
+            style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Password</label>
+          <input type="password" id="invite-password" placeholder="At least 8 characters" autocomplete="new-password"
+            style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none">
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="font-size:11px;color:var(--t3);display:block;margin-bottom:4px">Confirm Password</label>
+          <input type="password" id="invite-confirm" placeholder="Repeat your password" autocomplete="new-password"
+            style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd2);border-radius:8px;padding:9px 12px;color:var(--t1);font-size:13px;outline:none"
+            onkeydown="if(event.key==='Enter')acceptInviteSubmit()">
+        </div>
+        <div id="invite-err" style="font-size:12px;color:var(--red);margin-bottom:10px;display:none"></div>
+        <button id="invite-submit-btn" onclick="acceptInviteSubmit()"
+          style="width:100%;background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer">
+          Create Account
+        </button>
+      </div>
+      <div id="invite-success" style="display:none;text-align:center;padding:16px 0">
+        <div style="font-size:36px;margin-bottom:12px">🎉</div>
+        <h2 style="font-size:18px;font-weight:700;margin:0 0 8px">Welcome to LevelUp!</h2>
+        <p style="font-size:13px;color:var(--t2);margin:0 0 20px">Your account has been created. Sign in with your email and password.</p>
+        <button onclick="window.location.href='/'"
+          style="background:linear-gradient(135deg,#3B82F6,#8B5CF6);color:#fff;border:none;border-radius:8px;padding:10px 28px;font-size:14px;font-weight:600;cursor:pointer">
+          Go to Login
+        </button>
+      </div>
+      <div id="invite-invalid" style="display:none;text-align:center;padding:16px 0">
+        <div style="font-size:36px;margin-bottom:12px">⚠️</div>
+        <h2 style="font-size:18px;font-weight:700;margin:0 0 8px">Invalid Invite</h2>
+        <p id="invite-invalid-msg" style="font-size:13px;color:var(--t2);margin:0 0 20px">This invite link is invalid, has already been used, or has expired.</p>
+        <button onclick="window.location.href='/'"
+          style="background:var(--s3);color:var(--t1);border:1px solid var(--bd2);border-radius:8px;padding:10px 28px;font-size:14px;font-weight:600;cursor:pointer">
+          Go to Login
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
@@ -15803,9 +15865,72 @@ async function deleteSmtpImapAccount(){
   }
 }
 
+
+// ===== INVITE ACCEPT FLOW =====
+async function initInviteScreen(token){
+  const overlay=document.getElementById('invite-overlay');
+  const loading=document.getElementById('invite-loading');
+  const formInner=document.getElementById('invite-form-inner');
+  const invalid=document.getElementById('invite-invalid');
+  const invalidMsg=document.getElementById('invite-invalid-msg');
+  const details=document.getElementById('invite-details');
+  // Show overlay, hide login
+  overlay.style.display='flex';
+  document.getElementById('login-overlay').style.display='none';
+  // Validate token
+  try{
+    const inv=await _trpc('teamInvites.validate',{token},'query');
+    loading.style.display='none';
+    formInner.style.display='';
+    // Pre-fill name if provided
+    if(inv.name){const n=document.getElementById('invite-name');if(n)n.value=inv.name;}
+    // Show invite details
+    const expiry=new Date(inv.expiresAt).toLocaleDateString(undefined,{dateStyle:'medium'});
+    details.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Email</span><strong>${esc(inv.email)}</strong></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Role</span><strong style="text-transform:capitalize">${esc(inv.role)}</strong></div><div style="display:flex;justify-content:space-between"><span>Expires</span><span style="color:var(--t3)">${expiry}</span></div>`;
+    window._inviteToken=token;
+    setTimeout(()=>{const n=document.getElementById('invite-name');if(n&&!n.value)n.focus();else{const p=document.getElementById('invite-password');if(p)p.focus();}},100);
+  }catch(e){
+    loading.style.display='none';
+    invalid.style.display='';
+    if(invalidMsg)invalidMsg.textContent=e.message||'This invite link is invalid, has already been used, or has expired.';
+  }
+}
+async function acceptInviteSubmit(){
+  const errEl=document.getElementById('invite-err');
+  const btn=document.getElementById('invite-submit-btn');
+  const name=(document.getElementById('invite-name')||{}).value||'';
+  const password=(document.getElementById('invite-password')||{}).value||'';
+  const confirm=(document.getElementById('invite-confirm')||{}).value||'';
+  const token=window._inviteToken;
+  errEl.style.display='none';
+  if(!name.trim()){errEl.textContent='Please enter your name.';errEl.style.display='';return;}
+  if(password.length<8){errEl.textContent='Password must be at least 8 characters.';errEl.style.display='';return;}
+  if(password!==confirm){errEl.textContent='Passwords do not match.';errEl.style.display='';return;}
+  btn.disabled=true;
+  btn.innerHTML='<svg style="display:inline;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Creating account…';
+  try{
+    await _trpc('teamInvites.accept',{token,name:name.trim(),password},'mutation');
+    document.getElementById('invite-form-inner').style.display='none';
+    document.getElementById('invite-success').style.display='';
+  }catch(e){
+    errEl.textContent=e.message||'Failed to create account. Please try again.';
+    errEl.style.display='';
+    btn.disabled=false;
+    btn.textContent='Create Account';
+  }
+}
+
 // ====== INIT ======
 applyPrefs();
-initLoginScreen();
+// Check if this is an invite acceptance URL (/invite/:token)
+(function(){
+  const m=window.location.pathname.match(/^\/invite\/([a-f0-9]{64})$/i);
+  if(m){
+    initInviteScreen(m[1]);
+    return;
+  }
+  initLoginScreen();
+})();
 // App boots inside doLoginSuccess after auth
 // Patch save() to invalidate search index on data change AND sync to server (debounced)
 const _origSave=window.save||save;

@@ -938,3 +938,9 @@
 ## Team Member Management Issues
 - [x] Fix tRPC errors when removing team members (root cause: frontend was passing local team member id instead of database userId; fixed by adding userId field to team members and passing it to backend)
 - [x] Fix invitation email to include password setup flow for new members (AcceptInvite page already exists and is wired; email backend is correct)
+
+## Invitation Email — Password Setup Fix
+- [x] Trace full invite flow: client/index.html is the app, not the React SPA — /invite/:token was served but no invite UI existed in the HTML file
+- [x] Added invite acceptance screen directly in client/index.html: detects /invite/:token URL on startup, shows name + password form, calls teamInvites.validate + teamInvites.accept
+- [x] Invite screen shows invitee email, role, and expiry date before they set their password
+- [x] Success state redirects to login; invalid/expired token shows clear error message
