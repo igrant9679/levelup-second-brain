@@ -1096,9 +1096,9 @@ var D = {
   ],
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
     {id:1,name:'LevelUp Core Team',members:[
-      {id:1,name:'Idris Grant',email:'idris@levelup.app',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
-      {id:2,name:'Priya Nair',email:'priya@levelup.app',role:'Admin',color:'#8B5CF6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:false,mail:true,calendar:true,habits:false,coach:true}},
-      {id:3,name:'Marcus Webb',email:'marcus@levelup.app',role:'Member',color:'#10B981',perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}},
+      {id:1,userId:1,name:'Idris Grant',email:'idris@levelup.app',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
+      {id:2,userId:2,name:'Priya Nair',email:'priya@levelup.app',role:'Admin',color:'#8B5CF6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:false,mail:true,calendar:true,habits:false,coach:true}},
+      {id:3,userId:3,name:'Marcus Webb',email:'marcus@levelup.app',role:'Member',color:'#10B981',perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}},
     ]},
   ],
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
@@ -7734,7 +7734,7 @@ function renderTeam(){
       <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
       ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:9px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
-      ${isAdminOrOwner&&m.id?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.id},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
+      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
@@ -9543,7 +9543,7 @@ function addTeamMember(teamId){
   const name=prompt('Member name:');if(!name)return;
   const email=prompt('Member email:')||'';
   const team=D.teams.find(t=>t.id===teamId);
-  team.members.push({id:nextId(team.members),name,email,role:'Member',color:'#'+Math.floor(Math.random()*16777215).toString(16),perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}});
+  team.members.push({id:nextId(team.members),userId:null,name,email,role:'Member',color:'#'+Math.floor(Math.random()*16777215).toString(16),perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}});
   save('teams');renderScreen('settings');toast('Member added!');
 }
 function updateMemberRole(teamId,memberId,role){

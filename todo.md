@@ -936,5 +936,5 @@
 - [x] Note editor/viewer: render markdown ![img](url) tags as actual <img> elements in the note body display (placeholder technique to survive HTML escaping)
 
 ## Team Member Management Issues
-- [x] Fix tRPC errors when removing team members (fixed _trpc error handler to properly extract tRPC error messages)
+- [x] Fix tRPC errors when removing team members (root cause: frontend was passing local team member id instead of database userId; fixed by adding userId field to team members and passing it to backend)
 - [x] Fix invitation email to include password setup flow for new members (AcceptInvite page already exists and is wired; email backend is correct)
