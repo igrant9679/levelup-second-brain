@@ -948,3 +948,8 @@
 ## Team Member Removal Fix (Round 2)
 - [x] Remove example team members Priya Nair and Marcus Webb from default D.teams data
 - [x] Fix team.deleteMember backend to not throw when user doesn't exist in DB (allow removal of local-only members)
+
+## Invite Acceptance tRPC Error Fix
+- [x] Fix openId varchar(64) overflow: `invite:` + 64-char token = 71 chars exceeded limit; changed to `inv:` + 60 chars = 64 chars
+- [x] Fix generic "tRPC error" message display: error response format is `{error:{json:{message:...}}}` not `{error:{message:...}}`; added `data.error.json?.message` check
+- [x] Add try/catch around user creation DB insert for better error reporting

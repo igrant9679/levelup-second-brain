@@ -191,26 +191,33 @@ export const teamInvitesRouter = router({
       const { users } = await import('../../drizzle/schema');
       const { eq } = await import('drizzle-orm');
 
-      const [existing] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
       let userId: number;
+      try {
+        const [existing] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
 
-      if (existing) {
-        await dbConn.update(users)
-          .set({ name: input.name, passwordHash, role: invite.role, updatedAt: new Date() })
-          .where(eq(users.id, existing.id));
-        userId = existing.id;
-      } else {
-        await dbConn.insert(users).values({
-          openId: `invite:${invite.token}`,
-          name: input.name,
-          email: invite.email,
-          loginMethod: 'invite',
-          role: invite.role,
-          passwordHash,
-          lastSignedIn: new Date(),
-        });
-        const [created] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
-        userId = created.id;
+        if (existing) {
+          await dbConn.update(users)
+            .set({ name: input.name, passwordHash, role: invite.role, updatedAt: new Date() })
+            .where(eq(users.id, existing.id));
+          userId = existing.id;
+        } else {
+          // openId is varchar(64) — token is 64 hex chars, so truncate to fit
+          const openId = `inv:${invite.token.slice(0, 60)}`;
+          await dbConn.insert(users).values({
+            openId,
+            name: input.name,
+            email: invite.email,
+            loginMethod: 'invite',
+            role: invite.role,
+            passwordHash,
+            lastSignedIn: new Date(),
+          });
+          const [created] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
+          userId = created.id;
+        }
+      } catch (dbErr: any) {
+        console.error('[teamInvites.accept] DB error creating user:', dbErr);
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create account. Please try again or contact support.' });
       }
 
       await db.acceptTeamInvite(input.token, userId);

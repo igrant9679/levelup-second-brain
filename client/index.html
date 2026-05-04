@@ -14062,7 +14062,7 @@ async function _trpc(procedure,input,method='query'){
     const resp=await fetch(url+'?input='+encodeURIComponent(JSON.stringify({json:input})),{credentials:'include'});
     const data=await resp.json();
     if(data.error){
-      const msg=data.error.message||data.error.data?.message||'tRPC error';
+      const msg=data.error.json?.message||data.error.message||data.error.data?.message||'tRPC error';
       throw new Error(msg);
     }
     return data.result?.data?.json??data.result?.data;
@@ -14070,7 +14070,7 @@ async function _trpc(procedure,input,method='query'){
   const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({json:input})});
   const data=await resp.json();
   if(data.error){
-    const msg=data.error.message||data.error.data?.message||'tRPC error';
+    const msg=data.error.json?.message||data.error.message||data.error.data?.message||'tRPC error';
     throw new Error(msg);
   }
   return data.result?.data?.json??data.result?.data;
