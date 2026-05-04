@@ -953,3 +953,15 @@
 - [x] Fix openId varchar(64) overflow: `invite:` + 64-char token = 71 chars exceeded limit; changed to `inv:` + 60 chars = 64 chars
 - [x] Fix generic "tRPC error" message display: error response format is `{error:{json:{message:...}}}` not `{error:{message:...}}`; added `data.error.json?.message` check
 - [x] Add try/catch around user creation DB insert for better error reporting
+
+## Microsoft OAuth — Tenant-Specific Endpoint
+- [ ] Use tenant-specific OAuth URL (`https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize`) when Tenant ID is provided, instead of `/common`
+
+## Bug Fix: Microsoft OAuth Tenant ID Not Passed from UI to Backend on Connect
+
+- [x] Frontend: `connectOAuth()` now reads `#ms-cred-tenant` input value and passes it as `tenantId` param to `oauthSync.getAuthUrl`
+- [x] Backend: `getAuthUrl` procedure accepts optional `tenantId` input; UI value takes precedence over DB value
+- [x] Backend: `validateCredentials` procedure accepts optional `tenantId` input; uses tenant-specific token endpoint instead of hardcoded `/common`
+- [x] Frontend: `verifyOAuthCredentials()` now reads `#ms-cred-tenant` input value and passes it as `tenantId` param to `oauthSync.validateCredentials`
+- [x] TypeScript compilation: 0 errors
+- [x] Vitest: all 230 tests pass

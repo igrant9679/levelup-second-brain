@@ -15196,7 +15196,13 @@ async function verifyOAuthCredentials(provider){
   if(btn){btn.disabled=true;btn.textContent='Verifying…';}
   if(statusEl){statusEl.style.color='var(--t3)';statusEl.textContent='Checking with '+provider+'…';}
   try{
-    const res=await _trpc('oauthSync.validateCredentials',{provider,clientId,clientSecret},'mutation');
+    // Pass tenantId for Microsoft so validation uses the correct tenant endpoint
+    const params={provider,clientId,clientSecret};
+    if(provider==='microsoft'){
+      const tenantEl=document.getElementById('ms-cred-tenant');
+      if(tenantEl&&tenantEl.value.trim())params.tenantId=tenantEl.value.trim();
+    }
+    const res=await _trpc('oauthSync.validateCredentials',params,'mutation');
     if(res.valid){
       if(statusEl){statusEl.style.color='var(--ok)';statusEl.textContent='✓ Credentials accepted by '+(provider==='microsoft'?'Microsoft':'Google');}
       toast('✓ '+provider+' credentials are valid','success');
@@ -15257,7 +15263,13 @@ async function saveNotificationSender(){
 async function connectOAuth(provider){
   try{
     const origin=window.location.origin;
-    const data=await _trpc('oauthSync.getAuthUrl',{provider,origin},'query');
+    // Pass current tenantId from UI so backend uses it even if user forgot to re-save
+    const params={provider,origin};
+    if(provider==='microsoft'){
+      const tenantEl=document.getElementById('ms-cred-tenant');
+      if(tenantEl&&tenantEl.value.trim())params.tenantId=tenantEl.value.trim();
+    }
+    const data=await _trpc('oauthSync.getAuthUrl',params,'query');
     if(data?.url)window.location.href=data.url;
     else toast('⚠️ Could not generate auth URL. Check your OAuth credentials in Settings → Integrations.');
   }catch(e){

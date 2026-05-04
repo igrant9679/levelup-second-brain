@@ -233,7 +233,7 @@ export const oauthSyncRouter = router({
   }),
 
   getAuthUrl: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft"]), origin: z.string() }))
+    .input(z.object({ provider: z.enum(["microsoft"]), origin: z.string(), tenantId: z.string().optional() }))
     .query(async ({ input, ctx }) => {
       // Prefer per-user credentials, fall back to global env vars
       const clientId = await resolveClientId(ctx.user.id, input.provider);
@@ -247,10 +247,11 @@ export const oauthSyncRouter = router({
         );
       }
       // Resolve tenantId and msScopes for Microsoft (needed for single-tenant app registrations and custom scopes)
+      // UI-provided tenantId takes precedence over DB value (in case user entered it but didn't re-save)
       const userCred = input.provider === "microsoft"
         ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
         : null;
-      const tenantId = userCred?.tenantId ?? null;
+      const tenantId = input.tenantId || userCred?.tenantId || null;
       const msScopes = userCred?.msScopes ?? null;
       // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
@@ -947,6 +948,7 @@ export const oauthSyncRouter = router({
       provider: z.enum(["microsoft", "google"]),
       clientId: z.string().min(1),
       clientSecret: z.string().min(1),
+      tenantId: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const { provider, clientId, clientSecret } = input;
@@ -955,8 +957,10 @@ export const oauthSyncRouter = router({
         // Use the client_credentials grant with a dummy scope to validate credentials.
         // We expect either a token response or a specific error about the tenant/scope,
         // NOT an "invalid_client" error which would mean bad credentials.
+        // Use tenant-specific endpoint if tenantId is provided (required for single-tenant apps)
+        const tenantSlug = input.tenantId || "common";
         const resp = await fetch(
-          "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+          `https://login.microsoftonline.com/${tenantSlug}/oauth2/v2.0/token`,
           {
             method: "POST",
             body: buildFormBody({
