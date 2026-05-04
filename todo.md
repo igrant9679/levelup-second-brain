@@ -944,3 +944,7 @@
 - [x] Added invite acceptance screen directly in client/index.html: detects /invite/:token URL on startup, shows name + password form, calls teamInvites.validate + teamInvites.accept
 - [x] Invite screen shows invitee email, role, and expiry date before they set their password
 - [x] Success state redirects to login; invalid/expired token shows clear error message
+
+## Team Member Removal Fix (Round 2)
+- [x] Remove example team members Priya Nair and Marcus Webb from default D.teams data
+- [x] Fix team.deleteMember backend to not throw when user doesn't exist in DB (allow removal of local-only members)

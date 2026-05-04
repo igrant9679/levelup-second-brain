@@ -1159,8 +1159,6 @@ var D = {
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
     {id:1,name:'LevelUp Core Team',members:[
       {id:1,userId:1,name:'Idris Grant',email:'idris@levelup.app',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
-      {id:2,userId:2,name:'Priya Nair',email:'priya@levelup.app',role:'Admin',color:'#8B5CF6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:false,settings:false,mail:true,calendar:true,habits:false,coach:true}},
-      {id:3,userId:3,name:'Marcus Webb',email:'marcus@levelup.app',role:'Member',color:'#10B981',perms:{tasks:true,notes:true,projects:true,goals:false,journal:false,settings:false,mail:false,calendar:true,habits:false,coach:false}},
     ]},
   ],
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
@@ -8102,7 +8100,7 @@ async function deleteTeamMember(userId, memberName){
     toast('✓ '+memberName+' has been removed from the team');
     // Remove from local D.teams data
     D.teams.forEach(t=>{
-      t.members=t.members.filter(m=>m.id!==userId);
+      t.members=t.members.filter(m=>m.userId!==userId&&m.id!==userId);
     });
     save();
     renderTeam();

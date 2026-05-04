@@ -51,11 +51,14 @@ export const teamRouter = router({
       }
       // Prevent deleting the platform owner
       const targetUser = await db.getUserById(input.userId);
-      if (!targetUser) throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found.' });
-      if (ENV.ownerOpenId && targetUser.openId === ENV.ownerOpenId) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'The platform owner cannot be deleted.' });
+      if (targetUser) {
+        if (ENV.ownerOpenId && targetUser.openId === ENV.ownerOpenId) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'The platform owner cannot be deleted.' });
+        }
+        await db.deleteTeamMember(input.userId);
       }
-      await db.deleteTeamMember(input.userId);
+      // If user doesn't exist in DB (e.g. local-only team member), still return success
+      // so the frontend can remove them from the local team data
       return { success: true };
     }),
 });
