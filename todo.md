@@ -955,7 +955,7 @@
 - [x] Add try/catch around user creation DB insert for better error reporting
 
 ## Microsoft OAuth — Tenant-Specific Endpoint
-- [ ] Use tenant-specific OAuth URL (`https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize`) when Tenant ID is provided, instead of `/common`
+- [x] Use tenant-specific OAuth URL (`https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/authorize`) when Tenant ID is provided, instead of `/common`
 
 ## Bug Fix: Microsoft OAuth Tenant ID Not Passed from UI to Backend on Connect
 
