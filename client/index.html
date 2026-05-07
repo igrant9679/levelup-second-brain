@@ -14790,6 +14790,10 @@ async function checkTokenExpiryBanner(){
         connLabel.textContent=status.microsoft.email;
         connLabel.style.display='inline-block';
         connLabel.title='Connected Microsoft 365: '+status.microsoft.email+(status.microsoft.displayName?' ('+status.microsoft.displayName+')':'');
+        // Mirror the connected email to the sidebar (bottom-left) under the user name
+        D.creds.email=status.microsoft.email;
+        try{localStorage.setItem('lu_creds',JSON.stringify(D.creds));}catch(_){}
+        document.querySelectorAll('#sb-email').forEach(el=>{el.textContent=status.microsoft.email;el.title=status.microsoft.email;});
       } else {
         connLabel.style.display='none';
       }
