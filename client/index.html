@@ -14784,20 +14784,12 @@ async function checkTokenExpiryBanner(){
   if(!btn)return;
   try{
     const status=await _trpc('oauthSync.status',undefined,'query');
-    // Update Connected-as label
-    if(connLabel){
-      if(status?.microsoft?.connected&&status.microsoft.email){
-        connLabel.textContent=status.microsoft.email;
-        connLabel.style.display='inline-block';
-        connLabel.title='Connected Microsoft 365: '+status.microsoft.email+(status.microsoft.displayName?' ('+status.microsoft.displayName+')':'');
-        // Mirror the connected email to the sidebar (bottom-left) under the user name
-        D.creds.email=status.microsoft.email;
-        try{localStorage.setItem('lu_creds',JSON.stringify(D.creds));}catch(_){}
-        document.querySelectorAll('#sb-email').forEach(el=>{el.textContent=status.microsoft.email;el.title=status.microsoft.email;});
-      } else {
-        connLabel.style.display='none';
-      }
-    }
+    // Connected-as label intentionally hidden — login email is shown in the
+    // bottom-left sidebar instead. The Microsoft 365 email is still visible
+    // in Settings → Accounts for users who need to see it.
+    if(connLabel){connLabel.style.display='none';}
+    // Keep the bottom-left sidebar email in sync with the actual login email
+    if(typeof updateProfileUI==='function')updateProfileUI();
     const providers=[];
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
       providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
