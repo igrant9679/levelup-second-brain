@@ -85,7 +85,34 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si{display:flex;align-items:center;gap:8px;padding:5px 10px;margin:0 8px 1px;border-radius:6px;color:var(--t2);font-size:12px;cursor:pointer;transition:all .12s;user-select:none;position:relative}
 .si:hover{background:var(--s3);color:var(--t1)}.si.on{background:var(--acs);color:var(--ach);font-weight:500}
 .si.on::before{content:'';position:absolute;left:-8px;top:4px;bottom:4px;width:3px;background:var(--ac);border-radius:0 2px 2px 0}
-.si svg{width:15px;height:15px;flex-shrink:0}.si .l{flex:1}.si .c{font-size:9px;font-weight:600;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:9px}.si.on .c{background:var(--ac);color:#fff}
+.si svg{width:15px;height:15px;flex-shrink:0;transition:stroke .12s}.si .l{flex:1}.si .c{font-size:9px;font-weight:600;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:9px}.si.on .c{background:var(--ac);color:#fff}
+/* Color-coded icons — each nav item gets its own icon hue. Active state overrides to accent text for readability. */
+.si[data-n="home"] svg{stroke:#3b82f6}        /* blue */
+.si[data-n="myday"] svg{stroke:#f59e0b}       /* amber */
+.si[data-n="myweek"] svg{stroke:#14b8a6}      /* teal */
+.si[data-n="myyear"] svg{stroke:#6366f1}      /* indigo */
+.si[data-n="capture"] svg{stroke:#fb7185}     /* coral */
+.si[data-n="ideas"] svg{stroke:#eab308}       /* yellow */
+.si[data-n="mindmaps"] svg{stroke:#ec4899}    /* pink */
+.si[data-n="focus"] svg{stroke:#ef4444}       /* red */
+.si[data-n="process"] svg{stroke:#8b5cf6}     /* violet */
+.si[data-n="tasks"] svg{stroke:#22c55e}       /* green */
+.si[data-n="notes"] svg{stroke:#f97316}       /* orange */
+.si[data-n="projects"] svg{stroke:#a855f7}    /* purple */
+.si[data-n="clusters"] svg{stroke:#06b6d4}    /* cyan */
+.si[data-n="calendar"] svg{stroke:#0284c7}    /* sky */
+.si[data-n="mail"] svg{stroke:#9333ea}        /* deep purple */
+.si[data-n="goals"] svg{stroke:#dc2626}       /* red */
+.si[data-n="habits"] svg{stroke:#10b981}      /* emerald */
+.si[data-n="coach"] svg{stroke:#facc15}       /* gold */
+.si[data-n="journal"] svg{stroke:#f43f5e}     /* rose */
+.si[data-n="team"] svg{stroke:#0ea5e9}        /* sky blue */
+.si[data-n="contacts"] svg{stroke:#0d9488}    /* deep teal */
+.si[data-n="bookmarks"] svg{stroke:#d97706}   /* dark amber */
+.si[data-n="archive"] svg{stroke:#64748b}     /* slate */
+.si[data-n="help"] svg{stroke:#7c3aed}        /* violet */
+.si[data-n="settings"] svg{stroke:#475569}    /* dark slate */
+.si.on svg{stroke:var(--ach)!important}        /* active state: readable against accent bg */
 .sd{height:1px;background:var(--bd1);margin:6px 14px}
 .su{margin-top:auto;padding:8px 14px;border-top:1px solid var(--bd1);display:flex;align-items:center;gap:8px;font-size:11px}
 
