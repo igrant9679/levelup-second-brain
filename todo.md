@@ -965,3 +965,44 @@
 - [x] Frontend: `verifyOAuthCredentials()` now reads `#ms-cred-tenant` input value and passes it as `tenantId` param to `oauthSync.validateCredentials`
 - [x] TypeScript compilation: 0 errors
 - [x] Vitest: all 230 tests pass
+
+## Comprehensive Review Report — May 2026
+
+### Batch 1 — Quick Bug Fixes
+- [ ] B1/I1: Fix note timestamp display — Word-imported notes show raw numeric timestamp; replace with new Date(note.updated).toLocaleDateString()
+- [ ] B3/I2: Recent Files widget — connect to real imported documents from Notes import feature instead of hardcoded demo files
+- [ ] B4/I3: Remove hardcoded demo notification popups (Client Onboarding Call with Acme Inc., Weather alert)
+- [ ] B15: Fix Tasks priority sort — selecting priority filter produces no visible change; bind handler and call renderTasks()
+- [ ] I4: Fix My Year crash — add missing myyear-rail element or refactor renderMyYear to not depend on it
+- [x] I11: Persistent news ticker dismiss — save dismiss preference to D.prefs so it stays hidden across sessions
+- [ ] U8/I12: Profile completion logic — re-evaluate percentage after fields are saved
+- [ ] U4/I7: Visual overdue task flagging — highlight tasks with past due dates in red/amber, add Overdue filter tab
+
+### Batch 2 — Data Bugs
+- [ ] B5: Goals milestone "Next" label shows wrong goal's data — fix milestone index resolution; add ability to add/change/delete milestones
+- [x] B8/I5: Focus session data not persisted server-side — reconcile localStorage and server-synced D.prefs.focusSessions
+- [x] U6: Habit heatmap not showing historical data — populate from server-synced data
+- [ ] B12/I13: Test data polluting production activity feed — configure vitest to use test DB or mock DB layer
+
+### Batch 3 — Clusters Feature
+- [ ] DB: clusters table (id, userId, name, icon, color, ownerId, collaborators, dueDate, category, createdAt)
+- [ ] DB: add clusterId foreign key to tasks table
+- [ ] DB: add clusterId foreign key to projects table
+- [ ] Backend: cluster.list, cluster.create, cluster.update, cluster.delete tRPC procedures
+- [ ] Backend: cluster.getProgress — recursive roll-up across direct tasks AND tasks inside child projects
+- [ ] Tasks page: "Cluster" view lens — collapsible color-coded cluster groups matching mockup
+- [ ] Tasks page: "New cluster" button and cluster creation modal
+- [ ] Tasks page: drag task onto cluster to assign
+- [ ] Tasks page: "No cluster" group at bottom for orphan tasks
+- [ ] Clusters Dashboard: new top-level sidebar entry "Clusters"
+- [ ] Clusters Dashboard: stat tiles row (active clusters / total tasks / overdue / on track %)
+- [ ] Clusters Dashboard: 2-column grid of cluster cards matching mockup (icon, name, meta, avatars, progress bar, count chips, children list)
+- [ ] Clusters Dashboard: view toggle (grid / list / kanban)
+- [ ] Clusters Dashboard: "All owners" filter
+
+### Batch 4 — Task Enhancements
+- [ ] I18: Add rich-text description field to subtasks (markdown editor, matching existing task description field)
+- [ ] I17: Allow editing and deleting comments/updates inside a task after submission (inline edit with "edited" timestamp)
+
+### Batch 5 — Notes Enhancement
+- [ ] I16 (partial): Add "Group by" control to Notes — group by source, tag, or folder with collapsible headers and item counts

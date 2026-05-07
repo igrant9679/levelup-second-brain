@@ -545,6 +545,7 @@ Refresh Token
 <div class="si" data-n="tasks" data-tour-id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
 <div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
+<div class="si" data-n="clusters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg><span class="l">Clusters</span></div>
 <div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
 <div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c" id="badge-mail">23</span></div>
 <div class="si" data-n="goals" data-tour-id="nav-goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
@@ -590,6 +591,7 @@ Refresh Token
 
 <!-- ===== S-05 PROJECTS ===== -->
 <div class="scr" id="s-projects"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="proj-main"></main></div></div>
+<div class="scr" id="s-clusters"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="clusters-main"></main></div></div>
 
 <!-- ===== S-06 GOALS ===== -->
 <div class="scr" id="s-goals"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="goals-main"></main></div></div>
@@ -607,7 +609,7 @@ Refresh Token
 <div class="scr" id="s-myweek"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="myweek-main"></main></div></div>
 
 <!-- ===== S-16 MY YEAR ===== -->
-<div class="scr" id="s-myyear"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="myyear-main" style="max-width:900px"></main></div></div>
+<div class="scr" id="s-myyear"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="myyear-main" style="max-width:900px"></main><aside class="rr" id="myyear-rail" style="width:260px"></aside></div></div>
 
 <!-- ===== S-17 PROCESS ===== -->
 <div class="scr" id="s-process"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="process-main"></main></div></div>
@@ -1183,11 +1185,16 @@ var D = {
     {id:7,name:'Elena Vasquez',title:'Product Designer',company:'Figma',email:'elena.v@figma.com',phone:'+1 415 555 0407',linkedin:'linkedin.com/in/elenavasquez',location:'San Francisco, CA',tags:['design','advisor'],notes:'Potential design advisor. Loves the UX direction of LevelUp.',enriched:false,enrichedAt:null},
     {id:8,name:'James Okafor',title:'CTO',company:'Coda',email:'james@coda.io',phone:'',linkedin:'linkedin.com/in/jamesokafor',location:'San Francisco, CA',tags:['technical','partnership'],notes:'Discussed API collaboration. Coda has complementary use cases.',enriched:false,enrichedAt:null},
   ],
+  clusters: JSON.parse(localStorage.getItem('lu_clusters') || 'null') || [
+    {id:1,name:'LevelUp Build',icon:'🚀',color:'#3B82F6',owner:'Idris Grant',collaborators:[],projectIds:[1,2],pct:0,createdAt:'2026-01-01'},
+    {id:2,name:'Physical Transformation',icon:'💪',color:'#10B981',owner:'Idris Grant',collaborators:[],projectIds:[],pct:0,createdAt:'2026-01-01'},
+    {id:3,name:'House Remodel',icon:'🏠',color:'#F59E0B',owner:'Idris Grant',collaborators:[],projectIds:[],pct:0,createdAt:'2026-02-01'},
+  ],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
-function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
+function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters'].forEach(save);localStorage.setItem('lu_creds',JSON.stringify(D.creds));localStorage.setItem('lu_prefs',JSON.stringify(D.prefs))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
   document.body.classList.toggle('compact-mode',!!D.prefs.compact);
@@ -1223,7 +1230,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -1266,7 +1273,31 @@ function renderDrawer(type,item){
   const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
   if(type==='task'){
     const subs=item.subtasks||[];
-    const subHtml=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+    const subHtml=subs.map((s,si)=>{
+      const descId=`st-desc-${item.id}-${si}`;
+      const hasDesc=!!(s.descHtml&&s.descHtml.trim());
+      return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden">
+        <div class="lr" style="padding:4px 6px;background:var(--s2)">
+          <div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div>
+          <span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span>
+          <button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()" title="Toggle description">${hasDesc?'📝':'+ desc'}</button>
+          <span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px" title="Delete subtask">✕</span>
+        </div>
+        <div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)">
+          <div style="display:flex;flex-wrap:wrap;gap:2px;padding:3px 5px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:5px 5px 0 0">
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-weight:700" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('bold')"><b>B</b></button>
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-style:italic" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('italic')"><i>I</i></button>
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;text-decoration:underline" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('underline')"><u>U</u></button>
+            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('insertUnorderedList')">• List</button>
+            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('removeFormat')">Tx</button>
+          </div>
+          <div id="st-rte-${item.id}-${si}" contenteditable="true" spellcheck="true"
+            style="min-height:60px;max-height:200px;overflow-y:auto;padding:7px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 5px 5px;font-size:11px;line-height:1.6;color:var(--t1);outline:none"
+            oninput="(function(el){const t=D.tasks.find(x=>x.id===${item.id});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)"
+          >${s.descHtml||''}</div>
+        </div>
+      </div>`;
+    }).join('');
     const doneCount=subs.filter(s=>s.done).length;
     return `<h2>📋 Edit Task ${pinBtn('task',item.id)}${cb}</h2>
     <div class="field-row" style="align-items:flex-end">
@@ -1313,7 +1344,7 @@ function renderDrawer(type,item){
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     </div>
     <div class="field"><label>Comments / Activity</label>
-    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(item.comments||[]).map(c=>`<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><span>${c.ts||''}</span></div><div style="font-size:11px">${esc(c.text)}</div></div>`).join('')||("<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>")}</div>
+    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px">
@@ -1556,6 +1587,16 @@ function fmtDateTime(d){
   return fmtDate(d)+' '+fmtTime(d);
 }
 
+function fmtNoteDate(raw){
+  if(!raw&&raw!==0)return '';
+  // Handle numeric ms-since-epoch timestamps from Word imports
+  if(typeof raw==='number'||(/^\d{10,}$/.test(String(raw)))){
+    const d=new Date(Number(raw));
+    if(!isNaN(d.getTime()))return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+  // Already a human-readable string
+  return String(raw);
+}
 function saveItem(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
     t.title=$('#dr-title').value;
@@ -1624,7 +1665,7 @@ function addSubtask(taskId){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
   inp.value='';
   inp.focus();
@@ -1637,7 +1678,7 @@ function toggleSubtask(taskId,idx){
   save('tasks');
   // Update drawer subtask list if open
   const list=document.getElementById('subtask-list');
-  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');}
+  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');}
   // Update exec list if on My Day
   const execList=document.getElementById('md-exec-list');
   if(execList){const activeTab=document.querySelector('#md-e .tab.on');const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';execList.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);}
@@ -1650,7 +1691,7 @@ function deleteSubtask(taskId,idx){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>`<div class="lr" style="padding:3px 0"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:auto">✕</span></div>`).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
 }
 
@@ -1831,6 +1872,7 @@ function renderScreen(s){
   if(s==='focus')renderFocus();
   if(s==='contacts')renderContacts();
   if(s==='bookmarks')renderBookmarks();
+  if(s==='clusters')renderClustersDashboard();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -1926,6 +1968,8 @@ function stopTaskTimer(){
 }
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
+  const _todayForRow=(new Date()).toISOString().split('T')[0];
+  const isOverdueTask=t.status!=='Done'&&t.due&&t.due<_todayForRow;
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
   const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${t.id},event)"></div>`:
     `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div>`;
@@ -1940,7 +1984,7 @@ function taskRow(t,showActs=true){
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
-  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red);background:rgba(239,68,68,0.04)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${isOverdueTask?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -1955,8 +1999,65 @@ function addTaskComment(taskId){
   inp.value='';
   // Re-render comments panel inline
   const panel=document.getElementById('task-comments');
-  if(panel)panel.innerHTML=t.comments.map(c=>`<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><span>${c.ts||''}</span></div><div style="font-size:11px">${esc(c.text)}</div></div>`).join('');
+  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
   toast('💬 Comment added');
+}
+function editTaskComment(taskId,ci){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t||!t.comments[ci])return;
+  const newText=prompt('Edit comment:',t.comments[ci].text);
+  if(newText===null)return;
+  if(!newText.trim()){toast('Comment cannot be empty');return;}
+  t.comments[ci].text=newText.trim();
+  t.comments[ci].edited=true;
+  save('tasks');
+  const panel=document.getElementById('task-comments');
+  if(panel){
+    const comments=t.comments;
+    panel.innerHTML=(function(comments){
+      if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";
+      return comments.map((c,ci)=>{
+        const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');
+        return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)">`
+          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px">`
+          +`<span>${esc(c.author||'Idris')}</span>`
+          +`<div style="display:flex;gap:4px;align-items:center">`
+          +`<span>${c.ts||''}${c.edited?' (edited)':''}</span>`
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:'')
+          +`</div></div>`
+          +`<div style="font-size:11px">${esc(c.text)}</div>`
+          +`</div>`;
+      }).join('');
+    })(comments);
+  }
+  toast('✏ Comment updated');
+}
+function deleteTaskComment(taskId,ci){
+  if(!confirm('Delete this comment?'))return;
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t||!t.comments)return;
+  t.comments.splice(ci,1);
+  save('tasks');
+  const panel=document.getElementById('task-comments');
+  if(panel){
+    panel.innerHTML=t.comments.length
+      ?t.comments.map((c,ci)=>{
+        const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');
+        return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)">`
+          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px">`
+          +`<span>${esc(c.author||'Idris')}</span>`
+          +`<div style="display:flex;gap:4px;align-items:center">`
+          +`<span>${c.ts||''}</span>`
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:'')
+          +`</div></div>`
+          +`<div style="font-size:11px">${esc(c.text)}</div>`
+          +`</div>`;
+      }).join('')
+      :"<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";
+  }
+  toast('🗑 Comment deleted');
 }
 function delegateTask(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -2327,7 +2428,7 @@ function renderHome(){
   ${(()=>{
     const cardHtml={
       tasks:`<div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`,
-      notes:`<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${n.updated}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`,
+      notes:`<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`,
       projects:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`,
       goals:renderGoalCards(3),
       focus:(()=>{
@@ -2612,6 +2713,147 @@ function quickAddTask(){
   renderTaskList();
   toast('✓ Task added!');
 }
+// ─── Cluster progress roll-up ────────────────────────────────────────────────
+function clusterProgress(cluster){
+  const projIds=new Set(cluster.projectIds||[]);
+  const directTasks=D.tasks.filter(t=>t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId)));
+  if(!directTasks.length)return 0;
+  const done=directTasks.filter(t=>t.status==='Done').length;
+  return Math.round((done/directTasks.length)*100);
+}
+function clusterTaskCount(cluster){
+  const projIds=new Set(cluster.projectIds||[]);
+  return D.tasks.filter(t=>t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId))).length;
+}
+function clusterOverdueCount(cluster){
+  const today=_todayStr;
+  const projIds=new Set(cluster.projectIds||[]);
+  return D.tasks.filter(t=>(t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId)))&&t.status!=='Done'&&t.due&&t.due<today).length;
+}
+// ─── Render Tasks Clusters View ──────────────────────────────────────────────
+let _clusterCollapsed={};
+function renderTaskClusters(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  let tasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  const today=_todayStr;
+  const groups=(D.clusters||[]).map(cl=>{
+    const projIds=new Set(cl.projectIds||[]);
+    const clTasks=tasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    const pct=clusterProgress(cl);
+    const overdue=clusterOverdueCount(cl);
+    return {cl,tasks:clTasks,pct,overdue};
+  });
+  const claimedIds=new Set();
+  groups.forEach(g=>g.tasks.forEach(t=>claimedIds.add(t.id)));
+  const orphans=tasks.filter(t=>!claimedIds.has(t.id));
+  function clusterHeader(g){
+    const {cl,tasks:ct,pct,overdue}=g;
+    const collapsed=!!_clusterCollapsed[cl.id];
+    const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const collabAvatars=(cl.collaborators||[]).slice(0,3).map(c=>`<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;margin-left:-6px;color:var(--t1)">${(c.name||c).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd2);border-radius:${collapsed?'8px':'8px 8px 0 0'};cursor:pointer;user-select:none" onclick="_clusterCollapsed['${cl.id}']=!_clusterCollapsed['${cl.id}'];renderTaskClusters()">
+      <span style="font-size:13px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg)">▾</span>
+      <div style="width:28px;height:28px;border-radius:6px;background:${cl.color||'#3B82F6'}22;border:1.5px solid ${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cl.icon||'📁'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:13px;font-weight:700;color:var(--t1)">${esc(cl.name)}</span>
+          <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 7px">${ct.length} task${ct.length!==1?'s':''}</span>
+          ${overdue>0?`<span style="font-size:10px;color:var(--red);background:rgba(239,68,68,.1);border-radius:10px;padding:1px 7px">${overdue} overdue</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <div style="flex:1;height:4px;background:var(--s3);border-radius:2px;max-width:160px"><div style="height:4px;border-radius:2px;background:${cl.color||'#3B82F6'};width:${pct}%;transition:width .3s"></div></div>
+          <span style="font-size:10px;color:var(--t3)">${pct}%</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center">
+        <div style="width:24px;height:24px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${ownerInitials}</div>
+        ${collabAvatars}
+      </div>
+      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;flex-shrink:0" onclick="event.stopPropagation();openClusterModal(${cl.id})">⚙</button>
+      <button class="btn btn-p" style="height:22px;font-size:9px;padding:0 6px;flex-shrink:0" onclick="event.stopPropagation();openFA('task')">+ Task</button>
+    </div>`;
+  }
+  function clusterBody(clTasks){
+    if(!clTasks.length)return `<div style="padding:12px 16px;font-size:11px;color:var(--t3);text-align:center">No active tasks in this cluster</div>`;
+    return clTasks.map(t=>{
+      const isOverdue=t.due&&t.due<today&&t.status!=='Done';
+      const done=t.status==='Done';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px 7px 16px;border-bottom:1px solid var(--bd1);background:var(--s1);${isOverdue?'border-left:3px solid var(--red);':''}cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+        <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
+        <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(t.title)}</span>
+        <span class="pill ${pillClass(t.priority)}" style="font-size:9px;flex-shrink:0">${t.priority}</span>
+        ${t.due?`<span style="font-size:10px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'}">${fmtDate(t.due)}</span>`:''}
+      </div>`;
+    }).join('');
+  }
+  const groupHtml=groups.map(g=>{
+    const collapsed=!!_clusterCollapsed[g.cl.id];
+    return `<div style="margin-bottom:10px">
+      ${clusterHeader(g)}
+      ${collapsed?'':(`<div style="border:1px solid var(--bd2);border-top:none;border-radius:0 0 8px 8px;overflow:hidden">${clusterBody(g.tasks)}</div>`)}
+    </div>`;
+  }).join('');
+  const orphanCollapsed=!!_clusterCollapsed['__orphan__'];
+  const orphanHtml=orphans.length?`<div style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd2);border-radius:${orphanCollapsed?'8px':'8px 8px 0 0'};cursor:pointer" onclick="_clusterCollapsed['__orphan__']=!_clusterCollapsed['__orphan__'];renderTaskClusters()">
+      <span style="font-size:13px;color:var(--t2);transform:rotate(${orphanCollapsed?'-90':'0'}deg);display:inline-block">▾</span>
+      <div style="width:28px;height:28px;border-radius:6px;background:var(--s3);border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:14px">📋</div>
+      <div style="flex:1">
+        <span style="font-size:13px;font-weight:700;color:var(--t1)">No Cluster</span>
+        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 7px;margin-left:6px">${orphans.length} task${orphans.length!==1?'s':''}</span>
+      </div>
+    </div>
+    ${orphanCollapsed?'':(`<div style="border:1px solid var(--bd2);border-top:none;border-radius:0 0 8px 8px;overflow:hidden">${clusterBody(orphans)}</div>`)}
+  </div>`:'';
+  const addBtn=`<div style="text-align:center;padding:10px"><button class="btn btn-s" style="font-size:11px" onclick="openClusterModal(null)">+ New Cluster</button></div>`;
+  list.innerHTML=groupHtml+orphanHtml+addBtn;
+}
+// ─── Cluster Modal (create/edit) ─────────────────────────────────────────────
+function openClusterModal(id){
+  const cl=id?D.clusters.find(x=>x.id===id):null;
+  const allProjects=D.projects||[];
+  const selProjs=cl?new Set(cl.projectIds||[]):new Set();
+  const projOptions=allProjects.map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer"><input type="checkbox" value="${p.id}" ${selProjs.has(p.id)?'checked':''} class="cl-proj-cb"> ${esc(p.name)}</label>`).join('');
+  const html=`<div style="padding:16px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>
+    <div class="field"><label>Name</label><input id="cl-name" class="inp" value="${esc(cl?.name||'')}" placeholder="Cluster name"></div>
+    <div class="field"><label>Icon</label><input id="cl-icon" class="inp" value="${cl?.icon||'📁'}" placeholder="Emoji icon" style="width:60px"></div>
+    <div class="field"><label>Color</label><input id="cl-color" type="color" class="inp" value="${cl?.color||'#3B82F6'}" style="width:60px;height:32px;padding:2px"></div>
+    <div class="field"><label>Projects</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${projOptions||'<span style="font-size:11px;color:var(--t3)">No projects yet</span>'}</div></div>
+    <div style="display:flex;gap:6px;margin-top:12px">
+      <button class="btn btn-p" style="flex:1" onclick="saveCluster(${id||'null'})">Save</button>
+      ${cl?`<button class="btn btn-d" onclick="deleteCluster(${id})">Delete</button>`:''}
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>`;
+  openModal(html);
+}
+function saveCluster(id){
+  const name=document.getElementById('cl-name')?.value?.trim();
+  if(!name)return;
+  const icon=document.getElementById('cl-icon')?.value||'📁';
+  const color=document.getElementById('cl-color')?.value||'#3B82F6';
+  const projIds=Array.from(document.querySelectorAll('.cl-proj-cb:checked')).map(cb=>parseInt(cb.value));
+  if(id){
+    const cl=D.clusters.find(x=>x.id===id);
+    if(cl){cl.name=name;cl.icon=icon;cl.color=color;cl.projectIds=projIds;}
+  }else{
+    D.clusters.push({id:nextId(D.clusters),name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:new Date().toISOString().split('T')[0]});
+  }
+  save('clusters');
+  closeModal();
+  renderTaskClusters();
+}
+function deleteCluster(id){
+  if(!confirm('Delete this cluster? Tasks will move to No Cluster.'))return;
+  D.clusters=D.clusters.filter(x=>x.id!==id);
+  D.tasks.forEach(t=>{if(t.clusterId===id)delete t.clusterId;});
+  save('clusters');save('tasks');
+  closeModal();
+  renderTaskClusters();
+}
 function handleQuickAdd(e){
   if(e.key==='Enter'){e.preventDefault();quickAddTask();}
   // Tab cycles priority: Medium → High → Low → Medium
@@ -2655,7 +2897,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiDecomposeGoal()" title="AI: Break a goal into tasks">🧩 Decompose</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--red)" onclick="aiDeadlineRisk()" title="AI: Detect deadline risk">⚠️ Risk Check</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiAutoPriority()" title="AI: Auto-score and re-sort tasks">✨ Auto-Priority</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt','clusters'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button><button id="tasks-view-clusters" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='clusters';['list','board','matrix','gantt','clusters'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='clusters'?'var(--ac)':'transparent';b.style.color=v==='clusters'?'#fff':'var(--t2)';} });renderTaskClusters()">⬡ Clusters</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiDecomposeGoal()" title="AI: Break a goal into tasks">🧩 Decompose</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--red)" onclick="aiDeadlineRisk()" title="AI: Detect deadline risk">⚠️ Risk Check</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiAutoPriority()" title="AI: Auto-score and re-sort tasks">✨ Auto-Priority</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -2696,6 +2938,7 @@ function bulkCompleteVisible(){
   toast(`✓ ${rows.length} task(s) marked Done`);
 }
 let _notesMyOnly=false;
+let _notesGroupBy='';
 let _notesFilterText='';
 let _notesFilterTags=new Set();
 let _notesFilterSources=new Set();
@@ -2908,12 +3151,13 @@ function applyNotesFilters(){
   else if(_notesSort==='longest')notes=[...notes].sort((a,b)=>(b.body||'').length-(a.body||'').length);
   else if(_notesSort==='tagged')notes=[...notes].sort((a,b)=>(b.tags||[]).length-(a.tags||[]).length);
   // Render note cards with optional text highlight
+  // Render note cards with optional text highlight
   const hiRe=q?new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'):null;
   function hi(str){
     if(!hiRe||!str)return esc(str||'');
     return esc(str).replace(hiRe,m=>`<mark style="background:var(--warns);color:var(--warn);border-radius:2px">${m}</mark>`);
   }
-  const html=notes.map((n,i)=>{
+  function noteCard(n,i){
     const bodyLower=(n.body||'').toLowerCase();
     const idx=q?bodyLower.indexOf(q):-1;
     let snippet='';
@@ -2924,11 +3168,48 @@ function applyNotesFilters(){
       if(start>0)snippet='…'+snippet;
       if(end<(n.body||'').length)snippet+='…';
     }
-    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hi(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span style="${_notesFilterSources.has((n.source||'Manual').toLowerCase())?'color:var(--ac);font-weight:600':''}}">${esc(n.source||'Manual')}</span><span>${esc(n.updated||'')}</span></div></div>`;
-  }).join('');
+    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hi(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span style="${_notesFilterSources.has((n.source||'Manual').toLowerCase())?'color:var(--ac);font-weight:600':''}">${esc(n.source||'Manual')}</span><span>${fmtNoteDate(n.updated)}</span></div></div>`;
+  }
+  let html;
+  if(_notesGroupBy==='tag'){
+    const groups={};
+    notes.forEach(n=>{
+      const tags=(n.tags||[]);
+      if(!tags.length){(groups['(No tag)']=groups['(No tag)']||[]).push(n);}
+      else{tags.forEach(t=>{(groups[t]=groups[t]||[]).push(n);});}
+    });
+    html=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).map(([grp,gnotes])=>
+      `<div style="padding:5px 8px 2px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">#${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
+      +gnotes.map((n,i)=>noteCard(n,i)).join('')
+    ).join('');
+  } else if(_notesGroupBy==='source'){
+    const groups={};
+    notes.forEach(n=>{const s=n.source||'Manual';(groups[s]=groups[s]||[]).push(n);});
+    html=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).map(([grp,gnotes])=>
+      `<div style="padding:5px 8px 2px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
+      +gnotes.map((n,i)=>noteCard(n,i)).join('')
+    ).join('');
+  } else if(_notesGroupBy==='date'){
+    const groups={};
+    const now2=new Date();
+    notes.forEach(n=>{
+      const d=_parseNoteDate(n);
+      const diff=Math.floor((now2-d)/(1000*60*60*24));
+      let grp=diff===0?'Today':diff===1?'Yesterday':diff<=7?'This week':diff<=30?'This month':diff<=365?'This year':'Older';
+      (groups[grp]=groups[grp]||[]).push(n);
+    });
+    const order=['Today','Yesterday','This week','This month','This year','Older'];
+    html=order.filter(g=>groups[g]).map(grp=>
+      `<div style="padding:5px 8px 2px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${groups[grp].length})</span></div>`
+      +groups[grp].map((n,i)=>noteCard(n,i)).join('')
+    ).join('');
+  } else {
+    html=notes.map((n,i)=>noteCard(n,i)).join('');
+  }
   const el=document.getElementById('notes-list-inner');
   if(!el)return;
   el.innerHTML=html||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes match the current filters.</p>`;
+
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
   if(countEl)countEl.textContent=`${notes.length} note${notes.length!==1?'s':''}`;
@@ -2963,6 +3244,7 @@ function clearNotesFilters(){
   _notesFilterDateFrom='';
   _notesFilterDateTo='';
   _notesSort='newest';
+  _notesGroupBy='';
   _notesFilterSmart=null;
   const si=document.getElementById('notes-search');
   if(si)si.value='';
@@ -3030,7 +3312,7 @@ function filterNotesByTag(tag,el){
     const me=D.creds.userName||'Idris Grant';
     const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
     const filtered=base.filter(n=>(n.tags||[]).includes(tag));
-    const el2=document.getElementById('notes-list-inner');    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${n.updated}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
+    const el2=document.getElementById('notes-list-inner');    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${fmtNoteDate(n.updated)}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
   }
 }
 function filterNotesBySmart(filter,el){
@@ -3086,7 +3368,7 @@ function exportNotesPDF(){
     notesHtml+=`<div style="page-break-inside:avoid;margin-bottom:20px;padding-bottom:16px;${idx<notes.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
         <h2 style="font-size:14px;font-weight:700;margin:0;${titleColor}">${n.title||'Untitled'}</h2>
-        <div style="font-size:10px;color:#9ca3af;white-space:nowrap;margin-left:8px">${n.updated||''}</div>
+        <div style="font-size:10px;color:#9ca3af;white-space:nowrap;margin-left:8px">${fmtNoteDate(n.updated)}</div>
       </div>
       ${tagBadges?`<div style="margin-bottom:6px">${tagBadges}</div>`:''}
       ${n.source?`<div style="font-size:10px;color:#9ca3af;margin-bottom:6px">Source: ${n.source}</div>`:''}
@@ -3377,7 +3659,7 @@ function renderNotes(){
   </div>
   <!-- Collapsible filter panel -->
   <div id="notes-filter-panel" style="display:none;padding:8px;border-bottom:1px solid var(--bd1);background:var(--s2);flex-shrink:0;overflow-y:auto;max-height:260px">
-    <!-- Sort -->
+    <!-- Sort + Group By -->
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
       <select id="nf-sort-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesSort=this.value;applyNotesFilters()">
@@ -3387,6 +3669,15 @@ function renderNotes(){
         <option value="za">Z → A</option>
         <option value="longest">Longest body</option>
         <option value="tagged">Most tagged</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+      <span style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Group</span>
+      <select id="nf-group-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesGroupBy=this.value;applyNotesFilters()">
+        <option value="">None</option>
+        <option value="tag">By Tag</option>
+        <option value="source">By Source</option>
+        <option value="date">By Date</option>
       </select>
     </div>
     <!-- Tag facet -->
@@ -3634,7 +3925,7 @@ function renderNoteEditor(n){
   </div>
   <h2 style="font-size:18px;font-weight:600;margin-bottom:6px;${n.titleColor?`color:${n.titleColor}`:''}">${esc(n.title)}</h2>
   <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
-  <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${n.updated||''}${n.createdBy?` · by ${n.createdBy}`:''}</div>
+  <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${fmtNoteDate(n.updated)}${n.createdBy?` · by ${n.createdBy}`:''}</div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`;
 }
 
@@ -4103,7 +4394,7 @@ function openGoalDetail(gid){
       }).join('')}
     </div>
   </div>
-  <div id="ms-list" style="display:none">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('')}</div>`;
+  <div id="ms-list" style="display:none">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
   const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
     <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
     <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span>
@@ -4131,7 +4422,7 @@ function toggleMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   toast(g.milestones[idx].done?'🏁 Milestone complete!':'Milestone unmarked');
 }
@@ -4148,10 +4439,42 @@ function addMilestone(goalId){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   inp.value=''; if(due)due.value='';
   toast('Milestone added');
+}
+function editMilestone(goalId,idx){
+  const g=D.goals.find(x=>x.id===goalId);
+  if(!g||!g.milestones[idx])return;
+  const m=g.milestones[idx];
+  const newTitle=prompt('Edit milestone title:',m.title);
+  if(newTitle===null)return;
+  const trimmed=newTitle.trim();
+  if(!trimmed){toast('Title cannot be empty');return;}
+  m.title=trimmed;
+  save('goals');
+  const list=document.getElementById('ms-list');
+  if(list){
+    const ms=g.milestones;
+    list.innerHTML=ms.map((m2,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m2.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m2.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m2.title)}</span><span style="font-size:9px;color:var(--t3)">${m2.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+  }
+  toast('Milestone updated');
+}
+function deleteMilestone(goalId,idx){
+  const g=D.goals.find(x=>x.id===goalId);
+  if(!g||!g.milestones[idx])return;
+  if(!confirm(`Delete milestone "${g.milestones[idx].title}"?`))return;
+  g.milestones.splice(idx,1);
+  autoCalcGoalPct(g);
+  save('goals');
+  const list=document.getElementById('ms-list');
+  if(list){
+    const ms=g.milestones;
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+  }
+  renderGoalCards();
+  toast('Milestone deleted');
 }
 
 function renderJournal(){
@@ -5888,6 +6211,11 @@ function toggleFocusTimer(){
         const sess={id:Date.now(),date:_todayStr,time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),mins:25,taskId:_focusTaskId,taskTitle:task?task.title:'Free focus'};
         _focusSessions.push(sess);
         localStorage.setItem('lu_focus_sessions',JSON.stringify(_focusSessions));
+        // Update focusLog for heatmap and persist to server via save('prefs')
+        if(!D.prefs.focusLog)D.prefs.focusLog={};
+        D.prefs.focusLog[sess.date]=(D.prefs.focusLog[sess.date]||0)+sess.mins;
+        D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+sess.mins;
+        save('prefs');
         _focusSecsLeft=25*60;
         toast('🍅 Focus session complete! Great work.');
         renderFocus();
@@ -8172,6 +8500,103 @@ let _idleScreen=null;
 var _proactiveHintShown=new Set();
 var _helpDrawerOpen=false;
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CLUSTERS DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderClustersDashboard(){
+  const el=document.getElementById('clusters-main');
+  if(!el)return;
+  const clusters=D.clusters||[];
+  const today=_todayStr;
+  // Aggregate stats
+  const activeClusters=clusters.length;
+  const totalTasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
+  const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  const onTrackPct=totalTasks>0?Math.round(((totalTasks-overdueTasks)/totalTasks)*100):100;
+  // Stat tiles
+  const statTiles=[
+    {label:'Active Clusters',value:activeClusters,icon:'⬡',color:'var(--ac)'},
+    {label:'Total Tasks',value:totalTasks,icon:'✓',color:'var(--ok)'},
+    {label:'Overdue',value:overdueTasks,icon:'⚠',color:'var(--red)'},
+    {label:'On Track',value:onTrackPct+'%',icon:'📈',color:'var(--purp)'},
+  ];
+  const statHtml=statTiles.map(s=>`<div style="flex:1;min-width:120px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:14px 16px">
+    <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
+    <div style="font-size:24px;font-weight:800;color:${s.color}">${s.value}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${s.label}</div>
+  </div>`).join('');
+  // Cluster cards
+  function clusterCard(cl){
+    const projIds=new Set(cl.projectIds||[]);
+    const clProjects=(D.projects||[]).filter(p=>projIds.has(p.id));
+    const clTasks=D.tasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    const doneTasks=clTasks.filter(t=>t.status==='Done').length;
+    const pct=clTasks.length?Math.round((doneTasks/clTasks.length)*100):0;
+    const overdueCount=clTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+    const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const collabAvatars=(cl.collaborators||[]).slice(0,3).map(c=>`<div style="width:22px;height:22px;border-radius:50%;background:var(--s3);border:2px solid var(--s2);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;margin-left:-6px;color:var(--t1)">${(c.name||c).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('');
+    // Child project rows
+    const projRows=clProjects.map(p=>{
+      const pTasks=D.tasks.filter(t=>t.projectId===p.id);
+      const pDone=pTasks.filter(t=>t.status==='Done').length;
+      const pPct=pTasks.length?Math.round((pDone/pTasks.length)*100):0;
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--bd1)">
+        <div style="width:8px;height:8px;border-radius:2px;background:${p.color||'#3B82F6'};flex-shrink:0"></div>
+        <span style="flex:1;font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span>
+        <div style="width:60px;height:3px;background:var(--s3);border-radius:2px"><div style="height:3px;border-radius:2px;background:${p.color||'#3B82F6'};width:${pPct}%"></div></div>
+        <span style="font-size:10px;color:var(--t3);width:26px;text-align:right">${pPct}%</span>
+      </div>`;
+    }).join('');
+    // Loose tasks row (tasks in cluster but not in any project)
+    const looseTasks=clTasks.filter(t=>!t.projectId||!projIds.has(t.projectId));
+    const looseRow=looseTasks.length?`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--bd1)">
+      <div style="width:8px;height:8px;border-radius:2px;background:var(--t3);flex-shrink:0"></div>
+      <span style="flex:1;font-size:11px;color:var(--t3)">Loose tasks</span>
+      <span style="font-size:10px;color:var(--t3)">${looseTasks.length}</span>
+    </div>`:'';
+    return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="width:36px;height:36px;border-radius:8px;background:${cl.color||'#3B82F6'}22;border:1.5px solid ${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${cl.icon||'📁'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:var(--t1)">${esc(cl.name)}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${clProjects.length} project${clProjects.length!==1?'s':''} · ${clTasks.length} task${clTasks.length!==1?'s':''}</div>
+        </div>
+        <button class="btn btn-s" style="height:24px;font-size:9px;padding:0 8px;flex-shrink:0" onclick="openClusterModal(${cl.id})">Edit</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:center">
+          <div style="width:26px;height:26px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${ownerInitials}</div>
+          ${collabAvatars}
+        </div>
+        <div style="flex:1;height:5px;background:var(--s3);border-radius:3px"><div style="height:5px;border-radius:3px;background:${cl.color||'#3B82F6'};width:${pct}%;transition:width .3s"></div></div>
+        <span style="font-size:11px;font-weight:600;color:var(--t1);min-width:30px;text-align:right">${pct}%</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="font-size:10px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clTasks.length} tasks</span>
+        <span style="font-size:10px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clProjects.length} projects</span>
+        ${overdueCount>0?`<span style="font-size:10px;background:rgba(239,68,68,.12);border-radius:8px;padding:2px 8px;color:var(--red)">${overdueCount} overdue</span>`:''}
+      </div>
+      ${(projRows||looseRow)?`<div style="border-top:1px solid var(--bd2);padding-top:8px">${projRows}${looseRow}</div>`:''}
+    </div>`;
+  }
+  const cardsHtml=clusters.length
+    ?clusters.map(clusterCard).join('')
+    :`<div style="text-align:center;padding:40px;color:var(--t3)">
+        <div style="font-size:36px;margin-bottom:8px">⬡</div>
+        <div style="font-size:14px;font-weight:600">No clusters yet</div>
+        <div style="font-size:12px;margin-top:4px;margin-bottom:12px">Clusters group your projects and tasks into meaningful areas of work.</div>
+        <button class="btn btn-p" onclick="openClusterModal(null)">+ Create First Cluster</button>
+      </div>`;
+  el.innerHTML=`
+    <div class="ph-r" style="margin-bottom:16px">
+      <div><h1 style="font-size:22px;font-weight:700">⬡ Clusters</h1><p style="font-size:12px;color:var(--t2)">Your areas of work — each cluster groups related projects and tasks.</p></div>
+      <button class="btn btn-p" onclick="openClusterModal(null)">+ New Cluster</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">${statHtml}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">${cardsHtml}</div>
+  `;
+}
+
 function renderHelp(){
   const el=$('help-main');
   if(!el)return;
@@ -8695,7 +9120,7 @@ function renderSettingsHTML(){
         {label:'Photo',done:!!D.creds.avatar},
         {label:'Bio',done:!!(D.creds.bio&&D.creds.bio.trim())},
         {label:'Job Title',done:!!(D.creds.jobTitle&&D.creds.jobTitle.trim())},
-        {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz!=='Eastern Time')}
+        {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz.trim())}
       ];
       const pct=Math.round(fields.filter(f=>f.done).length/fields.length*100);
       const color=pct===100?'var(--ok)':pct>=50?'var(--ac)':'var(--warn)';
@@ -9741,14 +10166,10 @@ function handleOneNoteFiles(files){
 // ====== AI ASSISTANT ======
 // Static non-news messages (always shown)
 const aiStaticMsgs=[
-  {type:'reminder',msg:'📅 Budget Review meeting starts in 20 minutes. Prep docs are in SharePoint.'},
   {type:'warning',msg:'⚠️ 3 tasks are overdue. Consider processing them in GTD.'},
-  {type:'encourage',msg:'🌟 You\'ve completed 5 tasks already today! That\'s 35% above your daily average.'},
   {type:'info',msg:'💡 Tip: Use the My Day screen to plan your morning. It takes just 5 minutes.'},
-  {type:'reminder',msg:'📅 Client Onboarding Call with Acme Inc. is in 1 hour.'},
-  {type:'warning',msg:'🌤️ Weather alert: Rain expected this afternoon in your area. Consider rescheduling outdoor meetings.'},
-  {type:'encourage',msg:'🔥 Your meditation streak hit 22 days! You\'re building a powerful habit.'},
-  {type:'info',msg:'📊 Your most productive time this week has been 9-11 AM. Try scheduling deep work there.'},
+  {type:'encourage',msg:'🔥 Keep building your streaks! Consistent habits compound into big results.'},
+  {type:'info',msg:'📊 Schedule your deep work blocks during your peak energy hours for best results.'},
 ];
 let aiMsgs=[...aiStaticMsgs]; // will be extended with live headlines
 let aiMsgIdx=0,aiTimer=null,_newsLoaded=false;
@@ -9783,11 +10204,19 @@ function startAIAssistant(){
 }
 function showAIMsg(){
   const bubble=document.getElementById('ai-bubble');
-  const m=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;
+  // Skip messages the user has dismissed
+  let attempts=0;
+  let m;
+  do{
+    m=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;attempts++;
+    const k='lu_dismissed_'+btoa(m.msg.slice(0,40));
+    if(!localStorage.getItem(k))break;
+  }while(attempts<aiMsgs.length);
   const div=document.createElement('div');
   div.className='ai-msg';
   const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:9px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
-  div.innerHTML=`<button class="ai-close" onclick="this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
+  const _msgKey='lu_dismissed_'+btoa(m.msg.slice(0,40));
+  div.innerHTML=`<button class="ai-close" onclick="localStorage.setItem('${_msgKey}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
   if('speechSynthesis' in window && D.creds.aiSpeak){
@@ -10814,7 +11243,7 @@ function updateProfileCompleteness(){
     {label:'Photo',done:!!D.creds.avatar},
     {label:'Bio',done:!!(D.creds.bio&&D.creds.bio.trim())},
     {label:'Job Title',done:!!(D.creds.jobTitle&&D.creds.jobTitle.trim())},
-    {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz!=='Eastern Time')}
+    {label:'Timezone',done:!!(D.creds.tz&&D.creds.tz.trim())}
   ];
   const pct=Math.round(fields.filter(f=>f.done).length/fields.length*100);
   const color=pct===100?'var(--ok)':pct>=50?'var(--ac)':'var(--warn)';
@@ -10822,12 +11251,15 @@ function updateProfileCompleteness(){
   // The completeness bar is inside the profile header card — find it by its unique structure
   const bar=document.querySelector('#sp-0 [style*="transition:width"]');
   if(bar){bar.style.width=pct+'%';bar.style.background=color;}
-  const labels=document.querySelectorAll('#sp-0 [style*="Profile"]');
-  labels.forEach(el=>{
+  // Update the percentage text and missing fields hint
+  const pctSpan=document.querySelector('#sp-0 span');
+  document.querySelectorAll('#sp-0 span').forEach(el=>{
     if(el.textContent&&el.textContent.includes('% complete')){
       el.textContent='Profile '+pct+'% complete';
     }
-    if(el.textContent&&(el.textContent.includes('Add:') || el.textContent.includes('All done'))){
+  });
+  document.querySelectorAll('#sp-0 span').forEach(el=>{
+    if(el.textContent&&(el.textContent.startsWith('Add:') || el.textContent.includes('All done'))){
       el.textContent=missing.length?'Add: '+missing.join(', '):'\u2713 All done!';
       el.style.color=missing.length?'var(--t3)':'var(--ok)';
     }
@@ -15949,7 +16381,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters']);
 async function _pushKeyToServer(k){
   if(!_syncKeys.has(k))return;
   try{
@@ -15974,7 +16406,7 @@ async function loadServerData(){
   try{
     const sd=await _trpc('appData.load',undefined,'query');
     if(!sd)return; // No server data yet — first time user
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters'];
     let changed=false;
     keys.forEach(k=>{
       if(sd[k]&&Array.isArray(sd[k])&&sd[k].length>0){

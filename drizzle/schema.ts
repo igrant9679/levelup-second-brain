@@ -572,6 +572,7 @@ export const userAppData = mysqlTable('user_app_data', {
   teams: mediumtext('teams'),         // JSON array
   prefs: text('prefs'),               // JSON object
   calEvents: mediumtext('calEvents'), // JSON array
+  clusters: mediumtext('clusters'),   // JSON array of cluster objects
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),

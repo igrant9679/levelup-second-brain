@@ -2,6 +2,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
+// Prevent test runs from writing activity log entries to the production database
+vi.mock('./db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./db')>();
+  return {
+    ...actual,
+    logActivity: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(userId = 1): TrpcContext {

@@ -5,7 +5,7 @@ import { userAppData } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents'] as const;
+const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 export const appDataRouter = router({
@@ -60,6 +60,7 @@ export const appDataRouter = router({
         teams:     z.string().optional(),
         prefs:     z.string().optional(),
         calEvents: z.string().optional(),
+        clusters:  z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
