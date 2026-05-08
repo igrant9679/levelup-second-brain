@@ -2562,6 +2562,7 @@ function renderTaskList(){
   if(!list)return;
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  filtered=_applyPriorityFilter(filtered);
   list.innerHTML=filtered.length?filtered.map(t=>taskRow(t)).join('')+'<div class="add-c" onclick="openFA(\'task\')">+ Add Task</div>':'<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';
 }
 function renderTaskBoard(){
@@ -2576,6 +2577,7 @@ function renderTaskBoard(){
   ];
   let tasks=D.tasks;
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  tasks=_applyPriorityFilter(tasks);
   const colHtml=cols.map(col=>{
     const colTasks=tasks.filter(t=>t.status===col.status);
     const cards=colTasks.map(t=>{
@@ -2609,6 +2611,7 @@ function renderTaskMatrix(){
   if(!list)return;
   let tasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  tasks=_applyPriorityFilter(tasks);
   // Effort: 1=Low(estimatedMins<=30), 2=Med(<=90), 3=High(>90) | Impact: High=3, Medium=2, Low=1
   const effortScore=t=>{const m=t.estimatedMins||30;return m<=30?1:m<=90?2:3;};
   const impactScore=t=>t.priority==='High'?3:t.priority==='Medium'?2:1;
@@ -2650,6 +2653,7 @@ function renderTaskGantt(){
   if(!list)return;
   let tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate));
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  tasks=_applyPriorityFilter(tasks);
   if(!tasks.length){
     list.innerHTML=`<div style="text-align:center;padding:40px;color:var(--t3)">
       <div style="font-size:32px;margin-bottom:8px">📅</div>
@@ -2731,11 +2735,11 @@ function renderTaskGantt(){
 }
 function quickAddTask(){
   const inp=document.getElementById('task-quick-input');
-  const pri=document.getElementById('task-quick-priority');
   if(!inp)return;
   const title=inp.value.trim();
   if(!title){inp.focus();return;}
-  const priority=pri?pri.value:'Medium';
+  // New tasks default to Medium priority. Re-prioritize via the task drawer.
+  const priority='Medium';
   const newTask={
     id:Date.now(),
     title,
@@ -2805,8 +2809,9 @@ function renderTaskClusters(){
   if(!list)return;
   // Apply scope (My Items / All Items) to the entire universe of tasks first.
   const universe=_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks;
-  // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) — narrows what the body shows.
-  const visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) and priority filter.
+  let visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  visible=_applyPriorityFilter(visible);
   const today=_todayStr;
   const groups=(D.clusters||[]).map(cl=>{
     const projIds=new Set(cl.projectIds||[]);
@@ -2959,15 +2964,23 @@ function deleteCluster(id){
 }
 function handleQuickAdd(e){
   if(e.key==='Enter'){e.preventDefault();quickAddTask();}
-  // Tab cycles priority: Medium → High → Low → Medium
+  // Tab cycles the priority filter (was originally for new-task priority).
   if(e.key==='Tab'&&!e.shiftKey){
     e.preventDefault();
-    const pri=document.getElementById('task-quick-priority');
+    const pri=document.getElementById('task-priority-filter');
     if(!pri)return;
-    const opts=['Medium','High','Low'];
+    const opts=['All','High','Medium','Low'];
     const cur=opts.indexOf(pri.value);
     pri.value=opts[(cur+1)%opts.length];
+    _taskPriorityFilter=pri.value;
+    renderCurrentTaskView();
   }
+}
+// Priority filter — global so it persists across re-renders.
+if(typeof _taskPriorityFilter==='undefined')var _taskPriorityFilter='All';
+function _applyPriorityFilter(tasks){
+  if(!_taskPriorityFilter||_taskPriorityFilter==='All')return tasks;
+  return tasks.filter(t=>t.priority===_taskPriorityFilter);
 }
 function renderTasks(){
   // Compute week bounds for This Week filter
@@ -3013,10 +3026,11 @@ function renderTasks(){
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
     <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add task… (press Enter to save, Tab for priority)" onkeydown="handleQuickAdd(event)">
-    <select id="task-quick-priority" class="inp" style="height:28px;font-size:10px;width:70px;padding:0 4px">
-      <option value="Medium">Med</option>
-      <option value="High">High</option>
-      <option value="Low">Low</option>
+    <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="_taskPriorityFilter=this.value;renderCurrentTaskView()">
+      <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
+      <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
+      <option value="Medium"${_taskPriorityFilter==='Medium'?' selected':''}>Medium</option>
+      <option value="Low"${_taskPriorityFilter==='Low'?' selected':''}>Low</option>
     </select>
     <button class="btn btn-p" style="height:28px;font-size:10px;padding:0 8px" onclick="quickAddTask()">Add</button>
   </div>
