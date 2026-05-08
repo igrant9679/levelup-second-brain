@@ -2855,7 +2855,11 @@ function openClusterModal(id){
       <button class="btn btn-s" onclick="closeModal()">Cancel</button>
     </div>
   </div>`;
-  openModal(html);
+  const mc=document.getElementById('modal-content');
+  if(mc)mc.innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+  setTimeout(()=>{const f=document.getElementById('cl-name');if(f)f.focus();},80);
 }
 function saveCluster(id){
   const name=document.getElementById('cl-name')?.value?.trim();
