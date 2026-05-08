@@ -12054,15 +12054,22 @@ function renderFATags(){
 function faLinkerInput(field,val){
   const drop=document.getElementById('fa-drop-'+field);
   if(!drop)return;
-  if(!val){drop.classList.remove('show');return;}
-  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal};
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts};
   const src=sources[field]||[];
-  const q=val.toLowerCase();
-  const matches=src.filter(x=>(x.title||x.name||'').toLowerCase().includes(q)&&!_faLinked[field].includes(x.id)).slice(0,8);
+  const q=(val||'').toLowerCase();
+  // When val is empty, show the most recent unlinked items so the user can browse without typing.
+  const available=src.filter(x=>!_faLinked[field].includes(x.id));
+  const matches=q
+    ? available.filter(x=>(x.title||x.name||'').toLowerCase().includes(q)).slice(0,10)
+    : available.slice(-10).reverse(); // most recent first when no query
   if(!matches.length){drop.classList.remove('show');return;}
-  drop.innerHTML=matches.map(x=>`<div class="fa-typeahead-item" onclick="faLinkItem('${field}',${x.id},'${esc(x.title||x.name||'')}')">${x.title||x.name||''}</div>`).join('');
+  drop.innerHTML=matches.map(x=>`<div class="fa-typeahead-item" onclick="faLinkItem('${field}',${x.id},'${esc(x.title||x.name||'')}')">${esc(x.title||x.name||'')}</div>`).join('');
   drop.classList.add('show');
 }
+// Show the dropdown when the input gets focus (even if empty) so users can see available items.
+function faLinkerFocus(field){faLinkerInput(field,document.getElementById('fa-link-inp-'+field)?.value||'');}
+// Hide dropdown shortly after blur so click handlers on items still fire.
+function faLinkerBlur(field){setTimeout(()=>{const d=document.getElementById('fa-drop-'+field);if(d)d.classList.remove('show');},150);}
 function faLinkItem(field,id,label){
   if(_faLinked[field].includes(id))return;
   _faLinked[field].push(id);
@@ -12080,16 +12087,16 @@ function faUnlinkItem(field,id){
 function renderFALinked(field){
   const wrap=document.getElementById('fa-linked-'+field);
   if(!wrap)return;
-  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal};
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts};
   const src=sources[field]||[];
-  wrap.innerHTML=_faLinked[field].map(id=>{
+  wrap.innerHTML=(_faLinked[field]||[]).map(id=>{
     const item=src.find(x=>x.id===id);
     const label=item?(item.title||item.name||'#'+id):'#'+id;
     return`<span class="fa-chip">${esc(label)}<span class="fa-chip-x" onclick="faUnlinkItem('${field}',${id})">✕</span></span>`;
   }).join('');
 }
 function faLinkerHtml(field,placeholder){
-  return`<div class="fa-typeahead"><input class="fa-inp" id="fa-link-inp-${field}" placeholder="${placeholder}" oninput="faLinkerInput('${field}',this.value)" autocomplete="off"><div class="fa-typeahead-drop" id="fa-drop-${field}"></div></div><div class="fa-linked-chips" id="fa-linked-${field}"></div>`;
+  return`<div class="fa-typeahead"><input class="fa-inp" id="fa-link-inp-${field}" placeholder="${placeholder} (click to browse)" oninput="faLinkerInput('${field}',this.value)" onfocus="faLinkerFocus('${field}')" onblur="faLinkerBlur('${field}')" autocomplete="off"><div class="fa-typeahead-drop" id="fa-drop-${field}"></div></div><div class="fa-linked-chips" id="fa-linked-${field}"></div>`;
 }
 
 // Toggle helper
