@@ -95,7 +95,7 @@ export const teamInvitesRouter = router({
       if (!invite) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create invite' });
 
       // Send invite email (non-fatal if SMTP not configured)
-      const origin = input.origin ?? 'https://levelupnow.vip';
+      const origin = input.origin ?? 'https://levelupnow.tools';
       const inviteUrl = `${origin}/invite/${token}`;
       await sendInviteEmail({
         to: input.email,
@@ -144,7 +144,7 @@ export const teamInvitesRouter = router({
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to resend invite' });
 
       // Re-send invite email with new link (non-fatal)
-      const origin = input.origin ?? 'https://levelupnow.vip';
+      const origin = input.origin ?? 'https://levelupnow.tools';
       const inviteUrl = `${origin}/invite/${newToken}`;
       await sendInviteEmail({
         to: invite.email,

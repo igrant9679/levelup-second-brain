@@ -45,7 +45,7 @@ async function extractMetadata(url: string): Promise<PageMetadata> {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LevelUpBot/1.0; +https://levelupnow.vip)',
+        'User-Agent': 'Mozilla/5.0 (compatible; LevelUpBot/1.0; +https://levelupnow.tools)',
         'Accept': 'text/html,application/xhtml+xml',
       },
       redirect: 'follow',

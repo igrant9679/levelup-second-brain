@@ -170,7 +170,9 @@ body.compact-mode .sl{display:none!important}
 .inp:focus{border-color:var(--ac)}textarea.inp{min-height:70px;resize:vertical}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
 .pg-h{margin-bottom:14px}.pg-h h1{font-size:22px;font-weight:700}.pg-h p{color:var(--t2);font-size:12px;margin-top:2px}
-.ph-r{display:flex;align-items:center;justify-content:space-between}
+.ph-r{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+/* When the page header's button row is too wide, allow it to wrap rather than overflow into the side rail. */
+.ph-r > div:last-child{flex-wrap:wrap;justify-content:flex-end}
 .subnav{display:flex;gap:2px;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);padding:3px;margin-bottom:12px}
 .sn{padding:4px 12px;border-radius:5px;font-size:11px;font-weight:500;color:var(--t2);cursor:pointer}.sn:hover{color:var(--t1)}.sn.on{background:var(--ac);color:#fff}
 .sec-h{font-size:14px;font-weight:600;padding:10px 0 6px;border-bottom:2px solid var(--bd2);margin-bottom:10px}
