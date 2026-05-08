@@ -4969,7 +4969,8 @@ async function suggestFollowUps(){
   chipsEl.style.display='none';
   chipsEl.innerHTML='';
   try{
-    const res=await _trpc('oauthSync.suggestFollowUps',{subject:sub,body:bodyText},'mutation');
+    const {provider:_p,apiKey:_k}=_getAIConfig();
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:sub,body:bodyText,provider:_p,apiKey:_k},'mutation');
     const suggestions=res?.suggestions||[];
     if(!suggestions.length){toast('No suggestions returned');return;}
     chipsEl.style.display='flex';
@@ -7158,6 +7159,13 @@ function moveIdeaToStage(id,stage){
   toast(`→ Moved to ${IDEA_STAGE_LABELS[stage]}`);
 }
 
+// Helper: route Ideas-page AI calls through the user's chosen provider via ai.assist tRPC.
+async function _ideaAICall(prompt,jsonMode){
+  const {provider,apiKey}=_getAIConfig();
+  const systemPrompt=jsonMode?'You are a helpful assistant. Respond with valid JSON only.':'You are a helpful assistant.';
+  const res=await _trpc('ai.assist',{systemPrompt,userContent:prompt,provider,apiKey},'mutation');
+  return res?.result||res?.text||'';
+}
 function ideaAISparkle(id,stage,key,btn){
   const idea=D.ideas.find(x=>x.id===id);
   if(!idea)return;
@@ -7169,11 +7177,8 @@ function ideaAISparkle(id,stage,key,btn){
   const prompt=`You are reviewing an idea titled "${idea.title}" (type: ${idea.idea_type}). The question is: "${q?.prompt}". The user answered: "${ans?.body||'(no answer yet)'}". As a ${modeLabel}, provide a concise 2-3 sentence response that ${mode==='devil'?'challenges assumptions, surfaces risks, and asks hard questions':'strengthens the idea, suggests better framings, and identifies supporting evidence'}. Be direct and specific.`;
   btn.textContent='…';
   btn.disabled=true;
-  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
-  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
-  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:200})})
-  .then(r=>r.json()).then(d=>{
-    const text=d.choices?.[0]?.message?.content||'No response.';
+  _ideaAICall(prompt).then(text=>{
+    text=text||'No response.';
     btn.textContent='✨ AI';btn.disabled=false;
     // Show in a popover below the button
     const existing=btn.parentElement.querySelector('.ai-popover');
@@ -7190,12 +7195,9 @@ function ideaWhyStuck(id,stage){
   const idea=D.ideas.find(x=>x.id===id);
   if(!idea)return;
   const prompt=`An idea titled "${idea.title}" is in the ${stage} stage. The user is stuck. Provide 3 alternate framings of the core challenge in this stage that might help them think differently. Be concise and specific.`;
-  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
-  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
   toast('🤔 Generating alternate framings…');
-  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:300})})
-  .then(r=>r.json()).then(d=>{
-    const text=d.choices?.[0]?.message?.content||'No response.';
+  _ideaAICall(prompt).then(text=>{
+    text=text||'No response.';
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">🤔 Alternate Framings</h2><div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(text)}</div><button class="btn btn-s" style="margin-top:12px" onclick="closeModal()">Close</button>`;
     document.getElementById('modal-capture').classList.add('show');
@@ -7207,12 +7209,9 @@ function ideaSynthesisMode(id){
   if(!idea)return;
   const answers=idea.answers.map(a=>`[${a.stage}/${a.question_key}]: ${a.body}`).join('\n');
   const prompt=`Here are all the answers a person wrote about their idea titled "${idea.title}":\n\n${answers}\n\nIf you were giving advice to a friend with this exact idea and these exact answers, what would you say? Be honest, specific, and actionable. 3-4 paragraphs.`;
-  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
-  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
   toast('✨ Synthesizing your thinking…');
-  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:600})})
-  .then(r=>r.json()).then(d=>{
-    const text=d.choices?.[0]?.message?.content||'No response.';
+  _ideaAICall(prompt).then(text=>{
+    text=text||'No response.';
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">✨ AI Synthesis</h2><div style="font-size:12px;color:var(--t2);line-height:1.7;white-space:pre-wrap">${esc(text)}</div><button class="btn btn-s" style="margin-top:12px" onclick="closeModal()">Close</button>`;
     document.getElementById('modal-capture').classList.add('show');
@@ -7224,12 +7223,9 @@ function runIdeaPremortem(id){
   if(!idea)return;
   const answers=idea.answers.filter(a=>a.body.trim()).map(a=>`[${a.question_key}]: ${a.body}`).join('\n');
   const prompt=`You are a brutal but constructive devil's advocate. The user has an idea titled "${idea.title}" (type: ${idea.idea_type}).\n\nTheir thinking so far:\n${answers||'(no answers yet)'}\n\nRun a structured premortem: imagine it's 12 months from now and this idea has completely failed or been abandoned. Write:\n1. The most likely cause of death (1-2 sentences)\n2. Three specific failure modes they haven't addressed\n3. One hidden assumption that, if wrong, kills everything\n4. One concrete thing they should validate BEFORE committing more time\n\nBe specific, not generic. Name real risks.`;
-  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
-  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
   toast('🧨 Running premortem analysis…');
-  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:600})})
-  .then(r=>r.json()).then(d=>{
-    const text=d.choices?.[0]?.message?.content||'No response.';
+  _ideaAICall(prompt).then(text=>{
+    text=text||'No response.';
     // Save premortem to idea
     idea.premortem=text;
     idea.premortem_at=new Date().toISOString();
@@ -7249,13 +7245,10 @@ function requestAIIceScore(id){
   const idea=D.ideas.find(x=>x.id===id);
   if(!idea)return;
   const prompt=`Score this idea on ICE (Impact, Confidence, Ease) each from 1-10. Idea: "${idea.title}". Type: ${idea.idea_type}. Description: "${idea.description}". Answers: ${idea.answers.map(a=>a.body).join(' | ')}. Respond in JSON: {"impact":N,"confidence":N,"ease":N,"rationale":"..."}`;
-  const apiKey=typeof VITE_FRONTEND_FORGE_API_KEY!=='undefined'?VITE_FRONTEND_FORGE_API_KEY:(window.__ENV__?.VITE_FRONTEND_FORGE_API_KEY||'');
-  const apiUrl=typeof VITE_FRONTEND_FORGE_API_URL!=='undefined'?VITE_FRONTEND_FORGE_API_URL:(window.__ENV__?.VITE_FRONTEND_FORGE_API_URL||'https://api.openai.com/v1');
   toast('✨ Getting AI ICE score…');
-  fetch(apiUrl+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-4o-mini',messages:[{role:'user',content:prompt}],max_tokens:200,response_format:{type:'json_object'}})})
-  .then(r=>r.json()).then(d=>{
+  _ideaAICall(prompt,true).then(text=>{
     try{
-      const j=JSON.parse(d.choices?.[0]?.message?.content||'{}');
+      const j=JSON.parse(text||'{}');
       idea.ai_ice_impact=j.impact||5;idea.ai_ice_confidence=j.confidence||5;idea.ai_ice_ease=j.ease||5;idea.ai_ice_rationale=j.rationale||'';
       save('ideas');renderIdeaDetail(idea);toast('✨ AI ICE score ready!');
     }catch(e){toast('Could not parse AI response.');}
@@ -8932,8 +8925,9 @@ function helpAskQuestion(q){
   if(inp)inp.value='';
   // Build conversation history for context (last 6 messages)
   const history=_helpAIMessages.slice(-7,-1).map(m=>({role:m.role==='user'?'user':'assistant',content:m.body}));
-  // Call the real tRPC endpoint
-  const payload=JSON.stringify({json:{question:q,conversationHistory:history}});
+  // Call the real tRPC endpoint with the user's chosen provider + key.
+  const {provider:_aiP,apiKey:_aiK}=_getAIConfig();
+  const payload=JSON.stringify({json:{question:q,conversationHistory:history,provider:_aiP,apiKey:_aiK}});
   fetch('/api/trpc/help.askAI',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
@@ -14685,7 +14679,8 @@ async function _rteAICall(prompt,resultElId,loadingText){
   el.style.display='block';
   el.textContent=loadingText||'⏳ Thinking...';
   try{
-    const res=await _trpc('oauthSync.suggestFollowUps',{subject:'AI Assist',body:prompt},'mutation');
+    const {provider:_p,apiKey:_k}=_getAIConfig();
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:'AI Assist',body:prompt,provider:_p,apiKey:_k},'mutation');
     // Re-use suggestFollowUps but display as plain text
     const text=(res?.suggestions||[]).join('\n\n');
     el.textContent=text||'No response generated.';
@@ -14748,10 +14743,18 @@ function _rteTimeAgo(ts){
 
 // Read the user's selected AI provider + matching key. The provider lives in D.prefs.aiProvider
 // and keys live in D.creds.{openai_key,claude_key,gemini_key} (set by Settings → AI Features).
+// If the chosen provider has no key, fall through to any other user-provided key so AI calls
+// don't silently fail when "Manus AI" is the default but the Forge env vars aren't configured.
 function _getAIConfig(){
-  const provider=(D.prefs&&D.prefs.aiProvider)||'manus';
-  const keyMap={openai:D.creds&&D.creds.openai_key,claude:D.creds&&D.creds.claude_key,gemini:D.creds&&D.creds.gemini_key};
-  return {provider,apiKey:keyMap[provider]||undefined};
+  const explicit=(D.prefs&&D.prefs.aiProvider)||'manus';
+  const keys={openai:D.creds&&D.creds.openai_key,claude:D.creds&&D.creds.claude_key,gemini:D.creds&&D.creds.gemini_key};
+  // Honor the user's explicit choice if they have a matching key.
+  if(explicit!=='manus'&&keys[explicit])return {provider:explicit,apiKey:keys[explicit]};
+  // Otherwise prefer any user-provided key over Manus (which requires a server env var to exist).
+  if(keys.openai)return {provider:'openai',apiKey:keys.openai};
+  if(keys.claude)return {provider:'claude',apiKey:keys.claude};
+  if(keys.gemini)return {provider:'gemini',apiKey:keys.gemini};
+  return {provider:'manus',apiKey:undefined};
 }
 async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   const el=document.getElementById(resultElId);

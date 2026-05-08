@@ -334,10 +334,12 @@ export const helpRouter = router({
           )
           .optional()
           .default([]),
+        provider: z.enum(["manus", "openai", "claude", "gemini"]).optional().default("manus"),
+        apiKey: z.string().max(512).optional(),
       })
     )
     .mutation(async ({ input }) => {
-      const { question, conversationHistory } = input;
+      const { question, conversationHistory, provider, apiKey } = input;
 
       // Find the most relevant articles for this question
       const relevantArticles = findRelevantArticles(question, 4);
@@ -378,8 +380,21 @@ Instructions:
       // Add the current question
       messages.push({ role: "user", content: question });
 
-      const llmResponse = await invokeLLM({ messages });
-      const answer = llmResponse.choices?.[0]?.message?.content ?? "Sorry, I couldn't generate an answer. Please try again.";
+      // Build a single user-content block from the conversation history + current question
+      // so we can route through the provider-aware helper.
+      const { callAIProvider } = await import("../_core/aiProviders");
+      const userContent = messages
+        .filter((m) => m.role !== "system")
+        .map((m) => `${m.role === "user" ? "Q" : "A"}: ${m.content}`)
+        .join("\n\n");
+      const { text } = await callAIProvider({
+        provider,
+        apiKey,
+        systemPrompt,
+        userContent,
+        maxTokens: 1024,
+      });
+      const answer = text || "Sorry, I couldn't generate an answer. Please try again.";
 
       return {
         answer,
