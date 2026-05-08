@@ -8891,7 +8891,7 @@ function renderHelpAskTab(){
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">Ask me anything about LevelUp</div>
       <div style="font-size:11px;margin-bottom:16px">I can answer questions about features, shortcuts, and best practices.</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
-        ${['How do I import contacts?','What keyboard shortcuts are available?','How does habit streak tracking work?','How do I connect my Google Calendar?'].map(q=>`<button onclick="helpAskQuestion(this.dataset.q)" data-q="${esc(q)}" style="font-size:11px;background:var(--s2);border:1px solid var(--br);border-radius:16px;padding:6px 12px;cursor:pointer;color:var(--t1)">${esc(q)}</button>`).join('')}
+        ${['How do I import contacts?','What keyboard shortcuts are available?','How does habit streak tracking work?','How do I connect my Microsoft 365 account?'].map(q=>`<button onclick="helpAskQuestion(this.dataset.q)" data-q="${esc(q)}" style="font-size:11px;background:var(--s2);border:1px solid var(--br);border-radius:16px;padding:6px 12px;cursor:pointer;color:var(--t1)">${esc(q)}</button>`).join('')}
       </div>
     </div>`:
     (msgs.map(m=>{
@@ -9441,7 +9441,7 @@ function renderSettingsHTML(){
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">Email Notifications</div>
     <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Control which system emails LevelUp sends to your account. Changes take effect immediately.</p>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:10px;color:var(--t3)">Receive an email when your Microsoft 365 or Google Workspace token is about to expire</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:10px;color:var(--t3)">Receive an email when your Microsoft 365 token is about to expire</div></div>
       <div class="tog on" id="tog-email-expiry" onclick="toggleEmailNotifPref('optOutExpiryEmails',this)"></div>
     </div>
     <div class="lr" style="padding:6px 0">
@@ -9473,7 +9473,7 @@ function renderSettingsHTML(){
   </div>
   </div>
   <!-- Accounts --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
-  <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 or Google Workspace account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
+  <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
   <div id="oauth-ms-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
     <div class="lr" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
@@ -9881,13 +9881,6 @@ function renderSettingsHTML(){
         <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
         <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthMail('microsoft')">✉ Mail</button>
         <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthContacts('microsoft')">👥 Contacts</button>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;padding:6px 0">
-      <div style="width:28px;height:28px;border-radius:6px;background:#4285f4;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">G</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:11px;font-weight:500">Google Workspace</div>
-        <div id="sync-panel-google-status" style="font-size:10px;color:var(--t3)">Not connected</div>
       </div>
     </div>
   </div>
