@@ -2759,83 +2759,122 @@ function clusterOverdueCount(cluster){
 }
 // ─── Render Tasks Clusters View ──────────────────────────────────────────────
 let _clusterCollapsed={};
+// Relative due date: "Today", "Tomorrow", "Yesterday", weekday short name within ±6 days, else formatted date.
+function _relDue(d){
+  if(!d)return 'No due';
+  const dt=new Date(String(d).includes('T')?d:d+'T00:00');
+  if(isNaN(dt))return String(d);
+  const t=new Date(_todayStr+'T00:00');
+  const diff=Math.round((dt-t)/(1000*60*60*24));
+  if(diff===0)return 'Today';
+  if(diff===1)return 'Tomorrow';
+  if(diff===-1)return 'Yesterday';
+  if(Math.abs(diff)<=6)return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+  return fmtDate(d);
+}
 function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
-  if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  let scoped=D.tasks.filter(t=>t.status!=='Someday');
+  if(_taskMyOnly)scoped=scoped.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   const today=_todayStr;
   const groups=(D.clusters||[]).map(cl=>{
     const projIds=new Set(cl.projectIds||[]);
-    const clTasks=tasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
-    const pct=clusterProgress(cl);
-    const overdue=clusterOverdueCount(cl);
-    return {cl,tasks:clTasks,pct,overdue};
+    const all=scoped.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    const done=all.filter(t=>t.status==='Done').length;
+    const active=all.filter(t=>t.status!=='Done');
+    const total=all.length;
+    const pct=total?Math.round((done/total)*100):0;
+    const overdue=active.filter(t=>t.due&&t.due<today).length;
+    const dueDates=active.map(t=>t.due).filter(Boolean).sort();
+    return {cl,active,done,total,pct,overdue,earliestDue:dueDates[0]||null};
   });
   const claimedIds=new Set();
-  groups.forEach(g=>g.tasks.forEach(t=>claimedIds.add(t.id)));
-  const orphans=tasks.filter(t=>!claimedIds.has(t.id));
-  function clusterHeader(g){
-    const {cl,tasks:ct,pct,overdue}=g;
+  groups.forEach(g=>g.active.forEach(t=>claimedIds.add(t.id)));
+  const orphans=scoped.filter(t=>!claimedIds.has(t.id)&&t.status!=='Done');
+
+  // ── Filter pill ribbon (Cluster lens active) ──
+  const pillBar=`<div style="display:flex;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--bd1);margin-bottom:14px;overflow-x:auto;align-items:center">
+    ${['Status','Time','Energy','Location','P/I'].map(n=>`<div title="Lens — coming soon" style="font-size:11px;color:var(--t3);padding:5px 10px;border-radius:6px;cursor:default;white-space:nowrap">${n}</div>`).join('')}
+    <div style="font-size:11px;color:var(--t1);background:rgba(59,130,246,0.15);padding:5px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap">
+      <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>
+      Cluster
+      <span style="font-size:9px;background:#3B82F6;color:#fff;padding:1px 5px;border-radius:999px;font-weight:600;letter-spacing:.3px">NEW</span>
+    </div>
+    <div title="Lens — coming soon" style="font-size:11px;color:var(--t3);padding:5px 10px;cursor:default;white-space:nowrap">Edited</div>
+  </div>`;
+
+  function taskRow(t){
+    const isOverdue=t.due&&t.due<today&&t.status!=='Done';
+    const done=t.status==='Done';
+    const pri=t.priority||'Medium';
+    const priColors={
+      'High':{bg:'rgba(239,68,68,0.15)',fg:'#F87171'},
+      'Medium':{bg:'rgba(245,158,11,0.15)',fg:'#FBBF24'},
+      'Low':{bg:'rgba(148,163,184,0.15)',fg:'var(--t2)'}
+    };
+    const pc=priColors[pri]||priColors['Medium'];
+    const priShort=pri==='Medium'?'Med':pri;
+    const dueLabel=_relDue(t.due);
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
+      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
+      <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
+    </div>`;
+  }
+
+  function clusterCard(g){
+    const {cl,active,done,total,pct,overdue,earliestDue}=g;
     const collapsed=!!_clusterCollapsed[cl.id];
-    const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    const collabAvatars=(cl.collaborators||[]).slice(0,3).map(c=>`<div style="width:20px;height:20px;border-radius:50%;background:var(--s3);border:2px solid var(--s1);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;margin-left:-6px;color:var(--t1)">${(c.name||c).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</div>`).join('');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd2);border-radius:${collapsed?'8px':'8px 8px 0 0'};cursor:pointer;user-select:none" onclick="_clusterCollapsed['${cl.id}']=!_clusterCollapsed['${cl.id}'];renderTaskClusters()">
-      <span style="font-size:13px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg)">▾</span>
-      <div style="width:28px;height:28px;border-radius:6px;background:${cl.color||'#3B82F6'}22;border:1.5px solid ${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cl.icon||'📁'}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:13px;font-weight:700;color:var(--t1)">${esc(cl.name)}</span>
-          <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 7px">${ct.length} task${ct.length!==1?'s':''}</span>
-          ${overdue>0?`<span style="font-size:10px;color:var(--red);background:rgba(239,68,68,.1);border-radius:10px;padding:1px 7px">${overdue} overdue</span>`:''}
+    const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    const accent=cl.color||'#3B82F6';
+    let subtitle=`${done} of ${total} task${total!==1?'s':''}`;
+    if(total===0)subtitle+=' · empty';
+    else if(pct===100)subtitle+=' · all done';
+    else if(earliestDue)subtitle+=` · due ${fmtDate(earliestDue)}`;
+    else subtitle+=' · no deadlines';
+    if(overdue>0)subtitle+=` · <span style="color:var(--red);font-weight:600">${overdue} overdue</span>`;
+    const progressColor=pct===100?'#22c55e':accent;
+    const progressTextColor=pct===100?'#22c55e':'var(--t3)';
+    return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${cl.id}']=!_clusterCollapsed['${cl.id}'];renderTaskClusters()">
+        <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
+        <div style="width:28px;height:28px;border-radius:6px;background:${accent}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cl.icon||'📁'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cl.name)}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subtitle}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-          <div style="flex:1;height:4px;background:var(--s3);border-radius:2px;max-width:160px"><div style="height:4px;border-radius:2px;background:${cl.color||'#3B82F6'};width:${pct}%;transition:width .3s"></div></div>
-          <span style="font-size:10px;color:var(--t3)">${pct}%</span>
+        <div title="${esc(cl.owner||'')}" style="width:24px;height:24px;border-radius:50%;background:${accent}33;color:${accent};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${ownerInitials}</div>
+        <div style="width:120px;flex-shrink:0">
+          <div style="height:4px;background:var(--s3);border-radius:999px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${progressColor};border-radius:999px;transition:width .3s"></div>
+          </div>
+          <div style="font-size:10px;color:${progressTextColor};text-align:right;margin-top:3px">${pct}%</div>
         </div>
+        <button title="Edit cluster" style="height:24px;width:24px;padding:0;font-size:14px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();openClusterModal(${cl.id})">⋯</button>
       </div>
-      <div style="display:flex;align-items:center">
-        <div style="width:24px;height:24px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">${ownerInitials}</div>
-        ${collabAvatars}
-      </div>
-      <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;flex-shrink:0" onclick="event.stopPropagation();openClusterModal(${cl.id})">⚙</button>
-      <button class="btn btn-p" style="height:22px;font-size:9px;padding:0 6px;flex-shrink:0" onclick="event.stopPropagation();openFA('task')">+ Task</button>
+      ${collapsed?'':`<div>${active.length?active.map(taskRow).join(''):'<div style="padding:12px 14px 12px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1)">No active tasks · click ⋯ to manage</div>'}</div>`}
     </div>`;
   }
-  function clusterBody(clTasks){
-    if(!clTasks.length)return `<div style="padding:12px 16px;font-size:11px;color:var(--t3);text-align:center">No active tasks in this cluster</div>`;
-    return clTasks.map(t=>{
-      const isOverdue=t.due&&t.due<today&&t.status!=='Done';
-      const done=t.status==='Done';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 12px 7px 16px;border-bottom:1px solid var(--bd1);background:var(--s1);${isOverdue?'border-left:3px solid var(--red);':''}cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-        <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
-        <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(t.title)}</span>
-        <span class="pill ${pillClass(t.priority)}" style="font-size:9px;flex-shrink:0">${t.priority}</span>
-        ${t.due?`<span style="font-size:10px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'}">${fmtDate(t.due)}</span>`:''}
-      </div>`;
-    }).join('');
-  }
-  const groupHtml=groups.map(g=>{
-    const collapsed=!!_clusterCollapsed[g.cl.id];
-    return `<div style="margin-bottom:10px">
-      ${clusterHeader(g)}
-      ${collapsed?'':(`<div style="border:1px solid var(--bd2);border-top:none;border-radius:0 0 8px 8px;overflow:hidden">${clusterBody(g.tasks)}</div>`)}
-    </div>`;
-  }).join('');
+
+  // Orphan section
   const orphanCollapsed=!!_clusterCollapsed['__orphan__'];
-  const orphanHtml=orphans.length?`<div style="margin-bottom:10px">
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd2);border-radius:${orphanCollapsed?'8px':'8px 8px 0 0'};cursor:pointer" onclick="_clusterCollapsed['__orphan__']=!_clusterCollapsed['__orphan__'];renderTaskClusters()">
-      <span style="font-size:13px;color:var(--t2);transform:rotate(${orphanCollapsed?'-90':'0'}deg);display:inline-block">▾</span>
-      <div style="width:28px;height:28px;border-radius:6px;background:var(--s3);border:1.5px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:14px">📋</div>
-      <div style="flex:1">
-        <span style="font-size:13px;font-weight:700;color:var(--t1)">No Cluster</span>
-        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 7px;margin-left:6px">${orphans.length} task${orphans.length!==1?'s':''}</span>
+  const orphanCard=orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;margin-bottom:10px;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer" onclick="_clusterCollapsed['__orphan__']=!_clusterCollapsed['__orphan__'];renderTaskClusters()">
+      <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${orphanCollapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
+      <div style="width:28px;height:28px;border-radius:6px;background:rgba(148,163,184,0.15);color:var(--t3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🗂</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--t1)">No cluster</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${orphans.length} task${orphans.length!==1?'s':''} · drag onto a cluster to organise</div>
       </div>
     </div>
-    ${orphanCollapsed?'':(`<div style="border:1px solid var(--bd2);border-top:none;border-radius:0 0 8px 8px;overflow:hidden">${clusterBody(orphans)}</div>`)}
+    ${orphanCollapsed?'':`<div>${orphans.map(taskRow).join('')}</div>`}
   </div>`:'';
-  const addBtn=`<div style="text-align:center;padding:10px"><button class="btn btn-s" style="font-size:11px" onclick="openClusterModal(null)">+ New Cluster</button></div>`;
-  list.innerHTML=groupHtml+orphanHtml+addBtn;
+
+  const newClusterBtn=`<div style="text-align:center;padding:8px"><button class="btn btn-s" style="font-size:11px" onclick="openClusterModal(null)">+ New Cluster</button></div>`;
+
+  list.innerHTML=pillBar+groups.map(clusterCard).join('')+orphanCard+newClusterBtn;
 }
 // ─── Cluster Modal (create/edit) ─────────────────────────────────────────────
 function openClusterModal(id){
