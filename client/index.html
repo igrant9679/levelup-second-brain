@@ -27,6 +27,16 @@ body.compact-mode .lr{padding:2px 0!important}
 body.compact-mode .cd{padding:8px!important}
 body.compact-mode h1{font-size:16px!important}
 body.compact-mode .si{padding:4px 8px!important;font-size:11px!important}
+/* Normal-mode (non-compact) font size bump — makes the app easier to read.
+   Compact mode overrides these via the !important rules above. */
+body:not(.compact-mode){font-size:15px}
+body:not(.compact-mode) .si{font-size:13px;padding:7px 10px}
+body:not(.compact-mode) .si svg{width:16px;height:16px}
+body:not(.compact-mode) .tab{font-size:13px;padding:6px 12px}
+body:not(.compact-mode) .lr{font-size:13px;padding:8px 6px}
+body:not(.compact-mode) .inp{font-size:13px;padding:7px 11px}
+body:not(.compact-mode) .field label{font-size:12px}
+body:not(.compact-mode) .drawer .field label{font-size:12px}
 /* LOGIN OVERLAY */
 #login-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column}
 #login-overlay.hidden{display:none}
@@ -1909,7 +1919,7 @@ let _bulkMode=false;
 function toggleBulkMode(){
   _bulkMode=!_bulkMode;
   _bulkSelected.clear();
-  renderTaskList();
+  renderCurrentTaskView();
   const bar=$('bulk-action-bar');
   if(bar)bar.style.display=_bulkMode?'flex':'none';
 }
@@ -1957,7 +1967,7 @@ function bulkAction(action){
   }
   _bulkSelected.clear();
   updateSidebarBadges();
-  renderTaskList();
+  renderCurrentTaskView();
 }
 // ====== TASK TIME TRACKER ======
 let _timerTaskId=null,_timerStart=null,_timerInterval=null;
@@ -1991,7 +2001,7 @@ function stopTaskTimer(){
   }
   clearInterval(_timerInterval);
   _timerTaskId=null;_timerStart=null;_timerInterval=null;
-  renderTaskList();
+  renderCurrentTaskView();
 }
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
@@ -2215,7 +2225,7 @@ function aiAutoPriority(){
   });
   D.tasks.sort((a,b)=>(b._aiScore||0)-(a._aiScore||0));
   save('tasks');
-  renderTaskList();
+  renderCurrentTaskView();
   toast('✨ Tasks re-scored and sorted by AI priority!');
 }
 
@@ -2295,7 +2305,7 @@ function snoozeTask(id){
   save('tasks');
   invalidateSearchIndex();
   if(document.getElementById('myday-main'))renderScreen('myday');
-  else renderTaskList();
+  else renderCurrentTaskView();
   toast(`💭 Snoozed until tomorrow (${tomorrow.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})})`);
 }
 function moveSomeday(id){
@@ -2528,7 +2538,25 @@ function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div cla
 let _taskTabDefs=null;
 let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday';
 let _taskMyOnly=false;
-let _taskView='list'; // 'list' | 'board'
+let _taskView='clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'clusters'
+function renderCurrentTaskView(){
+  if(_taskView==='board')return renderTaskBoard();
+  if(_taskView==='matrix')return renderTaskMatrix();
+  if(_taskView==='gantt')return renderTaskGantt();
+  if(_taskView==='clusters')return renderTaskClusters();
+  return renderTaskList();
+}
+function setTaskView(v){
+  _taskView=v;
+  ['list','board','matrix','gantt','clusters'].forEach(k=>{
+    const b=document.getElementById('tasks-view-'+k);
+    if(!b)return;
+    const on=k===v;
+    b.style.background=on?'var(--ac)':'transparent';
+    b.style.color=on?'#fff':'var(--t2)';
+  });
+  renderCurrentTaskView();
+}
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -2737,7 +2765,7 @@ function quickAddTask(){
   updateSidebarBadges();
   inp.value='';
   inp.focus();
-  renderTaskList();
+  renderCurrentTaskView();
   toast('✓ Task added!');
 }
 // ─── Cluster progress roll-up ────────────────────────────────────────────────
@@ -2775,23 +2803,28 @@ function _relDue(d){
 function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let scoped=D.tasks.filter(t=>t.status!=='Someday');
-  if(_taskMyOnly)scoped=scoped.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  // Apply scope (My Items / All Items) to the entire universe of tasks first.
+  const universe=_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks;
+  // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) — narrows what the body shows.
+  const visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   const today=_todayStr;
   const groups=(D.clusters||[]).map(cl=>{
     const projIds=new Set(cl.projectIds||[]);
-    const all=scoped.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
-    const done=all.filter(t=>t.status==='Done').length;
-    const active=all.filter(t=>t.status!=='Done');
+    const inCluster=t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId));
+    // Progress uses the full universe (not narrowed by the tab filter) so "X of Y" stays meaningful.
+    const all=universe.filter(inCluster);
     const total=all.length;
+    const done=all.filter(t=>t.status==='Done').length;
     const pct=total?Math.round((done/total)*100):0;
-    const overdue=active.filter(t=>t.due&&t.due<today).length;
-    const dueDates=active.map(t=>t.due).filter(Boolean).sort();
-    return {cl,active,done,total,pct,overdue,earliestDue:dueDates[0]||null};
+    // Body shows the filtered set.
+    const shown=visible.filter(inCluster);
+    const overdue=shown.filter(t=>t.due&&t.due<today&&t.status!=='Done').length;
+    const dueDates=shown.filter(t=>t.status!=='Done').map(t=>t.due).filter(Boolean).sort();
+    return {cl,shown,done,total,pct,overdue,earliestDue:dueDates[0]||null};
   });
   const claimedIds=new Set();
-  groups.forEach(g=>g.active.forEach(t=>claimedIds.add(t.id)));
-  const orphans=scoped.filter(t=>!claimedIds.has(t.id)&&t.status!=='Done');
+  groups.forEach(g=>g.shown.forEach(t=>claimedIds.add(t.id)));
+  const orphans=visible.filter(t=>!claimedIds.has(t.id));
 
   // ── Filter pill ribbon (Cluster lens active) ──
   const pillBar=`<div style="display:flex;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--bd1);margin-bottom:14px;overflow-x:auto;align-items:center">
@@ -2825,7 +2858,7 @@ function renderTaskClusters(){
   }
 
   function clusterCard(g){
-    const {cl,active,done,total,pct,overdue,earliestDue}=g;
+    const {cl,shown,done,total,pct,overdue,earliestDue}=g;
     const collapsed=!!_clusterCollapsed[cl.id];
     const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
     const accent=cl.color||'#3B82F6';
@@ -2854,7 +2887,7 @@ function renderTaskClusters(){
         </div>
         <button title="Edit cluster" style="height:24px;width:24px;padding:0;font-size:14px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();openClusterModal(${cl.id})">⋯</button>
       </div>
-      ${collapsed?'':`<div>${active.length?active.map(taskRow).join(''):'<div style="padding:12px 14px 12px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1)">No active tasks · click ⋯ to manage</div>'}</div>`}
+      ${collapsed?'':`<div>${shown.length?shown.map(taskRow).join(''):'<div style="padding:12px 14px 12px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1)">No tasks match this filter · click ⋯ to manage</div>'}</div>`}
     </div>`;
   }
 
@@ -2967,7 +3000,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderTaskList()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderTaskList()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-view-list" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskView='list';document.getElementById('tasks-view-list').style.background='var(--ac)';document.getElementById('tasks-view-list').style.color='#fff';document.getElementById('tasks-view-board').style.background='transparent';document.getElementById('tasks-view-board').style.color='var(--t2)';renderTaskList()">☰ List</button><button id="tasks-view-board" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='board';document.getElementById('tasks-view-board').style.background='var(--ac)';document.getElementById('tasks-view-board').style.color='#fff';document.getElementById('tasks-view-list').style.background='transparent';document.getElementById('tasks-view-list').style.color='var(--t2)';document.getElementById('tasks-view-matrix').style.background='transparent';document.getElementById('tasks-view-matrix').style.color='var(--t2)';renderTaskBoard()">🗂 Board</button><button id="tasks-view-matrix" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='matrix';['list','board','matrix','gantt'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='matrix'?'var(--ac)':'transparent';b.style.color=v==='matrix'?'#fff':'var(--t2)';} });renderTaskMatrix()">⊞ Matrix</button><button id="tasks-view-gantt" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='gantt';['list','board','matrix','gantt','clusters'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='gantt'?'var(--ac)':'transparent';b.style.color=v==='gantt'?'#fff':'var(--t2)';} });renderTaskGantt()">📅 Gantt</button><button id="tasks-view-clusters" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskView='clusters';['list','board','matrix','gantt','clusters'].forEach(v=>{ const b=document.getElementById('tasks-view-'+v); if(b){b.style.background=v==='clusters'?'var(--ac)':'transparent';b.style.color=v==='clusters'?'#fff':'var(--t2)';} });renderTaskClusters()">⬡ Clusters</button></div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiDecomposeGoal()" title="AI: Break a goal into tasks">🧩 Decompose</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--red)" onclick="aiDeadlineRisk()" title="AI: Detect deadline risk">⚠️ Risk Check</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiAutoPriority()" title="AI: Auto-score and re-sort tasks">✨ Auto-Priority</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">Plan your day. Execute with focus.</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${(()=>{const views=[{k:'list',label:'☰ List'},{k:'board',label:'🗂 Board'},{k:'matrix',label:'⊞ Matrix'},{k:'gantt',label:'📅 Gantt'},{k:'clusters',label:'⬡ Clusters'}];return views.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.label}</button>`;}).join('');})()}</div><button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleBulkMode()" id="bulk-toggle-btn" title="Toggle bulk select mode">☑ Select</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--purp)" onclick="aiDecomposeGoal()" title="AI: Break a goal into tasks">🧩 Decompose</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--red)" onclick="aiDeadlineRisk()" title="AI: Detect deadline risk">⚠️ Risk Check</button><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="aiAutoPriority()" title="AI: Auto-score and re-sort tasks">✨ Auto-Priority</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -2976,7 +3009,7 @@ function renderTasks(){
     <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
-  <div class="tabs" id="tasks-tabs">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderTaskList()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
+  <div class="tabs" id="tasks-tabs">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderCurrentTaskView()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
     <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add task… (press Enter to save, Tab for priority)" onkeydown="handleQuickAdd(event)">
@@ -2988,7 +3021,7 @@ function renderTasks(){
     <button class="btn btn-p" style="height:28px;font-size:10px;padding:0 8px" onclick="quickAddTask()">Add</button>
   </div>
   <div class="cd" id="tasks-list"></div>`;
-  renderTaskList();
+  renderCurrentTaskView();
   $('tasks-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Week Calendar</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">May 19–25, 2025</div>
   ${['9 AM|Daily Standup','10 AM|Focus Block','12 PM|Budget Review','1 PM|Client Call','3 PM|Focus Time'].map(e=>{const[t,n]=e.split('|');return`<div style="display:flex;gap:4px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:30px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:9px">${n}</div></div>`}).join('')}`;
 }
