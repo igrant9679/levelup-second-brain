@@ -30,7 +30,7 @@ export interface EmailPayload {
  *   - Colon-separated: "google:3"  (used by oauthSync.setNotificationSender)
  */
 async function resolveNotificationSender(): Promise<{
-  provider: "google" | "microsoft";
+  provider: "google" | "microsoft" | "smtp";
   userId: number;
 } | null> {
   const db = await getDb();
@@ -46,7 +46,7 @@ async function resolveNotificationSender(): Promise<{
   // Try JSON format first: {"provider":"google","userId":3}
   try {
     const parsed = JSON.parse(raw) as {
-      provider: "google" | "microsoft";
+      provider: "google" | "microsoft" | "smtp";
       userId: number;
     };
     if (parsed.provider && parsed.userId) return parsed;
@@ -57,9 +57,12 @@ async function resolveNotificationSender(): Promise<{
   // Try colon-separated format: "provider:userId"
   const parts = raw.split(":");
   if (parts.length === 2) {
-    const provider = parts[0] as "google" | "microsoft";
+    const provider = parts[0] as "google" | "microsoft" | "smtp";
     const userId = parseInt(parts[1], 10);
-    if ((provider === "google" || provider === "microsoft") && !isNaN(userId)) {
+    if (
+      (provider === "google" || provider === "microsoft" || provider === "smtp") &&
+      !isNaN(userId)
+    ) {
       return { provider, userId };
     }
   }
@@ -73,11 +76,30 @@ async function resolveNotificationSender(): Promise<{
  * For Microsoft: SMTP via smtp.office365.com with OAuth2.
  */
 async function buildTransporter(
-  provider: "google" | "microsoft",
+  provider: "google" | "microsoft" | "smtp",
   userId: number
 ): Promise<{ transporter: nodemailer.Transporter; from: string } | null> {
   const db = await getDb();
   if (!db) return null;
+
+  // SMTP/IMAP secondary account — use stored host/port/credentials.
+  if (provider === "smtp") {
+    const { getSmtpImapAccountFull } = await import("../db");
+    const account = await getSmtpImapAccountFull(userId);
+    if (!account) return null;
+    const transporter = nodemailer.createTransport({
+      host: account.smtpHost,
+      port: account.smtpPort,
+      secure: account.smtpEncryption === "ssl",
+      requireTLS: account.smtpEncryption === "tls",
+      auth: { user: account.smtpUsername, pass: account.smtpPassword },
+      tls: { rejectUnauthorized: false },
+    });
+    const fromName = account.displayName || "LevelUp";
+    return { transporter, from: `"${fromName}" <${account.email}>` };
+  }
+
+  // OAuth-based providers (Google / Microsoft)
   const tokenRows = await db
     .select()
     .from(oauthTokens)

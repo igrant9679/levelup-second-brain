@@ -358,6 +358,28 @@ export async function getAllConnectedOAuthAccounts() {
   .innerJoin(users, eq(users.id, oauthTokens.userId));
 }
 
+// Get all SMTP/IMAP secondary accounts across users (for owner notification sender picker)
+export async function getAllSmtpAccounts() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    userId: smtpImapAccounts.userId,
+    email: smtpImapAccounts.email,
+    displayName: smtpImapAccounts.displayName,
+    userName: users.name,
+  })
+  .from(smtpImapAccounts)
+  .innerJoin(users, eq(users.id, smtpImapAccounts.userId));
+}
+
+// Get a user's SMTP/IMAP account row (full credentials) — used by sendEmail to build a transporter.
+export async function getSmtpImapAccountFull(userId: number): Promise<SmtpImapAccount | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(smtpImapAccounts).where(eq(smtpImapAccounts.userId, userId)).limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── Scheduled Task Log ──────────────────────────────────────────────────────
 
 /** Insert a record for a completed scheduled task run. */

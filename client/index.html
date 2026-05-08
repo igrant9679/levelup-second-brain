@@ -15825,11 +15825,12 @@ async function loadNotificationSenderOptions(){
     section.style.display='';
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
+    const labels={microsoft:'Microsoft 365',google:'Google',smtp:'Secondary email (SMTP)'};
     (data.accounts||[]).forEach((acc)=>{
       const key=acc.provider+':'+acc.userId;
       const opt=document.createElement('option');
       opt.value=key;
-      opt.textContent=(acc.provider==='microsoft'?'Microsoft':'Google')+' — '+(acc.displayName||acc.email||acc.userId);
+      opt.textContent=(labels[acc.provider]||acc.provider)+' — '+(acc.email||acc.displayName||acc.userId);
       if(data.current===key)opt.selected=true;
       sel.appendChild(opt);
     });

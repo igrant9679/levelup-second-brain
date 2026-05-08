@@ -589,10 +589,16 @@ export const oauthSyncRouter = router({
 
   // ---- Owner-only: Notification Sender ----
 
-  /** List all connected OAuth accounts across all users (owner only) */
+  /** List all connected OAuth accounts AND SMTP/IMAP accounts across all users (owner only) */
   getNotificationSenderOptions: protectedProcedure.query(async ({ ctx }) => {
     if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
-    const accounts = await db.getAllConnectedOAuthAccounts();
+    const oauthAccounts = await db.getAllConnectedOAuthAccounts();
+    const smtpAccounts = await db.getAllSmtpAccounts();
+    // Tag each account with its provider type for the UI dropdown.
+    const accounts = [
+      ...oauthAccounts.map(a => ({ ...a, kind: "oauth" as const })),
+      ...smtpAccounts.map(a => ({ ...a, kind: "smtp" as const, provider: "smtp" as const })),
+    ];
     const current = await db.getSystemSetting("notificationSender");
     return { accounts, current: current ?? null };
   }),
