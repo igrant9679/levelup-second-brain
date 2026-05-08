@@ -604,7 +604,7 @@ Refresh Token
 <div class="si" data-n="help" data-tour-id="nav-help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="l">Help &amp; Learning</span></div>
 <div class="si" data-n="settings" data-tour-id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
 </div>
-<div class="su" style="position:relative;cursor:pointer" title="Click for menu" onclick="event.stopPropagation();togglePopMenu('sb-user-menu')"><div class="av" id="sb-avatar">IG</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500" id="sb-name">Idris Grant</div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="sb-email">idris@levelup.app</div></div><span style="font-size:11px;color:var(--t3);margin-right:4px">▾</span><div id="sb-user-menu" data-pop-menu="1" style="display:none;position:absolute;left:0;right:0;bottom:46px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');nav('settings')">⚙️ Settings & Profile</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');doLogout()">🚪 Sign Out</button></div></div>
+<div class="su" style="position:relative;cursor:pointer" title="Click for menu" onclick="event.stopPropagation();togglePopMenu('sb-user-menu')"><div class="av" id="sb-avatar">IG</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500" id="sb-name">Idris Grant</div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="sb-email">idris@levelup.app</div></div><span style="font-size:11px;color:var(--t3);margin-right:4px">▾</span><div id="sb-user-menu" data-pop-menu="1" style="display:none;position:absolute;left:0;right:0;bottom:46px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');nav('settings')">⚙️ Settings & Profile</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');openExportPicker()">⬇ Export Data…</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');doLogout()">🚪 Sign Out</button></div></div>
 </template>
 
 <!-- ===== S-01 HOME ===== -->
@@ -1538,6 +1538,120 @@ function renderDrawer(type,item){
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// ── CSV / HTML EXPORT HELPERS ────────────────────────────────────────────────
+// Convert a JS value into a CSV-safe cell. Quotes if needed; escapes embedded quotes.
+function _csvCell(v){
+  if(v===null||v===undefined)return '';
+  let s=typeof v==='string'?v:(Array.isArray(v)?v.join('; '):(typeof v==='object'?JSON.stringify(v):String(v)));
+  s=s.replace(/\r?\n/g,' ').trim();
+  if(s.includes('"')||s.includes(',')||s.includes('\n'))s='"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function _exportToCSV(filename,headers,rows){
+  const csv=[headers.map(_csvCell).join(',')].concat(rows.map(r=>headers.map(h=>_csvCell(r[h])).join(','))).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  toast('⬇ Exported '+filename);
+}
+function _exportToHTML(filename,title,headers,rows){
+  const stamp=new Date().toLocaleString();
+  const tableRows=rows.map(r=>'<tr>'+headers.map(h=>{const v=r[h];const cell=v==null?'':(Array.isArray(v)?v.join(', '):(typeof v==='object'?JSON.stringify(v):String(v)));return '<td>'+esc(cell).replace(/\n/g,'<br>')+'</td>';}).join('')+'</tr>').join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+  body{font-family:'Segoe UI',Inter,Arial,sans-serif;margin:32px;color:#222}
+  h1{margin:0 0 4px;font-size:22px}
+  .meta{color:#666;font-size:12px;margin-bottom:18px}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th{background:#f2f4f7;text-align:left;padding:8px 10px;border:1px solid #d0d5dd;font-weight:600}
+  td{padding:8px 10px;border:1px solid #e4e7ec;vertical-align:top}
+  tr:nth-child(even) td{background:#fafbfc}
+  </style></head><body>
+  <h1>${esc(title)}</h1>
+  <div class="meta">Exported ${esc(stamp)} · ${rows.length} item${rows.length===1?'':'s'}</div>
+  <table><thead><tr>${headers.map(h=>'<th>'+esc(h)+'</th>').join('')}</tr></thead><tbody>${tableRows}</tbody></table>
+  </body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  toast('⬇ Exported '+filename+' (open in Word/browser)');
+}
+// Per-section export entry points.
+function exportTasks(format){
+  const items=(D.tasks||[]).map(t=>({Title:t.title,Status:t.status,Priority:t.priority,Due:t.due||'',Project:t.project||'',Context:t.context||'',Tags:(t.tags||[]).join('; '),Notes:t.notes||'',CreatedBy:t.createdBy||'',CreatedAt:t.createdAt||''}));
+  const headers=['Title','Status','Priority','Due','Project','Context','Tags','Notes','CreatedBy','CreatedAt'];
+  const stamp=new Date().toISOString().slice(0,10);
+  if(format==='html')_exportToHTML('levelup-tasks-'+stamp+'.html','LevelUp — Tasks',headers,items);
+  else _exportToCSV('levelup-tasks-'+stamp+'.csv',headers,items);
+}
+function exportNotes(format){
+  const items=(D.notes||[]).map(n=>({Title:n.title,Source:n.source||'',Tags:(n.tags||[]).join('; '),Updated:n.updated||'',Body:n.body||'',Starred:n.starred?'Yes':''}));
+  const headers=['Title','Source','Tags','Updated','Body','Starred'];
+  const stamp=new Date().toISOString().slice(0,10);
+  if(format==='html')_exportToHTML('levelup-notes-'+stamp+'.html','LevelUp — Notes',headers,items);
+  else _exportToCSV('levelup-notes-'+stamp+'.csv',headers,items);
+}
+function exportProjects(format){
+  const items=(D.projects||[]).map(p=>({Name:p.name,Status:p.status||'',Owner:p.owner||'',StartDate:p.startDate||'',Due:p.due||'',Quarter:p.quarter||'',Description:p.desc||'',Progress:(p.pct||0)+'%'}));
+  const headers=['Name','Status','Owner','StartDate','Due','Quarter','Description','Progress'];
+  const stamp=new Date().toISOString().slice(0,10);
+  if(format==='html')_exportToHTML('levelup-projects-'+stamp+'.html','LevelUp — Projects',headers,items);
+  else _exportToCSV('levelup-projects-'+stamp+'.csv',headers,items);
+}
+function exportClusters(format){
+  const items=(D.clusters||[]).map(c=>{const projIds=new Set(c.projectIds||[]);const tasks=(D.tasks||[]).filter(t=>t.clusterId===c.id||(t.projectId&&projIds.has(t.projectId)));const done=tasks.filter(t=>t.status==='Done').length;return {Name:c.name,Icon:c.icon||'',Color:c.color||'',Owner:c.owner||'',Projects:(c.projectIds||[]).length,TotalTasks:tasks.length,DoneTasks:done,Progress:tasks.length?Math.round(done/tasks.length*100)+'%':'0%',CreatedAt:c.createdAt||''};});
+  const headers=['Name','Icon','Color','Owner','Projects','TotalTasks','DoneTasks','Progress','CreatedAt'];
+  const stamp=new Date().toISOString().slice(0,10);
+  if(format==='html')_exportToHTML('levelup-clusters-'+stamp+'.html','LevelUp — Clusters',headers,items);
+  else _exportToCSV('levelup-clusters-'+stamp+'.csv',headers,items);
+}
+function exportJournal(format){
+  const items=(D.journal||[]).map(j=>({Date:j.date||'',Title:j.title||'',Mood:j.mood||'',Body:j.body||'',Tags:(j.tags||[]).join('; ')}));
+  const headers=['Date','Title','Mood','Body','Tags'];
+  const stamp=new Date().toISOString().slice(0,10);
+  if(format==='html')_exportToHTML('levelup-journal-'+stamp+'.html','LevelUp — Journal',headers,items);
+  else _exportToCSV('levelup-journal-'+stamp+'.csv',headers,items);
+}
+function openExportPicker(){
+  const sections=[
+    {id:'tasks',label:'Tasks',icon:'✓',count:(D.tasks||[]).length,fn:'exportTasks'},
+    {id:'notes',label:'Notes',icon:'📝',count:(D.notes||[]).length,fn:'exportNotes'},
+    {id:'projects',label:'Projects',icon:'📁',count:(D.projects||[]).length,fn:'exportProjects'},
+    {id:'clusters',label:'Clusters',icon:'⬡',count:(D.clusters||[]).length,fn:'exportClusters'},
+    {id:'journal',label:'Journal',icon:'📔',count:(D.journal||[]).length,fn:'exportJournal'},
+    {id:'bookmarks',label:'Bookmarks',icon:'🔖',count:'…',fn:'exportBookmarks'},
+  ];
+  const html=`<div style="padding:18px;min-width:360px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">⬇ Export Data</h3>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Pick a section, then a format. Your data downloads as a file.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">${sections.map(s=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px">
+        <span style="font-size:18px;width:24px;text-align:center">${s.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600">${s.label}</div>
+          <div style="font-size:10px;color:var(--t3)">${s.count} item${s.count===1?'':'s'}</div>
+        </div>
+        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="closeModal();${s.fn}('csv')">CSV</button>
+        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="closeModal();${s.fn}('html')">HTML</button>
+      </div>`).join('')}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>
+  </div>`;
+  const mc=document.getElementById('modal-content');
+  if(mc)mc.innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+async function exportBookmarks(format){
+  try{
+    const res=await _trpc('bookmarks.list',{page:1,pageSize:500},'query');
+    const items=(res?.bookmarks||[]).map(b=>({Title:b.title||'',URL:b.url||'',SiteName:b.siteName||'',Description:b.description||'',Tags:(b.tags||[]).join('; '),CreatedAt:b.createdAt||''}));
+    const headers=['Title','URL','SiteName','Description','Tags','CreatedAt'];
+    const stamp=new Date().toISOString().slice(0,10);
+    if(format==='html')_exportToHTML('levelup-bookmarks-'+stamp+'.html','LevelUp — Bookmarks',headers,items);
+    else _exportToCSV('levelup-bookmarks-'+stamp+'.csv',headers,items);
+  }catch(e){toast('⚠ Export failed: '+e.message);}
+}
 // Build a custom avatar+name assignee dropdown
 function buildAssigneeDropdown(id,currentValue){
   const members=D.teams.flatMap(t=>t.members);
@@ -2383,7 +2497,8 @@ const _homeCardDefs=[
   {id:'meetings',label:'📅 Upcoming Meetings',default:true},
   {id:'recent',label:'🕐 Recently Added',default:true},
   {id:'pinned',label:'📌 Pinned',default:true},
-  {id:'focus',label:'⏱ Focus Widget',default:true}
+  {id:'focus',label:'⏱ Focus Widget',default:true},
+  {id:'reports',label:'📊 Reports & Insights',default:true}
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -2493,7 +2608,54 @@ function renderHome(){
           <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
         </div>`;
       })(),
-      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`
+      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
+      reports:(()=>{
+        const today=new Date();
+        const todayKey=today.toISOString().slice(0,10);
+        // 7-day completion bars (last 7 days, oldest left)
+        const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
+        const dayLabels=['S','M','T','W','T','F','S'];
+        const counts=days.map(d=>{const k=d.toISOString().slice(0,10);return (D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
+        const maxC=Math.max(...counts,1);
+        const totalC=counts.reduce((a,b)=>a+b,0);
+        const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
+        // Goal progress (avg)
+        const gs=D.goals||[];
+        const avgGoal=gs.length?Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length):0;
+        // Habits today
+        const hbs=(D.habits||[]).filter(h=>h.cadence==='Daily');
+        const hbsDone=hbs.filter(h=>h.doneToday).length;
+        const hbsPct=hbs.length?Math.round(hbsDone/hbs.length*100):0;
+        // Active vs Done overall
+        const totalActive=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
+        const totalDone=(D.tasks||[]).filter(t=>t.status==='Done').length;
+        const totalAll=totalActive+totalDone;
+        const donePct=totalAll?Math.round(totalDone/totalAll*100):0;
+        // Donut SVG (CSS-only ring)
+        const ringStyle=`background:conic-gradient(var(--ok) 0% ${donePct}%, var(--s3) ${donePct}% 100%);width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">📊 Reports & Insights</div><span class="cd-a" onclick="openExportPicker()">Export</span></div>
+          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
+            <div>
+              <div style="font-size:10px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ac)">(${totalC} total)</strong></div>
+              <div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="${ringStyle}"><div style="width:48px;height:48px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ok)">${donePct}%</div></div>
+                <div><div style="font-size:11px;font-weight:600">All-time done</div><div style="font-size:10px;color:var(--t3)">${totalDone} of ${totalAll} tasks</div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>Goals avg</span><strong style="color:var(--ac)">${avgGoal}%</strong></div>
+                <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${avgGoal}%;background:var(--ac);border-radius:3px"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>Habits today</span><strong style="color:${hbsPct===100?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length||0}</strong></div>
+                <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${hbsPct}%;background:${hbsPct===100?'var(--ok)':'var(--warn)'};border-radius:3px"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
     return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>`;
@@ -3035,7 +3197,7 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${(()=>{const views=[{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'},{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'clusters',icon:'⬡',label:'Clusters'}];return views.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');})()}</div><div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${(()=>{const views=[{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'},{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'clusters',icon:'⬡',label:'Clusters'}];return views.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');})()}</div><div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -3058,7 +3220,45 @@ function renderTasks(){
   </div>
   <div class="cd" id="tasks-list"></div>`;
   renderCurrentTaskView();
-  $('tasks-rail').innerHTML=(()=>{const today=new Date();const todayKey=today.toISOString().slice(0,10);const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});const body=evs.length?evs.slice(0,8).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:6px 0">No meetings today.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'sync-settings\')">Connect a calendar →</span></div>';return `<div style="font-size:12px;font-weight:600;margin-bottom:2px">Today's Schedule</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">${dateLabel}</div>${body}`;})();
+  $('tasks-rail').innerHTML=(()=>{
+    const today=new Date();
+    const todayKey=today.toISOString().slice(0,10);
+    const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+    const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    // ── Today's Schedule ──
+    const schedBody=evs.length?evs.slice(0,8).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:6px 0">No meetings today.</div>';
+    // ── Top Overdue Tasks ──
+    const overdue=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||'')).slice(0,4);
+    const overdueBody=overdue.length?overdue.map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
+    // ── Today's Habits ──
+    const habs=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,5);
+    const habsBody=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:10px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:9px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
+    // ── Quick Stats ──
+    const allTasks=D.tasks||[];
+    const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+    const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
+    const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+    const stats=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">
+      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:9px;color:var(--t3)">Done today</div></div>
+      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:9px;color:var(--t3)">My Day</div></div>
+      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--warn)">${overdue.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
+      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:9px;color:var(--t3)">Focus</div></div>
+    </div>`;
+    return `
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${dateLabel}</div>
+      ${schedBody}
+      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚠ Top Overdue</div>
+      ${overdueBody}
+      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">✓ Today's Habits</div>
+      ${habsBody}
+      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
+      <div style="font-size:12px;font-weight:600">📊 Quick Stats</div>
+      ${stats}
+    `;
+  })();
 }
 
 function bulkCompleteVisible(){
