@@ -120,6 +120,26 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="contacts"] svg{stroke:#0d9488}    /* deep teal */
 .si[data-n="bookmarks"] svg{stroke:#d97706}   /* dark amber */
 .si[data-n="archive"] svg{stroke:#64748b}     /* slate */
+.si[data-n="reports"] svg{stroke:#06b6d4}     /* cyan */
+/* PDF/print styles for the Reports page — body.lu-print-report hides chrome and
+   inverts colors for clean white-paper output. */
+@media print{
+  body.lu-print-report .topbar,
+  body.lu-print-report .sb,
+  body.lu-print-report .rr,
+  body.lu-print-report .scr:not(#s-reports),
+  body.lu-print-report .no-print,
+  body.lu-print-report #ai-panel,
+  body.lu-print-report #notif-panel,
+  body.lu-print-report #modal-capture,
+  body.lu-print-report #login-overlay{display:none!important}
+  body.lu-print-report{background:#fff!important;color:#000!important;font-size:11px}
+  body.lu-print-report .bg{display:block!important;height:auto!important}
+  body.lu-print-report .mn{padding:0!important;max-width:none!important;overflow:visible!important;height:auto!important}
+  body.lu-print-report .scr{display:block!important;height:auto!important}
+  body.lu-print-report .cd{break-inside:avoid;page-break-inside:avoid;border:1px solid #ccc!important;background:#fff!important}
+  body.lu-print-report h1,body.lu-print-report h2{color:#000!important}
+}
 .si[data-n="help"] svg{stroke:#7c3aed}        /* violet */
 .si[data-n="settings"] svg{stroke:#475569}    /* dark slate */
 .si.on svg{stroke:var(--ach)!important}        /* active state: readable against accent bg */
@@ -600,6 +620,7 @@ Refresh Token
 <div class="si" data-n="contacts" data-tour-id="nav-contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
 <div class="si" data-n="bookmarks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="l">Bookmarks</span><span class="c" id="badge-bookmarks"></span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
+<div class="si" data-n="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="l">Reports</span></div>
 </div><div class="sl">System</div><div style="padding:0 4px">
 <div class="si" data-n="help" data-tour-id="nav-help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="l">Help &amp; Learning</span></div>
 <div class="si" data-n="settings" data-tour-id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
@@ -614,7 +635,7 @@ Refresh Token
 </div></div>
 
 <!-- ===== S-03 TASKS ===== -->
-<div class="scr" id="s-tasks"><div class="bg" style="grid-template-columns:var(--side) 1fr 260px"><nav class="sb" data-sb></nav>
+<div class="scr" id="s-tasks"><div class="bg wr" style="grid-template-columns:var(--side) 1fr 320px"><nav class="sb" data-sb></nav>
 <main class="mn" id="tasks-main"></main>
 <aside class="rr" id="tasks-rail"></aside>
 </div></div>
@@ -645,6 +666,7 @@ Refresh Token
 
 <!-- ===== S-11 ARCHIVE ===== -->
 <div class="scr" id="s-archive"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="arch-main"></main></div></div>
+<div class="scr" id="s-reports"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="reports-main"></main></div></div>
 
 <!-- ===== S-14 MY DAY ===== -->
 <div class="scr" id="s-myday"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="myday-main"></main></div></div>
@@ -2024,7 +2046,7 @@ function updateSidebarBadges(){
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
   if(s==='mail')renderMail();if(s==='calendar')renderCal();if(s==='projects')renderProjects();
-  if(s==='goals')renderGoals();if(s==='journal')renderJournal();if(s==='archive')renderArchive();
+  if(s==='goals')renderGoals();if(s==='journal')renderJournal();if(s==='archive')renderArchive();if(s==='reports')renderReports();
   if(s==='myday')renderMyDay();if(s==='myweek')renderMyWeek();if(s==='myyear')renderMyYear();
   if(s==='process')renderProcess();if(s==='habits')renderHabits();if(s==='coach')renderCoach();
   if(s==='team')renderTeam();
@@ -2498,7 +2520,12 @@ const _homeCardDefs=[
   {id:'recent',label:'🕐 Recently Added',default:true},
   {id:'pinned',label:'📌 Pinned',default:true},
   {id:'focus',label:'⏱ Focus Widget',default:true},
-  {id:'reports',label:'📊 Reports & Insights',default:true}
+  {id:'reports',label:'📊 Reports & Insights',default:true},
+  {id:'habitHeatmap',label:'🔥 Habit Heatmap (30 days)',default:false},
+  {id:'moodTrend',label:'💭 Mood Trend (14 days)',default:false},
+  {id:'mindmaps',label:'🧠 Recent Mind Maps',default:false},
+  {id:'bookmarks',label:'🔖 Recent Bookmarks',default:false},
+  {id:'deadlines',label:'⏰ Upcoming Deadlines',default:false}
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -2655,6 +2682,60 @@ function renderHome(){
             </div>
           </div>
         </div>`;
+      })(),
+      // ── 30-day Habit Heatmap ──
+      habitHeatmap:(()=>{
+        const days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return d.toISOString().slice(0,10);});
+        const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+        const cells=days.map(k=>{const total=habits.length;const done=habits.filter(h=>(h.completedDates||[]).includes(k)).length;const pct=total?done/total:0;const c=pct===0?'var(--s3)':(pct<.34?'rgba(34,197,94,.25)':(pct<.67?'rgba(34,197,94,.55)':'rgba(34,197,94,.95)'));return `<div title="${k}: ${done}/${total}" style="width:14px;height:14px;background:${c};border-radius:3px"></div>`;}).join('');
+        const totalCompletions=habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>days.includes(d)).length,0);
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🔥 Habit Heatmap</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 30 days · ${totalCompletions} completion${totalCompletions===1?'':'s'} across ${habits.length} habit${habits.length===1?'':'s'}</div>
+          <div style="display:grid;grid-template-columns:repeat(15,1fr);gap:4px">${cells}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:9px;color:var(--t3)"><span>Less</span><div style="width:10px;height:10px;background:var(--s3);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.25);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.55);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.95);border-radius:2px"></div><span>More</span></div>
+        </div>`;
+      })(),
+      // ── 14-day Mood Trend (from journal) ──
+      moodTrend:(()=>{
+        const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
+        const days=Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return d;});
+        const dayKey=d=>d.toISOString().slice(0,10);
+        const series=days.map(d=>{const k=dayKey(d);const e=(D.journal||[]).find(j=>j.date===k);return {date:k,mood:e?e.mood:null,score:e&&moodMap[e.mood]?moodMap[e.mood]:null};});
+        const max=5,min=1;
+        const points=series.map((s,i)=>{const x=i/(series.length-1)*100;const y=s.score?100-((s.score-min)/(max-min))*90-5:null;return {x,y,score:s.score,date:s.date,mood:s.mood};});
+        const validPts=points.filter(p=>p.y!==null);
+        const path=validPts.length>1?'M '+validPts.map(p=>`${p.x},${p.y}`).join(' L '):'';
+        const dots=points.map(p=>p.y!==null?`<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="var(--ac)"><title>${p.date}: ${p.mood} (${p.score}/5)</title></circle>`:'').join('');
+        const avgScore=validPts.length?(validPts.reduce((s,p)=>s+p.score,0)/validPts.length).toFixed(1):'—';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">💭 Mood Trend</div><span class="cd-a" onclick="nav('journal')">Open journal</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 14 days · avg ${avgScore}/5 from ${validPts.length} entr${validPts.length===1?'y':'ies'}</div>
+          ${validPts.length?`<svg viewBox="0 0 100 60" style="width:100%;height:80px;overflow:visible" preserveAspectRatio="none"><path d="${path}" stroke="var(--ac)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>${dots}</svg>`:'<div style="font-size:10px;color:var(--t3);padding:14px;text-align:center">Write journal entries with a mood to see your trend.</div>'}
+        </div>`;
+      })(),
+      // ── Recent Mind Maps ──
+      mindmaps:(()=>{
+        const maps=(D.mindmaps||[]).slice(-5).reverse();
+        const body=maps.length?maps.map(m=>`<div class="lr" style="cursor:pointer" onclick="nav('mindmaps');setTimeout(()=>typeof mmOpen==='function'&&mmOpen(${m.id}),100)"><span style="font-size:14px;flex-shrink:0">🧠</span><span class="rt" style="font-size:11px">${esc(m.title||m.name||'Untitled')}</span><span class="rm">${(m.nodes||[]).length} nodes</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No mind maps yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'mindmaps\')">Create one →</span></div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 Mind Maps</div><span class="cd-a" onclick="nav('mindmaps')">View all</span></div>${body}<div class="add-c" onclick="nav('mindmaps')">+ New Mind Map</div></div>`;
+      })(),
+      // ── Recent Bookmarks ──
+      bookmarks:(()=>{
+        const bks=(D.bookmarks||[]).slice(0,5);
+        const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="window.open('${esc(b.url||'')}','_blank')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🔖 Bookmarks</div><span class="cd-a" onclick="nav('bookmarks')">View all</span></div>${body}</div>`;
+      })(),
+      // ── Upcoming Deadlines (next 14 days) ──
+      deadlines:(()=>{
+        const today=new Date().toISOString().slice(0,10);
+        const horizon=new Date();horizon.setDate(horizon.getDate()+14);const horizonKey=horizon.toISOString().slice(0,10);
+        const items=[];
+        (D.tasks||[]).forEach(t=>{if(t.status!=='Done'&&t.due&&t.due>=today&&t.due<=horizonKey)items.push({type:'task',id:t.id,title:t.title,date:t.due,priority:t.priority||'Medium'});});
+        (D.goals||[]).forEach(g=>{if(g.dueDate&&g.dueDate>=today&&g.dueDate<=horizonKey)items.push({type:'goal',id:g.id,title:(g.icon||'🎯')+' '+g.title,date:g.dueDate});});
+        (D.projects||[]).forEach(p=>{if(p.due&&p.due!=='TBD'&&p.due>=today&&p.due<=horizonKey)items.push({type:'project',id:p.id,title:'📁 '+p.name,date:p.due});});
+        items.sort((a,b)=>a.date.localeCompare(b.date));
+        const top=items.slice(0,8);
+        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:10px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next 14 days 🎉</div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">⏰ Upcoming Deadlines</div><span class="cd-a">Next 14 days</span></div>${body}</div>`;
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
@@ -3225,38 +3306,78 @@ function renderTasks(){
     const todayKey=today.toISOString().slice(0,10);
     const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
     const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+    const allTasks=D.tasks||[];
+    // ── Quick Stats (top, eye-catching) ──
+    const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+    const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
+    const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
+    const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+    const stats=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:9px;color:var(--t3)">Done today</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:9px;color:var(--t3)">My Day</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:9px;color:var(--t3)">Focus</div></div>
+    </div>`;
+    // ── 7-day Completion Bar Chart ──
+    const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
+    const dayLabels=['S','M','T','W','T','F','S'];
+    const counts7=days7.map(d=>{const k=d.toISOString().slice(0,10);return allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
+    const max7=Math.max(...counts7,1);
+    const total7=counts7.reduce((a,b)=>a+b,0);
+    const bars7=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
+    // ── Status Donut (Not Started / In Progress / Done / Someday) ──
+    const sCounts={Done:allTasks.filter(t=>t.status==='Done').length,'In Progress':allTasks.filter(t=>t.status==='In Progress').length,'Not Started':allTasks.filter(t=>t.status==='Not Started').length,Someday:allTasks.filter(t=>t.status==='Someday').length};
+    const sTotal=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
+    const sColors={'Done':'var(--ok)','In Progress':'var(--ac)','Not Started':'var(--t3)','Someday':'var(--warn)'};
+    let acc=0;const donutStops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
+    const donutCSS=`background:conic-gradient(${donutStops});width:80px;height:80px;border-radius:50%;flex-shrink:0`;
+    const sLegend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:9px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
+    // ── Priority Bars ──
+    const active=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+    const pCounts={High:active.filter(t=>t.priority==='High').length,Medium:active.filter(t=>t.priority==='Medium').length,Low:active.filter(t=>t.priority==='Low').length};
+    const pMax=Math.max(...Object.values(pCounts),1);
+    const pColors={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
+    const pBars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
     // ── Today's Schedule ──
-    const schedBody=evs.length?evs.slice(0,8).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:6px 0">No meetings today.</div>';
+    const schedBody=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No meetings today.</div>';
     // ── Top Overdue Tasks ──
-    const overdue=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||'')).slice(0,4);
-    const overdueBody=overdue.length?overdue.map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
+    const overdueBody=overdue.length?overdue.slice(0,4).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
     // ── Today's Habits ──
     const habs=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,5);
     const habsBody=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:10px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:9px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
-    // ── Quick Stats ──
-    const allTasks=D.tasks||[];
-    const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
-    const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
-    const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
-    const stats=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">
-      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:9px;color:var(--t3)">Done today</div></div>
-      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:9px;color:var(--t3)">My Day</div></div>
-      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--warn)">${overdue.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
-      <div style="background:var(--s2);border-radius:6px;padding:6px;text-align:center"><div style="font-size:16px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:9px;color:var(--t3)">Focus</div></div>
-    </div>`;
+
     return `
-      <div style="font-size:12px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div>
-      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${dateLabel}</div>
-      ${schedBody}
-      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
-      <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚠ Top Overdue</div>
-      ${overdueBody}
-      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
-      <div style="font-size:12px;font-weight:600;margin-bottom:6px">✓ Today's Habits</div>
-      ${habsBody}
-      <div style="height:1px;background:var(--bd1);margin:14px 0"></div>
-      <div style="font-size:12px;font-weight:600">📊 Quick Stats</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">📊 Quick Stats</div>
       ${stats}
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div>
+        <div style="font-size:9px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div>
+        <div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars7}</div>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>
+        ${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="${donutCSS}"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${sLegend}</div></div>`:'<div style="font-size:10px;color:var(--t3)">No tasks yet.</div>'}
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Active by Priority</div>
+        ${active.length?pBars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div>
+        <div style="font-size:9px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>
+        ${schedBody}
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚠ Top Overdue</div>
+        ${overdueBody}
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">✓ Today's Habits</div>
+        ${habsBody}
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        <button class="btn btn-s" style="font-size:10px" onclick="nav('reports')">📊 Open full Reports →</button>
+      </div>
     `;
   })();
 }
@@ -5950,6 +6071,236 @@ function aiExtractActions(){
   <button class="btn btn-s" onclick="closeModal()">Cancel</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REPORTS PAGE — full-featured dashboard with date ranges, charts, and PDF/Excel export
+// ═══════════════════════════════════════════════════════════════════════════════
+let _reportRange=localStorage.getItem('lu_report_range')||'30d';
+let _reportSections=JSON.parse(localStorage.getItem('lu_report_sections')||'null')||{tasks:true,goals:true,habits:true,focus:true,journal:true,projects:true};
+
+function _reportRangeDays(){return {'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[_reportRange]||30;}
+function _reportRangeLabel(){return {'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'}[_reportRange]||_reportRange;}
+function _reportStartDate(){const d=new Date();d.setDate(d.getDate()-_reportRangeDays());return d.toISOString().slice(0,10);}
+
+function setReportRange(r){_reportRange=r;localStorage.setItem('lu_report_range',r);renderReports();}
+function toggleReportSection(s){_reportSections[s]=!_reportSections[s];localStorage.setItem('lu_report_sections',JSON.stringify(_reportSections));renderReports();}
+
+// Lazy-load SheetJS (xlsx) the first time the user wants Excel export.
+let _xlsxLoaded=false;
+function _ensureXLSX(){return new Promise((resolve,reject)=>{if(_xlsxLoaded||window.XLSX){_xlsxLoaded=true;return resolve(window.XLSX);}const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=()=>{_xlsxLoaded=true;resolve(window.XLSX);};s.onerror=()=>reject(new Error('Failed to load XLSX library'));document.head.appendChild(s);});}
+
+async function exportReportsExcel(){
+  try{
+    toast('⏳ Building Excel workbook…');
+    const XLSX=await _ensureXLSX();
+    const wb=XLSX.utils.book_new();
+    const startKey=_reportStartDate();
+    const inRange=(dateStr)=>!dateStr||dateStr>=startKey;
+    // Tasks sheet
+    const taskRows=(D.tasks||[]).filter(t=>inRange(t.completedAt||t.createdAt||t.due)).map(t=>({Title:t.title,Status:t.status,Priority:t.priority,Due:t.due||'',Completed:t.completedAt||'',Project:t.project||'',Tags:(t.tags||[]).join('; ')}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(taskRows),'Tasks');
+    // Goals sheet
+    const goalRows=(D.goals||[]).map(g=>({Title:g.title,Category:g.category||'',Progress:(g.pct||0)+'%',DueDate:g.dueDate||'',Milestones:(g.milestones||[]).length}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(goalRows),'Goals');
+    // Habits sheet
+    const habitRows=(D.habits||[]).map(h=>({Title:h.title,Cadence:h.cadence,Streak:h.streak||0,DoneToday:h.doneToday?'Yes':'No',Completions30d:(h.completedDates||[]).filter(d=>d>=startKey).length}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(habitRows),'Habits');
+    // Journal sheet
+    const journalRows=(D.journal||[]).filter(j=>inRange(j.date)).map(j=>({Date:j.date,Title:j.title,Mood:j.mood||'',Body:j.body||''}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(journalRows),'Journal');
+    // Projects sheet
+    const projectRows=(D.projects||[]).map(p=>({Name:p.name,Status:p.status||'',Progress:(p.pct||0)+'%',Due:p.due||'',Owner:p.owner||''}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(projectRows),'Projects');
+    // Summary sheet (key metrics)
+    const todayKey=new Date().toISOString().slice(0,10);
+    const summary=[
+      {Metric:'Report range',Value:_reportRangeLabel()},
+      {Metric:'Generated',Value:new Date().toLocaleString()},
+      {Metric:'Total tasks',Value:(D.tasks||[]).length},
+      {Metric:'Done in range',Value:(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'')>=startKey).length},
+      {Metric:'Currently overdue',Value:(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).length},
+      {Metric:'Total goals',Value:(D.goals||[]).length},
+      {Metric:'Avg goal progress',Value:(D.goals||[]).length?Math.round((D.goals||[]).reduce((s,g)=>s+(g.pct||0),0)/(D.goals||[]).length)+'%':'—'},
+      {Metric:'Daily habits',Value:(D.habits||[]).filter(h=>h.cadence==='Daily').length},
+      {Metric:'Habits done today',Value:(D.habits||[]).filter(h=>h.cadence==='Daily'&&h.doneToday).length},
+      {Metric:'Journal entries in range',Value:(D.journal||[]).filter(j=>(j.date||'')>=startKey).length},
+    ];
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(summary),'Summary');
+    const stamp=new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb,`levelup-report-${stamp}.xlsx`);
+    toast('⬇ Excel report downloaded');
+  }catch(e){toast('⚠ Excel export failed: '+(e.message||e));}
+}
+
+function exportReportsPDF(){
+  // Browser print → user picks "Save as PDF" in the print dialog. The print stylesheet
+  // hides everything outside the report so the PDF is clean.
+  document.body.classList.add('lu-print-report');
+  setTimeout(()=>{
+    window.print();
+    setTimeout(()=>document.body.classList.remove('lu-print-report'),500);
+  },50);
+}
+
+function renderReports(){
+  const startKey=_reportStartDate();
+  const todayKey=new Date().toISOString().slice(0,10);
+  const inRange=d=>d&&d>=startKey&&d<=todayKey;
+  const tasks=D.tasks||[];const goals=D.goals||[];const habits=D.habits||[];const journal=D.journal||[];const projects=D.projects||[];
+  const days=Math.min(_reportRangeDays(),365);
+  const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+
+  // Tasks data
+  const tasksDoneRange=tasks.filter(t=>t.status==='Done'&&inRange(t.completedAt||''));
+  const tasksCreatedRange=tasks.filter(t=>inRange(t.createdAt||''));
+  const completionByDay=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+  const maxCompletion=Math.max(...completionByDay,1);
+  // Show at most ~30 bars to keep readable
+  const barStep=Math.max(1,Math.ceil(dayKeys.length/30));
+  const barData=[];for(let i=0;i<dayKeys.length;i+=barStep){let sum=0;for(let j=i;j<Math.min(i+barStep,dayKeys.length);j++)sum+=completionByDay[j];barData.push({key:dayKeys[i],count:sum});}
+  const barMax=Math.max(...barData.map(b=>b.count),1);
+  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px"><div style="width:80%;background:var(--ac);border-radius:2px 2px 0 0;height:${h}px;min-height:2px" title="${b.key}: ${b.count}"></div></div>`;}).join('');
+  const tasksByPriority={High:tasks.filter(t=>t.priority==='High'&&t.status!=='Done').length,Medium:tasks.filter(t=>t.priority==='Medium'&&t.status!=='Done').length,Low:tasks.filter(t=>t.priority==='Low'&&t.status!=='Done').length};
+  const tasksByStatus={Done:tasks.filter(t=>t.status==='Done').length,'In Progress':tasks.filter(t=>t.status==='In Progress').length,'Not Started':tasks.filter(t=>t.status==='Not Started').length,Someday:tasks.filter(t=>t.status==='Someday').length};
+
+  // Goals data
+  const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+(g.pct||0),0)/goals.length):0;
+  const goalsOnTrack=goals.filter(g=>(g.pct||0)>=50).length;
+  const goalsBehind=goals.filter(g=>(g.pct||0)<30).length;
+
+  // Habits data
+  const dailyHabits=habits.filter(h=>h.cadence==='Daily');
+  const habitCells=dayKeys.slice(-Math.min(days,90)).map(k=>{const total=dailyHabits.length;const done=dailyHabits.filter(h=>(h.completedDates||[]).includes(k)).length;const pct=total?done/total:0;const c=pct===0?'var(--s3)':(pct<.34?'rgba(34,197,94,.25)':(pct<.67?'rgba(34,197,94,.55)':'rgba(34,197,94,.95)'));return `<div title="${k}: ${done}/${total}" style="width:14px;height:14px;background:${c};border-radius:3px"></div>`;}).join('');
+  const totalHabitCompletions=dailyHabits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>d>=startKey).length,0);
+  const topStreak=habits.reduce((b,h)=>(h.streak||0)>(b.streak||0)?h:b,{streak:0,title:'—',icon:''});
+
+  // Focus data
+  const focusLog=(D.prefs&&D.prefs.focusLog)||{};
+  const focusByDay=dayKeys.map(k=>focusLog[k]||0);
+  const focusTotal=focusByDay.reduce((a,b)=>a+b,0);
+  const focusMax=Math.max(...focusByDay,1);
+  const focusBars=focusByDay.map((m,i)=>{const h=Math.round(m/focusMax*52)+1;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:4px"><div style="width:80%;background:var(--purp);border-radius:2px 2px 0 0;height:${h}px;min-height:2px" title="${dayKeys[i]}: ${m}m"></div></div>`;}).join('');
+
+  // Journal/Mood data
+  const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
+  const journalRange=journal.filter(j=>j&&inRange(j.date||''));
+  const journalScored=journalRange.filter(j=>moodMap[j.mood]).map(j=>moodMap[j.mood]);
+  const avgMood=journalScored.length?(journalScored.reduce((a,b)=>a+b,0)/journalScored.length).toFixed(1):'—';
+
+  // Donut helper for status
+  const sTotal=Object.values(tasksByStatus).reduce((a,b)=>a+b,0)||1;
+  const sColors={Done:'#22c55e','In Progress':'var(--ac)','Not Started':'var(--t3)',Someday:'var(--warn)'};
+  let acc=0;const donutStops=Object.entries(tasksByStatus).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
+
+  $('reports-main').innerHTML=`
+  <div id="lu-report-print-target">
+    <div class="ph-r" style="margin-bottom:16px">
+      <div><h1 style="font-size:24px;font-weight:700">📊 Reports & Insights</h1><p style="font-size:12px;color:var(--t2)">${_reportRangeLabel()} · ${tasksDoneRange.length} tasks completed · ${journalRange.length} journal entries · ${focusTotal} focus minutes</p></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select class="inp" style="height:30px;font-size:11px" onchange="setReportRange(this.value)">
+          ${['7d','30d','90d','365d','all'].map(r=>`<option value="${r}" ${_reportRange===r?'selected':''}>${({'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'})[r]}</option>`).join('')}
+        </select>
+        <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsPDF()">⬇ PDF</button>
+        <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsExcel()">⬇ Excel</button>
+        <button class="btn btn-s no-print" style="font-size:11px" onclick="openReportCustomize()">⚙ Customize</button>
+      </div>
+    </div>
+
+    <!-- KPI tiles -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ok)">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Tasks completed</div></div>
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Tasks created</div></div>
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--purp)">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Focus time</div></div>
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:#f43f5e">${avgMood}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg mood (out of 5)</div></div>
+      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
+    </div>
+
+    ${_reportSections.tasks?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">✓ Tasks Performance</h2>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
+        <div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Completion trend (${barData.length} ${barStep===1?'days':'periods'})</div>
+          <div style="display:flex;align-items:flex-end;gap:3px;height:64px;padding:4px 0">${tasksBars}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Status breakdown (${sTotal} total)</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div style="background:conic-gradient(${donutStops});width:70px;height:70px;border-radius:50%;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:10px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
+        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:10px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
+      </div>
+    </div>`:''}
+
+    ${_reportSections.goals?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">🎯 Goals Progress</h2>
+      ${goals.length?`
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${goals.length}</div><div style="font-size:10px;color:var(--t3)">Total goals</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${goalsOnTrack}</div><div style="font-size:10px;color:var(--t3)">On track (≥50%)</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">${goalsBehind}</div><div style="font-size:10px;color:var(--t3)">Behind (&lt;30%)</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
+      `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No goals yet.</div>'}
+    </div>`:''}
+
+    ${_reportSections.habits?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">🔥 Habits Consistency</h2>
+      ${dailyHabits.length?`
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${dailyHabits.length}</div><div style="font-size:10px;color:var(--t3)">Daily habits</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${totalHabitCompletions}</div><div style="font-size:10px;color:var(--t3)">Completions in range</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">🔥 ${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3)">Top streak</div></div>
+        </div>
+        <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Heatmap (${Math.min(days,90)} days, color = % of habits done)</div>
+        <div style="display:grid;grid-template-columns:repeat(15,1fr);gap:4px">${habitCells}</div>
+      `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No daily habits yet.</div>'}
+    </div>`:''}
+
+    ${_reportSections.focus?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">⏱ Focus Time</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--purp)">${focusTotal}m</div><div style="font-size:10px;color:var(--t3)">Total minutes</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${(focusTotal/60).toFixed(1)}h</div><div style="font-size:10px;color:var(--t3)">Total hours</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${days?Math.round(focusTotal/days):0}m</div><div style="font-size:10px;color:var(--t3)">Daily average</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:60px">${focusBars}</div>
+    </div>`:''}
+
+    ${_reportSections.journal?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📔 Journal & Mood</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalRange.length}</div><div style="font-size:10px;color:var(--t3)">Entries in range</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#f43f5e">${avgMood}/5</div><div style="font-size:10px;color:var(--t3)">Average mood</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalScored.length}</div><div style="font-size:10px;color:var(--t3)">Mood-tagged</div></div>
+      </div>
+    </div>`:''}
+
+    ${_reportSections.projects?`
+    <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📁 Projects</h2>
+      ${projects.length?`<div style="display:flex;flex-direction:column;gap:6px">${projects.slice(0,12).map(p=>{const pct=p.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':'var(--warn)');return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${esc(p.name)} <span style="color:var(--t3);font-size:10px">${esc(p.status||'')}</span></span><strong style="color:${c}">${pct}%</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:3px"></div></div></div>`;}).join('')}</div>`:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects yet.</div>'}
+    </div>`:''}
+
+    <div class="no-print" style="text-align:center;color:var(--t3);font-size:10px;margin:24px 0 12px">Generated ${new Date().toLocaleString()} · LevelUp Second Brain</div>
+  </div>`;
+}
+
+function openReportCustomize(){
+  const sections=[{k:'tasks',label:'Tasks Performance'},{k:'goals',label:'Goals Progress'},{k:'habits',label:'Habits Consistency'},{k:'focus',label:'Focus Time'},{k:'journal',label:'Journal & Mood'},{k:'projects',label:'Projects'}];
+  const html=`<div style="padding:18px;min-width:320px">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">⚙ Customize Report</h3>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle sections to include in your report. Saves automatically.</p>
+    ${sections.map(s=>`<div class="lr" style="padding:6px 0"><label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;flex:1"><input type="checkbox" ${_reportSections[s.k]?'checked':''} onchange="toggleReportSection('${s.k}')">${s.label}</label></div>`).join('')}
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-s" onclick="closeModal()">Done</button></div>
+  </div>`;
+  const mc=document.getElementById('modal-content');if(mc)mc.innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
 }
 
 function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">Completed and archived items.</p></div>
