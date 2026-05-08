@@ -2488,7 +2488,7 @@ function renderHome(){
           <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
         </div>`;
       })(),
-      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div></div>${[{n:'Q2 Marketing Plan.pptx',t:'PPT',c:'var(--reds)',cc:'var(--red)',m:'2h ago'},{n:'Budget Forecast.xlsx',t:'XLS',c:'var(--oks)',cc:'var(--ok)',m:'5h ago'},{n:'Client Proposal.docx',t:'DOC',c:'var(--acs)',cc:'var(--ac)',m:'Yesterday'}].map(f=>`<div class="lr"><span style="width:20px;height:20px;border-radius:3px;background:${f.c};color:${f.cc};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${f.t}</span><span class="rt" style="font-size:11px">${f.n}</span><span class="rm">${f.m}</span></div>`).join('')}</div>`
+      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
     return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>`;
@@ -3053,8 +3053,7 @@ function renderTasks(){
   </div>
   <div class="cd" id="tasks-list"></div>`;
   renderCurrentTaskView();
-  $('tasks-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Week Calendar</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">May 19–25, 2025</div>
-  ${['9 AM|Daily Standup','10 AM|Focus Block','12 PM|Budget Review','1 PM|Client Call','3 PM|Focus Time'].map(e=>{const[t,n]=e.split('|');return`<div style="display:flex;gap:4px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:30px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:9px">${n}</div></div>`}).join('')}`;
+  $('tasks-rail').innerHTML=(()=>{const today=new Date();const todayKey=today.toISOString().slice(0,10);const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});const body=evs.length?evs.slice(0,8).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:6px 0">No meetings today.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'sync-settings\')">Connect a calendar →</span></div>';return `<div style="font-size:12px;font-weight:600;margin-bottom:2px">Today's Schedule</div><div style="font-size:10px;color:var(--t2);margin-bottom:8px">${dateLabel}</div>${body}`;})();
 }
 
 function bulkCompleteVisible(){
