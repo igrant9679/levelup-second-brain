@@ -4320,11 +4320,12 @@ function aiOKRAlignment(){
   document.getElementById('modal-capture').classList.add('show');
 }
 
+// Global so filter state persists across re-renders (was previously local — caused filter to reset).
+if(typeof _goalsMyOnly==='undefined')var _goalsMyOnly=false;
+if(typeof _goalsView==='undefined')var _goalsView='grid';
 function renderGoals(){
   // Auto-recalculate all goal percentages before rendering
   D.goals.forEach(g=>autoCalcGoalPct(g));
-  let _goalsMyOnly=false;
-  let _goalsView='grid';
   function renderGoalCards(){
     const me=D.creds.userName||'Idris Grant';
     const el=document.getElementById('goals-grid');
@@ -4580,9 +4581,10 @@ function deleteMilestone(goalId,idx){
   toast('Milestone deleted');
 }
 
+// Global so the Journal tab filter persists across re-renders.
+if(typeof _jrnlFilter==='undefined')var _jrnlFilter='All';
 function renderJournal(){
   const journalTabs=['All','Daily','Weekly Review','Gratitude','Planning','Reflection'];
-  let _jrnlFilter='All';
   function renderJournalList(filter){
     _jrnlFilter=filter||_jrnlFilter;
     const entries=_jrnlFilter==='All'?D.journal:D.journal.filter(j=>j.title&&j.title.toLowerCase().includes(_jrnlFilter.toLowerCase()));
