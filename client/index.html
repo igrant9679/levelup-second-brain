@@ -3043,7 +3043,7 @@ function renderTasks(){
   <div class="tabs" id="tasks-tabs">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderCurrentTaskView()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
-    <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add task… (press Enter to save, Tab for priority)" onkeydown="handleQuickAdd(event)">
+    <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add task… (Enter to save · Tab cycles priority filter)" onkeydown="handleQuickAdd(event)">
     <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="_taskPriorityFilter=this.value;renderCurrentTaskView()">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
