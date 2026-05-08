@@ -635,7 +635,7 @@ Refresh Token
 </div></div>
 
 <!-- ===== S-03 TASKS ===== -->
-<div class="scr" id="s-tasks"><div class="bg wr" style="grid-template-columns:var(--side) 1fr 320px"><nav class="sb" data-sb></nav>
+<div class="scr" id="s-tasks"><div class="bg wr" style="grid-template-columns:var(--side) 1fr 425px"><nav class="sb" data-sb></nav>
 <main class="mn" id="tasks-main"></main>
 <aside class="rr" id="tasks-rail"></aside>
 </div></div>
@@ -2525,7 +2525,14 @@ const _homeCardDefs=[
   {id:'moodTrend',label:'💭 Mood Trend (14 days)',default:false},
   {id:'mindmaps',label:'🧠 Recent Mind Maps',default:false},
   {id:'bookmarks',label:'🔖 Recent Bookmarks',default:false},
-  {id:'deadlines',label:'⏰ Upcoming Deadlines',default:false}
+  {id:'deadlines',label:'⏰ Upcoming Deadlines',default:false},
+  // 6 NEW widgets
+  {id:'productivityScore',label:'📊 Productivity Score (today)',default:false},
+  {id:'streaks',label:'🏆 Top Streaks',default:false},
+  {id:'weekAhead',label:'🗓 Week Ahead (7-day plan)',default:false},
+  {id:'ideasPipeline',label:'💡 Ideas Pipeline',default:false},
+  {id:'taskVelocity',label:'🚀 Task Velocity (this vs last week)',default:false},
+  {id:'tagCloud',label:'🏷 Tag Cloud (all sources)',default:false}
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -2736,6 +2743,95 @@ function renderHome(){
         const top=items.slice(0,8);
         const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:10px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next 14 days 🎉</div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">⏰ Upcoming Deadlines</div><span class="cd-a">Next 14 days</span></div>${body}</div>`;
+      })(),
+      // ── Productivity Score (composite metric) ──
+      productivityScore:(()=>{
+        const todayKey=new Date().toISOString().slice(0,10);
+        const dailyHabits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+        const habsDone=dailyHabits.filter(h=>h.doneToday).length;
+        const habsScore=dailyHabits.length?(habsDone/dailyHabits.length)*30:15;
+        const tDone=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+        const tasksScore=Math.min(tDone*8,40);
+        const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+        const focusScore=Math.min(focusMins/2,20);
+        const ovd=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).length;
+        const overduePenalty=Math.min(ovd*2,10);
+        const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
+        const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">📊 Productivity Score</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
+          <div style="display:flex;gap:14px;align-items:center">
+            <div style="text-align:center;flex-shrink:0">
+              <div style="font-size:38px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
+              <div style="font-size:18px;color:${grade.c};font-weight:600">${grade.l}</div>
+            </div>
+            <div style="flex:1">
+              <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--t2)">
+                <div>✓ Tasks done: <strong>${tDone}</strong></div>
+                <div>🔥 Habits: <strong>${habsDone}/${dailyHabits.length}</strong></div>
+                <div>⏱ Focus: <strong>${focusMins}m</strong></div>
+                <div style="color:${ovd>0?'var(--red)':'var(--t3)'}">⚠ Overdue: <strong>${ovd}</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      })(),
+      // ── Top Streaks (across habits + journal) ──
+      streaks:(()=>{
+        const items=[];
+        (D.habits||[]).filter(h=>h.streak&&h.streak>0).forEach(h=>items.push({icon:h.icon||'🔥',title:h.title,count:h.streak,unit:'day',type:'habit'}));
+        if(typeof calcJournalStreak==='function'){const s=calcJournalStreak();if(s>0)items.push({icon:'📔',title:'Journal',count:s,unit:'day',type:'journal'});}
+        items.sort((a,b)=>b.count-a.count);
+        const top=items.slice(0,6);
+        const body=top.length?top.map(it=>`<div class="lr" style="padding:5px 0"><span style="font-size:14px;flex-shrink:0">${it.icon}</span><span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:var(--warn);font-weight:700;flex-shrink:0">🔥 ${it.count}${it.unit==='day'?'d':''}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No active streaks yet. Build one by checking off a habit daily.</div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🏆 Top Streaks</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>${body}</div>`;
+      })(),
+      // ── Week Ahead (next 7 days mini-calendar) ──
+      weekAhead:(()=>{
+        const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
+        const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:9px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:9px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:9px;color:var(--t3)">—</div>':''}</div>`;}).join('');
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🗓 Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
+      })(),
+      // ── Ideas Pipeline (counts by stage) ──
+      ideasPipeline:(()=>{
+        const ideas=D.ideas||[];
+        const stages=[{k:'spark',label:'💥 Spark',c:'var(--warn)'},{k:'develop',label:'🌱 Develop',c:'var(--ac)'},{k:'stress_test',label:'🧪 Stress Test',c:'var(--purp)'},{k:'promoted',label:'🚀 Promoted',c:'var(--ok)'},{k:'parked',label:'⏸ Parked',c:'var(--t3)'},{k:'graveyard',label:'🪦 Graveyard',c:'var(--t3)'}];
+        const counts=stages.map(s=>({...s,c2:s.c,n:ideas.filter(i=>i.stage===s.k).length}));
+        const max=Math.max(...counts.map(c=>c.n),1);
+        const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${c.c}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">💡 Ideas Pipeline</div><span class="cd-a" onclick="nav('ideas')">All ideas</span></div>${body}</div>`;
+      })(),
+      // ── Task Velocity (this week vs last week) ──
+      taskVelocity:(()=>{
+        const now=new Date();
+        const thisStart=new Date();thisStart.setDate(thisStart.getDate()-7);
+        const lastStart=new Date();lastStart.setDate(lastStart.getDate()-14);
+        const thisKey=thisStart.toISOString().slice(0,10);
+        const lastKey=lastStart.toISOString().slice(0,10);
+        const thisWeek=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'')>=thisKey).length;
+        const lastWeek=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'')>=lastKey&&(t.completedAt||'')<thisKey).length;
+        const delta=thisWeek-lastWeek;
+        const arrow=delta>0?'↑':delta<0?'↓':'→';
+        const dColor=delta>0?'var(--ok)':delta<0?'var(--red)':'var(--t3)';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🚀 Task Velocity</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
+            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${thisWeek}</div><div style="font-size:10px;color:var(--t3)">This week</div></div>
+            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--t2)">${lastWeek}</div><div style="font-size:10px;color:var(--t3)">Last week</div></div>
+          </div>
+          <div style="text-align:center;margin-top:10px;font-size:13px;color:${dColor};font-weight:600">${arrow} ${Math.abs(delta)} task${Math.abs(delta)===1?'':'s'} ${delta>0?'more':delta<0?'less':'same'} than last week</div>
+        </div>`;
+      })(),
+      // ── Tag Cloud (across tasks, notes, journal) ──
+      tagCloud:(()=>{
+        const freq={};
+        (D.tasks||[]).forEach(t=>(t.tags||[]).forEach(tg=>{freq[tg]=(freq[tg]||0)+1;}));
+        (D.notes||[]).forEach(n=>(n.tags||[]).forEach(tg=>{freq[tg]=(freq[tg]||0)+1;}));
+        (D.journal||[]).forEach(j=>(j.tags||[]).forEach(tg=>{freq[tg]=(freq[tg]||0)+1;}));
+        const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,30);
+        const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
+        const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(10+(c-min)/range*8);const hue=Math.abs(t.split('').reduce((h,ch)=>h*31+ch.charCodeAt(0),0))%360;return `<span style="display:inline-block;padding:3px 9px;margin:3px;border-radius:12px;background:hsl(${hue},45%,30%);color:hsl(${hue},65%,80%);font-size:${sz}px;cursor:pointer" title="${c} item${c===1?'':'s'}">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No tags yet — add tags to tasks, notes, or journal entries.</div>';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🏷 Tag Cloud</div><span class="cd-a">${arr.length} unique</span></div><div style="line-height:1.8">${body}</div></div>`;
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
@@ -3247,6 +3343,166 @@ function _applyPriorityFilter(tasks){
   if(!_taskPriorityFilter||_taskPriorityFilter==='All')return tasks;
   return tasks.filter(t=>t.priority===_taskPriorityFilter);
 }
+// ════════════════════════════════════════════════════════════════════════════
+// TASKS RAIL WIDGETS — customizable right-pane widgets on the Tasks page
+// ════════════════════════════════════════════════════════════════════════════
+const _taskRailDefs=[
+  {id:'quickStats',label:'📊 Quick Stats (4 tiles)',default:true},
+  {id:'last7Days',label:'📈 Last 7 Days completion bars',default:true},
+  {id:'statusDonut',label:'🍩 Status Breakdown (donut)',default:true},
+  {id:'priorityBars',label:'⚡ Active by Priority (bars)',default:true},
+  {id:'todaySchedule',label:'📅 Today\'s Schedule',default:true},
+  {id:'topOverdue',label:'⚠ Top Overdue',default:true},
+  {id:'todayHabits',label:'✓ Today\'s Habits',default:true},
+  // New widget options
+  {id:'goalsSnapshot',label:'🎯 Goals Snapshot',default:false},
+  {id:'projectVelocity',label:'🚀 Project Velocity (this week)',default:false},
+  {id:'topTags',label:'🏷 Top Tags (cloud)',default:false},
+  {id:'recentActivity',label:'🕐 Recent Activity Feed',default:false},
+  {id:'productivityScore',label:'📊 Productivity Score (today)',default:false},
+  {id:'reportsLink',label:'📊 Open full Reports button',default:true}
+];
+function getTaskRailPrefs(){try{const p=JSON.parse(localStorage.getItem('lu_task_rail')||'null');if(p)return p;}catch(e){}return _taskRailDefs.map((c,i)=>({id:c.id,visible:c.default,order:i}));}
+function saveTaskRailPrefs(p){localStorage.setItem('lu_task_rail',JSON.stringify(p));}
+function taskRailToggle(id,visible){const p=getTaskRailPrefs();const it=p.find(x=>x.id===id);if(it){it.visible=visible;saveTaskRailPrefs(p);renderTasks();}}
+function taskRailMove(id,dir){const p=getTaskRailPrefs().sort((a,b)=>a.order-b.order);const idx=p.findIndex(x=>x.id===id);if(idx<0)return;const ni=idx+dir;if(ni<0||ni>=p.length)return;[p[idx].order,p[ni].order]=[p[ni].order,p[idx].order];saveTaskRailPrefs(p);renderTasks();setTimeout(openTaskRailCustomize,80);}
+function openTaskRailCustomize(){
+  closeModal();
+  const prefs=getTaskRailPrefs().sort((a,b)=>a.order-b.order);
+  const html=`<div style="padding:18px;min-width:380px;max-width:500px">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:6px">⚙ Customize Tasks Sidebar</h3>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Toggle visibility and reorder widgets. Saves automatically.</p>
+    ${prefs.map(p=>{const def=_taskRailDefs.find(d=>d.id===p.id);return def?`<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px">
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${p.id}',-1)">↑</button>
+        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="taskRailMove('${p.id}',1)">↓</button>
+      </div>
+      <span style="flex:1;font-size:12px">${def.label}</span>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+        <input type="checkbox" ${p.visible?'checked':''} onchange="taskRailToggle('${p.id}',this.checked)">Show
+      </label>
+    </div>`:'';}).join('')}
+    <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-s" onclick="closeModal()">Done</button></div>
+  </div>`;
+  const mc=document.getElementById('modal-content');if(mc)mc.innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+
+function renderTaskRailHTML(){
+  const today=new Date();
+  const todayKey=today.toISOString().slice(0,10);
+  const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const allTasks=D.tasks||[];
+  const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+  const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
+  const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
+  const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
+
+  const widgets={
+    quickStats:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:9px;color:var(--t3)">Done today</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:9px;color:var(--t3)">My Day</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:9px;color:var(--t3)">Focus</div></div>
+    </div>`,
+    last7Days:(()=>{
+      const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
+      const dayLabels=['S','M','T','W','T','F','S'];
+      const counts7=days7.map(d=>{const k=d.toISOString().slice(0,10);return allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
+      const max7=Math.max(...counts7,1);
+      const total7=counts7.reduce((a,b)=>a+b,0);
+      const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div><div style="font-size:9px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div><div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div></div>`;
+    })(),
+    statusDonut:(()=>{
+      const sCounts={Done:allTasks.filter(t=>t.status==='Done').length,'In Progress':allTasks.filter(t=>t.status==='In Progress').length,'Not Started':allTasks.filter(t=>t.status==='Not Started').length,Someday:allTasks.filter(t=>t.status==='Someday').length};
+      const sTotal=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
+      const sColors={'Done':'var(--ok)','In Progress':'var(--ac)','Not Started':'var(--t3)','Someday':'var(--warn)'};
+      let acc=0;const stops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
+      const legend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:9px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:10px;color:var(--t3)">No tasks yet.</div>'}</div>`;
+    })(),
+    priorityBars:(()=>{
+      const active=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+      const pCounts={High:active.filter(t=>t.priority==='High').length,Medium:active.filter(t=>t.priority==='Medium').length,Low:active.filter(t=>t.priority==='Low').length};
+      const pMax=Math.max(...Object.values(pCounts),1);
+      const pColors={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
+      const bars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Active by Priority</div>${active.length?bars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}</div>`;
+    })(),
+    todaySchedule:(()=>{
+      const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No meetings today.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div><div style="font-size:9px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
+    })(),
+    topOverdue:(()=>{
+      const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⚠ Top Overdue</div>${body}</div>`;
+    })(),
+    todayHabits:(()=>{
+      const habs=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,6);
+      const body=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:10px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:9px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">✓ Today's Habits</div>${body}</div>`;
+    })(),
+    goalsSnapshot:(()=>{
+      const gs=(D.goals||[]).slice(0,5);
+      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No goals yet.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🎯 Goals Snapshot</div>${body}</div>`;
+    })(),
+    projectVelocity:(()=>{
+      const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkKey=wkStart.toISOString().slice(0,10);
+      const byProj={};(D.projects||[]).forEach(p=>byProj[p.id]={name:p.name,count:0});
+      allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'')>=wkKey&&t.projectId).forEach(t=>{if(byProj[t.projectId])byProj[t.projectId].count++;});
+      const arr=Object.values(byProj).filter(p=>p.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
+      const max=Math.max(...arr.map(p=>p.count),1);
+      const body=arr.length?arr.map(p=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${esc(p.name)}</span><strong style="color:var(--ac)">${p.count}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${p.count/max*100}%;background:var(--ac)"></div></div></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No completions this week.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">🚀 Project Velocity</div><div style="font-size:9px;color:var(--t3);margin-bottom:8px">Tasks done by project · last 7 days</div>${body}</div>`;
+    })(),
+    topTags:(()=>{
+      const freq={};allTasks.forEach(t=>(t.tags||[]).forEach(tag=>{freq[tag]=(freq[tag]||0)+1;}));
+      const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15);
+      const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
+      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${esc(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No tags yet.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🏷 Top Tags</div>${body}</div>`;
+    })(),
+    recentActivity:(()=>{
+      const recent=[];
+      allTasks.forEach(t=>{if(t.completedAt)recent.push({type:'✓',t:'Completed: '+t.title,when:t.completedAt});if(t.createdAt)recent.push({type:'+',t:'Created task: '+t.title,when:t.createdAt});});
+      (D.notes||[]).forEach(n=>{if(n.createdAt)recent.push({type:'📝',t:'Note: '+n.title,when:n.createdAt});});
+      (D.journal||[]).forEach(j=>{if(j.createdAt)recent.push({type:'📔',t:'Journal: '+(j.title||'(entry)'),when:j.createdAt});});
+      recent.sort((a,b)=>(b.when||'').localeCompare(a.when||''));
+      const top=recent.slice(0,8);
+      const body=top.length?top.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;font-size:10px"><span style="flex-shrink:0">${r.type}</span><span style="flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.t)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No activity yet.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🕐 Recent Activity</div>${body}</div>`;
+    })(),
+    productivityScore:(()=>{
+      const dailyHabits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+      const habsDone=dailyHabits.filter(h=>h.doneToday).length;
+      const habsScore=dailyHabits.length?(habsDone/dailyHabits.length)*30:15;
+      const tasksScore=Math.min(doneToday*8,40);
+      const focusScore=Math.min(focusMins/2,20);
+      const overduePenalty=Math.min(overdue.length*2,10);
+      const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
+      const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;margin-bottom:12px;text-align:center">
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">📊 Productivity Score</div>
+        <div style="font-size:36px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
+        <div style="font-size:18px;color:${grade.c};font-weight:600;margin-bottom:8px">${grade.l}</div>
+        <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
+        <div style="font-size:9px;color:var(--t3);margin-top:8px">Tasks ${doneToday} · Habits ${habsDone}/${dailyHabits.length} · Focus ${focusMins}m</div>
+      </div>`;
+    })(),
+    reportsLink:`<div style="text-align:center;margin-top:6px"><button class="btn btn-s" style="font-size:10px" onclick="nav('reports')">📊 Open full Reports →</button></div>`
+  };
+  const prefs=getTaskRailPrefs().sort((a,b)=>a.order-b.order);
+  const visibleHTML=prefs.filter(p=>p.visible).map(p=>widgets[p.id]||'').join('');
+  return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:700">📊 Insights</div>
+    <button class="btn btn-s" style="font-size:9px;padding:0 8px;height:22px" onclick="openTaskRailCustomize()">⚙ Customize</button>
+  </div>${visibleHTML}`;
+}
+
 function renderTasks(){
   // Compute week bounds for This Week filter
   const _twNow=new Date();
@@ -3301,85 +3557,7 @@ function renderTasks(){
   </div>
   <div class="cd" id="tasks-list"></div>`;
   renderCurrentTaskView();
-  $('tasks-rail').innerHTML=(()=>{
-    const today=new Date();
-    const todayKey=today.toISOString().slice(0,10);
-    const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
-    const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
-    const allTasks=D.tasks||[];
-    // ── Quick Stats (top, eye-catching) ──
-    const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
-    const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
-    const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
-    const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
-    const stats=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:9px;color:var(--t3)">Done today</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:9px;color:var(--t3)">My Day</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:9px;color:var(--t3)">Focus</div></div>
-    </div>`;
-    // ── 7-day Completion Bar Chart ──
-    const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
-    const dayLabels=['S','M','T','W','T','F','S'];
-    const counts7=days7.map(d=>{const k=d.toISOString().slice(0,10);return allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
-    const max7=Math.max(...counts7,1);
-    const total7=counts7.reduce((a,b)=>a+b,0);
-    const bars7=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:9px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
-    // ── Status Donut (Not Started / In Progress / Done / Someday) ──
-    const sCounts={Done:allTasks.filter(t=>t.status==='Done').length,'In Progress':allTasks.filter(t=>t.status==='In Progress').length,'Not Started':allTasks.filter(t=>t.status==='Not Started').length,Someday:allTasks.filter(t=>t.status==='Someday').length};
-    const sTotal=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
-    const sColors={'Done':'var(--ok)','In Progress':'var(--ac)','Not Started':'var(--t3)','Someday':'var(--warn)'};
-    let acc=0;const donutStops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
-    const donutCSS=`background:conic-gradient(${donutStops});width:80px;height:80px;border-radius:50%;flex-shrink:0`;
-    const sLegend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:9px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
-    // ── Priority Bars ──
-    const active=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
-    const pCounts={High:active.filter(t=>t.priority==='High').length,Medium:active.filter(t=>t.priority==='Medium').length,Low:active.filter(t=>t.priority==='Low').length};
-    const pMax=Math.max(...Object.values(pCounts),1);
-    const pColors={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
-    const pBars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
-    // ── Today's Schedule ──
-    const schedBody=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No meetings today.</div>';
-    // ── Top Overdue Tasks ──
-    const overdueBody=overdue.length?overdue.slice(0,4).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
-    // ── Today's Habits ──
-    const habs=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,5);
-    const habsBody=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:10px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:9px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
-
-    return `
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px">📊 Quick Stats</div>
-      ${stats}
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div>
-        <div style="font-size:9px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div>
-        <div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars7}</div>
-      </div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>
-        ${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="${donutCSS}"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${sLegend}</div></div>`:'<div style="font-size:10px;color:var(--t3)">No tasks yet.</div>'}
-      </div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Active by Priority</div>
-        ${active.length?pBars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}
-      </div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div>
-        <div style="font-size:9px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>
-        ${schedBody}
-      </div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚠ Top Overdue</div>
-        ${overdueBody}
-      </div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;margin-bottom:8px">✓ Today's Habits</div>
-        ${habsBody}
-      </div>
-      <div style="text-align:center;margin-top:12px">
-        <button class="btn btn-s" style="font-size:10px" onclick="nav('reports')">📊 Open full Reports →</button>
-      </div>
-    `;
-  })();
+  $('tasks-rail').innerHTML=renderTaskRailHTML();
 }
 
 function bulkCompleteVisible(){
