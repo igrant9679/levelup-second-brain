@@ -57,7 +57,7 @@ async function callClaude(opts: CallProviderOptions): Promise<string> {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       system: sys,
       messages: [{ role: "user", content: opts.userContent }],
       max_tokens: opts.maxTokens ?? 1024,
@@ -74,7 +74,7 @@ async function callClaude(opts: CallProviderOptions): Promise<string> {
 }
 
 async function callGemini(opts: CallProviderOptions): Promise<string> {
-  const model = "gemini-1.5-flash";
+  const model = "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${opts.apiKey}`;
   const resp = await fetch(url, {
     method: "POST",

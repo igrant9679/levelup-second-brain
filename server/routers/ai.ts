@@ -55,7 +55,7 @@ async function callClaude(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-3-haiku-20240307",
+      model: "claude-haiku-4-5",
       system: systemPrompt,
       messages: [{ role: "user", content: userContent }],
       max_tokens: 1024,
@@ -79,7 +79,7 @@ async function callGemini(
   userContent: string,
   apiKey: string
 ): Promise<string> {
-  const model = "gemini-1.5-flash";
+  const model = "gemini-2.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const resp = await fetch(url, {
     method: "POST",
