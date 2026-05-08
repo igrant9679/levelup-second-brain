@@ -313,6 +313,8 @@ export const bookmarksRouter = router({
       url: z.string().url(),
       title: z.string().optional(),
       description: z.string().optional(),
+      provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
+      apiKey: z.string().max(512).optional(),
     }))
     .mutation(async ({ input }) => {
       // Use provided metadata or fetch it
@@ -325,44 +327,20 @@ export const bookmarksRouter = router({
         description = description || meta.description || '';
       }
 
-      const { invokeLLM } = await import('../_core/llm');
+      const { callAIProvider } = await import('../_core/aiProviders');
 
-      const response = await invokeLLM({
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a bookmark tagging assistant. Given a web page title, description, and URL, suggest 3 to 5 concise, lowercase tags that categorize the content. Return ONLY a JSON array of strings, no explanation. Example: ["javascript", "tutorial", "react", "frontend"]',
-          },
-          {
-            role: 'user',
-            content: `Title: ${title}\nDescription: ${description || '(none)'}\nURL: ${input.url}`,
-          },
-        ],
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'tag_suggestions',
-            strict: true,
-            schema: {
-              type: 'object',
-              properties: {
-                tags: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: '3 to 5 lowercase tags for this bookmark',
-                },
-              },
-              required: ['tags'],
-              additionalProperties: false,
-            },
-          },
-        },
+      const { text } = await callAIProvider({
+        provider: input.provider,
+        apiKey: input.apiKey,
+        systemPrompt: 'You are a bookmark tagging assistant. Given a web page title, description, and URL, suggest 3 to 5 concise, lowercase tags that categorize the content. Return ONLY a JSON object of the form {"tags": ["tag1", "tag2"]}, no explanation.',
+        userContent: `Title: ${title}\nDescription: ${description || '(none)'}\nURL: ${input.url}`,
+        jsonMode: true,
+        maxTokens: 256,
       });
 
       try {
-        const content = response.choices?.[0]?.message?.content;
-        if (!content) return { tags: [] };
-        const parsed = JSON.parse(typeof content === 'string' ? content : JSON.stringify(content));
+        if (!text) return { tags: [] };
+        const parsed = JSON.parse(text);
         const tags: string[] = Array.isArray(parsed.tags)
           ? parsed.tags.slice(0, 8).map((t: unknown) => String(t).toLowerCase().trim()).filter(Boolean)
           : [];

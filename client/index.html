@@ -10973,9 +10973,7 @@ async function bulkAutoTagNotes(){
   if(!untagged.length){toast('✅ All notes already have tags!');return;}
   const confirm_=window.confirm(`Auto-tag ${untagged.length} untagged note${untagged.length!==1?'s':''}? The AI will suggest and automatically apply tags to each note.`);
   if(!confirm_)return;
-  const provider=(D.creds&&D.creds.aiProvider)||'manus';
-  const keyMap={openai:D.creds&&D.creds.openaiKey,claude:D.creds&&D.creds.claudeKey,gemini:D.creds&&D.creds.geminiKey};
-  const apiKey=keyMap[provider]||undefined;
+  const {provider,apiKey}=_getAIConfig();
   let done=0,failed=0;
   toast(`🏷 Auto-tagging ${untagged.length} notes… (0/${untagged.length})`);
   for(const note of untagged){
@@ -13412,7 +13410,8 @@ async function doSuggestBookmarkTags(){
   const btn=document.querySelector('#modal-body button[onclick="doSuggestBookmarkTags()"]');
   if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
   try{
-    const res=await _trpc('bookmarks.suggestTags',{url,title},'mutate');
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('bookmarks.suggestTags',{url,title,provider,apiKey},'mutate');
     if(res.tags&&res.tags.length){
       const tagsInput=$('bk-tags');
       if(tagsInput)tagsInput.value=res.tags.join(', ');
@@ -14731,15 +14730,19 @@ function _rteTimeAgo(ts){
   return Math.floor(diff/86400000)+'d ago';
 }
 
+// Read the user's selected AI provider + matching key. The provider lives in D.prefs.aiProvider
+// and keys live in D.creds.{openai_key,claude_key,gemini_key} (set by Settings → AI Features).
+function _getAIConfig(){
+  const provider=(D.prefs&&D.prefs.aiProvider)||'manus';
+  const keyMap={openai:D.creds&&D.creds.openai_key,claude:D.creds&&D.creds.claude_key,gemini:D.creds&&D.creds.gemini_key};
+  return {provider,apiKey:keyMap[provider]||undefined};
+}
 async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   const el=document.getElementById(resultElId);
   if(!el)return;
   el.style.display='block';
   el.innerHTML='<span style="color:var(--t3)">⏳ Thinking...</span>';
-  // Pick provider + key from user settings
-  const provider=(D.creds&&D.creds.aiProvider)||'manus';
-  const keyMap={openai:D.creds&&D.creds.openaiKey,claude:D.creds&&D.creds.claudeKey,gemini:D.creds&&D.creds.geminiKey};
-  const apiKey=keyMap[provider]||undefined;
+  const {provider,apiKey}=_getAIConfig();
   try{
     const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
     const text=res?.result||res?.text||'No response generated.';
