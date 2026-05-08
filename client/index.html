@@ -9574,8 +9574,9 @@ function renderSettingsHTML(){
   </div>
   <!-- Per-User Credential Entry -->
   <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 Your OAuth App Credentials</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Enter your own Client ID &amp; Secret to connect your personal Microsoft or Google account. These are stored securely in the database and only used for your account. Leave blank to use the app-wide credentials (if configured by the owner).</p>
+    <details>
+    <summary style="font-size:12px;font-weight:600;margin-bottom:4px;cursor:pointer">🔑 Advanced: Override with your own OAuth App Credentials</summary>
+    <p style="font-size:10px;color:var(--t3);margin:8px 0 10px">Most users can skip this. The app uses global OAuth credentials configured by the owner (Railway env vars <code>MS_CLIENT_ID</code> / <code>MS_CLIENT_SECRET</code> / <code>MS_TENANT_ID</code>). Only fill in your own Azure AD app credentials below if you want to override the global app for your account.</p>
     <div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:6px">Microsoft 365</div>
       <div style="margin-bottom:6px">
@@ -9614,6 +9615,7 @@ function renderSettingsHTML(){
         <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
       </div>
     </div>
+    </details>
 
   </div>
   <!-- Notification Sender (owner/admin only) -->

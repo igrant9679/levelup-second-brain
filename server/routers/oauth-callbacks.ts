@@ -65,7 +65,7 @@ export function registerProviderOAuthCallbacks(app: Express) {
     const clientId = (userCred?.clientId || process.env.MS_CLIENT_ID) ?? "";
     const clientSecret = (userCred?.clientSecret || process.env.MS_CLIENT_SECRET) ?? "";
     // Use tenant-specific endpoint if tenantId was encoded in state (single-tenant apps)
-    const tenantId = (stateData.tenantId?.trim() || userCred?.tenantId?.trim()) ?? "common";
+    const tenantId = (stateData.tenantId?.trim() || userCred?.tenantId?.trim() || process.env.MS_TENANT_ID) ?? "common";
     const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const redirectUri = `${stateData.origin}/api/oauth/microsoft/callback`;
 

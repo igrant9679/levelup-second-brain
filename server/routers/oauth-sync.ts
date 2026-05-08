@@ -140,7 +140,7 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
   if (!clientId || !clientSecret) return null;
   // Use tenant-specific endpoint for single-tenant apps
   const userCred = await db.getUserOauthCredential(token.userId, "microsoft");
-  const tenantId = userCred?.tenantId?.trim() || "common";
+  const tenantId = userCred?.tenantId?.trim() || process.env.MS_TENANT_ID || "common";
   const resp = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -251,7 +251,8 @@ export const oauthSyncRouter = router({
       const userCred = input.provider === "microsoft"
         ? await db.getUserOauthCredential(ctx.user.id, "microsoft")
         : null;
-      const tenantId = input.tenantId || userCred?.tenantId || null;
+      // Tenant precedence: UI input → user-saved cred → MS_TENANT_ID env var → null (multi-tenant 'common')
+      const tenantId = input.tenantId || userCred?.tenantId || process.env.MS_TENANT_ID || null;
       const msScopes = userCred?.msScopes ?? null;
       // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
       const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
