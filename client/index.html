@@ -11956,7 +11956,7 @@ let _faType=null; // current entity type
 let _faAddAnother=false;
 let _faHasChanges=false;
 let _faTags=[]; // current modal tags
-let _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[]}; // linked item ids
+let _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[],bookmarks:[]}; // linked item ids
 let _faSubtasks=[]; // inline subtask rows
 let _faMilestones=[]; // project milestones
 let _faReflections=[]; // goal check-ins
@@ -11993,7 +11993,7 @@ function openFA(type){
   _faType=type;
   _faHasChanges=false;
   _faTags=[..._faSessionTags];
-  _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[]};
+  _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[],bookmarks:[]};
   _faSubtasks=[];
   _faMilestones=[];
   _faReflections=[];
@@ -12049,7 +12049,7 @@ function renderFATags(){
 function faLinkerInput(field,val){
   const drop=document.getElementById('fa-drop-'+field);
   if(!drop)return;
-  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts};
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts,bookmarks:D.bookmarks||[]};
   const src=sources[field]||[];
   const q=(val||'').toLowerCase();
   // When val is empty, show the most recent unlinked items so the user can browse without typing.
@@ -12082,7 +12082,7 @@ function faUnlinkItem(field,id){
 function renderFALinked(field){
   const wrap=document.getElementById('fa-linked-'+field);
   if(!wrap)return;
-  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts};
+  const sources={tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,ideas:D.ideas,contacts:D.contacts,bookmarks:D.bookmarks||[]};
   const src=sources[field]||[];
   wrap.innerHTML=(_faLinked[field]||[]).map(id=>{
     const item=src.find(x=>x.id===id);
@@ -12259,8 +12259,9 @@ function faCommonLinks(){
       <div class="fa-field"><label>Linked Tasks</label>${faLinkerHtml('tasks','Search tasks...')}</div>
       <div class="fa-field"><label>Linked Notes</label>${faLinkerHtml('notes','Search notes...')}</div>
     </div>
-    <div class="fa-row">
+    <div class="fa-row c2">
       <div class="fa-field"><label>Linked Journal Entries</label>${faLinkerHtml('journal','Search journal...')}</div>
+      <div class="fa-field"><label>Linked Bookmarks</label>${faLinkerHtml('bookmarks','Search bookmarks...')}</div>
     </div>
   </div>`;
 }
@@ -12932,6 +12933,15 @@ function doFASave(addAnother){
     }
 
     if(newId)applyBidirectionalLinks(_faType,newId);
+    // Link selected bookmarks to the new entity (server-side join). Fire-and-forget; non-fatal.
+    if(newId&&Array.isArray(_faLinked.bookmarks)&&_faLinked.bookmarks.length){
+      const linkableTypes=new Set(['note','idea','task','project','goal']);
+      if(linkableTypes.has(_faType)){
+        _faLinked.bookmarks.forEach(bid=>{
+          _trpc('bookmarks.linkToEntity',{bookmarkId:bid,entityType:_faType,entityId:newId},'mutation').catch(e=>console.warn('[bookmarks] link failed',e?.message||e));
+        });
+      }
+    }
     toast('✓ '+(_faType||'Item')+' saved: '+title);
     _faHasChanges=false;
     updateSidebarBadges();
@@ -16546,7 +16556,17 @@ window.save=function(k){
   }
 };
 // Load data from server and merge into D (server wins for non-empty arrays/objects)
+// Lightweight cache of the user's bookmarks so FA forms can offer a "Linked Bookmarks" picker.
+async function loadBookmarksCache(){
+  try{
+    const res=await _trpc('bookmarks.list',{page:1,pageSize:200},'query');
+    const items=res?.bookmarks||res||[];
+    D.bookmarks=Array.isArray(items)?items.map(b=>({id:b.id,title:b.title||b.url,url:b.url})):[];
+  }catch(e){console.warn('[bookmarks] cache load failed',e.message);D.bookmarks=D.bookmarks||[];}
+}
 async function loadServerData(){
+  // Load bookmarks cache in parallel — fire and forget, used by linker dropdowns.
+  loadBookmarksCache();
   try{
     const sd=await _trpc('appData.load',undefined,'query');
     if(!sd)return; // No server data yet — first time user
