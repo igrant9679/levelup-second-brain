@@ -11814,18 +11814,32 @@ function aiSummarizeNote(id){
     // Trim to ~80 chars
     return s.length>80?s.slice(0,77)+'...':s;
   });
-  const summary='## ✨ AI Summary\n\n'+bullets.map(b=>'- '+b).join('\n')+'\n\n---\n\n'+n.body;
-  // Show in a modal with option to prepend to note
+  const bulletText=bullets.map(b=>'- '+b).join('\n');
+  // Stash the payload so the buttons can act on it without trying to inline
+  // JSON-stringified strings into an onclick attribute (those embed double
+  // quotes, which break the attribute and spill code into the modal body).
+  window._aiSummaryPayload={id,bulletText};
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:10px">✨ AI Summary — ${esc(n.title)}</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Bullet-point summary extracted from note content:</div>
   <div id="ai-sum-preview" style="background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:10px;font-size:12px;color:var(--t1);line-height:1.7;max-height:240px;overflow-y:auto">${bullets.map(b=>`<div style="display:flex;gap:6px;margin-bottom:4px"><span style="color:var(--ac)">•</span><span>${esc(b)}</span></div>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-  <button class="btn btn-p" onclick="D.notes.find(x=>x.id===${id}).body=${JSON.stringify('## ✨ AI Summary\n\n')}+${JSON.stringify(bullets.map(b=>'- '+b).join('\n'))}+'\n\n---\n\n'+(D.notes.find(x=>x.id===${id}).body||'');save('notes');showNoteInEditor(${id});closeModal();toast('✓ Summary prepended to note!')">Prepend to Note</button>
-  <button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(bullets.map(b=>'- '+b).join('\n'))}).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">📋 Copy</button>
-  <button class="btn btn-s" onclick="closeModal()">Close</button>
+    <button class="btn btn-p" onclick="_applyAISummary()">Prepend to Note</button>
+    <button class="btn btn-s" onclick="_copyAISummary()">📋 Copy</button>
+    <button class="btn btn-s" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+}
+function _applyAISummary(){
+  const p=window._aiSummaryPayload;if(!p)return;
+  const n=D.notes.find(x=>x.id===p.id);if(!n)return;
+  n.body='## ✨ AI Summary\n\n'+p.bulletText+'\n\n---\n\n'+(n.body||'');
+  save('notes');showNoteInEditor(p.id);closeModal();
+  toast('✓ Summary prepended to note!');
+}
+function _copyAISummary(){
+  const p=window._aiSummaryPayload;if(!p)return;
+  navigator.clipboard.writeText(p.bulletText).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'));
 }
 
 function aiAutoTagNote(id){
