@@ -17341,7 +17341,7 @@ async function saveTeamSender(userId){
   }
 }
 async function deleteTeamSender(userId){
-  if(!confirm('Remove this user\\'s notification sender? They will fall back to the system default.'))return;
+  if(!confirm("Remove this user's notification sender? They will fall back to the system default."))return;
   try{
     await _trpc('oauthSync.adminDeleteSmtpImapAccount',{userId},'mutation');
     toast('Sender removed');
