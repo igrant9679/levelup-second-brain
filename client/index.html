@@ -15893,10 +15893,31 @@ function _rteTimeAgo(ts){
 // first load so AI calls are synchronous-ish.
 let _sharedAI={keys:{openai:'',claude:'',gemini:''},provider:'openai',loaded:false};
 async function loadSharedAISettings(){
+  // Belt-and-suspenders: read a localStorage cache first so the Settings
+  // panel shows the correct keys instantly on page load, even before the
+  // server roundtrip completes (or if it fails entirely).
+  try{
+    const cached=JSON.parse(localStorage.getItem('lu_sharedAI')||'null');
+    if(cached&&cached.keys){
+      _sharedAI={keys:cached.keys,provider:cached.provider||'openai',loaded:false};
+    }
+  }catch(_){}
   try{
     const res=await _trpc('aiSettings.get',undefined,'query');
-    if(res){_sharedAI={keys:res.keys||{},provider:res.provider||'openai',loaded:true};}
+    if(res){
+      _sharedAI={keys:res.keys||{},provider:res.provider||'openai',loaded:true};
+      // Refresh the cache so the next page load is instant.
+      try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
+    }
   }catch(e){console.warn('[aiSettings] load failed',e?.message||e);_sharedAI.loaded=true;}
+  // If the user is on the Settings → AI Features pane right now, re-render
+  // it so the inputs reflect what came back from the server.
+  try{
+    if(typeof curScreen!=='undefined'&&curScreen==='settings'){
+      const aiPane=document.getElementById('sp-6');
+      if(aiPane&&aiPane.style.display!=='none'&&typeof renderScreen==='function')renderScreen('settings');
+    }
+  }catch(_){}
   // One-time migration: keys may live in either D.creds.{openai_key,...}
   // (the original localStorage-only home) or D.prefs.aiKeys (Round 1's
   // server-synced home). On first admin login after Round 3, sweep both
@@ -15945,10 +15966,20 @@ function _getAIConfig(){
 }
 
 // Admin-only: write a shared AI key (or clear with empty string).
+// Hardened: refuses to silently wipe a previously-saved key. If the input
+// is empty, the user must explicitly confirm they want to clear it.
 async function setAIKey(provider,key){
+  const previous=_sharedAI.keys&&_sharedAI.keys[provider]||'';
+  if(!key&&previous){
+    if(!confirm('Clear the saved '+provider+' API key? This affects every team member. Cancel to keep the existing key.'))return;
+  }
+  if(!key&&!previous){
+    toast('Enter a key first');return;
+  }
   try{
     await _trpc('aiSettings.set',{[provider]:key||''},'mutation');
     _sharedAI.keys[provider]=key||'';
+    try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
     renderScreen('settings');
     toast(key?'✅ '+provider+' key saved for the whole team':provider+' key cleared');
   }catch(e){
@@ -15959,6 +15990,7 @@ async function setAIProvider(p){
   try{
     await _trpc('aiSettings.set',{provider:p},'mutation');
     _sharedAI.provider=p;
+    try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
     renderScreen('settings');
     toast('Active AI provider: '+p);
   }catch(e){toast('Failed: '+(e.message||e));}
@@ -17866,6 +17898,17 @@ async function _pushKeyToServer(k){
   }
 }
 window.save=function(k){
+  // Mirror aiTopics through prefs.aiTopics for server sync (the server's
+  // user_app_data table has no aiTopics column, so we ride along with prefs).
+  if(k==='aiTopics'){
+    D.prefs=D.prefs||{};
+    D.prefs.aiTopics=Array.isArray(D.aiTopics)?D.aiTopics.slice():[];
+    _origSave('prefs');
+    if(_syncKeys.has('prefs')){
+      clearTimeout(_syncTimers['prefs']);
+      _syncTimers['prefs']=setTimeout(()=>_pushKeyToServer('prefs'),2000);
+    }
+  }
   _origSave(k);
   invalidateSearchIndex();
   // Debounce server push by 2s to batch rapid edits
@@ -17901,6 +17944,13 @@ async function loadServerData(){
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
       D.prefs=Object.assign({},D.prefs,sd.prefs);
       localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+      // The server's user_app_data table doesn't have a dedicated aiTopics
+      // column, so we mirror aiTopics through prefs.aiTopics for cross-device
+      // persistence. Restore it back to D.aiTopics here.
+      if(Array.isArray(D.prefs.aiTopics)&&D.prefs.aiTopics.length){
+        D.aiTopics=D.prefs.aiTopics.slice();
+        localStorage.setItem('lu_aiTopics',JSON.stringify(D.aiTopics));
+      }
       changed=true;
     }
     if(changed){
