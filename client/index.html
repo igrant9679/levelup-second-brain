@@ -1267,7 +1267,7 @@ var D = {
   ],
   teams: JSON.parse(localStorage.getItem('lu_teams') || 'null') || [
     {id:1,name:'LevelUp Core Team',members:[
-      {id:1,userId:1,name:'Idris Grant',email:'idris@levelup.app',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
+      {id:1,userId:1,name:'Owner',email:'',role:'Owner',color:'#3B82F6',perms:{tasks:true,notes:true,projects:true,goals:true,journal:true,settings:true,mail:true,calendar:true,habits:true,coach:true}},
     ]},
   ],
   aiTopics: JSON.parse(localStorage.getItem('lu_aiTopics') || 'null') || ['Technology','World News'],
@@ -9106,6 +9106,25 @@ function renderCoach(){
 }
 
 function renderTeam(){
+  // Keep the owner member's name + email in sync with the logged-in user's
+  // actual profile (D.creds) so old seed data like 'idris@levelup.app'
+  // doesn't linger after sign-up.
+  try{
+    const realEmail=(D.creds&&D.creds.email)||'';
+    const realName=(D.creds&&D.creds.userName)||'';
+    if(realEmail||realName){
+      let changed=false;
+      D.teams.forEach(t=>{
+        (t.members||[]).forEach(m=>{
+          if(m.role==='Owner'||m.id===1){
+            if(realName&&m.name!==realName){m.name=realName;changed=true;}
+            if(realEmail&&m.email!==realEmail){m.email=realEmail;changed=true;}
+          }
+        });
+      });
+      if(changed)save('teams');
+    }
+  }catch(_){}
   const allMembers=D.teams.flatMap(t=>t.members);
   const today=new Date().toISOString().split('T')[0];
   function memberCard(m){
