@@ -15661,18 +15661,31 @@ async function loadSharedAISettings(){
     const res=await _trpc('aiSettings.get',undefined,'query');
     if(res){_sharedAI={keys:res.keys||{},provider:res.provider||'openai',loaded:true};}
   }catch(e){console.warn('[aiSettings] load failed',e?.message||e);_sharedAI.loaded=true;}
-  // One-time migration: if the admin used to have keys in D.prefs.aiKeys
-  // (per-user model), copy them up to the shared store on first admin login.
+  // One-time migration: keys may live in either D.creds.{openai_key,...}
+  // (the original localStorage-only home) or D.prefs.aiKeys (Round 1's
+  // server-synced home). On first admin login after Round 3, sweep both
+  // and push anything found into the shared workspace store.
   try{
-    if(String(D.creds.role||'').toLowerCase()==='admin'&&D.prefs&&D.prefs.aiKeys){
-      const k=D.prefs.aiKeys;const updates={};
-      if(k.openai&&!_sharedAI.keys.openai)updates.openai=k.openai;
-      if(k.claude&&!_sharedAI.keys.claude)updates.claude=k.claude;
-      if(k.gemini&&!_sharedAI.keys.gemini)updates.gemini=k.gemini;
+    if(String(D.creds.role||'').toLowerCase()==='admin'){
+      const updates={};
+      const fromCreds={
+        openai:D.creds&&D.creds.openai_key,
+        claude:D.creds&&D.creds.claude_key,
+        gemini:D.creds&&D.creds.gemini_key,
+      };
+      const fromPrefs=(D.prefs&&D.prefs.aiKeys)||{};
+      for(const p of ['openai','claude','gemini']){
+        if(_sharedAI.keys[p])continue; // already on server, don't overwrite
+        const v=fromCreds[p]||fromPrefs[p];
+        if(v)updates[p]=v;
+      }
       if(Object.keys(updates).length){
         await _trpc('aiSettings.set',updates,'mutation');
         Object.assign(_sharedAI.keys,updates);
-        delete D.prefs.aiKeys;save('prefs');
+        // Clean up legacy locations now that the keys are safely on the server
+        if(D.creds){delete D.creds.openai_key;delete D.creds.claude_key;delete D.creds.gemini_key;
+          try{localStorage.setItem('lu_creds',JSON.stringify(D.creds));}catch(_){}}
+        if(D.prefs&&D.prefs.aiKeys){delete D.prefs.aiKeys;save('prefs');}
         toast('✅ AI keys migrated to shared workspace storage');
       }
     }
