@@ -23,6 +23,12 @@ body[data-role="user"] .admin-only-inline,
 body[data-role="User"] .admin-only-inline,
 body[data-role="member"] .admin-only-inline,
 body[data-role="Member"] .admin-only-inline{visibility:hidden!important;pointer-events:none!important}
+/* Inverse: shown only when current role is NOT admin */
+.admin-hide-only{display:none!important}
+body[data-role="user"] .admin-hide-only,
+body[data-role="User"] .admin-hide-only,
+body[data-role="member"] .admin-hide-only,
+body[data-role="Member"] .admin-hide-only{display:block!important}
 body.compact-mode .lr{padding:2px 0!important}
 body.compact-mode .cd{padding:8px!important}
 body.compact-mode h1{font-size:16px!important}
@@ -10104,7 +10110,11 @@ function renderHelpInsights(){
 </div>`;
 }
 
-function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
+function renderSettings(){
+  $('settings-main').innerHTML=renderSettingsHTML();
+  // Lazy-load admin team-senders list if the panel is in the DOM and the user is admin
+  setTimeout(()=>{const el=document.getElementById('team-senders-list');if(el&&String(D.creds.role||'').toLowerCase()==='admin')loadTeamNotificationSenders();},50);
+}
 </script>
 <script>
 function renderSettingsHTML(){
@@ -10392,8 +10402,12 @@ function renderSettingsHTML(){
       <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
     </div>
   </div>
-  <!-- Secondary Email Account (SMTP/IMAP) -->
-  <div id="smtp-imap-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
+  <!-- Non-admin notice: secondary email is managed by admin -->
+  <div class="admin-hide-only" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:10px;border:1px dashed var(--bd2);font-size:11px;color:var(--t2)">
+    🔒 Your notification email account is managed by your administrator. Contact them to change it.
+  </div>
+  <!-- Secondary Email Account (SMTP/IMAP) — admin-only (admin uses this to set their OWN sender) -->
+  <div id="smtp-imap-card" class="admin-only" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
     <div class="lr" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:32px;height:32px;background:#6366f1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">✉</div>
@@ -10451,6 +10465,14 @@ function renderSettingsHTML(){
       <button id="btn-smtp-edit" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="showSmtpImapForm()">✏️ Edit</button>
       <button id="btn-smtp-delete" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="deleteSmtpImapAccount()">✕ Remove</button>
     </div>
+  </div>
+  <!-- Admin: Team Notification Senders -->
+  <div class="admin-only" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px;border:1px solid var(--ac)">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="width:32px;height:32px;background:var(--ac);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">👥</div>
+      <div><div style="font-size:12px;font-weight:600">Team Notification Senders</div><div style="font-size:10px;color:var(--t3)">Admin only — configure each team member's outbound SMTP. Notifications they receive will be sent from the account you configure here for them.</div></div>
+    </div>
+    <div id="team-senders-list" style="margin-top:8px;font-size:11px;color:var(--t3)">Loading…</div>
   </div>
   <!-- Per-User Credential Entry -->
   <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -12606,6 +12628,8 @@ function doLoginSuccess(member){
   D.creds.userName=member.name||'User';
   D.creds.email=member.email||'';
   D.creds.role=member.role||'Member';
+  // Tag the body so admin-only / admin-hide-only CSS gates apply correctly
+  document.body.setAttribute('data-role', String(D.creds.role||'Member').toLowerCase()==='admin'?'admin':'user');
   D.creds.color=member.color||'var(--ac)';
   localStorage.setItem('lu_creds',JSON.stringify(D.creds));
   // Apply permissions
@@ -17222,6 +17246,109 @@ function showProactiveHint(hint){
 }
 
 // ====== SMTP/IMAP SECONDARY EMAIL ======
+// ─── Admin: Team Notification Senders ───────────────────────────────────────
+// Lists every team user and lets the admin configure each one's outbound SMTP.
+// The configured account becomes the "from" for any notifications sent to that
+// user. Loaded on demand by renderSettings → Mail tab.
+async function loadTeamNotificationSenders(){
+  const el=document.getElementById('team-senders-list');
+  if(!el)return;
+  try{
+    const users=await _trpc('oauthSync.adminListUsers',undefined,'query');
+    if(!Array.isArray(users)||!users.length){el.innerHTML='<div style="color:var(--t3)">No users found.</div>';return;}
+    el.innerHTML=users.map(u=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1)">
+        <div style="width:24px;height:24px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--t1)">${esc(((u.name||u.email||'?').charAt(0)||'?').toUpperCase())}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:600;color:var(--t1)">${esc(u.name||'(unnamed)')} ${u.role==='admin'?'<span style=\"font-size:9px;color:var(--ac);margin-left:4px\">ADMIN</span>':''}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(u.email||'')}</div>
+        </div>
+        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${u.hasSmtp?'rgba(34,197,94,.15);color:var(--ok)':'var(--s3);color:var(--t3)'}">${u.hasSmtp?'✓ Configured':'Not set'}</span>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openTeamSenderForm(${u.id},'${esc(u.name||u.email||'user')}')">${u.hasSmtp?'Edit':'Configure'}</button>
+        ${u.hasSmtp?`<button class="btn btn-d" style="height:24px;font-size:10px" onclick="deleteTeamSender(${u.id})">✕</button>`:''}
+      </div>
+    `).join('');
+  }catch(e){
+    el.innerHTML='<div style="color:var(--err);font-size:10px">Failed to load: '+esc(e.message||String(e))+'</div>';
+  }
+}
+async function openTeamSenderForm(userId,userLabel){
+  // Load existing account (if any) to pre-fill
+  let existing=null;
+  try{existing=await _trpc('oauthSync.adminGetSmtpImapAccount',{userId},'query');}catch(_){}
+  const e=existing||{};
+  const html=`
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Configure SMTP — ${esc(userLabel)}</h3>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">This account sends notifications to ${esc(userLabel)}.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+      <input id="ts-email" class="inp" type="email" placeholder="Email address" value="${esc(e.email||'')}" style="font-size:11px"/>
+      <input id="ts-display-name" class="inp" type="text" placeholder="Display name (optional)" value="${esc(e.displayName||'')}" style="font-size:11px"/>
+    </div>
+    <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP</div>
+    <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:6px;margin-bottom:6px">
+      <input id="ts-imap-host" class="inp" placeholder="IMAP Host" value="${esc(e.imapHost||'')}" style="font-size:11px"/>
+      <input id="ts-imap-port" class="inp" type="number" placeholder="Port" value="${e.imapPort||993}" style="font-size:11px"/>
+      <select id="ts-imap-encryption" class="inp" style="font-size:11px"><option value="ssl"${e.imapEncryption==='ssl'?' selected':''}>SSL</option><option value="tls"${e.imapEncryption==='tls'?' selected':''}>TLS</option><option value="none"${e.imapEncryption==='none'?' selected':''}>None</option></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+      <input id="ts-imap-username" class="inp" placeholder="IMAP Username" value="${esc(e.imapUsername||'')}" style="font-size:11px"/>
+      <input id="ts-imap-password" class="inp" type="password" placeholder="IMAP Password" value="${esc(e.imapPassword||'')}" style="font-size:11px"/>
+    </div>
+    <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP</div>
+    <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:6px;margin-bottom:6px">
+      <input id="ts-smtp-host" class="inp" placeholder="SMTP Host" value="${esc(e.smtpHost||'')}" style="font-size:11px"/>
+      <input id="ts-smtp-port" class="inp" type="number" placeholder="Port" value="${e.smtpPort||587}" style="font-size:11px"/>
+      <select id="ts-smtp-encryption" class="inp" style="font-size:11px"><option value="ssl"${e.smtpEncryption==='ssl'?' selected':''}>SSL</option><option value="tls"${(!e.smtpEncryption||e.smtpEncryption==='tls')?' selected':''}>TLS</option><option value="none"${e.smtpEncryption==='none'?' selected':''}>None</option></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+      <input id="ts-smtp-username" class="inp" placeholder="SMTP Username" value="${esc(e.smtpUsername||'')}" style="font-size:11px"/>
+      <input id="ts-smtp-password" class="inp" type="password" placeholder="SMTP Password" value="${esc(e.smtpPassword||'')}" style="font-size:11px"/>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveTeamSender(${userId})">💾 Save</button>
+    </div>
+  `;
+  document.getElementById('modal-content').innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+}
+async function saveTeamSender(userId){
+  const data={
+    userId,
+    email:document.getElementById('ts-email').value.trim(),
+    displayName:document.getElementById('ts-display-name').value.trim()||undefined,
+    imapHost:document.getElementById('ts-imap-host').value.trim(),
+    imapPort:parseInt(document.getElementById('ts-imap-port').value,10)||993,
+    imapEncryption:document.getElementById('ts-imap-encryption').value,
+    imapUsername:document.getElementById('ts-imap-username').value.trim(),
+    imapPassword:document.getElementById('ts-imap-password').value,
+    smtpHost:document.getElementById('ts-smtp-host').value.trim(),
+    smtpPort:parseInt(document.getElementById('ts-smtp-port').value,10)||587,
+    smtpEncryption:document.getElementById('ts-smtp-encryption').value,
+    smtpUsername:document.getElementById('ts-smtp-username').value.trim(),
+    smtpPassword:document.getElementById('ts-smtp-password').value,
+  };
+  if(!data.email||!data.imapHost||!data.imapUsername||!data.imapPassword||!data.smtpHost||!data.smtpUsername||!data.smtpPassword){
+    toast('Please fill in all required fields.');return;
+  }
+  try{
+    await _trpc('oauthSync.adminSaveSmtpImapAccount',data,'mutation');
+    toast('✅ Notification sender saved');
+    closeModal();
+    loadTeamNotificationSenders();
+  }catch(e){
+    toast('Failed to save: '+(e.message||e));
+  }
+}
+async function deleteTeamSender(userId){
+  if(!confirm('Remove this user\\'s notification sender? They will fall back to the system default.'))return;
+  try{
+    await _trpc('oauthSync.adminDeleteSmtpImapAccount',{userId},'mutation');
+    toast('Sender removed');
+    loadTeamNotificationSenders();
+  }catch(e){toast('Failed: '+(e.message||e));}
+}
+
 function showSmtpImapForm(){
   const form=document.getElementById('smtp-imap-form');
   const buttons=document.getElementById('smtp-imap-buttons');

@@ -96,7 +96,7 @@ async function startServer() {
             ? `<a href="${reconnectUrl}" style="background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">🔗 Reconnect ${providerLabel} now</a>`
             : `<span style="color:#888">Log in to LevelUp and go to Settings → Accounts → ${providerLabel} → Refresh Token.</span>`;
           const html = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0b0f1a;color:#e2e8f0;border-radius:12px"><h2 style="color:#a78bfa;margin-top:0">⚠ Action required: Reconnect your ${providerLabel} account</h2><p>Your <strong>${providerLabel}</strong> connection (<em>${connectedEmail}</em>) ${timeStr}.</p><p>Once expired, LevelUp will no longer be able to sync your calendar, mail, or contacts from this account.</p><p style="margin-top:24px">${reconnectBtn}</p><p style="color:#888;font-size:12px;margin-top:24px">Or go to Settings → Accounts → ${providerLabel} → Refresh Token to reconnect manually.</p></div>`;
-          const ok = await sendEmail({ to: userEmail, subject: `Action required: Your ${providerLabel} connection ${timeStr}`, html, senderUserId: null });
+          const ok = await sendEmail({ to: userEmail, subject: `Action required: Your ${providerLabel} connection ${timeStr}`, html, senderUserId: null, recipientUserId: (t as any).userId ?? null });
           if (ok) sent++;
         }
         await dbHelpers.setSystemSetting(emailDedupeKey, "1");

@@ -19,6 +19,15 @@ export interface EmailPayload {
   text?: string;
   /** userId of the sender (for delivery log). Pass null for system-initiated emails. */
   senderUserId?: number | null;
+  /**
+   * userId of the *recipient*. If provided AND that user has their own SMTP/IMAP
+   * secondary account configured (smtp_imap_accounts row), the email is sent
+   * **from** that account. This is the per-user notification sender model:
+   * each team member's notifications go out from the SMTP account that the
+   * admin configured for them. Falls back to the global system notification
+   * sender if no per-user account exists.
+   */
+  recipientUserId?: number | null;
 }
 
 /**
@@ -148,7 +157,18 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   const logUserId = payload.senderUserId ?? null;
 
   try {
-    const sender = await resolveNotificationSender();
+    // Per-user notification sender: if the recipient has their own SMTP/IMAP
+    // account configured, use it as the sending account.
+    let sender: { provider: "google" | "microsoft" | "smtp"; userId: number } | null = null;
+    if (payload.recipientUserId) {
+      const { getSmtpImapAccountFull } = await import("../db");
+      const own = await getSmtpImapAccountFull(payload.recipientUserId);
+      if (own) {
+        sender = { provider: "smtp", userId: payload.recipientUserId };
+      }
+    }
+    // Fall back to the global system notification sender.
+    if (!sender) sender = await resolveNotificationSender();
     if (!sender) {
       // No sender configured — log as skipped
       console.warn(

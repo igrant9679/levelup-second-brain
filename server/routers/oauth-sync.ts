@@ -550,6 +550,7 @@ export const oauthSyncRouter = router({
         "</strong></p>",
       ].join(""),
       senderUserId: ctx.user.id,
+      recipientUserId: ctx.user.id,
     });
     if (sent) {
       return { success: true, message: `Test email sent to ${ctx.user.email}` };
@@ -612,6 +613,74 @@ export const oauthSyncRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
       await db.setSystemSetting("notificationSender", input.senderKey);
+      return { success: true };
+    }),
+
+  // ─── Admin: Per-User Notification Sender (SMTP) ────────────────────────────
+  /**
+   * List all users (admin-only). Used by the admin UI to manage each team
+   * member's notification-sender SMTP account.
+   */
+  adminListUsers: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+    return await db.adminListAllUsers();
+  }),
+
+  /** Get a specific user's SMTP/IMAP account (admin-only) */
+  adminGetSmtpImapAccount: protectedProcedure
+    .input(z.object({ userId: z.number().int() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      return await db.getSmtpImapAccountFull(input.userId);
+    }),
+
+  /**
+   * Save (upsert) SMTP/IMAP credentials for an arbitrary user (admin-only).
+   * Mirrors saveSmtpImapAccount but takes an explicit userId so admins can
+   * configure each team member's notification-sender account.
+   */
+  adminSaveSmtpImapAccount: protectedProcedure
+    .input(z.object({
+      userId: z.number().int(),
+      email: z.string().email(),
+      displayName: z.string().optional(),
+      imapHost: z.string().min(1),
+      imapPort: z.number().int().min(1).max(65535),
+      imapEncryption: z.enum(['ssl', 'tls', 'none']),
+      imapUsername: z.string().min(1),
+      imapPassword: z.string().min(1),
+      smtpHost: z.string().min(1),
+      smtpPort: z.number().int().min(1).max(65535),
+      smtpEncryption: z.enum(['ssl', 'tls', 'none']),
+      smtpUsername: z.string().min(1),
+      smtpPassword: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      await db.upsertSmtpImapAccount({
+        userId: input.userId,
+        email: input.email,
+        displayName: input.displayName || null,
+        imapHost: input.imapHost,
+        imapPort: input.imapPort,
+        imapEncryption: input.imapEncryption,
+        imapUsername: input.imapUsername,
+        imapPassword: input.imapPassword,
+        smtpHost: input.smtpHost,
+        smtpPort: input.smtpPort,
+        smtpEncryption: input.smtpEncryption,
+        smtpUsername: input.smtpUsername,
+        smtpPassword: input.smtpPassword,
+      });
+      return { success: true };
+    }),
+
+  /** Remove a user's SMTP/IMAP account (admin-only) */
+  adminDeleteSmtpImapAccount: protectedProcedure
+    .input(z.object({ userId: z.number().int() }))
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      await db.deleteSmtpImapAccount(input.userId);
       return { success: true };
     }),
 
@@ -695,6 +764,7 @@ export const oauthSyncRouter = router({
         subject: `Action required: Your ${providerLabel} connection ${timeStr}`,
         html,
         senderUserId: ctx.user.id,
+        recipientUserId: t.userId,
       });
       if (ok) sent++;
     }
