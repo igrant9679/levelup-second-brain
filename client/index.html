@@ -1702,7 +1702,7 @@ function openExportPicker(){
 }
 async function exportBookmarks(format){
   try{
-    const res=await _trpc('bookmarks.list',{page:1,pageSize:500},'query');
+    const res=await _trpc('bookmarks.list',{page:1,pageSize:100},'query');
     const items=(res?.bookmarks||[]).map(b=>({Title:b.title||'',URL:b.url||'',SiteName:b.siteName||'',Description:b.description||'',Tags:(b.tags||[]).join('; '),CreatedAt:b.createdAt||''}));
     const headers=['Title','URL','SiteName','Description','Tags','CreatedAt'];
     const stamp=new Date().toISOString().slice(0,10);
@@ -11238,13 +11238,13 @@ function showAIMsg(){
   let m;
   do{
     m=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;attempts++;
-    const k='lu_dismissed_'+btoa(m.msg.slice(0,40));
+    const k='lu_dismissed_'+btoa(unescape(encodeURIComponent(m.msg.slice(0,40))));
     if(!localStorage.getItem(k))break;
   }while(attempts<aiMsgs.length);
   const div=document.createElement('div');
   div.className='ai-msg';
   const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:9px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
-  const _msgKey='lu_dismissed_'+btoa(m.msg.slice(0,40));
+  const _msgKey='lu_dismissed_'+btoa(unescape(encodeURIComponent(m.msg.slice(0,40))));
   div.innerHTML=`<button class="ai-close" onclick="localStorage.setItem('${_msgKey}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
@@ -17624,7 +17624,7 @@ window.save=function(k){
 // Lightweight cache of the user's bookmarks so FA forms can offer a "Linked Bookmarks" picker.
 async function loadBookmarksCache(){
   try{
-    const res=await _trpc('bookmarks.list',{page:1,pageSize:200},'query');
+    const res=await _trpc('bookmarks.list',{page:1,pageSize:100},'query');
     const items=res?.bookmarks||res||[];
     D.bookmarks=Array.isArray(items)?items.map(b=>({id:b.id,title:b.title||b.url,url:b.url})):[];
   }catch(e){console.warn('[bookmarks] cache load failed',e.message);D.bookmarks=D.bookmarks||[];}
@@ -18202,8 +18202,4 @@ function mmConvertToNote(nodeId){
   toast(`📝 Note created: "${node.text}"`);
 }
 </script>
-<script
-  defer
-  src="%VITE_ANALYTICS_ENDPOINT%/umami"
-  data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
 </body></html>
