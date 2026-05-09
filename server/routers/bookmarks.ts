@@ -351,6 +351,38 @@ export const bookmarksRouter = router({
     }),
 
   /**
+   * Generate a 1–2 sentence AI description for a URL. Fetches metadata if no
+   * description was provided, then asks the model to write a concise summary.
+   */
+  suggestDescription: protectedProcedure
+    .input(z.object({
+      url: z.string().url(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      provider: z.enum(['manus', 'openai', 'claude', 'gemini']).optional().default('manus'),
+      apiKey: z.string().max(512).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      let title = input.title;
+      let pageDesc = input.description;
+      if (!title || !pageDesc) {
+        const meta = await extractMetadata(input.url);
+        title = title || meta.title || new URL(input.url).hostname;
+        pageDesc = pageDesc || meta.description || '';
+      }
+      const { callAIProvider } = await import('../_core/aiProviders');
+      const { text } = await callAIProvider({
+        provider: input.provider,
+        apiKey: input.apiKey,
+        systemPrompt: 'You are a bookmark description writer. Given a web page title, raw page description, and URL, write a single concise 1–2 sentence summary (max 240 chars) that explains what the page is about and why someone would save it. Plain prose, no leading title, no quotes, no markdown.',
+        userContent: `Title: ${title}\nPage description: ${pageDesc || '(none)'}\nURL: ${input.url}`,
+        maxTokens: 200,
+      });
+      const description = String(text || '').trim().replace(/^["']|["']$/g, '').slice(0, 280);
+      return { description };
+    }),
+
+  /**
    * Re-fetch metadata for an existing bookmark (refresh title, description, etc.).
    */
   refreshMetadata: protectedProcedure

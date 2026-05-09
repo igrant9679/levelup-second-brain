@@ -1444,8 +1444,8 @@ function renderDrawer(type,item){
       <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-assignee',item.assignedTo)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
-    <div class="field"><label>Notes</label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
-    <div class="field"><label>Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:''}</label>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Notes<button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button></label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     </div>
@@ -1526,9 +1526,10 @@ function renderDrawer(type,item){
     <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div></div>
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
-    <div class="field"><label>Description</label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     <div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn btn-p" onclick="saveItem('project',${item.id})">Save</button>
+    <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${item.id})">🧩 AI Suggest Tasks</button>
     <button class="btn btn-d" onclick="deleteItem('project',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
@@ -1586,6 +1587,7 @@ function renderDrawer(type,item){
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">📌 Summarise</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">📊 Mood</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
         </div>
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
@@ -2414,6 +2416,177 @@ function aiAutoPriority(){
   save('tasks');
   renderCurrentTaskView();
   toast('✨ Tasks re-scored and sorted by AI priority!');
+}
+
+// ─── AI Compose for task notes ──────────────────────────────────────────────
+// Generates a 2-4 sentence draft description for a task based on its title,
+// project, tags, and existing notes. Streams into #dr-notes.
+async function aiComposeTaskNotes(id){
+  const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  const ta=document.getElementById('dr-notes');if(!ta)return;
+  const btn=document.getElementById('btn-dr-task-ai-desc');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='⏳ Composing...';btn.disabled=true;}
+  try{
+    const projectName=t.project||(t.projectId?(D.projects.find(p=>p.id===t.projectId)||{}).name:'')||'';
+    const ctxLines=[
+      `Title: ${t.title}`,
+      projectName?`Project: ${projectName}`:'',
+      t.priority?`Priority: ${t.priority}`:'',
+      t.due?`Due: ${t.due}`:'',
+      (t.tags||[]).length?`Tags: ${(t.tags||[]).join(', ')}`:'',
+      ta.value.trim()?`Existing notes (rewrite/extend):\n${ta.value.trim()}`:'',
+    ].filter(Boolean).join('\n');
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('ai.assist',{
+      systemPrompt:'You are a task description writer for a productivity app. Given the task metadata, write 2-4 concise sentences explaining what the task involves, why it matters, and what "done" looks like. Plain prose, no headers, no bullets, no fluff. Max 100 words.',
+      userContent:ctxLines,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=res?.result||res?.text||'';
+    if(text){ta.value=text.trim();toast('✨ Description composed');}
+    else toast('No description generated');
+  }catch(e){toast('AI compose failed: '+(e.message||e));}
+  finally{if(btn){btn.textContent=orig||'✨ AI Compose';btn.disabled=false;}}
+}
+
+// AI Suggest Subtasks: ask the model to propose 3-6 subtasks for the current
+// task. Shows a checkbox modal letting the user pick which to keep.
+async function aiSuggestSubtasks(id){
+  const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  const btn=document.getElementById('btn-dr-task-ai-subs');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='⏳ Thinking...';btn.disabled=true;}
+  try{
+    const projectName=t.project||(t.projectId?(D.projects.find(p=>p.id===t.projectId)||{}).name:'')||'';
+    const ctxLines=[
+      `Task: ${t.title}`,
+      projectName?`Project: ${projectName}`:'',
+      t.notes?`Notes:\n${t.notes}`:'',
+      (t.subtasks||[]).length?`Existing subtasks (avoid duplicates):\n- `+(t.subtasks||[]).map(s=>s.title).join('\n- '):'',
+    ].filter(Boolean).join('\n');
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('ai.assist',{
+      systemPrompt:'You are a task breakdown assistant. Given a task, propose 3-6 concrete subtasks that, completed in order, would finish it. Return ONLY a JSON object of the form {"subtasks":["First action","Second action",...]} with no extra commentary. Each subtask is a short imperative phrase, max 80 chars.',
+      userContent:ctxLines,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=res?.result||res?.text||'';
+    let arr=[];
+    try{const parsed=JSON.parse(text.replace(/^```(?:json)?|```$/g,'').trim());arr=Array.isArray(parsed.subtasks)?parsed.subtasks:[];}catch(_){
+      // Fallback: parse plain bullet/line list
+      arr=text.split('\n').map(l=>l.replace(/^[-*\d.\s]+/,'').trim()).filter(l=>l&&l.length<200);
+    }
+    arr=arr.slice(0,8);
+    if(!arr.length){toast('No subtasks suggested');return;}
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Suggested Subtasks</h2>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Task: <strong>${esc(t.title)}</strong></div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
+      <div id="ai-sub-list" style="max-height:300px;overflow-y:auto">${arr.map((s,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span>${esc(s)}</span></label>`).join('')}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-p" onclick="_applyAISubtasks(${id})">Add Selected</button>
+        <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      </div>`;
+    window._aiSubtasksList=arr;window._aiSubtasksTaskId=id;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast('AI suggest failed: '+(e.message||e));}
+  finally{if(btn){btn.textContent=orig||'🧩 AI Suggest Subtasks';btn.disabled=false;}}
+}
+function _applyAISubtasks(id){
+  const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  t.subtasks=t.subtasks||[];
+  const arr=window._aiSubtasksList||[];
+  const picks=[...document.querySelectorAll('#ai-sub-list input[type=checkbox]')]
+    .filter(cb=>cb.checked).map(cb=>arr[Number(cb.dataset.idx)]).filter(Boolean);
+  let nextId=t.subtasks.length?Math.max(...t.subtasks.map(s=>s.id||0))+1:1;
+  picks.forEach(title=>{t.subtasks.push({id:nextId++,title,done:false});});
+  save('tasks');closeModal();
+  // Refresh drawer if open
+  if(typeof openDrawer==='function'){const d=document.querySelector('.drawer.open');if(d)openDrawer('task',t);}
+  toast('✓ Added '+picks.length+' subtask'+(picks.length===1?'':'s'));
+}
+
+// AI Compose for project description
+async function aiComposeProjectDesc(id){
+  const p=D.projects.find(x=>x.id===id);if(!p)return;
+  const ta=document.getElementById('dr-body');if(!ta)return;
+  const btn=document.getElementById('btn-dr-proj-ai-desc');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='⏳ Composing...';btn.disabled=true;}
+  try{
+    const projTasks=D.tasks.filter(t=>t.projectId===id||t.project===p.name).slice(0,15);
+    const ctxLines=[
+      `Project: ${p.name}`,
+      p.status?`Status: ${p.status}`:'',
+      p.due?`Due: ${p.due}`:'',
+      ta.value.trim()?`Existing description (rewrite/extend):\n${ta.value.trim()}`:'',
+      projTasks.length?`Sample tasks already in this project:\n- `+projTasks.map(t=>t.title).join('\n- '):'',
+    ].filter(Boolean).join('\n');
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('ai.assist',{
+      systemPrompt:'You are a project description writer. Write 3-5 concise sentences explaining the project goal, scope, and success criteria. Plain prose, no headers, no bullets. Max 130 words.',
+      userContent:ctxLines,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=res?.result||res?.text||'';
+    if(text){ta.value=text.trim();toast('✨ Description composed');}
+    else toast('No description generated');
+  }catch(e){toast('AI compose failed: '+(e.message||e));}
+  finally{if(btn){btn.textContent=orig||'✨ AI Describe';btn.disabled=false;}}
+}
+
+// AI Suggest Tasks for a project
+async function aiSuggestProjectTasks(id){
+  const p=D.projects.find(x=>x.id===id);if(!p)return;
+  toast('⏳ Thinking...');
+  try{
+    const existing=D.tasks.filter(t=>t.projectId===id||t.project===p.name).slice(0,20);
+    const ctxLines=[
+      `Project: ${p.name}`,
+      p.desc?`Description:\n${p.desc}`:'',
+      existing.length?`Existing tasks (avoid duplicates):\n- `+existing.map(t=>t.title).join('\n- '):'',
+    ].filter(Boolean).join('\n');
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('ai.assist',{
+      systemPrompt:'You are a project planning assistant. Propose 5-8 concrete, action-oriented tasks needed to advance this project. Return ONLY a JSON object: {"tasks":[{"title":"...","priority":"High|Medium|Low"}]}. Each title is short imperative, max 80 chars.',
+      userContent:ctxLines,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=res?.result||res?.text||'';
+    let arr=[];
+    try{const parsed=JSON.parse(text.replace(/^```(?:json)?|```$/g,'').trim());arr=Array.isArray(parsed.tasks)?parsed.tasks:[];}catch(_){
+      arr=text.split('\n').map(l=>l.replace(/^[-*\d.\s]+/,'').trim()).filter(l=>l&&l.length<200).map(t=>({title:t,priority:'Medium'}));
+    }
+    arr=arr.slice(0,10);
+    if(!arr.length){toast('No tasks suggested');return;}
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Suggested Tasks</h2>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Project: <strong>${esc(p.name)}</strong></div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
+      <div id="ai-proj-task-list" style="max-height:340px;overflow-y:auto">${arr.map((t,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span><strong>${esc(t.title||'')}</strong> <span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;margin-left:4px">${esc(t.priority||'Medium')}</span></span></label>`).join('')}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-p" onclick="_applyAIProjectTasks(${id})">Add Selected</button>
+        <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      </div>`;
+    window._aiProjTaskList=arr;window._aiProjTaskId=id;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast('AI suggest failed: '+(e.message||e));}
+}
+function _applyAIProjectTasks(id){
+  const p=D.projects.find(x=>x.id===id);if(!p)return;
+  const arr=window._aiProjTaskList||[];
+  const picks=[...document.querySelectorAll('#ai-proj-task-list input[type=checkbox]')]
+    .filter(cb=>cb.checked).map(cb=>arr[Number(cb.dataset.idx)]).filter(Boolean);
+  let nextId=D.tasks.length?Math.max(...D.tasks.map(t=>t.id||0))+1:1;
+  picks.forEach(t=>{
+    D.tasks.push({id:nextId++,title:t.title,priority:t.priority||'Medium',status:'Not Started',
+      project:p.name,projectId:p.id,createdBy:D.creds.userName||'',
+      assignedTo:D.creds.userName||'',tags:[],subtasks:[]});
+  });
+  save('tasks');closeModal();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast('✓ Added '+picks.length+' task'+(picks.length===1?'':'s'));
 }
 
 function aiSuggestDelegate(id){
@@ -14347,27 +14520,29 @@ function showAddBookmark(){
     '<div style="display:flex;flex-direction:column;gap:12px">' +
     '<div class="field"><label>URL *</label><input class="inp" id="bk-url" placeholder="https://example.com"></div>' +
     '<div class="field"><label>Title <span style="color:var(--t3);font-weight:400">(optional — auto-fetched from page)</span></label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
-    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="doSuggestBookmarkTags()">✨ AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
-    '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your notes about this page..." style="min-height:80px"></textarea></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-desc-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription(\'bk-description\',\'btn-bk-desc-ai\')">✨ AI Describe</button></label><textarea class="inp" id="bk-description" placeholder="Short summary — click ✨ AI Describe to generate" style="min-height:60px"></textarea></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-tags-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags(\'bk-tags\',\'btn-bk-tags-ai\')">✨ AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
+    '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your private notes about this page..." style="min-height:60px"></textarea></div>' +
     '</div>',
     [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
   );
 }
 
-async function doSuggestBookmarkTags(){
-  const url=$('bk-url')?.value?.trim();
+async function doSuggestBookmarkTags(inputId,btnId){
+  inputId=inputId||'bk-tags';
+  let url=document.getElementById('bk-url')?.value?.trim();
+  if(!url){const bid=document.getElementById(inputId)?.dataset?.bid;if(bid){const b=_bkData.find(x=>x.id===Number(bid));url=b?.url;}}
   if(!url){toast('Enter a URL first');return;}
-  try{
-    new URL(url);
-  }catch{toast('Please enter a valid URL first');return;}
-  const title=$('bk-title')?.value?.trim()||undefined;
-  const btn=document.querySelector('#modal-body button[onclick="doSuggestBookmarkTags()"]');
+  try{new URL(url);}catch{toast('Please enter a valid URL first');return;}
+  const title=(document.getElementById('bk-title')?.value||document.getElementById('bk-edit-title')?.value||'').trim()||undefined;
+  const btn=btnId?document.getElementById(btnId):document.querySelector('#modal-body button[onclick="doSuggestBookmarkTags()"]');
+  const orig=btn?btn.textContent:'';
   if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
   try{
     const {provider,apiKey}=_getAIConfig();
-    const res=await _trpc('bookmarks.suggestTags',{url,title,provider,apiKey},'mutate');
+    const res=await _trpc('bookmarks.suggestTags',{url,title,provider,apiKey},'mutation');
     if(res.tags&&res.tags.length){
-      const tagsInput=$('bk-tags');
+      const tagsInput=document.getElementById(inputId);
       if(tagsInput)tagsInput.value=res.tags.join(', ');
       toast('\u2728 AI suggested '+res.tags.length+' tags!');
     }else{
@@ -14376,7 +14551,34 @@ async function doSuggestBookmarkTags(){
   }catch(e){
     toast('AI tagging failed: '+(e.message||e));
   }finally{
-    if(btn){btn.textContent='\u2728 AI Suggest';btn.disabled=false;}
+    if(btn){btn.textContent=orig||'\u2728 AI Suggest';btn.disabled=false;}
+  }
+}
+
+async function doSuggestBookmarkDescription(inputId,btnId){
+  inputId=inputId||'bk-description';
+  let url=document.getElementById('bk-url')?.value?.trim();
+  if(!url){const bid=document.getElementById(inputId)?.dataset?.bid;if(bid){const b=_bkData.find(x=>x.id===Number(bid));url=b?.url;}}
+  if(!url){toast('Enter a URL first');return;}
+  try{new URL(url);}catch{toast('Please enter a valid URL first');return;}
+  const title=(document.getElementById('bk-title')?.value||document.getElementById('bk-edit-title')?.value||'').trim()||undefined;
+  const btn=btnId?document.getElementById(btnId):null;
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('bookmarks.suggestDescription',{url,title,provider,apiKey},'mutation');
+    if(res&&res.description){
+      const el=document.getElementById(inputId);
+      if(el)el.value=res.description;
+      toast('\u2728 AI description generated');
+    }else{
+      toast('No description generated \u2014 try filling Title first');
+    }
+  }catch(e){
+    toast('AI describe failed: '+(e.message||e));
+  }finally{
+    if(btn){btn.textContent=orig||'\u2728 AI Describe';btn.disabled=false;}
   }
 }
 
@@ -14389,10 +14591,11 @@ async function doAddBookmark(){
   const title=$('bk-title')?.value?.trim()||undefined;
   const tagsRaw=$('bk-tags')?.value?.trim();
   const tags=tagsRaw?tagsRaw.split(',').map(t=>t.trim()).filter(Boolean):undefined;
+  const description=$('bk-description')?.value?.trim()||undefined;
   const notes=$('bk-notes')?.value?.trim()||undefined;
   try{
     toast('Saving bookmark...');
-    await _trpc('bookmarks.create',{url,title,tags,notes},'mutate');
+    await _trpc('bookmarks.create',{url,title,description,tags,notes},'mutation');
     closeModal();
     toast('✅ Bookmark saved!');
     renderBookmarks();
@@ -14423,8 +14626,8 @@ function editBookmark(id){
     '<div style="display:flex;flex-direction:column;gap:12px">' +
     `<div class="field"><label>URL</label><input class="inp" value="${esc(b.url)}" disabled style="opacity:.6"></div>` +
     `<div class="field"><label>Title</label><input class="inp" id="bk-edit-title" value="${esc(b.title||'')}"></div>` +
-    `<div class="field"><label>Description</label><textarea class="inp" id="bk-edit-desc" style="min-height:60px">${esc(b.description||'')}</textarea></div>` +
-    `<div class="field"><label>Tags (comma-separated)</label><input class="inp" id="bk-edit-tags" value="${esc(tags.join(', '))}"></div>` +
+    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-edit-desc-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription('bk-edit-desc','btn-bk-edit-desc-ai')">✨ AI Describe</button></label><textarea class="inp" id="bk-edit-desc" data-bid="${id}" style="min-height:60px">${esc(b.description||'')}</textarea></div>` +
+    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-edit-tags-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags('bk-edit-tags','btn-bk-edit-tags-ai')">✨ AI Suggest</button></label><input class="inp" id="bk-edit-tags" data-bid="${id}" value="${esc(tags.join(', '))}"></div>` +
     `<div class="field"><label>Notes</label><textarea class="inp" id="bk-edit-notes" style="min-height:60px">${esc(b.notes||'')}</textarea></div>` +
     '</div>',
     [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Changes',cls:'btn-p',action:`doEditBookmark(${id})`}]
@@ -15866,6 +16069,7 @@ async function drJrnlAI(mode){
     reflect:`You are a mindful journaling coach. Read this diary entry and offer 3-5 thoughtful reflection questions to help the user go deeper. Be empathetic and insightful.\n\nEntry:\n${text}`,
     summarise:`Summarise this journal entry in 2-3 sentences, capturing the key emotions, events, and insights.\n\nEntry:\n${text}`,
     mood:`Analyse the emotional tone of this journal entry. Identify the primary mood, secondary emotions, and any patterns worth noting. Be concise and supportive.\n\nEntry:\n${text}`,
+    react:`You are a warm, supportive coach reading the user's journal entry. Respond as a trusted friend would: acknowledge what they're feeling, name 1-2 things you notice, ask one open-ended question, and (if helpful) offer one small, kind suggestion. Keep it under 120 words. Use second person ('you').\n\nEntry:\n${text}`,
   };
   if(!text){toast('Write something in the diary entry first.');return;}
   const systemPrompt=prompts[mode]||prompts.expand;
