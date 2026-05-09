@@ -2997,7 +2997,7 @@ function renderTaskList(){
     return `<div style="display:grid;grid-template-columns:24px minmax(180px,2fr) 80px 100px 95px 95px 130px 130px 32px;gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:var(--s1);font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
       <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
-        <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+        <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
         ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
       </div>
       <span style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
@@ -3083,7 +3083,7 @@ function renderTaskMatrix(){
   tasks.forEach(t=>quads[quadrant(t)].tasks.push(t));
   const quadHtml=Object.entries(quads).map(([k,q])=>{
     const cards=q.tasks.map(t=>`<div style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:pointer;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-      <div style="font-weight:500;margin-bottom:2px;line-height:1.3">${esc(t.title)}</div>
+      <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
       <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
         <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
         <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
@@ -3152,7 +3152,7 @@ function renderTaskGantt(){
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">
         ${isBlocked?'<span style="color:var(--err);margin-right:3px">🔒</span>':''}
-        <span style="font-weight:500">${esc(t.title)}</span>
+        <span style="font-weight:500;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</span>
       </div>
       <div style="flex:1;position:relative;height:32px;overflow:hidden">
         <!-- Today line -->
@@ -3318,7 +3318,7 @@ function renderTaskCalendar(){
     const bg=isToday?'rgba(99,102,241,0.10)':'transparent';
     return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${k}';},50)">
       <div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
-      ${items.slice(0,4).map(t=>`<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':''}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`).join('')}
+      ${items.slice(0,4).map(t=>`<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`).join('')}
       ${items.length>4?`<div style="font-size:9px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
     </div>`;
   }).join('')}</div>`;
@@ -3376,7 +3376,7 @@ function renderTaskClusters(){
     const dueLabel=_relDue(t.due);
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
       <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
-      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
       <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
     </div>`;
@@ -10110,11 +10110,7 @@ function renderHelpInsights(){
 </div>`;
 }
 
-function renderSettings(){
-  $('settings-main').innerHTML=renderSettingsHTML();
-  // Lazy-load admin team-senders list if the panel is in the DOM and the user is admin
-  setTimeout(()=>{const el=document.getElementById('team-senders-list');if(el&&String(D.creds.role||'').toLowerCase()==='admin')loadTeamNotificationSenders();},50);
-}
+function renderSettings(){$('settings-main').innerHTML=renderSettingsHTML()}
 </script>
 <script>
 function renderSettingsHTML(){
@@ -10303,7 +10299,7 @@ function renderSettingsHTML(){
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">AI Insight Alerts</div><div style="font-size:10px;color:var(--t3)">Show AI-generated tips and nudges in the notification panel</div></div>
-      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)?'on':''}" id="tog-notif-ai" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.aiInsights=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'✨ AI insight alerts on':'✨ AI insight alerts off')"></div>
+      <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)?'on':''}" id="tog-notif-ai" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.aiInsights=!this.classList.contains('on');this.classList.toggle('on');saveAll();if(this.classList.contains('on')){if(typeof startAIAssistant==='function')startAIAssistant()}else{if(typeof aiTimer!=='undefined'&&aiTimer){clearInterval(aiTimer);aiTimer=null;}const b=document.getElementById('ai-bubble');if(b)b.innerHTML=''}toast(this.classList.contains('on')?'✨ AI insight alerts on':'✨ AI insight alerts off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Sound Alerts</div><div style="font-size:10px;color:var(--t3)">Play a subtle chime when new notifications arrive</div></div>
@@ -10466,13 +10462,9 @@ function renderSettingsHTML(){
       <button id="btn-smtp-delete" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="deleteSmtpImapAccount()">✕ Remove</button>
     </div>
   </div>
-  <!-- Admin: Team Notification Senders -->
-  <div class="admin-only" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px;border:1px solid var(--ac)">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div style="width:32px;height:32px;background:var(--ac);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">👥</div>
-      <div><div style="font-size:12px;font-weight:600">Team Notification Senders</div><div style="font-size:10px;color:var(--t3)">Admin only — configure each team member's outbound SMTP. Notifications they receive will be sent from the account you configure here for them.</div></div>
-    </div>
-    <div id="team-senders-list" style="margin-top:8px;font-size:11px;color:var(--t3)">Loading…</div>
+  <!-- Admin: shared sender info -->
+  <div class="admin-only" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:10px;border:1px dashed var(--ac);font-size:11px;color:var(--t2)">
+    💡 Notifications for the whole team are sent using the <strong>System Notification Sender</strong> below. Configure your own secondary email above, then select it here.
   </div>
   <!-- Per-User Credential Entry -->
   <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -10595,19 +10587,20 @@ function renderSettingsHTML(){
   <!-- AI Provider Keys -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Add your own API keys to power AI features. The <strong>active provider</strong> is used for all AI features in the app (Journal, Notes, Ideas, Mail, etc.). Keys are synced across your devices.</p>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">${String(D.creds.role||'').toLowerCase()==='admin'?'Workspace AI keys — saved on the server and shared with all team members. Each user does <strong>not</strong> need to enter their own key.':"🔒 AI keys are managed by your administrator and shared across the team. You don't need to enter your own."}</p>
     <!-- Active Provider Selector -->
     <div style="margin-bottom:12px">
       <label style="font-size:10px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${['openai','claude','gemini'].map(p=>{
           const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
-          const active=(D.prefs&&D.prefs.aiProvider)||'openai';
-          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:10px;height:26px" onclick="D.prefs=D.prefs||{};D.prefs.aiProvider='${p}';save('prefs');renderScreen('settings');toast('AI provider set to ${labels[p]}')">${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+          const active=_sharedAI.provider||'openai';
+          const isAdmin=String(D.creds.role||'').toLowerCase()==='admin';
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:10px;height:26px${isAdmin?'':';opacity:.6;pointer-events:none'}" ${isAdmin?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
         }).join('')}
       </div>
       <div style="font-size:10px;color:var(--t3);margin-top:6px">
-        ${(()=>{const p=(D.prefs&&D.prefs.aiProvider)||'openai';const k=(D.prefs&&D.prefs.aiKeys)||{};const hasKey=!!k[p];return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
+        ${(()=>{const p=_sharedAI.provider||'openai';const hasKey=!!_sharedAI.keys[p];return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
       </div>
     </div>
     <!-- OpenAI -->
@@ -10615,12 +10608,12 @@ function renderSettingsHTML(){
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#10a37f;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">O</div>
         <div style="font-size:11px;font-weight:600">OpenAI (GPT-4o, GPT-4o-mini)</div>
-        ${(D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.openai)?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.openai?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
-        <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc((D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.openai)||'')}">
+        <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.openai||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="setAIKey('openai',document.getElementById('ai-openai-key').value.trim())">Save</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('openai',document.getElementById('ai-openai-key').value.trim())">Save</button>
         <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-openai" onclick="testAIProvider('openai','ai-openai-key','btn-test-openai')">⚡ Test</button>
       </div>
       <div id="ai-openai-status" style="font-size:9px;margin-top:4px;display:none"></div>
@@ -10631,12 +10624,12 @@ function renderSettingsHTML(){
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#d97706;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">A</div>
         <div style="font-size:11px;font-weight:600">Anthropic Claude (claude-3-5-sonnet)</div>
-        ${(D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.claude)?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.claude?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
-        <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc((D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.claude)||'')}">
+        <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.claude||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="setAIKey('claude',document.getElementById('ai-claude-key').value.trim())">Save</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('claude',document.getElementById('ai-claude-key').value.trim())">Save</button>
         <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-claude" onclick="testAIProvider('claude','ai-claude-key','btn-test-claude')">⚡ Test</button>
       </div>
       <div id="ai-claude-status" style="font-size:9px;margin-top:4px;display:none"></div>
@@ -10647,12 +10640,12 @@ function renderSettingsHTML(){
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#4285f4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">G</div>
         <div style="font-size:11px;font-weight:600">Google Gemini (gemini-1.5-pro)</div>
-        ${(D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.gemini)?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.gemini?'<span style="font-size:9px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:9px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
-        <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc((D.prefs&&D.prefs.aiKeys&&D.prefs.aiKeys.gemini)||'')}">
+        <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.gemini||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
         <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p" style="height:30px;font-size:10px" onclick="setAIKey('gemini',document.getElementById('ai-gemini-key').value.trim())">Save</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('gemini',document.getElementById('ai-gemini-key').value.trim())">Save</button>
         <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-gemini" onclick="testAIProvider('gemini','ai-gemini-key','btn-test-gemini')">⚡ Test</button>
       </div>
       <div id="ai-gemini-status" style="font-size:9px;margin-top:4px;display:none"></div>
@@ -12655,8 +12648,16 @@ function doLoginSuccess(member){
     save('tasks');
     localStorage.setItem(_seedKey,'1');
   }
+  // Load workspace-shared AI keys (admin manages, everyone uses)
+  if(typeof loadSharedAISettings==='function')loadSharedAISettings();
   // Boot app
   applyPrefs();
+  // Start the AI/news assistant ticker if enabled (default: on)
+  try{
+    if(!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)){
+      if(typeof startAIAssistant==='function')startAIAssistant();
+    }
+  }catch(_){}
   checkMyDayReset();
   scheduleMidnightReset();
   // Respect Default Home Screen preference
@@ -15647,38 +15648,67 @@ function _rteTimeAgo(ts){
   return Math.floor(diff/86400000)+'d ago';
 }
 
-// Read the user's selected AI provider + matching key. The provider lives in D.prefs.aiProvider
-// and keys live in D.prefs.aiKeys.{openai,claude,gemini}. Both are server-synced via appData,
-// so keys persist across devices and team members.
+// Workspace-wide shared AI configuration. Stored on the server in
+// systemSettings (admin-only writes, all-user reads). Cached in-memory after
+// first load so AI calls are synchronous-ish.
+let _sharedAI={keys:{openai:'',claude:'',gemini:''},provider:'openai',loaded:false};
+async function loadSharedAISettings(){
+  try{
+    const res=await _trpc('aiSettings.get',undefined,'query');
+    if(res){_sharedAI={keys:res.keys||{},provider:res.provider||'openai',loaded:true};}
+  }catch(e){console.warn('[aiSettings] load failed',e?.message||e);_sharedAI.loaded=true;}
+  // One-time migration: if the admin used to have keys in D.prefs.aiKeys
+  // (per-user model), copy them up to the shared store on first admin login.
+  try{
+    if(String(D.creds.role||'').toLowerCase()==='admin'&&D.prefs&&D.prefs.aiKeys){
+      const k=D.prefs.aiKeys;const updates={};
+      if(k.openai&&!_sharedAI.keys.openai)updates.openai=k.openai;
+      if(k.claude&&!_sharedAI.keys.claude)updates.claude=k.claude;
+      if(k.gemini&&!_sharedAI.keys.gemini)updates.gemini=k.gemini;
+      if(Object.keys(updates).length){
+        await _trpc('aiSettings.set',updates,'mutation');
+        Object.assign(_sharedAI.keys,updates);
+        delete D.prefs.aiKeys;save('prefs');
+        toast('✅ AI keys migrated to shared workspace storage');
+      }
+    }
+  }catch(_){}
+}
+
 function _getAIConfig(){
-  // One-time migration from the legacy D.creds.*_key (localStorage-only) to D.prefs.aiKeys
-  if(D.creds&&(D.creds.openai_key||D.creds.claude_key||D.creds.gemini_key)){
-    D.prefs=D.prefs||{};D.prefs.aiKeys=D.prefs.aiKeys||{};
-    if(D.creds.openai_key&&!D.prefs.aiKeys.openai)D.prefs.aiKeys.openai=D.creds.openai_key;
-    if(D.creds.claude_key&&!D.prefs.aiKeys.claude)D.prefs.aiKeys.claude=D.creds.claude_key;
-    if(D.creds.gemini_key&&!D.prefs.aiKeys.gemini)D.prefs.aiKeys.gemini=D.creds.gemini_key;
-    // Clear from creds so they don't get re-pushed
-    delete D.creds.openai_key;delete D.creds.claude_key;delete D.creds.gemini_key;
-    try{localStorage.setItem('lu_creds',JSON.stringify(D.creds));}catch(_){}
-    save('prefs');
+  // Prefer workspace-shared keys (loaded from server). Fall back to legacy
+  // per-user storage so AI calls keep working before loadSharedAISettings()
+  // returns on a fresh page load.
+  const explicit=_sharedAI.provider||(D.prefs&&D.prefs.aiProvider)||'openai';
+  const sharedKeys=_sharedAI.keys||{};
+  if(sharedKeys[explicit])return {provider:explicit,apiKey:sharedKeys[explicit]};
+  const legacyKeys=(D.prefs&&D.prefs.aiKeys)||{};
+  if(legacyKeys[explicit])return {provider:explicit,apiKey:legacyKeys[explicit]};
+  for(const p of ['openai','claude','gemini']){
+    if(sharedKeys[p])return {provider:p,apiKey:sharedKeys[p]};
+    if(legacyKeys[p])return {provider:p,apiKey:legacyKeys[p]};
   }
-  const explicit=(D.prefs&&D.prefs.aiProvider)||'openai';
-  const keys=(D.prefs&&D.prefs.aiKeys)||{};
-  if(keys[explicit])return {provider:explicit,apiKey:keys[explicit]};
-  // Fall back to any other user-provided key
-  if(keys.openai)return {provider:'openai',apiKey:keys.openai};
-  if(keys.claude)return {provider:'claude',apiKey:keys.claude};
-  if(keys.gemini)return {provider:'gemini',apiKey:keys.gemini};
   return {provider:'manus',apiKey:undefined};
 }
-// Set/clear an AI key. Stored in D.prefs.aiKeys (server-synced via appData).
-function setAIKey(provider,key){
-  D.prefs=D.prefs||{};D.prefs.aiKeys=D.prefs.aiKeys||{};
-  if(key){D.prefs.aiKeys[provider]=key;}
-  else{delete D.prefs.aiKeys[provider];}
-  save('prefs');
-  renderScreen('settings');
-  toast(key?'✅ '+provider+' key saved (synced to all devices)':provider+' key cleared');
+
+// Admin-only: write a shared AI key (or clear with empty string).
+async function setAIKey(provider,key){
+  try{
+    await _trpc('aiSettings.set',{[provider]:key||''},'mutation');
+    _sharedAI.keys[provider]=key||'';
+    renderScreen('settings');
+    toast(key?'✅ '+provider+' key saved for the whole team':provider+' key cleared');
+  }catch(e){
+    toast('Failed to save: '+(e.message||e));
+  }
+}
+async function setAIProvider(p){
+  try{
+    await _trpc('aiSettings.set',{provider:p},'mutation');
+    _sharedAI.provider=p;
+    renderScreen('settings');
+    toast('Active AI provider: '+p);
+  }catch(e){toast('Failed: '+(e.message||e));}
 }
 async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   const el=document.getElementById(resultElId);

@@ -17,6 +17,7 @@ import { activityFeedRouter } from "./routers/activityFeed";
 import { pdfImportRouter } from "./routers/pdfImport";
 import { appDataRouter } from "./routers/appData";
 import { notesImportRouter } from "./routers/notesImport";
+import { aiSettingsRouter } from "./routers/aiSettings";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -48,6 +49,7 @@ export const appRouter = router({
   pdfImport: pdfImportRouter,
   appData: appDataRouter,
   notesImport: notesImportRouter,
+  aiSettings: aiSettingsRouter,
 });
 
 export type AppRouter = typeof appRouter;
