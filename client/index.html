@@ -3471,11 +3471,11 @@ function renderHome(){
         {icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7'},
         {icon:'☀',label:'My Day',val:_stMyDay,color:'#f59e0b'},
         {icon:'✅',label:'Habits',val:_stHabitsTotal?`${_stHabitsDone}/${_stHabitsTotal}`:'0',color:'#10b981'},
-      ].map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(15,21,37,.55);border:1px solid color-mix(in srgb,${s.color} 40%,transparent);border-radius:10px;backdrop-filter:blur(10px);transition:transform .12s">
-        <div style="width:34px;height:34px;border-radius:9px;background:color-mix(in srgb,${s.color} 22%,transparent);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${s.icon}</div>
+      ].map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);transition:transform .12s;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
+        <div style="width:36px;height:36px;border-radius:9px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
         <div style="min-width:0">
-          <div style="font-size:20px;font-weight:800;color:${s.color};line-height:1.05">${s.val}</div>
-          <div style="font-size:10px;color:var(--t2);font-weight:500">${s.label}</div>
+          <div style="font-size:22px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:3px">${s.label}</div>
         </div>
       </div>`).join('')}
     </div>
