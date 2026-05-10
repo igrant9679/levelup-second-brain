@@ -171,11 +171,17 @@ body[data-screen="contacts"]{--page-accent:#0d9488}
 body[data-screen="bookmarks"]{--page-accent:#d97706}
 body[data-screen="reports"]{--page-accent:#06b6d4}
 
-/* Subtle gradient strip behind the first page header (.ph-r) on the
-   active screen. The strip is 64px tall, fades from page-accent (10%
-   opacity) to transparent. Sits behind the header without affecting layout. */
-.scr.on .mn>.ph-r:first-child{position:relative;z-index:1}
-.scr.on .mn>.ph-r:first-child::before{
+/* Subtle gradient strip behind the first page header (.ph-r OR .pg-h) on
+   the active screen. The strip is 78px tall, fades from page-accent (14%
+   opacity) to transparent. Sits behind the header without affecting layout.
+   Both header classes are supported so pages built with either pattern
+   (Process, Archive, Notes-banner, etc.) get the same treatment. */
+.scr.on .mn>.ph-r:first-child,
+.scr.on .mn>.pg-h:first-child,
+.scr.on .notes-page-header{position:relative;z-index:1}
+.scr.on .mn>.ph-r:first-child::before,
+.scr.on .mn>.pg-h:first-child::before,
+.scr.on .notes-page-header::before{
   content:'';position:absolute;top:-14px;left:-16px;right:-16px;height:78px;
   background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 14%,transparent) 0%,transparent 70%);
   border-radius:14px;z-index:-1;pointer-events:none;
@@ -485,8 +491,10 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 
 /* Page header subtitle (the small "5 active · 2 overdue" line under each
    page title) gets a thin accent bar to its left so it visually anchors
-   the header strip behind it. */
-.ph-r>div:first-child p{
+   the header strip behind it. Works for both header conventions. */
+.ph-r>div:first-child p,
+.pg-h>p,
+.notes-page-header>div p{
   border-left:2px solid color-mix(in srgb,var(--page-accent) 60%,transparent);
   padding-left:8px;margin-left:2px;
 }
@@ -910,11 +918,22 @@ Refresh Token
 </div></div>
 
 <!-- ===== S-04 NOTES ===== -->
-<div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px"><nav class="sb" data-sb></nav>
-<nav class="notes-nav" id="notes-nav-panel"></nav>
-<div class="notes-list" id="notes-list-panel"></div>
-<div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto"></div>
-<div class="notes-rail" id="notes-rail-panel"></div>
+<div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px;grid-template-rows:auto 1fr;min-height:0">
+<nav class="sb" data-sb style="grid-row:1/-1"></nav>
+<header class="notes-page-header" style="grid-column:2/-1;padding:14px 20px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1 style="font-size:22px;font-weight:700;margin:0">📝 Notes</h1>
+    <p id="notes-page-subtitle" style="font-size:12px;color:var(--t2);margin-top:2px">Loading…</p>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
+    <button class="btn btn-p" style="height:28px;font-size:11px" onclick="openFA('note')">+ New Note</button>
+  </div>
+</header>
+<nav class="notes-nav" id="notes-nav-panel" style="min-height:0"></nav>
+<div class="notes-list" id="notes-list-panel" style="min-height:0"></div>
+<div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto;min-height:0"></div>
+<div class="notes-rail" id="notes-rail-panel" style="min-height:0"></div>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -5208,6 +5227,14 @@ function applyNoteTemplate(idx){
   toast('📝 Template applied — start editing!');
 }
 function renderNotes(){
+  // Update banner subtitle with live counts
+  const sub=document.getElementById('notes-page-subtitle');
+  if(sub){
+    const total=D.notes.length;
+    const starred=D.notes.filter(n=>n.starred).length;
+    const recent=D.notes.filter(n=>{try{const d=new Date(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
+    sub.innerHTML=`${total} note${total===1?'':'s'}${recent?` · <span style="color:var(--page-accent);font-weight:600">${recent} this week</span>`:''}${starred?` · ⭐ ${starred} starred`:''}`;
+  }
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
@@ -8072,7 +8099,20 @@ function renderProcess(){
         </div>
       </div>`;
     }).join('')}`;
-  $('process-main').innerHTML=`<div class="pg-h"><h1>⚡ Process (GTD)</h1><p style="font-size:12px;color:var(--t2)">${D.tasks.filter(t=>t.status==='Not Started').length} tasks · ${sparkIdeas.length} ideas to triage</p></div>
+  const inbox=D.tasks.filter(t=>t.status==='Not Started').length;
+  const today=new Date().toISOString().slice(0,10);
+  const overdueProc=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  $('process-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">⚡ Process (GTD)</h1>
+      <p style="font-size:12px;color:var(--t2)">${inbox} task${inbox===1?'':'s'} to clarify${overdueProc?` · <span style="color:var(--red);font-weight:600">${overdueProc} overdue</span>`:''} · ${sparkIdeas.length} idea${sparkIdeas.length===1?'':'s'} to triage</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('myday')" title="Plan today's focus">☀ My Day</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('focus')" title="Start a focus timer">⚡ Focus</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="openFA('task')">+ Capture Task</button>
+    </div>
+  </div>
   ${tabBar}
   ${_processTab==='tasks'?tasksHtml:ideasHtml}`;
 }
