@@ -1769,7 +1769,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -7277,6 +7277,51 @@ function aiExtractActions(){
 // ═══════════════════════════════════════════════════════════════════════════════
 let _reportRange=localStorage.getItem('lu_report_range')||'30d';
 let _reportSections=JSON.parse(localStorage.getItem('lu_report_sections')||'null')||{tasks:true,goals:true,habits:true,focus:true,journal:true,projects:true};
+// Saved custom reports — each entry: {id,name,emoji,range,sections,createdAt}
+// Stored in D.prefs.savedReports so they sync across devices via the prefs blob.
+function _getSavedReports(){return (D.prefs&&Array.isArray(D.prefs.savedReports))?D.prefs.savedReports:[];}
+function _setSavedReports(arr){D.prefs=D.prefs||{};D.prefs.savedReports=arr;save('prefs');}
+function loadSavedReport(id){
+  const r=_getSavedReports().find(x=>x.id===id);if(!r)return;
+  _reportRange=r.range||'30d';
+  _reportSections=Object.assign({tasks:true,goals:true,habits:true,focus:true,journal:true,projects:true},r.sections||{});
+  localStorage.setItem('lu_report_range',_reportRange);
+  localStorage.setItem('lu_report_sections',JSON.stringify(_reportSections));
+  renderReports();
+  toast('📊 Loaded: '+r.name);
+}
+function saveCurrentReport(){
+  const name=prompt('Name this report (e.g. "Weekly Standup", "Q3 Performance Review")','');
+  if(!name||!name.trim())return;
+  const emoji=prompt('Pick an emoji icon (1-2 chars, optional)','📊')||'📊';
+  const arr=_getSavedReports();
+  arr.push({
+    id:Date.now(),
+    name:name.trim(),
+    emoji:emoji.trim().slice(0,4)||'📊',
+    range:_reportRange,
+    sections:Object.assign({},_reportSections),
+    createdAt:new Date().toISOString(),
+  });
+  _setSavedReports(arr);
+  renderReports();
+  toast('✓ Report saved');
+}
+function deleteSavedReport(id){
+  const r=_getSavedReports().find(x=>x.id===id);if(!r)return;
+  if(!confirm('Delete saved report "'+r.name+'"?'))return;
+  _setSavedReports(_getSavedReports().filter(x=>x.id!==id));
+  renderReports();
+  toast('Report deleted');
+}
+function renameSavedReport(id){
+  const r=_getSavedReports().find(x=>x.id===id);if(!r)return;
+  const name=prompt('Rename report:',r.name);
+  if(!name||!name.trim())return;
+  r.name=name.trim();
+  _setSavedReports(_getSavedReports());
+  renderReports();
+}
 
 function _reportRangeDays(){return {'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[_reportRange]||30;}
 function _reportRangeLabel(){return {'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'}[_reportRange]||_reportRange;}
@@ -7403,8 +7448,23 @@ function renderReports(){
         <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsPDF()">⬇ PDF</button>
         <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsExcel()">⬇ Excel</button>
         <button class="btn btn-s no-print" style="font-size:11px" onclick="openReportCustomize()">⚙ Customize</button>
+        <button class="btn btn-p no-print" style="font-size:11px" onclick="saveCurrentReport()" title="Save the current range + sections as a named report">💾 Save Report</button>
       </div>
     </div>
+
+    ${(()=>{
+      const saved=_getSavedReports();
+      if(!saved.length)return '';
+      return `<div class="cd no-print" style="margin-bottom:14px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:11px;font-weight:600;color:var(--t2);margin-right:4px">⭐ Saved Reports:</span>
+        ${saved.map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 28%,var(--bd2));border-radius:14px;padding:3px 4px 3px 10px;font-size:11px;cursor:pointer;transition:transform .1s,filter .1s" onclick="loadSavedReport(${r.id})" onmouseover="this.style.transform='translateY(-1px)';this.style.filter='brightness(1.1)'" onmouseout="this.style.transform='';this.style.filter=''" title="Range: ${esc(({'7d':'7 days','30d':'30 days','90d':'90 days','365d':'1 year','all':'All time'})[r.range]||r.range)}">
+          <span style="font-size:13px">${esc(r.emoji||'📊')}</span>
+          <span style="font-weight:500">${esc(r.name)}</span>
+          <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">✏</button>
+          <button onclick="event.stopPropagation();deleteSavedReport(${r.id})" title="Delete" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">×</button>
+        </span>`).join('')}
+      </div>`;
+    })()}
 
     <!-- KPI tiles -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
