@@ -141,6 +141,99 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="bookmarks"] svg{stroke:#d97706}   /* dark amber */
 .si[data-n="archive"] svg{stroke:#64748b}     /* slate */
 .si[data-n="reports"] svg{stroke:#06b6d4}     /* cyan */
+
+/* ─── Per-page accent theming ─────────────────────────────────────────────
+   body[data-screen="<route>"] sets --page-accent. The page header strip
+   and card left-border on that page pick it up automatically. The default
+   keeps the existing slate look for any screen we haven't mapped. */
+body{--page-accent:var(--ac)}
+body[data-screen="home"]{--page-accent:#3b82f6}
+body[data-screen="myday"]{--page-accent:#f59e0b}
+body[data-screen="myweek"]{--page-accent:#14b8a6}
+body[data-screen="myyear"]{--page-accent:#6366f1}
+body[data-screen="capture"]{--page-accent:#fb7185}
+body[data-screen="ideas"]{--page-accent:#eab308}
+body[data-screen="mindmaps"]{--page-accent:#ec4899}
+body[data-screen="focus"]{--page-accent:#ef4444}
+body[data-screen="process"]{--page-accent:#8b5cf6}
+body[data-screen="tasks"]{--page-accent:#22c55e}
+body[data-screen="notes"]{--page-accent:#f97316}
+body[data-screen="projects"]{--page-accent:#a855f7}
+body[data-screen="clusters"]{--page-accent:#06b6d4}
+body[data-screen="calendar"]{--page-accent:#0284c7}
+body[data-screen="mail"]{--page-accent:#9333ea}
+body[data-screen="goals"]{--page-accent:#dc2626}
+body[data-screen="habits"]{--page-accent:#10b981}
+body[data-screen="coach"]{--page-accent:#facc15}
+body[data-screen="journal"]{--page-accent:#f43f5e}
+body[data-screen="team"]{--page-accent:#0ea5e9}
+body[data-screen="contacts"]{--page-accent:#0d9488}
+body[data-screen="bookmarks"]{--page-accent:#d97706}
+body[data-screen="reports"]{--page-accent:#06b6d4}
+
+/* Subtle gradient strip behind the first page header (.ph-r) on the
+   active screen. The strip is 64px tall, fades from page-accent (10%
+   opacity) to transparent. Sits behind the header without affecting layout. */
+.scr.on .mn>.ph-r:first-child{position:relative;z-index:1}
+.scr.on .mn>.ph-r:first-child::before{
+  content:'';position:absolute;top:-14px;left:-16px;right:-16px;height:78px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 14%,transparent) 0%,transparent 70%);
+  border-radius:14px;z-index:-1;pointer-events:none;
+}
+/* Cards on the active screen pick up a subtle 2px left-border tinted with
+   the page's accent. Only applies on rail pages (.bg.wr) where it reads as
+   a vertical bar; rail-less pages stay unmarked to keep them airy. */
+.scr.on .bg.wr .mn .cd{border-left:2px solid color-mix(in srgb,var(--page-accent) 35%,var(--bd2))}
+
+/* ─── Card hover lift ─────────────────────────────────────────────────── */
+.cd{transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.cd:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.28);
+          border-color:color-mix(in srgb,var(--page-accent) 28%,var(--bd2))}
+/* Disable lift inside drawers/modals so nested cards don't dance */
+.drawer .cd:hover,#modal-capture .cd:hover{transform:none;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+
+/* ─── Empty state component ──────────────────────────────────────────── */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:32px 20px;text-align:center;color:var(--t2);min-height:160px}
+.empty-state .es-icon{font-size:48px;margin-bottom:10px;opacity:.85;line-height:1;
+  filter:drop-shadow(0 4px 12px color-mix(in srgb,var(--page-accent) 30%,transparent))}
+.empty-state .es-title{font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px}
+.empty-state .es-hint{font-size:11px;color:var(--t3);margin-bottom:14px;max-width:380px;line-height:1.5}
+.empty-state .es-cta{padding:8px 16px;background:var(--page-accent);color:#fff;border:none;
+  border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;transition:filter .15s, transform .1s}
+.empty-state .es-cta:hover{filter:brightness(1.08)}
+.empty-state .es-cta:active{transform:scale(.98)}
+
+/* ─── Rich toast notifications ──────────────────────────────────────── */
+.toast-stack{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column-reverse;
+  gap:8px;z-index:9000;pointer-events:none;max-width:360px}
+.toast-rich{pointer-events:auto;background:var(--s2);color:var(--t1);
+  border:1px solid var(--bd2);border-left:3px solid var(--page-accent);
+  border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.4;
+  display:flex;align-items:flex-start;gap:10px;min-width:240px;max-width:360px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  animation:toastIn .22s cubic-bezier(.2,.9,.3,1.2);position:relative;overflow:hidden}
+.toast-rich.t-success{border-left-color:#22c55e}
+.toast-rich.t-warn{border-left-color:#f59e0b}
+.toast-rich.t-error{border-left-color:#ef4444}
+.toast-rich.t-info{border-left-color:#3b82f6}
+.toast-rich .ti-icon{font-size:18px;line-height:1;flex-shrink:0;margin-top:1px}
+.toast-rich .ti-body{flex:1;min-width:0}
+.toast-rich .ti-title{font-weight:600;color:var(--t1);margin-bottom:2px;word-wrap:break-word}
+.toast-rich .ti-msg{color:var(--t2);font-size:11px;word-wrap:break-word}
+.toast-rich .ti-actions{display:flex;gap:6px;margin-top:6px}
+.toast-rich .ti-act{background:transparent;color:var(--t1);border:1px solid var(--bd2);
+  padding:3px 10px;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;transition:background .12s}
+.toast-rich .ti-act:hover{background:var(--s3)}
+.toast-rich .ti-act.primary{background:var(--page-accent);color:#fff;border-color:var(--page-accent)}
+.toast-rich .ti-close{background:none;border:none;color:var(--t3);font-size:14px;cursor:pointer;
+  padding:0;line-height:1;flex-shrink:0;margin-top:1px}.toast-rich .ti-close:hover{color:var(--t1)}
+.toast-rich .ti-progress{position:absolute;bottom:0;left:0;height:2px;background:var(--page-accent);
+  opacity:.5;border-radius:0 0 0 10px}
+.toast-rich.leaving{animation:toastOut .18s ease forwards}
+@keyframes toastIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastOut{to{transform:translateX(20px);opacity:0}}
 /* PDF/print styles for the Reports page — body.lu-print-report hides chrome and
    inverts colors for clean white-paper output. */
 @media print{
@@ -1527,6 +1620,9 @@ function nav(s){
   document.getElementById(SM[s]||'s-home').classList.add('on');
   curScreen=s;
   _curScreen=s;
+  // Tag the body with the active screen so per-page accent theming applies
+  // (gradient header strip + card left-border tint + empty-state CTA color).
+  document.body.setAttribute('data-screen',s||'home');
   initSidebars(s);
   renderScreen(s);
   if(s==='capture')openModal('capture');
@@ -1549,7 +1645,112 @@ document.addEventListener('click',e=>{const i=e.target.closest('.si[data-n]');if
 // ====== UTILITY ======
 function pillClass(p){return p==='High'?'p-h':p==='Medium'?'p-m':p==='Low'?'p-l':''}
 function statusPill(s){const m={'In Progress':'p-ip',Pending:'p-pe','Not Started':'p-ns',Scheduled:'p-sc',Done:'p-dn',Active:'p-ip'};return m[s]||'p-ns'}
-function toast(m,type,duration){const t=document.createElement('div');t.className='toast';t.textContent=m;if(type==='error')t.style.cssText='background:#ef4444;color:#fff';document.body.appendChild(t);setTimeout(()=>t.remove(),duration||2500)}
+// ─── Rich toast notifications ──────────────────────────────────────────────
+// Backwards compatible: toast('msg') and toast('msg','error') keep working.
+// New shape: toast({title,msg,type,icon,duration,actions:[{label,onClick,primary}]})
+//   - type: 'success'|'warn'|'error'|'info' (default auto-detects from leading emoji)
+//   - actions: ['Undo' button etc.]; clicking auto-dismisses unless onClick returns false
+//   - duration: ms; 0 = persistent until user dismisses
+function toast(m,type,duration){
+  // Old-style call → wrap into rich format
+  let opts;
+  if(typeof m==='string'){
+    opts={title:m,type:type==='error'?'error':_inferToastType(m),duration:duration};
+  }else if(m&&typeof m==='object'){
+    opts=m;
+  }else{
+    return;
+  }
+  return _showRichToast(opts);
+}
+function _inferToastType(s){
+  const t=String(s||'');
+  if(/^(❌|⚠|⚠️|Failed|Error|Could not|Couldn’t|Couldn't)/i.test(t))return 'error';
+  if(/^(⚠|Warning|Heads up)/i.test(t))return 'warn';
+  if(/^(✅|✓|✔|✨|🎉|Saved|Done|Synced)/i.test(t))return 'success';
+  return 'info';
+}
+function _ensureToastStack(){
+  let stack=document.getElementById('toast-stack');
+  if(!stack){
+    stack=document.createElement('div');
+    stack.id='toast-stack';
+    stack.className='toast-stack';
+    document.body.appendChild(stack);
+  }
+  return stack;
+}
+function _showRichToast(opts){
+  const stack=_ensureToastStack();
+  const wrap=document.createElement('div');
+  const type=opts.type||'info';
+  wrap.className='toast-rich t-'+type;
+  const icons={success:'✅',warn:'⚠️',error:'❌',info:'💬'};
+  const icon=opts.icon||icons[type]||'💬';
+  const title=opts.title||opts.msg||'';
+  const sub=opts.title&&opts.msg?opts.msg:'';
+  const safeTitle=String(title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const safeSub=String(sub||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const actsHtml=Array.isArray(opts.actions)&&opts.actions.length
+    ? `<div class="ti-actions">${opts.actions.map((a,i)=>`<button class="ti-act${a.primary?' primary':''}" data-aci="${i}">${esc(a.label||'OK')}</button>`).join('')}</div>`
+    : '';
+  wrap.innerHTML=`<div class="ti-icon">${icon}</div>
+    <div class="ti-body">
+      <div class="ti-title">${safeTitle}</div>
+      ${safeSub?`<div class="ti-msg">${safeSub}</div>`:''}
+      ${actsHtml}
+    </div>
+    <button class="ti-close" aria-label="Dismiss">×</button>
+    <div class="ti-progress" style="width:100%"></div>`;
+  // Wire actions
+  wrap.querySelectorAll('.ti-act').forEach(btn=>{
+    btn.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const a=opts.actions[Number(btn.dataset.aci)];
+      let keep=false;
+      try{if(a&&typeof a.onClick==='function')keep=a.onClick()===false?false:false;}catch(_){}
+      if(!keep)_dismissToast(wrap);
+    });
+  });
+  wrap.querySelector('.ti-close').addEventListener('click',()=>_dismissToast(wrap));
+  stack.appendChild(wrap);
+  // Cap visible toasts to 4
+  while(stack.children.length>4)stack.removeChild(stack.firstChild);
+  // Auto-dismiss with progress bar
+  const dur=opts.duration!==undefined?opts.duration:(opts.actions?6000:3000);
+  if(dur>0){
+    const bar=wrap.querySelector('.ti-progress');
+    bar.style.transition=`width ${dur}ms linear`;
+    requestAnimationFrame(()=>{bar.style.width='0%';});
+    wrap.dataset.dismissTimer=String(setTimeout(()=>_dismissToast(wrap),dur));
+  }else{
+    const bar=wrap.querySelector('.ti-progress');if(bar)bar.style.display='none';
+  }
+  return wrap;
+}
+function _dismissToast(el){
+  if(!el||el.classList.contains('leaving'))return;
+  if(el.dataset.dismissTimer)clearTimeout(Number(el.dataset.dismissTimer));
+  el.classList.add('leaving');
+  setTimeout(()=>{if(el.parentElement)el.parentElement.removeChild(el);},220);
+}
+
+// ─── Empty state component ──────────────────────────────────────────────
+// renderEmptyState({icon,title,hint,ctaLabel,ctaFn}) → HTML string.
+// ctaFn is a function name (string) registered globally OR a JS expression.
+// Used in lieu of plain "No X yet." text wherever a list is empty.
+function renderEmptyState(o){
+  const icon=esc(o.icon||'✨');
+  const title=esc(o.title||'Nothing here yet');
+  const hint=o.hint?`<div class="es-hint">${esc(o.hint)}</div>`:'';
+  const cta=o.ctaLabel?`<button class="es-cta" onclick="${o.ctaFn||''}">${esc(o.ctaLabel)}</button>`:'';
+  return `<div class="empty-state">
+    <div class="es-icon">${icon}</div>
+    <div class="es-title">${title}</div>
+    ${hint}
+    ${cta}
+  </div>`;
+}
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html)e.innerHTML=html;return e}
 
 // ====== DETAIL DRAWER ======
@@ -3355,7 +3556,7 @@ function renderTaskList(){
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
-  if(!filtered.length){list.innerHTML='<p style="color:var(--t3);font-size:12px;text-align:center;padding:20px">No tasks here. <span style="color:var(--ac);cursor:pointer" onclick="openFA(\'task\')">+ Add one</span></p>';return;}
+  if(!filtered.length){list.innerHTML=renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
   const priColors={High:'rgba(239,68,68,0.15)',Medium:'rgba(245,158,11,0.15)',Low:'rgba(34,197,94,0.15)'};
   const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
@@ -14662,12 +14863,13 @@ function paintBookmarks(){
   if(_bkLoading){
     cards='<div style="text-align:center;padding:40px;color:var(--t3)">Loading bookmarks...</div>';
   }else if(_bkData.length===0){
-    cards=`<div style="text-align:center;padding:60px 20px">
-      <div style="font-size:48px;margin-bottom:12px">&#128278;</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:4px">${_bkCollFilter?'No bookmarks in this collection':'No bookmarks yet'}</div>
-      <div style="font-size:12px;color:var(--t3);margin-bottom:16px">${_bkCollFilter?'Add bookmarks using the folder button on any card':'Save web pages to build your knowledge library'}</div>
-      ${_bkCollFilter?'':`<button class="btn btn-p" onclick="showAddBookmark()">+ Add Your First Bookmark</button>`}
-    </div>`;
+    cards=renderEmptyState({
+      icon:'🔖',
+      title:_bkCollFilter?'Empty collection':'Build your library',
+      hint:_bkCollFilter?'Add bookmarks to this collection using the folder button on any card.':'Save articles, docs, and references that matter. AI can suggest tags and write descriptions for you.',
+      ctaLabel:_bkCollFilter?'':'+ Add your first bookmark',
+      ctaFn:'showAddBookmark()'
+    });
   }else{
     cards=_bkData.map(b=>{
       const tags=b.tags?JSON.parse(b.tags):[];
