@@ -859,10 +859,11 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
 <div class="tb-a">
 <span id="topbar-connected-as" style="display:none;font-size:10px;color:var(--t3);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;align-self:center" title="Connected Microsoft 365 account"></span>
-<button id="topbar-token-refresh" class="bn" onclick="handleTopbarTokenRefresh()" style="display:none;background:#f59e0b;gap:5px" title="OAuth token expiring soon — click to refresh">
-<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-Refresh Token
-</button>
+<!-- OAuth tokens auto-refresh silently; the Refresh Token button is no
+     longer surfaced. The hidden stub is kept so checkTokenExpiryBanner()
+     can still find it (its !btn early-exit means a missing element
+     wouldn't break anything either, but this is belt-and-suspenders). -->
+<button id="topbar-token-refresh" style="display:none!important" aria-hidden="true" tabindex="-1"></button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
 <button class="tbtn" onclick="toggleAIPanel()" title="AI Assistant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
@@ -3419,11 +3420,43 @@ function renderHome(){
   const _homePrefs=getHomeCardPrefs();
   const _homeVisible=new Set(_homePrefs.filter(p=>p.visible).map(p=>p.id));
   const _homeOrder=[..._homePrefs].sort((a,b)=>a.order-b.order).map(p=>p.id);
-  m.innerHTML=`<div class="ph-r" style="margin-bottom:8px"><div><h1>Good ${_greetWord}, ${_greetName}! 👋</h1><p>Focus on what matters today. You've got this.</p></div><button class="btn btn-s" style="height:26px;font-size:10px;flex-shrink:0" onclick="openHomeDashCustomize()">⚙️ Customize</button></div>
-  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">Quick Add</span>
-  ${['Task','Note','Project','Goal','Journal','Habit'].map(t=>`<span style="font-size:11px;color:var(--t2);cursor:pointer;padding:4px 8px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" onclick="openFA('${t.toLowerCase()}')">${t}</span>`).join('')}</div>
-  <div class="cd" style="display:flex;gap:24px;align-items:center;padding:12px 16px;flex-wrap:wrap"><span style="font-size:9px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px">Today</span>
-  ${(()=>{const tasksToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).length;const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const meetings=(D.calEvents||[]).filter(e=>{const d=(e.start||'').slice(0,10);return d===_todayStr;}).length;const habitsDone=(D.habits||[]).filter(h=>h.doneToday).length;const habitsTotal=(D.habits||[]).length;return `<div><div style="font-size:22px;font-weight:700">${tasksToday}</div><div style="font-size:10px;color:var(--t3)">Tasks Due</div></div><div><div style="font-size:22px;font-weight:700;${overdue?'color:var(--red)':''}">${overdue}</div><div style="font-size:10px;color:var(--t3)">Overdue</div></div><div><div style="font-size:22px;font-weight:700">${meetings}</div><div style="font-size:10px;color:var(--t3)">Meetings</div></div><div><div style="font-size:22px;font-weight:700">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div style="font-size:10px;color:var(--t3)">My Day</div></div><div><div style="font-size:22px;font-weight:700">${habitsDone}${habitsTotal?`/${habitsTotal}`:''}</div><div style="font-size:10px;color:var(--t3)">Habits</div></div>`;})()}</div>
+  // Compute today's stats so we can render them as colorful tiles in the banner.
+  const _stTasksToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).length;
+  const _stOverdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
+  const _stMeetings=(D.calEvents||[]).filter(e=>{const d=(e.start||'').slice(0,10);return d===_todayStr;}).length;
+  const _stMyDay=D.tasks.filter(t=>t.myDay&&t.status!=='Done').length;
+  const _stHabitsDone=(D.habits||[]).filter(h=>h.doneToday).length;
+  const _stHabitsTotal=(D.habits||[]).length;
+  const _todayLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  m.innerHTML=`<div class="home-hero" style="position:relative;padding:22px 24px 18px;margin-bottom:14px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,#3b82f6 22%,var(--s2)) 0%,color-mix(in srgb,#a855f7 12%,var(--s2)) 50%,color-mix(in srgb,#ec4899 8%,var(--s2)) 100%);border:1px solid color-mix(in srgb,#3b82f6 30%,var(--bd2));box-shadow:0 4px 20px color-mix(in srgb,#3b82f6 14%,transparent)">
+    <div style="position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,#a855f7 26%,transparent),transparent 65%);pointer-events:none"></div>
+    <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:color-mix(in srgb,#fff 75%,var(--t2));font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${_todayLabel}</div>
+        <h1 style="font-size:28px;font-weight:800;line-height:1.15;margin:0;background:linear-gradient(90deg,#60a5fa,#c084fc);-webkit-background-clip:text;background-clip:text;color:transparent">Good ${_greetWord}, ${_greetName}! <span style="-webkit-text-fill-color:initial">👋</span></h1>
+        <p style="font-size:13px;color:var(--t1);opacity:.85;margin-top:6px;border-left:none!important;padding-left:0!important">Focus on what matters today. You've got this.</p>
+      </div>
+      <button class="btn btn-s" style="height:30px;font-size:11px;flex-shrink:0;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(8px)" onclick="openHomeDashCustomize()">⚙ Customize</button>
+    </div>
+    <!-- Today's stat strip — colorful inline tiles inside the hero. -->
+    <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:18px">
+      ${[
+        {icon:'📋',label:'Tasks Due',val:_stTasksToday,color:'#22c55e'},
+        {icon:'⚠️',label:'Overdue',val:_stOverdue,color:_stOverdue?'#ef4444':'#64748b'},
+        {icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7'},
+        {icon:'☀',label:'My Day',val:_stMyDay,color:'#f59e0b'},
+        {icon:'✅',label:'Habits',val:_stHabitsTotal?`${_stHabitsDone}/${_stHabitsTotal}`:'0',color:'#10b981'},
+      ].map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(15,21,37,.55);border:1px solid color-mix(in srgb,${s.color} 40%,transparent);border-radius:10px;backdrop-filter:blur(10px);transition:transform .12s">
+        <div style="width:34px;height:34px;border-radius:9px;background:color-mix(in srgb,${s.color} 22%,transparent);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${s.icon}</div>
+        <div style="min-width:0">
+          <div style="font-size:20px;font-weight:800;color:${s.color};line-height:1.05">${s.val}</div>
+          <div style="font-size:10px;color:var(--t2);font-weight:500">${s.label}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">⚡ Quick Add</span>
+  ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${c};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
   ${(()=>{
     const cardHtml={
       tasks:`<div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`,
@@ -17493,12 +17526,17 @@ async function checkTokenExpiryBanner(){
       }
       return;
     }
-    btn.style.display='flex';
-    btn.style.background=expired?'#ef4444':'#f59e0b';
-    btn.title=expired
-      ?`${soonest.label} token has expired — click to refresh`
-      :`${soonest.label} token expires in ${Math.max(0,Math.floor(diffMs/60000))}m — click to refresh`;
+    // Button is intentionally hidden — auto-refresh handles renewal silently.
+    // If we get here it means auto-refresh failed or hasn't run yet; we just
+    // record the provider so a future refresh attempt can target it.
     btn._expiringProvider=soonest.key;
+    if(expired){
+      // Surface a single toast so the user knows to reconnect via Settings.
+      if(!btn._expiredToastShown){
+        btn._expiredToastShown=true;
+        try{toast({type:'warn',title:soonest.label+' connection expired',msg:'Open Settings → Accounts to reconnect.',duration:8000});}catch(_){}
+      }
+    }
   }catch{
     // Silently ignore — button is non-critical
   }
