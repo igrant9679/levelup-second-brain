@@ -447,6 +447,71 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .nc-tg span{font-size:8px;color:var(--ac);background:var(--acs);padding:1px 4px;border-radius:2px}
 .nc-m{font-size:9px;color:var(--t3);display:flex;gap:4px}
 
+/* ─── Global app-wide page-accent treatments ─────────────────────────────
+   Take the polish that gave the Notes page its identity and propagate
+   the broadly-applicable bits to every screen. Each rule keys off the
+   --page-accent CSS variable already set per body[data-screen="…"]. */
+
+/* Frosted-glass right rails everywhere — modern depth across the app.
+   Applies to the global .rr right rail used by Home/Tasks/Habits/etc.
+   plus the Notes page's bespoke .notes-rail. */
+.rr,.notes-rail{
+  background:color-mix(in srgb,var(--s1) 70%,transparent);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+}
+
+/* Active tab pills pick up the page accent instead of the global --ac. */
+.tab.on{
+  background:color-mix(in srgb,var(--page-accent) 18%,transparent);
+  color:color-mix(in srgb,var(--page-accent) 88%,#fff);
+}
+
+/* Sidebar/section labels (.sl) get a small accent dot before them so
+   group breaks feel intentional. The .si SVG colours on the main
+   sidebar are already per-icon, this just adds rhythm to the labels. */
+.sl{position:relative;padding-left:14px}
+.sl::before{content:'';position:absolute;left:4px;top:50%;transform:translateY(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--page-accent);opacity:.55}
+
+/* Active sidebar item picks up an extra accent glow on its left edge.
+   The icon colour is already per-route via .si[data-n="…"]. */
+.si.on{
+  background:color-mix(in srgb,var(--page-accent) 12%,transparent);
+  border-left:3px solid var(--page-accent);
+  padding-left:11px;
+}
+.si{transition:padding-left .12s,background .12s}
+
+/* Page header subtitle (the small "5 active · 2 overdue" line under each
+   page title) gets a thin accent bar to its left so it visually anchors
+   the header strip behind it. */
+.ph-r>div:first-child p{
+  border-left:2px solid color-mix(in srgb,var(--page-accent) 60%,transparent);
+  padding-left:8px;margin-left:2px;
+}
+
+/* Sub-nav (.nn) active items use the page accent everywhere. */
+.nn.on{
+  background:color-mix(in srgb,var(--page-accent) 16%,transparent);
+  color:color-mix(in srgb,var(--page-accent) 92%,#fff);
+  font-weight:500;
+}
+/* Sub-nav count badges become gradient accent pills. */
+.nn span:last-child{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 22%,transparent),color-mix(in srgb,var(--page-accent) 8%,transparent));
+  border:1px solid color-mix(in srgb,var(--page-accent) 28%,transparent);
+  color:color-mix(in srgb,var(--page-accent) 88%,#fff);
+  padding:1px 8px;border-radius:10px;font-size:9px;font-weight:600;
+  min-width:20px;text-align:center;
+}
+
+/* Generic list rows (.lr) gain a subtle accent left-border on hover so
+   pages dominated by lists (Tasks, Habits, Goals, Mail, Journal) feel
+   responsive without changing their layout. */
+.lr{transition:background .12s,border-left-color .12s,padding-left .12s;border-left:2px solid transparent;padding-left:6px}
+.lr:hover{border-left-color:color-mix(in srgb,var(--page-accent) 50%,transparent)}
+
 /* ─── Notes list card extras (thumb / color / pin / pinned section) ──── */
 .nc{display:block}
 .nc-row{display:flex;align-items:flex-start;gap:8px}
@@ -488,26 +553,14 @@ body[data-screen="notes"] .nc-tg span{
   color:var(--page-accent);
   background:color-mix(in srgb,var(--page-accent) 14%,transparent);
 }
-/* Side-nav active item picks up the page accent rather than --ac. */
-body[data-screen="notes"] .nn.on{
-  background:color-mix(in srgb,var(--page-accent) 16%,transparent);
-  color:var(--page-accent);font-weight:500;
-}
-/* Section labels in the notes-nav (SMART FOLDERS, TAG CLOUD, PARA) get
-   a tiny accent dot before them for rhythm. */
-body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"],
-body[data-screen="notes"] .notes-nav .sl{
+/* Notes-nav inline section labels (rendered as plain divs with inline
+   styling, not the .sl class) need a one-off rule for the accent dot. */
+body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"]{
   position:relative;padding-left:14px;
 }
-body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"]::before,
-body[data-screen="notes"] .notes-nav .sl::before{
+body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"]::before{
   content:'';position:absolute;left:4px;top:50%;transform:translateY(-50%);
   width:5px;height:5px;border-radius:50%;background:var(--page-accent);opacity:.6;
-}
-/* PARA / Smart Folders count badge gets a subtle accent gradient. */
-body[data-screen="notes"] .notes-nav .nn span:last-child{
-  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 18%,transparent),color-mix(in srgb,var(--page-accent) 8%,transparent));
-  border:1px solid color-mix(in srgb,var(--page-accent) 24%,transparent);
 }
 /* New Note button on this page tints with the page accent. */
 body[data-screen="notes"] .notes-nav .btn-p{
@@ -520,20 +573,6 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
   border-left:3px solid var(--page-accent);
   padding-left:10px;
   margin-left:-2px;
-}
-/* Frosted-glass effect on the rail. */
-body[data-screen="notes"] .notes-rail{
-  background:color-mix(in srgb,var(--s1) 70%,transparent);
-  backdrop-filter:blur(18px) saturate(140%);
-  -webkit-backdrop-filter:blur(18px) saturate(140%);
-}
-/* Smart-folder count badges as proper gradient pills. */
-body[data-screen="notes"] .notes-nav .nn span:last-child{
-  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 24%,transparent),color-mix(in srgb,var(--page-accent) 8%,transparent));
-  border:1px solid color-mix(in srgb,var(--page-accent) 30%,transparent);
-  color:color-mix(in srgb,var(--page-accent) 90%,#fff);
-  padding:1px 8px;border-radius:10px;font-size:9px;font-weight:600;
-  min-width:20px;text-align:center;
 }
 /* Breadcrumb above note title. */
 .note-crumb{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
