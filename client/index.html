@@ -447,6 +447,16 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .nc-tg span{font-size:8px;color:var(--ac);background:var(--acs);padding:1px 4px;border-radius:2px}
 .nc-m{font-size:9px;color:var(--t3);display:flex;gap:4px}
 
+/* ─── Notes list card extras (thumb / color / pin / pinned section) ──── */
+.nc{display:block}
+.nc-row{display:flex;align-items:flex-start;gap:8px}
+.nc-color{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;box-shadow:0 0 0 2px var(--s2),0 0 0 3px color-mix(in srgb,currentColor 30%,transparent)}
+.nc-body{flex:1;min-width:0}
+.nc-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;border:1px solid var(--bd2);background:var(--s3)}
+.nc-pin{font-size:9px;margin-right:4px;opacity:.85;display:inline-block;transform:translateY(-1px)}
+.nc-section-h{padding:8px 6px 4px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.nc-section-h::before{content:'';flex:1;height:1px;background:var(--bd1);margin-left:6px;order:2}
+
 /* ─── Notes page polish (data-screen="notes") ─────────────────────────
    The Notes layout is a 5-column grid (sidebar / nav / list / editor /
    rail) so the global .ph-r gradient strip never appears. These rules
@@ -511,6 +521,48 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
   padding-left:10px;
   margin-left:-2px;
 }
+/* Frosted-glass effect on the rail. */
+body[data-screen="notes"] .notes-rail{
+  background:color-mix(in srgb,var(--s1) 70%,transparent);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+}
+/* Smart-folder count badges as proper gradient pills. */
+body[data-screen="notes"] .notes-nav .nn span:last-child{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 24%,transparent),color-mix(in srgb,var(--page-accent) 8%,transparent));
+  border:1px solid color-mix(in srgb,var(--page-accent) 30%,transparent);
+  color:color-mix(in srgb,var(--page-accent) 90%,#fff);
+  padding:1px 8px;border-radius:10px;font-size:9px;font-weight:600;
+  min-width:20px;text-align:center;
+}
+/* Breadcrumb above note title. */
+.note-crumb{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  font-size:10px;color:var(--t3);margin-bottom:6px;font-weight:500}
+.note-crumb .crumb-sep{opacity:.5}
+.note-crumb .crumb-part{padding:1px 6px;border-radius:10px;background:var(--s2);border:1px solid var(--bd1)}
+.note-crumb .crumb-part:last-child{color:var(--page-accent);
+  background:color-mix(in srgb,var(--page-accent) 12%,transparent);
+  border-color:color-mix(in srgb,var(--page-accent) 28%,transparent)}
+/* Backlink chips beneath title. */
+.note-bl-chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.note-bl-chip{font-size:10px;padding:2px 8px;border-radius:10px;cursor:pointer;
+  background:color-mix(in srgb,var(--page-accent) 10%,var(--s2));
+  border:1px solid color-mix(in srgb,var(--page-accent) 22%,var(--bd1));
+  color:var(--t1);transition:background .12s,transform .1s}
+.note-bl-chip:hover{background:color-mix(in srgb,var(--page-accent) 22%,var(--s2));transform:translateY(-1px)}
+.note-bl-chip-arrow{opacity:.6;margin-right:3px;font-size:9px}
+/* Word count + reading time chip. */
+.note-meta-chip{display:inline-flex;align-items:center;gap:4px;
+  padding:1px 7px;border-radius:10px;background:var(--s2);border:1px solid var(--bd1);
+  font-size:10px;color:var(--t2);margin-right:4px}
+/* Color picker palette (in editor toolbar). */
+.note-color-palette{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;
+  background:var(--s2);border:1px solid var(--bd2);border-radius:6px;height:26px}
+.note-color-palette .ncp-dot{width:14px;height:14px;border-radius:50%;cursor:pointer;
+  border:1.5px solid transparent;transition:transform .1s,border-color .1s}
+.note-color-palette .ncp-dot:hover{transform:scale(1.18)}
+.note-color-palette .ncp-dot.selected{border-color:var(--t1);box-shadow:0 0 0 1px var(--s2)}
+.note-color-palette .ncp-none{background:repeating-linear-gradient(45deg,var(--s3),var(--s3) 3px,var(--s4) 3px,var(--s4) 6px)}
 
 /* MCF GRID */
 .mcf{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
@@ -4481,6 +4533,65 @@ function showNoteInEditor(id){
   }
 }
 // ─── Unified Notes Filter Engine ─────────────────────────────────────────────
+// ─── Note polish helpers ────────────────────────────────────────────────
+// Color palette for note color tags (small dot shown on the list card +
+// editor). Stored in n.color as a hex string. Empty string = no color.
+const NOTE_COLOR_PALETTE=[
+  {name:'None',value:''},
+  {name:'Red',value:'#ef4444'},
+  {name:'Orange',value:'#f97316'},
+  {name:'Amber',value:'#eab308'},
+  {name:'Green',value:'#22c55e'},
+  {name:'Cyan',value:'#06b6d4'},
+  {name:'Blue',value:'#3b82f6'},
+  {name:'Purple',value:'#a855f7'},
+  {name:'Pink',value:'#ec4899'},
+];
+// Extract the first inline image URL from a note's body (markdown or HTML).
+// Returns '' if no image is present.
+function _noteFirstImage(body){
+  if(!body)return '';
+  const md=body.match(/!\[[^\]]*\]\(([^)\s]+)\)/);
+  if(md)return md[1];
+  const html=body.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if(html)return html[1];
+  return '';
+}
+// Compute word count + estimated reading time (minutes, 200 wpm).
+function _readingTime(text){
+  const stripped=String(text||'').replace(/<[^>]+>/g,' ').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[[^\]]*\]\([^)]*\)/g,' ');
+  const wc=stripped.trim()?stripped.trim().split(/\s+/).length:0;
+  const mins=wc?Math.max(1,Math.round(wc/200)):0;
+  return {wc,mins};
+}
+// Build a breadcrumb path for a note based on its category + first tag.
+function _noteBreadcrumb(n){
+  const parts=['Notes'];
+  if(n.starred)parts.push('Favorites');
+  else if(n.source==='Web Clipper')parts.push('Web Clips');
+  else if(n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'))parts.push('Meeting Notes');
+  else if((n.tags||[]).includes('journal'))parts.push('Journal');
+  else if(!n.source||n.source==='Manual')parts.push('Resources');
+  else parts.push(n.source);
+  if((n.tags||[]).length)parts.push('#'+n.tags[0]);
+  return parts;
+}
+// Toggle pin on a note (saves + re-renders list).
+function toggleNotePinned(id){
+  const n=D.notes.find(x=>x.id===id);if(!n)return;
+  n.pinned=!n.pinned;save('notes');
+  if(typeof applyNotesFilters==='function')applyNotesFilters();
+  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+  toast(n.pinned?'📌 Pinned to top':'Unpinned');
+}
+// Set a note's color tag and re-render.
+function setNoteColor(id,hex){
+  const n=D.notes.find(x=>x.id===id);if(!n)return;
+  n.color=hex||'';save('notes');
+  if(typeof applyNotesFilters==='function')applyNotesFilters();
+  if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
+}
+
 function _parseNoteDate(n){
   // Try to parse a note's updated/created field into a Date. Falls back to epoch.
   const rawVal=n.updated||n.created;
@@ -4623,8 +4734,30 @@ function applyNotesFilters(){
       if(start>0)snippet='…'+snippet;
       if(end<(n.body||'').length)snippet+='…';
     }
-    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${hi(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}<div class="nc-m"><span style="${_notesFilterSources.has((n.source||'Manual').toLowerCase())?'color:var(--ac);font-weight:600':''}">${esc(n.source||'Manual')}</span><span>${fmtNoteDate(n.updated)}</span></div></div>`;
+    const img=_noteFirstImage(n.bodyHtml||n.body||'');
+    const thumb=img?`<img class="nc-thumb" src="${esc(img)}" loading="lazy" onerror="this.style.display='none'" alt="">`:'';
+    const colorDot=n.color?`<span class="nc-color" style="background:${esc(n.color)};color:${esc(n.color)}" title="Color tag"></span>`:'';
+    const pin=n.pinned?'<span class="nc-pin" title="Pinned">📌</span>':'';
+    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})">
+      <div class="nc-row">
+        ${colorDot}
+        <div class="nc-body">
+          <div class="nc-t">${pin}${hi(n.title)}</div>
+          <div class="nc-tg">${(n.tags||[]).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>
+          ${snippet?`<div style="font-size:9px;color:var(--t2);margin-top:2px;line-height:1.4">${snippet}</div>`:''}
+          <div class="nc-m"><span style="${_notesFilterSources.has((n.source||'Manual').toLowerCase())?'color:var(--ac);font-weight:600':''}">${esc(n.source||'Manual')}</span><span>${fmtNoteDate(n.updated)}</span></div>
+        </div>
+        ${thumb}
+      </div>
+    </div>`;
   }
+  // Split pinned out — they always appear first under a "📌 Pinned" header,
+  // regardless of grouping/sort. Skip when an explicit search/tag filter is
+  // active so users can still see only the matched notes.
+  const pinnedFirst=!q&&_notesFilterTags.size===0&&_notesFilterSources.size===0;
+  const pinned=pinnedFirst?notes.filter(n=>n.pinned):[];
+  if(pinnedFirst&&pinned.length)notes=notes.filter(n=>!n.pinned);
+  const pinnedHtml=pinned.length?`<div class="nc-section-h">📌 Pinned</div>`+pinned.map((n,i)=>noteCard(n,i)).join(''):'';
   let html;
   if(_notesGroupBy==='tag'){
     const groups={};
@@ -4663,7 +4796,7 @@ function applyNotesFilters(){
   }
   const el=document.getElementById('notes-list-inner');
   if(!el)return;
-  el.innerHTML=html||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes match the current filters.</p>`;
+  el.innerHTML=(pinnedHtml+(html||''))||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes match the current filters.</p>`;
 
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
@@ -5363,10 +5496,34 @@ function renderNoteEditor(n){
   ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:(n.body||''), height:'300px'})}
   <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>`;
   }
+  // Breadcrumb path
+  const crumbs=_noteBreadcrumb(n);
+  const crumbHtml=`<div class="note-crumb">${crumbs.map((c,ci)=>`${ci?'<span class="crumb-sep">›</span>':''}<span class="crumb-part">${esc(c)}</span>`).join('')}</div>`;
+  // Word count + reading time
+  const {wc,mins}=_readingTime(n.body||n.bodyHtml||'');
+  const meta=wc?`<span class="note-meta-chip">📝 ${wc} word${wc===1?'':'s'}</span><span class="note-meta-chip">⏱ ${mins} min read</span>`:'';
+  // Backlink chips: notes that link TO this one (via [[Title]])
+  let backlinkChips='';
+  try{
+    if(typeof buildNoteBacklinks==='function'){
+      const bls=buildNoteBacklinks(n.id)||[];
+      if(bls.length){
+        backlinkChips=`<div class="note-bl-chips">${bls.slice(0,8).map(b=>`<span class="note-bl-chip" onclick="showNoteInEditor(${b.id})" title="Linked from this note"><span class="note-bl-chip-arrow">←</span>${esc(b.title)}</span>`).join('')}${bls.length>8?`<span class="note-bl-chip" style="opacity:.7">+${bls.length-8} more</span>`:''}</div>`;
+      }
+    }
+  }catch(_){}
+  // Color palette
+  const palette=`<span class="note-color-palette" title="Color tag">${NOTE_COLOR_PALETTE.map(c=>{
+    const sel=(n.color||'')===c.value?'selected':'';
+    const style=c.value?`background:${c.value}`:'';
+    const cls=c.value?'ncp-dot':'ncp-dot ncp-none';
+    return `<span class="${cls} ${sel}" style="${style}" title="${esc(c.name)}" onclick="setNoteColor(${n.id},'${c.value}')"></span>`;
+  }).join('')}</span>`;
   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
-  <div style="display:flex;gap:6px">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
     <button class="btn btn-p" style="height:26px;font-size:10px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full Edit</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${n.id})" title="${n.pinned?'Unpin':'Pin to top of list'}">📌 ${n.pinned?'Pinned':'Pin'}</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑 Delete</button>
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="aiSummarizeNote(${n.id})" title="AI-summarize this note into bullet points">✨ Summarize</button>
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp)" onclick="aiAutoTagNote(${n.id})" title="AI auto-suggest tags for this note">🏷 Auto-tag</button>
@@ -5375,11 +5532,14 @@ function renderNoteEditor(n){
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--grn)" onclick="aiConceptLink(${n.id})" title="AI: Find related notes by concept">🔗 Links</button>
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--warn)" onclick="aiGapDetect(${n.id})" title="AI: Detect knowledge gaps">🔍 Gaps</button>
     <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp)" onclick="aiExpandToDoc(${n.id})" title="AI: Expand note to full document">📄 Expand</button>
+    ${palette}
   </div>
   <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
-  <h2 style="font-size:18px;font-weight:600;margin-bottom:6px;${n.titleColor?`color:${n.titleColor}`:''}">${esc(n.title)}</h2>
-  <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
+  ${crumbHtml}
+  <h2 style="font-size:18px;font-weight:600;margin-bottom:6px;${n.titleColor?`color:${n.titleColor}`:''}">${n.color?`<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(n.color)};margin-right:8px;vertical-align:middle"></span>`:''}${esc(n.title)}</h2>
+  ${backlinkChips}
+  <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')} ${meta}</div>
   <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${fmtNoteDate(n.updated)}${n.createdBy?` · by ${n.createdBy}`:''}</div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`;
 }
