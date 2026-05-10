@@ -36,6 +36,20 @@ body.compact-mode .si{padding:4px 8px!important;font-size:11px!important}
 /* Normal-mode (non-compact) font size bump — makes the app easier to read.
    Compact mode overrides these via the !important rules above. */
 body:not(.compact-mode){font-size:15px}
+/* Read-only markdown body — used by renderMd() for project descriptions,
+   task/idea/journal previews, etc. Tightens defaults so block elements
+   from <p style="margin:6px 0">…</p> don't leak excess vertical space. */
+.md-body p{margin:6px 0}
+.md-body p:first-child{margin-top:0}
+.md-body p:last-child{margin-bottom:0}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4,.md-body h5,.md-body h6{color:var(--t1)}
+.md-body ul,.md-body ol{margin:6px 0 6px 18px;padding:0}
+.md-body li{margin:2px 0}
+.md-body a{color:var(--ac);text-decoration:underline;word-break:break-word}
+.md-body code{background:var(--s3);padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:.92em}
+.md-body pre{background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin:8px 0;overflow-x:auto}
+.md-body blockquote{border-left:3px solid var(--ac);padding:2px 8px;margin:6px 0;color:var(--t2);font-style:italic}
+.md-body img{max-width:100%;border-radius:6px;margin:8px 0;display:block}
 body:not(.compact-mode) .si{font-size:13px;padding:7px 10px}
 body:not(.compact-mode) .si svg{width:16px;height:16px}
 body:not(.compact-mode) .tab{font-size:13px;padding:6px 12px}
@@ -1153,6 +1167,81 @@ function luRTE_mdToHtml(text){
     .replace(/(<li>.*<\/li>)/gs,'<ul>$1</ul>')
     .replace(/\n\n/g,'</p><p>')
     .replace(/\n/g,'<br>');
+}
+
+// renderMd — preferred read-only markdown→HTML renderer for description and
+// notes display surfaces (project descriptions, task notes preview, idea
+// descriptions, goal target text, etc.). Handles headings, bold/italic,
+// inline code, fenced code, blockquotes, bullet/numbered lists, horizontal
+// rules, links, autolinks, and inline images. Pre-escapes HTML so user
+// content can't inject script. Intentionally minimal and dependency-free.
+function renderMd(text){
+  if(text==null)return '';
+  let s=String(text);
+  if(!s.trim())return '';
+  // Already HTML? Return as-is so existing rich content is preserved.
+  if(/^\s*</.test(s))return s;
+  // 1. Pull out fenced code blocks first so their contents survive escaping
+  const codeBlocks=[];
+  s=s.replace(/```([\s\S]*?)```/g,(_,c)=>{
+    const i=codeBlocks.push(c)-1;return ` CB${i} `;
+  });
+  // 2. Pull out images so escaping doesn't break their src/alt
+  const images=[];
+  s=s.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,(_,alt,url)=>{
+    const i=images.push({alt,url})-1;return ` IM${i} `;
+  });
+  // 3. Pull out [text](url) links the same way
+  const links=[];
+  s=s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(_,t,u)=>{
+    const i=links.push({t,u})-1;return ` LN${i} `;
+  });
+  // 4. Escape remaining HTML
+  s=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // 5. Block-level transforms
+  s=s.replace(/^######\s+(.+)$/gm,'<h6 style="font-size:11px;font-weight:600;margin:8px 0 2px">$1</h6>')
+     .replace(/^#####\s+(.+)$/gm,'<h5 style="font-size:12px;font-weight:600;margin:8px 0 2px">$1</h5>')
+     .replace(/^####\s+(.+)$/gm,'<h4 style="font-size:13px;font-weight:600;margin:8px 0 2px">$1</h4>')
+     .replace(/^###\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>')
+     .replace(/^##\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>')
+     .replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>')
+     .replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid var(--bd1);margin:10px 0">')
+     .replace(/^\s*&gt;\s+(.+)$/gm,'<blockquote style="border-left:3px solid var(--ac);padding:2px 8px;margin:6px 0;color:var(--t2);font-style:italic">$1</blockquote>');
+  // 6. Lists — group consecutive items into a single <ul>/<ol>
+  s=s.replace(/(?:^[-*+]\s+.+(?:\n|$))+/gm,(block)=>{
+    const items=block.trim().split(/\n/).map(l=>l.replace(/^[-*+]\s+/,'')).map(it=>`<li style="margin:2px 0">${it}</li>`).join('');
+    return `<ul style="margin:6px 0 6px 18px;padding:0">${items}</ul>`;
+  });
+  s=s.replace(/(?:^\d+\.\s+.+(?:\n|$))+/gm,(block)=>{
+    const items=block.trim().split(/\n/).map(l=>l.replace(/^\d+\.\s+/,'')).map(it=>`<li style="margin:2px 0">${it}</li>`).join('');
+    return `<ol style="margin:6px 0 6px 22px;padding:0">${items}</ol>`;
+  });
+  // 7. Inline transforms
+  s=s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+     .replace(/(^|[\s(])\*([^\s*][^*]*?)\*(?=[\s).,!?;:]|$)/g,'$1<em>$2</em>')
+     .replace(/(^|[\s(])_([^\s_][^_]*?)_(?=[\s).,!?;:]|$)/g,'$1<em>$2</em>')
+     .replace(/`([^`]+?)`/g,'<code style="background:var(--s3);padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:.92em">$1</code>')
+     .replace(/(^|\s)(https?:\/\/[^\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener" style="color:var(--ac);text-decoration:underline">$2</a>');
+  // 8. Paragraph breaks (double newlines) and soft breaks
+  s=s.replace(/\n{2,}/g,'</p><p style="margin:6px 0">').replace(/\n/g,'<br>');
+  s=`<p style="margin:6px 0">${s}</p>`;
+  // 9. Restore protected blocks with proper HTML
+  s=s.replace(/ LN(\d+) /g,(_,i)=>{
+    const {t,u}=links[+i];
+    const safeUrl=String(u).replace(/"/g,'&quot;');
+    return `<a href="${safeUrl}" target="_blank" rel="noopener" style="color:var(--ac);text-decoration:underline">${t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</a>`;
+  });
+  s=s.replace(/ IM(\d+) /g,(_,i)=>{
+    const {alt,url}=images[+i];
+    const safeUrl=String(url).replace(/"/g,'&quot;');
+    const safeAlt=String(alt||'Image').replace(/"/g,'&quot;');
+    return `<img src="${safeUrl}" alt="${safeAlt}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`;
+  });
+  s=s.replace(/ CB(\d+) /g,(_,i)=>{
+    const c=codeBlocks[+i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<pre style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin:8px 0;font-family:ui-monospace,monospace;font-size:11px;overflow-x:auto"><code>${c}</code></pre>`;
+  });
+  return s;
 }
 
 // Convert RTE HTML back to plain text / markdown for storage
@@ -4998,7 +5087,7 @@ function openProjectDetail(pid){
     <span style="font-size:11px;color:var(--t3)">${p.pct}% complete</span>
   </div>
   <div class="pb" style="margin-bottom:12px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div>
-  <div style="font-size:11px;color:var(--t2);margin-bottom:12px">${esc(p.desc)}</div>
+  <div class="md-body" style="font-size:11px;color:var(--t2);margin-bottom:12px;line-height:1.5">${renderMd(p.desc||'')}</div>
   <div style="font-size:12px;font-weight:600;margin-bottom:6px">Tasks & Subtasks (${pts.length})</div>
   ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
   <div style="display:flex;gap:8px;margin-top:12px">
@@ -5539,7 +5628,10 @@ let _mailTab='inbox';
 function openMailItem(id){
   _selectedMail=id;
   const items=_mailTab==='sent'?_getSentItems():_getMailItems();
-  const mail=items.find(m=>m.id===id);
+  // Inbox onclicks pass the id wrapped in '' (string) while synced messages
+  // store numeric ids — compare as strings to avoid type-mismatched lookups
+  // that left the detail pane blank.
+  const mail=items.find(m=>String(m.id)===String(id));
   if(!mail)return;
   mail.read=true;
   save('mail');
@@ -9041,7 +9133,7 @@ function renderHabits(){
   const done=visibleHabits.filter(h=>h.doneToday).length;
   const total=visibleHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
@@ -10591,7 +10683,7 @@ function renderSettingsHTML(){
       <button id="btn-ms-test" class="btn btn-s" style="font-size:11px;padding:4px 10px;display:none" onclick="testOAuthConnection('microsoft')">🔌 Test Connection</button>
       <button id="btn-ms-sync-cal" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthCalendar('microsoft')">📅 Sync Calendar</button>
       <button id="btn-ms-sync-mail" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthMail('microsoft')">✉ Sync Mail</button>
-      <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="syncOAuthContacts('microsoft')">👥 Sync Contacts</button>
+      <button id="btn-ms-sync-contacts" class="btn" style="font-size:11px;padding:4px 10px;display:none" onclick="openContactsImportPicker('microsoft')">👥 Import Contacts</button>
     </div>
   </div>
   <!-- Non-admin notice: secondary email is managed by admin -->
@@ -10971,7 +11063,7 @@ function renderSettingsHTML(){
       <div style="display:flex;gap:4px">
         <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
         <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthMail('microsoft')">✉ Mail</button>
-        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthContacts('microsoft')">👥 Contacts</button>
+        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="openContactsImportPicker('microsoft')">👥 Contacts</button>
       </div>
     </div>
   </div>
@@ -14962,6 +15054,7 @@ function renderContacts(){
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="openAddContactModal()">+ Add Contact</button>
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="importContactsCSV()">📥 Import CSV</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;color:#0078d4" onclick="openContactsImportPicker('microsoft')" title="Pick which Microsoft 365 contacts to import">📥 Import from O365</button>
       <button class="btn btn-s" style="height:30px;font-size:11px" onclick="exportContactsCSV()">📤 Export CSV</button>
       <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="aiContactHealth()" title="AI: Relationship health scores">❤ Health</button>
       <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--purp)" onclick="aiContactDuplicates()" title="AI: Detect duplicate contacts">🔍 Dupes</button>
@@ -17224,10 +17317,14 @@ async function syncOAuthMail(provider){
   }
 }
 
+// Original "import everything" path — kept for backward compatibility with
+// callers that batch-sync silently (e.g. the post-OAuth bulk sync). For the
+// human-driven Settings/Contacts buttons, openContactsImportPicker provides
+// a selective UI.
 async function syncOAuthContacts(provider){
   toast('⏳ Syncing '+provider+' contacts...');
   try{
-    const result=await _trpc('oauthSync.syncContacts',{provider,limit:50},'mutation');
+    const result=await _trpc('oauthSync.syncContacts',{provider,limit:200},'mutation');
     const contacts=result?.contacts||[];
     if(!contacts.length){toast('No contacts found.');return;}
     if(!D.contacts)D.contacts=[];
@@ -17246,6 +17343,83 @@ async function syncOAuthContacts(provider){
   }catch(e){
     toast('⚠️ '+e.message);
   }
+}
+
+// Selective import: pulls up to 200 contacts from the provider, shows a
+// checkbox modal with search + select-all, and imports only what the user
+// picks. Skips contacts whose email already exists locally (marked dim).
+async function openContactsImportPicker(provider){
+  toast('⏳ Loading '+provider+' contacts...');
+  try{
+    const result=await _trpc('oauthSync.syncContacts',{provider,limit:200},'mutation');
+    const contacts=(result?.contacts||[]).filter(c=>c.name||c.email);
+    if(!contacts.length){toast('No contacts found.');return;}
+    const existingEmails=new Set((D.contacts||[]).filter(c=>c.email).map(c=>c.email.toLowerCase()));
+    window._ciList=contacts;window._ciProvider=provider;window._ciExisting=existingEmails;
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`
+      <h2 style="font-size:15px;font-weight:600;margin-bottom:6px">📥 Import Contacts from ${provider==='microsoft'?'Microsoft 365':'Google'}</h2>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Select which contacts to add. Already-imported entries (matched by email) are dimmed and unchecked.</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+        <input id="ci-search" class="inp" placeholder="🔍 Filter by name or email..." style="flex:1;font-size:11px;height:28px" oninput="_renderContactsImportList()">
+        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_ciToggleAll(true)">Select all</button>
+        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_ciToggleAll(false)">None</button>
+      </div>
+      <div id="ci-list" style="max-height:380px;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+        <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-p" onclick="_doSelectiveContactsImport()">📥 Import Selected</button>
+      </div>`;
+    document.getElementById('modal-capture').classList.add('show');
+    _renderContactsImportList();
+  }catch(e){
+    toast('⚠️ '+e.message);
+  }
+}
+function _renderContactsImportList(){
+  const q=(document.getElementById('ci-search')?.value||'').toLowerCase();
+  const list=window._ciList||[];
+  const existing=window._ciExisting||new Set();
+  const filtered=list.map((c,i)=>({...c,_idx:i})).filter(c=>{
+    if(!q)return true;
+    return (c.name||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)||(c.company||'').toLowerCase().includes(q);
+  });
+  const el=document.getElementById('ci-list');if(!el)return;
+  if(!filtered.length){el.innerHTML='<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matches</div>';return;}
+  el.innerHTML=filtered.map(c=>{
+    const dup=c.email&&existing.has(c.email.toLowerCase());
+    const initials=(c.name||c.email||'?').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    return `<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;${dup?'opacity:.5':''}">
+      <input type="checkbox" data-idx="${c._idx}" ${dup?'':'checked'} ${dup?'disabled':''} style="accent-color:var(--ac)">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--t1)">${esc(c.name||'(no name)')}${dup?' <span style=\"font-size:9px;color:var(--t3);font-weight:400\">— already imported</span>':''}</div>
+        <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.email||'')}${c.title||c.company?' · '+esc([c.title,c.company].filter(Boolean).join(', ')):''}</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+function _ciToggleAll(check){
+  document.querySelectorAll('#ci-list input[type=checkbox]:not([disabled])').forEach(cb=>{cb.checked=!!check;});
+}
+function _doSelectiveContactsImport(){
+  const list=window._ciList||[];
+  const provider=window._ciProvider||'microsoft';
+  const picks=[...document.querySelectorAll('#ci-list input[type=checkbox]:checked:not([disabled])')]
+    .map(cb=>list[Number(cb.dataset.idx)]).filter(Boolean);
+  if(!picks.length){toast('Nothing selected');return;}
+  if(!D.contacts)D.contacts=[];
+  let added=0;
+  picks.forEach(c=>{
+    const exists=D.contacts.find(x=>x.email&&c.email&&x.email.toLowerCase()===c.email.toLowerCase());
+    if(exists)return;
+    D.contacts.push({id:Date.now()+Math.random(),name:c.name||'',email:c.email||'',phone:c.phone||'',title:c.title||'',company:c.company||'',tags:[provider],notes:'',enriched:false});
+    added++;
+  });
+  save('contacts');
+  closeModal();
+  if(typeof renderContacts==='function')renderContacts();
+  toast('✓ Imported '+added+' contact'+(added===1?'':'s')+' from '+provider);
 }
 
 // Check for OAuth success/error query params on page load
