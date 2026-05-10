@@ -997,6 +997,7 @@ function luRTE_render(opts={}){
   <button class="rte-btn" title="Indent" onmousedown="event.preventDefault();luRTE_cmd('indent','${id}')">⇥</button>
   <div class="rte-sep"></div>
   <button class="rte-btn" title="Insert Link" onmousedown="event.preventDefault();luRTE_insertLink('${id}')">🔗</button>
+  <button class="rte-btn" title="Insert Image (file or URL)" onmousedown="event.preventDefault();luRTE_insertImage('${id}')">🖼</button>
   <button class="rte-btn" title="Insert Horizontal Rule" onmousedown="event.preventDefault();luRTE_cmd('insertHorizontalRule','${id}')">—</button>
   <button class="rte-btn" title="Clear Formatting" onmousedown="event.preventDefault();luRTE_cmd('removeFormat','${id}')">Tx</button>
   <div class="rte-sep"></div>
@@ -1071,6 +1072,47 @@ function luRTE_insertLink(id){
   if(!el)return;
   el.focus();
   document.execCommand('createLink',false,url);
+}
+
+// Insert an image into the contenteditable RTE. Two paths:
+//   1) Pick a file from disk → read as data URL → embed inline. The image
+//      lives inside the note body and travels with the note (works offline,
+//      survives across devices since the body syncs to the server).
+//   2) Paste a URL → embed via <img src="…">. Useful for already-hosted
+//      images (Imgur, S3, etc.).
+function luRTE_insertImage(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  // Prefer to ask before opening the file picker so the user can paste a URL
+  const choice=prompt('Insert image: paste an image URL, or leave blank to upload a file from your computer.','');
+  if(choice===null)return; // user cancelled
+  if(choice.trim()){
+    // URL path — sanity-check and insert
+    let url=choice.trim();
+    if(!/^https?:\/\//i.test(url)&&!url.startsWith('data:image/')){
+      toast('That doesn’t look like a valid image URL');return;
+    }
+    el.focus();
+    const safe=url.replace(/"/g,'&quot;');
+    document.execCommand('insertHTML',false,`<img src="${safe}" alt="Image" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
+    return;
+  }
+  // File-picker path
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='image/png,image/jpeg,image/webp,image/gif,image/avif';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    if(f.size>5*1024*1024){toast('Image too large (max 5 MB)');return;}
+    const r=new FileReader();
+    r.onload=()=>{
+      el.focus();
+      const safeAlt=(f.name||'Image').replace(/"/g,'&quot;');
+      document.execCommand('insertHTML',false,`<img src="${r.result}" alt="${safeAlt}" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
+    };
+    r.onerror=()=>toast('Failed to read image');
+    r.readAsDataURL(f);
+  };
+  inp.click();
 }
 
 function luRTE_keydown(e,id){
@@ -1385,6 +1427,63 @@ var D = {
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
+
+// ─── Task Context (customizable dropdown) ────────────────────────────────────
+// Stored in D.prefs.taskContexts so it rides with the prefs sync. Defaults
+// cover both the legacy seed values and the user-suggested business buckets.
+const _DEFAULT_TASK_CONTEXTS=['LSI Business','CF Business','Financial Personal','Deep Work','Admin','Calls','Learning','Creative','Personal','Inbox'];
+function _getTaskContexts(){
+  const arr=(D.prefs&&Array.isArray(D.prefs.taskContexts))?D.prefs.taskContexts.slice():null;
+  if(arr&&arr.length)return arr;
+  return _DEFAULT_TASK_CONTEXTS.slice();
+}
+function _renderContextSelect(id,current,className){
+  const opts=_getTaskContexts();
+  // Make sure the current value is in the list — if a task already had a
+  // free-text context that no longer matches an option, keep it as a
+  // "(current)" entry so we don't silently lose data.
+  const cur=(current||'').trim();
+  if(cur&&!opts.includes(cur))opts.unshift(cur);
+  const html=opts.map(o=>`<option value="${esc(o)}" ${o===cur?'selected':''}>${esc(o)}</option>`).join('');
+  return `<select class="${className||'inp'}" id="${id}"><option value="" ${!cur?'selected':''}>—</option>${html}</select>`;
+}
+function manageTaskContexts(){
+  const m=document.getElementById('modal-content');if(!m)return;
+  const list=_getTaskContexts();
+  m.innerHTML=`
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:6px">⚙ Manage Task Contexts</h2>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">Used as a category on each task — e.g. <em>LSI Business</em>, <em>Deep Work</em>, <em>Admin</em>. One per line.</p>
+    <textarea id="ctx-mgr-list" class="inp" style="min-height:200px;font-size:12px;line-height:1.6;font-family:ui-monospace,monospace">${esc(list.join('\n'))}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button class="btn btn-s" onclick="_resetTaskContexts()">↺ Reset to Defaults</button>
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_saveTaskContexts()">💾 Save</button>
+    </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _saveTaskContexts(){
+  const raw=document.getElementById('ctx-mgr-list')?.value||'';
+  // Clean: trim + dedupe (case-insensitive, keep first occurrence)
+  const seen=new Set();
+  const arr=raw.split(/\r?\n/).map(l=>l.trim()).filter(l=>{
+    if(!l)return false;
+    const k=l.toLowerCase();
+    if(seen.has(k))return false;
+    seen.add(k);return true;
+  });
+  D.prefs=D.prefs||{};
+  D.prefs.taskContexts=arr;
+  save('prefs');
+  closeModal();
+  toast('✓ Saved '+arr.length+' context option'+(arr.length===1?'':'s'));
+  // If a task drawer is currently open, refresh it so the dropdown rebuilds.
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+}
+function _resetTaskContexts(){
+  if(!confirm('Reset to the default set of contexts? Any custom additions will be removed.'))return;
+  const ta=document.getElementById('ctx-mgr-list');
+  if(ta)ta.value=_DEFAULT_TASK_CONTEXTS.join('\n');
+}
 function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
@@ -1519,7 +1618,7 @@ function renderDrawer(type,item){
     </div>
     <div class="field-row">
       <div class="field"><label>Project</label><select class="inp" id="dr-proj"><option value="">None</option>${D.projects.map(p=>`<option value="${p.id}" ${item.projectId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
-      <div class="field"><label>Context</label><input class="inp" value="${esc(item.context)}" id="dr-ctx"></div>
+      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Context<button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 6px" onclick="manageTaskContexts()" title="Add, rename, or remove options">⚙ Manage</button></label>${_renderContextSelect('dr-ctx',item.context||'')}</div>
     </div>
     <div class="field-row">
       <div class="field"><label>Recurring</label><select class="inp" id="dr-recurring"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option></select></div>
@@ -2031,7 +2130,7 @@ function renderCaptureModal(active){
     <div class="field"><label>Priority</label><select class="inp" id="cap-pri"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
     <div class="field"><label>Due Date</label><input class="inp" type="date" id="cap-due"></div>
     <div class="field"><label>Project</label><select class="inp" id="cap-proj"><option value="">None</option>${D.projects.map(p=>`<option>${esc(p.name)}</option>`).join('')}</select></div>
-    <div class="field"><label>Context</label><input class="inp" placeholder="Work, Personal..." id="cap-ctx" value="Inbox"></div></div>${footer}`;
+    <div class="field"><label>Context</label>${_renderContextSelect('cap-ctx','Inbox')}</div></div>${footer}`;
   }
   if(active==='Note'){
     return `<h2>📝 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
@@ -13569,7 +13668,7 @@ function renderFATask(){
   <div class="fa-section">
     <div class="fa-section-title">⚙️ Task Details</div>
     <div class="fa-row c3">
-      <div class="fa-field"><label>Context</label><input class="fa-inp" id="fa-context" placeholder="Work, Personal, Calls..."></div>
+      <div class="fa-field"><label style="display:flex;align-items:center;justify-content:space-between">Context<button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 6px" onclick="manageTaskContexts()" title="Add, rename, or remove options">⚙</button></label>${_renderContextSelect('fa-context','','fa-inp')}</div>
       <div class="fa-field"><label>Location</label><select class="fa-inp" id="fa-location"><option>Anywhere</option><option>Home</option><option>Office</option><option>Errands</option><option>Online</option></select></div>
       <div class="fa-field"><label>Energy</label><select class="fa-inp" id="fa-energy"><option>low</option><option selected>medium</option><option>high</option></select></div>
     </div>
