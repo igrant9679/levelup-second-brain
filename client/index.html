@@ -438,14 +438,79 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .notes-nav{background:var(--s1);border-right:1px solid var(--bd1)}
 .notes-list{border-right:1px solid var(--bd1)}
 .notes-rail{background:var(--s1);border-left:1px solid var(--bd1)}
-.nn{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:5px;font-size:11px;color:var(--t2);cursor:pointer;margin-bottom:1px}
-.nn:hover{background:var(--s3);color:var(--t1)}.nn.on{background:var(--acs);color:var(--ach)}
-.nc{padding:6px;border-radius:6px;cursor:pointer;margin-bottom:2px;border:1px solid transparent}
-.nc:hover{background:var(--s3)}.nc.on{background:var(--acs);border-color:var(--ac)}
+.nn{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:5px;font-size:11px;color:var(--t2);cursor:pointer;margin-bottom:1px;transition:background .12s,color .12s,padding-left .12s}
+.nn:hover{background:var(--s3);color:var(--t1);padding-left:9px}.nn.on{background:var(--acs);color:var(--ach)}
+.nc{padding:6px;border-radius:6px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;transition:background .12s,border-color .12s,transform .12s}
+.nc:hover{background:var(--s3);transform:translateX(1px)}.nc.on{background:var(--acs);border-color:var(--ac)}
 .nc-t{font-size:11px;font-weight:500;margin-bottom:2px}
 .nc-tg{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:2px}
 .nc-tg span{font-size:8px;color:var(--ac);background:var(--acs);padding:1px 4px;border-radius:2px}
 .nc-m{font-size:9px;color:var(--t3);display:flex;gap:4px}
+
+/* ─── Notes page polish (data-screen="notes") ─────────────────────────
+   The Notes layout is a 5-column grid (sidebar / nav / list / editor /
+   rail) so the global .ph-r gradient strip never appears. These rules
+   give the page its own visual identity using --page-accent (orange). */
+body[data-screen="notes"] .notes-editor{
+  background:
+    radial-gradient(circle at top right,color-mix(in srgb,var(--page-accent) 8%,transparent),transparent 50%),
+    var(--bg);
+  position:relative;
+}
+/* Top accent strip across the editor pane, sitting above its scroll. */
+body[data-screen="notes"] .notes-editor::before{
+  content:'';position:sticky;top:-12px;left:0;right:0;display:block;
+  height:3px;margin:-12px -8px 8px;border-radius:0;
+  background:linear-gradient(90deg,var(--page-accent),color-mix(in srgb,var(--page-accent) 50%,transparent) 60%,transparent);
+  pointer-events:none;z-index:1;
+}
+/* Active note in the list: stronger left-border bar + accent halo. */
+body[data-screen="notes"] .nc.on{
+  background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));
+  border-color:color-mix(in srgb,var(--page-accent) 60%,transparent);
+  box-shadow:inset 3px 0 0 var(--page-accent),0 1px 4px color-mix(in srgb,var(--page-accent) 25%,transparent);
+}
+body[data-screen="notes"] .nc:hover{
+  border-color:color-mix(in srgb,var(--page-accent) 30%,transparent);
+}
+/* Tag pills inside note cards inherit the accent. */
+body[data-screen="notes"] .nc-tg span{
+  color:var(--page-accent);
+  background:color-mix(in srgb,var(--page-accent) 14%,transparent);
+}
+/* Side-nav active item picks up the page accent rather than --ac. */
+body[data-screen="notes"] .nn.on{
+  background:color-mix(in srgb,var(--page-accent) 16%,transparent);
+  color:var(--page-accent);font-weight:500;
+}
+/* Section labels in the notes-nav (SMART FOLDERS, TAG CLOUD, PARA) get
+   a tiny accent dot before them for rhythm. */
+body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"],
+body[data-screen="notes"] .notes-nav .sl{
+  position:relative;padding-left:14px;
+}
+body[data-screen="notes"] .notes-nav [style*="font-size:9px"][style*="text-transform:uppercase"]::before,
+body[data-screen="notes"] .notes-nav .sl::before{
+  content:'';position:absolute;left:4px;top:50%;transform:translateY(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--page-accent);opacity:.6;
+}
+/* PARA / Smart Folders count badge gets a subtle accent gradient. */
+body[data-screen="notes"] .notes-nav .nn span:last-child{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 18%,transparent),color-mix(in srgb,var(--page-accent) 8%,transparent));
+  border:1px solid color-mix(in srgb,var(--page-accent) 24%,transparent);
+}
+/* New Note button on this page tints with the page accent. */
+body[data-screen="notes"] .notes-nav .btn-p{
+  background:var(--page-accent);
+}
+body[data-screen="notes"] .notes-nav .btn-p:hover{filter:brightness(1.08)}
+/* Note title heading in the editor gets an accent left-border bar. */
+body[data-screen="notes"] .notes-editor h2:first-of-type,
+body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
+  border-left:3px solid var(--page-accent);
+  padding-left:10px;
+  margin-left:-2px;
+}
 
 /* MCF GRID */
 .mcf{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
@@ -5113,7 +5178,7 @@ function renderNotes(){
 
   // Populate Notes editor panel
   const editor=$('notes-editor-panel');
-  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):'<p style="color:var(--t3);margin-top:40px;text-align:center">Select a note to view</p>';
+  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):renderEmptyState({icon:'📒',title:'Your second brain starts here',hint:'Capture an idea, drop a web clip, paste meeting notes, or import a document. Everything is searchable and linkable from day one.',ctaLabel:'+ Create your first note',ctaFn:"openFA('note')"});
 
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
