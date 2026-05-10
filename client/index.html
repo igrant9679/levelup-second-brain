@@ -411,6 +411,8 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .fa-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;margin-right:4px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.85)}}
+@keyframes wave{0%,60%,100%{transform:rotate(0deg)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
 .modal h2{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .modal .close{margin-left:auto;width:26px;height:26px;border-radius:6px;background:var(--s3);border:none;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
 
@@ -3428,15 +3430,38 @@ function renderHome(){
   const _stHabitsDone=(D.habits||[]).filter(h=>h.doneToday).length;
   const _stHabitsTotal=(D.habits||[]).length;
   const _todayLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
-  m.innerHTML=`<div class="home-hero" style="position:relative;padding:22px 24px 18px;margin-bottom:14px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,color-mix(in srgb,#3b82f6 22%,var(--s2)) 0%,color-mix(in srgb,#a855f7 12%,var(--s2)) 50%,color-mix(in srgb,#ec4899 8%,var(--s2)) 100%);border:1px solid color-mix(in srgb,#3b82f6 30%,var(--bd2));box-shadow:0 4px 20px color-mix(in srgb,#3b82f6 14%,transparent)">
-    <div style="position:absolute;top:-40px;right:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,#a855f7 26%,transparent),transparent 65%);pointer-events:none"></div>
+  // Pick a daily-rotating motivational tagline so the subtitle isn't always
+  // the same boring line. Seeded by the day-of-year so it's stable for the
+  // whole day but feels fresh tomorrow.
+  const _heroLines=[
+    'Small consistent wins compound into big outcomes.',
+    'Pick three things that move the needle. Ignore the rest.',
+    "What would make today feel like a win? Start there.",
+    'Deep work first. Shallow work fills the cracks on its own.',
+    'Energy is finite — spend it on what compounds.',
+    'Done > perfect. Ship the messy first draft.',
+    'You don’t have to do it all today. Just do the next right thing.',
+    "Your future self is built one focused hour at a time.",
+  ];
+  const _doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
+  const _heroSub=_heroLines[_doy%_heroLines.length];
+  m.innerHTML=`<div class="home-hero" style="position:relative;padding:26px 28px 22px;margin-bottom:14px;border-radius:18px;overflow:hidden;background:linear-gradient(125deg,#1e3a8a 0%,#5b21b6 45%,#9d174d 100%);border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 48px rgba(91,33,182,.32),0 2px 8px rgba(0,0,0,.4)">
+    <!-- Decorative blurred orbs -->
+    <div style="position:absolute;top:-60px;right:-40px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(168,85,247,.55),transparent 70%);pointer-events:none;filter:blur(8px)"></div>
+    <div style="position:absolute;bottom:-80px;left:30%;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.32),transparent 70%);pointer-events:none;filter:blur(10px)"></div>
+    <div style="position:absolute;top:20px;left:35%;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.40),transparent 70%);pointer-events:none;filter:blur(6px)"></div>
+    <!-- Faint grid pattern overlay for texture -->
+    <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;opacity:.5"></div>
     <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
-        <div style="font-size:11px;color:color-mix(in srgb,#fff 75%,var(--t2));font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">${_todayLabel}</div>
-        <h1 style="font-size:28px;font-weight:800;line-height:1.15;margin:0;background:linear-gradient(90deg,#60a5fa,#c084fc);-webkit-background-clip:text;background-clip:text;color:transparent">Good ${_greetWord}, ${_greetName}! <span style="-webkit-text-fill-color:initial">👋</span></h1>
-        <p style="font-size:13px;color:var(--t1);opacity:.85;margin-top:6px;border-left:none!important;padding-left:0!important">Focus on what matters today. You've got this.</p>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:4px 12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:10px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;backdrop-filter:blur(8px)">
+          <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite"></span>
+          ${_todayLabel}
+        </div>
+        <h1 style="font-size:34px;font-weight:800;line-height:1.1;margin:0;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.35);letter-spacing:-.5px">Good ${_greetWord}, <span style="background:linear-gradient(90deg,#fbbf24,#fb7185);-webkit-background-clip:text;background-clip:text;color:transparent">${_greetName}</span>! <span style="display:inline-block;animation:wave 2.4s ease-in-out infinite;transform-origin:70% 70%">👋</span></h1>
+        <p style="font-size:14px;color:rgba(255,255,255,.88);margin-top:8px;border-left:none!important;padding-left:0!important;font-weight:400;line-height:1.5;text-shadow:0 1px 8px rgba(0,0,0,.3)">${esc(_heroSub)}</p>
       </div>
-      <button class="btn btn-s" style="height:30px;font-size:11px;flex-shrink:0;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:#fff;backdrop-filter:blur(8px)" onclick="openHomeDashCustomize()">⚙ Customize</button>
+      <button class="btn btn-s" style="height:32px;font-size:11px;flex-shrink:0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(8px);font-weight:500" onclick="openHomeDashCustomize()">⚙ Customize</button>
     </div>
     <!-- Today's stat strip — colorful inline tiles inside the hero. -->
     <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:18px">
@@ -17526,17 +17551,11 @@ async function checkTokenExpiryBanner(){
       }
       return;
     }
-    // Button is intentionally hidden — auto-refresh handles renewal silently.
-    // If we get here it means auto-refresh failed or hasn't run yet; we just
-    // record the provider so a future refresh attempt can target it.
+    // Button is intentionally hidden and we no longer surface toasts —
+    // auto-refresh handles renewal silently, and if a token is genuinely
+    // expired, the next AI/sync action will fail loudly enough on its own.
+    // We just record the provider so a future refresh attempt can target it.
     btn._expiringProvider=soonest.key;
-    if(expired){
-      // Surface a single toast so the user knows to reconnect via Settings.
-      if(!btn._expiredToastShown){
-        btn._expiredToastShown=true;
-        try{toast({type:'warn',title:soonest.label+' connection expired',msg:'Open Settings → Accounts to reconnect.',duration:8000});}catch(_){}
-      }
-    }
   }catch{
     // Silently ignore — button is non-critical
   }
