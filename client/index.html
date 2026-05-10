@@ -9127,6 +9127,29 @@ function aiJournalPrompt(){
   document.getElementById('modal-capture').classList.add('show');
 }
 
+// Reassign every habit's createdBy to the logged-in user. Run once per
+// device (guarded by a localStorage flag) so single-user installs don't
+// have habits hidden behind seed-data names like 'Priya Nair'. Returns
+// true if any rows changed (which is a signal to save+resync).
+function reassignHabitsToOwner(){
+  if(localStorage.getItem('lu_habits_owner_migrated_v1')==='1')return false;
+  const me=(D.creds&&D.creds.userName)||'';
+  if(!me||!Array.isArray(D.habits)||!D.habits.length){
+    // Set the flag anyway so we don't keep retrying when there's nothing
+    // to migrate yet. The next branch (loadServerData) re-runs without
+    // the flag check by clearing it when habits actually arrive.
+    localStorage.setItem('lu_habits_owner_migrated_v1','1');
+    return false;
+  }
+  let changed=false;
+  D.habits.forEach(h=>{
+    if(h.createdBy!==me){h.createdBy=me;changed=true;}
+  });
+  if(changed)save('habits');
+  localStorage.setItem('lu_habits_owner_migrated_v1','1');
+  return changed;
+}
+
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
   const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
@@ -12950,6 +12973,12 @@ function doLoginSuccess(member){
     save('tasks');
     localStorage.setItem(_seedKey,'1');
   }
+  // One-time migration: reassign every existing habit's createdBy to the
+  // current user, so single-user installs see all seeded habits under
+  // 'My Habits'. Guarded by a localStorage flag — runs once per device.
+  // Also re-applied inside loadServerData() in case habits arrive from the
+  // server after this point.
+  if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
   // Load workspace-shared AI keys (admin manages, everyone uses)
   if(typeof loadSharedAISettings==='function')loadSharedAISettings();
   // Boot app
@@ -18113,6 +18142,13 @@ async function loadServerData(){
         D[k]=sd[k];
         localStorage.setItem('lu_'+k,JSON.stringify(sd[k]));
         changed=true;
+        // If habits just arrived from the server, re-run the owner-
+        // migration so server-side seed data also lands under the
+        // current user.
+        if(k==='habits'){
+          try{localStorage.removeItem('lu_habits_owner_migrated_v1');}catch(_){}
+          if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
+        }
       }
     });
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
