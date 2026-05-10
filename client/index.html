@@ -174,13 +174,18 @@ body[data-screen="reports"]{--page-accent:#06b6d4}
 /* Subtle gradient strip behind the first page header (.ph-r OR .pg-h) on
    the active screen. The strip is 78px tall, fades from page-accent (14%
    opacity) to transparent. Sits behind the header without affecting layout.
-   Both header classes are supported so pages built with either pattern
-   (Process, Archive, Notes-banner, etc.) get the same treatment. */
+   Both header classes are supported, plus the bespoke notes banner.
+   Selectors cover both direct children of .mn AND headers wrapped inside
+   one extra div (e.g. Reports' #lu-report-print-target wrapper). */
 .scr.on .mn>.ph-r:first-child,
 .scr.on .mn>.pg-h:first-child,
+.scr.on .mn>div:first-child>.ph-r:first-child,
+.scr.on .mn>div:first-child>.pg-h:first-child,
 .scr.on .notes-page-header{position:relative;z-index:1}
 .scr.on .mn>.ph-r:first-child::before,
 .scr.on .mn>.pg-h:first-child::before,
+.scr.on .mn>div:first-child>.ph-r:first-child::before,
+.scr.on .mn>div:first-child>.pg-h:first-child::before,
 .scr.on .notes-page-header::before{
   content:'';position:absolute;top:-14px;left:-16px;right:-16px;height:78px;
   background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 14%,transparent) 0%,transparent 70%);
@@ -8184,9 +8189,18 @@ function renderFocus(){
   const totalMins=_focusSessions.reduce((s,x)=>s+(x.mins||0),0);
   const todaySessions=_focusSessions.filter(s=>s.date===_todayStr);
   const taskOpts=D.tasks.filter(t=>t.status!=='Done').map(t=>`<option value="${t.id}" ${_focusTaskId===t.id?'selected':''}>${esc(t.title)}</option>`).join('');
-  el.innerHTML=`<div style="max-width:600px;margin:0 auto;padding:24px">
-  <h1 style="font-size:22px;font-weight:700;margin-bottom:4px">⏱ Focus Mode</h1>
-  <p style="font-size:12px;color:var(--t2);margin-bottom:24px">Pomodoro timer &middot; ${todaySessions.length} sessions today &middot; ${Math.round(totalMins/60)}h total</p>
+  el.innerHTML=`<div class="ph-r" style="margin-bottom:16px">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">⏱ Focus Mode</h1>
+      <p style="font-size:12px;color:var(--t2)">Pomodoro timer · ${todaySessions.length} session${todaySessions.length===1?'':'s'} today · ${Math.round(totalMins/60)}h ${totalMins%60}m total · ${_focusRunning?'<span style="color:var(--red);font-weight:600">● Running</span>':'<span style="color:var(--t3)">Idle</span>'}</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('myday')" title="Pick today's tasks">☀ My Day</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('tasks')" title="Browse all tasks">📋 Tasks</button>
+    </div>
+  </div>
+  <div style="max-width:600px;margin:0 auto;padding:0 24px 24px">
+
   <div style="text-align:center;margin-bottom:24px">
     <svg width="200" height="200" viewBox="0 0 200 200" style="transform:rotate(-90deg)">
       <circle cx="100" cy="100" r="88" fill="none" stroke="var(--bd2)" stroke-width="12"/>
