@@ -1283,27 +1283,20 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- ===== S-04 NOTES ===== -->
 <div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px;grid-template-rows:auto 1fr;min-height:0">
 <nav class="sb" data-sb style="grid-row:1/-1"></nav>
-<header class="notes-page-header" style="grid-column:2/-1;padding:18px 24px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;position:relative">
-  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 90%,#fff),color-mix(in srgb,var(--page-accent) 60%,#000));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 12px color-mix(in srgb,var(--page-accent) 28%,transparent)">📝</div>
-      <div>
-        <h1 style="font-size:20px;font-weight:700;margin:0;letter-spacing:-.3px;font-family:-apple-system,'Inter','Segoe UI',sans-serif">Notes</h1>
-        <p style="font-size:11px;color:var(--t3);margin-top:1px;font-weight:500">Your second brain · Markdown · AI-assisted</p>
-      </div>
-    </div>
-    <div id="notes-page-stats" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+<header class="ph-r" style="grid-column:2/-1;margin:12px 16px 0">
+  <div>
+    <h1 style="font-size:22px;font-weight:700">📝 Notes</h1>
+    <p style="font-size:12px;color:var(--t2)"><span id="notes-page-sub">Your second brain</span></p>
   </div>
-  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
-    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT (multiple files allowed)">📥 Import Docs</button>
-    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
-    <button class="btn btn-p" style="height:30px;font-size:11px;background:var(--page-accent);color:#fff;border:none" onclick="openFA('note')">+ New Note</button>
+  <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT">📥 Import Docs</button>
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
+    <button class="btn btn-p" onclick="openFA('note')">+ New Note</button>
   </div>
-  <!-- Subtle accent underline that fades horizontally instead of bleeding into the content -->
-  <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,var(--page-accent),color-mix(in srgb,var(--page-accent) 30%,transparent) 60%,transparent);opacity:.75"></div>
-  <!-- Bulk action bar (hidden by default, shown when bulk mode active) -->
-  <div id="notes-bulk-bar" style="display:none;grid-column:1/-1;width:100%;margin-top:8px;padding:8px 12px;background:color-mix(in srgb,var(--page-accent) 14%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 35%,var(--bd2));border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap">
+</header>
+<!-- Bulk action bar (hidden by default, shown when bulk mode active) -->
+<div id="notes-bulk-bar" style="display:none;grid-column:2/-1;margin:0 16px;padding:8px 12px;background:color-mix(in srgb,var(--page-accent) 14%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 35%,var(--bd2));border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap">
     <span id="notes-bulk-count" style="font-size:11px;font-weight:600;color:var(--page-accent)">0 selected</span>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesSelectAll(true)">Select all</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesSelectAll(false)">Clear</button>
@@ -1315,8 +1308,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesExport()">⬇ Export</button>
     <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkNotesDelete()">🗑 Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleNotesBulkMode()">✕ Done</button>
-  </div>
-</header>
+</div>
 <nav class="notes-nav" id="notes-nav-panel" style="min-height:0"></nav>
 <div class="notes-list" id="notes-list-panel" style="min-height:0"></div>
 <div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto;min-height:0"></div>

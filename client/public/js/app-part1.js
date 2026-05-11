@@ -5355,22 +5355,19 @@ function applyNoteTemplate(idx){
   toast('📝 Template applied — start editing!');
 }
 function renderNotes(){
-  // Update banner stat pills with live counts
-  const statsEl=document.getElementById('notes-page-stats');
-  if(statsEl){
+  // Update header subtitle with live counts (matches the .ph-r subtitle
+  // pattern used on Tasks / Projects / Goals etc.)
+  const subEl=document.getElementById('notes-page-sub');
+  if(subEl){
     const total=D.notes.length;
     const starred=D.notes.filter(n=>n.starred).length;
     const pinned=D.notes.filter(n=>n.pinned).length;
     const recent=D.notes.filter(n=>{try{const d=new Date(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
-    const tagged=D.notes.filter(n=>(n.tags||[]).length>0).length;
-    const pill=(icon,label,val,color)=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:color-mix(in srgb,${color} 14%,var(--s2));border:1px solid color-mix(in srgb,${color} 30%,var(--bd2));border-radius:14px;font-size:11px;color:var(--t1);font-weight:500"><span style="font-size:12px">${icon}</span><span style="color:${color};font-weight:700">${val}</span><span style="color:var(--t2);font-size:10px">${label}</span></span>`;
-    statsEl.innerHTML=[
-      pill('📄','total',total,'#f97316'),
-      recent>0?pill('🆕','this week',recent,'#22c55e'):'',
-      starred>0?pill('⭐','starred',starred,'#facc15'):'',
-      pinned>0?pill('📌','pinned',pinned,'#a855f7'):'',
-      tagged>0?pill('🏷','tagged',tagged,'#06b6d4'):'',
-    ].filter(Boolean).join('');
+    const parts=[`${total} note${total===1?'':'s'}`];
+    if(recent>0)parts.push(`${recent} this week`);
+    if(starred>0)parts.push(`${starred} starred`);
+    if(pinned>0)parts.push(`${pinned} pinned`);
+    subEl.textContent=parts.join(' · ');
   }
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
