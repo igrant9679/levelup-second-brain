@@ -29,6 +29,7 @@ import { storagePut } from "../storage";
 interface ImportedNote {
   title: string;
   body: string;
+  bodyHtml?: string;
   source: string;
   tags: string[];
 }
@@ -53,7 +54,7 @@ async function uploadImage(
 async function extractDocxContent(
   buffer: Buffer,
   noteTitle: string
-): Promise<{ plainText: string; imageMarkdown: string }> {
+): Promise<{ plainText: string; imageMarkdown: string; html: string }> {
   const uploadedImages: string[] = [];
   let imgIdx = 0;
 
@@ -75,7 +76,11 @@ async function extractDocxContent(
     }
   );
 
-  // Strip HTML tags to get plain text (preserve paragraph breaks)
+  // Rich HTML — preserves bold/italic/headings/lists/tables/links/images.
+  // Add a small inline style to images so they fit the note width.
+  const html = result.value.replace(/<img /gi, '<img style="max-width:100%;height:auto;border-radius:6px;margin:8px 0;display:block" ');
+
+  // Strip HTML tags to get plain text fallback (preserve paragraph breaks)
   const plainText = result.value
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -89,13 +94,13 @@ async function extractDocxContent(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // Build markdown image lines for any extracted images
+  // Build markdown image lines for any extracted images (plain-text fallback)
   const imageMarkdown = uploadedImages.length
     ? "\n\n---\n\n" +
       uploadedImages.map((url, i) => `![Image ${i + 1}](${url})`).join("\n\n")
     : "";
 
-  return { plainText, imageMarkdown };
+  return { plainText, imageMarkdown, html };
 }
 
 /** Extract embedded images from a PDF using pdfimages (poppler-utils).
@@ -167,6 +172,7 @@ export const notesImportRouter = router({
       const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "";
 
       let body = "";
+      let bodyHtml: string | undefined;
       let source = "Document Import";
       const warnings: string[] = [];
 
@@ -208,8 +214,9 @@ export const notesImportRouter = router({
       ) {
         source = "Word Import";
         try {
-          const { plainText, imageMarkdown } = await extractDocxContent(buffer, fileTitle);
+          const { plainText, imageMarkdown, html } = await extractDocxContent(buffer, fileTitle);
           body = plainText + imageMarkdown;
+          bodyHtml = html;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           throw new Error(`Failed to parse Word document: ${msg}`);
@@ -234,6 +241,7 @@ export const notesImportRouter = router({
           {
             title: fileTitle || "Imported Document",
             body,
+            bodyHtml,
             source,
             tags: [source.toLowerCase().replace(/\s+/g, "-")],
           },

@@ -5282,6 +5282,7 @@ async function importDocumentAsNote(file){
         id:nextId(D.notes),
         title:n.title||file.name.replace(/\.[^.]+$/,''),
         body:n.body||'',
+        bodyHtml:n.bodyHtml||'',
         tags:n.tags||[],
         source:n.source||'Document Import',
         updated:now,
@@ -5534,12 +5535,15 @@ function saveNoteInlineEdit(id){
   n.versions.push({title:n.title,body:n.body||'',savedAt:new Date().toISOString()});
   if(n.versions.length>20)n.versions=n.versions.slice(-20); // keep last 20
   if(titleEl)n.title=titleEl.value.trim()||n.title;
-  // Support both RTE (contenteditable) and plain textarea
+  // Support both RTE (contenteditable) and plain textarea. RTE saves preserve
+  // the rich HTML in n.bodyHtml and a markdown plain-text fallback in n.body.
   if(bodyEl){
     if(bodyEl.contentEditable==='true'){
+      n.bodyHtml=bodyEl.innerHTML;
       n.body=luRTE_htmlToMd(bodyEl.innerHTML);
     } else {
       n.body=bodyEl.value;
+      n.bodyHtml='';
     }
   }
   n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
@@ -5672,14 +5676,21 @@ function insertWikiLink(title){
   if(ac)ac.style.display='none';
 }
 function renderNoteEditor(n){
-  // Build body HTML — extract markdown images first so they survive HTML escaping
-  const _imgPlaceholders=[];
-  const _bodyWithPlaceholders=(n.body||'').replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,alt,url)=>{
-    const idx=_imgPlaceholders.length;
-    _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
-    return `%%IMG${idx}%%`;
-  });
-  const bodyHtml=n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+  // Prefer rich-HTML body (from RTE saves or document imports) when present;
+  // fall back to markdown-style rendering of n.body for older / plain notes.
+  let bodyHtml;
+  if(n.bodyHtml&&n.bodyHtml.trim()){
+    bodyHtml=n.bodyHtml;
+  } else {
+    // Build body HTML — extract markdown images first so they survive HTML escaping
+    const _imgPlaceholders=[];
+    const _bodyWithPlaceholders=(n.body||'').replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,alt,url)=>{
+      const idx=_imgPlaceholders.length;
+      _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
+      return `%%IMG${idx}%%`;
+    });
+    bodyHtml=n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+  }
   const isEditing=_noteInlineEditId===n.id;
   if(isEditing){
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
@@ -5693,7 +5704,7 @@ function renderNoteEditor(n){
   <input id="nie-title" class="inp" style="font-size:16px;font-weight:600;margin-bottom:8px;width:100%" value="${esc(n.title)}" placeholder="Note title...">
   <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
   <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Rich text editor — Ctrl/Cmd+S to save</div>
-  ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:(n.body||''), height:'300px'})}
+  ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:(n.bodyHtml||n.body||''), height:'300px'})}
   <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>`;
   }
   // Breadcrumb path
