@@ -486,6 +486,81 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .lu-spark path{stroke-dasharray:200;stroke-dashoffset:200;animation:sparkDraw 1s ease forwards}
 @keyframes sparkDraw{to{stroke-dashoffset:0}}
 
+/* ─── Mobile responsive layout ──────────────────────────────────────────
+   On viewports ≤ 900px:
+   - Sidebar collapses behind a hamburger button (slides in from left).
+   - Right rail hides; the main content takes the freed space.
+   - Multi-column pages (Notes 5-col, Mail 3-col) stack into tabs.
+   - Topbar search shrinks; logo subtitle hides.
+   - Page headers reflow to single column. */
+.menu-toggle{display:none;background:transparent;border:1px solid var(--bd2);color:var(--t1);width:34px;height:34px;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.menu-toggle:active{transform:scale(.94)}
+.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s}
+.sb-backdrop.show{opacity:1;pointer-events:auto}
+@media (max-width:900px){
+  :root{--side:220px}
+  .menu-toggle{display:flex}
+  /* Sidebar becomes a slide-in panel */
+  .sb{position:fixed;top:var(--top);left:0;bottom:0;width:240px;z-index:95;
+    transform:translateX(-105%);transition:transform .22s cubic-bezier(.2,.9,.3,1.1);
+    box-shadow:8px 0 32px rgba(0,0,0,.45);border-right:1px solid var(--bd2)}
+  body.sb-open .sb{transform:translateX(0)}
+  /* Main grid drops the sidebar column on mobile */
+  .bg,.bg.wr{grid-template-columns:1fr!important}
+  /* Right rail tucked away on phones; users can scroll the rail into view
+     via a dedicated button on pages that need it. */
+  .rr{display:none}
+  /* Notes page: stack the four panels and reveal them via a top tab strip
+     instead of the 5-column desktop grid. */
+  .scr#s-notes>.bg{grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important}
+  .scr#s-notes .notes-page-header{grid-column:1/-1!important;padding:14px 16px 12px!important;gap:10px!important}
+  .scr#s-notes .notes-nav,
+  .scr#s-notes .notes-list,
+  .scr#s-notes .notes-rail{display:none}
+  .scr#s-notes .notes-editor{padding:14px!important}
+  body.notes-mobile-list .scr#s-notes .notes-list{display:block;border-right:none}
+  body.notes-mobile-list .scr#s-notes .notes-editor{display:none}
+  body.notes-mobile-nav .scr#s-notes .notes-nav{display:block;border-right:none}
+  body.notes-mobile-nav .scr#s-notes .notes-editor{display:none}
+  /* Topbar tightens */
+  .topbar{padding:0 10px;gap:6px}
+  .tb-l small{display:none}
+  .tb-l b{font-size:14px}
+  .tb-l img{width:30px!important;height:30px!important}
+  .tb-s{max-width:none}
+  .tb-s input{font-size:11px}
+  .tb-a{gap:4px}
+  .tb-a .bn{padding:0 10px;font-size:11px;height:30px}
+  /* Page headers reflow tighter */
+  .ph-r,.pg-h{padding:0!important}
+  .ph-r{flex-direction:column;align-items:stretch!important;gap:8px!important}
+  .ph-r>div:last-child{justify-content:flex-start!important}
+  /* Drawers go full-width */
+  .drawer{width:100vw!important;max-width:none!important}
+  /* AI panel goes full-width */
+  .ai-panel{width:100vw!important;max-width:none!important}
+  /* Reports widget grid: each widget spans full width on phones */
+  .lu-widget{grid-column:span 12!important}
+  /* Make tables horizontally scrollable so they don't blow out the layout */
+  table{display:block;overflow-x:auto;white-space:nowrap}
+  /* Hero on Home: smaller heading + tighter padding */
+  .home-hero{padding:18px 18px 16px!important;border-radius:14px!important}
+  .home-hero h1{font-size:24px!important}
+  /* Settings: 2-pane → 1-pane (settings nav above content) */
+  body.settings-mobile-list #settings-main .sp{display:none}
+  /* Modals: respect viewport edges */
+  .modal-ov .modal,.modal{margin:10px;max-height:calc(100vh - 20px)}
+}
+/* Even tighter for true phones */
+@media (max-width:560px){
+  .topbar input::placeholder{content:'Search…'}
+  .ai-bubble{bottom:90px;right:10px}
+  .home-hero{padding:14px!important}
+  .home-hero h1{font-size:20px!important}
+  /* Stat tiles stack 2-up instead of trying to fit 5 */
+  .home-hero [style*="repeat(auto-fit,minmax(120px"]{grid-template-columns:repeat(2,1fr)!important}
+}
+
 /* ─── Microinteractions ─────────────────────────────────────────────── */
 /* Tactile press feedback on every button. */
 .btn:active,.btn-p:active,.btn-s:active,.btn-d:active,.tbtn:active,.bn:active{transform:scale(.96);transition:transform .08s}
@@ -545,16 +620,49 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .ai-btn.pulse{animation:aiPulse 2s infinite}
 @keyframes aiPulse{0%,100%{box-shadow:0 4px 20px rgba(59,130,246,.4)}50%{box-shadow:0 4px 30px rgba(59,130,246,.7)}}
 
-/* AI CHAT PANEL */
-.ai-panel{position:fixed;bottom:80px;right:20px;width:360px;max-height:500px;background:var(--s1);border:1px solid var(--bd2);border-radius:12px;z-index:160;display:none;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden}
-.ai-panel.show{display:flex}
-.ai-panel-h{padding:12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px}
-.ai-panel-h span{font-size:14px;font-weight:600;flex:1}
-.ai-panel-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px}
-.ai-chat-msg{font-size:12px;padding:8px 10px;border-radius:8px;max-width:85%;line-height:1.4}
-.ai-chat-msg.bot{background:var(--s3);align-self:flex-start}.ai-chat-msg.user{background:var(--acs);color:var(--ach);align-self:flex-end}
-.ai-panel-foot{padding:8px;border-top:1px solid var(--bd1);display:flex;gap:6px}
-.ai-panel-foot input{flex:1}
+/* AI CHAT PANEL — slide-out from right, conversational assistant w/ memory */
+.ai-panel{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:92vw;
+  background:var(--s1);border-left:1px solid var(--bd2);z-index:9400;
+  display:flex;flex-direction:column;
+  box-shadow:-12px 0 48px rgba(0,0,0,.55);
+  transform:translateX(105%);transition:transform .25s cubic-bezier(.2,.9,.3,1.1);
+  overflow:hidden}
+.ai-panel.show{transform:translateX(0)}
+.ai-panel-h{padding:14px 16px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,color-mix(in srgb,#3b82f6 12%,var(--s2)),color-mix(in srgb,#a855f7 8%,var(--s2)));}
+.ai-panel-h-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#a855f7);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;box-shadow:0 4px 12px rgba(59,130,246,.35)}
+.ai-panel-h-title{flex:1;min-width:0}
+.ai-panel-h-title b{font-size:13px;font-weight:600;color:var(--t1);display:block}
+.ai-panel-h-title small{font-size:10px;color:var(--t3)}
+.ai-panel-h-actions{display:flex;gap:4px}
+.ai-panel-h-actions button{background:transparent;border:1px solid var(--bd2);color:var(--t2);padding:4px 8px;border-radius:5px;font-size:10px;cursor:pointer;transition:background .12s}
+.ai-panel-h-actions button:hover{background:var(--s3);color:var(--t1)}
+.ai-panel-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:0;scrollbar-width:thin}
+.ai-chat-msg{font-size:12.5px;padding:10px 12px;border-radius:10px;max-width:90%;line-height:1.55;word-wrap:break-word;animation:msgIn .22s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.ai-chat-msg.bot{background:var(--s2);border:1px solid var(--bd1);align-self:flex-start;color:var(--t1)}
+.ai-chat-msg.user{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;align-self:flex-end;border:none;box-shadow:0 2px 8px rgba(59,130,246,.25)}
+.ai-chat-msg .md-body{font-size:12.5px}
+.ai-chat-msg-meta{font-size:9px;color:var(--t3);margin-top:4px;display:flex;gap:6px;align-items:center}
+.ai-chat-msg.user .ai-chat-msg-meta{color:rgba(255,255,255,.65)}
+.ai-chat-typing{display:flex;gap:4px;padding:12px;align-self:flex-start}
+.ai-chat-typing span{width:6px;height:6px;border-radius:50%;background:var(--t3);animation:typing 1.2s infinite}
+.ai-chat-typing span:nth-child(2){animation-delay:.2s}.ai-chat-typing span:nth-child(3){animation-delay:.4s}
+@keyframes typing{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.ai-panel-suggestions{display:flex;flex-wrap:wrap;gap:5px;padding:0 16px 8px}
+.ai-panel-suggestions button{background:var(--s2);border:1px solid var(--bd2);color:var(--t2);padding:5px 10px;border-radius:14px;font-size:11px;cursor:pointer;transition:all .12s}
+.ai-panel-suggestions button:hover{background:color-mix(in srgb,#3b82f6 14%,var(--s2));border-color:color-mix(in srgb,#3b82f6 32%,var(--bd2));color:var(--t1);transform:translateY(-1px)}
+.ai-panel-foot{padding:12px 14px 16px;border-top:1px solid var(--bd1);background:var(--s2)}
+.ai-panel-input-wrap{display:flex;gap:6px;align-items:flex-end;background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:6px 6px 6px 10px;transition:border-color .12s}
+.ai-panel-input-wrap:focus-within{border-color:#3b82f6}
+.ai-panel-input-wrap textarea{flex:1;background:transparent;border:none;color:var(--t1);font-size:13px;line-height:1.5;outline:none;resize:none;min-height:20px;max-height:120px;font-family:inherit;padding:4px 0}
+.ai-panel-input-wrap textarea::placeholder{color:var(--t3)}
+.ai-panel-send{background:linear-gradient(135deg,#3b82f6,#6366f1);border:none;color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:filter .12s,transform .1s;font-size:13px}
+.ai-panel-send:hover{filter:brightness(1.1)}.ai-panel-send:active{transform:scale(.92)}
+.ai-panel-send:disabled{opacity:.5;cursor:not-allowed}
+.ai-panel-foot-hint{font-size:10px;color:var(--t3);margin-top:6px;display:flex;justify-content:space-between;align-items:center}
+.ai-panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9399;opacity:0;pointer-events:none;transition:opacity .2s}
+.ai-panel-overlay.show{opacity:1;pointer-events:auto}
 
 /* NOTES 4-PANEL */
 .notes-body{display:grid;grid-template-columns:160px 200px 1fr 200px;min-height:0;height:100%}
@@ -973,6 +1081,10 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div>
 <div class="app">
 <header class="topbar">
+<button class="menu-toggle" id="menu-toggle" onclick="toggleMobileSidebar()" aria-label="Menu">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div class="sb-backdrop" id="sb-backdrop" onclick="toggleMobileSidebar(false)"></div>
 <div class="logo" onclick="nav('home')">
 <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
 <div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
@@ -1253,11 +1365,34 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 
 <!-- AI ASSISTANT -->
 <div class="ai-bubble" id="ai-bubble"></div>
-<button class="ai-btn pulse" id="ai-fab" onclick="toggleAIPanel()" title="LevelUp AI Assistant">⚡</button>
-<div class="ai-panel" id="ai-panel">
-<div class="ai-panel-h"><span>⚡ LevelUp Assistant</span><button class="close" onclick="toggleAIPanel()">✕</button></div>
-<div class="ai-panel-body" id="ai-chat"></div>
-<div class="ai-panel-foot"><input class="inp" id="ai-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendAIMsg()"><button class="btn btn-p" onclick="sendAIMsg()">Send</button></div>
+<button class="ai-btn pulse" id="ai-fab" onclick="toggleAIPanel()" title="LevelUp AI Assistant (Cmd+J)">⚡</button>
+<div class="ai-panel-overlay" id="ai-panel-overlay" onclick="toggleAIPanel()"></div>
+<div class="ai-panel" id="ai-panel" role="dialog" aria-label="LevelUp AI Assistant">
+  <div class="ai-panel-h">
+    <div class="ai-panel-h-icon">⚡</div>
+    <div class="ai-panel-h-title">
+      <b>LevelUp Assistant</b>
+      <small id="ai-panel-status">Ready · powered by your AI keys</small>
+    </div>
+    <div class="ai-panel-h-actions">
+      <button onclick="clearAIChat()" title="Clear conversation">🗑 Clear</button>
+      <button onclick="toggleAIPanel()" title="Close (Cmd+J)">✕</button>
+    </div>
+  </div>
+  <div class="ai-panel-body" id="ai-chat"></div>
+  <div class="ai-panel-suggestions" id="ai-suggestions"></div>
+  <div class="ai-panel-foot">
+    <div class="ai-panel-input-wrap">
+      <textarea id="ai-input" rows="1" placeholder="Ask anything about your workspace…" onkeydown="onAIInputKey(event)" oninput="autoSizeAIInput(this)"></textarea>
+      <button class="ai-panel-send" id="ai-send-btn" onclick="sendAIMsg()" title="Send (Enter) — Shift+Enter for new line">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="ai-panel-foot-hint">
+      <span>Enter to send · Shift+Enter for newline</span>
+      <span id="ai-msg-count">0 messages</span>
+    </div>
+  </div>
 </div>
 <!-- ONBOARDING SPLASH SCREEN -->
 <div id="splash-screen" style="display:none;position:fixed;inset:0;z-index:500;background:#0B0F1A;align-items:center;justify-content:center;flex-direction:column;gap:0">
@@ -2276,11 +2411,21 @@ function nav(s){
   // Tag the body with the active screen so per-page accent theming applies
   // (gradient header strip + card left-border tint + empty-state CTA color).
   document.body.setAttribute('data-screen',s||'home');
+  // Auto-close the mobile sidebar after navigation so it doesn't sit open
+  if(typeof toggleMobileSidebar==='function')toggleMobileSidebar(false);
   initSidebars(s);
   renderScreen(s);
   if(s==='capture')openModal('capture');
   // Trigger proactive hints after a delay
   if(typeof triggerProactiveHint==='function')triggerProactiveHint(s);
+}
+// Hamburger toggle for the mobile sidebar slide-in. `force` (true/false) lets
+// callers explicitly open or close; omitting it toggles current state.
+function toggleMobileSidebar(force){
+  const open=force!==undefined?!!force:!document.body.classList.contains('sb-open');
+  document.body.classList.toggle('sb-open',open);
+  const bd=document.getElementById('sb-backdrop');
+  if(bd)bd.classList.toggle('show',open);
 }
 function initSidebars(a){
   const t=document.getElementById('sb-tpl');
@@ -13934,12 +14079,143 @@ function showAIMsg(){
   while(bubble.children.length>3)bubble.lastChild.remove();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AI CHAT ASSISTANT — slide-out conversational panel with persistent memory.
+// Messages live in D.prefs.aiChat.messages and ride the prefs sync, so the
+// thread follows the user across devices. Last 50 messages kept; older ones
+// are dropped to keep the prefs blob bounded.
+// ═══════════════════════════════════════════════════════════════════════════
+function _aiChatHistory(){return (D.prefs&&D.prefs.aiChat&&Array.isArray(D.prefs.aiChat.messages))?D.prefs.aiChat.messages:[];}
+function _aiChatPushMessage(role,content){
+  D.prefs.aiChat=D.prefs.aiChat||{messages:[]};
+  D.prefs.aiChat.messages.push({role,content,ts:Date.now()});
+  // Bound to last 50 to keep the prefs blob manageable
+  if(D.prefs.aiChat.messages.length>50)D.prefs.aiChat.messages=D.prefs.aiChat.messages.slice(-50);
+  save('prefs');
+}
+function _aiChatClear(){
+  D.prefs.aiChat={messages:[]};save('prefs');
+  const c=document.getElementById('ai-chat');if(c)c.innerHTML='';
+  _renderAIChatHistory();
+  toast('Conversation cleared');
+}
+function clearAIChat(){
+  if(!_aiChatHistory().length){toast('Nothing to clear');return;}
+  if(confirm('Clear the entire conversation history?'))_aiChatClear();
+}
+
 function toggleAIPanel(){
   const p=document.getElementById('ai-panel');
-  p.classList.toggle('show');
-  if(p.classList.contains('show')&&!document.getElementById('ai-chat').children.length){
-    appendAIChat('bot','👋 Hi! I\'m your LevelUp assistant. I can help with tasks, goals, meeting prep, and more. I also share updates on your subscribed topics (Technology, World News, etc). What would you like help with?');
+  const ov=document.getElementById('ai-panel-overlay');
+  const isOpen=p.classList.contains('show');
+  if(isOpen){
+    p.classList.remove('show');if(ov)ov.classList.remove('show');
+    return;
   }
+  p.classList.add('show');if(ov)ov.classList.add('show');
+  _renderAIChatHistory();
+  // Focus the input once the slide-in finishes
+  setTimeout(()=>{const inp=document.getElementById('ai-input');if(inp)inp.focus();},280);
+}
+function _renderAIChatHistory(){
+  const c=document.getElementById('ai-chat');if(!c)return;
+  const msgs=_aiChatHistory();
+  if(!msgs.length){
+    c.innerHTML=`<div class="ai-chat-msg bot">
+      👋 Hi ${esc((D.creds.userName||'').split(' ')[0]||'there')}! I'm your LevelUp assistant.
+      <br><br>Ask me about your workspace — I know your tasks, goals, habits, notes, calendar, ideas, and journal. Try:
+      <ul style="margin:8px 0;padding-left:20px">
+        <li>What are my top priorities today?</li>
+        <li>Draft a daily standup from my completed tasks</li>
+        <li>What habit am I closest to breaking the streak on?</li>
+        <li>Summarise my journal entries from this week</li>
+      </ul>
+    </div>`;
+  }else{
+    c.innerHTML=msgs.map(m=>`<div class="ai-chat-msg ${m.role==='user'?'user':'bot'}">${m.role==='user'?esc(m.content):(typeof renderMd==='function'?renderMd(m.content):esc(m.content))}<div class="ai-chat-msg-meta">${_fmtChatTime(m.ts)}</div></div>`).join('');
+  }
+  c.scrollTop=c.scrollHeight;
+  _renderAISuggestions();
+  _updateAIMsgCount();
+}
+function _renderAISuggestions(){
+  const el=document.getElementById('ai-suggestions');if(!el)return;
+  // Context-aware suggestions based on the current screen
+  const screen=curScreen||'home';
+  const sets={
+    home:["What should I focus on right now?","Brief me on today.","What did I get done yesterday?"],
+    tasks:["Triage my inbox.","What's blocking me?","Decompose my biggest task."],
+    notes:["What notes haven't I revisited in a while?","Find related notes to this one.","Suggest tags for untagged notes."],
+    goals:["How am I tracking against my goals?","Which goal needs attention?","Generate a check-in for my top goal."],
+    habits:["How am I doing on habits this week?","Which habit is at risk?","Suggest one habit I should drop."],
+    journal:["Summarise my last week of journal entries.","What themes keep coming up?","Coach me on a recent entry."],
+    calendar:["Prep me for my next meeting.","What does this week look like?","Find an open 90-min block."],
+    mail:["Triage my inbox.","Draft a reply to the latest message.","Which threads need follow-up?"],
+    reports:["Build a widget showing overdue tasks by project.","Summarise this report.","Suggest a chart for my data."],
+    ideas:["Pre-mortem my top idea.","Score my ideas by ICE.","Which idea has the most momentum?"],
+  };
+  const picks=sets[screen]||sets.home;
+  el.innerHTML=picks.map(s=>`<button onclick="_aiQuickSend('${esc(s).replace(/'/g,'&#39;')}')">${esc(s)}</button>`).join('');
+}
+function _aiQuickSend(s){
+  const inp=document.getElementById('ai-input');
+  if(!inp)return;
+  inp.value=s;
+  sendAIMsg();
+}
+function _fmtChatTime(ts){
+  if(!ts)return '';
+  const d=new Date(ts);
+  const now=new Date();
+  if(d.toDateString()===now.toDateString())return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+}
+function _updateAIMsgCount(){
+  const el=document.getElementById('ai-msg-count');if(!el)return;
+  const n=_aiChatHistory().length;el.textContent=n+' message'+(n===1?'':'s');
+}
+// Build a concise workspace-context snippet to send with the prompt so the
+// model can answer questions about the user's actual data. Kept terse to
+// stay within token limits — counts + small samples, not full dumps.
+function _buildAIContext(){
+  const today=new Date().toISOString().slice(0,10);
+  const tasks=D.tasks||[];const notes=D.notes||[];const goals=D.goals||[];const habits=D.habits||[];const journal=D.journal||[];const ideas=D.ideas||[];
+  const open=tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  const overdue=open.filter(t=>t.due&&t.due<today);
+  const today_tasks=open.filter(t=>t.due===today||t.startDate===today||t.myDay);
+  const top=open.slice(0,5).map(t=>`- ${t.title} [${t.priority}${t.due?', due '+t.due:''}${t.project?', '+t.project:''}]`).join('\n');
+  const recentNotes=notes.slice(0,5).map(n=>`- ${n.title}${(n.tags||[]).length?' ('+n.tags.slice(0,3).map(x=>'#'+x).join(' ')+')':''}`).join('\n');
+  const goalSummary=goals.slice(0,5).map(g=>`- ${g.title}: ${g.pct||0}%`).join('\n');
+  const habitSummary=habits.slice(0,6).map(h=>`- ${h.title} (${h.cadence}): 🔥${h.streak||0} streak${h.doneToday?', done today':''}`).join('\n');
+  const recentJournal=journal.slice(-3).map(j=>`- ${j.date} ${j.mood||''}: ${(j.body||'').slice(0,140)}`).join('\n');
+  const ideaSummary=ideas.slice(0,4).map(i=>`- ${i.title} [${i.stage||'spark'}]`).join('\n');
+  return `WORKSPACE CONTEXT (snapshot — refer to it when answering)
+Current screen: ${curScreen||'home'} · today: ${today} · user: ${D.creds.userName||'unknown'}
+
+Tasks: ${tasks.length} total, ${open.length} open, ${overdue.length} overdue, ${today_tasks.length} due today
+${top?'Top open tasks:\n'+top:''}
+
+Goals (${goals.length}):
+${goalSummary||'(none)'}
+
+Habits (${habits.length}):
+${habitSummary||'(none)'}
+
+Recent notes (${notes.length} total):
+${recentNotes||'(none)'}
+
+Recent journal entries:
+${recentJournal||'(none)'}
+
+Ideas (${ideas.length}):
+${ideaSummary||'(none)'}`;
+}
+function onAIInputKey(e){
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAIMsg();}
+}
+function autoSizeAIInput(t){
+  t.style.height='auto';
+  t.style.height=Math.min(t.scrollHeight,120)+'px';
 }
 function toggleNotifPanel(){
   const p=document.getElementById('notif-panel');
@@ -14220,28 +14496,66 @@ function markAllNotifsRead(){
   toast('All notifications marked as read');
 }
 function appendAIChat(role,msg){
-  const c=document.getElementById('ai-chat');
-  const d=document.createElement('div');d.className='ai-chat-msg '+role;d.textContent=msg;
-  c.appendChild(d);c.scrollTop=c.scrollHeight;
+  // Kept for backwards compatibility — pushes to history + re-renders.
+  _aiChatPushMessage(role==='user'?'user':'assistant',msg);
+  _renderAIChatHistory();
 }
-function sendAIMsg(){
-  const inp=document.getElementById('ai-input');const msg=inp.value.trim();if(!msg)return;
-  appendAIChat('user',msg);inp.value='';
-  // Simulated AI responses
-  setTimeout(()=>{
-    let resp='I\'ll look into that for you! ';
-    if(msg.toLowerCase().includes('task'))resp='You have '+D.tasks.filter(t=>t.status!=='Done').length+' active tasks. '+D.tasks.filter(t=>t.due==='Today').length+' are due today. Would you like me to help prioritize?';
-    else if(msg.toLowerCase().includes('meeting'))resp='Your next meeting is Budget Review at 10:30 AM. I\'ve prepared the attendee list and linked SharePoint docs.';
-    else if(msg.toLowerCase().includes('goal'))resp='Your top goal "Launch 2 products" is at 50%. The Product Launch Q2 project (40%) is the main driver. Consider scheduling focus blocks this week.';
-    else if(msg.toLowerCase().includes('weather'))resp='🌤️ Currently 72°F in your area. Afternoon showers expected around 3 PM. Plan outdoor activities for the morning.';
-    else if(msg.toLowerCase().includes('news'))resp='📰 Top tech news: AI regulation discussions continue in Congress. New chip export controls announced. React 20 released with server components improvements.';
-    else if(msg.toLowerCase().includes('habit'))resp='🔥 You\'re doing great! Morning meditation is at 22 days. Reading is at 15 days. Try to complete your journal entry tonight to keep that 12-day streak going.';
-    else resp+='I can help with tasks, goals, meetings, weather, news, and productivity tips. Just ask!';
-    appendAIChat('bot',resp);
-    if('speechSynthesis' in window && D.creds.aiSpeak){
-      const u=new SpeechSynthesisUtterance(resp.replace(/[📅⚠️🌟💡📰🌤️🔥📊🌍]/g,''));u.rate=1;u.volume=0.7;speechSynthesis.speak(u);
-    }
-  },800);
+let _aiChatBusy=false;
+async function sendAIMsg(){
+  if(_aiChatBusy)return;
+  const inp=document.getElementById('ai-input');
+  const msg=(inp?.value||'').trim();
+  if(!msg)return;
+  _aiChatPushMessage('user',msg);
+  inp.value='';autoSizeAIInput(inp);
+  _renderAIChatHistory();
+  // Show typing indicator
+  const c=document.getElementById('ai-chat');
+  if(c){
+    const t=document.createElement('div');t.className='ai-chat-typing';t.id='ai-typing';
+    t.innerHTML='<span></span><span></span><span></span>';
+    c.appendChild(t);c.scrollTop=c.scrollHeight;
+  }
+  const status=document.getElementById('ai-panel-status');
+  if(status)status.textContent='Thinking…';
+  const sendBtn=document.getElementById('ai-send-btn');
+  if(sendBtn)sendBtn.disabled=true;
+  _aiChatBusy=true;
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    // Build the chat transcript as a single user-content blob since ai.assist
+    // takes systemPrompt + userContent rather than a structured turn list.
+    const history=_aiChatHistory().slice(-10,-1); // up to last 9 turns before the just-sent message
+    const sys=`You are the LevelUp AI assistant — a friendly, sharp productivity coach embedded inside a personal "second brain" app. Your job is to help the user understand and act on their own workspace.
+
+Rules:
+- Be concise. Aim for 2–6 sentences unless the user explicitly asks for a long answer or a list.
+- Refer to the workspace context below when answering. Mention specific items by name when relevant.
+- When the user asks you to do something (create a task, schedule a focus block, summarise notes), describe what you'd do — the app's automation tools aren't directly hooked up yet, so propose a clear plan they can execute.
+- Use light Markdown: bullet lists, **bold** for emphasis, headings only when you really need them.
+- Speak in the second person ("you"). Encouraging tone, not corporate.
+
+${_buildAIContext()}
+
+Previous conversation turns (oldest first):
+${history.map(m=>`${m.role==='user'?'USER':'ASSISTANT'}: ${m.content}`).join('\n\n')}`;
+    const res=await _trpc('ai.assist',{
+      systemPrompt:sys,
+      userContent:msg,
+      provider:provider||'manus',
+      apiKey:apiKey||undefined,
+    },'mutation');
+    const text=String(res?.result||res?.text||'').trim()||"I didn't get a response — try rephrasing, or check that an AI key is configured in Settings → AI Features.";
+    _aiChatPushMessage('assistant',text);
+  }catch(e){
+    _aiChatPushMessage('assistant',`⚠️ I couldn't reach the AI provider.\n\n${String(e.message||e).slice(0,200)}\n\nMake sure an API key is configured in **Settings → AI Features**, and that the chosen provider is reachable.`);
+  }finally{
+    _aiChatBusy=false;
+    if(sendBtn)sendBtn.disabled=false;
+    const typing=document.getElementById('ai-typing');if(typing)typing.remove();
+    if(status)status.textContent='Ready · powered by your AI keys';
+    _renderAIChatHistory();
+  }
 }
 
 function exportNotePDF(id){
@@ -15257,6 +15571,7 @@ document.addEventListener('keydown',e=>{
   }
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}
+  if((e.ctrlKey||e.metaKey)&&e.key==='j'){e.preventDefault();toggleAIPanel()}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
   // Help shortcuts
   if(e.key==='?'){e.preventDefault();nav('help');}
