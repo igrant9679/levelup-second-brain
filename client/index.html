@@ -1771,6 +1771,318 @@ function applyPrefs(){
   // Apply workspace name
   const wl=document.getElementById('workspace-label');
   if(wl)wl.textContent=D.prefs.workspaceName||'LevelUp';
+  // Apply the active theme (custom or scheduled), then the page-accent map.
+  if(typeof applyTheme==='function')applyTheme();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THEME ENGINE — granular per-user appearance with saved profiles + scheduling
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Themes are stored in D.prefs (per-user, server-synced via the prefs blob).
+//   D.prefs.theme            — active theme object (overrides default vars)
+//   D.prefs.themeProfiles    — array of {id,name,emoji,theme}
+//   D.prefs.themeSchedule    — array of {id,enabled,profileId,days,start,end}
+//   D.prefs.themeFontFamily  — global font-family override
+//   D.prefs.themeFontScale   — multiplier (0.85–1.30) applied to root font-size
+//
+// A "theme" is just a flat object mapping CSS variable names (without --) to
+// values. applyTheme() merges defaults + the active profile + any scheduled
+// override and pushes them onto the :root element.
+
+const THEME_DEFAULTS_DARK={
+  bg:'#0B0F1A',s1:'#0F1525',s2:'#161D2E',s3:'#1E2740',s4:'#252F4A',
+  bd1:'rgba(255,255,255,.06)',bd2:'rgba(255,255,255,.10)',bd3:'rgba(255,255,255,.16)',
+  t1:'#F8FAFC',t2:'#94A3B8',t3:'#64748B',t4:'#475569',
+  ac:'#3B82F6',ach:'#60A5FA',acs:'rgba(59,130,246,.15)',
+  red:'#F87171',warn:'#FBBF24',ok:'#4ADE80',purp:'#C084FC',
+  brd:'rgba(255,255,255,.10)',
+};
+const THEME_DEFAULTS_LIGHT={
+  ...THEME_DEFAULTS_DARK,
+  bg:'#F1F5F9',s1:'#FFFFFF',s2:'#F8FAFC',s3:'#EEF2F7',s4:'#E2E8F0',
+  bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+  t1:'#0F172A',t2:'#475569',t3:'#94A3B8',t4:'#CBD5E1',
+  brd:'rgba(0,0,0,.10)',
+};
+// Page-accent map (the hue used for each route's banner + cards).
+// Editable in the UI so users can rebrand the per-page palette too.
+const PAGE_ACCENT_DEFAULTS={
+  home:'#3b82f6',myday:'#f59e0b',myweek:'#14b8a6',myyear:'#6366f1',
+  capture:'#fb7185',ideas:'#eab308',mindmaps:'#ec4899',focus:'#ef4444',
+  process:'#8b5cf6',tasks:'#22c55e',notes:'#f97316',projects:'#a855f7',
+  clusters:'#06b6d4',calendar:'#0284c7',mail:'#9333ea',goals:'#dc2626',
+  habits:'#10b981',coach:'#facc15',journal:'#f43f5e',team:'#0ea5e9',
+  contacts:'#0d9488',bookmarks:'#d97706',archive:'#64748b',reports:'#06b6d4',
+};
+// Curated bundled profiles users can apply or start from.
+const THEME_PRESETS=[
+  {id:'_default',name:'LevelUp Default',emoji:'🌌',theme:{}},
+  {id:'_focus',name:'Deep Focus',emoji:'🎯',theme:{
+    bg:'#0A0E1A',s1:'#0D121F',s2:'#121828',s3:'#1A2236',s4:'#243250',
+    ac:'#06b6d4',ach:'#22d3ee',acs:'rgba(6,182,212,.18)',
+    t1:'#E6F1FF',t2:'#86A3C8',
+  }},
+  {id:'_sunset',name:'Sunset',emoji:'🌅',theme:{
+    bg:'#1A0F1F',s1:'#22142B',s2:'#2A1A36',s3:'#3A2548',s4:'#4A2F5A',
+    ac:'#f97316',ach:'#fb923c',acs:'rgba(249,115,22,.18)',
+    t1:'#FFF7ED',t2:'#FDBA74',
+  }},
+  {id:'_forest',name:'Forest',emoji:'🌲',theme:{
+    bg:'#0A1410',s1:'#0E1A14',s2:'#13251C',s3:'#1A3527',s4:'#244836',
+    ac:'#10b981',ach:'#34d399',acs:'rgba(16,185,129,.18)',
+    t1:'#ECFDF5',t2:'#86EFAC',
+  }},
+  {id:'_paper',name:'Paper (Light)',emoji:'📜',theme:{
+    bg:'#FAF8F3',s1:'#FFFFFF',s2:'#F5F1E8',s3:'#EEE7D6',s4:'#E0D5BC',
+    ac:'#8b5cf6',ach:'#a78bfa',acs:'rgba(139,92,246,.16)',
+    t1:'#1F1A14',t2:'#5C5040',t3:'#8A7B66',t4:'#B5A78E',
+    bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+  {id:'_midnight',name:'Midnight Ink',emoji:'🌙',theme:{
+    bg:'#020617',s1:'#070D1C',s2:'#0C1326',s3:'#141C36',s4:'#1E2747',
+    ac:'#a855f7',ach:'#c084fc',acs:'rgba(168,85,247,.18)',
+    t1:'#F1F5F9',t2:'#94A3B8',
+  }},
+  {id:'_rose',name:'Rose Garden',emoji:'🌹',theme:{
+    bg:'#1A0E14',s1:'#22131C',s2:'#2D1A26',s3:'#3D2333',s4:'#4D2D42',
+    ac:'#f43f5e',ach:'#fb7185',acs:'rgba(244,63,94,.18)',
+    t1:'#FFF1F2',t2:'#FCA5A5',
+  }},
+  {id:'_zen',name:'Zen Morning',emoji:'🍵',theme:{
+    bg:'#F5F7F4',s1:'#FFFFFF',s2:'#EEF2EC',s3:'#E0E8DC',s4:'#CFDAC8',
+    ac:'#16a34a',ach:'#22c55e',acs:'rgba(22,163,74,.14)',
+    t1:'#1A2E1A',t2:'#516555',t3:'#7A8A7B',t4:'#A5B0A2',
+    bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+];
+const THEME_VAR_GROUPS=[
+  {label:'Backgrounds',keys:[
+    {k:'bg',name:'Page background'},
+    {k:'s1',name:'Surface 1 (sidebar / rail)'},
+    {k:'s2',name:'Surface 2 (cards)'},
+    {k:'s3',name:'Surface 3 (hover / pills)'},
+    {k:'s4',name:'Surface 4 (deep)'},
+  ]},
+  {label:'Text',keys:[
+    {k:'t1',name:'Primary text'},
+    {k:'t2',name:'Secondary text'},
+    {k:'t3',name:'Tertiary / hint'},
+    {k:'t4',name:'Disabled / faint'},
+  ]},
+  {label:'Accent',keys:[
+    {k:'ac',name:'Accent'},
+    {k:'ach',name:'Accent hover'},
+  ]},
+  {label:'Semantic',keys:[
+    {k:'red',name:'Error / overdue'},
+    {k:'warn',name:'Warning'},
+    {k:'ok',name:'Success'},
+    {k:'purp',name:'Purple highlight'},
+  ]},
+];
+
+// Resolve the *effective* theme: defaults → active stored theme → scheduled override.
+function _getEffectiveTheme(){
+  const dark=D.prefs.darkMode!==false;
+  const defaults=dark?THEME_DEFAULTS_DARK:THEME_DEFAULTS_LIGHT;
+  let theme=Object.assign({},defaults,D.prefs.theme||{});
+  // Scheduled override
+  const sched=_getActiveSchedule();
+  if(sched){
+    const prof=(D.prefs.themeProfiles||[]).find(p=>p.id===sched.profileId);
+    if(prof&&prof.theme)theme=Object.assign({},defaults,prof.theme);
+  }
+  return theme;
+}
+// Determine if any scheduled entry applies right now. Returns the entry or null.
+function _getActiveSchedule(){
+  const sched=(D.prefs&&D.prefs.themeSchedule)||[];
+  if(!sched.length)return null;
+  const now=new Date();
+  const day=now.getDay(); // 0=Sun..6=Sat
+  const mins=now.getHours()*60+now.getMinutes();
+  for(const e of sched){
+    if(!e.enabled)continue;
+    if(Array.isArray(e.days)&&e.days.length&&!e.days.includes(day))continue;
+    const start=_hmToMin(e.start);const end=_hmToMin(e.end);
+    if(start===null||end===null)continue;
+    // Support overnight ranges (e.g. 22:00-06:00)
+    const inRange=start<=end?(mins>=start&&mins<end):(mins>=start||mins<end);
+    if(inRange)return e;
+  }
+  return null;
+}
+function _hmToMin(s){
+  if(!s||typeof s!=='string')return null;
+  const m=s.match(/^(\d{1,2}):(\d{2})$/);if(!m)return null;
+  return Math.min(23,Math.max(0,Number(m[1])))*60+Math.min(59,Math.max(0,Number(m[2])));
+}
+
+// Push the effective theme onto :root. Called on boot, on toggle, and every
+// minute via the scheduler tick.
+let _lastAppliedThemeKey='';
+function applyTheme(opts){
+  const t=_getEffectiveTheme();
+  const root=document.documentElement;
+  for(const [k,v] of Object.entries(t)){
+    if(v===undefined||v===null||v==='')continue;
+    root.style.setProperty('--'+k,v);
+  }
+  // Page-accent map overrides
+  const paMap=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});
+  // Inject as a <style id="lu-page-accents"> so we override the static rules
+  let styleEl=document.getElementById('lu-page-accents');
+  if(!styleEl){styleEl=document.createElement('style');styleEl.id='lu-page-accents';document.head.appendChild(styleEl);}
+  const rules=Object.entries(paMap).map(([screen,color])=>`body[data-screen="${screen}"]{--page-accent:${color}}`);
+  styleEl.textContent=rules.join('\n');
+  // Font family + scale
+  const ff=D.prefs.themeFontFamily;
+  if(ff&&ff!=='__system'){
+    document.body.style.fontFamily=ff;
+  }else{
+    document.body.style.fontFamily='';
+  }
+  const fs=Number(D.prefs.themeFontScale)||1;
+  root.style.setProperty('--lu-font-scale',String(fs));
+  // Apply scale by adjusting body font-size (works alongside compact-mode etc.)
+  let baseFs=document.body.classList.contains('compact-mode')?13:15;
+  document.body.style.fontSize=(baseFs*fs).toFixed(1)+'px';
+  // Re-render to update inline-styled colour pickers etc. if requested.
+  if(opts&&opts.silent!==true){
+    _lastAppliedThemeKey=_themeFingerprint();
+  }
+  // First applyTheme() boots the once-per-minute scheduler tick.
+  _ensureThemeSchedulerRunning();
+}
+// Coerce a CSS colour string to a hex value usable by <input type="color">.
+// rgba()/hsl()/etc. fall back to a sensible hex so the picker isn't blank.
+function _themeColorAsHex(c){
+  if(!c||typeof c!=='string')return '#000000';
+  c=c.trim();
+  if(/^#[0-9a-f]{6}$/i.test(c))return c;
+  if(/^#[0-9a-f]{3}$/i.test(c))return '#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];
+  // rgb(a)(...) — parse first three numbers
+  const m=c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if(m){return '#'+[m[1],m[2],m[3]].map(x=>Number(x).toString(16).padStart(2,'0')).join('');}
+  return '#000000';
+}
+function _themeFingerprint(){
+  try{return JSON.stringify([_getEffectiveTheme(),D.prefs.pageAccents||{},D.prefs.themeFontFamily,D.prefs.themeFontScale]);}catch(_){return Math.random().toString();}
+}
+// Scheduler tick: every 60s, re-check the effective theme. If it changed,
+// re-apply. Started lazily on first applyTheme().
+let _themeSchedTimer=null;
+function _ensureThemeSchedulerRunning(){
+  if(_themeSchedTimer)return;
+  _themeSchedTimer=setInterval(()=>{
+    const fp=_themeFingerprint();
+    if(fp!==_lastAppliedThemeKey){
+      _lastAppliedThemeKey=fp;
+      applyTheme({silent:true});
+    }
+  },60*1000);
+}
+
+// ───── Theme persistence helpers ─────
+function setThemeVar(key,value){
+  D.prefs.theme=D.prefs.theme||{};
+  if(!value){delete D.prefs.theme[key];}else{D.prefs.theme[key]=value;}
+  save('prefs');applyTheme();
+}
+function setPageAccent(screen,color){
+  D.prefs.pageAccents=D.prefs.pageAccents||{};
+  if(!color){delete D.prefs.pageAccents[screen];}else{D.prefs.pageAccents[screen]=color;}
+  save('prefs');applyTheme();
+}
+function resetTheme(){
+  if(!confirm('Reset all colours, fonts and page accents to the LevelUp defaults? Saved profiles and schedules are kept.'))return;
+  delete D.prefs.theme;
+  delete D.prefs.pageAccents;
+  delete D.prefs.themeFontFamily;
+  delete D.prefs.themeFontScale;
+  save('prefs');applyTheme();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast('🌌 Theme reset to defaults');
+}
+function applyThemePreset(preset){
+  if(!preset)return;
+  D.prefs.theme=Object.assign({},preset.theme||{});
+  save('prefs');applyTheme();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast(`${preset.emoji||'🎨'} Applied: ${preset.name}`);
+}
+function saveThemeAsProfile(){
+  const name=prompt('Name this profile (e.g. "Morning Focus", "Evening Wind-down"):','');
+  if(!name||!name.trim())return;
+  const emoji=prompt('Pick an emoji icon (optional):','🎨')||'🎨';
+  const arr=Array.isArray(D.prefs.themeProfiles)?D.prefs.themeProfiles:[];
+  arr.push({
+    id:Date.now(),
+    name:name.trim(),
+    emoji:emoji.trim().slice(0,4)||'🎨',
+    theme:Object.assign({},D.prefs.theme||{}),
+    pageAccents:Object.assign({},D.prefs.pageAccents||{}),
+    fontFamily:D.prefs.themeFontFamily||null,
+    fontScale:D.prefs.themeFontScale||null,
+    createdAt:new Date().toISOString(),
+  });
+  D.prefs.themeProfiles=arr;save('prefs');
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast('✓ Profile saved');
+}
+function loadThemeProfile(id){
+  const p=(D.prefs.themeProfiles||[]).find(x=>x.id===id);if(!p)return;
+  D.prefs.theme=Object.assign({},p.theme||{});
+  D.prefs.pageAccents=Object.assign({},p.pageAccents||{});
+  if(p.fontFamily!==undefined)D.prefs.themeFontFamily=p.fontFamily;
+  if(p.fontScale!==undefined)D.prefs.themeFontScale=p.fontScale;
+  save('prefs');applyTheme();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast(`${p.emoji||'🎨'} Loaded: ${p.name}`);
+}
+function deleteThemeProfile(id){
+  const p=(D.prefs.themeProfiles||[]).find(x=>x.id===id);if(!p)return;
+  if(!confirm('Delete profile "'+p.name+'"? Any schedule using it will become inactive.'))return;
+  D.prefs.themeProfiles=(D.prefs.themeProfiles||[]).filter(x=>x.id!==id);
+  // Disable any schedules pointing at it
+  (D.prefs.themeSchedule||[]).forEach(s=>{if(s.profileId===id)s.enabled=false;});
+  save('prefs');
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast('Profile deleted');
+}
+function renameThemeProfile(id){
+  const p=(D.prefs.themeProfiles||[]).find(x=>x.id===id);if(!p)return;
+  const name=prompt('Rename profile:',p.name);if(!name||!name.trim())return;
+  p.name=name.trim();save('prefs');
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+}
+// ───── Schedule rule helpers ─────
+function addThemeSchedule(){
+  const profiles=D.prefs.themeProfiles||[];
+  if(!profiles.length){toast('Save at least one profile first');return;}
+  const arr=Array.isArray(D.prefs.themeSchedule)?D.prefs.themeSchedule:[];
+  arr.push({
+    id:Date.now(),
+    enabled:true,
+    profileId:profiles[0].id,
+    days:[0,1,2,3,4,5,6],
+    start:'09:00',
+    end:'12:00',
+  });
+  D.prefs.themeSchedule=arr;save('prefs');applyTheme();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+}
+function updateThemeSchedule(id,patch){
+  const arr=D.prefs.themeSchedule||[];const e=arr.find(x=>x.id===id);if(!e)return;
+  Object.assign(e,patch);save('prefs');applyTheme();
+}
+function deleteThemeSchedule(id){
+  D.prefs.themeSchedule=(D.prefs.themeSchedule||[]).filter(x=>x.id!==id);
+  save('prefs');applyTheme();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
 }
 function toggleDarkMode(el){
   el.classList.toggle('on');
@@ -11347,10 +11659,126 @@ function renderSettingsHTML(){
     <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset all General settings to defaults?')){const keep={darkMode:D.prefs.darkMode,compact:D.prefs.compact,accent:D.prefs.accent,notifications:D.prefs.notifications};D.prefs={...keep,workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true};saveAll();applyPrefs();renderScreen('settings');toast('\u2699 General settings reset to defaults');}">&#x21BA; Reset to Defaults</button>
   </div>
   </div>
-  <!-- Appearance --><div id="sp-2" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Appearance</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div><div style="font-size:10px;color:var(--t3)">Reduce padding and spacing</div></div><div class="tog ${D.prefs&&D.prefs.compact?'on':''}" id="tog-compact" onclick="toggleCompact(this)"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Accent Color</div><div style="font-size:10px;color:var(--t3)">Primary highlight color</div></div><div style="display:flex;gap:6px">${['#3B82F6','#8B5CF6','#10B981','#F59E0B','#EF4444','#06B6D4'].map(c=>`<div onclick="setAccent('${c}')" style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${(D.prefs&&D.prefs.accent||'#3B82F6')===c?'#fff':'transparent'}"></div>`).join('')}</div></div>
+  <!-- Appearance --><div id="sp-2" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🎨 Appearance</h3>
+  <p style="font-size:10px;color:var(--t3);margin-bottom:14px">Themes are personal — each team member can customise independently. Changes apply instantly and sync across your devices.</p>
+
+  <!-- Base toggles -->
+  <div class="cd" style="padding:10px 14px;margin-bottom:14px">
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Compact Mode</div><div style="font-size:10px;color:var(--t3)">Reduce padding and spacing</div></div><div class="tog ${D.prefs&&D.prefs.compact?'on':''}" id="tog-compact" onclick="toggleCompact(this)"></div></div>
+  </div>
+
+  <!-- Quick presets -->
+  <div class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">🌌 Quick Presets</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Apply a curated theme as a starting point. You can then customise any colour below.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">
+      ${THEME_PRESETS.map(p=>`<button class="btn btn-s" style="height:auto;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:6px;text-align:left;justify-content:flex-start;border:1px solid ${p.theme.ac?`color-mix(in srgb,${p.theme.ac} 40%,var(--bd2))`:'var(--bd2)'};background:linear-gradient(135deg,${p.theme.bg||'var(--s2)'} 0%,${p.theme.s2||'var(--s3)'} 100%)" onclick="applyThemePreset(${JSON.stringify(p).replace(/"/g,'&quot;')})"><span style="font-size:16px;flex-shrink:0">${p.emoji}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:${p.theme.t1||'var(--t1)'}">${esc(p.name)}</span></button>`).join('')}
+    </div>
+  </div>
+
+  <!-- Granular colour pickers -->
+  <div class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:600">🎨 Custom Colours</div>
+      <button class="btn btn-s" style="font-size:10px;height:24px" onclick="resetTheme()">↺ Reset to Defaults</button>
+    </div>
+    ${(()=>{const eff=_getEffectiveTheme();return THEME_VAR_GROUPS.map(g=>`
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(g.label)}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">
+          ${g.keys.map(kk=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer">
+            <input type="color" value="${_themeColorAsHex(eff[kk.k])}" style="width:28px;height:24px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setThemeVar('${kk.k}',this.value)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;color:var(--t1);font-weight:500">${esc(kk.name)}</div>
+              <div style="font-size:9px;color:var(--t3);font-family:ui-monospace,monospace">--${kk.k}</div>
+            </div>
+          </label>`).join('')}
+        </div>
+      </div>
+    `).join('');})()}
+  </div>
+
+  <!-- Page accent (per-route hue) -->
+  <details class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <summary style="font-size:12px;font-weight:600;cursor:pointer;list-style:none">📄 Per-Page Accent Colours <span style="font-size:10px;color:var(--t3);font-weight:400">— controls each route's banner hue</span></summary>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:10px">
+      ${(()=>{const cur=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});return Object.entries(cur).map(([screen,color])=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer"><input type="color" value="${color}" style="width:24px;height:20px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setPageAccent('${screen}',this.value)"><span style="font-size:11px;color:var(--t1);text-transform:capitalize">${screen}</span></label>`).join('');})()}
+    </div>
+  </details>
+
+  <!-- Typography -->
+  <div class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔤 Typography</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Family</div><div style="font-size:10px;color:var(--t3)">Applied across the app</div></div>
+      <select class="inp" style="max-width:220px;font-size:12px" onchange="D.prefs.themeFontFamily=this.value;save('prefs');applyTheme()">
+        ${[['__system','System default'],['"Inter",sans-serif','Inter'],['"Roboto",sans-serif','Roboto'],['"SF Pro",-apple-system,sans-serif','SF Pro / Apple system'],['"Segoe UI",sans-serif','Segoe UI'],['Georgia,serif','Georgia (serif)'],['"Times New Roman",serif','Times New Roman'],['"Courier New",ui-monospace,monospace','Courier (mono)'],['"JetBrains Mono",ui-monospace,monospace','JetBrains Mono'],['"Lora",serif','Lora']].map(([v,l])=>`<option value="${esc(v)}" ${(D.prefs.themeFontFamily||'__system')===v?'selected':''}>${esc(l)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Size Scale</div><div style="font-size:10px;color:var(--t3)">${Math.round((Number(D.prefs.themeFontScale)||1)*100)}% of default</div></div>
+      <input type="range" min="0.85" max="1.30" step="0.05" value="${Number(D.prefs.themeFontScale)||1}" style="width:180px" oninput="D.prefs.themeFontScale=Number(this.value);save('prefs');applyTheme();this.parentElement.querySelector('div div:last-child').textContent=Math.round(Number(this.value)*100)+'% of default'">
+    </div>
+  </div>
+
+  <!-- Saved profiles -->
+  <div class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:600">⭐ Saved Profiles</div>
+      <button class="btn btn-p" style="font-size:10px;height:24px" onclick="saveThemeAsProfile()">💾 Save Current as Profile</button>
+    </div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Capture the current colours + fonts + page accents as a named profile you can re-apply any time, or schedule by time of day.</p>
+    ${(()=>{const profs=D.prefs.themeProfiles||[];if(!profs.length)return '<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">No saved profiles yet.</div>';
+      return `<div style="display:flex;flex-direction:column;gap:6px">${profs.map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px">
+        <span style="font-size:16px">${esc(p.emoji||'🎨')}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${esc(p.name)}</div>
+          <div style="font-size:9px;color:var(--t3)">${Object.keys(p.theme||{}).length} colour overrides · ${Object.keys(p.pageAccents||{}).length} page accents${p.fontFamily&&p.fontFamily!=='__system'?' · custom font':''}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${(Object.values(p.theme||{}).slice(0,4)).map(c=>`<span style="width:14px;height:14px;border-radius:50%;background:${esc(c)};border:1px solid var(--bd2)"></span>`).join('')}
+        </div>
+        <button class="btn btn-p" style="height:24px;font-size:10px" onclick="loadThemeProfile(${p.id})">Apply</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="renameThemeProfile(${p.id})" title="Rename">✏</button>
+        <button class="btn btn-d" style="height:24px;font-size:10px" onclick="deleteThemeProfile(${p.id})" title="Delete">✕</button>
+      </div>`).join('')}</div>`;
+    })()}
+  </div>
+
+  <!-- Scheduled profile changes -->
+  <div class="cd" style="padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:600">⏰ Schedule Profiles</div>
+      <button class="btn btn-p" style="font-size:10px;height:24px" onclick="addThemeSchedule()">+ Add Rule</button>
+    </div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Auto-switch profiles by time of day. Useful for ramping focus colours in the morning, sunset palette in the evening, etc. Multiple rules: the first matching wins.</p>
+    ${(()=>{
+      const sched=D.prefs.themeSchedule||[];
+      const profs=D.prefs.themeProfiles||[];
+      if(!sched.length)return '<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">No schedule rules yet. Save a profile, then add a rule to auto-apply it.</div>';
+      const dayLbl=['S','M','T','W','T','F','S'];
+      return `<div style="display:flex;flex-direction:column;gap:8px">${sched.map(s=>`<div style="padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;align-items:center">
+        <div class="tog ${s.enabled?'on':''}" onclick="updateThemeSchedule(${s.id},{enabled:!${!!s.enabled}});renderScreen('settings')" title="Toggle this rule"></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0">
+          <span style="font-size:11px;color:var(--t2)">Apply</span>
+          <select class="inp" style="height:24px;font-size:11px;max-width:160px" onchange="updateThemeSchedule(${s.id},{profileId:Number(this.value)})">
+            ${profs.map(p=>`<option value="${p.id}" ${p.id===s.profileId?'selected':''}>${esc(p.emoji||'🎨')} ${esc(p.name)}</option>`).join('')}
+          </select>
+          <span style="font-size:11px;color:var(--t2)">from</span>
+          <input type="time" class="inp" style="height:24px;font-size:11px;width:90px" value="${esc(s.start||'09:00')}" onchange="updateThemeSchedule(${s.id},{start:this.value})">
+          <span style="font-size:11px;color:var(--t2)">to</span>
+          <input type="time" class="inp" style="height:24px;font-size:11px;width:90px" value="${esc(s.end||'12:00')}" onchange="updateThemeSchedule(${s.id},{end:this.value})">
+        </div>
+        <div style="display:flex;gap:2px">
+          ${dayLbl.map((d,di)=>{const on=(s.days||[0,1,2,3,4,5,6]).includes(di);return `<span title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][di]}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;border-radius:4px;cursor:pointer;${on?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t3)'}" onclick="(function(){const arr=(D.prefs.themeSchedule.find(x=>x.id===${s.id}).days||[]).slice();const i=arr.indexOf(${di});if(i>=0)arr.splice(i,1);else arr.push(${di});updateThemeSchedule(${s.id},{days:arr});renderScreen('settings')})()">${d}</span>`;}).join('')}
+        </div>
+        <button class="btn btn-d" style="height:22px;font-size:10px" onclick="deleteThemeSchedule(${s.id})">✕</button>
+      </div>`).join('')}</div>`;
+    })()}
+    ${(()=>{const a=_getActiveSchedule();if(!a)return '';const p=(D.prefs.themeProfiles||[]).find(x=>x.id===a.profileId);return `<div style="margin-top:8px;font-size:10px;color:var(--ok);padding:5px 8px;background:rgba(34,197,94,.1);border-radius:6px">▶ Active now: ${esc(p?p.emoji+' '+p.name:'(unknown)')} (${esc(a.start)}–${esc(a.end)})</div>`;})()}
+  </div>
   </div>
   <!-- Notifications --><div id="sp-3" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🔔 Notifications</h3>
