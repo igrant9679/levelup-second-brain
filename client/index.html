@@ -12456,6 +12456,9 @@ var HC_CATS=[
   {id:4,icon:'📝',name:'Notes & Journal',desc:'Capture, organise, and review your thoughts'},
   {id:5,icon:'👤',name:'Contacts & CRM',desc:'Manage relationships and enrichment'},
   {id:6,icon:'⚙️',name:'Settings & Integrations',desc:'Connect accounts, configure preferences'},
+  {id:7,icon:'✨',name:'AI & Automation',desc:'AI keys, chat assistant, AI-powered features'},
+  {id:8,icon:'🎨',name:'Appearance & Themes',desc:'Theme presets, custom colours, scheduled profiles'},
+  {id:9,icon:'📊',name:'Reports & Widgets',desc:'Build custom dashboards and schedule emails'},
 ];
 var HC_ARTICLES=[
   {id:1,slug:'welcome',catId:1,title:'Welcome to LevelUp',summary:'A quick overview of every module and how they connect.',tags:['intro','overview'],tourId:1,body:`## Welcome to LevelUp\n\nLevelUp is your all-in-one **Second Brain Hub** — a single workspace for tasks, notes, calendar, mail, habits, goals, journal, and contacts.\n\n### Core Modules\n\n| Module | Purpose |\n|---|---|\n| **My Day** | Daily focus view with top tasks and schedule |\n| **Tasks** | Full task manager with AI decomposition |\n| **Notes** | Rich-text knowledge base with AI Q&A |\n| **Calendar** | Week/Day/Month views with drag-to-reschedule |\n| **Mail** | Unified inbox with AI smart replies |\n| **Habits** | Streak tracking with heatmap and coaching |\n| **Goals** | OKR-style goal tracking with AI alignment |\n| **Contacts** | CRM with Clodura enrichment |\n\n### Quick Start\n1. Open **My Day** to see today's focus\n2. Press **C** to quick-capture any thought\n3. Use **Cmd+K** to search across everything\n4. Press **?** to open this Help Center anytime`},
@@ -12467,7 +12470,15 @@ var HC_ARTICLES=[
   {id:7,slug:'settings-integrations',catId:6,title:'Settings & Integrations',summary:'Connect Microsoft 365, Google Workspace, and third-party tools.',tags:['settings','oauth','integrations'],body:`## Settings & Integrations\n\n### Connected Accounts\nGo to **Settings → Connected Accounts** to connect:\n- **Microsoft 365** — sync Calendar, Mail, and Contacts via Microsoft Graph\n- **Google Workspace** — sync Calendar and Google Contacts (Gmail not supported; use SMTP/IMAP for non-Microsoft mail)\n\nClick **Connect** and authorise via OAuth. Once connected, use the **Sync** buttons to pull data.\n\n### Clodura API Key\nGo to **Settings → Integrations → Contact Enrichment** to add your Clodura API key.\n\n### Webhook Integration\nGo to **Settings → Integrations → External Task Sync** to configure incoming webhooks from Zapier, Make, or any HTTP source.`},
   {id:8,slug:'habits-streaks',catId:1,title:'Habits & Streak Tracking',summary:'Build consistent habits with streak tracking, heatmaps, and AI coaching.',tags:['habits','streaks','ai'],body:`## Habits & Streak Tracking\n\n### Creating a Habit\nClick **+ Add Habit** and set a name, icon, cadence (Daily / 3x/week / Weekly), and target.\n\n### Streak Tracking\nCheck off a habit each day to build your streak. The heatmap shows the last 30 days — green for done, purple for skipped, grey for missed.\n\n### Cadence-Aware Streaks\n- **Daily** habits count consecutive days\n- **Weekly / 3x/week** habits count consecutive ISO weeks with enough completions\n\n### AI Features\n- **💜 Mood Correlation** — cross-references journal mood with habit completion\n- **🎯 Coaching** — suggests a more achievable cadence when a streak breaks\n- **📊 Wellbeing Report** — auto-generates a Sunday evening summary`},
   {id:9,slug:'goals-okr',catId:2,title:'Goals & OKR Tracking',summary:'Set and track goals with AI-powered progress narratives and alignment checks.',tags:['goals','okr','ai'],body:`## Goals & OKR Tracking\n\n### Creating a Goal\nClick **+ Add Goal** and set a title, description, target date, and linked tasks.\n\n### Progress Tracking\nGoal progress is calculated from linked task completion rates. The progress bar updates automatically.\n\n### AI Features\n- **✨ Progress** — generates a plain-English progress narrative for each goal\n- **📅 Review** — auto-populates a weekly review template with data from tasks, habits, and calendar\n- **🔗 Align** — analyses whether your daily tasks are actually moving your top-level goals forward`},
-  {id:10,slug:'keyboard-shortcuts',catId:1,title:'Keyboard Shortcuts',summary:'Master LevelUp with keyboard shortcuts for every action.',tags:['shortcuts','keyboard','productivity'],body:`## Keyboard Shortcuts\n\n| Shortcut | Action |\n|---|---|\n| **C** | Quick Capture |\n| **T** | New Task |\n| **N** | New Note |\n| **Cmd/Ctrl+K** | Global Search |\n| **Cmd/Ctrl+/** | Focus Help Search |\n| **?** | Open Help Center |\n| **Esc** | Close modal / drawer |\n| **Cmd/Ctrl+S** | Save note (in editor) |\n| **1–9** | Navigate to screen N in sidebar |\n\n### In Calendar\n| Shortcut | Action |\n|---|---|\n| **W** | Week view |\n| **D** | Day view |\n| **M** | Month view |\n| **← →** | Previous / Next period |`},
+  {id:10,slug:'keyboard-shortcuts',catId:1,title:'Keyboard Shortcuts',summary:'Master LevelUp with keyboard shortcuts for every action.',tags:['shortcuts','keyboard','productivity'],body:`## Keyboard Shortcuts\n\nPress **?** anywhere to bring up the full shortcuts overlay in the app.\n\n### Universal\n| Shortcut | Action |\n|---|---|\n| **Cmd/Ctrl + K** | Command Palette (search + actions) |\n| **Cmd/Ctrl + J** | AI Chat Assistant |\n| **Cmd/Ctrl + N** | New task (Quick Add) |\n| **?** | Show the shortcuts overlay |\n| **Esc** | Close any modal / drawer / overlay |\n\n### Editing\n| Shortcut | Action |\n|---|---|\n| **Cmd/Ctrl + S** | Save (in editors) |\n| **Cmd/Ctrl + B** | Bold |\n| **Cmd/Ctrl + I** | Italic |\n| **Cmd/Ctrl + U** | Underline |\n| **Tab / Shift+Tab** | Indent / Outdent |\n\n### Image Lightbox\nClick any inline image in a note/journal/idea/goal to zoom.\n| Shortcut | Action |\n|---|---|\n| **← / →** | Previous / Next image |\n| **Esc** | Close lightbox |`},
+  {id:11,slug:'command-palette',catId:1,title:'Command Palette (Cmd+K)',summary:'Jump to anything in the workspace and run actions.',tags:['palette','search','shortcut'],body:`## Command Palette\n\nPress **Cmd+K** (Mac) or **Ctrl+K** (Windows/Linux) anywhere in the app to open the command palette — a centered overlay that lets you:\n\n- **Navigate** to any page (Home, Tasks, Notes, Reports, Settings, etc.)\n- **Create** new items (Task / Note / Project / Goal / Journal / Idea / Bookmark / Habit)\n- **Run tools** — start a focus timer, toggle dark mode, reset theme, save current theme as profile\n- **Apply theme profiles** — every saved theme appears as an action\n- **Search your workspace** — fuzzy-matches across tasks, notes, ideas, contacts, bookmarks, goals, habits, projects\n\nThe empty state shows your **8 most recent actions** plus top picks for Navigate and Create.\n\nKeyboard: **↑ ↓** to move, **↵** to run, **Esc** to close.`},
+  {id:12,slug:'ai-chat',catId:7,title:'AI Chat Assistant (Cmd+J)',summary:'Conversational AI with persistent memory and workspace context.',tags:['ai','chat','assistant'],body:`## AI Chat Assistant\n\nPress **Cmd+J** (or click the ⚡ button bottom-right) to open the AI chat panel. It slides in from the right of the screen and stays open while you work.\n\n### What makes it special\n- **Persistent memory** — the conversation thread is saved in your prefs and syncs across devices (last 50 messages kept).\n- **Workspace-aware** — every message ships a snapshot of your actual data: task counts, overdue items, top open tasks, goal progress, habit streaks, recent notes and journal entries. The model can answer "What are my top priorities today?" with specifics.\n- **Context-aware quick prompts** — chips at the bottom change based on the current screen. On Tasks: "Triage my inbox" / "What's blocking me?" On Notes: "Find related notes" / "Suggest tags".\n- **🗑 Clear** wipes the thread; auto-resizing textarea grows up to 6 lines.\n\n### Requirements\nAn AI key configured in **Settings → AI Features**. The admin can configure shared workspace keys that all team members use.`},
+  {id:13,slug:'ai-keys',catId:7,title:'AI Provider Keys',summary:'Configure OpenAI / Claude / Gemini for the whole workspace.',tags:['ai','keys','providers'],body:`## AI Provider Keys\n\nGo to **Settings → AI Features**. Choose your active provider and paste an API key.\n\n### Supported providers\n- **OpenAI** — get a key at platform.openai.com/api-keys\n- **Anthropic Claude** — console.anthropic.com\n- **Google Gemini** — aistudio.google.com\n\n### Workspace-shared\nAdmin's keys are shared across the team automatically — every member uses them without needing their own. Keys are stored on the server (plaintext) and never exposed to non-admin team members in the UI.\n\n### Switching providers\nChange the active provider any time via the segmented buttons at the top. The key for the chosen provider must be configured.`},
+  {id:14,slug:'themes',catId:8,title:'Themes & Color Profiles',summary:'Customize every color, save profiles, schedule by time of day.',tags:['theme','colors','appearance'],body:`## Themes & Color Profiles\n\nOpen **Settings → 🎨 Appearance**. The theme system is fully per-user and syncs across devices.\n\n### Quick Presets\n8 curated starting points: 🌌 Default · 🎯 Deep Focus · 🌅 Sunset · 🌲 Forest · 📜 Paper · 🌙 Midnight Ink · 🌹 Rose · 🍵 Zen. Click any to apply.\n\n### Granular custom colors\n14 individual pickers grouped by Backgrounds / Text / Accent / Semantic. Every change applies live.\n\n### Per-page accents\n24 routes each have their own hue (Tasks=green, Notes=orange, Habits=emerald, etc.). Override any of them.\n\n### Typography\nFont family dropdown (System / Inter / Roboto / SF Pro / Segoe / Georgia / Times / Courier / JetBrains Mono / Lora) plus a 85%–130% size scale slider.\n\n### Saved profiles + scheduling\n**💾 Save Current as Profile** captures the active theme + page accents + font under a named profile. Then use **⏰ Schedule Profiles** to auto-switch by time of day: "Morning Focus 9–12am, Sunset 6–10pm". Supports overnight ranges and per-weekday rules. Scheduler checks every 60 seconds.`},
+  {id:15,slug:'reports-builder',catId:9,title:'Custom Report Builder',summary:'Build dashboards from widgets — drag, resize, AI-generate.',tags:['reports','widgets','dashboard'],body:`## Custom Report Builder\n\nGo to **Reports → + Add Widget** to build your own analytical dashboards.\n\n### The 5-slot widget model\nEvery widget is: **Source** (Tasks / Habits / Goals / Journal / Projects / Ideas / Bookmarks / Focus) × **Filter** × **Group By** × **Metric** × **Visualisation**. The same shape covers ~90% of useful charts.\n\n### 8 viz types\n- **KPI tile** — big single number\n- **Bar / Line** — time series\n- **Donut** — category breakdowns\n- **Heatmap** — date-grouped activity\n- **Sparkline + total** — compact KPI\n- **Progress bars** — completion ratios\n- **Table** — listed rows\n\n### Faster ways to build\n- **📚 Templates** — 16 ready-made widgets (Tasks completed by day, Goals progress, Habit streaks, Focus minutes…)\n- **✨ AI Build** — describe what you want in plain English; AI returns the widget config\n- **Drag** widgets by their ⋮⋮ handle to reorder; click **⤢ Size** to resize 3/4/6/8/12 cols\n\n### Saved reports + scheduled email\nClick **💾 Save Report** to capture the current widget layout under a name. Then click **⏰** on any saved-report pill to schedule daily/weekly/monthly email delivery to your inbox.\n\n### Pin to Home\nClick **📌** on any widget to pin it to your Home dashboard.`},
+  {id:16,slug:'image-insert',catId:4,title:'Inserting Images & URLs',summary:'Embed images and links in notes, journal, ideas, and goals.',tags:['images','notes','rte'],body:`## Inserting Images & URLs\n\nEvery rich-text editor (notes, journal entries, idea bodies, goal descriptions) has these toolbar buttons:\n\n- **🔗 Link** — prompts for a URL\n- **🖼 Insert Image (file or URL)** — paste an image URL, or leave blank to pick a file from your computer\n\n### Image limits\nUpload size capped at **5 MB**. Supported formats: JPEG, PNG, WebP, GIF, AVIF. Files are embedded inline as base64, so they travel with the note and work offline.\n\n### Lightbox\nClick any inline image in a note / journal / idea / goal / report to open a full-screen viewer. Use **← / →** to navigate between images in the same body, **Esc** to close.`},
+  {id:17,slug:'bulk-import',catId:4,title:'Bulk Document Import & Bulk Actions',summary:'Import many PDFs/Word docs as notes at once + bulk-tag, star, delete.',tags:['import','bulk','notes'],body:`## Bulk Document Import\n\nOn the Notes page, click **📥 Import Docs** to select **multiple** PDF/Word/RTF/TXT files. They import sequentially with a single summary toast at the end.\n\n## Bulk Select Mode\n\nClick **☑ Select** in the Notes page header. Every note card grows a checkbox. Selected notes get an accent-tinted background.\n\n### Available bulk actions\n- **🏷 AI Auto-tag** — runs keyword + related-tag extraction on every selected note (no modal, no confirmation per note)\n- **+ Add Tag** — apply one tag to all selected\n- **⭐ Star** / **📌 Pin** — smart toggles\n- **⬇ Export** — concatenate selected notes into one Markdown download\n- **🗑 Delete** — single confirm\n- **✕ Done** — exit bulk mode`},
+  {id:18,slug:'notification-sender',catId:6,title:'Secondary Email & Notification Sender',summary:'Configure SMTP/IMAP and pick which account sends notifications.',tags:['email','smtp','notifications'],body:`## Secondary Email Account & Notification Sender\n\n### Admin-managed\nIn LevelUp, the **admin** configures a secondary email account that handles outbound notifications for the entire team. Team members can't change this setting — they just receive notifications from whatever the admin sets.\n\n### Setup (admin only)\n1. Go to **Settings → Accounts → Secondary Email Account**\n2. Fill in SMTP host/port/credentials and IMAP host/port/credentials\n3. Test the connection\n4. Save\n5. Open **System Notification Sender** below and select this account\n\n### Per-user Microsoft 365\nEvery team member (admin and non-admin) can connect **their own** Microsoft 365 account for Calendar/Mail sync from Settings → Accounts → Microsoft 365 → Connect.`},
 ];
 var HC_TOURS=[
   {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[
@@ -20805,15 +20816,37 @@ function closeHelpDrawer(){
 function renderHelpDrawer(q){
   const body=$('help-drawer-body');
   if(!body)return;
+  // Wrap the whole render in try/catch so a single broken template literal
+  // can't leave the drawer body silently empty.
+  try{
   q=(q||'').toLowerCase();
-  const curScreen=_curScreen||'home';
+  const screen=(typeof _curScreen!=='undefined'&&_curScreen)||(typeof curScreen!=='undefined'&&curScreen)||'home';
 
-  // Context-aware suggestions based on current screen
+  // Context-aware suggestions per screen. Numbers match HC_ARTICLES ids.
+  // Always include 11 (Cmd+K) and 12 (AI chat) since those are universal.
   const screenArticleMap={
-    tasks:[3,10],notes:[5,10],calendar:[4,10],mail:[10],habits:[8,10],goals:[9,10],
-    contacts:[6,10],settings:[7,10],home:[1,2,10],journal:[5,10],help:[1,10]
+    home:[1,2,11,12,14],
+    myday:[1,11,12],
+    myweek:[1,11,12],
+    tasks:[3,11,12,17],
+    process:[3,11],
+    notes:[5,16,17,11,12],
+    journal:[5,16,11,12],
+    ideas:[5,16,11],
+    calendar:[4,11,12],
+    mail:[18,11,12],
+    habits:[8,11,12],
+    goals:[9,11,12,14],
+    projects:[3,9,11],
+    clusters:[3,11],
+    contacts:[6,11],
+    bookmarks:[5,11],
+    settings:[7,13,14,18],
+    reports:[15,11,12],
+    focus:[10,11],
+    help:[10,11,12]
   };
-  const suggestedIds=screenArticleMap[curScreen]||[1,10];
+  const suggestedIds=screenArticleMap[screen]||[1,10,11,12];
   const suggested=HC_ARTICLES.filter(a=>suggestedIds.includes(a.id));
 
   // Search results
@@ -20823,7 +20856,7 @@ function renderHelpDrawer(q){
   }
 
   // Active tour status
-  const activeTour=_activeTour?HC_TOURS.find(t=>t.id===_activeTour.tourId):null;
+  const activeTour=(typeof _activeTour!=='undefined'&&_activeTour)?HC_TOURS.find(t=>t.id===_activeTour.tourId):null;
 
   body.innerHTML=`
   ${activeTour?`<div style="background:var(--acs);border:1px solid var(--ac);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
@@ -20854,6 +20887,19 @@ function renderHelpDrawer(q){
     </div>
   </div>`}
   `;
+  }catch(err){
+    // Failsafe — never leave the drawer body empty if a template-literal throws.
+    console.error('[help drawer]',err);
+    body.innerHTML=`<div style="padding:16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Help Center</div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Quick links — the full help drawer hit a rendering issue. The articles below still work.</p>
+      ${HC_ARTICLES.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="_helpArticleId=${a.id};nav('help');closeHelpDrawer()">
+        <div style="font-size:12px;font-weight:600">${esc(a.title)}</div>
+        <div style="font-size:10px;color:var(--t3)">${esc(a.summary)}</div>
+      </div>`).join('')}
+      <div style="margin-top:12px"><button class="btn btn-p" onclick="nav('help');closeHelpDrawer()" style="font-size:11px">📚 Open Full Help Center</button></div>
+    </div>`;
+  }
 }
 
 function helpDrawerCard(a){
