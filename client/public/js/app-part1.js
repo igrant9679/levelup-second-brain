@@ -3224,10 +3224,10 @@ function renderHome(){
   ];
   const _doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
   const _heroSub=_heroLines[_doy%_heroLines.length];
-  m.innerHTML=`<div class="home-hero" style="position:relative;padding:26px 28px 22px;margin-bottom:14px;border-radius:18px;overflow:hidden;background:linear-gradient(125deg,#1e3a8a 0%,#9f1239 45%,#b91c1c 100%);border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 48px rgba(185,28,28,.32),0 2px 8px rgba(0,0,0,.4)">
+  m.innerHTML=`<div class="home-hero" style="position:relative;padding:26px 28px 22px;margin-bottom:14px;border-radius:18px;overflow:hidden;background:linear-gradient(125deg,#1e3a8a 0%,#5b21b6 45%,#9d174d 100%);border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 48px rgba(91,33,182,.32),0 2px 8px rgba(0,0,0,.4)">
     <!-- Decorative blurred orbs -->
-    <div style="position:absolute;top:-60px;right:-40px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(248,113,113,.38),transparent 70%);pointer-events:none;filter:blur(8px)"></div>
-    <div style="position:absolute;bottom:-80px;left:30%;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(244,63,94,.30),transparent 70%);pointer-events:none;filter:blur(10px)"></div>
+    <div style="position:absolute;top:-60px;right:-40px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(168,85,247,.55),transparent 70%);pointer-events:none;filter:blur(8px)"></div>
+    <div style="position:absolute;bottom:-80px;left:30%;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.32),transparent 70%);pointer-events:none;filter:blur(10px)"></div>
     <div style="position:absolute;top:20px;left:35%;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.40),transparent 70%);pointer-events:none;filter:blur(6px)"></div>
     <!-- Faint grid pattern overlay for texture -->
     <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;opacity:.5"></div>
