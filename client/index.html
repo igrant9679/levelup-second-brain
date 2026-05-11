@@ -1840,39 +1840,93 @@ function luRTE_insertLink(id){
 //      survives across devices since the body syncs to the server).
 //   2) Paste a URL → embed via <img src="…">. Useful for already-hosted
 //      images (Imgur, S3, etc.).
+// Uses a custom modal instead of prompt() so the file-picker user-gesture
+// chain isn't broken (browsers block .click() on a dynamic input after a
+// prompt dismissal).
 function luRTE_insertImage(id){
   const el=document.getElementById(id);
   if(!el)return;
-  // Prefer to ask before opening the file picker so the user can paste a URL
-  const choice=prompt('Insert image: paste an image URL, or leave blank to upload a file from your computer.','');
-  if(choice===null)return; // user cancelled
-  if(choice.trim()){
-    // URL path — sanity-check and insert
-    let url=choice.trim();
-    if(!/^https?:\/\//i.test(url)&&!url.startsWith('data:image/')){
-      toast('That doesn’t look like a valid image URL');return;
+  // Remember the current selection inside the editor so insertHTML targets
+  // the right cursor position even after the modal interaction.
+  let savedRange=null;
+  try{
+    const sel=window.getSelection();
+    if(sel&&sel.rangeCount>0){
+      const r=sel.getRangeAt(0);
+      if(el.contains(r.commonAncestorContainer))savedRange=r.cloneRange();
     }
+  }catch(_){}
+  const restoreCaret=()=>{
     el.focus();
-    const safe=url.replace(/"/g,'&quot;');
-    document.execCommand('insertHTML',false,`<img src="${safe}" alt="Image" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
-    return;
-  }
-  // File-picker path
-  const inp=document.createElement('input');
-  inp.type='file';inp.accept='image/png,image/jpeg,image/webp,image/gif,image/avif';
-  inp.onchange=()=>{
-    const f=inp.files&&inp.files[0];if(!f)return;
-    if(f.size>5*1024*1024){toast('Image too large (max 5 MB)');return;}
-    const r=new FileReader();
-    r.onload=()=>{
-      el.focus();
-      const safeAlt=(f.name||'Image').replace(/"/g,'&quot;');
-      document.execCommand('insertHTML',false,`<img src="${r.result}" alt="${safeAlt}" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
-    };
-    r.onerror=()=>toast('Failed to read image');
-    r.readAsDataURL(f);
+    if(savedRange){
+      const sel=window.getSelection();sel.removeAllRanges();sel.addRange(savedRange);
+    }
   };
-  inp.click();
+  // Build the modal markup
+  const m=document.getElementById('modal-content');if(!m){toast('Modal not available');return;}
+  m.innerHTML=`
+    <h2 style="font-size:15px;font-weight:600;margin:0 0 6px">🖼 Insert Image</h2>
+    <p style="font-size:11px;color:var(--t2);margin:0 0 14px">Upload an image from your computer, or paste a URL.</p>
+    <div style="display:grid;grid-template-columns:1fr;gap:10px">
+      <button type="button" class="btn btn-p" id="lu-img-pick-btn" style="height:42px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload from computer
+      </button>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em"><div style="flex:1;height:1px;background:var(--bd1)"></div>or<div style="flex:1;height:1px;background:var(--bd1)"></div></div>
+      <div class="field"><label>Paste an image URL</label><input id="lu-img-url" class="inp" placeholder="https://… or data:image/png;base64,…" autofocus></div>
+      <button type="button" class="btn btn-s" id="lu-img-url-btn" style="height:32px;font-size:11px">Insert URL</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1)">
+      <button type="button" class="btn btn-s" onclick="closeModal()">Cancel</button>
+    </div>
+  `;
+  document.getElementById('modal-capture').classList.add('show');
+  // Hidden file input that the Upload button proxies. Triggering .click()
+  // from within an onclick handler preserves the user-gesture chain so the
+  // browser doesn't suppress the dialog.
+  const pickBtn=document.getElementById('lu-img-pick-btn');
+  const urlBtn=document.getElementById('lu-img-url-btn');
+  const urlInp=document.getElementById('lu-img-url');
+  pickBtn.onclick=()=>{
+    const inp=document.createElement('input');
+    inp.type='file';
+    inp.accept='image/png,image/jpeg,image/webp,image/gif,image/avif';
+    inp.style.display='none';
+    inp.onchange=()=>{
+      const f=inp.files&&inp.files[0];if(!f){return;}
+      if(f.size>5*1024*1024){toast({type:'error',title:'Image too large',msg:'Maximum size is 5 MB.'});return;}
+      const r=new FileReader();
+      r.onload=()=>{
+        closeModal();
+        setTimeout(()=>{
+          restoreCaret();
+          const safeAlt=(f.name||'Image').replace(/"/g,'&quot;');
+          document.execCommand('insertHTML',false,`<img src="${r.result}" alt="${safeAlt}" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
+        },80);
+      };
+      r.onerror=()=>toast('Failed to read image');
+      r.readAsDataURL(f);
+    };
+    document.body.appendChild(inp);
+    inp.click();
+    setTimeout(()=>inp.remove(),60000);
+  };
+  const doUrl=()=>{
+    const url=(urlInp.value||'').trim();
+    if(!url){toast('Enter an image URL or click Upload from computer');return;}
+    if(!/^https?:\/\//i.test(url)&&!url.startsWith('data:image/')){
+      toast({type:'error',title:'Invalid image URL',msg:'Must start with http://, https://, or data:image/'});
+      return;
+    }
+    closeModal();
+    setTimeout(()=>{
+      restoreCaret();
+      const safe=url.replace(/"/g,'&quot;');
+      document.execCommand('insertHTML',false,`<img src="${safe}" alt="Image" style="max-width:100%;border-radius:6px;display:block;margin:8px 0">`);
+    },80);
+  };
+  urlBtn.onclick=doUrl;
+  urlInp.onkeydown=(e)=>{if(e.key==='Enter'){e.preventDefault();doUrl();}};
 }
 
 function luRTE_keydown(e,id){
