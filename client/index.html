@@ -55,6 +55,12 @@ body:not(.compact-mode){font-size:15px}
 .notes-editor img,.notes-editor-panel img,#dr-note-rte img,#dr-diary-rte img,#fa-note-rte img,#fa-jrnl-rte img,#dr-goal-rte img,#fa-goal-rte img,[id^="idea-body-rte-"] img,#nie-body img{cursor:zoom-in;transition:transform .15s}
 .notes-editor img:hover,.notes-editor-panel img:hover,#dr-note-rte img:hover,#dr-diary-rte img:hover,#fa-note-rte img:hover,#fa-jrnl-rte img:hover,#dr-goal-rte img:hover,#fa-goal-rte img:hover,[id^="idea-body-rte-"] img:hover,#nie-body img:hover{transform:translateY(-1px)}
 
+/* ─── Drag-to-reorder Home widgets ──────────────────────────────────── */
+.home-card-wrap{transition:transform .12s,opacity .15s}
+.home-card-wrap:hover .home-card-drag{opacity:1}
+.home-card-wrap.dragging{opacity:.55}
+.home-card-wrap.drop-target>.cd{outline:2px dashed var(--page-accent);outline-offset:-2px}
+
 /* ─── Right-rail keyboard shortcuts legend ──────────────────────────── */
 .lu-sc-legend{margin-top:14px;padding:10px 12px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 10%,var(--s2)),var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 22%,var(--bd1));border-radius:8px;font-size:11px}
 .lu-sc-legend-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;color:var(--t2);font-weight:600;cursor:pointer;user-select:none}
@@ -2734,6 +2740,100 @@ document.addEventListener('click',function(e){
   openLightbox(t);
 },true);
 
+// ─── Home widgets: drag-to-reorder ──────────────────────────────────
+let _homeDragFrom=null;
+function _homeDragStart(e,id){_homeDragFrom=id;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',id);}catch(_){}e.currentTarget.classList.add('dragging');}
+function _homeDragOver(e,id){if(!_homeDragFrom||_homeDragFrom===id)return;e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.classList.add('drop-target');}
+function _homeDragLeave(e){e.currentTarget.classList.remove('drop-target');}
+function _homeDragEnd(e){e.currentTarget.classList.remove('dragging');document.querySelectorAll('.drop-target').forEach(el=>el.classList.remove('drop-target'));_homeDragFrom=null;}
+function _homeDrop(e,toId){
+  e.preventDefault();e.currentTarget.classList.remove('drop-target');
+  if(!_homeDragFrom||_homeDragFrom===toId)return;
+  // Reorder D.prefs.homeCards: pull from position, insert before target.
+  const prefs=getHomeCardPrefs().slice().sort((a,b)=>a.order-b.order);
+  const fromIdx=prefs.findIndex(p=>p.id===_homeDragFrom);
+  const toIdx=prefs.findIndex(p=>p.id===toId);
+  if(fromIdx<0||toIdx<0)return;
+  const moved=prefs.splice(fromIdx,1)[0];
+  prefs.splice(toIdx,0,moved);
+  // Reassign orders sequentially.
+  prefs.forEach((p,i)=>{p.order=i;});
+  saveHomeCardPrefs(prefs);
+  _homeDragFrom=null;
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+}
+
+// ─── Home widget helpers (weather, AI insight, focus tracking) ────────
+function _setWeatherLoc(loc){
+  if(!loc||!loc.trim())return;
+  D.prefs.weatherLocation=loc.trim();
+  D.prefs.weatherCache=null;save('prefs');
+  _refreshWeather();
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+}
+async function _refreshWeather(){
+  const loc=(D.prefs&&D.prefs.weatherLocation)||'';if(!loc)return;
+  try{
+    const r=await fetch(`https://wttr.in/${encodeURIComponent(loc)}?format=j1`);
+    if(!r.ok)throw new Error('weather fetch failed');
+    const j=await r.json();
+    const cur=(j.current_condition&&j.current_condition[0])||{};
+    const wxDesc=(cur.weatherDesc&&cur.weatherDesc[0]&&cur.weatherDesc[0].value)||'';
+    const data={
+      temp:cur.temp_F,feels:cur.FeelsLikeF,humidity:cur.humidity,wind:cur.windspeedMiles,
+      desc:wxDesc,
+      icon:_weatherIcon(wxDesc,cur.weatherCode),
+    };
+    D.prefs.weatherCache={ts:Date.now(),data};save('prefs');
+    if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+  }catch(e){console.warn('[weather]',e);}
+}
+function _weatherIcon(desc,code){
+  const d=String(desc||'').toLowerCase();
+  if(d.includes('thunder')||d.includes('storm'))return '⛈';
+  if(d.includes('snow')||d.includes('sleet')||d.includes('flurr'))return '❄';
+  if(d.includes('rain')||d.includes('drizzle')||d.includes('shower'))return '🌧';
+  if(d.includes('fog')||d.includes('mist')||d.includes('haze'))return '🌫';
+  if(d.includes('cloud')&&d.includes('part'))return '⛅';
+  if(d.includes('overcast')||d.includes('cloud'))return '☁';
+  if(d.includes('clear')&&new Date().getHours()>=20)return '🌙';
+  if(d.includes('clear')||d.includes('sun'))return '☀';
+  return '🌤';
+}
+async function _refreshAIInsight(){
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    if(!apiKey&&provider!=='manus'){
+      D.prefs.aiInsightCard={date:today,text:'Configure an AI key in Settings → AI Features to see daily insights.'};
+      save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+      return;
+    }
+    const ctx=typeof _buildAIContext==='function'?_buildAIContext():'';
+    const res=await _trpc('ai.assist',{
+      systemPrompt:`You are a productivity coach. Read the workspace snapshot and write ONE concise, encouraging insight (2 sentences max, ~140 chars) that highlights something specific the user is doing well OR a specific small action that would help. Be specific — reference actual numbers / titles when you can. Plain text, no markdown.\n\n${ctx}`,
+      userContent:`Generate today's insight.`,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=String(res?.result||res?.text||'').trim()||'Keep going — small consistent wins compound into big outcomes.';
+    D.prefs.aiInsightCard={date:today,text};save('prefs');
+    if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+  }catch(e){
+    D.prefs.aiInsightCard={date:today,text:'Could not generate today\'s insight. Check your AI key in Settings → AI Features.'};
+    save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+  }
+}
+// Hook into the existing focus timer so we accumulate per-hour totals.
+// This piggybacks on the focusLog write path so we don't change the timer code.
+(function wrapFocusLog(){
+  // We can't easily intercept the existing log writes without code changes;
+  // instead, on every page render compute focusByHour from focusLog dates
+  // if the data is there. focusLog is {YYYY-MM-DD: minutes}. We can't infer
+  // hour from a date-only key, so use a separate D.prefs.focusByHour dict
+  // updated when a focus session finishes. The focus timer is in renderFocus;
+  // we'll patch it elsewhere. For now this stub keeps the widget happy.
+})();
+
 // Sidebar collapse-to-icons toggle. Persists in localStorage so the user's
 // preference survives a refresh.
 function toggleSidebarCollapse(){
@@ -4352,7 +4452,13 @@ const _homeCardDefs=[
   {id:'weekAhead',label:'🗓 Week Ahead (7-day plan)',default:false},
   {id:'ideasPipeline',label:'💡 Ideas Pipeline',default:false},
   {id:'taskVelocity',label:'🚀 Task Velocity (this vs last week)',default:false},
-  {id:'tagCloud',label:'🏷 Tag Cloud (all sources)',default:false}
+  {id:'tagCloud',label:'🏷 Tag Cloud (all sources)',default:false},
+  // 5 NEW variety widgets (May 2026)
+  {id:'weather',label:'🌤 Weather',default:false},
+  {id:'quoteOfDay',label:'💭 Quote of the Day',default:false},
+  {id:'yesteryear',label:'📸 On this day',default:false},
+  {id:'aiInsight',label:'🧠 AI Insight',default:false},
+  {id:'focusSuggestion',label:'🎯 Peak Focus Hour',default:false}
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -4707,6 +4813,115 @@ function renderHome(){
         const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
         const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(10+(c-min)/range*8);const hue=Math.abs(t.split('').reduce((h,ch)=>h*31+ch.charCodeAt(0),0))%360;return `<span style="display:inline-block;padding:3px 9px;margin:3px;border-radius:12px;background:hsl(${hue},45%,30%);color:hsl(${hue},65%,80%);font-size:${sz}px;cursor:pointer" title="${c} item${c===1?'':'s'}">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No tags yet — add tags to tasks, notes, or journal entries.</div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🏷 Tag Cloud</div><span class="cd-a">${arr.length} unique</span></div><div style="line-height:1.8">${body}</div></div>`;
+      })(),
+      // 🌤 Weather — wttr.in / no key required. Cached for 30 mins.
+      weather:(()=>{
+        const loc=(D.prefs&&D.prefs.weatherLocation)||'';
+        const cached=(D.prefs&&D.prefs.weatherCache)||null;
+        const fresh=cached&&(Date.now()-cached.ts<30*60*1000);
+        if(!loc){
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center"><div style="margin-bottom:6px">Set your city to see the forecast.</div><input id="home-weather-loc" class="inp" placeholder="e.g. New York" style="font-size:11px;margin-bottom:6px" onkeydown="if(event.key==='Enter')_setWeatherLoc(this.value)"><button class="btn btn-p" style="font-size:10px;height:24px" onclick="_setWeatherLoc(document.getElementById('home-weather-loc').value)">Save</button></div></div>`;
+        }
+        if(fresh&&cached.data){
+          const w=cached.data;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div><span class="cd-a" onclick="_refreshWeather()" title="Refresh">↻ ${esc(loc)}</span></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:6px 4px">
+              <div style="font-size:48px;line-height:1">${esc(w.icon||'☀')}</div>
+              <div style="flex:1">
+                <div style="font-size:28px;font-weight:800;line-height:1">${esc(w.temp||'?')}°</div>
+                <div style="font-size:11px;color:var(--t2);margin-top:2px">${esc(w.desc||'')}</div>
+                <div style="font-size:10px;color:var(--t3);margin-top:4px">Feels ${esc(w.feels||'?')}° · 💧 ${esc(w.humidity||'0')}% · 💨 ${esc(w.wind||'0')} mph</div>
+              </div>
+            </div></div>`;
+        }
+        // Trigger a refresh in the background; show a placeholder for now.
+        if(!fresh)setTimeout(_refreshWeather,200);
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center">Loading ${esc(loc)}…</div></div>`;
+      })(),
+      // 💭 Quote of the day — day-of-year seeded so it's stable through the day.
+      quoteOfDay:(()=>{
+        const QUOTES=[
+          {q:"What we do every day matters more than what we do once in a while.",a:"Gretchen Rubin"},
+          {q:"You don't rise to the level of your goals, you fall to the level of your systems.",a:"James Clear"},
+          {q:"It's not always that we need to do more but rather that we need to focus on less.",a:"Nathan W. Morris"},
+          {q:"The future depends on what you do today.",a:"Mahatma Gandhi"},
+          {q:"Done is better than perfect.",a:"Sheryl Sandberg"},
+          {q:"You can't depend on your eyes when your imagination is out of focus.",a:"Mark Twain"},
+          {q:"Action is the foundational key to all success.",a:"Pablo Picasso"},
+          {q:"The secret of getting ahead is getting started.",a:"Mark Twain"},
+          {q:"Don't watch the clock; do what it does. Keep going.",a:"Sam Levenson"},
+          {q:"Quality is not an act, it is a habit.",a:"Aristotle"},
+          {q:"The best time to plant a tree was 20 years ago. The second best time is now.",a:"Chinese proverb"},
+          {q:"You are what you repeatedly do. Excellence is not an act but a habit.",a:"Will Durant"},
+          {q:"Discipline equals freedom.",a:"Jocko Willink"},
+          {q:"Energy and persistence conquer all things.",a:"Benjamin Franklin"},
+          {q:"The mind is everything. What you think you become.",a:"Buddha"},
+          {q:"Do the hard jobs first. The easy jobs will take care of themselves.",a:"Dale Carnegie"},
+          {q:"It is during our darkest moments that we must focus to see the light.",a:"Aristotle"},
+          {q:"Whether you think you can or you think you can't, you're right.",a:"Henry Ford"},
+          {q:"The only way to do great work is to love what you do.",a:"Steve Jobs"},
+          {q:"Be the change you want to see in the world.",a:"Mahatma Gandhi"},
+          {q:"Tomorrow becomes never. No matter how small the task, take the first step now.",a:"Tim Ferriss"},
+          {q:"Slow is smooth, smooth is fast.",a:"Navy SEAL adage"},
+          {q:"You miss 100% of the shots you don't take.",a:"Wayne Gretzky"},
+          {q:"Compound interest is the eighth wonder of the world.",a:"Albert Einstein"},
+          {q:"Focus on being productive instead of busy.",a:"Tim Ferriss"},
+          {q:"It does not matter how slowly you go as long as you do not stop.",a:"Confucius"},
+          {q:"Either you run the day or the day runs you.",a:"Jim Rohn"},
+          {q:"Productivity is never an accident. It is always the result of a commitment to excellence.",a:"Paul J. Meyer"},
+          {q:"Small things become big things only when you do them every day.",a:"unknown"},
+          {q:"The only impossible journey is the one you never begin.",a:"Tony Robbins"},
+        ];
+        const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
+        const q=QUOTES[doy%QUOTES.length];
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">💭 Quote of the Day</div></div>
+          <div style="padding:6px 4px">
+            <div style="font-size:14px;color:var(--t1);line-height:1.5;font-style:italic;quotes:'\\201C''\\201D'">${esc(q.q)}</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:right">— ${esc(q.a)}</div>
+          </div></div>`;
+      })(),
+      // 📸 On this day — past tasks/journal/notes from the same month-day in previous years.
+      yesteryear:(()=>{
+        const now=new Date();const mm=String(now.getMonth()+1).padStart(2,'0');const dd=String(now.getDate()).padStart(2,'0');const todayKey=`${mm}-${dd}`;const thisYear=now.getFullYear();
+        const items=[];
+        (D.tasks||[]).forEach(t=>{const k=(t.completedAt||t.due||t.createdAt||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'task',title:t.title,year:y,when:k});});
+        (D.journal||[]).forEach(j=>{const k=(j.date||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'journal',title:j.title||(j.body||'').slice(0,80),year:y,when:k});});
+        (D.notes||[]).forEach(n=>{const k=(n.created||n.updated||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'note',title:n.title,year:y,when:k});});
+        items.sort((a,b)=>b.year-a.year);
+        if(!items.length){return `<div class="cd"><div class="cd-h"><div class="cd-t">📸 On this day</div></div><div style="padding:12px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing yet from previous years — come back next year!</div></div>`;}
+        const ICONS={task:'✓',journal:'✏',note:'📝'};
+        const body=items.slice(0,5).map(it=>`<div class="lr" style="padding:4px 2px"><span style="font-size:11px;flex-shrink:0">${ICONS[it.type]}</span><span class="rt" style="font-size:11px;color:var(--t1)">${esc(it.title||'(untitled)')}</span><span style="font-size:10px;color:var(--t3);white-space:nowrap">${thisYear-it.year}y ago</span></div>`).join('');
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">📸 On this day</div><span class="cd-a">${items.length} memor${items.length===1?'y':'ies'}</span></div>${body}</div>`;
+      })(),
+      // 🧠 AI Insight — cached daily, calls ai.assist with a workspace snapshot.
+      aiInsight:(()=>{
+        const cache=(D.prefs&&D.prefs.aiInsightCard)||null;
+        const today=new Date().toISOString().slice(0,10);
+        const fresh=cache&&cache.date===today&&cache.text;
+        if(fresh){
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:9px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
+        }
+        if(!cache||cache.date!==today)setTimeout(_refreshAIInsight,800);
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 AI Insight</div></div><div style="padding:14px 4px;font-size:11px;color:var(--t3);text-align:center">⏳ Generating today's insight…</div></div>`;
+      })(),
+      // 🎯 Peak Focus Hour — analyses D.prefs.focusLog to find the best-performing hour.
+      focusSuggestion:(()=>{
+        const fl=(D.prefs&&D.prefs.focusLog)||{};
+        const hourly=(D.prefs&&D.prefs.focusByHour)||{};
+        const hours=Object.entries(hourly).sort((a,b)=>b[1]-a[1]).slice(0,3);
+        if(!hours.length){
+          // Fall back to total focus across days
+          const total=Object.values(fl).reduce((a,b)=>a+(Number(b)||0),0);
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Peak Focus Hour</div></div><div style="padding:8px 4px;font-size:11px;color:var(--t3);text-align:center">Use the Focus timer for a few sessions and we'll surface your most productive hours here.<br><span style="display:block;margin-top:6px;font-size:10px">${total} minutes logged so far.</span></div></div>`;
+        }
+        const fmt=h=>{const n=Number(h);const ap=n>=12?'pm':'am';const h12=((n%12)||12);return h12+ap;};
+        const top=hours[0];
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Peak Focus Hour</div></div>
+          <div style="padding:4px;font-size:12px;color:var(--t1);line-height:1.55">
+            Your peak focus is around <strong style="color:var(--page-accent)">${fmt(top[0])}</strong> — ${top[1]} minutes logged in this hour across all sessions.
+            <div style="font-size:10px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
+            <button class="btn btn-s" style="margin-top:8px;font-size:10px;height:24px" onclick="nav('focus')">Start a focus session →</button>
+          </div></div>`;
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
@@ -4730,7 +4945,14 @@ function renderHome(){
         return html;
       }).join('')}</div></div>`;
     }
-    return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>${pinnedHtml}`;
+    // Drag-to-reorder: wrap every card so it can be dragged. The drag
+    // handle is on a tiny ⋮⋮ pill in the top-right of each card. Reorder
+    // persists to D.prefs.homeCards via _moveHomeCard().
+    const wrapped=visCards.map((id,i)=>`<div class="home-card-wrap" data-home-id="${esc(id)}" draggable="true" ondragstart="_homeDragStart(event,'${esc(id)}')" ondragover="_homeDragOver(event,'${esc(id)}')" ondragleave="_homeDragLeave(event)" ondrop="_homeDrop(event,'${esc(id)}')" ondragend="_homeDragEnd(event)" style="position:relative">
+      <span class="home-card-drag" title="Drag to reorder" style="position:absolute;top:6px;right:8px;font-size:10px;color:var(--t3);background:var(--s3);border-radius:4px;padding:2px 5px;cursor:grab;opacity:0;transition:opacity .12s;z-index:5">⋮⋮</span>
+      ${cardHtml[id]}
+    </div>`).join('');
+    return `<div class="g3" id="home-grid">${wrapped}</div>${pinnedHtml}`;
   })()}`;
   // Build 7-day focus chart data
   const _focusLog=D.prefs&&D.prefs.focusLog||{};
@@ -5972,7 +6194,7 @@ function applyNotesFilters(){
   }
   const el=document.getElementById('notes-list-inner');
   if(!el)return;
-  el.innerHTML=(pinnedHtml+(html||''))||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes match the current filters.</p>`;
+  el.innerHTML=(pinnedHtml+(html||''))||renderEmptyState({icon:'🔍',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'});
 
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
@@ -9837,6 +10059,10 @@ function pomoToggle(){
           const _today=new Date().toISOString().split('T')[0];
           D.prefs.focusLog=D.prefs.focusLog||{};
           D.prefs.focusLog[_today]=(D.prefs.focusLog[_today]||0)+Math.round(_pomoTotal/60);
+          // Per-hour tracker for the Peak Focus Hour Home widget.
+          D.prefs.focusByHour=D.prefs.focusByHour||{};
+          const _hr=new Date().getHours();
+          D.prefs.focusByHour[_hr]=(D.prefs.focusByHour[_hr]||0)+Math.round(_pomoTotal/60);
           // Trim to last 30 days
           const _keys=Object.keys(D.prefs.focusLog).sort();
           if(_keys.length>30)_keys.slice(0,_keys.length-30).forEach(k=>delete D.prefs.focusLog[k]);
@@ -10250,6 +10476,9 @@ function toggleFocusTimer(){
         // Update focusLog for heatmap and persist to server via save('prefs')
         if(!D.prefs.focusLog)D.prefs.focusLog={};
         D.prefs.focusLog[sess.date]=(D.prefs.focusLog[sess.date]||0)+sess.mins;
+        D.prefs.focusByHour=D.prefs.focusByHour||{};
+        const _hh=new Date().getHours();
+        D.prefs.focusByHour[_hh]=(D.prefs.focusByHour[_hh]||0)+sess.mins;
         D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+sess.mins;
         save('prefs');
         _focusSecsLeft=25*60;
