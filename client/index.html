@@ -93,6 +93,48 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .sd-sec{font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:8px 12px 4px}
 .sd-row{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;transition:background .1s}
 .sd-row:hover,.sd-row.active{background:var(--s3)}
+
+/* ─── Command Palette (Cmd+K) ─────────────────────────────────────────── */
+.cmdp-overlay{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(6px) saturate(1.2);-webkit-backdrop-filter:blur(6px) saturate(1.2);
+  display:flex;align-items:flex-start;justify-content:center;padding-top:13vh;
+  opacity:0;pointer-events:none;transition:opacity .15s ease}
+.cmdp-overlay.show{opacity:1;pointer-events:auto}
+.cmdp{width:min(640px,92vw);background:color-mix(in srgb,var(--s2) 92%,transparent);
+  border:1px solid var(--bd2);border-radius:14px;
+  box-shadow:0 24px 64px rgba(0,0,0,.55),0 0 0 1px color-mix(in srgb,var(--page-accent) 22%,transparent);
+  overflow:hidden;display:flex;flex-direction:column;max-height:70vh;
+  transform:scale(.96) translateY(-8px);opacity:0;transition:transform .18s cubic-bezier(.2,.9,.3,1.2),opacity .15s}
+.cmdp-overlay.show .cmdp{transform:scale(1) translateY(0);opacity:1}
+.cmdp-input-row{display:flex;align-items:center;gap:10px;padding:14px 18px;
+  border-bottom:1px solid var(--bd1);background:linear-gradient(180deg,color-mix(in srgb,var(--page-accent) 10%,transparent),transparent)}
+.cmdp-input-row svg{flex-shrink:0;color:var(--t2)}
+.cmdp-input-row input{flex:1;background:transparent;border:none;outline:none;font-size:16px;color:var(--t1);padding:0;font-weight:400}
+.cmdp-input-row input::placeholder{color:var(--t3)}
+.cmdp-kbd{font-size:10px;color:var(--t3);background:var(--s3);border:1px solid var(--bd2);
+  padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace}
+.cmdp-list{overflow-y:auto;flex:1;padding:6px 0}
+.cmdp-sec{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;
+  letter-spacing:.08em;padding:10px 16px 4px;display:flex;align-items:center;gap:6px}
+.cmdp-sec::after{content:'';flex:1;height:1px;background:var(--bd1);margin-left:6px}
+.cmdp-row{display:flex;align-items:center;gap:12px;padding:9px 16px;cursor:pointer;
+  transition:background .08s,padding-left .12s;border-left:2px solid transparent}
+.cmdp-row:hover,.cmdp-row.active{background:color-mix(in srgb,var(--page-accent) 14%,var(--s3));
+  border-left-color:var(--page-accent);padding-left:18px}
+.cmdp-row-icon{width:28px;height:28px;border-radius:7px;background:var(--s3);
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;
+  transition:background .12s}
+.cmdp-row.active .cmdp-row-icon{background:color-mix(in srgb,var(--page-accent) 22%,var(--s3))}
+.cmdp-row-body{flex:1;min-width:0}
+.cmdp-row-title{font-size:13px;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdp-row-meta{font-size:10px;color:var(--t3);margin-top:1px}
+.cmdp-row-shortcut{font-size:9px;color:var(--t3);background:var(--s3);
+  padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;flex-shrink:0}
+.cmdp-empty{padding:30px 18px;text-align:center;color:var(--t3);font-size:12px}
+.cmdp-footer{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;background:var(--s1);border-top:1px solid var(--bd1);font-size:10px;color:var(--t3)}
+.cmdp-footer-keys{display:flex;gap:14px;align-items:center}
+.cmdp-footer-keys span{display:flex;align-items:center;gap:4px}
 .sd-icon{font-size:13px;width:20px;text-align:center;flex-shrink:0}
 .sd-label{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sd-meta{font-size:10px;color:var(--t3);white-space:nowrap}
@@ -418,6 +460,69 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.85)}}
 @keyframes wave{0%,60%,100%{transform:rotate(0deg)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
+
+/* ─── Reports charts ────────────────────────────────────────────────── */
+/* Bars draw in on first paint with a height transition. */
+.lu-bar{transform-origin:bottom;animation:barRise .55s cubic-bezier(.2,.9,.3,1) both}
+@keyframes barRise{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.lu-bar-wrap{position:relative;transition:filter .12s}
+.lu-bar-wrap:hover{filter:brightness(1.18)}
+.lu-bar-tip{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--s1);border:1px solid var(--bd2);border-radius:6px;padding:4px 8px;
+  font-size:10px;color:var(--t1);white-space:nowrap;opacity:0;pointer-events:none;
+  transition:opacity .12s;box-shadow:0 4px 12px rgba(0,0,0,.4);z-index:5}
+.lu-bar-wrap:hover .lu-bar-tip{opacity:1}
+/* Donut animated draw-in via conic-gradient mask. */
+.lu-donut{animation:donutFade .6s ease both}
+@keyframes donutFade{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+/* Sparkline (tiny SVG line under KPI tile numbers). */
+.lu-spark{width:100%;height:18px;display:block;margin-top:4px;overflow:visible}
+.lu-spark path{stroke-dasharray:200;stroke-dashoffset:200;animation:sparkDraw 1s ease forwards}
+@keyframes sparkDraw{to{stroke-dashoffset:0}}
+
+/* ─── Microinteractions ─────────────────────────────────────────────── */
+/* Tactile press feedback on every button. */
+.btn:active,.btn-p:active,.btn-s:active,.btn-d:active,.tbtn:active,.bn:active{transform:scale(.96);transition:transform .08s}
+.btn,.btn-p,.btn-s,.btn-d{transition:background .12s,filter .12s,transform .08s}
+
+/* Checkbox completion spring + flash — used by task .chk and habit .chk
+   when toggled to .on. Pure CSS via the class transition. */
+.chk{transition:transform .15s cubic-bezier(.34,1.56,.64,1),background .15s,border-color .15s}
+.chk.on{animation:checkSpring .35s ease}
+@keyframes checkSpring{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.32);box-shadow:0 0 0 6px color-mix(in srgb,var(--ok) 30%,transparent)}
+  70%{transform:scale(.92)}
+  100%{transform:scale(1);box-shadow:0 0 0 0 transparent}
+}
+/* Strikethrough sweep when a task row gets the .done class. */
+.lr[data-task-id] .rt{position:relative;transition:color .25s,opacity .25s}
+.lr[data-task-id].done .rt{color:var(--t3);opacity:.7}
+.lr[data-task-id].done .rt::after{content:'';position:absolute;left:0;right:0;top:50%;height:1.5px;background:currentColor;transform-origin:left;animation:strikeSweep .35s ease forwards}
+@keyframes strikeSweep{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* Toggle (.tog) spring + glow when flipped on. */
+.tog{transition:background .15s}
+.tog::after,.tog .dot,.tog>*{transition:transform .18s cubic-bezier(.34,1.56,.64,1),left .18s cubic-bezier(.34,1.56,.64,1)}
+.tog.on{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 40%,transparent);animation:togGlow .4s ease}
+@keyframes togGlow{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 0%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--ac) 35%,transparent)}100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 0%,transparent)}}
+
+/* Sidebar item: little slide-in indicator on hover */
+.si{transition:background .12s,padding-left .12s,color .12s}
+.si:not(.on):hover{padding-left:14px}
+
+/* Tabs: smooth active underline-style highlight. .tab.on already gets the
+   accent background; add a soft slide-in transform for non-active tabs on
+   hover so the row feels reactive. */
+.tab{transition:background .15s,color .15s,transform .1s}
+.tab:not(.on):hover{transform:translateY(-1px)}
+
+/* Confetti: tiny one-shot burst element. Spawned via spawnConfetti() */
+.lu-confetti{position:fixed;width:8px;height:8px;border-radius:2px;pointer-events:none;z-index:9999;will-change:transform,opacity}
+@keyframes confettiFly{
+  0%{transform:translate(0,0) rotate(0);opacity:1}
+  100%{transform:translate(var(--cx,0px),var(--cy,200px)) rotate(720deg);opacity:0}
+}
 .modal h2{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .modal .close{margin-left:auto;width:26px;height:26px;border-radius:6px;background:var(--s3);border:none;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
 
@@ -1061,6 +1166,26 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- HELP FAB -->
 <button id="help-fab" onclick="openHelpDrawer()" data-tour-id="help-fab"
   style="position:fixed;bottom:24px;right:24px;width:22px;height:22px;border-radius:50%;background:var(--ac);color:#fff;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:250;transition:transform .15s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Help &amp; Learning (?)">❓</button>
+
+<!-- COMMAND PALETTE (Cmd+K) -->
+<div class="cmdp-overlay" id="cmdp-overlay" onclick="if(event.target===this)closeCommandPalette()">
+  <div class="cmdp" role="dialog" aria-label="Command palette">
+    <div class="cmdp-input-row">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="cmdp-input" placeholder="Search anything or run a command…" autocomplete="off" spellcheck="false" oninput="renderCommandPalette(this.value)" onkeydown="onCommandPaletteKey(event)">
+      <span class="cmdp-kbd">esc</span>
+    </div>
+    <div class="cmdp-list" id="cmdp-list"></div>
+    <div class="cmdp-footer">
+      <div class="cmdp-footer-keys">
+        <span><span class="cmdp-kbd">↑↓</span> navigate</span>
+        <span><span class="cmdp-kbd">↵</span> select</span>
+        <span><span class="cmdp-kbd">esc</span> close</span>
+      </div>
+      <div style="color:var(--t3)">LevelUp · <span class="cmdp-kbd">⌘K</span> from anywhere</div>
+    </div>
+  </div>
+</div>
 
 <!-- QUICK CAPTURE MODAL -->
 <div class="modal-ov" id="modal-capture" onclick="if(event.target===this)closeModal()">
@@ -2158,6 +2283,44 @@ function toast(m,type,duration){
   }
   return _showRichToast(opts);
 }
+// Spawn a small one-shot confetti burst from the centre-top of the viewport.
+// Used for High-priority task completions. Tasteful — 18 particles, 1s.
+function spawnConfetti(opts){
+  const o=opts||{};
+  const count=o.count||18;
+  const originX=o.x||(window.innerWidth/2);
+  const originY=o.y||80;
+  const colors=['#22c55e','#f59e0b','#3b82f6','#a855f7','#ec4899','#facc15','#06b6d4'];
+  for(let i=0;i<count;i++){
+    const el=document.createElement('div');
+    el.className='lu-confetti';
+    el.style.left=originX+'px';
+    el.style.top=originY+'px';
+    el.style.background=colors[i%colors.length];
+    const ang=Math.random()*Math.PI-Math.PI/2;
+    const speed=120+Math.random()*220;
+    el.style.setProperty('--cx',(Math.cos(ang)*speed).toFixed(0)+'px');
+    el.style.setProperty('--cy',(Math.abs(Math.sin(ang))*speed+260).toFixed(0)+'px');
+    el.style.animation=`confettiFly ${.9+Math.random()*.5}s cubic-bezier(.2,.7,.3,1) forwards`;
+    el.style.borderRadius=Math.random()<.4?'50%':'2px';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),1600);
+  }
+}
+// Track rapid-fire task completions and toast an encouraging streak message.
+let _completionTimes=[];
+function _trackCompletionStreak(){
+  const now=Date.now();
+  _completionTimes=_completionTimes.filter(t=>now-t<120*1000);
+  _completionTimes.push(now);
+  if(_completionTimes.length===3){
+    toast({type:'success',title:'🔥 3 in a row!',msg:"You're on a roll — keep the momentum going.",duration:3500});
+  }else if(_completionTimes.length===5){
+    toast({type:'success',title:'🚀 5 down!',msg:"This is what flow looks like.",duration:4000});
+    _completionTimes=[];
+  }
+}
+
 function _inferToastType(s){
   const t=String(s||'');
   if(/^(❌|⚠|⚠️|Failed|Error|Could not|Couldn’t|Couldn't)/i.test(t))return 'error';
@@ -3600,7 +3763,17 @@ function toggleTask(id){
   const wasDone=t.status==='Done';
   t.status=wasDone?'Not Started':'Done';
   save('tasks');
-  if(!wasDone)_trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});
+  if(!wasDone){
+    _trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});
+    // Strikethrough sweep on the row, confetti on High-priority completions.
+    try{
+      const row=document.querySelector(`[data-task-id="${id}"]`);
+      if(row){row.classList.add('done');}
+      if(t.priority==='High'){spawnConfetti();}
+      // Streak detection: 3+ completions in <2 min → encouraging toast.
+      _trackCompletionStreak();
+    }catch(_){}
+  }
   if(!wasDone&&t.recurring&&t.recurring!=='None')maybeSpawnRecurring(t);
   // Auto-recalc linked goal progress (both directions: goal.linkedTaskIds and task.linkedGoalId)
   const affectedGoalIds=new Set();
@@ -4991,6 +5164,30 @@ function _noteFirstImage(body){
   return '';
 }
 // Compute word count + estimated reading time (minutes, 200 wpm).
+// Render a tiny inline SVG sparkline from an array of numeric values.
+// Used by the Reports KPI tiles to show the recent trend under each big
+// number. Auto-scales, animated draw-in via CSS keyframes.
+function _sparkline(values,color,opts){
+  const w=(opts&&opts.width)||120,h=(opts&&opts.height)||18;
+  if(!Array.isArray(values)||values.length<2)return '';
+  const max=Math.max(...values,1);
+  const min=Math.min(...values,0);
+  const range=Math.max(max-min,1);
+  const step=w/(values.length-1);
+  const pts=values.map((v,i)=>[i*step,h-((v-min)/range)*h]);
+  const d='M '+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L ');
+  const fill='M '+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L ')+` L ${w} ${h} L 0 ${h} Z`;
+  const c=color||'var(--ac)';
+  return `<svg class="lu-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="spk-g-${Math.random().toString(36).slice(2,8)}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${c}" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="${c}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${fill}" fill="${c}" opacity=".18" style="animation:none"/>
+    <path d="${d}" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
 function _readingTime(text){
   const stripped=String(text||'').replace(/<[^>]+>/g,' ').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\[[^\]]*\]\([^)]*\)/g,' ');
   const wc=stripped.trim()?stripped.trim().split(/\s+/).length:0;
@@ -7806,7 +8003,7 @@ function renderReports(){
   const barStep=Math.max(1,Math.ceil(dayKeys.length/30));
   const barData=[];for(let i=0;i<dayKeys.length;i+=barStep){let sum=0;for(let j=i;j<Math.min(i+barStep,dayKeys.length);j++)sum+=completionByDay[j];barData.push({key:dayKeys[i],count:sum});}
   const barMax=Math.max(...barData.map(b=>b.count),1);
-  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px"><div style="width:80%;background:var(--ac);border-radius:2px 2px 0 0;height:${h}px;min-height:2px" title="${b.key}: ${b.count}"></div></div>`;}).join('');
+  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px;height:64px;justify-content:flex-end;position:relative"><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--ac),color-mix(in srgb,var(--ac) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${b.key}: ${b.count} task${b.count===1?'':'s'}</div></div>`;}).join('');
   const tasksByPriority={High:tasks.filter(t=>t.priority==='High'&&t.status!=='Done').length,Medium:tasks.filter(t=>t.priority==='Medium'&&t.status!=='Done').length,Low:tasks.filter(t=>t.priority==='Low'&&t.status!=='Done').length};
   const tasksByStatus={Done:tasks.filter(t=>t.status==='Done').length,'In Progress':tasks.filter(t=>t.status==='In Progress').length,'Not Started':tasks.filter(t=>t.status==='Not Started').length,Someday:tasks.filter(t=>t.status==='Someday').length};
 
@@ -7826,7 +8023,7 @@ function renderReports(){
   const focusByDay=dayKeys.map(k=>focusLog[k]||0);
   const focusTotal=focusByDay.reduce((a,b)=>a+b,0);
   const focusMax=Math.max(...focusByDay,1);
-  const focusBars=focusByDay.map((m,i)=>{const h=Math.round(m/focusMax*52)+1;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:4px"><div style="width:80%;background:var(--purp);border-radius:2px 2px 0 0;height:${h}px;min-height:2px" title="${dayKeys[i]}: ${m}m"></div></div>`;}).join('');
+  const focusBars=focusByDay.map((m,i)=>{const h=Math.round(m/focusMax*52)+1;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:4px;height:56px;justify-content:flex-end;position:relative"><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--purp),color-mix(in srgb,var(--purp) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${dayKeys[i]}: ${m}m focus</div></div>`;}).join('');
 
   // Journal/Mood data
   const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
@@ -7868,15 +8065,25 @@ function renderReports(){
       </div>`;
     })()}
 
-    <!-- KPI tiles -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ok)">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Tasks completed</div></div>
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Tasks created</div></div>
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--purp)">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Focus time</div></div>
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:#f43f5e">${avgMood}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg mood (out of 5)</div></div>
-      <div class="cd" style="text-align:center;padding:14px"><div style="font-size:24px;font-weight:700;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
-    </div>
+    <!-- KPI tiles with sparklines -->
+    ${(()=>{
+      // Compute mini trend arrays for sparklines (compress dayKeys into ~14 buckets)
+      const buckets=14;
+      const bucketSize=Math.max(1,Math.ceil(dayKeys.length/buckets));
+      const bucketIt=(arrByDay)=>{const out=[];for(let i=0;i<dayKeys.length;i+=bucketSize){let s=0;for(let j=i;j<Math.min(i+bucketSize,dayKeys.length);j++)s+=arrByDay[j]||0;out.push(s);}return out;};
+      const sparkDone=bucketIt(completionByDay);
+      const sparkCreated=bucketIt(dayKeys.map(k=>tasks.filter(t=>(t.createdAt||'').slice(0,10)===k).length));
+      const sparkFocus=bucketIt(focusByDay);
+      const sparkMood=bucketIt(dayKeys.map(k=>{const e=journal.find(j=>j&&(j.date||'').slice(0,10)===k);return e&&moodMap[e.mood]?moodMap[e.mood]:0;}));
+      return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px">
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks completed</div></div>${_sparkline(sparkDone,'#22c55e')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks created</div></div>${_sparkline(sparkCreated,'#3b82f6')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);font-weight:500">Focus time</div></div>${_sparkline(sparkFocus,'#a855f7')}</div>
+        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Avg mood / 5</div></div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
+        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
+      </div>`;
+    })()}
 
     ${_reportSections.tasks?`
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">✓ Tasks Performance</h2>
@@ -13556,6 +13763,158 @@ function aiCrossModuleInsight(q){
 let _searchItems=null;
 function getSearchItems(){if(!_searchItems)_searchItems=buildSearchIndex();return _searchItems;}
 function invalidateSearchIndex(){_searchItems=null;}
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMAND PALETTE — Cmd+K / Ctrl+K
+// Centered modal overlay with universal search across the workspace plus a
+// curated set of actions (navigate, create, toggle theme, apply profile…).
+// Reuses getSearchItems() for the data layer and adds an Actions catalog.
+// ═══════════════════════════════════════════════════════════════════════════
+let _cmdpIdx=0;          // currently-highlighted row index
+let _cmdpRows=[];        // flat list of {kind:'action'|'search', …}
+let _cmdpRecent=JSON.parse(localStorage.getItem('lu_cmdp_recent')||'[]');
+
+// Static action catalog — these are always available regardless of query.
+// Each action has: id, title, icon, group, run(), optional meta + shortcut.
+function _cmdpActions(){
+  const isDark=D.prefs.darkMode!==false;
+  const profs=(D.prefs.themeProfiles||[]);
+  return [
+    {id:'nav-home',group:'Navigate',icon:'🏠',title:'Go to Home',run:()=>nav('home')},
+    {id:'nav-myday',group:'Navigate',icon:'☀',title:'Go to My Day',run:()=>nav('myday')},
+    {id:'nav-tasks',group:'Navigate',icon:'📋',title:'Go to Tasks',run:()=>nav('tasks')},
+    {id:'nav-notes',group:'Navigate',icon:'📝',title:'Go to Notes',run:()=>nav('notes')},
+    {id:'nav-projects',group:'Navigate',icon:'📁',title:'Go to Projects',run:()=>nav('projects')},
+    {id:'nav-goals',group:'Navigate',icon:'🎯',title:'Go to Goals',run:()=>nav('goals')},
+    {id:'nav-habits',group:'Navigate',icon:'✅',title:'Go to Habits',run:()=>nav('habits')},
+    {id:'nav-calendar',group:'Navigate',icon:'📅',title:'Go to Calendar',run:()=>nav('calendar')},
+    {id:'nav-mail',group:'Navigate',icon:'✉',title:'Go to Mail',run:()=>nav('mail')},
+    {id:'nav-journal',group:'Navigate',icon:'✏',title:'Go to Journal',run:()=>nav('journal')},
+    {id:'nav-ideas',group:'Navigate',icon:'💡',title:'Go to Ideas',run:()=>nav('ideas')},
+    {id:'nav-bookmarks',group:'Navigate',icon:'🔖',title:'Go to Bookmarks',run:()=>nav('bookmarks')},
+    {id:'nav-contacts',group:'Navigate',icon:'👤',title:'Go to Contacts',run:()=>nav('contacts')},
+    {id:'nav-reports',group:'Navigate',icon:'📊',title:'Go to Reports',run:()=>nav('reports')},
+    {id:'nav-focus',group:'Navigate',icon:'⏱',title:'Go to Focus / Pomodoro',run:()=>nav('focus')},
+    {id:'nav-process',group:'Navigate',icon:'⚡',title:'Go to Process (GTD)',run:()=>nav('process')},
+    {id:'nav-settings',group:'Navigate',icon:'⚙',title:'Open Settings',run:()=>nav('settings')},
+    {id:'create-task',group:'Create',icon:'📋',title:'Add new task…',shortcut:'⌘N',run:()=>openFA('task')},
+    {id:'create-note',group:'Create',icon:'📝',title:'Add new note…',run:()=>openFA('note')},
+    {id:'create-project',group:'Create',icon:'📁',title:'Add new project…',run:()=>openFA('project')},
+    {id:'create-goal',group:'Create',icon:'🎯',title:'Add new goal…',run:()=>openFA('goal')},
+    {id:'create-journal',group:'Create',icon:'✏',title:'Add new journal entry…',run:()=>openFA('journal')},
+    {id:'create-idea',group:'Create',icon:'💡',title:'Capture new idea…',run:()=>openFA('idea')},
+    {id:'create-bookmark',group:'Create',icon:'🔖',title:'Add new bookmark…',run:()=>showAddBookmark()},
+    {id:'create-habit',group:'Create',icon:'✅',title:'Add new habit…',run:()=>openFA('habit')},
+    {id:'tool-focus-start',group:'Tools',icon:'▶',title:'Start a focus timer',run:()=>{nav('focus');setTimeout(()=>{const b=document.querySelector('[onclick*="toggleFocus"]');if(b)b.click();},150);}},
+    {id:'tool-toggle-dark',group:'Tools',icon:isDark?'☀':'🌙',title:isDark?'Switch to Light Mode':'Switch to Dark Mode',run:()=>{const t=document.getElementById('tog-dark');if(t)toggleDarkMode(t);else{D.prefs.darkMode=!D.prefs.darkMode;applyPrefs();save('prefs');}}},
+    {id:'tool-reset-theme',group:'Tools',icon:'↺',title:'Reset theme to defaults',run:()=>resetTheme()},
+    {id:'tool-save-profile',group:'Tools',icon:'💾',title:'Save current theme as profile…',run:()=>saveThemeAsProfile()},
+    ...profs.map(p=>({id:'profile-'+p.id,group:'Theme Profiles',icon:p.emoji||'🎨',title:'Apply: '+p.name,run:()=>loadThemeProfile(p.id)})),
+  ];
+}
+
+function openCommandPalette(){
+  const ov=document.getElementById('cmdp-overlay');if(!ov)return;
+  ov.classList.add('show');
+  const inp=document.getElementById('cmdp-input');
+  if(inp){inp.value='';renderCommandPalette('');setTimeout(()=>inp.focus(),20);}
+  document.addEventListener('keydown',_cmdpEscHandler);
+}
+function closeCommandPalette(){
+  const ov=document.getElementById('cmdp-overlay');if(!ov)return;
+  ov.classList.remove('show');
+  document.removeEventListener('keydown',_cmdpEscHandler);
+}
+function _cmdpEscHandler(e){if(e.key==='Escape'){e.preventDefault();closeCommandPalette();}}
+
+function renderCommandPalette(q){
+  const list=document.getElementById('cmdp-list');if(!list)return;
+  q=(q||'').trim();
+  const ql=q.toLowerCase();
+  const actions=_cmdpActions();
+  // Filter actions: match title OR group
+  let actionRows;
+  if(!q){
+    // Show recent + top picks when empty
+    const recentIds=new Set(_cmdpRecent);
+    const recent=actions.filter(a=>recentIds.has(a.id)).slice(0,4);
+    const navTop=actions.filter(a=>a.group==='Navigate').slice(0,6);
+    const create=actions.filter(a=>a.group==='Create').slice(0,4);
+    actionRows=[
+      ...(recent.length?[{__sec:'Recent'},...recent.map(a=>({kind:'action',data:a}))]:[]),
+      {__sec:'Navigate'},...navTop.map(a=>({kind:'action',data:a})),
+      {__sec:'Create'},...create.map(a=>({kind:'action',data:a})),
+    ];
+  }else{
+    const matched=actions.filter(a=>a.title.toLowerCase().includes(ql)||a.group.toLowerCase().includes(ql));
+    const grouped={};matched.forEach(a=>{(grouped[a.group]=grouped[a.group]||[]).push(a);});
+    actionRows=[];
+    for(const g of Object.keys(grouped)){
+      actionRows.push({__sec:g});
+      grouped[g].forEach(a=>actionRows.push({kind:'action',data:a}));
+    }
+  }
+  // Universal search rows (data) — only when there's a query
+  let searchRows=[];
+  if(q&&typeof getSearchItems==='function'){
+    try{
+      const items=getSearchItems();
+      const tokens=typeof expandQuery==='function'?expandQuery(q):[q];
+      const scored=items.map((it,i)=>({item:it,idx:i,score:typeof semanticScore==='function'?semanticScore(it,tokens):(it.label.toLowerCase().includes(ql)?1:0)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,12);
+      const matches=scored.length?scored:items.map((it,i)=>({item:it,idx:i,score:0})).filter(x=>x.item.label.toLowerCase().includes(ql)||(x.item.meta||'').toLowerCase().includes(ql)).slice(0,10);
+      const byType={};matches.forEach(m=>{(byType[m.item.type]=byType[m.item.type]||[]).push(m);});
+      for(const t of Object.keys(byType)){
+        searchRows.push({__sec:t+'s'});
+        byType[t].forEach(m=>searchRows.push({kind:'search',data:m.item,idx:m.idx}));
+      }
+    }catch(_){}
+  }
+  _cmdpRows=[];
+  let html='';
+  for(const row of actionRows.concat(searchRows)){
+    if(row.__sec){
+      html+=`<div class="cmdp-sec">${esc(row.__sec)}</div>`;
+    }else if(row.kind==='action'){
+      const a=row.data;
+      const i=_cmdpRows.length;_cmdpRows.push(row);
+      html+=`<div class="cmdp-row" data-i="${i}" onclick="_cmdpRun(${i})"><div class="cmdp-row-icon">${a.icon||'•'}</div><div class="cmdp-row-body"><div class="cmdp-row-title">${esc(a.title)}</div><div class="cmdp-row-meta">${esc(a.group)}</div></div>${a.shortcut?`<span class="cmdp-row-shortcut">${esc(a.shortcut)}</span>`:''}</div>`;
+    }else if(row.kind==='search'){
+      const it=row.data;
+      const i=_cmdpRows.length;_cmdpRows.push(row);
+      html+=`<div class="cmdp-row" data-i="${i}" onclick="_cmdpRun(${i})"><div class="cmdp-row-icon">${it.icon||'•'}</div><div class="cmdp-row-body"><div class="cmdp-row-title">${esc(it.label)}</div>${it.meta?`<div class="cmdp-row-meta">${esc(it.meta)}</div>`:''}</div><span class="cmdp-row-shortcut">${esc(it.type||'')}</span></div>`;
+    }
+  }
+  if(!_cmdpRows.length){
+    html=`<div class="cmdp-empty">No matches for "${esc(q)}". Try a page name (e.g. <em>Tasks</em>) or an action (e.g. <em>add note</em>).</div>`;
+  }
+  list.innerHTML=html;
+  _cmdpIdx=0;_cmdpHighlight();
+}
+function _cmdpHighlight(){
+  const rows=document.querySelectorAll('#cmdp-list .cmdp-row');
+  rows.forEach((r,i)=>{
+    if(i===_cmdpIdx){r.classList.add('active');r.scrollIntoView({block:'nearest'});}
+    else r.classList.remove('active');
+  });
+}
+function onCommandPaletteKey(e){
+  if(e.key==='ArrowDown'){e.preventDefault();_cmdpIdx=Math.min(_cmdpIdx+1,_cmdpRows.length-1);_cmdpHighlight();}
+  else if(e.key==='ArrowUp'){e.preventDefault();_cmdpIdx=Math.max(_cmdpIdx-1,0);_cmdpHighlight();}
+  else if(e.key==='Enter'){e.preventDefault();_cmdpRun(_cmdpIdx);}
+  else if(e.key==='Escape'){e.preventDefault();closeCommandPalette();}
+}
+function _cmdpRun(i){
+  const row=_cmdpRows[i];if(!row)return;
+  closeCommandPalette();
+  if(row.kind==='action'){
+    // Record recent
+    _cmdpRecent=[row.data.id,..._cmdpRecent.filter(x=>x!==row.data.id)].slice(0,8);
+    try{localStorage.setItem('lu_cmdp_recent',JSON.stringify(_cmdpRecent));}catch(_){}
+    try{row.data.run();}catch(e){toast('Action failed: '+(e.message||e));}
+  }else if(row.kind==='search'&&typeof execSearch==='function'){
+    execSearch(row.idx);
+  }
+}
+
 function onSearchInput(q){
   const drop=document.getElementById('search-drop');
   q=q.trim();
@@ -13933,7 +14292,7 @@ document.addEventListener('keydown',e=>{
     return;
   }
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
-  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();document.getElementById('gSearch').focus()}
+  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
   // Help shortcuts
   if(e.key==='?'){e.preventDefault();nav('help');}
