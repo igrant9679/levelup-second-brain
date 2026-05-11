@@ -7,7 +7,7 @@ Personal productivity / "second brain" web app: tasks, notes, projects, goals, j
 ## Stack
 
 - **Frontend**: React 19 + Vite, TypeScript, Tailwind 4, Radix UI, wouter routing, tRPC client.
-  - **BUT**: most of the actual UI lives in `client/index.html` — a ~17,000-line single-file legacy HTML app with embedded JS that the React shell wraps. Don't be misled by `client/src/`; the real code is in `index.html`.
+  - **BUT**: most of the actual UI lives in the legacy single-file HTML+JS app served as `client/index.html` (the HTML shell) plus two extracted JS chunks: `client/public/js/app-part1.js` (~12,000 lines) and `client/public/js/app-part2.js` (~8,800 lines). Don't be misled by `client/src/`; the real code is in those three files. As of `e298d0f`, `client/index.html` itself is only ~1,660 lines (was 22,555) — pure markup + CSS + the two `<script src defer>` tags.
 - **Backend**: Node + Express, tRPC, Drizzle ORM, MySQL (mysql2 driver).
 - **Deploy**: Railway. Auto-deploys on push to `main`.
 - **Auth**: email/password (bcrypt + JWT cookies, 1-year expiry) + Microsoft 365 OAuth.
@@ -16,7 +16,15 @@ Personal productivity / "second brain" web app: tasks, notes, projects, goals, j
 
 ```
 client/
-  index.html          ← THE BIG ONE. 17k lines. Most edits go here.
+  index.html          ← HTML shell + CSS + 2 <script src> tags. ~1,660 lines.
+  public/js/
+    app-part1.js      ← 12,063 lines. renderHome / renderTasks / renderNotes /
+                        renderGoals / renderHabits / renderMail / renderJournal /
+                        renderIdeas / renderCal / renderReports / RTE / lightbox /
+                        cmd palette / AI chat / theme engine / etc.
+    app-part2.js      ← 8,830 lines. renderSettingsHTML / renderHelp /
+                        renderContacts / renderClustersDashboard / tour engine /
+                        knowledge-graph (s-graph) / mind-map (s-mindmap) / etc.
   src/                ← Small React shell (App.tsx, AppLayout, ~12 pages)
 server/
   _core/              ← infra (auth context, tRPC, OAuth, email, LLM, env)
@@ -85,10 +93,12 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 ## Known gotchas
 
 - **Goals + Journal** had filter-resets-on-render bugs that are now fixed; if similar render functions are added, keep state at module scope.
-- The `_calEventsDefault` array (~line 5062) is **seed data** for new users. Real events go in `D.calEvents` once OAuth-synced.
+- The `_calEventsDefault` array is **seed data** for new users. Real events go in `D.calEvents` once OAuth-synced.
 - Never delete the seed task IDs 201/202/203 logic in `doLoginSuccess` — guarded by `lu_examples_seeded_v1` localStorage flag.
 - Rate limiting is **not** in the code. If you ever spec a fix, mention it.
 - 1-year JWT session expiry with no refresh/revocation. Documented risk; not blocking.
+- **`app-part1.js` contains literal `\0` (NUL) bytes inside the markdown renderer's template-literal placeholders** (used to mark code-block / image / link positions during transforms). `file(1)` will report it as "data" and some tools refuse to open it as text. This is intentional — preserve byte-for-byte if you ever re-extract or move things around.
+- **Grep tool may report `app-part1.js` as binary** because of those NUL bytes. Use `grep -an` via Bash instead when searching that file.
 
 ## Things deliberately not done
 
@@ -96,7 +106,9 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - CSS variables for font sizes (override layer covers it).
 - ~~Mobile responsiveness audit~~ — **DONE** as of `72c0579`. Hamburger sidebar, panel stacking, AI panel full-width on phones.
 - ~~Sidebar collapsible-to-icons mode~~ — **DONE** as of `a8dc171`. « toggle at bottom of sidebar; flyout labels on hover when collapsed.
+- ~~Splitting the 22k-line `index.html`~~ — **DONE** as of `e298d0f`. Extracted to two external `<script src defer>` files.
 - Page header helper extraction (would touch 12+ render functions — defer).
+- Public sharing links, accessibility audit, print stylesheets, PWA, templates marketplace — user explicitly skipped these.
 
 ## Major systems shipped (Apr–May 2026 session arc)
 
@@ -130,8 +142,8 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - `emailCurrentReport()` + `_checkReportSchedules()` — on-login email catch-up. Server endpoint `oauthSync.sendCustom` (self-delivery only).
 
 ### Notes page features
-- Title banner with stat pills (📄 N · 🆕 N this week · ⭐ starred · 📌 pinned · 🏷 tagged).
-- Bulk-select mode: `_notesBulkMode` toggle; bulk auto-tag, add tag, star, pin, export, delete.
+- Title banner uses the standard `.ph-r` pattern (as of `4cbc821`) — no more bespoke peach surface / icon block / chip pills. Subtitle is plain text "97 notes · 92 this week · 2 starred · 5 pinned" written to `#notes-page-sub` by `renderNotes()`.
+- Bulk-select mode: `_notesBulkMode` toggle; bulk auto-tag, add tag, star, pin, export, delete. The bulk bar sits as its own row underneath the header.
 - Multi-file doc import via `importDocumentsBatch()`.
 - Thumbnails (`_noteFirstImage()`), color tags (`NOTE_COLOR_PALETTE`), pin (`n.pinned`), breadcrumb chips, backlink chips, word count + reading time.
 
@@ -168,49 +180,55 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
-## Remaining work — pending TODO at end of May–9 session
+## Most recently shipped (May 11 2026 session arc) — all 7 picked items done
 
-User picked 7 items to ship next (from a Tier 1–4 menu I proposed). Order they were chosen in:
+1. ✅ **🕸 Knowledge graph view of notes** (`dcf0452`) — new `s-graph` screen. `renderKnowledgeGraph()` extracts `[[wiki]]` links + shared-tag edges; `_kgStartSimulation()` runs Verlet integration (REPULSION=2500, SPRING=0.012, SPRING_LEN=120, FRICTION=0.86, CENTER_PULL=0.0008, 240 ticks). Click a node → `showNoteInEditor(id)`. Sidebar entry purple `#a855f7`, palette nav, SM map entry.
 
-1. **🕸 Knowledge graph view of notes** — new sidebar entry. Force-directed pannable/zoomable graph of every note connected by `[[wiki-links]]` + shared tags. Wiki-link parser exists (search for `\[\[` regex in noteCard / showNoteInEditor). Build a new screen `s-graph` with an SVG/canvas force-layout (simple Verlet integration is fine; ~150 lines). Click a node → `showNoteInEditor(id)`. Pinch/drag pan, scroll zoom. **Wow factor: high.** ~3–4 hours.
+2. ✅ **⏰ Server-side cron for scheduled reports** (`cd16624`) — `server/_core/scheduledReports.ts` ships a hourly `setInterval` (kicked off 30s after `server.listen`) that walks every `user_app_data` row, finds due `savedReports[*]` by mirroring the client's `isReportDue` logic against `lastSentISO`, looks up the user's email, renders a mini HTML email (KPIs + per-section tables + widget summary list — no SVG charts), and ships via existing `sendEmail`. `lastSentISO` is persisted back to the prefs blob so both server cron and the client login catch-up converge on the same dedupe key. Also exposed as `POST /api/scheduled/run-reports` (auth-gated).
 
-2. ~~**⏰ Server-side cron for scheduled reports & themes**~~ — **DONE** (commit pending). `server/_core/scheduledReports.ts` ships a hourly `setInterval` (kicked off 30s after `server.listen`) that walks every `user_app_data` row, finds due `savedReports[*]` by mirroring the client's `isReportDue` logic against `lastSentISO`, looks up the user's email, renders a mini HTML email (KPIs + per-section tables + widget summary list — no SVG charts), and ships via existing `sendEmail`. `lastSentISO` is persisted back to the prefs blob so both server cron and the client login catch-up converge on the same dedupe key. Also exposed as `POST /api/scheduled/run-reports` (auth-gated) for the Manus scheduled task agent.
+3. ✅ **⚡ Performance pass — split `index.html`** (`e298d0f`) — extracted both giant inline `<script>` blocks verbatim into `client/public/js/app-part1.js` and `app-part2.js`, both loaded with `defer`. HTML went from 1.5MB → 132KB. JS bytes unchanged but cacheable separately and parallel-downloadable. No logic touched — pure extraction.
 
-3. **⚡ Performance pass — split the 20k-line `index.html`** — biggest single file is now ~21,500 lines. Initial paint ships the whole thing. Strategy: extract the per-page render code into separate `<script src="...">` chunks loaded async OR inline-but-deferred. Group by feature: `js/notes.js`, `js/tasks.js`, `js/calendar.js`, `js/mail.js`, `js/reports.js`, `js/habits.js`. Core remains in the HTML. Watch out for: hoisting / function reference timing, the many globals used by inline `onclick` handlers. **Could break things** — be defensive with `typeof X==='function'` guards. ~4 hours.
+4. ✅ **🎓 Onboarding tour** (`ebd5ef2`) — `_maybeOfferTour()` shows a rich toast with "Start tour" / "Later" actions, gated by `lu_tour_v1_offered` (one-shot) and `lu_tour_v1_done` (set when user finishes or skips). Wired into `doLoginSuccess` for both first-ever and returning-but-unseen flows. Fixed missing `@keyframes tourPulse`, cleared stale `translate(-50%,-50%)` transform between steps, made tour 1's welcome step target-less (centered).
 
-4. **🎓 Onboarding tour (L)** — `HC_TOURS` array already exists in `index.html` with tour definitions. `launchTour()` / `showTourStep()` / `_activeTour` machinery is there. Just needs (a) trigger-on-first-login wiring guarded by `localStorage.lu_tour_v1_done`, (b) polish on the spotlight/overlay UI, (c) updated step targets matching current sidebar IDs (`nav-home`, `nav-myday`, `nav-tasks`, etc.). ~2 hours.
+5. ✅ **🌤 Dashboard widget variety** (`5f7e6ea`) — 5 new home cards: weather (wttr.in), quote of the day (30-rotation), "1 year ago today", AI insight (daily-cached), focus suggestion (peak-hour from `D.prefs.focusByHour`).
 
-5. **🌤 Dashboard widget variety** — new Home cards:
-   - 🌤 **Weather** — `D.prefs.weatherLocation`, call `wttr.in/<city>?format=j1` (free, no key)
-   - 💭 **Quote of the day** — local 30-quote rotation seeded by day-of-year (mirror the hero-tagline pattern)
-   - 📸 **"1 year ago today"** — mine `D.tasks/notes/journal/ideas` for items completed/created on this date in past years
-   - 🧠 **AI Insight card** — call `ai.assist` with "Generate a one-line insight about my workspace performance" once per day, cache in `D.prefs.aiInsightCard.{text,date}`
-   - 🎯 **Focus suggestion** — analyse `D.prefs.focusLog` for the user's peak-energy hour, suggest blocking it
-   Add to `_homeCardDefs` array. ~2 hours.
+6. ✅ **🎚 Drag-to-reorder Home widgets** (`5f7e6ea`) — `_homeDragStart/Over/Drop` handlers on `.home-card-wrap` elements, order persisted to `D.prefs.homeCards`.
 
-6. **🎚 Drag-to-reorder Home widgets** — Home customize already uses the `_homeCardDefs` array with `order` field. Reuse the HTML5 DnD code from `_widgetDragStart/Over/Drop` (in Reports widget) — apply same handlers to each Home card. Save reordered order to `D.prefs.homeCards`. ~30 mins.
+7. ✅ **🎨 Empty states everywhere** (`46ca165`) — `renderEmptyState()` applied to Notes (filtered), Goals (empty grid), Ideas (per-tab), Habits (scope-aware), Journal (initial + filtered), Mail Inbox + Sent (query vs sync-needed), Contacts (filtered vs empty).
 
-9. **🎨 Empty-state illustrations everywhere** — `renderEmptyState({icon,title,hint,ctaLabel,ctaFn})` helper exists. Apply to:
-   - Notes list (filtered to zero results)
-   - Ideas page when empty
-   - Goals page when empty
-   - Mail inbox when empty
-   - Contacts page when empty
-   - Habits when none
-   - Journal when none
-   ~1 hour total, ~10 min each.
+**Skipped (user's call)**: Public sharing links, templates marketplace, accessibility audit, print stylesheets, PWA.
 
-**Skipped (user's call)**: Public sharing links (#2), Knowledge-graph alternative #11 templates marketplace, Accessibility audit (#10), Print stylesheets (#8), PWA (#12).
+### Plus along the way (smaller fixes shipped in the same arc)
 
-## Recent commit refs (May 11 2026 onward)
+- `3492bed` Insert Image modal — replaced `prompt()` (which broke the file-picker user-gesture chain) with an in-DOM modal that preserves the gesture chain and the caret position.
+- `f2663ab` Upload size 20MB → 100MB across the Word/notes import paths (client checks, zod limits, express body parser 50mb→200mb).
+- `8aebba0` Settings nav label "OneNote Import" → "📝 Word Doc Import" so it matches the panel content.
+- `4cbc821` + `f4585bf` Notes title banner — replaced the bespoke `.notes-page-header` (icon block + chip pills + peach surface) with the standard `.ph-r` pattern used by every other page; added the Notes layout to the global `.ph-r::before` accent-strip selector since its parent isn't `.mn`.
+- `aa3f770` Home hero banner restored to the original indigo→purple→magenta gradient after experiments with indigo / red variants.
 
+## Recent commit refs (May 11 2026, newest first)
+
+- `46ca165` — empty states across Ideas / Goals / Mail / Contacts / Habits / Journal
+- `f4585bf` — Notes banner: clean up dead CSS + give it the standard accent strip
+- `4cbc821` — Notes title banner refactored to use the standard `.ph-r` pattern
+- `aa3f770` — revert Home hero banner to original indigo→purple→magenta
+- `2452da3` — (reverted) Home hero banner red variant
+- `fd7d918` — (reverted) Home hero banner indigo variant
+- `e298d0f` — **perf #4** split index.html → /js/app-part1.js + app-part2.js (1.5MB → 132KB HTML)
+- `8aebba0` — settings nav "OneNote Import" → "📝 Word Doc Import"
+- `f2663ab` — bump Word/notes file-upload cap 20MB → 100MB end-to-end
+- `cd16624` — **#3** server-side scheduled-reports cron + `POST /api/scheduled/run-reports`
+- `ebd5ef2` — **#5** onboarding tour: first-login offer + polish
+- `3492bed` — Insert Image modal: replace `prompt()` with in-DOM modal so file picker actually opens
+- `dcf0452` — **#1** Knowledge Graph view (force-directed `s-graph`)
+- `5f7e6ea` — **#6 + #7** Home widget variety (5 new cards) + drag-reorder + Notes empty state
 - `e94a033` — right-rail shortcuts legend card
 - `63caa4d` — help drawer fix + refreshed articles for new features
 - `a8dc171` — four-pack: lightbox + shortcuts overlay + sidebar collapse + drawer animation
 - `72c0579` — AI chat assistant + mobile responsive
 - `16d658b` — Reports Phase 3: drag/resize + AI builder + pin-to-Home + email schedule
-- `1f44acd` — Reports Phase 2: line/heatmap/sparkline/progress + 4 new sources + per-widget range + visual filter
-- `a2593f2` — Reports Phase 1: 5-slot widget engine + 10 templates + editor modal + drag-reorder
+- `1f44acd` — Reports Phase 2: line/heatmap/sparkline/progress + 4 new sources + per-widget range
+- `a2593f2` — Reports Phase 1: 5-slot widget engine + 10 templates + editor modal
 - `66e9698` — theme engine with profiles + scheduling
 - `7882338` — Reports routing fix + saved reports system
 - `7bcae37` — visual polish: per-page accents + card hover + empty states + rich toasts
