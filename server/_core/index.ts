@@ -42,8 +42,9 @@ async function startServer() {
   // `secure` flag get set correctly when the request came in over HTTPS.
   app.set("trust proxy", 1);
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Body limit ~200mb so a 100MB import file (base64 encoded ~133MB) fits.
+  app.use(express.json({ limit: "200mb" }));
+  app.use(express.urlencoded({ limit: "200mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerProviderOAuthCallbacks(app);

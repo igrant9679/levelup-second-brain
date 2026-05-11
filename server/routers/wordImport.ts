@@ -146,7 +146,7 @@ export const wordImportRouter = router({
   parseDocx: protectedProcedure
     .input(
       z.object({
-        fileBase64: z.string().max(20 * 1024 * 1024), // 20MB limit
+        fileBase64: z.string().max(100 * 1024 * 1024), // 100MB limit
         fileName: z.string().optional(),
       })
     )

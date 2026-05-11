@@ -6900,8 +6900,8 @@ function bulkNotesExport(){
 
 async function importDocumentAsNote(file){
   if(!file)return;
-  const MAX_BYTES=20*1024*1024; // 20 MB
-  if(file.size>MAX_BYTES){toast('⚠ File too large (max 20 MB)','error');return;}
+  const MAX_BYTES=100*1024*1024; // 100 MB
+  if(file.size>MAX_BYTES){toast('⚠ File too large (max 100 MB)','error');return;}
   // Show progress toast
   const toastId='doc-import-'+Date.now();
   toast('⏳ Importing '+file.name+'…');
@@ -14421,7 +14421,7 @@ function renderSettingsHTML(){
   <div id="wdi-drop-zone" style="border:2px dashed var(--bd2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;margin-bottom:12px;transition:border-color .2s,background .2s" onclick="document.getElementById('wdi-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" ondragleave="this.style.borderColor='var(--bd2)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--bd2)';this.style.background='';wdiHandleDrop(event.dataTransfer.files)">
     <div style="font-size:28px;margin-bottom:6px">📄</div>
     <div style="font-size:12px;font-weight:600;margin-bottom:3px">Drop your .docx file here</div>
-    <div style="font-size:10px;color:var(--t3)">or click to browse — max 20 MB</div>
+    <div style="font-size:10px;color:var(--t3)">or click to browse — max 100 MB</div>
     <input type="file" id="wdi-file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="wdiHandleDrop(this.files)">
   </div>
 
@@ -19321,8 +19321,8 @@ function wdiHandleDrop(files){
     toast('⚠ Please select a .docx file');
     return;
   }
-  if(f.size>20*1024*1024){
-    toast('⚠ File is too large (max 20 MB)');
+  if(f.size>100*1024*1024){
+    toast('⚠ File is too large (max 100 MB)');
     return;
   }
   _wdiFile=f;

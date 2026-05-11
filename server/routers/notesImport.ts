@@ -155,7 +155,7 @@ export const notesImportRouter = router({
   importDocument: protectedProcedure
     .input(
       z.object({
-        fileBase64: z.string().max(20 * 1024 * 1024), // 20 MB limit
+        fileBase64: z.string().max(100 * 1024 * 1024), // 100 MB limit
         fileName: z.string(),
         mimeType: z.string(),
       })
