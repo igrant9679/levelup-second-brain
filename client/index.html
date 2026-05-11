@@ -55,6 +55,21 @@ body:not(.compact-mode){font-size:15px}
 .notes-editor img,.notes-editor-panel img,#dr-note-rte img,#dr-diary-rte img,#fa-note-rte img,#fa-jrnl-rte img,#dr-goal-rte img,#fa-goal-rte img,[id^="idea-body-rte-"] img,#nie-body img{cursor:zoom-in;transition:transform .15s}
 .notes-editor img:hover,.notes-editor-panel img:hover,#dr-note-rte img:hover,#dr-diary-rte img:hover,#fa-note-rte img:hover,#fa-jrnl-rte img:hover,#dr-goal-rte img:hover,#fa-goal-rte img:hover,[id^="idea-body-rte-"] img:hover,#nie-body img:hover{transform:translateY(-1px)}
 
+/* ─── Right-rail keyboard shortcuts legend ──────────────────────────── */
+.lu-sc-legend{margin-top:14px;padding:10px 12px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 10%,var(--s2)),var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 22%,var(--bd1));border-radius:8px;font-size:11px}
+.lu-sc-legend-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;color:var(--t2);font-weight:600;cursor:pointer;user-select:none}
+.lu-sc-legend-h-title{display:flex;align-items:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--page-accent)}
+.lu-sc-legend-h-toggle{font-size:11px;color:var(--t3);transition:transform .15s}
+.lu-sc-legend.collapsed .lu-sc-legend-rows{display:none}
+.lu-sc-legend.collapsed .lu-sc-legend-h-toggle{transform:rotate(-90deg)}
+.lu-sc-legend-rows{display:flex;flex-direction:column;gap:3px}
+.lu-sc-legend-row{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;padding:2px 0}
+.lu-sc-legend-row .lu-sc-label{color:var(--t2)}
+.lu-sc-legend-row .lu-sc-keys{display:flex;gap:2px}
+.lu-sc-legend-row kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:var(--s1);border:1px solid var(--bd2);border-bottom-width:2px;border-radius:4px;font-size:9px;font-family:ui-monospace,monospace;color:var(--t1);font-weight:500}
+.lu-sc-legend-more{margin-top:6px;padding-top:6px;border-top:1px solid var(--bd1);font-size:10px;color:var(--page-accent);cursor:pointer;text-align:center;font-weight:500}
+.lu-sc-legend-more:hover{filter:brightness(1.18)}
+
 /* ─── Keyboard shortcuts overlay ────────────────────────────────────── */
 .shortcuts-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
   z-index:9550;display:flex;align-items:center;justify-content:center;padding:24px;
@@ -2584,6 +2599,58 @@ function nav(s){
   // Trigger proactive hints after a delay
   if(typeof triggerProactiveHint==='function')triggerProactiveHint(s);
 }
+// ─── Right-rail shortcuts legend ────────────────────────────────────
+// A compact reference card auto-appended to every visible right rail
+// (.rr) and the Notes-page rail (.notes-rail). Collapsible; state saved
+// to localStorage. Click "show all" to open the full shortcuts overlay.
+function _renderShortcutsLegend(){
+  const collapsed=localStorage.getItem('lu_sc_legend_collapsed')==='1';
+  // Common essentials — short list to keep the card compact.
+  const rows=[
+    {label:'Command Palette',keys:['⌘','K']},
+    {label:'AI Chat',keys:['⌘','J']},
+    {label:'New Task',keys:['⌘','N']},
+    {label:'Save',keys:['⌘','S']},
+    {label:'All shortcuts',keys:['?']},
+    {label:'Close',keys:['Esc']},
+  ];
+  const html=`<div class="lu-sc-legend ${collapsed?'collapsed':''}" id="lu-sc-legend">
+    <div class="lu-sc-legend-h" onclick="_toggleSCLegend()">
+      <span class="lu-sc-legend-h-title">⌨ Shortcuts</span>
+      <span class="lu-sc-legend-h-toggle">▾</span>
+    </div>
+    <div class="lu-sc-legend-rows">
+      ${rows.map(r=>`<div class="lu-sc-legend-row"><span class="lu-sc-label">${esc(r.label)}</span><span class="lu-sc-keys">${r.keys.map(k=>`<kbd>${esc(k)}</kbd>`).join('')}</span></div>`).join('')}
+      <div class="lu-sc-legend-more" onclick="openShortcuts()">See all → press ?</div>
+    </div>
+  </div>`;
+  // Append to every visible right rail. Skip ones that already have it.
+  const rails=document.querySelectorAll('.scr.on .rr, .scr.on .notes-rail');
+  rails.forEach(r=>{
+    if(r.querySelector('#lu-sc-legend'))return;
+    r.insertAdjacentHTML('beforeend',html);
+  });
+}
+function _toggleSCLegend(){
+  const el=document.getElementById('lu-sc-legend');if(!el)return;
+  const willCollapse=!el.classList.contains('collapsed');
+  el.classList.toggle('collapsed',willCollapse);
+  try{localStorage.setItem('lu_sc_legend_collapsed',willCollapse?'1':'0');}catch(_){}
+  // Apply to any other instances rendered into other rails
+  document.querySelectorAll('.lu-sc-legend').forEach(x=>x.classList.toggle('collapsed',willCollapse));
+}
+// Auto-inject after every screen render. renderScreen is the orchestrator
+// that fires per-page render functions; we tack on the legend afterwards.
+const _origRenderScreen=window.renderScreen||function(){};
+window.renderScreen=function(s){
+  const r=_origRenderScreen.apply(this,arguments);
+  setTimeout(_renderShortcutsLegend,50);
+  return r;
+};
+// Also try on initial load (in case the first page renders before this
+// patch is in scope) and whenever the user opens a new screen.
+document.addEventListener('DOMContentLoaded',()=>setTimeout(_renderShortcutsLegend,500));
+
 // ─── Keyboard shortcuts overlay ──────────────────────────────────────
 function openShortcuts(){
   const ov=document.getElementById('shortcuts-overlay');if(!ov)return;
