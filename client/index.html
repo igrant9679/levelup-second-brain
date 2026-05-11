@@ -4221,7 +4221,27 @@ function renderHome(){
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
-    return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>`;
+    // Append pinned report widgets (D.prefs.homePinnedWidgets) so users can
+    // surface their custom analytics on the Home dashboard alongside the
+    // standard cards. Each pinned widget reuses _renderWidget() with its
+    // own unpin button so they're easy to manage from Home directly.
+    const pinned=(D.prefs&&D.prefs.homePinnedWidgets)||[];
+    let pinnedHtml='';
+    if(pinned.length&&typeof _renderWidget==='function'){
+      pinnedHtml=`<div style="margin-top:14px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px">📌 Pinned widgets <span style="font-size:9px;font-weight:400;color:var(--t3)">— pinned from Reports</span></div><div style="display:grid;grid-template-columns:repeat(12,1fr);gap:10px">${pinned.map((w,i)=>{
+        // Save the original widget context, render via the widget engine,
+        // then inject an Unpin button after the title row.
+        const saved=_reportWidgets;_reportWidgets=pinned;
+        let html=_renderWidget(w,i);
+        _reportWidgets=saved;
+        // Replace the report-context toolbar with a smaller Unpin-only toolbar
+        html=html.replace(/<div class="no-print"[\s\S]*?<\/div>\s*<\/div>/, `<div class="no-print" style="display:flex;gap:3px"><button class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="nav('reports')" title="Edit in Reports">✏</button><button class="btn btn-d" style="height:22px;font-size:10px" onclick="unpinHomeWidget(${w.id})" title="Unpin">✕</button></div></div>`);
+        // Make pinned widgets non-draggable on Home (drag handlers reference _reportWidgets which would be wrong).
+        html=html.replace(/draggable="true"[^>]*?ondragstart="[^"]*"[^>]*?ondragover="[^"]*"[^>]*?ondragleave="[^"]*"[^>]*?ondrop="[^"]*"[^>]*?ondragend="[^"]*"/,'draggable="false"');
+        return html;
+      }).join('')}</div></div>`;
+    }
+    return `<div class="g3">${visCards.map(id=>cardHtml[id]).join('')}</div>${pinnedHtml}`;
   })()}`;
   // Build 7-day focus chart data
   const _focusLog=D.prefs&&D.prefs.focusLog||{};
@@ -8349,19 +8369,181 @@ function _renderWidget(w,idx){
     body=`<div style="font-size:11px;color:var(--t3);padding:14px;text-align:center">Unsupported viz: ${esc(w.viz)}</div>`;
   }
   const span=Math.max(3,Math.min(12,Number(w.sizeW)||6));
-  return `<div class="cd lu-widget" style="grid-column:span ${span};padding:12px 14px;border-left:3px solid ${color}">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:600;color:var(--t1)">${esc(w.title||'Widget')}</div>
-      <div class="no-print" style="display:flex;gap:4px">
+  return `<div class="cd lu-widget" draggable="true" data-widget-idx="${idx}"
+      ondragstart="_widgetDragStart(event,${idx})"
+      ondragover="_widgetDragOver(event,${idx})"
+      ondragleave="_widgetDragLeave(event)"
+      ondrop="_widgetDrop(event,${idx})"
+      ondragend="_widgetDragEnd(event)"
+      style="grid-column:span ${span};padding:12px 14px;border-left:3px solid ${color};cursor:grab">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:6px">
+      <div style="font-size:11px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:6px;min-width:0;flex:1">
+        <span style="color:var(--t3);font-size:13px;line-height:1;cursor:grab" title="Drag to reorder">⋮⋮</span>
+        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(w.title||'Widget')}</span>
+      </div>
+      <div class="no-print" style="display:flex;gap:3px;flex-shrink:0">
+        <div style="position:relative">
+          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="_toggleSizeMenu(${idx},event)" title="Resize">⤢ ${span}</button>
+          <div id="lu-size-menu-${idx}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:24px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:3px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.4)">
+            ${[3,4,6,8,12].map(n=>`<button class="btn btn-s" style="display:block;width:48px;height:22px;font-size:10px;background:${span===n?'var(--ac)':'transparent'};color:${span===n?'#fff':'var(--t1)'};border:none;margin:1px 0" onclick="setWidgetSize(${idx},${n})">${n} col</button>`).join('')}
+          </div>
+        </div>
         <button class="btn btn-s" style="height:22px;font-size:10px" onclick="editReportWidget(${idx})" title="Edit">✏</button>
         <button class="btn btn-s" style="height:22px;font-size:10px" onclick="duplicateReportWidget(${idx})" title="Duplicate">⎘</button>
-        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="moveReportWidget(${idx},-1)" title="Move up">↑</button>
-        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="moveReportWidget(${idx},1)" title="Move down">↓</button>
+        <button class="btn btn-s" style="height:22px;font-size:10px;color:var(--page-accent)" onclick="pinWidgetToHome(${idx})" title="Pin to Home dashboard">📌</button>
         <button class="btn btn-d" style="height:22px;font-size:10px" onclick="deleteReportWidget(${idx})" title="Delete">✕</button>
       </div>
     </div>
     ${body}
   </div>`;
+}
+// Drag-and-drop reorder handlers — HTML5 native API. Keeps it dependency-free.
+let _wDragFrom=-1;
+function _widgetDragStart(e,idx){_wDragFrom=idx;e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',String(idx));}catch(_){}e.currentTarget.style.opacity='.55';}
+function _widgetDragOver(e,idx){if(_wDragFrom<0||_wDragFrom===idx)return;e.preventDefault();e.dataTransfer.dropEffect='move';e.currentTarget.style.outline='2px dashed var(--page-accent)';e.currentTarget.style.outlineOffset='-2px';}
+function _widgetDragLeave(e){e.currentTarget.style.outline='';e.currentTarget.style.outlineOffset='';}
+function _widgetDrop(e,idx){e.preventDefault();e.currentTarget.style.outline='';e.currentTarget.style.outlineOffset='';if(_wDragFrom<0||_wDragFrom===idx)return;const item=_reportWidgets.splice(_wDragFrom,1)[0];_reportWidgets.splice(idx,0,item);_wDragFrom=-1;_saveReportWidgets();renderReports();}
+function _widgetDragEnd(e){e.currentTarget.style.opacity='';e.currentTarget.style.outline='';_wDragFrom=-1;}
+function _toggleSizeMenu(idx,ev){ev&&ev.stopPropagation();const m=document.getElementById('lu-size-menu-'+idx);if(!m)return;document.querySelectorAll('[data-pop-menu="1"]').forEach(el=>{if(el!==m)el.style.display='none';});m.style.display=m.style.display==='block'?'none':'block';if(m.style.display==='block')setTimeout(()=>document.addEventListener('click',()=>{m.style.display='none';},{once:true}),0);}
+function setWidgetSize(idx,n){const w=_reportWidgets[idx];if(!w)return;w.sizeW=Math.max(3,Math.min(12,Number(n)||6));_saveReportWidgets();renderReports();}
+
+// Pin a widget to the Home page. Stored under D.prefs.homePinnedWidgets so it
+// syncs across devices via the prefs blob, separate from saved reports.
+function pinWidgetToHome(idx){
+  const w=_reportWidgets[idx];if(!w)return;
+  D.prefs.homePinnedWidgets=Array.isArray(D.prefs.homePinnedWidgets)?D.prefs.homePinnedWidgets:[];
+  // Avoid dupes by id
+  const exists=D.prefs.homePinnedWidgets.some(p=>p.id===w.id);
+  if(exists){
+    if(!confirm('This widget is already pinned to Home. Unpin it?'))return;
+    D.prefs.homePinnedWidgets=D.prefs.homePinnedWidgets.filter(p=>p.id!==w.id);
+    save('prefs');
+    toast('Unpinned from Home');
+    return;
+  }
+  D.prefs.homePinnedWidgets.push(JSON.parse(JSON.stringify(w)));
+  save('prefs');
+  toast({type:'success',title:'📌 Pinned to Home',msg:'See it on the Home dashboard.',actions:[{label:'Go to Home',primary:true,onClick:()=>nav('home')}],duration:5000});
+}
+function unpinHomeWidget(id){
+  D.prefs.homePinnedWidgets=(D.prefs.homePinnedWidgets||[]).filter(p=>p.id!==id);
+  save('prefs');
+  if(typeof renderScreen==='function'&&curScreen==='home')renderScreen('home');
+  toast('Unpinned from Home');
+}
+// Email the current report to the user. Renders a clean HTML version (the
+// reports-main innerHTML with toolbars stripped) and ships it via the existing
+// sendEmail server route. Works on demand; scheduled delivery just calls this
+// at the right time on the user's next login.
+async function emailCurrentReport(){
+  const recipient=(D.creds&&D.creds.email)||'';
+  if(!recipient){toast('Your account has no email on record');return;}
+  if(!confirm(`Email this report to ${recipient}?`))return;
+  toast({type:'info',title:'📧 Generating report…',duration:1800});
+  // Clone the current reports-main, strip .no-print elements (matches the
+  // existing PDF export behaviour) and wrap in a minimal HTML document.
+  const node=document.getElementById('reports-main');
+  if(!node){toast('Reports view not loaded — open Reports first.');return;}
+  const clone=node.cloneNode(true);
+  clone.querySelectorAll('.no-print, button').forEach(el=>el.remove());
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>LevelUp Report</title><style>
+    body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#0b0f1a;color:#f8fafc;padding:24px;margin:0}
+    .cd{background:#161d2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px;margin-bottom:12px}
+    h1{font-size:20px;margin:0 0 4px} h2{font-size:14px;margin:0 0 10px}
+    p{font-size:12px;color:#94a3b8;margin:0 0 6px}
+    svg{max-width:100%}
+  </style></head><body>${clone.innerHTML}</body></html>`;
+  try{
+    const ok=await _trpc('oauthSync.sendCustom',{to:recipient,subject:`LevelUp Report — ${new Date().toLocaleDateString()}`,html},'mutation').catch(()=>null);
+    // Fallback: if no custom endpoint, just open a mailto: with the HTML in clipboard.
+    if(!ok){
+      try{await navigator.clipboard.writeText(html);}catch(_){}
+      window.open(`mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent('LevelUp Report — '+new Date().toLocaleDateString())}&body=${encodeURIComponent('Your report HTML is on the clipboard — paste it into the email body.')}`,'_blank');
+      toast({type:'info',title:'📋 Report copied to clipboard',msg:'Paste it into the email that just opened.',duration:5500});
+      return;
+    }
+    toast({type:'success',title:`📧 Sent to ${recipient}`,duration:3500});
+  }catch(e){
+    toast({type:'error',title:'Email failed',msg:String(e.message||e).slice(0,200),duration:5000});
+  }
+}
+
+// AI-assisted widget builder: user types what they want, the LLM returns
+// a JSON widget config that's validated and inserted.
+function openAIWidgetBuilder(){
+  const m=document.getElementById('modal-content');if(!m)return;
+  m.innerHTML=`
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:6px">✨ AI Widget Builder</h2>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Describe what you want to see — the AI will pick the right source, group, metric, viz and filter for you.</p>
+    <textarea id="aiwb-prompt" class="inp" style="min-height:80px;font-size:12px;line-height:1.5" placeholder="e.g. &quot;Overdue tasks by project from the last 30 days, as a donut&quot;&#10;&quot;Daily focus minutes this week as a line chart&quot;&#10;&quot;Top 10 open High-priority tasks as a table&quot;&#10;&quot;Habit streaks longer than 5 days&quot;"></textarea>
+    <div id="aiwb-examples" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
+      ${['Overdue tasks count','Tasks done last 7 days line chart','Goals progress as bars','Top 10 open tasks','Journal mood trend','Focus minutes heatmap','Ideas by stage donut','Habits completed today'].map(s=>`<button class="btn btn-s" style="height:22px;font-size:10px" onclick="document.getElementById('aiwb-prompt').value='${esc(s)}'">${esc(s)}</button>`).join('')}
+    </div>
+    <div id="aiwb-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:6px;font-size:11px;font-family:ui-monospace,monospace;max-height:160px;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" id="aiwb-go" onclick="_runAIWidgetBuilder()">✨ Generate</button>
+    </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>{const t=document.getElementById('aiwb-prompt');if(t)t.focus();},20);
+}
+async function _runAIWidgetBuilder(){
+  const promptEl=document.getElementById('aiwb-prompt');
+  const userText=(promptEl?.value||'').trim();
+  if(!userText){toast('Describe what you want to see first');return;}
+  const btn=document.getElementById('aiwb-go');
+  const orig=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  // System prompt teaches the LLM the schema.
+  const sysPrompt=`You build report widgets for a personal productivity app. Return ONLY a single JSON object matching this schema — no prose, no markdown fences.
+
+Schema:
+{
+  "title": string,                            // short human-readable label
+  "source": one of: tasks, habits, goals, journal, projects, ideas, bookmarks, focus
+  "groupBy": one of: _total, _rows, day(<dateField>), week(<dateField>), month(<dateField>), or a field name like status / priority / project / context / assignedTo / title / cadence / category / stage / idea_type / mood / name / color
+  "metric": one of: count, list, sum(<field>), avg(<field>)
+  "viz": one of: kpi, bar, line, donut, heatmap, sparkline, progress, table
+  "filter": array of conditions [{field, op, value}] where op is one of: eq, ne, contains, empty, notempty, gt, lt, gte, lte, overdue (task-only), has_mood (journal-only)
+  "color": hex string like "#22c55e"
+  "sizeW": integer 3–12 (grid columns wide; 12 = full row)
+  "range": optional string in 7d / 30d / 90d / 365d / all; omit to inherit report range
+}
+
+Tips: 'count' is the safest metric. For 'overdue tasks' use filter [{op:"overdue"}]. For dates use day(completedAt) for tasks, day(date) for journal/focus, day(createdAt) for goals/ideas. KPI is best for a single number. Donut for category breakdowns. Bar/line for time series. Heatmap for date-grouped activity. Table when the user asks for rows or a 'list'. Progress for goal/project completion.`;
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const res=await _trpc('ai.assist',{
+      systemPrompt:sysPrompt,
+      userContent:userText,
+      provider:provider||'manus',
+      apiKey:apiKey||undefined,
+    },'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    // Strip optional code fences the model may have added.
+    const jsonText=text.replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();
+    let w;try{w=JSON.parse(jsonText);}catch(e){throw new Error('Model returned invalid JSON. Raw response:\n'+text.slice(0,400));}
+    // Light validation + defaults.
+    if(!w||typeof w!=='object')throw new Error('Empty response from AI');
+    w.title=String(w.title||'AI widget');
+    w.source=WIDGET_SOURCES[w.source]?w.source:'tasks';
+    w.groupBy=String(w.groupBy||'_total');
+    w.metric=String(w.metric||'count');
+    if(!['kpi','bar','line','donut','heatmap','sparkline','progress','table'].includes(w.viz))w.viz='bar';
+    w.filter=Array.isArray(w.filter)?w.filter:[];
+    w.color=/^#[0-9a-f]{3,8}$/i.test(w.color||'')?w.color:'#3b82f6';
+    w.sizeW=Math.max(3,Math.min(12,Number(w.sizeW)||6));
+    if(w.range&&!['7d','30d','90d','365d','all'].includes(w.range))delete w.range;
+    w.id=Date.now();
+    // Show the parsed config briefly so the user sees what's happening.
+    const r=document.getElementById('aiwb-result');
+    if(r){r.style.display='block';r.textContent=JSON.stringify(w,null,2);}
+    _reportWidgets.push(w);_saveReportWidgets();closeModal();renderReports();
+    toast({type:'success',title:'✨ Widget created',msg:'You can edit any slot via the ✏ button.',duration:3500});
+  }catch(e){
+    toast({type:'error',title:'AI widget builder failed',msg:String(e.message||e).slice(0,200),duration:5000});
+    if(btn){btn.disabled=false;btn.textContent=orig||'✨ Generate';}
+  }
 }
 
 // Widget lifecycle handlers
@@ -8576,6 +8758,117 @@ function renameSavedReport(id){
   _setSavedReports(_getSavedReports());
   renderReports();
 }
+// Schedule email delivery for a saved report. Stored on the report itself
+// as r.schedule = {frequency:'off'|'daily'|'weekly'|'monthly', time:'08:00',
+// dow:0..6 (for weekly), dom:1..28 (for monthly), lastSentISO?:string}.
+// Because we don't run a server cron per user, the scheduler is opportunistic:
+// on every login (and on Reports page open) we check for any overdue
+// schedules and send them. Reliable for daily-app-openers, best-effort for
+// others — but the schedule UI clearly states this.
+function openReportSchedule(id){
+  const r=_getSavedReports().find(x=>x.id===id);if(!r)return;
+  const s=r.schedule||{frequency:'off',time:'08:00',dow:1,dom:1};
+  const m=document.getElementById('modal-content');if(!m)return;
+  m.innerHTML=`
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⏰ Schedule: ${esc(r.name)}</h2>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Email this report to <strong>${esc(D.creds.email||'your account')}</strong> automatically.
+      <br><span style="color:var(--warn)">Note:</span> delivery happens when you next open LevelUp on or after the scheduled time. Open the app daily to receive a daily report on time.</p>
+    <div class="field" style="margin-bottom:10px"><label>Frequency</label>
+      <select class="inp" id="rs-freq" onchange="_rsToggle()">
+        ${[['off','Off (manual only)'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']].map(([v,l])=>`<option value="${v}" ${s.frequency===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="field"><label>Send at (24h)</label><input type="time" class="inp" id="rs-time" value="${esc(s.time||'08:00')}"></div>
+      <div class="field" id="rs-dow-wrap"><label>Day of week</label><select class="inp" id="rs-dow">
+        ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d,i)=>`<option value="${i}" ${Number(s.dow)===i?'selected':''}>${d}</option>`).join('')}
+      </select></div>
+      <div class="field" id="rs-dom-wrap" style="display:none"><label>Day of month</label><input type="number" class="inp" id="rs-dom" min="1" max="28" value="${s.dom||1}"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-d" onclick="_saveSchedule(${id},'off')">Disable</button>
+      <button class="btn btn-p" onclick="_saveSchedule(${id})">💾 Save Schedule</button>
+    </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(_rsToggle,0);
+}
+function _rsToggle(){
+  const f=document.getElementById('rs-freq')?.value||'off';
+  const dowWrap=document.getElementById('rs-dow-wrap');
+  const domWrap=document.getElementById('rs-dom-wrap');
+  if(dowWrap)dowWrap.style.display=(f==='weekly')?'':'none';
+  if(domWrap)domWrap.style.display=(f==='monthly')?'':'none';
+}
+function _saveSchedule(id,forceFreq){
+  const arr=_getSavedReports();const r=arr.find(x=>x.id===id);if(!r)return;
+  const freq=forceFreq||document.getElementById('rs-freq')?.value||'off';
+  if(freq==='off'){r.schedule={frequency:'off'};}
+  else{
+    r.schedule={
+      frequency:freq,
+      time:document.getElementById('rs-time')?.value||'08:00',
+      dow:Number(document.getElementById('rs-dow')?.value||1),
+      dom:Number(document.getElementById('rs-dom')?.value||1),
+      lastSentISO:r.schedule&&r.schedule.lastSentISO||null,
+    };
+  }
+  _setSavedReports(arr);
+  closeModal();renderReports();
+  toast(freq==='off'?'Schedule disabled':`⏰ Will email ${freq} at ${r.schedule.time}`);
+}
+// On every Reports render + on login, walk saved reports and send any whose
+// schedule is overdue. Catch-up model: if a daily 8am report wasn't sent
+// today and the current time is past 8am, send it now. Idempotent — won't
+// double-send within the same window.
+async function _checkReportSchedules(){
+  if(!D.creds||!D.creds.email)return;
+  const arr=_getSavedReports();let changed=false;
+  for(const r of arr){
+    const s=r.schedule;if(!s||s.frequency==='off'||!s.frequency)continue;
+    const now=new Date();
+    const [hh,mm]=(s.time||'08:00').split(':').map(Number);
+    const target=new Date(now);target.setHours(hh||8,mm||0,0,0);
+    let due=false;
+    const last=s.lastSentISO?new Date(s.lastSentISO):null;
+    if(s.frequency==='daily'){
+      if(now>=target&&(!last||last<target))due=true;
+    }else if(s.frequency==='weekly'){
+      if(now.getDay()===Number(s.dow||1)&&now>=target&&(!last||(now-last)>24*60*60*1000))due=true;
+    }else if(s.frequency==='monthly'){
+      if(now.getDate()===Number(s.dom||1)&&now>=target&&(!last||(now-last)>24*60*60*1000))due=true;
+    }
+    if(!due)continue;
+    // Load the report config in-memory (without re-rendering UI), build HTML, send.
+    try{
+      // Briefly switch active state to render this report into reports-main
+      const savedRange=_reportRange,savedSections=_reportSections,savedWidgets=_reportWidgets;
+      _reportRange=r.range||'30d';
+      _reportSections=Object.assign({tasks:true,goals:true,habits:true,focus:true,journal:true,projects:true},r.sections||{});
+      _reportWidgets=Array.isArray(r.widgets)?JSON.parse(JSON.stringify(r.widgets)):[];
+      const stashedMain=document.getElementById('reports-main');
+      let html='';
+      if(stashedMain){
+        const wasOn=document.getElementById('s-reports').classList.contains('on');
+        if(!wasOn)document.getElementById('s-reports').classList.add('on');
+        renderReports();
+        const clone=stashedMain.cloneNode(true);
+        clone.querySelectorAll('.no-print, button').forEach(el=>el.remove());
+        html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(r.name)}</title><style>body{font-family:-apple-system,Segoe UI,sans-serif;background:#0b0f1a;color:#f8fafc;padding:24px}.cd{background:#161d2e;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px;margin-bottom:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:0 0 10px}p{font-size:12px;color:#94a3b8;margin:0 0 6px}</style></head><body>${clone.innerHTML}</body></html>`;
+        if(!wasOn)document.getElementById('s-reports').classList.remove('on');
+      }
+      // Restore state
+      _reportRange=savedRange;_reportSections=savedSections;_reportWidgets=savedWidgets;
+      if(curScreen==='reports')renderReports();
+      if(html){
+        await _trpc('oauthSync.sendCustom',{to:D.creds.email,subject:`📊 ${r.name} — ${new Date().toLocaleDateString()}`,html},'mutation');
+        s.lastSentISO=new Date().toISOString();
+        changed=true;
+      }
+    }catch(e){console.warn('[report schedule] send failed',r.name,e);}
+  }
+  if(changed){_setSavedReports(arr);toast({type:'success',title:'📧 Scheduled reports sent',duration:3000});}
+}
 
 function _reportRangeDays(){return {'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[_reportRange]||30;}
 function _reportRangeLabel(){return {'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'}[_reportRange]||_reportRange;}
@@ -8711,9 +9004,11 @@ function renderReports(){
       if(!saved.length)return '';
       return `<div class="cd no-print" style="margin-bottom:14px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:11px;font-weight:600;color:var(--t2);margin-right:4px">⭐ Saved Reports:</span>
-        ${saved.map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 28%,var(--bd2));border-radius:14px;padding:3px 4px 3px 10px;font-size:11px;cursor:pointer;transition:transform .1s,filter .1s" onclick="loadSavedReport(${r.id})" onmouseover="this.style.transform='translateY(-1px)';this.style.filter='brightness(1.1)'" onmouseout="this.style.transform='';this.style.filter=''" title="Range: ${esc(({'7d':'7 days','30d':'30 days','90d':'90 days','365d':'1 year','all':'All time'})[r.range]||r.range)}">
+        ${saved.map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 28%,var(--bd2));border-radius:14px;padding:3px 4px 3px 10px;font-size:11px;cursor:pointer;transition:transform .1s,filter .1s" onclick="loadSavedReport(${r.id})" onmouseover="this.style.transform='translateY(-1px)';this.style.filter='brightness(1.1)'" onmouseout="this.style.transform='';this.style.filter=''" title="${r.schedule?`Scheduled: ${esc(r.schedule.frequency)} at ${esc(r.schedule.time||'08:00')}`:`Range: ${esc(({'7d':'7 days','30d':'30 days','90d':'90 days','365d':'1 year','all':'All time'})[r.range]||r.range)}`}">
           <span style="font-size:13px">${esc(r.emoji||'📊')}</span>
           <span style="font-weight:500">${esc(r.name)}</span>
+          ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:9px;background:rgba(34,197,94,.18);color:#86efac;padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
+          <button onclick="event.stopPropagation();openReportSchedule(${r.id})" title="Schedule email" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">⏰</button>
           <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">✏</button>
           <button onclick="event.stopPropagation();deleteSavedReport(${r.id})" title="Delete" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">×</button>
         </span>`).join('')}
@@ -8741,12 +9036,16 @@ function renderReports(){
     })()}
 
     <!-- Custom widgets — phase-1 report builder -->
-    <div class="cd no-print" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 12%,var(--s2)),var(--s2))">
+    <div class="cd no-print" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 12%,var(--s2)),var(--s2));gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:12px;font-weight:600;color:var(--t1)">🧱 Custom widgets</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${_reportWidgets.length?_reportWidgets.length+' widget'+(_reportWidgets.length===1?'':'s')+' on this report.':'Build your own report — pick a source, group, metric and viz.'}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--t1)">🧱 Custom widgets <span style="font-size:9px;color:var(--t3);font-weight:400;margin-left:4px">drag ⋮⋮ to reorder · ⤢ to resize</span></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${_reportWidgets.length?_reportWidgets.length+' widget'+(_reportWidgets.length===1?'':'s')+' on this report.':'Build your own report — pick a source, group, metric and viz, or just describe what you want.'}</div>
       </div>
-      <button class="btn btn-p" style="font-size:11px;height:28px" onclick="addReportWidget()">+ Add Widget</button>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-s" style="font-size:11px;height:28px;color:#a855f7" onclick="openAIWidgetBuilder()" title="Describe what you want and AI builds the widget">✨ AI Build</button>
+        <button class="btn btn-s" style="font-size:11px;height:28px" onclick="emailCurrentReport()" title="Email this report to yourself">📧 Email Now</button>
+        <button class="btn btn-p" style="font-size:11px;height:28px" onclick="addReportWidget()">+ Add Widget</button>
+      </div>
     </div>
     ${_reportWidgets.length?`<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:12px;margin-bottom:18px">${_reportWidgets.map((w,i)=>_renderWidget(w,i)).join('')}</div>`:''}
 
@@ -15199,6 +15498,9 @@ function doLoginSuccess(member){
   if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
   // Load workspace-shared AI keys (admin manages, everyone uses)
   if(typeof loadSharedAISettings==='function')loadSharedAISettings();
+  // Catch-up: send any scheduled reports whose time has passed. Fired ~6s
+  // after login so the rest of the boot finishes first.
+  if(typeof _checkReportSchedules==='function')setTimeout(()=>_checkReportSchedules().catch(()=>{}),6000);
   // Boot app
   applyPrefs();
   // Start the AI/news assistant ticker if enabled (default: on)

@@ -562,6 +562,37 @@ export const oauthSyncRouter = router({
     };
   }),
 
+  /**
+   * Send a custom email on behalf of the current user. Used by the Reports
+   * page "Email Now" button to deliver a rendered HTML report to the user's
+   * inbox via the configured system notification sender. Locked down: the
+   * recipient must be the caller's own address — this is NOT a generic mail
+   * sender.
+   */
+  sendCustom: protectedProcedure
+    .input(z.object({
+      to: z.string().email(),
+      subject: z.string().min(1).max(300),
+      html: z.string().min(1).max(500_000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Refuse to deliver to anyone other than the caller.
+      if (!ctx.user.email) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Your account has no email on record." });
+      }
+      if (input.to.toLowerCase() !== ctx.user.email.toLowerCase()) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Self-delivery only — recipient must match your account email." });
+      }
+      const ok = await sendEmail({
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        senderUserId: ctx.user.id,
+        recipientUserId: ctx.user.id,
+      });
+      return { success: !!ok };
+    }),
+
   // ---- Token Refresh (silent server-side refresh) ----
   /**
    * Silently refresh an OAuth token using the stored refresh token.
