@@ -7892,34 +7892,106 @@ function _saveReportWidgets(){try{localStorage.setItem('lu_report_widgets',JSON.
 // a working library on day one.
 const WIDGET_TEMPLATES=[
   {id:'t-tasks-day',label:'📊 Tasks completed by day',w:{title:'Tasks Completed (by day)',source:'tasks',filter:{status:'Done'},groupBy:'day(completedAt)',metric:'count',viz:'bar',color:'#22c55e',sizeW:6}},
-  {id:'t-tasks-pri',label:'📈 Tasks by priority',w:{title:'Open Tasks by Priority',source:'tasks',filter:{status_not:'Done'},groupBy:'priority',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6}},
+  {id:'t-tasks-line',label:'📈 Tasks completed (line)',w:{title:'Completion Trend',source:'tasks',filter:{status:'Done'},groupBy:'day(completedAt)',metric:'count',viz:'line',color:'#22c55e',sizeW:6}},
+  {id:'t-tasks-pri',label:'🎯 Open tasks by priority',w:{title:'Open Tasks by Priority',source:'tasks',filter:{status_not:'Done'},groupBy:'priority',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6}},
   {id:'t-tasks-status',label:'🥯 Tasks by status',w:{title:'Tasks by Status',source:'tasks',filter:{},groupBy:'status',metric:'count',viz:'donut',color:'#a855f7',sizeW:6}},
   {id:'t-tasks-proj',label:'📁 Open tasks by project',w:{title:'Open Tasks by Project',source:'tasks',filter:{status_not:'Done'},groupBy:'project',metric:'count',viz:'bar',color:'#06b6d4',sizeW:6}},
   {id:'t-overdue',label:'⚠ Overdue task count',w:{title:'Overdue Tasks',source:'tasks',filter:{overdue:true},groupBy:'_total',metric:'count',viz:'kpi',color:'#ef4444',sizeW:3}},
-  {id:'t-top-open',label:'📋 Top open tasks',w:{title:'Top Open Tasks',source:'tasks',filter:{status_not:'Done'},groupBy:'_rows',metric:'list',viz:'table',color:'#3b82f6',sizeW:12}},
-  {id:'t-goals-prog',label:'🎯 Goals progress',w:{title:'Goals — current progress',source:'goals',filter:{},groupBy:'title',metric:'avg(pct)',viz:'bar',color:'#dc2626',sizeW:12}},
+  {id:'t-top-open',label:'📋 Top open tasks (table)',w:{title:'Top Open Tasks',source:'tasks',filter:{status_not:'Done'},groupBy:'_rows',metric:'list',viz:'table',color:'#3b82f6',sizeW:12}},
+  {id:'t-goals-prog',label:'🎯 Goals progress (progress bars)',w:{title:'Goals — current progress',source:'goals',filter:{},groupBy:'title',metric:'avg(pct)',viz:'progress',color:'#dc2626',sizeW:12}},
   {id:'t-habit-streaks',label:'🔥 Habit streaks',w:{title:'Habit Streaks',source:'habits',filter:{},groupBy:'title',metric:'sum(streak)',viz:'bar',color:'#10b981',sizeW:6}},
   {id:'t-journal-mood',label:'📓 Journal mood (avg)',w:{title:'Average Journal Mood',source:'journal',filter:{has_mood:true},groupBy:'_total',metric:'avg(mood)',viz:'kpi',color:'#f43f5e',sizeW:3}},
-  {id:'t-journal-entries',label:'✏ Journal entries by day',w:{title:'Journal Entries (by day)',source:'journal',filter:{},groupBy:'day(date)',metric:'count',viz:'bar',color:'#f43f5e',sizeW:6}},
+  {id:'t-journal-entries',label:'✏ Journal entries (heatmap)',w:{title:'Journal Activity',source:'journal',filter:{},groupBy:'day(date)',metric:'count',viz:'heatmap',color:'#f43f5e',sizeW:6}},
+  {id:'t-focus-line',label:'⏱ Focus minutes (line)',w:{title:'Focus Minutes Trend',source:'focus',filter:{},groupBy:'day(date)',metric:'sum(mins)',viz:'line',color:'#a855f7',sizeW:6}},
+  {id:'t-focus-spark',label:'⏱ Focus total (sparkline)',w:{title:'Focus This Period',source:'focus',filter:{},groupBy:'day(date)',metric:'sum(mins)',viz:'sparkline',color:'#a855f7',sizeW:6}},
+  {id:'t-projects-status',label:'📁 Projects by status',w:{title:'Projects by Status',source:'projects',filter:{},groupBy:'status',metric:'count',viz:'donut',color:'#a855f7',sizeW:6}},
+  {id:'t-ideas-stage',label:'💡 Ideas by stage',w:{title:'Ideas Pipeline',source:'ideas',filter:{},groupBy:'stage',metric:'count',viz:'donut',color:'#eab308',sizeW:6}},
+  {id:'t-habits-heat',label:'🔥 Habit consistency (heatmap)',w:{title:'Daily Habit Activity',source:'habits',filter:{},groupBy:'_total',metric:'count',viz:'kpi',color:'#10b981',sizeW:3}},
 ];
 
+// Sensible default groupBy/metric/viz suggestions per source. Used by the
+// editor when the user changes Source so the dependent slots don't get
+// stuck on options that don't exist for the new source.
+const SOURCE_DEFAULTS={
+  tasks:    {groupBy:'status',metric:'count',viz:'donut'},
+  habits:   {groupBy:'title',metric:'sum(streak)',viz:'bar'},
+  goals:    {groupBy:'title',metric:'avg(pct)',viz:'progress'},
+  journal:  {groupBy:'day(date)',metric:'count',viz:'bar'},
+  projects: {groupBy:'status',metric:'count',viz:'donut'},
+  ideas:    {groupBy:'stage',metric:'count',viz:'donut'},
+  bookmarks:{groupBy:'_total',metric:'count',viz:'kpi'},
+  focus:    {groupBy:'day(date)',metric:'sum(mins)',viz:'line'},
+};
+// Filter-builder field options per source.
+const FILTER_FIELDS={
+  tasks:['status','priority','project','context','assignedTo','energy','recurring','myDay'],
+  habits:['cadence','category','createdBy'],
+  goals:['category','status','createdBy'],
+  journal:['mood','date','createdBy'],
+  projects:['status','color'],
+  ideas:['stage','idea_type'],
+  bookmarks:['isFavorite','isRead'],
+  focus:['date'],
+};
+const FILTER_OPS=[
+  {v:'eq',label:'is'},
+  {v:'ne',label:'is not'},
+  {v:'contains',label:'contains'},
+  {v:'empty',label:'is empty'},
+  {v:'notempty',label:'is not empty'},
+  {v:'gt',label:'>'},
+  {v:'lt',label:'<'},
+  {v:'gte',label:'≥'},
+  {v:'lte',label:'≤'},
+];
+// Normalise a filter into the array shape used by the visual builder.
+function _normalizeFilter(filter){
+  if(Array.isArray(filter))return filter.slice();
+  const arr=[];
+  for(const k of Object.keys(filter||{})){
+    const v=filter[k];
+    if(k==='overdue'&&v===true){arr.push({op:'overdue'});continue;}
+    if(k==='has_mood'&&v===true){arr.push({op:'has_mood'});continue;}
+    if(k.endsWith('_not')){arr.push({field:k.slice(0,-4),op:'ne',value:v});continue;}
+    arr.push({field:k,op:'eq',value:v});
+  }
+  return arr;
+}
+
 // Data-source registry: which array on D, and what date field if any.
+// 'arr' returns rows in a uniform shape so the rest of the engine doesn't
+// need to know about the storage details.
 const WIDGET_SOURCES={
-  tasks:  {arr:()=>D.tasks||[],dateField:'completedAt',label:'Tasks'},
-  habits: {arr:()=>D.habits||[],dateField:null,    label:'Habits'},
-  goals:  {arr:()=>D.goals||[],dateField:'createdAt',label:'Goals'},
-  journal:{arr:()=>D.journal||[],dateField:'date',  label:'Journal'},
+  tasks:    {arr:()=>D.tasks||[],     dateField:'completedAt',label:'Tasks'},
+  habits:   {arr:()=>D.habits||[],    dateField:null,         label:'Habits'},
+  goals:    {arr:()=>D.goals||[],     dateField:'createdAt',  label:'Goals'},
+  journal:  {arr:()=>D.journal||[],   dateField:'date',       label:'Journal'},
+  projects: {arr:()=>D.projects||[],  dateField:null,         label:'Projects'},
+  ideas:    {arr:()=>D.ideas||[],     dateField:'createdAt',  label:'Ideas'},
+  bookmarks:{arr:()=>D.bookmarks||[], dateField:null,         label:'Bookmarks'},
+  focus:    {arr:()=>{
+    // Convert focusLog {date:mins} dict into a uniform row array.
+    const fl=(D.prefs&&D.prefs.focusLog)||{};
+    return Object.entries(fl).map(([date,mins])=>({date,mins:Number(mins)||0}));
+  },dateField:'date',label:'Focus sessions'},
 };
 
 // Mood map (same as legacy reports)
 const _MOOD_MAP={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
 
-// Apply a widget's filter map against a row. Supports:
-//   <field>: <value>            -> exact match
-//   <field>_not: <value>        -> not equal
-//   overdue: true               -> task overdue (status!=Done && due<today)
-//   has_mood: true              -> journal entry with a mood
+// Apply a widget's filter against a row. Two shapes supported:
+//   - Object map (legacy, Phase 1):
+//       {<field>:<value>, <field>_not:<value>, overdue:true, has_mood:true}
+//   - Array of condition objects (Phase 2, visual builder):
+//       [{field,op,value}] where op ∈ eq|ne|gt|lt|gte|lte|contains|empty|notempty|overdue|has_mood
+//   Multiple conditions are AND-ed.
 function _widgetFilterRow(row,filter){
+  if(Array.isArray(filter)){
+    for(const cond of filter){
+      if(!_evalCond(row,cond))return false;
+    }
+    return true;
+  }
   for(const k of Object.keys(filter||{})){
     const v=filter[k];
     if(k==='overdue'&&v===true){
@@ -7934,6 +8006,28 @@ function _widgetFilterRow(row,filter){
       if(row[k]!==v)return false;
     }
   }
+  return true;
+}
+function _evalCond(row,c){
+  const op=c.op||'eq';
+  const f=c.field;
+  if(op==='overdue'){const t=new Date().toISOString().slice(0,10);return row.status!=='Done'&&row.due&&row.due<t;}
+  if(op==='has_mood'){return row.mood&&_MOOD_MAP[row.mood];}
+  if(!f)return true;
+  const lv=row[f];
+  const rv=c.value;
+  if(op==='empty')return lv===undefined||lv===null||lv===''||(Array.isArray(lv)&&!lv.length);
+  if(op==='notempty')return !(lv===undefined||lv===null||lv===''||(Array.isArray(lv)&&!lv.length));
+  if(op==='eq')return String(lv)===String(rv);
+  if(op==='ne')return String(lv)!==String(rv);
+  if(op==='contains'){
+    if(Array.isArray(lv))return lv.includes(rv);
+    return String(lv||'').toLowerCase().includes(String(rv||'').toLowerCase());
+  }
+  if(op==='gt')return Number(lv)>Number(rv);
+  if(op==='lt')return Number(lv)<Number(rv);
+  if(op==='gte')return Number(lv)>=Number(rv);
+  if(op==='lte')return Number(lv)<=Number(rv);
   return true;
 }
 
@@ -7982,10 +8076,15 @@ function _widgetMetric(rows,metric){
 // Build {labels[], values[], rows{}} for a widget.
 function _widgetData(w){
   const src=WIDGET_SOURCES[w.source]||WIDGET_SOURCES.tasks;
-  // Restrict to the active report date range when the groupBy is date-based
-  // (so the chart matches the page's range selector). Skip for other groupings.
+  // Resolve effective date range: per-widget override beats report-level.
+  // Widget-level range is a string like '7d', '30d', '90d', '365d', 'all'.
+  const effRange=w.range||_reportRange;
+  const days={'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[effRange]||30;
+  const _startDate=new Date();_startDate.setDate(_startDate.getDate()-days);
+  // Restrict to the date range when the groupBy is date-based
+  // (so the chart matches the configured range). Skip for other groupings.
   const useRange=/^(day|week|month)\(/.test(w.groupBy);
-  const startKey=useRange?_reportStartDate():'';
+  const startKey=useRange?_startDate.toISOString().slice(0,10):'';
   const todayKey=new Date().toISOString().slice(0,10);
   const dm=useRange&&String(w.groupBy).match(/^(\w+)\((\w+)\)$/);
   let rows=src.arr().filter(r=>_widgetFilterRow(r,w.filter||{}));
@@ -8001,8 +8100,8 @@ function _widgetData(w){
   // Build day axis when applicable so we get continuous bars even on empty days
   let labels;
   if(useRange&&dm&&dm[1]==='day'){
-    const days=Math.min(_reportRangeDays(),90);
-    labels=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+    const axisDays=Math.min(days,180);
+    labels=Array.from({length:axisDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(axisDays-1-i));return d.toISOString().slice(0,10);});
   }else{
     labels=Object.keys(buckets).sort();
   }
@@ -8036,6 +8135,43 @@ function _renderWidget(w,idx){
     }else{
       body=`<table style="width:100%;font-size:11px"><tbody>${rows.map(r=>`<tr><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)">${esc(r.title||r.name||'(unnamed)')}</td></tr>`).join('')||'<tr><td style="padding:14px;text-align:center;color:var(--t3)">No data</td></tr>'}</tbody></table>`;
     }
+  }else if(w.viz==='line'){
+    const vals=data.values.map(v=>Number(v)||0);
+    const max=Math.max(...vals,1),min=Math.min(...vals,0);
+    const range=Math.max(max-min,1);
+    const W=420,H=80;
+    const step=vals.length>1?W/(vals.length-1):0;
+    const pts=vals.map((v,i)=>[i*step,H-((v-min)/range)*H]);
+    const d=pts.length?'M '+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L '):'';
+    const fill=pts.length?d+` L ${W} ${H} L 0 ${H} Z`:'';
+    body=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:80px;overflow:visible">
+      <path d="${fill}" fill="${color}" opacity=".18"/>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:600;stroke-dashoffset:600;animation:sparkDraw 1.1s ease forwards"/>
+      ${pts.map((p,i)=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="${color}"><title>${esc(data.labels[i]||'')}: ${vals[i]}</title></circle>`).join('')}
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:4px"><span>${esc(data.labels[0]||'')}</span><span>${esc(data.labels[data.labels.length-1]||'')}</span></div>`;
+    if(data.total===0)body=`<div style="font-size:11px;color:var(--t3);text-align:center;padding:30px">No matching data in range</div>`;
+  }else if(w.viz==='heatmap'){
+    // Square grid coloured by intensity. Best for date-grouped data.
+    const vals=data.values.map(v=>Number(v)||0);
+    const max=Math.max(...vals,1);
+    body=`<div style="display:flex;flex-wrap:wrap;gap:3px;padding:6px 0">${vals.map((v,i)=>{
+      const intensity=v/max;
+      const bgC=v===0?'var(--s3)':`color-mix(in srgb, ${color} ${Math.round(15+intensity*85)}%, transparent)`;
+      return `<div style="width:14px;height:14px;border-radius:3px;background:${bgC}" title="${esc(data.labels[i]||'')}: ${v}"></div>`;
+    }).join('')}</div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:6px"><span>Less</span><div style="display:flex;gap:3px">${[.15,.4,.65,.9].map(i=>`<div style="width:10px;height:10px;border-radius:2px;background:color-mix(in srgb,${color} ${i*100}%,transparent)"></div>`).join('')}</div><span>More</span></div>`;
+  }else if(w.viz==='sparkline'){
+    // Compact inline trendline with the total as a big number on the left.
+    const vals=data.values.map(v=>Number(v)||0);
+    const total=vals.reduce((a,b)=>a+b,0);
+    body=`<div style="display:flex;align-items:center;gap:14px"><div style="font-size:30px;font-weight:800;color:${color};line-height:1">${total}</div><div style="flex:1">${_sparkline(vals.length?vals:[0,0],color,{width:200,height:40})}</div></div>`;
+  }else if(w.viz==='progress'){
+    // Horizontal progress bar(s). For _total / single value treats it as
+    // percentage; for multi-bucket renders one bar per group.
+    const vals=data.values.map(v=>Number(v)||0);
+    const max=Math.max(...vals,100);
+    body=`<div style="display:flex;flex-direction:column;gap:8px;padding:6px 0">${(data.labels.length?data.labels:['Value']).map((k,i)=>{const v=vals[i]||0;const pct=Math.max(0,Math.min(100,(v/max)*100));return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--t1)">${esc(k)}</span><span style="color:var(--t3);font-variant-numeric:tabular-nums">${typeof v==='number'?(Number.isInteger(v)?v:v.toFixed(1)):v}${w.metric==='avg(pct)'?'%':''}</span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,${color},color-mix(in srgb,${color} 60%,#fff));width:${pct}%;border-radius:4px;transition:width .6s ease"></div></div></div>`;}).join('')||'<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">No matching data</div>'}</div>`;
   }else{
     body=`<div style="font-size:11px;color:var(--t3);padding:14px;text-align:center">Unsupported viz: ${esc(w.viz)}</div>`;
   }
@@ -8079,63 +8215,142 @@ function applyWidgetTemplate(tid){
   _reportWidgets.push(w);_saveReportWidgets();closeModal();renderReports();
   toast('✓ Added widget: '+w.title);
 }
+// In-memory editor scratch state — the modal mutates this, _saveWidgetFromEditor
+// reads it back. Kept on window so inline onclicks can poke at it.
+window._weDraft=null;
 function _openWidgetEditor(idx){
-  const w=idx==null?{id:Date.now(),title:'New widget',source:'tasks',filter:{},groupBy:'status',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6}:JSON.parse(JSON.stringify(_reportWidgets[idx]));
-  const isNew=idx==null;
-  // Filter encoded as JSON for advanced editing; common toggles surfaced as inputs.
-  const filterJson=JSON.stringify(w.filter||{},null,0);
+  const base=idx==null?{id:Date.now(),title:'New widget',source:'tasks',filter:[],groupBy:'status',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6,range:''}:JSON.parse(JSON.stringify(_reportWidgets[idx]));
+  base.filter=_normalizeFilter(base.filter);
+  if(!base.range)base.range='';
+  window._weDraft=base;window._weIdx=idx;
+  _renderWidgetEditor();
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _renderWidgetEditor(){
+  const w=window._weDraft;if(!w)return;
+  const isNew=window._weIdx==null;
   const m=document.getElementById('modal-content');if(!m)return;
   m.innerHTML=`
     <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">${isNew?'+ Add Widget':'✏ Edit Widget'}</h2>
     ${isNew?`<div style="margin-bottom:14px;padding:10px;background:var(--s3);border-radius:8px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📚 Start from a template</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:160px;overflow-y:auto">
         ${WIDGET_TEMPLATES.map(t=>`<button class="btn btn-s" style="height:auto;padding:6px 10px;font-size:10px;text-align:left;justify-content:flex-start" onclick="applyWidgetTemplate('${t.id}')">${esc(t.label)}</button>`).join('')}
       </div>
       <div style="font-size:10px;color:var(--t3);text-align:center;margin-top:8px">— or configure manually below —</div>
     </div>`:''}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
-      <div class="field"><label>Title</label><input class="inp" id="wf-title" value="${esc(w.title||'')}"></div>
-      <div class="field"><label>Color</label><input class="inp" type="color" id="wf-color" value="${esc(w.color||'#3b82f6')}" style="height:32px;padding:2px"></div>
+    <div style="display:grid;grid-template-columns:1fr 100px;gap:10px;margin-bottom:8px">
+      <div class="field"><label>Title</label><input class="inp" id="wf-title" value="${esc(w.title||'')}" oninput="window._weDraft.title=this.value"></div>
+      <div class="field"><label>Color</label><input class="inp" type="color" id="wf-color" value="${esc(w.color||'#3b82f6')}" style="height:32px;padding:2px" oninput="window._weDraft.color=this.value"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px">
-      <div class="field"><label>Source</label><select class="inp" id="wf-source">
+      <div class="field"><label>Source</label><select class="inp" id="wf-source" onchange="_weChangeSource(this.value)">
         ${Object.entries(WIDGET_SOURCES).map(([k,v])=>`<option value="${k}" ${w.source===k?'selected':''}>${esc(v.label)}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Group By</label><select class="inp" id="wf-groupby">
-        ${[['_total','Single value'],['_rows','One row each (table)'],['day(completedAt)','Day (task completed)'],['day(createdAt)','Day (created)'],['day(date)','Day (date field)'],['week(completedAt)','Week (completed)'],['month(completedAt)','Month (completed)'],['status','Status'],['priority','Priority'],['project','Project'],['title','Title'],['cadence','Cadence (habits)'],['mood','Mood (journal)']].map(([k,l])=>`<option value="${k}" ${w.groupBy===k?'selected':''}>${esc(l)}</option>`).join('')}
+      <div class="field"><label>Group By</label><select class="inp" id="wf-groupby" onchange="window._weDraft.groupBy=this.value">
+        ${_groupByOptions(w.source).map(([k,l])=>`<option value="${k}" ${w.groupBy===k?'selected':''}>${esc(l)}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Metric</label><select class="inp" id="wf-metric">
-        ${[['count','Count'],['list','List rows'],['sum(streak)','Sum(streak)'],['sum(estimatedMins)','Sum(estimatedMins)'],['avg(pct)','Avg(pct)'],['avg(mood)','Avg(mood)']].map(([k,l])=>`<option value="${k}" ${w.metric===k?'selected':''}>${esc(l)}</option>`).join('')}
+      <div class="field"><label>Metric</label><select class="inp" id="wf-metric" onchange="window._weDraft.metric=this.value">
+        ${_metricOptions(w.source).map(([k,l])=>`<option value="${k}" ${w.metric===k?'selected':''}>${esc(l)}</option>`).join('')}
       </select></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
-      <div class="field"><label>Visualisation</label><select class="inp" id="wf-viz">
-        ${[['kpi','KPI tile'],['bar','Bar chart'],['donut','Donut'],['table','Table']].map(([k,l])=>`<option value="${k}" ${w.viz===k?'selected':''}>${esc(l)}</option>`).join('')}
+    <div style="display:grid;grid-template-columns:1.6fr 1.4fr 100px;gap:10px;margin-bottom:8px">
+      <div class="field"><label>Visualisation</label><select class="inp" id="wf-viz" onchange="window._weDraft.viz=this.value">
+        ${[['kpi','KPI tile'],['bar','Bar chart'],['line','Line chart'],['donut','Donut'],['heatmap','Heatmap'],['sparkline','Sparkline + total'],['progress','Progress bars'],['table','Table']].map(([k,l])=>`<option value="${k}" ${w.viz===k?'selected':''}>${esc(l)}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Width (1–12 cols)</label><input type="number" class="inp" id="wf-size" min="3" max="12" value="${w.sizeW||6}"></div>
+      <div class="field"><label>Date Range <span style="font-size:9px;color:var(--t3)">overrides report range</span></label><select class="inp" id="wf-range" onchange="window._weDraft.range=this.value">
+        ${[['','Use report range'],['7d','Last 7 days'],['30d','Last 30 days'],['90d','Last 90 days'],['365d','Last year'],['all','All time']].map(([k,l])=>`<option value="${k}" ${(w.range||'')===k?'selected':''}>${esc(l)}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Width (3–12)</label><input type="number" class="inp" id="wf-size" min="3" max="12" value="${w.sizeW||6}" oninput="window._weDraft.sizeW=Math.max(3,Math.min(12,Number(this.value)||6))"></div>
     </div>
-    <div class="field" style="margin-bottom:10px"><label>Filter (JSON object)<span style="font-size:9px;color:var(--t3);margin-left:6px">e.g. {"status":"Done","priority":"High"} · keys: <code>field</code>, <code>field_not</code>, <code>overdue</code>, <code>has_mood</code></span></label><textarea class="inp" id="wf-filter" style="font-family:ui-monospace,monospace;font-size:11px;min-height:50px">${esc(filterJson)}</textarea></div>
+    <div style="margin-bottom:10px;padding:10px;background:var(--s3);border-radius:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--t2)">🔎 Filter (all conditions must match)</div>
+        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_weAddFilterRow()">+ Add condition</button>
+      </div>
+      <div id="we-filter-rows" style="display:flex;flex-direction:column;gap:4px">${_weRenderFilterRows()}</div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-s" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-p" onclick="_saveWidgetFromEditor(${isNew?'null':idx})">💾 Save Widget</button>
+      <button class="btn btn-p" onclick="_saveWidgetFromEditor()">💾 Save Widget</button>
     </div>`;
-  document.getElementById('modal-capture').classList.add('show');
 }
-function _saveWidgetFromEditor(idx){
-  let filter={};
-  try{filter=JSON.parse(document.getElementById('wf-filter').value||'{}');}catch(e){toast('Invalid filter JSON');return;}
-  const w={
-    id:idx==null?Date.now():(_reportWidgets[idx]?.id||Date.now()),
-    title:document.getElementById('wf-title').value.trim()||'Untitled widget',
-    color:document.getElementById('wf-color').value||'#3b82f6',
-    source:document.getElementById('wf-source').value,
-    groupBy:document.getElementById('wf-groupby').value,
-    metric:document.getElementById('wf-metric').value,
-    viz:document.getElementById('wf-viz').value,
-    sizeW:Math.max(3,Math.min(12,Number(document.getElementById('wf-size').value)||6)),
-    filter,
-  };
+function _groupByOptions(src){
+  const common=[['_total','Single total'],['_rows','One row each (table)']];
+  const date=[
+    ...(src==='tasks'?[['day(completedAt)','Day (completed)'],['day(createdAt)','Day (created)'],['week(completedAt)','Week (completed)'],['month(completedAt)','Month (completed)']]:[]),
+    ...(src==='journal'?[['day(date)','Day'],['week(date)','Week'],['month(date)','Month']]:[]),
+    ...(src==='goals'?[['day(createdAt)','Day (created)']]:[]),
+    ...(src==='ideas'?[['day(createdAt)','Day (created)']]:[]),
+    ...(src==='focus'?[['day(date)','Day'],['week(date)','Week'],['month(date)','Month']]:[]),
+  ];
+  const fields={
+    tasks:[['status','Status'],['priority','Priority'],['project','Project'],['context','Context'],['assignedTo','Assignee'],['title','Title']],
+    habits:[['title','Habit name'],['cadence','Cadence'],['category','Category']],
+    goals:[['title','Title'],['category','Category'],['status','Status']],
+    journal:[['mood','Mood']],
+    projects:[['status','Status'],['name','Name']],
+    ideas:[['stage','Stage'],['idea_type','Type']],
+    bookmarks:[['source','Source']],
+    focus:[],
+  }[src]||[];
+  return [...common,...date,...fields];
+}
+function _metricOptions(src){
+  const base=[['count','Count'],['list','List rows']];
+  const extras={
+    tasks:[['sum(estimatedMins)','Sum of estimatedMins'],['sum(timeSpent)','Sum of timeSpent']],
+    habits:[['sum(streak)','Sum of streak'],['avg(streak)','Avg streak']],
+    goals:[['avg(pct)','Avg progress %'],['sum(pct)','Sum of pct']],
+    journal:[['avg(mood)','Avg mood (1–5)']],
+    projects:[['avg(pct)','Avg pct']],
+    ideas:[['avg(ice_impact)','Avg ICE impact'],['avg(ice_confidence)','Avg ICE confidence'],['avg(ice_ease)','Avg ICE ease']],
+    focus:[['sum(mins)','Sum of minutes'],['avg(mins)','Avg minutes/day']],
+  }[src]||[];
+  return [...base,...extras];
+}
+function _weChangeSource(src){
+  const w=window._weDraft;w.source=src;
+  // Reset filter (field names are source-specific)
+  w.filter=[];
+  // Reset groupBy/metric/viz to sensible defaults
+  const d=SOURCE_DEFAULTS[src]||{};
+  w.groupBy=d.groupBy||'_total';
+  w.metric=d.metric||'count';
+  w.viz=d.viz||'kpi';
+  _renderWidgetEditor();
+}
+function _weRenderFilterRows(){
+  const w=window._weDraft;
+  const fields=FILTER_FIELDS[w.source]||[];
+  if(!w.filter.length)return '<div style="font-size:10px;color:var(--t3);font-style:italic">No filters — all rows from this source are included.</div>';
+  return w.filter.map((c,i)=>{
+    const needsValue=!['empty','notempty','overdue','has_mood'].includes(c.op||'eq');
+    const isSpecial=c.op==='overdue'||c.op==='has_mood';
+    return `<div style="display:grid;grid-template-columns:${isSpecial?'1fr 28px':'1.2fr 1fr 1.4fr 28px'};gap:4px;align-items:center">
+      ${isSpecial?`<div style="font-size:11px;padding:5px 8px;background:var(--s2);border-radius:5px;color:var(--t1)">${c.op==='overdue'?'⚠ Task is overdue':'📓 Has a mood'}</div>`
+        :`<select class="inp" style="height:26px;font-size:11px" onchange="window._weDraft.filter[${i}].field=this.value">
+          <option value="">— field —</option>
+          ${fields.map(f=>`<option value="${esc(f)}" ${c.field===f?'selected':''}>${esc(f)}</option>`).join('')}
+        </select>
+        <select class="inp" style="height:26px;font-size:11px" onchange="window._weDraft.filter[${i}].op=this.value;_renderWidgetEditor()">
+          ${FILTER_OPS.map(o=>`<option value="${o.v}" ${(c.op||'eq')===o.v?'selected':''}>${esc(o.label)}</option>`).join('')}
+        </select>
+        ${needsValue?`<input class="inp" style="height:26px;font-size:11px" value="${esc(c.value==null?'':c.value)}" placeholder="value" oninput="window._weDraft.filter[${i}].value=this.value">`:'<div></div>'}`}
+      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="_weDelFilter(${i})">✕</button>
+    </div>`;
+  }).join('');
+}
+function _weAddFilterRow(){
+  const w=window._weDraft;w.filter.push({field:'',op:'eq',value:''});
+  _renderWidgetEditor();
+}
+function _weDelFilter(i){window._weDraft.filter.splice(i,1);_renderWidgetEditor();}
+function _saveWidgetFromEditor(){
+  const w=window._weDraft;if(!w){closeModal();return;}
+  // Drop empty filter conditions
+  w.filter=(w.filter||[]).filter(c=>(c.op==='overdue'||c.op==='has_mood')||(c.field&&(['empty','notempty'].includes(c.op)||c.value!=='')));
+  const idx=window._weIdx;
   if(idx==null)_reportWidgets.push(w);else _reportWidgets[idx]=w;
   _saveReportWidgets();closeModal();renderReports();
   toast('✓ Widget saved');
