@@ -401,46 +401,78 @@ export const oauthSyncRouter = router({
     }),
 
   syncContacts: protectedProcedure
-    .input(z.object({ provider: z.enum(["microsoft", "google"]), limit: z.number().default(50) }))
+    // `limit` is the MAX TOTAL number of contacts to return across all pages.
+    // We page through the provider's API (MS Graph $top + @odata.nextLink, or
+    // Google People pageToken) until we hit either the end or this cap. The
+    // default cap is 5000 — large enough for most personal/SMB address books
+    // but bounded so a runaway directory can't hang the request.
+    .input(z.object({ provider: z.enum(["microsoft", "google"]), limit: z.number().int().min(1).max(20000).default(5000) }))
     .mutation(async ({ input, ctx }) => {
       const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
       if (!accessToken) throw new Error("Not connected to " + input.provider);
+      const MAX_TOTAL = input.limit;
+      const SAFETY_PAGES = 200; // absolute ceiling: 200 pages × 100/page = 20k
 
       if (input.provider === "microsoft") {
-        const resp = await fetch(
-          `https://graph.microsoft.com/v1.0/me/contacts?$top=${input.limit}&$select=displayName,emailAddresses,businessPhones,jobTitle,companyName`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!resp.ok) throw new Error("Microsoft Graph contacts fetch failed: " + resp.status);
-        const data = await resp.json() as { value: Array<{ displayName: string; emailAddresses: Array<{ address: string }>; businessPhones: string[]; jobTitle?: string; companyName?: string }> };
+        type MsContact = { displayName: string; emailAddresses: Array<{ address: string }>; businessPhones: string[]; jobTitle?: string; companyName?: string };
+        const PER_PAGE = 100; // Graph max is 999, 100 is a sensible chunk
+        const collected: MsContact[] = [];
+        let nextUrl: string | null =
+          `https://graph.microsoft.com/v1.0/me/contacts?$top=${PER_PAGE}&$select=displayName,emailAddresses,businessPhones,jobTitle,companyName`;
+        let pageCount = 0;
+        while (nextUrl && collected.length < MAX_TOTAL && pageCount < SAFETY_PAGES) {
+          const resp = await fetch(nextUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+          if (!resp.ok) throw new Error("Microsoft Graph contacts fetch failed: " + resp.status);
+          const data = await resp.json() as { value?: MsContact[]; "@odata.nextLink"?: string };
+          if (Array.isArray(data.value)) collected.push(...data.value);
+          nextUrl = data["@odata.nextLink"] ?? null;
+          pageCount++;
+        }
+        const trimmed = collected.slice(0, MAX_TOTAL);
         return {
           provider: "microsoft",
-          contacts: (data.value || []).map(c => ({
+          contacts: trimmed.map(c => ({
             name: c.displayName,
-            email: c.emailAddresses[0]?.address ?? "",
-            phone: c.businessPhones[0] ?? "",
+            email: c.emailAddresses?.[0]?.address ?? "",
+            phone: c.businessPhones?.[0] ?? "",
             title: c.jobTitle ?? "",
             company: c.companyName ?? "",
           })),
+          totalFetched: trimmed.length,
+          truncated: collected.length >= MAX_TOTAL && nextUrl !== null,
         };
       }
 
-      // Google People API
-      const resp = await fetch(
-        `https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations&pageSize=${input.limit}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      if (!resp.ok) throw new Error("Google People API failed: " + resp.status);
-      const data = await resp.json() as { connections?: Array<{ names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }>; phoneNumbers?: Array<{ value: string }>; organizations?: Array<{ name?: string; title?: string }> }> };
+      // Google People API — paginate via pageToken
+      type GContact = { names?: Array<{ displayName: string }>; emailAddresses?: Array<{ value: string }>; phoneNumbers?: Array<{ value: string }>; organizations?: Array<{ name?: string; title?: string }> };
+      const PER_PAGE = 100; // max is 1000 but 100 keeps each call snappy
+      const collected: GContact[] = [];
+      let pageToken: string | undefined;
+      let pageCount = 0;
+      do {
+        const url = new URL("https://people.googleapis.com/v1/people/me/connections");
+        url.searchParams.set("personFields", "names,emailAddresses,phoneNumbers,organizations");
+        url.searchParams.set("pageSize", String(PER_PAGE));
+        if (pageToken) url.searchParams.set("pageToken", pageToken);
+        const resp = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!resp.ok) throw new Error("Google People API failed: " + resp.status);
+        const data = await resp.json() as { connections?: GContact[]; nextPageToken?: string };
+        if (Array.isArray(data.connections)) collected.push(...data.connections);
+        pageToken = data.nextPageToken;
+        pageCount++;
+      } while (pageToken && collected.length < MAX_TOTAL && pageCount < SAFETY_PAGES);
+      const trimmed = collected.slice(0, MAX_TOTAL);
       return {
         provider: "google",
-        contacts: (data.connections || []).map(c => ({
+        contacts: trimmed.map(c => ({
           name: c.names?.[0]?.displayName ?? "",
           email: c.emailAddresses?.[0]?.value ?? "",
           phone: c.phoneNumbers?.[0]?.value ?? "",
           title: c.organizations?.[0]?.title ?? "",
           company: c.organizations?.[0]?.name ?? "",
         })),
+        totalFetched: trimmed.length,
+        truncated: collected.length >= MAX_TOTAL && !!pageToken,
       };
     }),
 

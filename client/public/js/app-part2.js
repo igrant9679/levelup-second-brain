@@ -7429,11 +7429,15 @@ async function syncOAuthContacts(provider){
 // checkbox modal with search + select-all, and imports only what the user
 // picks. Skips contacts whose email already exists locally (marked dim).
 async function openContactsImportPicker(provider){
-  toast('⏳ Loading '+provider+' contacts...');
+  toast('⏳ Loading '+provider+' contacts (this can take a few seconds for large address books)…');
   try{
-    const result=await _trpc('oauthSync.syncContacts',{provider,limit:200},'mutation');
+    // Server paginates through all pages up to this cap.
+    const result=await _trpc('oauthSync.syncContacts',{provider,limit:5000},'mutation');
     const contacts=(result?.contacts||[]).filter(c=>c.name||c.email);
     if(!contacts.length){toast('No contacts found.');return;}
+    if(result?.truncated){
+      toast({type:'info',title:`Loaded first ${contacts.length} contacts`,msg:'Your address book has more than the import cap. Import these first, then re-run to fetch the next batch.',duration:6000});
+    }
     const existingEmails=new Set((D.contacts||[]).filter(c=>c.email).map(c=>c.email.toLowerCase()));
     window._ciList=contacts;window._ciProvider=provider;window._ciExisting=existingEmails;
     const m=document.getElementById('modal-content');
