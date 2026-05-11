@@ -256,6 +256,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="bookmarks"] svg{stroke:#d97706}   /* dark amber */
 .si[data-n="archive"] svg{stroke:#64748b}     /* slate */
 .si[data-n="reports"] svg{stroke:#06b6d4}     /* cyan */
+.si[data-n="graph"] svg{stroke:#a855f7}        /* purple */
 
 /* ─── Per-page accent theming ─────────────────────────────────────────────
    body[data-screen="<route>"] sets --page-accent. The page header strip
@@ -285,6 +286,7 @@ body[data-screen="team"]{--page-accent:#0ea5e9}
 body[data-screen="contacts"]{--page-accent:#0d9488}
 body[data-screen="bookmarks"]{--page-accent:#d97706}
 body[data-screen="reports"]{--page-accent:#06b6d4}
+body[data-screen="graph"]{--page-accent:#a855f7}
 
 /* Subtle gradient strip behind the first page header (.ph-r OR .pg-h) on
    the active screen. The strip is 78px tall, fades from page-accent (14%
@@ -1242,6 +1244,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div><div class="sl">Workspace</div><div style="padding:0 4px">
 <div class="si" data-n="tasks" data-tour-id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
 <div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
+<div class="si" data-n="graph" title="Knowledge Graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="11" x2="6.5" y2="7"/><line x1="14" y1="11" x2="17.5" y2="7"/><line x1="10" y1="13" x2="6.5" y2="17"/><line x1="14" y1="13" x2="17.5" y2="17"/></svg><span class="l">Knowledge Graph</span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
 <div class="si" data-n="clusters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg><span class="l">Clusters</span></div>
 <div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
@@ -1352,6 +1355,8 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="scr" id="s-ideas"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="ideas-main"></main><aside class="rr" id="ideas-rail" style="width:320px"></aside></div></div>
 <!-- ===== S-MINDMAPS ===== -->
 <div class="scr" id="s-mindmaps"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="mindmap-main" style="display:flex;flex-direction:column"></main></div></div>
+<!-- ===== S-GRAPH (Knowledge Graph of Notes) ===== -->
+<div class="scr" id="s-graph"><div class="bg" style="grid-template-columns:var(--side) 1fr"><nav class="sb" data-sb></nav><main class="mn" id="graph-main" style="max-width:none;width:100%;padding:0;overflow:hidden;position:relative"></main></div></div>
 <!-- ===== S-FOCUS ===== -->
 <div class="scr" id="s-focus"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="focus-main"></main></div></div>
 
@@ -2587,7 +2592,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -2739,6 +2744,262 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   openLightbox(t);
 },true);
+
+// ═══════════════════════════════════════════════════════════════════
+// KNOWLEDGE GRAPH — force-directed visualisation of all notes connected
+// by [[wiki-links]] and shared tags. Pure SVG + JS Verlet integration,
+// no external libs.
+// ═══════════════════════════════════════════════════════════════════
+let _kgState=null; // {nodes:[{id,x,y,vx,vy,r,color,title,degree}], links:[{a,b}], view:{x,y,zoom}}
+let _kgRaf=null;
+let _kgDrag=null; // {nodeId, startMouse, startNodePos}
+let _kgPan=null;
+let _kgHover=null;
+function renderKnowledgeGraph(){
+  const main=document.getElementById('graph-main');if(!main)return;
+  // Build graph from D.notes: nodes = notes (or referenced titles), links =
+  // wiki-link pairs + shared-tag pairs (lighter).
+  const notes=D.notes||[];
+  // 1. Wiki-link edges
+  const titleToId={};notes.forEach(n=>{titleToId[(n.title||'').toLowerCase()]=n.id;});
+  const linkEdges=[];const tagEdges=[];
+  const degree={};
+  notes.forEach(n=>{
+    const ms=[...(n.body||'').matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1].toLowerCase());
+    ms.forEach(t=>{
+      const targetId=titleToId[t];
+      if(targetId&&targetId!==n.id){
+        linkEdges.push({a:n.id,b:targetId,type:'wiki'});
+        degree[n.id]=(degree[n.id]||0)+1;degree[targetId]=(degree[targetId]||0)+1;
+      }
+    });
+  });
+  // 2. Shared-tag edges (only when ≥1 tag in common AND not already linked)
+  const tagged=notes.filter(n=>(n.tags||[]).length);
+  for(let i=0;i<tagged.length;i++){
+    for(let j=i+1;j<tagged.length;j++){
+      const a=tagged[i],b=tagged[j];
+      const shared=(a.tags||[]).filter(t=>(b.tags||[]).includes(t));
+      if(shared.length>=1){
+        // De-dupe against wiki edges
+        if(!linkEdges.some(e=>(e.a===a.id&&e.b===b.id)||(e.a===b.id&&e.b===a.id))){
+          tagEdges.push({a:a.id,b:b.id,type:'tag',count:shared.length});
+        }
+      }
+    }
+  }
+  // 3. Nodes — only include notes that have at least one connection OR all if user toggles "show all"
+  const showAll=true; // could be a toggle later
+  const connectedIds=new Set();[...linkEdges,...tagEdges].forEach(e=>{connectedIds.add(e.a);connectedIds.add(e.b);});
+  const visibleNotes=showAll?notes:notes.filter(n=>connectedIds.has(n.id));
+  // 4. Initial positions: circle layout for a reasonable starting config
+  const N=visibleNotes.length;
+  const W=main.clientWidth||800;const H=main.clientHeight||600;
+  const cx=W/2,cy=H/2;const R=Math.min(W,H)*0.32;
+  const palette=['#a855f7','#3b82f6','#22c55e','#f59e0b','#ec4899','#06b6d4','#ef4444','#facc15','#8b5cf6','#0ea5e9'];
+  const nodes=visibleNotes.map((n,i)=>{
+    const ang=(i/Math.max(N,1))*Math.PI*2;
+    const deg=degree[n.id]||0;
+    return {
+      id:n.id,title:n.title||'(untitled)',
+      x:cx+Math.cos(ang)*R,y:cy+Math.sin(ang)*R,
+      vx:0,vy:0,
+      r:Math.max(5,Math.min(22,6+deg*1.4)),
+      color:n.color||palette[(i+Math.abs((n.title||'').length))%palette.length],
+      degree:deg,
+      starred:!!n.starred,
+    };
+  });
+  const links=[...linkEdges.map(e=>({...e})),...tagEdges.map(e=>({...e}))];
+  _kgState={
+    nodes,links,
+    view:{x:0,y:0,zoom:1},
+    selected:null,
+    showWiki:true,showTags:true,
+  };
+  // Header + canvas
+  main.innerHTML=`<div style="position:absolute;inset:0;display:flex;flex-direction:column">
+    <div class="ph-r" style="padding:14px 18px;border-bottom:1px solid var(--bd1);background:var(--s1);z-index:5">
+      <div>
+        <h1 style="font-size:20px;font-weight:700">🕸 Knowledge Graph</h1>
+        <p style="font-size:11px;color:var(--t2);margin-top:2px">${nodes.length} note${nodes.length===1?'':'s'} · ${linkEdges.length} wiki link${linkEdges.length===1?'':'s'} · ${tagEdges.length} shared-tag connection${tagEdges.length===1?'':'s'}</p>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-wiki" onchange="_kgState.showWiki=this.checked;_kgPaintEdges()"> wiki links</label>
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-tags" onchange="_kgState.showTags=this.checked;_kgPaintEdges()"> shared tags</label>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgRecenter()">🎯 Recenter</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgFreezeLayout()">⏸ Freeze</button>
+      </div>
+    </div>
+    <div id="kg-canvas-wrap" style="flex:1;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,#a855f7 6%,var(--bg)),var(--bg) 70%);cursor:grab">
+      <svg id="kg-svg" width="100%" height="100%" style="display:block;user-select:none">
+        <g id="kg-edges-layer"></g>
+        <g id="kg-nodes-layer"></g>
+      </svg>
+      <div id="kg-tip" style="position:absolute;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--t1);pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:10"></div>
+      ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">Your graph is empty</div><div style="font-size:12px;max-width:340px;margin:0 auto 14px">Create notes and connect them with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki links to grow your knowledge graph.</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
+    </div>
+  </div>`;
+  if(!nodes.length)return;
+  _kgWireEvents();
+  _kgStartSimulation();
+}
+function _kgPaintEdges(){
+  const layer=document.getElementById('kg-edges-layer');if(!layer||!_kgState)return;
+  const {nodes,links,showWiki,showTags}=_kgState;
+  const byId={};nodes.forEach(n=>{byId[n.id]=n;});
+  const parts=[];
+  for(const l of links){
+    if(l.type==='wiki'&&!showWiki)continue;
+    if(l.type==='tag'&&!showTags)continue;
+    const a=byId[l.a],b=byId[l.b];if(!a||!b)continue;
+    const stroke=l.type==='wiki'?'rgba(168,85,247,.55)':'rgba(168,85,247,.18)';
+    const dash=l.type==='tag'?'stroke-dasharray="3 3"':'';
+    parts.push(`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${stroke}" stroke-width="${l.type==='wiki'?1.5:1}" ${dash}/>`);
+  }
+  layer.innerHTML=parts.join('');
+}
+function _kgPaintNodes(){
+  const layer=document.getElementById('kg-nodes-layer');if(!layer||!_kgState)return;
+  const {nodes,view}=_kgState;
+  layer.innerHTML=nodes.map(n=>{
+    const sel=_kgState.selected===n.id;
+    const stroke=sel?'#fff':n.starred?'#facc15':'rgba(0,0,0,.4)';
+    const sw=sel?2.5:n.starred?1.5:1;
+    return `<g transform="translate(${n.x.toFixed(1)},${n.y.toFixed(1)})" data-node-id="${n.id}" style="cursor:pointer">
+      <circle r="${n.r}" fill="${n.color}" stroke="${stroke}" stroke-width="${sw}" opacity=".92"/>
+      <text x="0" y="${n.r+13}" text-anchor="middle" font-size="10" fill="var(--t1)" style="pointer-events:none;font-family:-apple-system,Inter,sans-serif" opacity="${n.r>8||sel?1:.7}">${esc(n.title.slice(0,32))}${n.title.length>32?'…':''}</text>
+    </g>`;
+  }).join('');
+}
+function _kgRender(){_kgPaintEdges();_kgPaintNodes();}
+function _kgStartSimulation(){
+  // Force-directed simulation (Verlet-style) for ~200 ticks then idle.
+  if(_kgRaf)cancelAnimationFrame(_kgRaf);
+  if(!_kgState||!_kgState.nodes.length)return;
+  const wrap=document.getElementById('kg-canvas-wrap');
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  let ticks=0;const MAX_TICKS=240;
+  const REPULSION=2500;
+  const SPRING=0.012;const SPRING_LEN=120;
+  const FRICTION=0.86;const CENTER_PULL=0.0008;
+  function step(){
+    const {nodes,links}=_kgState;
+    // Reset accelerations
+    nodes.forEach(n=>{n.ax=0;n.ay=0;});
+    // Repulsion between every pair
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const a=nodes[i],b=nodes[j];
+        const dx=a.x-b.x,dy=a.y-b.y;const d2=dx*dx+dy*dy+0.01;const d=Math.sqrt(d2);
+        const f=REPULSION/d2;
+        a.ax+=dx/d*f;a.ay+=dy/d*f;
+        b.ax-=dx/d*f;b.ay-=dy/d*f;
+      }
+    }
+    // Spring attraction along edges
+    const byId={};nodes.forEach(n=>{byId[n.id]=n;});
+    for(const l of links){
+      const a=byId[l.a],b=byId[l.b];if(!a||!b)continue;
+      const dx=b.x-a.x,dy=b.y-a.y;const d=Math.sqrt(dx*dx+dy*dy)+0.01;
+      const force=SPRING*(d-SPRING_LEN);
+      a.ax+=dx/d*force;a.ay+=dy/d*force;
+      b.ax-=dx/d*force;b.ay-=dy/d*force;
+    }
+    // Centring pull
+    const cx=W/2,cy=H/2;
+    nodes.forEach(n=>{
+      n.ax+=(cx-n.x)*CENTER_PULL;n.ay+=(cy-n.y)*CENTER_PULL;
+    });
+    // Integrate
+    nodes.forEach(n=>{
+      if(_kgDrag&&_kgDrag.nodeId===n.id)return; // dragged node is fixed
+      n.vx=(n.vx+n.ax)*FRICTION;
+      n.vy=(n.vy+n.ay)*FRICTION;
+      n.x+=n.vx;n.y+=n.vy;
+    });
+    _kgRender();
+    ticks++;
+    if(ticks<MAX_TICKS||_kgDrag){_kgRaf=requestAnimationFrame(step);}else{_kgRaf=null;}
+  }
+  step();
+}
+function _kgWireEvents(){
+  const wrap=document.getElementById('kg-canvas-wrap');
+  const svg=document.getElementById('kg-svg');
+  if(!wrap||!svg)return;
+  // Mouse down on node → start drag; on background → start pan
+  svg.onmousedown=(e)=>{
+    const g=e.target.closest('[data-node-id]');
+    if(g){
+      const nid=Number(g.dataset.nodeId);
+      const node=_kgState.nodes.find(n=>n.id===nid);
+      _kgDrag={nodeId:nid,startMouse:{x:e.clientX,y:e.clientY},startNodePos:{x:node.x,y:node.y}};
+      wrap.style.cursor='grabbing';
+      _kgStartSimulation();
+    }else{
+      _kgPan={start:{x:e.clientX,y:e.clientY}};
+      wrap.style.cursor='grabbing';
+    }
+  };
+  document.addEventListener('mousemove',_kgMouseMove);
+  document.addEventListener('mouseup',_kgMouseUp);
+  // Hover tooltip
+  svg.onmousemove=(e)=>{
+    if(_kgDrag||_kgPan)return;
+    const g=e.target.closest('[data-node-id]');
+    const tip=document.getElementById('kg-tip');if(!tip)return;
+    if(g){
+      const nid=Number(g.dataset.nodeId);
+      const node=_kgState.nodes.find(n=>n.id===nid);
+      const n=D.notes.find(x=>x.id===nid);
+      if(node&&n){
+        tip.innerHTML=`<div style="font-weight:600;margin-bottom:2px">${esc(node.title)}</div><div style="font-size:10px;color:var(--t3)">${node.degree} connection${node.degree===1?'':'s'}${(n.tags||[]).length?' · '+(n.tags||[]).slice(0,3).map(t=>'#'+t).join(' '):''}</div>`;
+        const rect=wrap.getBoundingClientRect();
+        tip.style.left=(e.clientX-rect.left+12)+'px';
+        tip.style.top=(e.clientY-rect.top+12)+'px';
+        tip.style.display='block';
+      }
+    }else tip.style.display='none';
+  };
+  svg.onmouseleave=()=>{const tip=document.getElementById('kg-tip');if(tip)tip.style.display='none';};
+  // Click on node to open the note
+  svg.onclick=(e)=>{
+    if(_kgPan||_kgDrag)return;
+    const g=e.target.closest('[data-node-id]');
+    if(g){
+      const nid=Number(g.dataset.nodeId);
+      // Single-click: select. Double-click: open. Easier — single click opens.
+      nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(nid);},120);
+    }
+  };
+}
+function _kgMouseMove(e){
+  if(_kgDrag){
+    const dx=e.clientX-_kgDrag.startMouse.x;
+    const dy=e.clientY-_kgDrag.startMouse.y;
+    const node=_kgState.nodes.find(n=>n.id===_kgDrag.nodeId);
+    if(node){node.x=_kgDrag.startNodePos.x+dx;node.y=_kgDrag.startNodePos.y+dy;node.vx=0;node.vy=0;}
+  }else if(_kgPan){
+    // Panning: shift all nodes uniformly
+    const dx=e.clientX-_kgPan.start.x;const dy=e.clientY-_kgPan.start.y;
+    _kgPan.start={x:e.clientX,y:e.clientY};
+    _kgState.nodes.forEach(n=>{n.x+=dx;n.y+=dy;});
+    _kgRender();
+  }
+}
+function _kgMouseUp(){
+  const wrap=document.getElementById('kg-canvas-wrap');if(wrap)wrap.style.cursor='grab';
+  _kgDrag=null;_kgPan=null;
+}
+function _kgRecenter(){
+  if(!_kgState)return;renderKnowledgeGraph();
+}
+function _kgFreezeLayout(){
+  if(_kgRaf){cancelAnimationFrame(_kgRaf);_kgRaf=null;}
+  _kgState.nodes.forEach(n=>{n.vx=0;n.vy=0;});
+  toast('⏸ Layout frozen — drag any node to nudge it.');
+}
 
 // ─── Home widgets: drag-to-reorder ──────────────────────────────────
 let _homeDragFrom=null;
@@ -3796,6 +4057,7 @@ function renderScreen(s){
   if(s==='contacts')renderContacts();
   if(s==='bookmarks')renderBookmarks();
   if(s==='clusters')renderClustersDashboard();
+  if(s==='graph')renderKnowledgeGraph();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -15653,6 +15915,7 @@ function _cmdpActions(){
     {id:'nav-journal',group:'Navigate',icon:'✏',title:'Go to Journal',run:()=>nav('journal')},
     {id:'nav-ideas',group:'Navigate',icon:'💡',title:'Go to Ideas',run:()=>nav('ideas')},
     {id:'nav-bookmarks',group:'Navigate',icon:'🔖',title:'Go to Bookmarks',run:()=>nav('bookmarks')},
+    {id:'nav-graph',group:'Navigate',icon:'🕸',title:'Go to Knowledge Graph',run:()=>nav('graph')},
     {id:'nav-contacts',group:'Navigate',icon:'👤',title:'Go to Contacts',run:()=>nav('contacts')},
     {id:'nav-reports',group:'Navigate',icon:'📊',title:'Go to Reports',run:()=>nav('reports')},
     {id:'nav-focus',group:'Navigate',icon:'⏱',title:'Go to Focus / Pomodoro',run:()=>nav('focus')},
