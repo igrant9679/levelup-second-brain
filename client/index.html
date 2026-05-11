@@ -301,19 +301,15 @@ body[data-screen="graph"]{--page-accent:#a855f7}
 .scr.on .mn>.ph-r:first-child::before,
 .scr.on .mn>.pg-h:first-child::before,
 .scr.on .mn>div:first-child>.ph-r:first-child::before,
-.scr.on .mn>div:first-child>.pg-h:first-child::before{
+.scr.on .mn>div:first-child>.pg-h:first-child::before,
+.scr.on#s-notes>.bg>.ph-r::before{
   content:'';position:absolute;top:-14px;left:-16px;right:-16px;height:78px;
   background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 14%,transparent) 0%,transparent 70%);
   border-radius:14px;z-index:-1;pointer-events:none;
 }
-/* Notes page banner: instead of a bleeding background gradient (which read
-   as peach-on-peach on a wide screen), use a clean subtle surface tint and
-   let the bottom accent line + the gradient icon tile carry the brand. */
-.scr.on .notes-page-header{
-  position:relative;z-index:1;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--page-accent) 4%,var(--s1)) 0%,var(--s1) 100%);
-  font-family:-apple-system,'Inter','Segoe UI',Roboto,sans-serif;
-}
+.scr.on#s-notes>.bg>.ph-r{position:relative;z-index:1}
+/* Notes header now uses the standard .ph-r class — no bespoke styling
+   needed. (Old .notes-page-header rules removed.) */
 /* Cards on the active screen pick up a subtle 2px left-border tinted with
    the page's accent. Only applies on rail pages (.bg.wr) where it reads as
    a vertical bar; rail-less pages stay unmarked to keep them airy. */
@@ -641,7 +637,7 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
   /* Notes page: stack the four panels and reveal them via a top tab strip
      instead of the 5-column desktop grid. */
   .scr#s-notes>.bg{grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important}
-  .scr#s-notes .notes-page-header{grid-column:1/-1!important;padding:14px 16px 12px!important;gap:10px!important}
+  .scr#s-notes>.bg>.ph-r{grid-column:1/-1!important;margin:8px 12px 0!important}
   .scr#s-notes .notes-nav,
   .scr#s-notes .notes-list,
   .scr#s-notes .notes-rail{display:none}
