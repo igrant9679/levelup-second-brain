@@ -5172,7 +5172,7 @@ function renderContacts(){
     </tr></thead>
     <tbody id="contacts-tbody">
     ${filtered.map(c=>contactRow(c,hasKey)).join('')}
-    ${filtered.length===0?`<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--t3);font-size:12px">No contacts found. <span class="cd-a" onclick="openAddContactModal()">Add one</span>.</td></tr>`:''}
+    ${filtered.length===0?`<tr><td colspan="9" style="padding:8px">${renderEmptyState({icon:'👥',title:contacts.length?'No contacts match this filter':'No contacts yet',hint:contacts.length?'Clear the search or tag filter to see everyone.':'Add a contact manually, import a CSV, or pull them from Office 365.',ctaLabel:contacts.length?'':'+ Add your first contact',ctaFn:'openAddContactModal()'})}</td></tr>`:''}
     </tbody>
   </table>
   </div>
