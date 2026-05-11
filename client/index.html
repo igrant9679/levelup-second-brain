@@ -558,6 +558,9 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.85)}}
+@keyframes tourPulse{0%{transform:scale(1);opacity:.85}50%{transform:scale(1.35);opacity:.25}100%{transform:scale(1);opacity:.85}}
+@keyframes tourTooltipIn{from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+#tour-tooltip{animation:tourTooltipIn .25s cubic-bezier(.2,.9,.3,1) both}
 @keyframes wave{0%,60%,100%{transform:rotate(0deg)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
 
 /* ─── Reports charts ────────────────────────────────────────────────── */
@@ -13094,7 +13097,7 @@ var HC_ARTICLES=[
 ];
 var HC_TOURS=[
   {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[
-    {target:'nav-home',title:'Welcome to LevelUp! 👋',body:'This is your Home screen — your daily command centre. Let\'s take a quick tour of the key areas.'},
+    {target:null,title:'Welcome to LevelUp! 👋',body:'Your second brain — tasks, notes, calendar, goals, and habits in one place. Take 60 seconds for the grand tour.'},
     {target:'nav-myday',title:'My Day',body:'Start every morning here. LevelUp surfaces your top-priority tasks, today\'s calendar events, and habit check-ins.'},
     {target:'nav-tasks',title:'Tasks',body:'All your tasks live here. Use the AI toolbar to decompose goals, check deadline risk, and auto-prioritise.'},
     {target:'nav-notes',title:'Notes',body:'Your knowledge base. Write in rich text, link notes with [[wiki-links]], and ask AI questions about your own notes.'},
@@ -16748,11 +16751,15 @@ function doLoginSuccess(member){
   if(!localStorage.getItem(_splashKey)){
     localStorage.setItem(_splashKey,'1');
     showSplashScreen(member.name.split(' ')[0]);
+    // First-ever login → splash plays for ~3.3s, then offer the welcome tour
+    setTimeout(()=>{ if(typeof _maybeOfferTour==='function') _maybeOfferTour(); },4500);
   }else{
     // Show daily digest after a short delay so the app is fully rendered
     setTimeout(showDailyDigest,1500);
     setTimeout(startAIAssistant,5000);
     toast('👋 Welcome, '+member.name.split(' ')[0]+'!');
+    // Returning users who haven't seen the tour yet: offer it once
+    setTimeout(()=>{ if(typeof _maybeOfferTour==='function') _maybeOfferTour(); },3500);
   }
   // Handle shared idea URL: ?idea=ID&token=TOKEN
   const _sp=new URLSearchParams(window.location.search);
@@ -21276,6 +21283,7 @@ function showTourStep(){
   const pulse=$('tour-pulse-ring');
 
   if(targetEl&&spotlight&&tooltip){
+    if(tooltip)tooltip.style.transform='';
     const rect=targetEl.getBoundingClientRect();
     const pad=8;
     spotlight.style.left=(rect.left-pad)+'px';
@@ -21349,6 +21357,7 @@ function restartTour(){
 }
 
 function exitTour(){
+  const wasTour1=_activeTour&&_activeTour.tourId===1;
   _activeTour=null;
   _tourOverlayActive=false;
   const overlay=$('tour-overlay');
@@ -21359,17 +21368,42 @@ function exitTour(){
   if(pulse)pulse.style.display='none';
   const tooltip=$('tour-tooltip');
   if(tooltip){tooltip.style.display='none';tooltip.style.transform='';}
+  // Mark the welcome tour as "seen" so we don't re-prompt next login.
+  if(wasTour1){try{localStorage.setItem('lu_tour_v1_done','1');}catch(_){}}
 }
 
 function completeTour(){
   if(!_activeTour)return;
   const tourId=_activeTour.tourId;
   _helpCompletedTours.add(tourId);
+  if(tourId===1){try{localStorage.setItem('lu_tour_v1_done','1');}catch(_){}}
   exitTour();
   launchConfetti();
   toast('🎉 Tour complete! Great job.');
   // If on help screen, re-render tours tab
   if(_curScreen==='help'){_helpTab='tours';renderHelp();}
+}
+
+// First-login onboarding offer. Shows a friendly toast asking the user to
+// launch the welcome tour. Stores `lu_tour_v1_offered` so we don't pester
+// every login — but the offer itself doesn't mark the tour as "done".
+function _maybeOfferTour(){
+  try{
+    if(localStorage.getItem('lu_tour_v1_done'))return;
+    if(localStorage.getItem('lu_tour_v1_offered'))return;
+    localStorage.setItem('lu_tour_v1_offered','1');
+    if(typeof toast!=='function')return;
+    toast({
+      type:'info',
+      title:'👋 New here?',
+      msg:'Take the 60-second tour to learn the basics.',
+      duration:12000,
+      actions:[
+        {label:'Start tour',primary:true,onClick:()=>{try{launchTour(1);}catch(_){}}},
+        {label:'Later',onClick:()=>{/* user can launch from Help → Tours */}},
+      ],
+    });
+  }catch(_){}
 }
 
 function launchConfetti(){
