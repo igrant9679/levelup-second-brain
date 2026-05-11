@@ -5712,12 +5712,12 @@ async function wdiImportSelected(){
       if(dupMode==='skip'){skipped++;continue;}
       if(dupMode==='overwrite'){
         const idx=D.notes.findIndex(x=>x.title===n.name);
-        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].bodyHtml=n.contentHtml||'';D.notes[idx].updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});overwritten++;continue;}
+        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});overwritten++;continue;}
       }
       // rename mode: fall through with modified name
     }
     const finalName=isDup&&dupMode==='rename'?n.name+' (imported)':n.name;
-    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,bodyHtml:n.contentHtml||'',tags:[],source:'Word Import',created:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
+    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,tags:[],source:'Word Import',created:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
     imported++;
   }
   save('notes');
