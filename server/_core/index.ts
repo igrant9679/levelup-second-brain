@@ -13,6 +13,7 @@ import { sdk } from "./sdk";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
 import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduledTaskLog } from "../db";
+import { processScheduledReports, startScheduledReportsCron } from "./scheduledReports";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -157,6 +158,21 @@ async function startServer() {
     }
   });
 
+  // ---- Manual trigger: scheduled reports run ----
+  // Lets the Manus scheduled task agent (or a curl with admin auth) force
+  // an immediate scan in addition to the in-process hourly setInterval.
+  app.post('/api/scheduled/run-reports', async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      if (!user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+      const stats = await processScheduledReports();
+      res.json({ success: true, ...stats });
+    } catch (err) {
+      console.error('[run-reports] Error:', err);
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   // ---- Bookmarklet endpoint: GET /api/bookmarklet/save?url=...&title=... ----
   // Called by the browser bookmarklet. Authenticates via session cookie,
   // creates the bookmark, then redirects back to the app's bookmarks page.
@@ -296,6 +312,8 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    // Kick off the hourly scheduled-reports tick. Safe to call multiple times.
+    try { startScheduledReportsCron(); } catch (e) { console.error('[startup] scheduled-reports cron failed:', e); }
   });
 }
 
