@@ -222,16 +222,22 @@ body[data-screen="reports"]{--page-accent:#06b6d4}
 .scr.on .mn>.ph-r:first-child,
 .scr.on .mn>.pg-h:first-child,
 .scr.on .mn>div:first-child>.ph-r:first-child,
-.scr.on .mn>div:first-child>.pg-h:first-child,
-.scr.on .notes-page-header{position:relative;z-index:1}
+.scr.on .mn>div:first-child>.pg-h:first-child{position:relative;z-index:1}
 .scr.on .mn>.ph-r:first-child::before,
 .scr.on .mn>.pg-h:first-child::before,
 .scr.on .mn>div:first-child>.ph-r:first-child::before,
-.scr.on .mn>div:first-child>.pg-h:first-child::before,
-.scr.on .notes-page-header::before{
+.scr.on .mn>div:first-child>.pg-h:first-child::before{
   content:'';position:absolute;top:-14px;left:-16px;right:-16px;height:78px;
   background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 14%,transparent) 0%,transparent 70%);
   border-radius:14px;z-index:-1;pointer-events:none;
+}
+/* Notes page banner: instead of a bleeding background gradient (which read
+   as peach-on-peach on a wide screen), use a clean subtle surface tint and
+   let the bottom accent line + the gradient icon tile carry the brand. */
+.scr.on .notes-page-header{
+  position:relative;z-index:1;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--page-accent) 4%,var(--s1)) 0%,var(--s1) 100%);
+  font-family:-apple-system,'Inter','Segoe UI',Roboto,sans-serif;
 }
 /* Cards on the active screen pick up a subtle 2px left-border tinted with
    the page's accent. Only applies on rail pages (.bg.wr) where it reads as
@@ -605,8 +611,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
    page title) gets a thin accent bar to its left so it visually anchors
    the header strip behind it. Works for both header conventions. */
 .ph-r>div:first-child p,
-.pg-h>p,
-.notes-page-header>div p{
+.pg-h>p{
   border-left:2px solid color-mix(in srgb,var(--page-accent) 60%,transparent);
   padding-left:8px;margin-left:2px;
 }
@@ -631,6 +636,10 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
    responsive without changing their layout. */
 .lr{transition:background .12s,border-left-color .12s,padding-left .12s;border-left:2px solid transparent;padding-left:6px}
 .lr:hover{border-left-color:color-mix(in srgb,var(--page-accent) 50%,transparent)}
+
+/* Bulk-select visual feedback on note cards in bulk mode. */
+.nc.bulk-checked{background:color-mix(in srgb,var(--page-accent) 22%,var(--s2))!important;border-color:var(--page-accent)!important;box-shadow:inset 3px 0 0 var(--page-accent),0 0 0 1px color-mix(in srgb,var(--page-accent) 40%,transparent)}
+body.notes-bulk-mode .nc{user-select:none}
 
 /* ─── Notes list card extras (thumb / color / pin / pinned section) ──── */
 .nc{display:block}
@@ -1033,14 +1042,38 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- ===== S-04 NOTES ===== -->
 <div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px;grid-template-rows:auto 1fr;min-height:0">
 <nav class="sb" data-sb style="grid-row:1/-1"></nav>
-<header class="notes-page-header" style="grid-column:2/-1;padding:14px 20px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-  <div>
-    <h1 style="font-size:22px;font-weight:700;margin:0">📝 Notes</h1>
-    <p id="notes-page-subtitle" style="font-size:12px;color:var(--t2);margin-top:2px">Loading…</p>
+<header class="notes-page-header" style="grid-column:2/-1;padding:18px 24px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;position:relative">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 90%,#fff),color-mix(in srgb,var(--page-accent) 60%,#000));display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 12px color-mix(in srgb,var(--page-accent) 28%,transparent)">📝</div>
+      <div>
+        <h1 style="font-size:20px;font-weight:700;margin:0;letter-spacing:-.3px;font-family:-apple-system,'Inter','Segoe UI',sans-serif">Notes</h1>
+        <p style="font-size:11px;color:var(--t3);margin-top:1px;font-weight:500">Your second brain · Markdown · AI-assisted</p>
+      </div>
+    </div>
+    <div id="notes-page-stats" style="display:flex;gap:6px;flex-wrap:wrap"></div>
   </div>
-  <div style="display:flex;gap:6px;align-items:center">
-    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
-    <button class="btn btn-p" style="height:28px;font-size:11px" onclick="openFA('note')">+ New Note</button>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
+    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT (multiple files allowed)">📥 Import Docs</button>
+    <button class="btn btn-s" style="height:30px;font-size:11px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
+    <button class="btn btn-p" style="height:30px;font-size:11px;background:var(--page-accent);color:#fff;border:none" onclick="openFA('note')">+ New Note</button>
+  </div>
+  <!-- Subtle accent underline that fades horizontally instead of bleeding into the content -->
+  <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,var(--page-accent),color-mix(in srgb,var(--page-accent) 30%,transparent) 60%,transparent);opacity:.75"></div>
+  <!-- Bulk action bar (hidden by default, shown when bulk mode active) -->
+  <div id="notes-bulk-bar" style="display:none;grid-column:1/-1;width:100%;margin-top:8px;padding:8px 12px;background:color-mix(in srgb,var(--page-accent) 14%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 35%,var(--bd2));border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap">
+    <span id="notes-bulk-count" style="font-size:11px;font-weight:600;color:var(--page-accent)">0 selected</span>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesSelectAll(true)">Select all</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesSelectAll(false)">Clear</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="bulkNotesAutoTag()">🏷 AI Auto-tag</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--warn)" onclick="bulkNotesTag()">+ Add Tag</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--warn)" onclick="bulkNotesStar()">⭐ Star</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesPin()">📌 Pin</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkNotesExport()">⬇ Export</button>
+    <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkNotesDelete()">🗑 Delete</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleNotesBulkMode()">✕ Done</button>
   </div>
 </header>
 <nav class="notes-nav" id="notes-nav-panel" style="min-height:0"></nav>
@@ -5368,8 +5401,12 @@ function applyNotesFilters(){
     const thumb=img?`<img class="nc-thumb" src="${esc(img)}" loading="lazy" onerror="this.style.display='none'" alt="">`:'';
     const colorDot=n.color?`<span class="nc-color" style="background:${esc(n.color)};color:${esc(n.color)}" title="Color tag"></span>`:'';
     const pin=n.pinned?'<span class="nc-pin" title="Pinned">📌</span>':'';
-    return `<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})">
+    const checked=_notesBulkSelected.has(n.id);
+    const bulkCb=_notesBulkMode?`<div class="nc-bulk-cb chk ${checked?'on':''}" onclick="toggleNotesBulkSelect(${n.id},event)" style="flex-shrink:0;margin-top:3px"></div>`:'';
+    const clickAttr=_notesBulkMode?`onclick="toggleNotesBulkSelect(${n.id},event)"`:`onclick="showNoteInEditor(${n.id})"`;
+    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" ${clickAttr}>
       <div class="nc-row">
+        ${bulkCb}
         ${colorDot}
         <div class="nc-body">
           <div class="nc-t">${pin}${hi(n.title)}</div>
@@ -5684,6 +5721,133 @@ function importMarkdownFiles(files){
   });
 }
 // ─── Document Import (PDF / DOCX / TXT) ──────────────────────────────────────
+// Batch importer: walks every selected file through importDocumentAsNote
+// one at a time. Lets the user drop in 10 PDFs at once and walk away.
+async function importDocumentsBatch(fileList){
+  const files=Array.from(fileList||[]);
+  if(!files.length)return;
+  if(files.length===1)return importDocumentAsNote(files[0]);
+  toast({type:'info',title:`📥 Importing ${files.length} documents…`,duration:2500});
+  let ok=0,fail=0;
+  for(const f of files){
+    try{await importDocumentAsNote(f);ok++;}
+    catch(e){fail++;console.warn('[importBatch] failed:',f.name,e);}
+  }
+  toast({type:ok?'success':'error',title:`Imported ${ok} of ${files.length} documents`,msg:fail?`${fail} failed — check console for details.`:undefined,duration:4000});
+  // Clear input so re-selecting same files works
+  const inp=document.getElementById('doc-import-input');
+  if(inp)inp.value='';
+}
+
+// ─── Notes bulk-select mode ─────────────────────────────────────────────
+let _notesBulkMode=false;
+let _notesBulkSelected=new Set();
+function toggleNotesBulkMode(){
+  _notesBulkMode=!_notesBulkMode;
+  if(!_notesBulkMode)_notesBulkSelected.clear();
+  const bar=document.getElementById('notes-bulk-bar');
+  if(bar)bar.style.display=_notesBulkMode?'flex':'none';
+  const btn=document.getElementById('btn-notes-bulk');
+  if(btn){btn.style.background=_notesBulkMode?'var(--page-accent)':'';btn.style.color=_notesBulkMode?'#fff':'';btn.textContent=_notesBulkMode?'☑ Selecting…':'☑ Select';}
+  document.body.classList.toggle('notes-bulk-mode',_notesBulkMode);
+  _updateNotesBulkCount();
+  if(typeof applyNotesFilters==='function')applyNotesFilters();
+}
+function toggleNotesBulkSelect(id,ev){
+  if(ev){ev.stopPropagation();}
+  id=Number(id);
+  if(_notesBulkSelected.has(id))_notesBulkSelected.delete(id);
+  else _notesBulkSelected.add(id);
+  _updateNotesBulkCount();
+  // Update just the visible checkbox without re-rendering everything
+  const card=document.querySelector(`.nc[data-nid="${id}"]`);
+  if(card){
+    const cb=card.querySelector('.nc-bulk-cb');
+    if(cb)cb.classList.toggle('on',_notesBulkSelected.has(id));
+    card.classList.toggle('bulk-checked',_notesBulkSelected.has(id));
+  }
+}
+function bulkNotesSelectAll(all){
+  if(all){
+    const visible=document.querySelectorAll('#notes-list-inner .nc[data-nid]');
+    visible.forEach(n=>_notesBulkSelected.add(Number(n.dataset.nid)));
+  }else{
+    _notesBulkSelected.clear();
+  }
+  _updateNotesBulkCount();
+  if(typeof applyNotesFilters==='function')applyNotesFilters();
+}
+function _updateNotesBulkCount(){
+  const el=document.getElementById('notes-bulk-count');
+  if(el)el.textContent=`${_notesBulkSelected.size} selected`;
+}
+function _bulkNotesArr(){return D.notes.filter(n=>_notesBulkSelected.has(n.id));}
+
+async function bulkNotesAutoTag(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  if(!confirm(`Auto-tag ${arr.length} note${arr.length===1?'':'s'}? Up to 5 tags per note will be appended based on content keywords + similar notes.`))return;
+  toast({type:'info',title:`🏷 Auto-tagging ${arr.length} notes…`,duration:2500});
+  // Lightweight keyword + similar-tag extraction (mirrors aiAutoTagNote logic
+  // but no modal). Skip notes with <20 chars of body.
+  const stopWords=new Set(['this','that','with','from','have','been','will','they','their','there','what','when','where','which','about','into','more','also','some','than','then','these','those','were','your','just','like','very','over','such','each','both','after','before','could','would','should','other','only','most','many','much','even','well','back','good','here','time','year','work','need','want','make','take','give','know','think','come','look','going','doing','being','having']);
+  const allTags=[...new Set(D.notes.flatMap(x=>x.tags||[]))];
+  let touched=0;
+  arr.forEach(n=>{
+    const body=(n.body||'').trim();if(body.length<20)return;
+    const words=body.toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!stopWords.has(w));
+    const freq={};words.forEach(w=>{freq[w]=(freq[w]||0)+1;});
+    const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([w])=>w);
+    const related=allTags.filter(t=>body.toLowerCase().includes(t.toLowerCase())&&!(n.tags||[]).includes(t)).slice(0,3);
+    const newTags=[...new Set([...related,...top])].slice(0,5);
+    const existing=new Set((n.tags||[]).map(t=>t.toLowerCase()));
+    const adds=newTags.filter(t=>!existing.has(t.toLowerCase()));
+    if(adds.length){n.tags=[...(n.tags||[]),...adds];touched++;}
+  });
+  save('notes');toggleNotesBulkMode();renderNotes();
+  toast({type:'success',title:`✓ Tagged ${touched} of ${arr.length} notes`,duration:3500});
+}
+function bulkNotesTag(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  const tag=prompt(`Add a tag to ${arr.length} note${arr.length===1?'':'s'} (no # prefix):`,'');
+  if(!tag||!tag.trim())return;
+  const t=tag.trim().replace(/^#/,'');
+  arr.forEach(n=>{n.tags=n.tags||[];if(!n.tags.includes(t))n.tags.push(t);});
+  save('notes');toggleNotesBulkMode();renderNotes();
+  toast(`✓ Added #${t} to ${arr.length} note${arr.length===1?'':'s'}`);
+}
+function bulkNotesStar(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  const anyUnstarred=arr.some(n=>!n.starred);
+  arr.forEach(n=>{n.starred=anyUnstarred;});
+  save('notes');toggleNotesBulkMode();renderNotes();
+  toast(anyUnstarred?`⭐ Starred ${arr.length}`:`Unstarred ${arr.length}`);
+}
+function bulkNotesPin(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  const anyUnpinned=arr.some(n=>!n.pinned);
+  arr.forEach(n=>{n.pinned=anyUnpinned;});
+  save('notes');toggleNotesBulkMode();renderNotes();
+  toast(anyUnpinned?`📌 Pinned ${arr.length}`:`Unpinned ${arr.length}`);
+}
+function bulkNotesDelete(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  if(!confirm(`Permanently delete ${arr.length} note${arr.length===1?'':'s'}? This can't be undone.`))return;
+  const ids=new Set(arr.map(n=>n.id));
+  D.notes=D.notes.filter(n=>!ids.has(n.id));
+  save('notes');toggleNotesBulkMode();renderNotes();
+  toast(`🗑 Deleted ${ids.size} note${ids.size===1?'':'s'}`);
+}
+function bulkNotesExport(){
+  const arr=_bulkNotesArr();if(!arr.length){toast('Nothing selected');return;}
+  const md=arr.map(n=>`# ${n.title||'Untitled'}\n\n${(n.tags||[]).map(t=>'#'+t).join(' ')}\n\n${n.body||''}\n\n---\n`).join('\n');
+  const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`notes-export-${new Date().toISOString().slice(0,10)}.md`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast(`⬇ Exported ${arr.length} note${arr.length===1?'':'s'} as Markdown`);
+}
+
 async function importDocumentAsNote(file){
   if(!file)return;
   const MAX_BYTES=20*1024*1024; // 20 MB
@@ -5799,13 +5963,22 @@ function applyNoteTemplate(idx){
   toast('📝 Template applied — start editing!');
 }
 function renderNotes(){
-  // Update banner subtitle with live counts
-  const sub=document.getElementById('notes-page-subtitle');
-  if(sub){
+  // Update banner stat pills with live counts
+  const statsEl=document.getElementById('notes-page-stats');
+  if(statsEl){
     const total=D.notes.length;
     const starred=D.notes.filter(n=>n.starred).length;
+    const pinned=D.notes.filter(n=>n.pinned).length;
     const recent=D.notes.filter(n=>{try{const d=new Date(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
-    sub.innerHTML=`${total} note${total===1?'':'s'}${recent?` · <span style="color:var(--page-accent);font-weight:600">${recent} this week</span>`:''}${starred?` · ⭐ ${starred} starred`:''}`;
+    const tagged=D.notes.filter(n=>(n.tags||[]).length>0).length;
+    const pill=(icon,label,val,color)=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:color-mix(in srgb,${color} 14%,var(--s2));border:1px solid color-mix(in srgb,${color} 30%,var(--bd2));border-radius:14px;font-size:11px;color:var(--t1);font-weight:500"><span style="font-size:12px">${icon}</span><span style="color:${color};font-weight:700">${val}</span><span style="color:var(--t2);font-size:10px">${label}</span></span>`;
+    statsEl.innerHTML=[
+      pill('📄','total',total,'#f97316'),
+      recent>0?pill('🆕','this week',recent,'#22c55e'):'',
+      starred>0?pill('⭐','starred',starred,'#facc15'):'',
+      pinned>0?pill('📌','pinned',pinned,'#a855f7'):'',
+      tagged>0?pill('🏷','tagged',tagged,'#06b6d4'):'',
+    ].filter(Boolean).join('');
   }
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
@@ -5868,7 +6041,7 @@ function renderNotes(){
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:var(--ac)" onclick="aiNoteQA()" title="Ask AI">🤔</button>
         <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 6px;color:#8B5CF6" onclick="bulkAutoTagNotes()" title="AI auto-tag all untagged notes">🏷 Auto-tag all</button>
         <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
-        <input type="file" id="doc-import-input" accept=".pdf,.docx,.doc,.txt,.rtf" style="display:none" onchange="importDocumentAsNote(this.files[0])">
+        <input type="file" id="doc-import-input" accept=".pdf,.docx,.doc,.txt,.rtf" multiple style="display:none" onchange="importDocumentsBatch(this.files)">
         <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;background:var(--ac);color:#fff" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
         <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
       </div>
