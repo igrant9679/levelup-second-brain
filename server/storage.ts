@@ -1,17 +1,19 @@
-// Storage helpers — supports two backends:
+// Storage helpers — supports three backends:
 //
 //   1. Direct S3-compatible upload (AWS S3 / Cloudflare R2 / Backblaze B2 /
 //      Wasabi / MinIO) when S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY
-//      are set in the env. Returns the public URL — bucket needs public read
-//      OR a CDN/custom domain configured via S3_PUBLIC_URL_BASE.
+//      are set. Returns the public URL — bucket needs public read OR a
+//      CDN/custom domain configured via S3_PUBLIC_URL_BASE.
 //
-//   2. Manus Forge presigned-URL flow (legacy) — used when Forge env vars
-//      are set and S3 isn't. Returns /manus-storage/{key} which the
-//      storageProxy redirects to a signed Forge URL.
+//   2. Google Drive (refresh-token auth) when GOOGLE_DRIVE_CLIENT_ID +
+//      GOOGLE_DRIVE_CLIENT_SECRET + GOOGLE_DRIVE_REFRESH_TOKEN +
+//      GOOGLE_DRIVE_FOLDER_ID are set. Uploads to the configured folder,
+//      shares "anyone with the link", returns the uc?export=view&id= URL.
 //
-// Preference order: S3 → Forge → throw (caller handles via data-URI fallback).
+//   3. Manus Forge presigned-URL flow (legacy).
 //
-// Downloads (storageGet) return the same URL the upload produced.
+// Preference order: S3 → Drive → Forge → throw (caller handles via data-URI
+// fallback).
 
 import {
   S3Client,
@@ -36,6 +38,118 @@ function hasS3Config(): boolean {
 
 function hasForgeConfig(): boolean {
   return !!(ENV.forgeApiUrl && ENV.forgeApiKey);
+}
+
+function hasDriveConfig(): boolean {
+  return !!(
+    ENV.googleDriveClientId &&
+    ENV.googleDriveClientSecret &&
+    ENV.googleDriveRefreshToken &&
+    ENV.googleDriveFolderId
+  );
+}
+
+// Cache the minted access token until ~5 min before expiry.
+let _driveTokenCache: { token: string; expiresAt: number } | null = null;
+async function getDriveAccessToken(): Promise<string> {
+  if (_driveTokenCache && _driveTokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
+    return _driveTokenCache.token;
+  }
+  const params = new URLSearchParams({
+    client_id: ENV.googleDriveClientId,
+    client_secret: ENV.googleDriveClientSecret,
+    refresh_token: ENV.googleDriveRefreshToken,
+    grant_type: "refresh_token",
+  });
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  if (!resp.ok) {
+    const msg = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Google Drive token refresh failed (${resp.status}): ${msg}`);
+  }
+  const data = (await resp.json()) as { access_token: string; expires_in: number };
+  _driveTokenCache = {
+    token: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  };
+  return data.access_token;
+}
+
+async function storagePutDrive(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType: string,
+): Promise<{ key: string; url: string }> {
+  const key = appendHashSuffix(normalizeKey(relKey));
+  const filename = key.split("/").pop() ?? key;
+  const body =
+    typeof data === "string"
+      ? Buffer.from(data, "utf-8")
+      : data instanceof Buffer
+        ? data
+        : Buffer.from(data);
+  const token = await getDriveAccessToken();
+
+  // Multipart upload: metadata + media in one POST
+  const boundary = "lvl_" + crypto.randomUUID().replace(/-/g, "");
+  const metadata = {
+    name: filename,
+    parents: [ENV.googleDriveFolderId],
+    mimeType: contentType,
+  };
+  const head =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\n` +
+    `Content-Type: ${contentType}\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+  const multipart = Buffer.concat([
+    Buffer.from(head, "utf-8"),
+    body,
+    Buffer.from(tail, "utf-8"),
+  ]);
+
+  const uploadResp = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body: multipart as any,
+    },
+  );
+  if (!uploadResp.ok) {
+    const msg = await uploadResp.text().catch(() => uploadResp.statusText);
+    throw new Error(`Drive upload failed (${uploadResp.status}): ${msg}`);
+  }
+  const { id: fileId } = (await uploadResp.json()) as { id: string };
+  if (!fileId) throw new Error("Drive upload returned empty file id");
+
+  // Share "anyone with the link can view" so the public uc URL works.
+  const permResp = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    },
+  );
+  if (!permResp.ok) {
+    const msg = await permResp.text().catch(() => permResp.statusText);
+    console.warn(`[storage:drive] permission share failed (${permResp.status}): ${msg}`);
+    // Don't throw — file is uploaded; user can fix sharing manually if needed.
+  }
+
+  return { key, url: `https://drive.google.com/uc?export=view&id=${fileId}` };
 }
 
 let _s3Client: S3Client | null = null;
@@ -141,9 +255,10 @@ export async function storagePut(
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
   if (hasS3Config()) return storagePutS3(relKey, data, contentType);
+  if (hasDriveConfig()) return storagePutDrive(relKey, data, contentType);
   if (hasForgeConfig()) return storagePutForge(relKey, data, contentType);
   throw new Error(
-    "Storage not configured: set S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (recommended) or BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY (legacy).",
+    "Storage not configured: set S3_BUCKET + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (S3-compatible), or GOOGLE_DRIVE_CLIENT_ID + GOOGLE_DRIVE_CLIENT_SECRET + GOOGLE_DRIVE_REFRESH_TOKEN + GOOGLE_DRIVE_FOLDER_ID (Drive), or BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY (legacy).",
   );
 }
 

@@ -121,6 +121,39 @@ function escHtml(s: string): string {
  * Returns a list of { name, url, mimeType } for each attachment that
  * was successfully uploaded.
  */
+/**
+ * Bypass-mode helper: list every embedded filename without uploading or
+ * encoding anything. Lets the user import the doc instantly + see what
+ * binaries were dropped, with no impact on prefs blob size.
+ */
+async function listAttachmentNames(
+  buffer: Buffer
+): Promise<{ uploaded: never[]; tooLarge: never[]; skippedNames: string[] }> {
+  const names: string[] = [];
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    zip.forEach((relPath, file) => {
+      if (file.dir) return;
+      if (!relPath.startsWith("word/embeddings/")) return;
+      names.push(relPath.replace(/^word\/embeddings\//, ""));
+    });
+  } catch (e) {
+    console.warn("[wordImport] could not unzip for skipped-names listing:", e);
+  }
+  return { uploaded: [], tooLarge: [], skippedNames: names };
+}
+
+function renderSkippedAttachmentsBlock(names: string[]): string {
+  if (!names.length) return "";
+  const rows = names
+    .map(n => `<li style="margin:4px 0;opacity:.7">📎 ${escHtml(n)} <span style="font-size:10px;color:#94a3b8">— skipped (re-import with binaries enabled once storage is configured)</span></li>`)
+    .join("");
+  return `<div style="margin-top:18px;padding:10px 14px;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0">
+  <div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📎 Skipped attachments (bypass mode)</div>
+  <ul style="margin:0;padding-left:18px;font-size:12px;color:#78350f">${rows}</ul>
+</div>`;
+}
+
 async function extractAttachments(
   buffer: Buffer,
   docTitle: string
@@ -325,11 +358,17 @@ export const wordImportRouter = router({
       z.object({
         fileBase64: z.string().max(100 * 1024 * 1024), // 100MB limit
         fileName: z.string().optional(),
+        // When true, skips ALL image + attachment extraction. Use this when
+        // storage is unconfigured and you don't want the data-URI fallback
+        // to bloat the prefs blob. Images get replaced with a placeholder
+        // line; embedded files are listed by filename only (no link).
+        skipBinaries: z.boolean().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.fileBase64, "base64");
       const docTitle = (input.fileName ?? "doc").replace(/\.[^.]+$/, "");
+      const skipBinaries = input.skipBinaries === true;
 
       // 1. Convert the doc to HTML, uploading every embedded image as we go.
       //    If storage upload fails (e.g. Forge config missing on this env),
@@ -340,6 +379,7 @@ export const wordImportRouter = router({
       let imgIdx = 0;
       let imgUploadFailures = 0;
       const DATA_URI_LIMIT = 4 * 1024 * 1024;
+      let imgSkipped = 0;
       try {
         const result = await mammoth.convertToHtml(
           { buffer },
@@ -347,6 +387,12 @@ export const wordImportRouter = router({
             convertImage: mammoth.images.imgElement(async (image) => {
               const contentType = image.contentType ?? "image/png";
               const ext = (contentType.split("/")[1] ?? "png").replace("jpeg", "jpg");
+              // Bypass mode: drop image, leave a labeled placeholder so the
+              // user can see WHERE images were without bloating the blob.
+              if (skipBinaries) {
+                imgSkipped++;
+                return { src: "", alt: `[Image ${imgSkipped} skipped]` };
+              }
               let imgBuffer: Buffer | null = null;
               try {
                 imgBuffer = Buffer.from(await image.read());
@@ -368,6 +414,11 @@ export const wordImportRouter = router({
           }
         );
         html = result.value.replace(/<img /gi, '<img style="max-width:100%;height:auto;border-radius:6px;margin:8px 0;display:block" ');
+        // In bypass mode the placeholder text becomes visible-only if the img
+        // src is empty; render it as styled text instead of a broken-image icon.
+        if (skipBinaries) {
+          html = html.replace(/<img[^>]*src=""[^>]*alt="([^"]*)"[^>]*>/gi, '<span style="display:inline-block;padding:2px 8px;background:#eef2ff;color:#6366f1;border:1px dashed #c7d2fe;border-radius:4px;font-size:11px;font-style:italic">$1</span>');
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(`Failed to parse .docx file: ${msg}`);
@@ -377,8 +428,14 @@ export const wordImportRouter = router({
       }
 
       // 2. Extract non-image embeds (PDFs / .xlsx / .pptx / OLE bins).
-      const { uploaded: attachments, tooLarge: attTooLarge } = await extractAttachments(buffer, docTitle);
-      const attachmentsBlock = renderAttachmentsBlock(attachments, attTooLarge);
+      //    Skip entirely in bypass mode — we just list the filenames so the
+      //    user knows what's there but no data is captured.
+      const { uploaded: attachments, tooLarge: attTooLarge, skippedNames } = skipBinaries
+        ? await listAttachmentNames(buffer)
+        : await extractAttachments(buffer, docTitle).then(r => ({ ...r, skippedNames: [] as string[] }));
+      const attachmentsBlock = skipBinaries
+        ? renderSkippedAttachmentsBlock(skippedNames)
+        : renderAttachmentsBlock(attachments, attTooLarge);
       const inlinedAttachments = attachments.filter(a => a.viaDataUri).length;
       const storedAttachments = attachments.length - inlinedAttachments;
 
@@ -398,6 +455,14 @@ export const wordImportRouter = router({
         notes[0].content += `\n\n--- Attachments ---\n${attTextLines}`;
       }
 
+      if (skipBinaries) {
+        if (imgSkipped > 0) {
+          warnings.push(`Bypass mode: ${imgSkipped} image${imgSkipped !== 1 ? "s" : ""} skipped (placeholders inserted).`);
+        }
+        if (skippedNames.length > 0) {
+          warnings.push(`Bypass mode: ${skippedNames.length} attachment${skippedNames.length !== 1 ? "s" : ""} skipped — listed in the first note.`);
+        }
+      }
       if (storedAttachments > 0) {
         warnings.push(
           `${storedAttachments} attachment${storedAttachments !== 1 ? "s" : ""} uploaded to storage and linked in the first note.`

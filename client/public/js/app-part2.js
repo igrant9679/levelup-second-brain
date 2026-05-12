@@ -714,6 +714,15 @@ function renderSettingsHTML(){
     </div>
   </div>
 
+  <!-- Bypass binaries option (for when storage isn't configured yet) -->
+  <label id="wdi-skip-row" style="display:none;align-items:center;gap:8px;padding:8px 10px;margin-bottom:10px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;cursor:pointer;font-size:11px">
+    <input type="checkbox" id="wdi-skip-binaries" style="accent-color:var(--ac);cursor:pointer">
+    <div style="flex:1">
+      <div style="font-weight:600">⚡ Skip images & attachments</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:2px">Imports text and formatting only. Use this when server storage isn't configured yet — avoids stuffing megabytes of data URIs into your notes.</div>
+    </div>
+  </label>
+
   <!-- Parse button -->
   <button id="wdi-parse-btn" class="btn btn-p" style="width:100%;font-size:12px;margin-bottom:12px;display:none" onclick="wdiParseFile()">🔍 Analyse Document</button>
 
@@ -5606,7 +5615,7 @@ function wdiHandleDrop(files){
   document.getElementById('wdi-file-name').textContent=f.name;
   document.getElementById('wdi-file-size').textContent=(f.size/1024).toFixed(1)+' KB';
   document.getElementById('wdi-file-info').style.display='';
-  document.getElementById('wdi-parse-btn').style.display='';
+  document.getElementById('wdi-parse-btn').style.display='';document.getElementById('wdi-skip-row').style.display='flex';
   document.getElementById('wdi-preview').style.display='none';
   document.getElementById('wdi-result').style.display='none';
   document.getElementById('wdi-warnings').style.display='none';
@@ -5617,7 +5626,7 @@ function wdiClearFile(){
   _wdiFile=null;
   _wdiParsedNotes=[];
   document.getElementById('wdi-file-info').style.display='none';
-  document.getElementById('wdi-parse-btn').style.display='none';
+  document.getElementById('wdi-parse-btn').style.display='none';document.getElementById('wdi-skip-row').style.display='none';
   document.getElementById('wdi-preview').style.display='none';
   document.getElementById('wdi-result').style.display='none';
   document.getElementById('wdi-warnings').style.display='none';
@@ -5626,7 +5635,7 @@ function wdiClearFile(){
 
 async function wdiParseFile(){
   if(!_wdiFile){toast('⚠ No file selected');return;}
-  document.getElementById('wdi-parse-btn').style.display='none';
+  document.getElementById('wdi-parse-btn').style.display='none';document.getElementById('wdi-skip-row').style.display='none';
   document.getElementById('wdi-progress').style.display='';
   document.getElementById('wdi-preview').style.display='none';
   document.getElementById('wdi-result').style.display='none';
@@ -5649,7 +5658,8 @@ async function wdiParseFile(){
       reader.onerror=reject;
       reader.readAsArrayBuffer(_wdiFile);
     });
-    const result=await _trpc('wordImport.parseDocx',{fileBase64:base64,fileName:_wdiFile.name},'mutation');
+    const skipBinaries=!!document.getElementById('wdi-skip-binaries')?.checked;
+    const result=await _trpc('wordImport.parseDocx',{fileBase64:base64,fileName:_wdiFile.name,skipBinaries},'mutation');
     _wdiParsedNotes=result.notes||[];
     document.getElementById('wdi-progress').style.display='none';
     // Show warnings
@@ -5662,7 +5672,7 @@ async function wdiParseFile(){
       document.getElementById('wdi-result').style.background='var(--warn-bg,#fffbeb)';
       document.getElementById('wdi-result').style.color='var(--t2)';
       document.getElementById('wdi-result').textContent='⚠ No notes were detected in this document. Check the format: each note must start with a title, then a date line, then a time line.';
-      document.getElementById('wdi-parse-btn').style.display='';
+      document.getElementById('wdi-parse-btn').style.display='';document.getElementById('wdi-skip-row').style.display='flex';
       return;
     }
     // Render preview
@@ -5682,7 +5692,7 @@ async function wdiParseFile(){
     document.getElementById('wdi-preview').style.display='';
   }catch(e){
     document.getElementById('wdi-progress').style.display='none';
-    document.getElementById('wdi-parse-btn').style.display='';
+    document.getElementById('wdi-parse-btn').style.display='';document.getElementById('wdi-skip-row').style.display='flex';
     document.getElementById('wdi-result').style.display='';
     document.getElementById('wdi-result').style.background='var(--err-bg,#fef2f2)';
     document.getElementById('wdi-result').style.color='var(--err,#dc2626)';

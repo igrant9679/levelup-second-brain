@@ -29,4 +29,21 @@ export const ENV = {
   s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",
   s3PublicUrlBase: process.env.S3_PUBLIC_URL_BASE ?? "",
   s3ForcePathStyle: process.env.S3_FORCE_PATH_STYLE === "1",
+  // Google Drive storage (alternative to S3). Uses a long-lived OAuth refresh
+  // token to mint access tokens server-side, then uploads via Drive v3 REST.
+  // To generate a refresh token:
+  //   1. Create an OAuth client in Google Cloud Console (Web app type)
+  //   2. Add https://developers.google.com/oauthplayground as redirect URI
+  //   3. In OAuth Playground, click ⚙ → "Use your own OAuth credentials",
+  //      paste client id + secret. Authorise scope
+  //      https://www.googleapis.com/auth/drive.file
+  //   4. Exchange the auth code for tokens — copy the refresh token
+  // GOOGLE_DRIVE_FOLDER_ID is the Drive folder uploads land in (must be
+  // writable by the account that owns the refresh token). Files are then
+  // shared with "anyone with the link" so the public uc?id= URL works as
+  // an <img src> / download link.
+  googleDriveClientId: process.env.GOOGLE_DRIVE_CLIENT_ID ?? "",
+  googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "",
+  googleDriveRefreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN ?? "",
+  googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID ?? "",
 };
