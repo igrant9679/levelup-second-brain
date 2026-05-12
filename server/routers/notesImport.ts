@@ -58,19 +58,31 @@ async function extractDocxContent(
   const uploadedImages: string[] = [];
   let imgIdx = 0;
 
-  // Use mammoth.convertToHtml with a custom image handler that uploads each image
+  // Use mammoth.convertToHtml with a custom image handler that uploads each
+  // image. If storage upload fails (e.g. Forge env config missing), fall back
+  // to a data: URI so the image survives instead of being silently dropped.
+  const DATA_URI_LIMIT = 4 * 1024 * 1024;
   const result = await mammoth.convertToHtml(
     { buffer },
     {
       convertImage: mammoth.images.imgElement(async (image) => {
+        const contentType = image.contentType ?? "image/png";
+        let imgBuffer: Buffer | null = null;
         try {
-          const imgBuffer = await image.read();
-          const contentType = image.contentType ?? "image/png";
-          const url = await uploadImage(Buffer.from(imgBuffer), contentType, noteTitle, imgIdx++);
-          uploadedImages.push(url);
-          return { src: url };
+          imgBuffer = Buffer.from(await image.read());
         } catch {
           return { src: "" };
+        }
+        try {
+          const url = await uploadImage(imgBuffer, contentType, noteTitle, imgIdx++);
+          uploadedImages.push(url);
+          return { src: url };
+        } catch (e) {
+          console.warn(`[notesImport] storage upload failed for image — using data URI fallback:`, e);
+          if (imgBuffer.length <= DATA_URI_LIMIT) {
+            return { src: `data:${contentType};base64,${imgBuffer.toString("base64")}` };
+          }
+          return { src: "", alt: `[Image too large to inline (${Math.round(imgBuffer.length / 1024)} KB)]` };
         }
       }),
     }

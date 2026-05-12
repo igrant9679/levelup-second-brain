@@ -124,13 +124,15 @@ function escHtml(s: string): string {
 async function extractAttachments(
   buffer: Buffer,
   docTitle: string
-): Promise<Array<{ name: string; url: string; mimeType: string }>> {
-  const out: Array<{ name: string; url: string; mimeType: string }> = [];
+): Promise<{ uploaded: Array<{ name: string; url: string; mimeType: string }>; failedNames: string[] }> {
+  const uploaded: Array<{ name: string; url: string; mimeType: string }> = [];
+  const failedNames: string[] = [];
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(buffer);
-  } catch {
-    return out;
+  } catch (e) {
+    console.warn("[wordImport] could not unzip .docx for attachment extraction:", e);
+    return { uploaded, failedNames };
   }
 
   let idx = 0;
@@ -142,17 +144,24 @@ async function extractAttachments(
     const ext = fname.includes(".") ? fname.split(".").pop()!.toLowerCase() : "bin";
     const mime = mimeFromExt(ext);
     tasks.push((async () => {
+      let data: Buffer;
       try {
-        const data = await file.async("nodebuffer");
-        const url = await uploadBlob(data, mime, docTitle, "att", idx++, ext);
-        out.push({ name: fname, url, mimeType: mime });
+        data = await file.async("nodebuffer");
       } catch {
-        // Skip unreadable embeds
+        failedNames.push(fname);
+        return;
+      }
+      try {
+        const url = await uploadBlob(data, mime, docTitle, "att", idx++, ext);
+        uploaded.push({ name: fname, url, mimeType: mime });
+      } catch (e) {
+        console.warn(`[wordImport] storage upload failed for attachment ${fname}:`, e);
+        failedNames.push(fname);
       }
     })());
   });
   await Promise.all(tasks);
-  return out;
+  return { uploaded, failedNames };
 }
 
 /**
@@ -301,21 +310,37 @@ export const wordImportRouter = router({
       const docTitle = (input.fileName ?? "doc").replace(/\.[^.]+$/, "");
 
       // 1. Convert the doc to HTML, uploading every embedded image as we go.
+      //    If storage upload fails (e.g. Forge config missing on this env),
+      //    fall back to a data: URI so the image still renders in the note
+      //    rather than being stripped. We cap data-URI fallback at 4 MB per
+      //    image to keep the JSON blob size sane.
       let html: string;
       let imgIdx = 0;
+      let imgUploadFailures = 0;
+      const DATA_URI_LIMIT = 4 * 1024 * 1024;
       try {
         const result = await mammoth.convertToHtml(
           { buffer },
           {
             convertImage: mammoth.images.imgElement(async (image) => {
+              const contentType = image.contentType ?? "image/png";
+              const ext = (contentType.split("/")[1] ?? "png").replace("jpeg", "jpg");
+              let imgBuffer: Buffer | null = null;
               try {
-                const imgBuffer = await image.read();
-                const contentType = image.contentType ?? "image/png";
-                const ext = (contentType.split("/")[1] ?? "png").replace("jpeg", "jpg");
-                const url = await uploadBlob(Buffer.from(imgBuffer), contentType, docTitle, "img", imgIdx++, ext);
-                return { src: url };
+                imgBuffer = Buffer.from(await image.read());
               } catch {
                 return { src: "" };
+              }
+              try {
+                const url = await uploadBlob(imgBuffer, contentType, docTitle, "img", imgIdx++, ext);
+                return { src: url };
+              } catch (e) {
+                imgUploadFailures++;
+                console.warn(`[wordImport] storage upload failed for image ${imgIdx} — falling back to data URI:`, e);
+                if (imgBuffer.length <= DATA_URI_LIMIT) {
+                  return { src: `data:${contentType};base64,${imgBuffer.toString("base64")}` };
+                }
+                return { src: "", alt: `[Image ${imgIdx} — too large to inline (${Math.round(imgBuffer.length / 1024)} KB)]` };
               }
             }),
           }
@@ -325,9 +350,12 @@ export const wordImportRouter = router({
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(`Failed to parse .docx file: ${msg}`);
       }
+      if (imgUploadFailures > 0) {
+        console.warn(`[wordImport] ${imgUploadFailures} image(s) used data-URI fallback because storage upload failed.`);
+      }
 
       // 2. Extract non-image embeds (PDFs / .xlsx / .pptx / OLE bins).
-      const attachments = await extractAttachments(buffer, docTitle);
+      const { uploaded: attachments, failedNames: attFailures } = await extractAttachments(buffer, docTitle);
       const attachmentsBlock = renderAttachmentsBlock(attachments);
 
       // 3. Split the HTML into block-level chunks + derive plain text per block.
@@ -349,6 +377,16 @@ export const wordImportRouter = router({
       if (attachments.length) {
         warnings.push(
           `${attachments.length} attachment${attachments.length !== 1 ? "s" : ""} extracted and linked in the first note.`
+        );
+      }
+      if (attFailures.length) {
+        warnings.push(
+          `${attFailures.length} attachment${attFailures.length !== 1 ? "s" : ""} could not be uploaded to storage (server storage may not be configured): ${attFailures.join(", ")}`
+        );
+      }
+      if (imgUploadFailures > 0) {
+        warnings.push(
+          `${imgUploadFailures} image${imgUploadFailures !== 1 ? "s" : ""} were inlined as data URIs because the storage backend rejected the upload. Configure server storage to use permanent URLs instead.`
         );
       }
 
