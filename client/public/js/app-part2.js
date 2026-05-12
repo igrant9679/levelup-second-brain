@@ -4050,6 +4050,7 @@ function doFASave(addAnother){
   if(saveBtn)saveBtn.innerHTML='<span class="fa-spinner"></span>Saving...';
 
   setTimeout(()=>{
+   try {
     const title=titleEl.value.trim();
     const desc=document.getElementById('fa-desc')?.value||'';
     const scope={personal:document.getElementById('fa-scope-personal')?.checked||false,business:document.getElementById('fa-scope-business')?.checked||false};
@@ -4249,6 +4250,17 @@ function doFASave(addAnother){
     } else {
       closeFA(true);
     }
+   } catch(err) {
+    // If anything in the save flow throws, surface it to the user instead of
+    // hanging the spinner forever. The note may have been pushed to D.notes
+    // already — just not finalised (badges / re-render).
+    console.error('[doFASave] error during save:',err);
+    toast({type:'error',title:'⚠ Save error',msg:(err&&err.message)?err.message:'Something went wrong while saving. Check the browser console for details.',duration:8000});
+   } finally {
+    // Always reset the Save button so the user isn't stuck on "Saving…"
+    const btn=document.getElementById('fa-save-btn');
+    if(btn)btn.innerHTML='Save';
+   }
   },200);
 }
 
