@@ -180,6 +180,74 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 11–12 2026 session arc)
+
+### Storage backend overhaul (May 11–12)
+
+User stopped using Manus AI, so the Forge presign flow is dead on this env.
+`server/storage.ts` now supports three backends, picked in this order:
+
+1. **S3-compatible** — set `S3_BUCKET` + `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY`.
+   Optional: `S3_REGION` (default `us-east-1`), `S3_ENDPOINT` (for R2 / B2 / MinIO),
+   `S3_PUBLIC_URL_BASE` (CDN / custom domain), `S3_FORCE_PATH_STYLE=1`.
+   Bucket needs public-read OR a fronting CDN. Uses `@aws-sdk/client-s3`.
+2. **Google Drive** — set `GOOGLE_DRIVE_CLIENT_ID` + `GOOGLE_DRIVE_CLIENT_SECRET` +
+   `GOOGLE_DRIVE_REFRESH_TOKEN` + `GOOGLE_DRIVE_FOLDER_ID`. Refresh-token OAuth,
+   no new deps (plain `fetch`). Uploads to the folder, shares "anyone with the
+   link can view", returns `drive.google.com/uc?export=view&id=…` URLs. See
+   CLAUDE.md inline comments in `env.ts` for the refresh-token generation flow
+   via OAuth Playground.
+3. **Manus Forge presign** — legacy fallback. Only used if 1 & 2 unconfigured.
+
+If none are configured, `storagePut` throws and the caller's data-URI fallback
+kicks in (see Word/Notes import section below).
+
+**As of May 12 the user has NOT yet wired env vars on Railway** — storage
+attempts fail silently, so importers fall back to data URIs. User plans to
+wire S3 or Drive in a future session.
+
+### Word/Notes document import (May 11–12)
+
+- **Notes-page importer** (`notesImport.ts` via the 📥 Import Docs button):
+  Single-doc upload → mammoth `convertToHtml` with image-upload hook →
+  uploads each image to storage, or falls back to data: URI (≤4 MB) →
+  returns `body` (plain text fallback) + `bodyHtml` (rich HTML with images
+  inline). Saved on the note as `n.bodyHtml`; the read-only renderer prefers
+  this over the markdown-rendered `n.body`. Inline RTE init also reads from
+  `n.bodyHtml`. `saveNoteInlineEdit` writes both back.
+- **Settings → Word Doc Import** (`wordImport.ts` via the dropzone):
+  Multi-note split (Title → Date → Time → Body pattern). Mammoth HTML →
+  split at block boundaries → derive plain text per block → existing title
+  detection algorithm. Each note gets `content` + `contentHtml`. Embedded
+  non-image files (PDFs / .xlsx / .pptx / OLE bins) are pulled from
+  `word/embeddings/` via JSZip and either uploaded to storage or inlined as
+  data URIs (≤10 MB) — listed in a "📎 Attachments from this document"
+  block at the end of the FIRST imported note.
+- **Bypass mode**: a "⚡ Skip images & attachments" checkbox in the Settings
+  importer panel sends `skipBinaries:true` to the server, which replaces
+  images with styled `[Image N skipped]` placeholders and lists attachment
+  filenames in a yellow "Skipped attachments" block without uploading or
+  encoding anything. Use this when storage isn't configured yet to avoid
+  bloating the prefs blob with megabytes of data URIs.
+- **Upload size cap**: 100 MB end-to-end (client check, zod limit, express
+  body parser at 200 MB to fit base64 inflation).
+- **jszip** is now a direct dep (was transitive of mammoth, promoted in
+  `a2de9e0` with matching `pnpm-lock.yaml` importer entry).
+
+### Other May 12 fixes
+
+- **M365 contacts import** (`syncContacts` in `oauth-sync.ts`): paginates
+  through `@odata.nextLink` (MS Graph) and `nextPageToken` (Google People)
+  with a default cap of 5000 contacts and a 200-page safety ceiling. Was
+  fetching only the first page of ~50 before.
+- **doFASave save-button hang** (`app-part2.js`): wrapped the setTimeout
+  body in try/catch/finally so the "Saving…" spinner always resets and
+  errors get toasted instead of swallowed.
+- **Notes page banner**: replaced the bespoke `.notes-page-header` (peach
+  surface, icon block, chip pills) with the standard `.ph-r` pattern used
+  by Tasks / Projects / Goals / Journal. Stats now in a single subtitle
+  line written to `#notes-page-sub` by `renderNotes()`.
+
 ## Most recently shipped (May 11 2026 session arc) — all 7 picked items done
 
 1. ✅ **🕸 Knowledge graph view of notes** (`dcf0452`) — new `s-graph` screen. `renderKnowledgeGraph()` extracts `[[wiki]]` links + shared-tag edges; `_kgStartSimulation()` runs Verlet integration (REPULSION=2500, SPRING=0.012, SPRING_LEN=120, FRICTION=0.86, CENTER_PULL=0.0008, 240 ticks). Click a node → `showNoteInEditor(id)`. Sidebar entry purple `#a855f7`, palette nav, SM map entry.
@@ -206,8 +274,18 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - `4cbc821` + `f4585bf` Notes title banner — replaced the bespoke `.notes-page-header` (icon block + chip pills + peach surface) with the standard `.ph-r` pattern used by every other page; added the Notes layout to the global `.ph-r::before` accent-strip selector since its parent isn't `.mn`.
 - `aa3f770` Home hero banner restored to the original indigo→purple→magenta gradient after experiments with indigo / red variants.
 
-## Recent commit refs (May 11 2026, newest first)
+## Recent commit refs (May 11–12 2026, newest first)
 
+- `bd8a874` — doFASave: defensive try/catch/finally so Save button never hangs
+- `23c22eb` — Word import: bypass binaries checkbox + Google Drive storage backend
+- `1ebfe0b` — Storage: add S3-compatible backend (works without Manus Forge)
+- `34aea71` — Word doc importer: data-URI fallback for embedded attachments
+- `49a1f2c` — Word/Notes doc import: data-URI fallback when storage fails
+- `057e02c` — M365 contacts import: paginate through all pages
+- `a2de9e0` — Settings Word Doc importer: preserve images + embedded attachments
+- `5e56c8c` — (reverted) Settings/Word-doc importer to plain-text behaviour
+- `e22579d` — Word/Notes doc import: preserve formatting + images
+- `0301563` — CLAUDE.md: refresh handoff doc for end-of-session arc
 - `46ca165` — empty states across Ideas / Goals / Mail / Contacts / Habits / Journal
 - `f4585bf` — Notes banner: clean up dead CSS + give it the standard accent strip
 - `4cbc821` — Notes title banner refactored to use the standard `.ph-r` pattern
