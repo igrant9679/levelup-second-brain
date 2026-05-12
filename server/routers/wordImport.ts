@@ -124,15 +124,23 @@ function escHtml(s: string): string {
 async function extractAttachments(
   buffer: Buffer,
   docTitle: string
-): Promise<{ uploaded: Array<{ name: string; url: string; mimeType: string }>; failedNames: string[] }> {
-  const uploaded: Array<{ name: string; url: string; mimeType: string }> = [];
-  const failedNames: string[] = [];
+): Promise<{
+  uploaded: Array<{ name: string; url: string; mimeType: string; viaDataUri?: boolean }>;
+  tooLarge: Array<{ name: string; sizeKB: number; mimeType: string }>;
+}> {
+  const uploaded: Array<{ name: string; url: string; mimeType: string; viaDataUri?: boolean }> = [];
+  const tooLarge: Array<{ name: string; sizeKB: number; mimeType: string }> = [];
+  // PDFs / spreadsheets / docs can comfortably go up to ~10 MB as data URIs
+  // (≈ 13 MB base64) without choking the prefs blob. Larger files surface
+  // with a "too big to inline" message.
+  const DATA_URI_LIMIT = 10 * 1024 * 1024;
+
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(buffer);
   } catch (e) {
     console.warn("[wordImport] could not unzip .docx for attachment extraction:", e);
-    return { uploaded, failedNames };
+    return { uploaded, tooLarge };
   }
 
   let idx = 0;
@@ -148,20 +156,27 @@ async function extractAttachments(
       try {
         data = await file.async("nodebuffer");
       } catch {
-        failedNames.push(fname);
         return;
       }
+      // Try storage upload first — permanent URL is preferred
       try {
         const url = await uploadBlob(data, mime, docTitle, "att", idx++, ext);
         uploaded.push({ name: fname, url, mimeType: mime });
+        return;
       } catch (e) {
-        console.warn(`[wordImport] storage upload failed for attachment ${fname}:`, e);
-        failedNames.push(fname);
+        console.warn(`[wordImport] storage upload failed for attachment ${fname} (${data.length} bytes) — falling back to data URI:`, e);
+      }
+      // Storage failed → data-URI fallback if small enough
+      if (data.length <= DATA_URI_LIMIT) {
+        const dataUri = `data:${mime};base64,${data.toString("base64")}`;
+        uploaded.push({ name: fname, url: dataUri, mimeType: mime, viaDataUri: true });
+      } else {
+        tooLarge.push({ name: fname, sizeKB: Math.round(data.length / 1024), mimeType: mime });
       }
     })());
   });
   await Promise.all(tasks);
-  return { uploaded, failedNames };
+  return { uploaded, tooLarge };
 }
 
 /**
@@ -169,9 +184,10 @@ async function extractAttachments(
  * `<div>` so it can be appended to a note's contentHtml.
  */
 function renderAttachmentsBlock(
-  atts: Array<{ name: string; url: string; mimeType: string }>
+  atts: Array<{ name: string; url: string; mimeType: string; viaDataUri?: boolean }>,
+  tooLarge: Array<{ name: string; sizeKB: number; mimeType: string }>
 ): string {
-  if (!atts.length) return "";
+  if (!atts.length && !tooLarge.length) return "";
   const iconFor = (mime: string) => {
     if (mime.includes("pdf")) return "📄";
     if (mime.includes("spreadsheet") || mime.includes("excel") || mime.includes("csv")) return "📊";
@@ -181,13 +197,19 @@ function renderAttachmentsBlock(
     return "📎";
   };
   const rows = atts
-    .map(
-      a => `<li style="margin:4px 0">${iconFor(a.mimeType)} <a href="${escHtml(a.url)}" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline">${escHtml(a.name)}</a></li>`
-    )
+    .map(a => {
+      // For data URIs, add a download attribute so right-click → save works
+      // (browsers won't navigate to a multi-MB data URI cleanly otherwise).
+      const downloadAttr = a.viaDataUri ? ` download="${escHtml(a.name)}"` : "";
+      return `<li style="margin:4px 0">${iconFor(a.mimeType)} <a href="${escHtml(a.url)}"${downloadAttr} target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline">${escHtml(a.name)}</a>${a.viaDataUri ? ' <span style="font-size:10px;color:#94a3b8">(inline)</span>' : ""}</li>`;
+    })
+    .join("");
+  const tooLargeRows = tooLarge
+    .map(a => `<li style="margin:4px 0;opacity:.65">${iconFor(a.mimeType)} ${escHtml(a.name)} <span style="font-size:10px;color:#dc2626">— ${a.sizeKB} KB, too large to inline (configure server storage to import)</span></li>`)
     .join("");
   return `<div style="margin-top:18px;padding:10px 14px;background:#f8fafc;border-left:3px solid #3b82f6;border-radius:0 6px 6px 0">
   <div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📎 Attachments from this document</div>
-  <ul style="margin:0;padding-left:18px;font-size:12px;color:#334155">${rows}</ul>
+  <ul style="margin:0;padding-left:18px;font-size:12px;color:#334155">${rows}${tooLargeRows}</ul>
 </div>`;
 }
 
@@ -355,8 +377,10 @@ export const wordImportRouter = router({
       }
 
       // 2. Extract non-image embeds (PDFs / .xlsx / .pptx / OLE bins).
-      const { uploaded: attachments, failedNames: attFailures } = await extractAttachments(buffer, docTitle);
-      const attachmentsBlock = renderAttachmentsBlock(attachments);
+      const { uploaded: attachments, tooLarge: attTooLarge } = await extractAttachments(buffer, docTitle);
+      const attachmentsBlock = renderAttachmentsBlock(attachments, attTooLarge);
+      const inlinedAttachments = attachments.filter(a => a.viaDataUri).length;
+      const storedAttachments = attachments.length - inlinedAttachments;
 
       // 3. Split the HTML into block-level chunks + derive plain text per block.
       const blocks = splitHtmlIntoBlocks(html);
@@ -374,19 +398,24 @@ export const wordImportRouter = router({
         notes[0].content += `\n\n--- Attachments ---\n${attTextLines}`;
       }
 
-      if (attachments.length) {
+      if (storedAttachments > 0) {
         warnings.push(
-          `${attachments.length} attachment${attachments.length !== 1 ? "s" : ""} extracted and linked in the first note.`
+          `${storedAttachments} attachment${storedAttachments !== 1 ? "s" : ""} uploaded to storage and linked in the first note.`
         );
       }
-      if (attFailures.length) {
+      if (inlinedAttachments > 0) {
         warnings.push(
-          `${attFailures.length} attachment${attFailures.length !== 1 ? "s" : ""} could not be uploaded to storage (server storage may not be configured): ${attFailures.join(", ")}`
+          `${inlinedAttachments} attachment${inlinedAttachments !== 1 ? "s" : ""} inlined as data URIs (server storage unavailable — click them in the note to download).`
+        );
+      }
+      if (attTooLarge.length > 0) {
+        warnings.push(
+          `${attTooLarge.length} attachment${attTooLarge.length !== 1 ? "s" : ""} too large to inline (>10 MB each): ${attTooLarge.map(a => `${a.name} (${a.sizeKB} KB)`).join(", ")}. Configure server storage to import these.`
         );
       }
       if (imgUploadFailures > 0) {
         warnings.push(
-          `${imgUploadFailures} image${imgUploadFailures !== 1 ? "s" : ""} were inlined as data URIs because the storage backend rejected the upload. Configure server storage to use permanent URLs instead.`
+          `${imgUploadFailures} image${imgUploadFailures !== 1 ? "s" : ""} inlined as data URIs because the storage backend rejected the upload.`
         );
       }
 
