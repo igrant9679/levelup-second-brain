@@ -1950,6 +1950,23 @@ function renderDrawer(type,item){
     </div>
     <div class="field"><label>Tags (comma separated)</label><input class="inp" value="${(item.tags||[]).join(', ')}" id="dr-tags"></div>
     <div class="field"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
+    <!-- Linked Items (#2 fix — full edit now exposes everything new-create has) -->
+    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Ctrl/Cmd-click to multi-select · saves with Save Changes</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Projects</label>
+          <select class="inp" id="dr-link-projects" multiple size="4" style="margin-top:2px">${(D.projects||[]).map(p=>`<option value="${p.id}" ${(item.linkedProjectIds||[]).includes(p.id)?'selected':''}>${esc(p.name)}</option>`).join('')||'<option disabled>(no projects)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Goals</label>
+          <select class="inp" id="dr-link-goals" multiple size="4" style="margin-top:2px">${(D.goals||[]).map(g=>`<option value="${g.id}" ${(item.linkedGoalIds||[]).includes(g.id)?'selected':''}>${esc(g.icon||'🎯')} ${esc(g.title)}</option>`).join('')||'<option disabled>(no goals)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Tasks</label>
+          <select class="inp" id="dr-link-tasks" multiple size="4" style="margin-top:2px">${(D.tasks||[]).filter(t=>t.status!=='Done').slice(0,200).map(t=>`<option value="${t.id}" ${(item.linkedTaskIds||[]).includes(t.id)?'selected':''}>${esc(t.title)}</option>`).join('')||'<option disabled>(no open tasks)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Other Notes</label>
+          <select class="inp" id="dr-link-notes" multiple size="4" style="margin-top:2px">${(D.notes||[]).filter(n=>n.id!==item.id).slice(0,200).map(n=>`<option value="${n.id}" ${(item.linkedNoteIds||[]).includes(n.id)?'selected':''}>${esc(n.title||'(untitled)')}</option>`).join('')||'<option disabled>(no other notes)</option>'}</select>
+        </div>
+      </div>
+    </div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
       <label style="display:flex;justify-content:space-between;align-items:center">
@@ -2351,7 +2368,14 @@ function saveItem(type,id){
     t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;n.updated='Just now';save('notes')}}
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
+    // Persist linked items (#2 fix)
+    const _selVals=sel=>sel?Array.from(sel.selectedOptions).map(o=>parseInt(o.value)).filter(v=>!isNaN(v)):[];
+    n.linkedProjectIds=_selVals(document.getElementById('dr-link-projects'));
+    n.linkedGoalIds=_selVals(document.getElementById('dr-link-goals'));
+    n.linkedTaskIds=_selVals(document.getElementById('dr-link-tasks'));
+    n.linkedNoteIds=_selVals(document.getElementById('dr-link-notes'));
+    n.updated='Just now';save('notes')}}
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
@@ -4678,6 +4702,42 @@ function renderTaskCalendar(){
   }).join('')}</div>`;
   list.innerHTML=header+grid;
 }
+// Cluster view drag-to-reassign (fixes #5).
+let _clTaskDragId=null;
+function _clusterTaskDragStart(e,id){
+  _clTaskDragId=id;
+  try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}
+  e.currentTarget.style.opacity='.4';
+}
+function _clusterTaskDragEnd(e){
+  e.currentTarget.style.opacity='';
+  document.querySelectorAll('.cl-card').forEach(el=>{el.style.boxShadow='';el.style.background='var(--s2)';});
+  _clTaskDragId=null;
+}
+function _clusterDragOver(e,clId){
+  if(!_clTaskDragId)return;
+  e.preventDefault();
+  try{e.dataTransfer.dropEffect='move';}catch(_){}
+  e.currentTarget.style.boxShadow='0 0 0 2px var(--ac) inset';
+  e.currentTarget.style.background=`color-mix(in srgb, var(--ac) 12%, var(--s2))`;
+}
+function _clusterDragLeave(e){
+  e.currentTarget.style.boxShadow='';
+  e.currentTarget.style.background='var(--s2)';
+}
+function _clusterDrop(e,clId){
+  e.preventDefault();
+  e.currentTarget.style.boxShadow='';e.currentTarget.style.background='var(--s2)';
+  if(!_clTaskDragId)return;
+  const t=D.tasks.find(x=>x.id===_clTaskDragId);if(!t){_clTaskDragId=null;return;}
+  // Drop onto orphan = clear cluster; drop onto a real cluster = set t.clusterId
+  if(clId==='__orphan__'){delete t.clusterId;}
+  else{t.clusterId=Number(clId);}
+  save('tasks');
+  _clTaskDragId=null;
+  renderTaskClusters();
+  toast(clId==='__orphan__'?'Removed from cluster':'Moved to cluster');
+}
 function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -4727,7 +4787,9 @@ function renderTaskClusters(){
     const pc=priColors[pri]||priColors['Medium'];
     const priShort=pri==='Medium'?'Med':pri;
     const dueLabel=_relDue(t.due);
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+    // #5 fix — make rows draggable so users can drop them onto another cluster card
+    return `<div class="cl-task-row" data-task-id="${t.id}" draggable="true" ondragstart="_clusterTaskDragStart(event,${t.id})" ondragend="_clusterTaskDragEnd(event)" style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      <span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>
       <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
       <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
@@ -4748,7 +4810,8 @@ function renderTaskClusters(){
     if(overdue>0)subtitle+=` · <span style="color:var(--red);font-weight:600">${overdue} overdue</span>`;
     const progressColor=pct===100?'#22c55e':accent;
     const progressTextColor=pct===100?'#22c55e':'var(--t3)';
-    return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;margin-bottom:10px;overflow:hidden">
+    // #6 fix — left accent stripe + drop target for #5 drag-to-reassign
+    return `<div class="cl-card" data-cluster-id="${cl.id}" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid ${accent};border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .12s,background .12s" ondragover="_clusterDragOver(event,${cl.id})" ondragleave="_clusterDragLeave(event)" ondrop="_clusterDrop(event,${cl.id})">
       <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${cl.id}']=!_clusterCollapsed['${cl.id}'];renderTaskClusters()">
         <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
         <div style="width:28px;height:28px;border-radius:6px;background:${accent}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${cl.icon||'📁'}</div>
@@ -4771,7 +4834,7 @@ function renderTaskClusters(){
 
   // Orphan section
   const orphanCollapsed=!!_clusterCollapsed['__orphan__'];
-  const orphanCard=orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;margin-bottom:10px;overflow:hidden">
+  const orphanCard=orphans.length?`<div class="cl-card" data-cluster-id="__orphan__" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid var(--t3);border-radius:10px;margin-bottom:10px;overflow:hidden;transition:box-shadow .12s,background .12s" ondragover="_clusterDragOver(event,'__orphan__')" ondragleave="_clusterDragLeave(event)" ondrop="_clusterDrop(event,'__orphan__')">
     <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer" onclick="_clusterCollapsed['__orphan__']=!_clusterCollapsed['__orphan__'];renderTaskClusters()">
       <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${orphanCollapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
       <div style="width:28px;height:28px;border-radius:6px;background:rgba(148,163,184,0.15);color:var(--t3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🗂</div>
@@ -4793,12 +4856,28 @@ function openClusterModal(id){
   const allProjects=D.projects||[];
   const selProjs=cl?new Set(cl.projectIds||[]):new Set();
   const projOptions=allProjects.map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer"><input type="checkbox" value="${p.id}" ${selProjs.has(p.id)?'checked':''} class="cl-proj-cb"> ${esc(p.name)}</label>`).join('');
-  const html=`<div style="padding:16px">
+  // #4 — also let users attach individual tasks directly via t.clusterId
+  const allTasks=(D.tasks||[]).filter(t=>t.status!=='Done');
+  const taskOptions=allTasks.map(t=>{
+    const checked=cl&&t.clusterId===cl.id;
+    const projOwned=t.projectId&&selProjs.has(t.projectId);
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':''}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${esc(t.title)}${projOwned?' <span style="font-size:9px;color:var(--t3)">(via project)</span>':''}</label>`;
+  }).join('');
+  const html=`<div style="padding:16px;max-width:540px">
     <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>
-    <div class="field"><label>Name</label><input id="cl-name" class="inp" value="${esc(cl?.name||'')}" placeholder="Cluster name"></div>
-    <div class="field"><label>Icon</label><input id="cl-icon" class="inp" value="${cl?.icon||'📁'}" placeholder="Emoji icon" style="width:60px"></div>
-    <div class="field"><label>Color</label><input id="cl-color" type="color" class="inp" value="${cl?.color||'#3B82F6'}" style="width:60px;height:32px;padding:2px"></div>
-    <div class="field"><label>Projects</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${projOptions||'<span style="font-size:11px;color:var(--t3)">No projects yet</span>'}</div></div>
+    <div class="field-row">
+      <div class="field" style="flex:1"><label>Name</label><input id="cl-name" class="inp" value="${esc(cl?.name||'')}" placeholder="Cluster name"></div>
+      <div class="field"><label>Icon</label><input id="cl-icon" class="inp" value="${cl?.icon||'📁'}" placeholder="Emoji" style="width:70px;text-align:center"></div>
+      <div class="field"><label>Color</label><input id="cl-color" type="color" value="${cl?.color||'#3B82F6'}" style="width:60px;height:32px;padding:2px;border:1px solid var(--bd2);border-radius:6px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Projects <span style="font-size:9px;color:var(--t3);font-weight:400">all their tasks join automatically</span></label>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${projOptions||'<span style="font-size:11px;color:var(--t3)">No projects yet</span>'}</div>
+      </div>
+      <div class="field"><label>Individual tasks <span style="font-size:9px;color:var(--t3);font-weight:400">attach single tasks not in any picked project</span></label>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${taskOptions||'<span style="font-size:11px;color:var(--t3)">No active tasks</span>'}</div>
+      </div>
+    </div>
     <div style="display:flex;gap:6px;margin-top:12px">
       <button class="btn btn-p" style="flex:1" onclick="saveCluster(${id||'null'})">Save</button>
       ${cl?`<button class="btn btn-d" onclick="deleteCluster(${id})">Delete</button>`:''}
@@ -4817,15 +4896,29 @@ function saveCluster(id){
   const icon=document.getElementById('cl-icon')?.value||'📁';
   const color=document.getElementById('cl-color')?.value||'#3B82F6';
   const projIds=Array.from(document.querySelectorAll('.cl-proj-cb:checked')).map(cb=>parseInt(cb.value));
+  // #4 — read individual task selections
+  const taskIds=Array.from(document.querySelectorAll('.cl-task-cb:checked')).map(cb=>parseInt(cb.value));
+  let clusterId;
   if(id){
     const cl=D.clusters.find(x=>x.id===id);
     if(cl){cl.name=name;cl.icon=icon;cl.color=color;cl.projectIds=projIds;}
+    clusterId=id;
   }else{
-    D.clusters.push({id:nextId(D.clusters),name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:new Date().toISOString().split('T')[0]});
+    clusterId=nextId(D.clusters);
+    D.clusters.push({id:clusterId,name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:new Date().toISOString().split('T')[0]});
   }
-  save('clusters');
+  // Apply direct task assignments: any task in taskIds gets t.clusterId=clusterId,
+  // any task previously assigned to this cluster but no longer in the list gets cleared
+  // (only when not project-owned).
+  const wantSet=new Set(taskIds);
+  D.tasks.forEach(t=>{
+    if(wantSet.has(t.id))t.clusterId=clusterId;
+    else if(t.clusterId===clusterId&&!wantSet.has(t.id))delete t.clusterId;
+  });
+  save('clusters');save('tasks');
   closeModal();
   renderTaskClusters();
+  toast({type:'success',title:`✓ Cluster saved`,msg:`${projIds.length} project${projIds.length===1?'':'s'} · ${taskIds.length} direct task${taskIds.length===1?'':'s'}`,duration:2500});
 }
 function deleteCluster(id){
   if(!confirm('Delete this cluster? Tasks will move to No Cluster.'))return;

@@ -520,7 +520,13 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .fa-field label{font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em}
 .fa-field .err{font-size:10px;color:var(--red);margin-top:2px;display:none}
 .fa-field .err.show{display:block}
+/* Theme-respecting <option> backgrounds (browsers default to OS chrome which
+   ignores the page theme). Forces the dropdown list to match light/dark. */
+select option,select.inp option,select.fa-inp option{background:var(--s1);color:var(--t1)}
+body.light-mode select.fa-inp{background:#fff;color:var(--t1);border-color:rgba(0,0,0,.12)}
+body.light-mode select.fa-inp option{background:#fff;color:var(--t1)}
 .fa-inp{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--t1);font-size:12px;padding:7px 10px;width:100%;box-sizing:border-box;transition:border-color .15s}
+body.light-mode .fa-inp{background:#fff;border-color:rgba(0,0,0,.12)}
 .fa-inp:focus{outline:none;border-color:var(--ac)}
 .fa-inp.err-border{border-color:var(--red)}
 textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
@@ -918,8 +924,11 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
 .lr:hover{border-left-color:color-mix(in srgb,var(--page-accent) 50%,transparent)}
 
 /* Bulk-select visual feedback on note cards in bulk mode. */
-.nc.bulk-checked{background:color-mix(in srgb,var(--page-accent) 22%,var(--s2))!important;border-color:var(--page-accent)!important;box-shadow:inset 3px 0 0 var(--page-accent),0 0 0 1px color-mix(in srgb,var(--page-accent) 40%,transparent)}
-body.notes-bulk-mode .nc{user-select:none}
+.nc.bulk-checked{background:color-mix(in srgb,var(--page-accent) 32%,var(--s2))!important;border-color:var(--page-accent)!important;box-shadow:inset 4px 0 0 var(--page-accent),0 0 0 2px color-mix(in srgb,var(--page-accent) 55%,transparent)}
+.nc.bulk-checked .nc-t,.nc.bulk-checked .nc-m{color:#fff!important}
+.nc.bulk-checked::after{content:'✓';position:absolute;top:6px;right:8px;width:18px;height:18px;border-radius:50%;background:var(--page-accent);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4);z-index:4}
+body.notes-bulk-mode .nc{user-select:none;cursor:pointer}
+body.notes-bulk-mode .nc-quick-actions{display:none!important}
 
 /* ─── Notes list card extras (thumb / color / pin / pinned section) ──── */
 .nc{display:block}
