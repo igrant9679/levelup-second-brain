@@ -6582,12 +6582,150 @@ function renderNoteEditor(n){
 }
 
 let projView='list';
+// Projects filter + group + sort state (P1, P2, P3, P5, P6, P8)
+if(typeof _projSearch==='undefined')var _projSearch='';
+if(typeof _projStatusFilter==='undefined')var _projStatusFilter='Active'; // hides Completed by default; "All" includes archive only when explicitly set
+if(typeof _projHealthFilter==='undefined')var _projHealthFilter='All';
+if(typeof _projShowArchived==='undefined')var _projShowArchived=false;
+if(typeof _projGroupBy==='undefined')var _projGroupBy='none';
+if(typeof _projSort==='undefined')var _projSort='order';
+if(typeof _projGanttZoom==='undefined')var _projGanttZoom='month'; // week | month | quarter
+function setProjFilter(field,val){
+  if(field==='search')_projSearch=val||'';
+  else if(field==='status')_projStatusFilter=val||'All';
+  else if(field==='health')_projHealthFilter=val||'All';
+  else if(field==='showArchived')_projShowArchived=!!val;
+  else if(field==='groupBy')_projGroupBy=val||'none';
+  else if(field==='sort')_projSort=val||'order';
+  else if(field==='ganttZoom')_projGanttZoom=val||'month';
+  renderProjects();
+}
+function clearProjFilters(){_projSearch='';_projStatusFilter='Active';_projHealthFilter='All';_projShowArchived=false;_projGroupBy='none';_projSort='order';renderProjects();}
+function _projHasFilters(){return !!_projSearch||_projStatusFilter!=='Active'||_projHealthFilter!=='All'||_projShowArchived||_projGroupBy!=='none'||_projSort!=='order';}
+function _filteredProjects(){
+  let arr=[...(D.projects||[])];
+  // P3: archived hidden unless toggled
+  if(!_projShowArchived)arr=arr.filter(p=>!p.archived);
+  if(_projSearch){const q=_projSearch.toLowerCase();arr=arr.filter(p=>(p.name||'').toLowerCase().includes(q)||(p.desc||'').toLowerCase().includes(q));}
+  if(_projStatusFilter==='Active')arr=arr.filter(p=>p.status==='Active'||p.status==='In Progress');
+  else if(_projStatusFilter==='On Hold')arr=arr.filter(p=>p.status==='On Hold');
+  else if(_projStatusFilter==='Completed')arr=arr.filter(p=>p.status==='Completed'||p.status==='Done');
+  else if(_projStatusFilter==='Not Started')arr=arr.filter(p=>p.status==='Not Started');
+  if(_projHealthFilter!=='All')arr=arr.filter(p=>projectHealth(p).label===_projHealthFilter);
+  // P2 sort: pinned first, then by sort selection, then sortOrder, then array order
+  if(_projSort==='dueAsc')arr.sort((a,b)=>(Date.parse(a.due||'9999')||9e15)-(Date.parse(b.due||'9999')||9e15));
+  else if(_projSort==='pctDesc')arr.sort((a,b)=>(b.pct||0)-(a.pct||0));
+  else if(_projSort==='pctAsc')arr.sort((a,b)=>(a.pct||0)-(b.pct||0));
+  else if(_projSort==='az')arr.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  else arr.sort((a,b)=>(typeof a.sortOrder==='number'?a.sortOrder:9e9)-(typeof b.sortOrder==='number'?b.sortOrder:9e9));
+  arr.sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)); // pinned float to top
+  return arr;
+}
+function _projToggleStar(id,e){if(e)e.stopPropagation();const p=D.projects.find(x=>x.id===id);if(!p)return;p.pinned=!p.pinned;save('projects');renderProjects();toast(p.pinned?'📌 Pinned':'Unpinned');}
+function _projToggleArchive(id,e){if(e)e.stopPropagation();const p=D.projects.find(x=>x.id===id);if(!p)return;p.archived=!p.archived;save('projects');renderProjects();toast(p.archived?'🗄 Archived':'Restored from archive');}
+async function aiProjectHealth(){
+  if(!D.projects.length){toast('No projects yet');return;}
+  toast({type:'info',title:'Generating project health summary…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const lines=D.projects.filter(p=>!p.archived).map(p=>{const h=projectHealth(p);const tasks=D.tasks.filter(t=>t.projectId===p.id);return `- ${p.name}: ${p.status||'—'}, ${p.pct||0}% complete, due ${p.due||'—'}, ${h.label}, ${tasks.length} tasks (${tasks.filter(t=>t.status==='Done').length} done)`;}).join('\n');
+    const sys=`You are an experienced project manager. Read the active project list with health flags and produce a 3-paragraph health report: 1) what's going well, 2) what needs attention this week, 3) the single most important next action across the portfolio. Be specific — name the projects. No fluff.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Active projects:\n${lines}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    const m=document.getElementById('modal-content');
+    if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🩺 Project Health Summary</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
+  }catch(e){toast({type:'error',title:'AI summary failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+async function aiProjectNextMilestone(){
+  if(!D.projects.length){toast('No projects yet');return;}
+  const active=D.projects.filter(p=>!p.archived&&(p.status==='Active'||p.status==='In Progress'));
+  if(!active.length){toast('No active projects');return;}
+  toast({type:'info',title:'Suggesting next milestones…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const lines=active.map(p=>{const tasks=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done').slice(0,5).map(t=>'  · '+t.title).join('\n');return `- ${p.name} (${p.pct||0}%, due ${p.due||'—'}):\n${tasks||'  (no open tasks)'}`;}).join('\n');
+    const sys=`You are a project planner. For each active project, suggest the SINGLE next milestone the user should ship in the next 7-14 days. Reply as a markdown bulleted list, one project per bullet, format: "**Project name** — milestone (1 sentence why)". No preamble.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    const m=document.getElementById('modal-content');
+    if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Next Milestones</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
+  }catch(e){toast({type:'error',title:'AI failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+async function aiProjectRisks(){
+  if(!D.projects.length){toast('No projects yet');return;}
+  const at=D.projects.filter(p=>!p.archived&&(projectHealth(p).label!=='On Track'));
+  if(!at.length){toast('Nothing flagged — all projects on track 🎉');return;}
+  toast({type:'info',title:'Identifying risks…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const lines=at.map(p=>{const h=projectHealth(p);const overdueTasks=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done'&&t.due&&t.due<_todayStr).slice(0,5).map(t=>'  · OVERDUE: '+t.title+' (due '+t.due+')').join('\n');return `- ${p.name} [${h.label}], ${p.pct||0}% complete, due ${p.due||'—'}\n${overdueTasks||'  (no overdue tasks but at-risk)'}`;}).join('\n');
+    const sys=`You are an experienced PM doing a risk review. For each at-risk project, identify the top 1-2 risks and suggest a concrete unblock. Output a markdown list: project name → risk → unblock action. Be specific.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    const m=document.getElementById('modal-content');
+    if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">⚠️ Project Risks</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
+  }catch(e){toast({type:'error',title:'AI failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+function _renderProjRail(){
+  const r=document.getElementById('proj-rail');if(!r)return;
+  const ps=(D.projects||[]).filter(p=>!p.archived);
+  const byHealth={'On Track':0,'Needs Attention':0,'At Risk':0};
+  ps.forEach(p=>{const h=projectHealth(p).label;if(byHealth[h]!==undefined)byHealth[h]++;});
+  const onDeck=ps.filter(p=>p.status==='Not Started').slice(0,5);
+  const due30=ps.filter(p=>{if(!p.due)return false;const d=Date.parse(p.due);if(isNaN(d))return false;const days=Math.ceil((d-Date.now())/86400000);return days>=0&&days<=30;}).sort((a,b)=>Date.parse(a.due)-Date.parse(b.due)).slice(0,6);
+  const recentTasks=D.tasks.filter(t=>t.projectId&&t.completedAt).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||'')).slice(0,5);
+  r.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:13px;font-weight:700">📊 Insights</div>
+  </div>
+  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:8px">Health</div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok);flex-shrink:0"></span><span style="flex:1">On Track</span><strong>${byHealth['On Track']}</strong></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);flex-shrink:0"></span><span style="flex:1">Needs Attention</span><strong style="color:var(--warn)">${byHealth['Needs Attention']}</strong></div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span style="flex:1">At Risk</span><strong style="color:var(--red)">${byHealth['At Risk']}</strong></div>
+    </div>
+  </div>
+  ${due30.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span><span style="font-size:9px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
+  ${onDeck.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
+  ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:10px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
+}
 function renderProjects(){
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const ps=D.projects||[];const a=ps.filter(p=>p.status==='Active'||p.status==='In Progress').length;const oh=ps.filter(p=>p.status==='On Hold').length;const dn=ps.filter(p=>p.status==='Completed'||p.status==='Done').length;return `${a} active${oh?` · ${oh} on hold`:''}${dn?` · ${dn} completed`:''}`||`${ps.length} project${ps.length!==1?'s':''}`;})()}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='team'?'btn-p':'btn-s'}" onclick="projView='team';renderProjects()">👥 Team</button><button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>`;
+  // Header — filter row + view tabs + AI menu + New Project
+  const ps=D.projects||[];
+  const a=ps.filter(p=>!p.archived&&(p.status==='Active'||p.status==='In Progress')).length;
+  const oh=ps.filter(p=>!p.archived&&p.status==='On Hold').length;
+  const dn=ps.filter(p=>!p.archived&&(p.status==='Completed'||p.status==='Done')).length;
+  const ar=ps.filter(p=>p.archived).length;
+  const subtitle=`${a} active${oh?` · ${oh} on hold`:''}${dn?` · ${dn} completed`:''}${ar?` · ${ar} archived`:''}`||`${ps.length} project${ps.length!==1?'s':''}`;
+  const aiMenu=`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('proj-ai-menu')" title="AI tools">✨ AI ▾</button><div id="proj-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectHealth()">🩺 Health Summary</button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectNextMilestone()">🎯 Suggest Next Milestone</button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectRisks()">⚠️ Identify Risks</button>
+  </div></div>`;
+  const filterRow=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setProjFilter('search',this.value)">
+    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('status',this.value)">
+      ${['Active','On Hold','Not Started','Completed','All'].map(s=>`<option ${_projStatusFilter===s?'selected':''}>${s}</option>`).join('')}
+    </select>
+    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('health',this.value)">
+      ${['All','On Track','Needs Attention','At Risk'].map(s=>`<option ${_projHealthFilter===s?'selected':''}>${s}</option>`).join('')}
+    </select>
+    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('sort',this.value)">
+      <option value="order" ${_projSort==='order'?'selected':''}>Default</option>
+      <option value="dueAsc" ${_projSort==='dueAsc'?'selected':''}>Due soon</option>
+      <option value="pctDesc" ${_projSort==='pctDesc'?'selected':''}>% high → low</option>
+      <option value="pctAsc" ${_projSort==='pctAsc'?'selected':''}>% low → high</option>
+      <option value="az" ${_projSort==='az'?'selected':''}>A → Z</option>
+    </select>
+    ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
+    ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:10px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
+  </div>`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="projView='workload';renderProjects()" title="Tasks grouped by assignee — workload across people">👥 Workload</button>${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
-  else if(projView==='team') renderProjectsTeamKanban(header);
+  else if(projView==='workload'||projView==='team') renderProjectsTeamKanban(header);
   else renderProjectsGantt(header);
+  _renderProjRail();
 }
 function renderProjectsTeamKanban(header){
   const allMembers=D.teams.flatMap(t=>t.members);
@@ -6630,27 +6768,73 @@ function projectHealth(p){
   return{icon:'🟢',label:'On Track',color:'var(--ok)'};
 }
 function renderProjectsList(header){
-  $('proj-main').innerHTML=header+
-  `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${D.projects.map(p=>{
+  const filtered=_filteredProjects();
+  // P5: group-by toolbar
+  const groupBar=`<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3);margin-bottom:8px">
+    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
+    ${[['none','None'],['status','Status'],['owner','Owner'],['quarter','Quarter'],['health','Health']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_projGroupBy===k?'var(--ac)':'transparent'};color:${_projGroupBy===k?'#fff':'var(--t2)'}" onclick="setProjFilter('groupBy','${k}')">${l}</button>`).join('')}
+    <span style="margin-left:auto;font-size:9px;color:var(--t3)">Drag the ⋮⋮ handle to reorder · 📌 to pin</span>
+  </div>`;
+  function projCard(p){
     const pts=D.tasks.filter(t=>t.projectId===p.id);
     const done=pts.filter(t=>t.status==='Done').length;
     const subs=pts.flatMap(t=>t.subtasks||[]);
     const health=projectHealth(p);
-    return`<div class="cd" style="cursor:pointer;border-left:3px solid ${health.color}" onclick="openProjectDetail(${p.id})">
-      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px">
+    return`<div class="proj-card" data-project-id="${p.id}" draggable="true" style="cursor:pointer;border-left:3px solid ${health.color};background:var(--s1);border:1px solid var(--bd1);border-radius:8px;padding:10px;position:relative;${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})" ondragstart="_projDragStart(event,${p.id})" ondragover="_projDragOver(event,${p.id})" ondragleave="_projDragLeave(event)" ondrop="_projDrop(event,${p.id})" ondragend="_projDragEnd(event)">
+      <span class="proj-drag" title="Drag to reorder" onclick="event.stopPropagation()" style="position:absolute;top:8px;right:8px;cursor:grab;color:var(--t3);font-size:11px;user-select:none">⋮⋮</span>
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;padding-right:24px">
         <span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span>
-        <span style="font-size:13px;font-weight:500;flex:1">${esc(p.name)}</span>
+        <span style="cursor:pointer;font-size:14px;${p.pinned?'color:var(--warn)':'color:var(--t3)'};line-height:1" onclick="_projToggleStar(${p.id},event)" title="${p.pinned?'Unpin':'Pin to top'}">${p.pinned?'★':'☆'}</span>
+        <span style="font-size:13px;font-weight:500;flex:1;${p.archived?'text-decoration:line-through':''}">${esc(p.name||'')}</span>
         <span title="Health: ${health.label}" style="font-size:14px;cursor:default">${health.icon}</span>
-        <span class="pill ${statusPill(p.status)}">${p.status}</span>
+        <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
       </div>
-      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc)}</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc||'')}</div>
       <div style="display:flex;gap:8px;font-size:10px;color:var(--t3);margin-bottom:6px"><span>📋 ${pts.length} tasks</span><span>✅ ${done} done</span><span>📌 ${subs.length} subtasks</span></div>
-      <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct}%</span></div>
+      <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due||'—'}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct||0}%</span></div>
       <div style="margin-top:8px;display:flex;gap:4px;align-items:center">
         <span style="font-size:9px;color:${health.color};font-weight:500">${health.icon} ${health.label}</span>
         <button class="btn btn-s" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))">✏ Edit</button>
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
       </div>
-    </div>`}).join('')}</div>`;
+    </div>`;
+  }
+  let body;
+  if(_projGroupBy==='none'){
+    body=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${filtered.map(projCard).join('')||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
+  }else{
+    const groups={};const order=[];
+    const groupKey=p=>{
+      switch(_projGroupBy){
+        case 'status':return p.status||'—';
+        case 'owner':return p.owner||'(no owner)';
+        case 'quarter':return p.quarter||(p.due?('Due '+(p.due.slice(0,7))):'(no quarter)');
+        case 'health':return projectHealth(p).label;
+      }
+      return '(other)';
+    };
+    filtered.forEach(p=>{const k=groupKey(p);if(!(k in groups)){groups[k]=[];order.push(k);}groups[k].push(p);});
+    body=order.map(k=>`<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(k)} <span style="font-weight:400;color:var(--t3)">(${groups[k].length})</span></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${groups[k].map(projCard).join('')}</div></div>`).join('');
+  }
+  $('proj-main').innerHTML=header+groupBar+body;
+}
+// P6: drag-reorder handlers for project list
+let _projDragId=null;
+function _projDragStart(e,id){_projDragId=id;e.target.classList.add('proj-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
+function _projDragOver(e,id){if(_projDragId&&_projDragId!==id){e.preventDefault();e.currentTarget.style.outline='2px dashed var(--ac)';e.currentTarget.style.outlineOffset='-2px';}}
+function _projDragLeave(e){e.currentTarget.style.outline='';}
+function _projDragEnd(e){e.target.classList.remove('proj-dragging');document.querySelectorAll('.proj-card').forEach(el=>{el.style.outline='';});_projDragId=null;}
+function _projDrop(e,targetId){
+  e.preventDefault();e.currentTarget.style.outline='';
+  if(!_projDragId||_projDragId===targetId)return;
+  const visible=Array.from(document.querySelectorAll('.proj-card[data-project-id]')).map(el=>Number(el.dataset.projectId));
+  const dragIdx=visible.indexOf(_projDragId);const dropIdx=visible.indexOf(targetId);
+  if(dragIdx<0||dropIdx<0)return;
+  visible.splice(dragIdx,1);visible.splice(dragIdx<dropIdx?dropIdx-1:dropIdx,0,_projDragId);
+  visible.forEach((id,i)=>{const p=D.projects.find(x=>x.id===id);if(p)p.sortOrder=i;});
+  const set=new Set(visible);
+  D.projects.filter(p=>!set.has(p.id)).forEach((p,i)=>{p.sortOrder=visible.length+i+1000;});
+  save('projects');renderProjects();
 }
 function openProjectDetail(pid){
   const p=D.projects.find(x=>x.id===pid);
@@ -6689,46 +6873,65 @@ function openProjectDetail(pid){
 function renderProjectsKanban(header){
   const cols=['Not Started','In Progress','On Hold','Completed'];
   const colMap={'Not Started':'Not Started','Active':'In Progress','On Hold':'On Hold','Completed':'Completed'};
+  // Apply filters (search + health + archive) but ignore the status select since columns ARE statuses.
+  const savedStatus=_projStatusFilter;_projStatusFilter='All';
+  const filtered=_filteredProjects();
+  _projStatusFilter=savedStatus;
   const colHtml=cols.map(col=>{
-    const ps=D.projects.filter(p=>(colMap[p.status]||p.status)===col);
+    const ps=filtered.filter(p=>(colMap[p.status]||p.status)===col);
     return`<div style="flex:1;min-width:180px;max-width:260px">
       <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:10px;color:var(--t3)">(${ps.length})</span></div>
-      ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color}" onclick="openProjectDetail(${p.id})">
-        <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(p.name)}</div>
-        <div style="font-size:10px;color:var(--t3)">Due ${p.due} · ${p.pct}%</div>
-        <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div>
+      ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="cursor:pointer;font-size:13px;${p.pinned?'color:var(--warn)':'color:var(--t3)'}" onclick="_projToggleStar(${p.id},event)">${p.pinned?'★':'☆'}</span><span style="font-size:12px;font-weight:500;flex:1">${esc(p.name)}</span></div>
+        <div style="font-size:10px;color:var(--t3)">Due ${p.due||'—'} · ${p.pct||0}%</div>
+        <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div>
       </div>`).join('')}
       <div class="add-c" onclick="openModal('capture')" style="font-size:10px">+ Add project</div>
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
 function renderProjectsGantt(header){
-  // Simple CSS Gantt — compute week offsets from today
+  // P8: zoom level toggle — week / month / quarter
+  const zoom=_projGanttZoom||'month';
+  const windowDays=zoom==='week'?28:zoom==='quarter'?365:120; // visible range
   const today=new Date();
-  const parseDate=s=>{if(!s||s==='Ongoing')return null;try{return new Date(s)}catch{return null}};
-  const allDates=D.projects.map(p=>parseDate(p.due)).filter(Boolean);
+  const parseDate=s=>{if(!s||s==='Ongoing')return null;try{const d=new Date(s);return isNaN(d)?null:d;}catch{return null}};
+  const filtered=_filteredProjects();
+  const allDates=filtered.map(p=>parseDate(p.due)).filter(Boolean);
   const minDate=new Date(today); minDate.setDate(minDate.getDate()-7);
-  const maxDate=allDates.length?new Date(Math.max(...allDates.map(d=>d.getTime()))):new Date(today.getTime()+90*86400000);
+  const maxFromData=allDates.length?new Date(Math.max(...allDates.map(d=>d.getTime()))):new Date(today.getTime()+windowDays*86400000);
+  const maxDate=new Date(Math.max(maxFromData.getTime(),today.getTime()+windowDays*86400000));
   const totalDays=Math.max(1,Math.ceil((maxDate-minDate)/86400000))+14;
   const pct=(d)=>Math.max(0,Math.min(100,Math.ceil((new Date(d)-minDate)/86400000/totalDays*100)));
-  const rows=D.projects.map(p=>{
+  // Build column markers for the chosen zoom
+  let markers=[];
+  if(zoom==='week'){for(let w=0;w<Math.ceil(totalDays/7);w++){const d=new Date(minDate);d.setDate(minDate.getDate()+w*7);markers.push({label:`W${w+1}`,p:pct(d)});}}
+  else if(zoom==='month'){const cur=new Date(minDate.getFullYear(),minDate.getMonth(),1);while(cur<=maxDate){markers.push({label:cur.toLocaleDateString(undefined,{month:'short',year:'2-digit'}),p:pct(cur)});cur.setMonth(cur.getMonth()+1);}}
+  else{const cur=new Date(minDate.getFullYear(),Math.floor(minDate.getMonth()/3)*3,1);while(cur<=maxDate){const q=Math.floor(cur.getMonth()/3)+1;markers.push({label:`Q${q} '${String(cur.getFullYear()).slice(-2)}`,p:pct(cur)});cur.setMonth(cur.getMonth()+3);}}
+  const markerHtml=markers.map(m=>`<div style="position:absolute;left:${m.p}%;top:0;bottom:0;width:1px;background:var(--bd1)"></div><div style="position:absolute;left:${m.p}%;top:-18px;transform:translateX(-50%);font-size:9px;color:var(--t3);white-space:nowrap">${esc(m.label)}</div>`).join('');
+  const rows=filtered.map(p=>{
     const due=parseDate(p.due);
-    const startPct=Math.max(0,pct(new Date(today.getTime()-14*86400000)));
+    const start=parseDate(p.startDate)||new Date(today.getTime()-14*86400000);
+    const startPct=Math.max(0,pct(start));
     const endPct=due?pct(due):80;
     const barW=Math.max(2,endPct-startPct);
-    return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)">
-      <div style="width:140px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)}">
-        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:4px"></span>${esc(p.name)}
+    const filledW=barW*((p.pct||0)/100);
+    const ms=Array.isArray(p.milestones)?p.milestones:[];
+    const msMarks=ms.map(m=>{const d=parseDate(m.date||m.due);if(!d)return '';const mp=pct(d);return `<div title="${esc(m.title||m.name||'milestone')} · ${m.date||m.due||''}" style="position:absolute;left:${mp}%;top:50%;transform:translate(-50%,-50%);width:9px;height:9px;background:${m.done?'var(--ok)':'#fff'};border:2px solid ${p.color};border-radius:50%;z-index:3"></div>`;}).join('');
+    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd1)">
+      <div style="width:160px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)}">
+        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:4px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}
       </div>
-      <div style="flex:1;position:relative;height:18px;background:var(--s3);border-radius:3px;overflow:hidden">
-        <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:${p.color};border-radius:3px;opacity:.85;display:flex;align-items:center;padding:0 4px">
-          <span style="font-size:9px;color:#fff;white-space:nowrap;overflow:hidden">${p.pct}%</span>
-        </div>
-        <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:1px;background:var(--warn);opacity:.7"></div>
+      <div style="flex:1;position:relative;height:20px;background:var(--s3);border-radius:3px;overflow:hidden">
+        ${markerHtml}
+        <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:color-mix(in srgb,${p.color} 25%,transparent);border-radius:3px;display:flex;align-items:center;padding:0 4px;z-index:1"></div>
+        <div style="position:absolute;left:${startPct}%;width:${filledW}%;height:100%;background:${p.color};border-radius:3px;opacity:.85;display:flex;align-items:center;padding:0 4px;z-index:2"><span style="font-size:9px;color:#fff;white-space:nowrap;overflow:hidden">${p.pct||0}%</span></div>
+        ${msMarks}
+        <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:1px;background:var(--warn);opacity:.8;z-index:4"></div>
       </div>
-      <div style="width:60px;flex-shrink:0;font-size:9px;color:var(--t3);text-align:right">${p.due||'—'}</div>
+      <div style="width:64px;flex-shrink:0;font-size:9px;color:var(--t3);text-align:right">${p.due||'—'}</div>
     </div>`}).join('');
-  $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Yellow line = today. Bars span from project start to due date.</div><div>${rows}</div>`;
+  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${z}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
 }
 
 // ====== GOALS AI ======
