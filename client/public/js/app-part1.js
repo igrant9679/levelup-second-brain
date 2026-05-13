@@ -6872,6 +6872,71 @@ function aiOKRAlignment(){
 // Global so filter state persists across re-renders (was previously local — caused filter to reset).
 if(typeof _goalsMyOnly==='undefined')var _goalsMyOnly=false;
 if(typeof _goalsView==='undefined')var _goalsView='grid';
+// G1: filter + search + sort state
+if(typeof _goalsSearch==='undefined')var _goalsSearch='';
+if(typeof _goalsCategory==='undefined')var _goalsCategory='All';
+if(typeof _goalsStatusFilter==='undefined')var _goalsStatusFilter='All';
+if(typeof _goalsHealthFilter==='undefined')var _goalsHealthFilter='All';
+if(typeof _goalsSort==='undefined')var _goalsSort='order';
+// G4: track which goals have their linked-tasks panel expanded
+if(typeof _goalsExpandedTasks==='undefined')var _goalsExpandedTasks=new Set();
+// G2: goal health based on time elapsed vs progress.
+function goalHealth(g){
+  const due=g.due||g.deadline||g.targetDate||null;
+  if((g.pct||0)>=100)return {icon:'🟢',label:'Done',color:'var(--ok)'};
+  if(!due)return {icon:'🟢',label:'On Track',color:'var(--ok)'};
+  const dueMs=Date.parse(due);if(isNaN(dueMs))return {icon:'🟢',label:'On Track',color:'var(--ok)'};
+  const now=Date.now();
+  const daysLeft=Math.ceil((dueMs-now)/86400000);
+  if(daysLeft<0)return {icon:'🔴',label:'Overdue',color:'var(--red)'};
+  const created=g.createdAt?Date.parse(g.createdAt):now-90*86400000;
+  const totalDays=Math.max(1,Math.ceil((dueMs-created)/86400000));
+  const elapsed=Math.max(0,Math.ceil((now-created)/86400000));
+  const expectedPct=Math.min(100,(elapsed/totalDays)*100);
+  if((g.pct||0)<expectedPct-25)return {icon:'🔴',label:'At Risk',color:'var(--red)'};
+  if((g.pct||0)<expectedPct-10)return {icon:'🟡',label:'Needs Attention',color:'var(--warn)'};
+  return {icon:'🟢',label:'On Track',color:'var(--ok)'};
+}
+// G5: latest check-in helper
+function _goalLastCheckIn(g){const cs=g.checkIns||[];if(!cs.length)return null;const last=cs[cs.length-1];const d=Date.parse(last.date);return isNaN(d)?null:{date:last.date,daysAgo:Math.floor((Date.now()-d)/86400000)};}
+// G3: stale = no check-in or update in 30+ days (and not done)
+function _goalIsStale(g){if((g.pct||0)>=100)return false;const last=_goalLastCheckIn(g);const lastTouch=g.lastTouchedAt?Date.parse(g.lastTouchedAt):(g.createdAt?Date.parse(g.createdAt):0);const lastMs=Math.max(last?Date.now()-last.daysAgo*86400000:0,lastTouch||0);return Date.now()-lastMs>30*86400000;}
+// G6: 14-point progress sparkline from g.pctHistory
+function _goalSparkline(g){
+  const h=Array.isArray(g.pctHistory)?g.pctHistory.slice(-14):[];
+  if(h.length<2)return '';
+  const min=0,max=100;
+  const pts=h.map((p,i)=>{const x=i/(h.length-1)*100;const y=100-((p.pct-min)/(max-min))*90-5;return `${x.toFixed(1)},${y.toFixed(1)}`;});
+  return `<svg viewBox="0 0 100 60" preserveAspectRatio="none" style="width:80px;height:18px;overflow:visible;flex-shrink:0" aria-hidden="true"><polyline points="${pts.join(' ')}" fill="none" stroke="var(--ac)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function setGoalsFilter(field,val){
+  if(field==='search')_goalsSearch=val||'';
+  else if(field==='category')_goalsCategory=val||'All';
+  else if(field==='status')_goalsStatusFilter=val||'All';
+  else if(field==='health')_goalsHealthFilter=val||'All';
+  else if(field==='sort')_goalsSort=val||'order';
+  if(typeof renderGoals==='function')renderGoals();
+}
+function clearGoalsFilters(){_goalsSearch='';_goalsCategory='All';_goalsStatusFilter='All';_goalsHealthFilter='All';_goalsSort='order';renderGoals();}
+function _goalsFiltered(){
+  const me=D.creds.userName||'Idris Grant';
+  let arr=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):[...D.goals];
+  if(_goalsSearch){const q=_goalsSearch.toLowerCase();arr=arr.filter(g=>(g.title||'').toLowerCase().includes(q)||(g.target||'').toLowerCase().includes(q)||(g.category||'').toLowerCase().includes(q));}
+  if(_goalsCategory!=='All')arr=arr.filter(g=>(g.category||'')===_goalsCategory);
+  if(_goalsStatusFilter==='Active')arr=arr.filter(g=>(g.pct||0)<100);
+  else if(_goalsStatusFilter==='Done')arr=arr.filter(g=>(g.pct||0)>=100);
+  else if(_goalsStatusFilter==='At risk')arr=arr.filter(g=>{const h=goalHealth(g);return h.label==='At Risk'||h.label==='Overdue';});
+  if(_goalsHealthFilter!=='All')arr=arr.filter(g=>goalHealth(g).label===_goalsHealthFilter);
+  if(_goalsSort==='pctDesc')arr.sort((a,b)=>(b.pct||0)-(a.pct||0));
+  else if(_goalsSort==='pctAsc')arr.sort((a,b)=>(a.pct||0)-(b.pct||0));
+  else if(_goalsSort==='dueAsc')arr.sort((a,b)=>(Date.parse(a.due||a.deadline||a.targetDate||'9999')||9e15)-(Date.parse(b.due||b.deadline||b.targetDate||'9999')||9e15));
+  else if(_goalsSort==='az')arr.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  return arr;
+}
+function _goalToggleTaskExpand(gid){
+  if(_goalsExpandedTasks.has(gid))_goalsExpandedTasks.delete(gid);else _goalsExpandedTasks.add(gid);
+  if(typeof renderGoals==='function')renderGoals();
+}
 function renderGoals(){
   // Auto-recalculate all goal percentages before rendering
   D.goals.forEach(g=>autoCalcGoalPct(g));
@@ -6943,10 +7008,11 @@ function renderGoals(){
       return;
     }
     el.style.gridTemplateColumns='repeat(auto-fill,minmax(280px,1fr))';
-    const goals=_goalsMyOnly?D.goals.filter(g=>!g.createdBy||g.createdBy===me):D.goals;
+    const goals=_goalsFiltered();
     if(!goals.length){
       el.style.gridTemplateColumns='1fr';
-      el.innerHTML=renderEmptyState({icon:'🎯',title:'No goals yet',hint:_goalsMyOnly?"You haven't set any goals. Aim somewhere — the rest of the system aligns around them.":'Goals turn intent into trackable outcomes. Start with one.',ctaLabel:'+ Set your first goal',ctaFn:"openFA('goal')"});
+      const hasFilters=_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All';
+      el.innerHTML=renderEmptyState({icon:'🎯',title:hasFilters?'No goals match your filters':'No goals yet',hint:hasFilters?'Try clearing the filters or broadening your search.':_goalsMyOnly?"You haven't set any goals. Aim somewhere — the rest of the system aligns around them.":'Goals turn intent into trackable outcomes. Start with one.',ctaLabel:hasFilters?'Clear filters':'+ Set your first goal',ctaFn:hasFilters?'clearGoalsFilters()':"openFA('goal')"});
       return;
     }
     el.innerHTML=goals.map(g=>{
@@ -6954,25 +7020,70 @@ function renderGoals(){
     const msDone=ms.filter(m=>m.done).length;
     const linkedTasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
     const nextMs=ms.find(m=>!m.done);
-    return`<div class="cd" style="cursor:pointer" onclick="openGoalDetail(${g.id})">
+    const health=goalHealth(g);
+    const last=_goalLastCheckIn(g);
+    const dueCheckIn=!last||last.daysAgo>=7;
+    const spark=_goalSparkline(g);
+    const expanded=_goalsExpandedTasks.has(g.id);
+    return`<div class="cd" style="cursor:pointer;border-left:3px solid ${health.color}" onclick="openGoalDetail(${g.id})">
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px">
         <span style="font-size:22px">${g.icon}</span>
-        <div style="flex:1">
+        <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${esc(g.title)}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(g.category||'')} · ${esc(g.target)}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(g.category||'')}${g.category?' · ':''}${esc(g.target||'')}</div>
         </div>
-        <span style="font-size:13px;font-weight:700;color:var(--ac)">${g.pct}%</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
+          <span style="font-size:13px;font-weight:700;color:${health.color}">${g.pct}%</span>
+          <span style="font-size:9px;color:${health.color};font-weight:600;white-space:nowrap" title="Health: ${health.label}">${health.icon} ${health.label}</span>
+        </div>
       </div>
-      <div class="pb" style="margin-bottom:8px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div class="pb" style="flex:1;margin:0"><div class="f" style="width:${g.pct}%;background:${health.color}"></div></div>
+        ${spark}
+      </div>
       ${ms.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">🏁 Milestones: ${msDone}/${ms.length} done${nextMs?` · Next: ${esc(nextMs.title)}`:''}</div>`:''}
-      ${linkedTasks.length?`<div style="font-size:10px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''}</div>`:''}
+      ${linkedTasks.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="event.stopPropagation();_goalToggleTaskExpand(${g.id})">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''} ${expanded?'▴':'▾'}</span></div>${expanded?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:6px">${linkedTasks.slice(0,8).map(t=>`<div class="lr" style="padding:3px 0;font-size:10px;cursor:pointer" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0"></span><span class="rt" style="font-size:10px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span><span style="font-size:9px;color:var(--t3)">${t.due||''}</span></div>`).join('')}${linkedTasks.length>8?`<div style="font-size:9px;color:var(--t3);padding:3px 0">+${linkedTasks.length-8} more</div>`:''}</div>`:''}`:''}
+      ${last?`<div style="font-size:9px;color:${dueCheckIn?'var(--warn)':'var(--t3)'};margin-bottom:4px">${dueCheckIn?'⚠ ':'🗓 '}Last check-in: ${last.daysAgo===0?'today':last.daysAgo+'d ago'}${dueCheckIn?' · check-in due':''}</div>`:`<div style="font-size:9px;color:var(--warn);margin-bottom:4px">⚠ No check-ins yet</div>`}
       <div style="margin-top:6px;display:flex;gap:4px">
         <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
-        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;color:var(--ac)" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in</button>
+        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;color:${dueCheckIn?'var(--warn)':'var(--ac)'}" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in${dueCheckIn?' (due)':''}</button>
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
   $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">🎯 Goals</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const gs=D.goals||[];if(!gs.length)return 'No goals yet — add one to get started.';const avg=Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length);const dn=gs.filter(g=>(g.pct||0)===100).length;return `${gs.length} goal${gs.length!==1?'s':''} · ${avg}% avg progress${dn?` · ${dn} complete`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:10px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('goals-ai-menu')" title="AI tools">✨ AI ▾</button><div id="goals-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiGoalProgress()">✨ Progress Narrative</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiWeeklyReview()">📅 Weekly Review</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiOKRAlignment()">🔗 OKR Alignment</button></div></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
+  ${(()=>{
+    // G1 + G7: filter row with search, category chips, status, health, sort
+    const cats=['All',...[...new Set(D.goals.map(g=>g.category||'').filter(Boolean))].sort()];
+    const hasFilters=_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All'||_goalsSort!=='order';
+    if(_goalsView!=='grid')return '';
+    return `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <input class="inp" placeholder="🔍 Search goals…" value="${esc(_goalsSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setGoalsFilter('search',this.value)">
+        <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setGoalsFilter('status',this.value)">
+          ${['All','Active','At risk','Done'].map(s=>`<option ${_goalsStatusFilter===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setGoalsFilter('health',this.value)">
+          ${['All','On Track','Needs Attention','At Risk','Overdue','Done'].map(s=>`<option ${_goalsHealthFilter===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setGoalsFilter('sort',this.value)">
+          <option value="order" ${_goalsSort==='order'?'selected':''}>Default order</option>
+          <option value="pctDesc" ${_goalsSort==='pctDesc'?'selected':''}>% high → low</option>
+          <option value="pctAsc" ${_goalsSort==='pctAsc'?'selected':''}>% low → high</option>
+          <option value="dueAsc" ${_goalsSort==='dueAsc'?'selected':''}>Due soon</option>
+          <option value="az" ${_goalsSort==='az'?'selected':''}>A → Z</option>
+        </select>
+        ${hasFilters?`<button class="btn btn-s" style="height:28px;font-size:10px;color:var(--warn)" onclick="clearGoalsFilters()">✕ Clear</button>`:''}
+      </div>
+      ${cats.length>2?`<div style="display:flex;gap:4px;flex-wrap:wrap">${cats.map(c=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_goalsCategory===c?'var(--ac)':'var(--s2)'};color:${_goalsCategory===c?'#fff':'var(--t2)'};border-color:var(--bd2)" onclick="setGoalsFilter('category','${esc(c).replace(/'/g,'&#39;')}')">${esc(c)}</button>`).join('')}</div>`:''}
+    </div>`;
+  })()}
+  ${(()=>{
+    // G3: stale goals strip
+    if(_goalsView!=='grid')return '';
+    const stale=(D.goals||[]).filter(_goalIsStale).slice(0,5);
+    if(!stale.length)return '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:color-mix(in srgb,var(--warn) 10%,var(--s2));border:1px solid color-mix(in srgb,var(--warn) 35%,var(--bd2));border-radius:8px"><span style="font-size:14px">🧹</span><div style="flex:1;font-size:11px"><strong>${stale.length} stale goal${stale.length===1?'':'s'}</strong> (no check-in or update in 30+ days): ${stale.map(g=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="openGoalCheckIn(${g.id})">${esc(g.icon||'🎯')} ${esc(g.title)}</span>`).join(' · ')}</div></div>`;
+  })()}
   <div id="goals-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>`;
   renderGoalCards();
 }
@@ -7018,6 +7129,10 @@ function openGoalCheckIn(gid){
     if(!g2.checkIns)g2.checkIns=[];
     g2.checkIns.push({date:'${today}',progress,blockers,next,pct});
     g2.pct=pct;
+    g2.lastTouchedAt=new Date().toISOString();
+    g2.pctHistory=Array.isArray(g2.pctHistory)?g2.pctHistory:[];
+    g2.pctHistory.push({ts:Date.now(),pct});
+    if(g2.pctHistory.length>30)g2.pctHistory=g2.pctHistory.slice(-30);
     // Also create a journal entry
     const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:new Date().toISOString().split('T')[0],body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
     D.journal.push(jEntry);
