@@ -4208,9 +4208,15 @@ function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div cla
 
 // Module-level task list state so tab clicks work after renderTasks() returns
 let _taskTabDefs=null;
-let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday';
-let _taskMyOnly=false;
-let _taskView='clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
+// Persisted page state (Tasks/Notes/Projects views + sorts) — synced across
+// devices via D.prefs.pageViews, written through the existing prefs save path.
+function _restorePageState(page){return (D&&D.prefs&&D.prefs.pageViews&&D.prefs.pageViews[page])||{};}
+function _persistPageState(page,patch){if(!D)return;D.prefs=D.prefs||{};D.prefs.pageViews=D.prefs.pageViews||{};D.prefs.pageViews[page]=Object.assign({},D.prefs.pageViews[page]||{},patch);try{save('prefs');}catch(_){try{localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));}catch(__){}}}
+const _tasksRestored=_restorePageState('tasks');
+let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday'; // resolved against _taskTabDefs at first render via _taskFilterTabIdx
+let _taskFilterTabIdx=typeof _tasksRestored.tabIdx==='number'?_tasksRestored.tabIdx:0;
+let _taskMyOnly=_tasksRestored.myOnly===true;
+let _taskView=_tasksRestored.view||'clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
 let _taskCalCursor=null; // YYYY-MM string for calendar nav
 function renderCurrentTaskView(){
   if(_taskView==='board')return renderTaskBoard();
@@ -4236,6 +4242,7 @@ function toggleTaskAIMenu(e){togglePopMenu('task-ai-menu');}
 function closeTaskAIMenu(){closePopMenu('task-ai-menu');}
 function setTaskView(v){
   _taskView=v;
+  _persistPageState('tasks',{view:v});
   ['list','board','matrix','gantt','calendar','clusters'].forEach(k=>{
     const b=document.getElementById('tasks-view-'+k);
     if(!b)return;
@@ -4245,9 +4252,13 @@ function setTaskView(v){
   });
   renderCurrentTaskView();
 }
+// Wrapper helpers so the inline tab/scope/priority handlers can persist too.
+function setTaskScope(my){_taskMyOnly=!!my;_persistPageState('tasks',{myOnly:_taskMyOnly});if(typeof renderTasks==='function')renderTasks();}
+function setTaskTabIdx(idx){_taskFilterTabIdx=idx;if(_taskTabDefs[idx])_taskFilter=_taskTabDefs[idx].filter;_persistPageState('tasks',{tabIdx:idx});renderCurrentTaskView();}
+function setTaskPriorityFilter(v){_taskPriorityFilter=v||'All';_persistPageState('tasks',{priority:_taskPriorityFilter});renderCurrentTaskView();}
 // J: persistent group-by selection for the List view.
-if(typeof _taskListGroupBy==='undefined')var _taskListGroupBy='none';
-function setTaskListGroupBy(v){_taskListGroupBy=v||'none';renderCurrentTaskView();}
+if(typeof _taskListGroupBy==='undefined')var _taskListGroupBy=_tasksRestored.listGroupBy||'none';
+function setTaskListGroupBy(v){_taskListGroupBy=v||'none';_persistPageState('tasks',{listGroupBy:_taskListGroupBy});renderCurrentTaskView();}
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -4946,12 +4957,12 @@ function handleQuickAdd(e){
     const opts=['All','High','Medium','Low'];
     const cur=opts.indexOf(pri.value);
     pri.value=opts[(cur+1)%opts.length];
-    _taskPriorityFilter=pri.value;
+    _taskPriorityFilter=pri.value;_persistPageState('tasks',{priority:_taskPriorityFilter});
     renderCurrentTaskView();
   }
 }
 // Priority filter — global so it persists across re-renders.
-if(typeof _taskPriorityFilter==='undefined')var _taskPriorityFilter='All';
+if(typeof _taskPriorityFilter==='undefined')var _taskPriorityFilter=(_tasksRestored.priority)||'All';
 function _applyPriorityFilter(tasks){
   if(!_taskPriorityFilter||_taskPriorityFilter==='All')return tasks;
   return tasks.filter(t=>t.priority===_taskPriorityFilter);
@@ -5143,11 +5154,15 @@ function renderTasks(){
     {label:'Someday',filter:t=>t.status==='Someday'},
     {label:'Done',filter:t=>t.status==='Done'},
   ];
-  // Default to All Active on first render, preserve current filter if re-rendering
-  if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
-    _taskFilter=_taskTabDefs[0].filter;
+  // Restore the selected tab from persisted index (or default to All Active).
+  // Filter functions are recreated on every render so we can't compare references
+  // across renders — index is the source of truth.
+  if(typeof _taskFilterTabIdx==='number'&&_taskTabDefs[_taskFilterTabIdx]){
+    _taskFilter=_taskTabDefs[_taskFilterTabIdx].filter;
+  }else if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
+    _taskFilter=_taskTabDefs[0].filter;_taskFilterTabIdx=0;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div>${(()=>{
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
     // B: visible 3 most-used views + a More dropdown for the rest
     const visible=[{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
     const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
@@ -5166,7 +5181,7 @@ function renderTasks(){
     <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
-  <div class="tabs" id="tasks-tabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderCurrentTaskView()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}${(()=>{
+  <div class="tabs" id="tasks-tabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${_taskTabDefs.map((td,i)=>`<div class="tab ${i===_taskFilterTabIdx?'on':''}" onclick="setTaskTabIdx(${i})">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}${(()=>{
     // C: render saved views as additional tabs
     const saved=(D.prefs&&D.prefs.taskSavedViews)||[];
     if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
@@ -5183,7 +5198,7 @@ function renderTasks(){
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
     <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
-    <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="_taskPriorityFilter=this.value;renderCurrentTaskView()">
+    <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="setTaskPriorityFilter(this.value)">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
       <option value="Medium"${_taskPriorityFilter==='Medium'?' selected':''}>Medium</option>
@@ -5210,18 +5225,20 @@ function bulkCompleteVisible(){
   save('tasks');updateSidebarBadges();renderScreen(curScreen);
   toast(`✓ ${rows.length} task(s) marked Done`);
 }
-let _notesMyOnly=false;
-let _notesGroupBy='';
+// Rehydrate persisted Notes page state from D.prefs.pageViews.notes.
+const _notesRestored=_restorePageState('notes');
+let _notesMyOnly=_notesRestored.myOnly===true;
+let _notesGroupBy=_notesRestored.groupBy||'';
 let _notesFilterText='';
 let _notesFilterTags=new Set();
 let _notesFilterSources=new Set();
 let _notesFilterDatePreset='';
 let _notesFilterDateFrom='';
 let _notesFilterDateTo='';
-let _notesSort='newest';
+let _notesSort=_notesRestored.sort||'newest';
 let _notesFilterPanelOpen=false;
-let _notesFilterCategory='Recent'; // Active left-nav category
-let _notesFilterSmart=null; // Active smart folder filter key
+let _notesFilterCategory=_notesRestored.category||'Recent'; // Active left-nav category
+let _notesFilterSmart=_notesRestored.smart||null; // Active smart folder filter key
 function buildNoteBacklinks(id){
   // Find notes whose body contains [[Title]] linking to this note
   const target=D.notes.find(n=>n.id===id);
@@ -5272,8 +5289,13 @@ function filterNotesByCategory(cat,el){
   _notesFilterCategory=cat;
   // Reset smart-folder override
   _notesFilterSmart=null;
+  _persistPageState('notes',{category:cat,smart:null});
   applyNotesFilters();
 }
+// Notes: persist-aware setter wrappers
+function setNotesScope(my){_notesMyOnly=!!my;_persistPageState('notes',{myOnly:_notesMyOnly});if(typeof renderNotes==='function')renderNotes();}
+function setNotesSort(v){_notesSort=v||'newest';_persistPageState('notes',{sort:_notesSort});applyNotesFilters();}
+function setNotesGroupBy(v){_notesGroupBy=v||'';_persistPageState('notes',{groupBy:_notesGroupBy});applyNotesFilters();}
 function showNoteInEditor(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
@@ -5727,6 +5749,7 @@ function filterNotesBySmart(filter,el){
   el.classList.add('on');
   _notesFilterSmart=filter;
   _notesFilterCategory='Recent'; // reset category
+  _persistPageState('notes',{smart:filter,category:'Recent'});
   applyNotesFilters();
 }
 function exportNotesMarkdown(){
@@ -6224,8 +6247,8 @@ function renderNotes(){
         </div>
         <!-- Scope segment -->
         <div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:5px;overflow:hidden">
-          <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;border:none;background:${_notesMyOnly?'var(--ac)':'transparent'};color:${_notesMyOnly?'#fff':'var(--t2)'}" onclick="_notesMyOnly=true;document.getElementById('notes-scope-my').style.background='var(--ac)';document.getElementById('notes-scope-my').style.color='#fff';document.getElementById('notes-scope-all').style.background='transparent';document.getElementById('notes-scope-all').style.color='var(--t2)';renderNotesList()">Mine</button>
-          <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px;border:none;background:${_notesMyOnly?'transparent':'var(--ac)'};color:${_notesMyOnly?'var(--t2)':'#fff'}" onclick="_notesMyOnly=false;document.getElementById('notes-scope-my').style.background='transparent';document.getElementById('notes-scope-my').style.color='var(--t2)';document.getElementById('notes-scope-all').style.background='var(--ac)';document.getElementById('notes-scope-all').style.color='#fff';renderNotesList()">All</button>
+          <button id="notes-scope-my" class="btn" style="height:22px;font-size:9px;padding:0 6px;border:none;background:${_notesMyOnly?'var(--ac)':'transparent'};color:${_notesMyOnly?'#fff':'var(--t2)'}" onclick="setNotesScope(true)">Mine</button>
+          <button id="notes-scope-all" class="btn" style="height:22px;font-size:9px;padding:0 6px;border:none;background:${_notesMyOnly?'transparent':'var(--ac)'};color:${_notesMyOnly?'var(--t2)':'#fff'}" onclick="setNotesScope(false)">All</button>
         </div>
         <!-- Overflow menu (#B) — collects infrequent actions -->
         <div style="position:relative;display:inline-block">
@@ -6260,7 +6283,7 @@ function renderNotes(){
     <!-- Sort + Group By -->
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
-      <select id="nf-sort-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesSort=this.value;applyNotesFilters()">
+      <select id="nf-sort-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="setNotesSort(this.value)">
         <option value="newest">Newest first</option>
         <option value="oldest">Oldest first</option>
         <option value="az">A → Z</option>
@@ -6271,7 +6294,7 @@ function renderNotes(){
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Group</span>
-      <select id="nf-group-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesGroupBy=this.value;applyNotesFilters()">
+      <select id="nf-group-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="setNotesGroupBy(this.value)">
         <option value="">None</option>
         <option value="tag">By Tag</option>
         <option value="source">By Source</option>
@@ -6682,15 +6705,16 @@ function renderNoteEditor(n){
   <div style="font-size:12px;color:var(--t2);line-height:1.7" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`;
 }
 
-let projView='list';
-// Projects filter + group + sort state (P1, P2, P3, P5, P6, P8)
-if(typeof _projSearch==='undefined')var _projSearch='';
-if(typeof _projStatusFilter==='undefined')var _projStatusFilter='Active'; // hides Completed by default; "All" includes archive only when explicitly set
-if(typeof _projHealthFilter==='undefined')var _projHealthFilter='All';
-if(typeof _projShowArchived==='undefined')var _projShowArchived=false;
-if(typeof _projGroupBy==='undefined')var _projGroupBy='none';
-if(typeof _projSort==='undefined')var _projSort='order';
-if(typeof _projGanttZoom==='undefined')var _projGanttZoom='month'; // week | month | quarter
+// Rehydrate persisted Projects page state from D.prefs.pageViews.projects.
+const _projRestored=_restorePageState('projects');
+let projView=_projRestored.view||'list';
+if(typeof _projSearch==='undefined')var _projSearch=''; // search NOT persisted (transient)
+if(typeof _projStatusFilter==='undefined')var _projStatusFilter=_projRestored.status||'Active';
+if(typeof _projHealthFilter==='undefined')var _projHealthFilter=_projRestored.health||'All';
+if(typeof _projShowArchived==='undefined')var _projShowArchived=_projRestored.showArchived===true;
+if(typeof _projGroupBy==='undefined')var _projGroupBy=_projRestored.groupBy||'none';
+if(typeof _projSort==='undefined')var _projSort=_projRestored.sort||'order';
+if(typeof _projGanttZoom==='undefined')var _projGanttZoom=_projRestored.ganttZoom||'month';
 function setProjFilter(field,val){
   if(field==='search')_projSearch=val||'';
   else if(field==='status')_projStatusFilter=val||'All';
@@ -6699,9 +6723,12 @@ function setProjFilter(field,val){
   else if(field==='groupBy')_projGroupBy=val||'none';
   else if(field==='sort')_projSort=val||'order';
   else if(field==='ganttZoom')_projGanttZoom=val||'month';
+  // Persist everything except the transient search box.
+  if(field!=='search')_persistPageState('projects',{view:projView,status:_projStatusFilter,health:_projHealthFilter,showArchived:_projShowArchived,groupBy:_projGroupBy,sort:_projSort,ganttZoom:_projGanttZoom});
   renderProjects();
 }
-function clearProjFilters(){_projSearch='';_projStatusFilter='Active';_projHealthFilter='All';_projShowArchived=false;_projGroupBy='none';_projSort='order';renderProjects();}
+function setProjView(v){projView=v;_persistPageState('projects',{view:v});renderProjects();}
+function clearProjFilters(){_projSearch='';_projStatusFilter='Active';_projHealthFilter='All';_projShowArchived=false;_projGroupBy='none';_projSort='order';_persistPageState('projects',{status:'Active',health:'All',showArchived:false,groupBy:'none',sort:'order'});renderProjects();}
 function _projHasFilters(){return !!_projSearch||_projStatusFilter!=='Active'||_projHealthFilter!=='All'||_projShowArchived||_projGroupBy!=='none'||_projSort!=='order';}
 function _filteredProjects(){
   let arr=[...(D.projects||[])];
@@ -6821,7 +6848,7 @@ function renderProjects(){
     ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
     ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:10px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
   </div>`;
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="projView='list';renderProjects()">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="projView='kanban';renderProjects()">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="projView='gantt';renderProjects()">📊 Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="projView='workload';renderProjects()" title="Tasks grouped by assignee — workload across people">👥 Workload</button>${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">📊 Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">👥 Workload</button>${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
   else if(projView==='workload'||projView==='team') renderProjectsTeamKanban(header);
