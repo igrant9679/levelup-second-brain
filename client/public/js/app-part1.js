@@ -5599,11 +5599,15 @@ function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
   let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
   // User folder filter (left nav). Also includes notes in any descendant folder.
+  // When NO folder is picked, hide notes that live in any folder so the default
+  // "Recent / categories / smart folders" views only show un-filed notes.
   if(_notesFilterFolder!==null&&_notesFilterFolder!==undefined){
     const ids=new Set([_notesFilterFolder]);
     const collect=p=>{_noteFoldersChildrenOf(p).forEach(c=>{ids.add(c.id);collect(c.id);});};
     collect(_notesFilterFolder);
     notes=notes.filter(n=>ids.has(n.folderId));
+  }else{
+    notes=notes.filter(n=>!n.folderId);
   }
   // Category filter (left nav)
   if(_notesFilterSmart){
@@ -6285,10 +6289,12 @@ function renderNotes(){
   const subEl=document.getElementById('notes-page-sub');
   if(subEl){
     const total=D.notes.length;
+    const inFolders=D.notes.filter(n=>n.folderId).length;
     const starred=D.notes.filter(n=>n.starred).length;
     const pinned=D.notes.filter(n=>n.pinned).length;
     const recent=D.notes.filter(n=>{try{const d=new Date(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
     const parts=[`${total} note${total===1?'':'s'}`];
+    if(inFolders>0)parts.push(`${inFolders} in folders`);
     if(recent>0)parts.push(`${recent} this week`);
     if(starred>0)parts.push(`${starred} starred`);
     if(pinned>0)parts.push(`${pinned} pinned`);
@@ -6302,13 +6308,16 @@ function renderNotes(){
   ${(()=>{
     const now=new Date(); const todayStr=now.toISOString().slice(0,10);
     const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
-    const modThisWeek=D.notes.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} }).length;
-    const noTags=D.notes.filter(n=>!n.tags||!n.tags.length).length;
-    const longNotes=D.notes.filter(n=>(n.body||'').length>500).length;
-    const unlinked=D.notes.filter(n=>!((n.body||'').includes('[['))).length;
+    // Counts only consider un-foldered notes so they match what the smart
+    // folder views actually show after applyNotesFilters hides foldered notes.
+    const _unfiled=D.notes.filter(n=>!n.folderId);
+    const modThisWeek=_unfiled.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} }).length;
+    const noTags=_unfiled.filter(n=>!n.tags||!n.tags.length).length;
+    const longNotes=_unfiled.filter(n=>(n.body||'').length>500).length;
+    const unlinked=_unfiled.filter(n=>!((n.body||'').includes('[['))).length;
     // (#H) Three more derived folders: notes with embedded images, the most-
     // backlinked notes, and stale notes (>90 days untouched).
-    const withImages=D.notes.filter(n=>typeof _noteFirstImage==='function'&&_noteFirstImage(n.bodyHtml||n.body||'')).length;
+    const withImages=_unfiled.filter(n=>typeof _noteFirstImage==='function'&&_noteFirstImage(n.bodyHtml||n.body||'')).length;
     // Backlink count = how many other notes contain [[this title]]
     const titleSet=D.notes.map(n=>n.title||'');
     const backlinkCount={};
@@ -6318,9 +6327,9 @@ function renderNotes(){
       const m=text.match(/\[\[([^\]\n]+)\]\]/g)||[];
       m.forEach(s=>{const t=s.slice(2,-2).trim();if(t in backlinkCount)backlinkCount[t]++;});
     });
-    const mostLinked=D.notes.filter(n=>(backlinkCount[n.title]||0)>0).length;
+    const mostLinked=_unfiled.filter(n=>(backlinkCount[n.title]||0)>0).length;
     const staleCutoff=Date.now()-90*86400000;
-    const staleNotes=D.notes.filter(n=>{try{const d=Date.parse(n.updated);return !isNaN(d)&&d<staleCutoff;}catch(_){return false;}}).length;
+    const staleNotes=_unfiled.filter(n=>{try{const d=Date.parse(n.updated);return !isNaN(d)&&d<staleCutoff;}catch(_){return false;}}).length;
     const smartFolders=[
       {icon:'🕐',label:'Modified this week',count:modThisWeek,filter:'smart_recent'},
       {icon:'🏷',label:'No tags',count:noTags,filter:'smart_notags'},
