@@ -5136,7 +5136,11 @@ function applyNotesFilters(){
     const pin=n.pinned?'<span class="nc-pin" title="Pinned">📌</span>':'';
     const checked=_notesBulkSelected.has(n.id);
     const bulkCb=_notesBulkMode?`<div class="nc-bulk-cb chk ${checked?'on':''}" onclick="toggleNotesBulkSelect(${n.id},event)" style="flex-shrink:0;margin-top:3px"></div>`:'';
-    const clickAttr=_notesBulkMode?`onclick="toggleNotesBulkSelect(${n.id},event)"`:`onclick="showNoteInEditor(${n.id})"`;
+    // Grid view collapses the editor pane, so route clicks to the side drawer.
+    const isGrid=document.body.classList.contains('notes-grid-view');
+    const clickAttr=_notesBulkMode
+      ?`onclick="toggleNotesBulkSelect(${n.id},event)"`
+      :(isGrid?`onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"`:`onclick="showNoteInEditor(${n.id})"`);
     return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" ${clickAttr}>
       <div class="nc-row">
         ${bulkCb}

@@ -931,16 +931,25 @@ body.notes-bulk-mode .nc{user-select:none}
 .nc-section-h{padding:8px 6px 4px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:4px;margin-bottom:2px}
 .nc-section-h::before{content:'';flex:1;height:1px;background:var(--bd1);margin-left:6px;order:2}
 
-/* Notes grid view (#C) — Pinterest-style cards with thumbnail-prominent layout. */
-body.notes-grid-view #notes-list-inner{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;padding:6px}
-body.notes-grid-view #notes-list-inner .nc{margin-bottom:0;padding:0;overflow:hidden;border:1px solid var(--bd1);background:var(--s2)}
-body.notes-grid-view #notes-list-inner .nc:hover{transform:translateY(-2px);background:var(--s3);border-color:var(--ac)}
+/* Notes grid view (#C) — Pinterest-style cards. Grid mode collapses the
+   editor + rail panes so the list takes the freed horizontal space, and
+   card clicks open the note in the side drawer instead of the editor pane. */
+body.notes-grid-view .scr#s-notes>.bg{grid-template-columns:var(--side) 160px 1fr 0 0!important}
+body.notes-grid-view .scr#s-notes .notes-editor,
+body.notes-grid-view .scr#s-notes .notes-rail{display:none!important}
+body.notes-grid-view #notes-list-inner{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;padding:10px;align-content:start}
+body.notes-grid-view #notes-list-inner .nc{margin-bottom:0;padding:0;overflow:hidden;border:1px solid var(--bd1);background:var(--s2);border-radius:8px;display:flex;flex-direction:column;min-height:140px}
+body.notes-grid-view #notes-list-inner .nc:hover{transform:translateY(-2px);background:var(--s3);border-color:var(--ac);box-shadow:0 6px 18px rgba(0,0,0,.18)}
 body.notes-grid-view #notes-list-inner .nc.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 18%,var(--s2))}
-body.notes-grid-view #notes-list-inner .nc-row{flex-direction:column-reverse;gap:0;align-items:stretch}
-body.notes-grid-view #notes-list-inner .nc-thumb{width:100%;height:90px;border-radius:0;border:none;border-bottom:1px solid var(--bd1)}
-body.notes-grid-view #notes-list-inner .nc-body{padding:6px 8px}
-body.notes-grid-view #notes-list-inner .nc-color{margin:0;position:absolute;top:6px;left:6px;z-index:2;box-shadow:0 0 0 2px rgba(0,0,0,.4)}
-body.notes-grid-view #notes-list-inner .nc-section-h{grid-column:1/-1}
+body.notes-grid-view #notes-list-inner .nc-row{flex-direction:column;gap:0;align-items:stretch;flex:1}
+body.notes-grid-view #notes-list-inner .nc-thumb{order:-1;width:100%;height:100px;border-radius:0;border:none;border-bottom:1px solid var(--bd1)}
+body.notes-grid-view #notes-list-inner .nc-body{padding:8px 10px;flex:1;display:flex;flex-direction:column;gap:3px}
+body.notes-grid-view #notes-list-inner .nc-t{font-size:12px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+body.notes-grid-view #notes-list-inner .nc-tg{margin-bottom:0}
+body.notes-grid-view #notes-list-inner .nc-m{margin-top:auto;font-size:9px}
+body.notes-grid-view #notes-list-inner .nc-color{margin:0;position:absolute;top:8px;left:8px;z-index:2;box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+body.notes-grid-view #notes-list-inner .nc-section-h{grid-column:1/-1;padding-bottom:0;border-bottom:none;background:transparent}
+body.notes-grid-view #notes-list-inner .nc-bulk-cb{position:absolute;top:8px;left:8px;z-index:2;background:rgba(15,23,42,.85)}
 
 /* Row-hover quick actions (#G) — star + pin appear on right edge on hover. */
 .nc-quick-actions{position:absolute;top:6px;right:6px;display:flex;gap:3px;opacity:0;transition:opacity .12s;z-index:3}
