@@ -9548,8 +9548,217 @@ function _reportRangeDays(){return {'7d':7,'30d':30,'90d':90,'365d':365,'all':99
 function _reportRangeLabel(){return {'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'}[_reportRange]||_reportRange;}
 function _reportStartDate(){const d=new Date();d.setDate(d.getDate()-_reportRangeDays());return d.toISOString().slice(0,10);}
 
-function setReportRange(r){_reportRange=r;localStorage.setItem('lu_report_range',r);renderReports();}
+function setReportRange(r){_reportRange=r;_reportCustomFrom='';_reportCustomTo='';localStorage.setItem('lu_report_range',r);_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();}
 function toggleReportSection(s){_reportSections[s]=!_reportSections[s];localStorage.setItem('lu_report_sections',JSON.stringify(_reportSections));renderReports();}
+// ─── R8: custom date range ────────────────────────────────────────────
+if(typeof _reportCustomFrom==='undefined')var _reportCustomFrom='';
+if(typeof _reportCustomTo==='undefined')var _reportCustomTo='';
+function setReportCustomRange(){
+  const f=document.getElementById('rep-from')?.value;const t=document.getElementById('rep-to')?.value||new Date().toISOString().slice(0,10);
+  if(!f)return toast('Pick a from date');
+  _reportCustomFrom=f;_reportCustomTo=t;_reportRange='custom';_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();
+}
+// Override range helpers to handle 'custom'.
+const _origReportRangeDays=_reportRangeDays;
+_reportRangeDays=function(){if(_reportRange==='custom'&&_reportCustomFrom){const f=new Date(_reportCustomFrom);const t=_reportCustomTo?new Date(_reportCustomTo):new Date();return Math.max(1,Math.ceil((t-f)/86400000)+1);}return _origReportRangeDays();};
+const _origReportRangeLabel=_reportRangeLabel;
+_reportRangeLabel=function(){if(_reportRange==='custom'&&_reportCustomFrom)return `${_reportCustomFrom} → ${_reportCustomTo||'today'}`;return _origReportRangeLabel();};
+const _origReportStartDate=_reportStartDate;
+_reportStartDate=function(){if(_reportRange==='custom'&&_reportCustomFrom)return _reportCustomFrom;return _origReportStartDate();};
+// ─── R9: project + tag filters ────────────────────────────────────────
+if(typeof _reportProjectFilter==='undefined')var _reportProjectFilter='';
+if(typeof _reportTagFilter==='undefined')var _reportTagFilter='';
+function setReportProjectFilter(v){_reportProjectFilter=v||'';_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();}
+function setReportTagFilter(v){_reportTagFilter=v||'';_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();}
+function _reportTaskMatches(t){
+  if(_reportProjectFilter){const id=parseInt(_reportProjectFilter)||null;if(id){if(t.projectId!==id)return false;}else{if((t.project||'')!==_reportProjectFilter)return false;}}
+  if(_reportTagFilter)return (t.tags||[]).map(x=>x.toLowerCase()).includes(_reportTagFilter.toLowerCase());
+  return true;
+}
+// ─── R2: period comparison ────────────────────────────────────────────
+function _reportPeriodPair(){
+  const days=Math.min(_reportRangeDays(),365);
+  const today=new Date();today.setHours(0,0,0,0);
+  let curStart,curEnd;
+  if(_reportRange==='custom'&&_reportCustomFrom){curStart=new Date(_reportCustomFrom);curEnd=_reportCustomTo?new Date(_reportCustomTo):new Date(today);}
+  else{curEnd=new Date(today);curStart=new Date(today);curStart.setDate(today.getDate()-(days-1));}
+  const prevEnd=new Date(curStart);prevEnd.setDate(prevEnd.getDate()-1);
+  const prevStart=new Date(prevEnd);prevStart.setDate(prevStart.getDate()-(days-1));
+  const iso=d=>d.toISOString().slice(0,10);
+  return {days,curStart:iso(curStart),curEnd:iso(curEnd),prevStart:iso(prevStart),prevEnd:iso(prevEnd)};
+}
+function _delta(cur,prev){
+  const c=Number(cur)||0,p=Number(prev)||0;
+  if(p===0)return {pct:c>0?100:0,arrow:c>0?'▲':'·',color:c>0?'var(--ok)':'var(--t3)',label:c>0?'new':'·'};
+  const pct=Math.round(((c-p)/Math.abs(p))*100);
+  if(pct===0)return {pct:0,arrow:'·',color:'var(--t3)',label:'flat'};
+  return {pct:Math.abs(pct),arrow:pct>0?'▲':'▼',color:pct>0?'var(--ok)':'var(--err)',label:(pct>0?'+':'-')+Math.abs(pct)+'%'};
+}
+function _renderDeltaChip(cur,prev,opts){
+  const d=_delta(cur,prev);const o=opts||{};
+  if(d.label==='·'&&!o.showFlat)return '';
+  const goodIsUp=o.goodIsUp!==false;
+  const color=d.label==='flat'?'var(--t3)':((d.arrow==='▲')===goodIsUp?'var(--ok)':'var(--err)');
+  return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:600;color:${color};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
+}
+// ─── R6: simple linear forecast ───────────────────────────────────────
+function _reportForecast(series,days){
+  if(!series||series.length<3)return null;
+  // Simple linear regression to project forward.
+  const n=series.length;const xs=Array.from({length:n},(_,i)=>i);
+  const sumX=xs.reduce((a,b)=>a+b,0),sumY=series.reduce((a,b)=>a+b,0);
+  const sumXY=xs.reduce((s,x,i)=>s+x*series[i],0),sumX2=xs.reduce((s,x)=>s+x*x,0);
+  const denom=n*sumX2-sumX*sumX;if(denom===0)return null;
+  const slope=(n*sumXY-sumX*sumY)/denom;const intercept=(sumY-slope*sumX)/n;
+  const projected=Array.from({length:days||7},(_,i)=>Math.max(0,Math.round(intercept+slope*(n+i))));
+  return {slope,intercept,projected,total:projected.reduce((a,b)=>a+b,0)};
+}
+// ─── R7: goal pace check ─────────────────────────────────────────────
+function _goalPaceCheck(g){
+  if((g.pct||0)>=100)return {status:'done',label:'Done',color:'var(--ok)'};
+  const due=g.due||g.deadline||g.targetDate||null;
+  if(!due)return {status:'unknown',label:'No deadline',color:'var(--t3)'};
+  const dueMs=Date.parse(due);if(isNaN(dueMs))return {status:'unknown',label:'No deadline',color:'var(--t3)'};
+  const created=g.createdAt?Date.parse(g.createdAt):(Date.now()-90*86400000);
+  const now=Date.now();const elapsed=Math.max(1,(now-created)/86400000);
+  const ratePerDay=(g.pct||0)/elapsed;
+  if(ratePerDay<=0)return {status:'stalled',label:'Stalled',color:'var(--err)',projected:null};
+  const remaining=100-(g.pct||0);
+  const daysToFinish=remaining/ratePerDay;
+  const projectedMs=now+daysToFinish*86400000;
+  const slipDays=Math.round((projectedMs-dueMs)/86400000);
+  const projectedISO=new Date(projectedMs).toISOString().slice(0,10);
+  if(slipDays<=0)return {status:'on-pace',label:`On pace · ${projectedISO}`,color:'var(--ok)',projected:projectedISO,slip:slipDays};
+  if(slipDays<=14)return {status:'tight',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--warn)',projected:projectedISO,slip:slipDays};
+  return {status:'behind',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--err)',projected:projectedISO,slip:slipDays};
+}
+// ─── R1, R3, R4, R5: AI handlers ──────────────────────────────────────
+if(typeof _reportNarrativeCache==='undefined')var _reportNarrativeCache=null; // {key, text}
+if(typeof _reportAnomaliesCache==='undefined')var _reportAnomaliesCache=null;
+async function _reportAICall(systemPrompt,userContent){
+  const {provider,apiKey}=_getAIConfig();
+  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+  return String(res?.result||res?.text||'').trim();
+}
+function _reportContextCompact(){
+  const p=_reportPeriodPair();
+  const inCur=d=>d&&d>=p.curStart&&d<=p.curEnd;
+  const inPrev=d=>d&&d>=p.prevStart&&d<=p.prevEnd;
+  const tasks=(D.tasks||[]).filter(_reportTaskMatches);
+  const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+  const focusLog=(D.prefs&&D.prefs.focusLog)||{};
+  const fSum=(s,e)=>Object.entries(focusLog).filter(([d])=>d>=s&&d<=e).reduce((a,[,v])=>a+(Number(v)||0),0);
+  const cur={
+    done:tasks.filter(t=>t.status==='Done'&&inCur((t.completedAt||'').slice(0,10))).length,
+    created:tasks.filter(t=>inCur((t.createdAt||'').slice(0,10))).length,
+    overdue:tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<p.curEnd).length,
+    focus:fSum(p.curStart,p.curEnd),
+    journal:(D.journal||[]).filter(j=>inCur((j.date||'').slice(0,10))).length,
+    habitsDone:habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>inCur(d)).length,0),
+  };
+  const prev={
+    done:tasks.filter(t=>t.status==='Done'&&inPrev((t.completedAt||'').slice(0,10))).length,
+    created:tasks.filter(t=>inPrev((t.createdAt||'').slice(0,10))).length,
+    focus:fSum(p.prevStart,p.prevEnd),
+    journal:(D.journal||[]).filter(j=>inPrev((j.date||'').slice(0,10))).length,
+    habitsDone:habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>inPrev(d)).length,0),
+  };
+  return {p,cur,prev,goals:D.goals||[],projectsCount:(D.projects||[]).length};
+}
+async function aiReportNarrative(force){
+  const key=`${_reportRange}|${_reportCustomFrom}|${_reportCustomTo}|${_reportProjectFilter}|${_reportTagFilter}`;
+  if(!force&&_reportNarrativeCache&&_reportNarrativeCache.key===key)return;
+  const sec=document.getElementById('report-narrative');if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">⏳ Reading your data…</div>`;
+  try{
+    const ctx=_reportContextCompact();
+    const sys=`You are a sharp data analyst writing the executive summary for a personal productivity report. In 3 short paragraphs (~150 words total): 1) Headline number + comparison to previous period. 2) The most interesting trend or correlation in the data. 3) One specific suggestion based on what you see. Plain prose, no markdown headers. Reference real numbers.`;
+    const user=`Period: ${ctx.p.curStart} → ${ctx.p.curEnd} (${ctx.p.days} days). Previous: ${ctx.p.prevStart} → ${ctx.p.prevEnd}.\nThis period vs previous:\n- Tasks done: ${ctx.cur.done} vs ${ctx.prev.done}\n- Tasks created: ${ctx.cur.created} vs ${ctx.prev.created}\n- Focus minutes: ${ctx.cur.focus} vs ${ctx.prev.focus}\n- Journal entries: ${ctx.cur.journal} vs ${ctx.prev.journal}\n- Habit completions: ${ctx.cur.habitsDone} vs ${ctx.prev.habitsDone}\n- Overdue tasks now: ${ctx.cur.overdue}\n- Active goals: ${ctx.goals.length} (avg ${ctx.goals.length?Math.round(ctx.goals.reduce((s,g)=>s+(g.pct||0),0)/ctx.goals.length):0}%)\nFilters: project="${_reportProjectFilter||'(all)'}", tag="${_reportTagFilter||'(none)'}"`;
+    const text=await _reportAICall(sys,user);
+    _reportNarrativeCache={key,text};
+    if(sec)sec.innerHTML=`<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-s" style="font-size:10px" onclick="aiReportNarrative(true)">↻ Regenerate</button><span style="font-size:9px;color:var(--t3);align-self:center">cached for this filter combo</span></div>`;
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Narrative failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+}
+async function aiReportAskQuestion(){
+  const inp=document.getElementById('rep-ask-input');if(!inp)return;
+  const q=(inp.value||'').trim();if(!q)return toast('Type a question');
+  const out=document.getElementById('rep-ask-output');if(out)out.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">⏳ Looking at your data…</div>`;
+  try{
+    const ctx=_reportContextCompact();
+    // Build a richer detail blob: per-day series for tasks done + focus
+    const days=Math.min(_reportRangeDays(),60);
+    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+    const focusLog=(D.prefs&&D.prefs.focusLog)||{};
+    const seriesDone=dayKeys.map(k=>(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+    const seriesFocus=dayKeys.map(k=>focusLog[k]||0);
+    const projLines=(D.projects||[]).slice(0,8).map(p=>`- ${p.name}: ${p.pct||0}%`).join('\n');
+    const goalLines=ctx.goals.slice(0,8).map(g=>`- ${g.title}: ${g.pct||0}%`).join('\n');
+    const sys=`You are a productivity data analyst. Answer the user's question about THEIR data only — never invent numbers. Be specific: cite real figures from the context. If the question can't be answered from the data, say so. 1-3 short paragraphs max.`;
+    const user=`Period: ${ctx.p.curStart} → ${ctx.p.curEnd} (${ctx.p.days} days)\nFilters: project="${_reportProjectFilter||'(all)'}", tag="${_reportTagFilter||'(none)'}"\n\nSummary: tasks done ${ctx.cur.done} (was ${ctx.prev.done}), tasks created ${ctx.cur.created}, focus ${ctx.cur.focus}m, journal ${ctx.cur.journal} entries, habit completions ${ctx.cur.habitsDone}, overdue ${ctx.cur.overdue}.\n\nDaily series (last ${dayKeys.length} days, oldest first):\nTasks done: ${seriesDone.join(',')}\nFocus min: ${seriesFocus.join(',')}\n\nProjects:\n${projLines||'(none)'}\nGoals:\n${goalLines||'(none)'}\n\nQuestion: ${q}`;
+    const text=await _reportAICall(sys,user);
+    if(out)out.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.65;white-space:pre-wrap;color:var(--t1)">${esc(text)}</div>`;
+  }catch(e){if(out)out.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+}
+async function aiReportAnomalies(force){
+  const key=`${_reportRange}|${_reportCustomFrom}|${_reportCustomTo}|${_reportProjectFilter}|${_reportTagFilter}`;
+  if(!force&&_reportAnomaliesCache&&_reportAnomaliesCache.key===key){_renderAnomalies(_reportAnomaliesCache.items);return;}
+  const sec=document.getElementById('report-anomalies');if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">⏳ Scanning for anomalies…</div>`;
+  try{
+    const days=Math.min(_reportRangeDays(),90);
+    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+    const focusLog=(D.prefs&&D.prefs.focusLog)||{};
+    const tasks=(D.tasks||[]).filter(_reportTaskMatches);
+    const seriesDone=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+    const seriesFocus=dayKeys.map(k=>focusLog[k]||0);
+    const sys=`You are a pattern-detection analyst. Identify up to 4 specific ANOMALIES or notable patterns in the data series provided. For each: a 1-line title and a 1-2 sentence explanation grounded in the actual numbers. Reply with strict JSON only: {"anomalies":[{"title":"…","detail":"…","severity":"low|med|high"}, …]}. If everything looks normal, return an empty list.`;
+    const user=`Days (oldest first, ${days} total):\n${dayKeys.join(',')}\nTasks done per day: ${seriesDone.join(',')}\nFocus minutes per day: ${seriesFocus.join(',')}\nFind anomalies.`;
+    const text=String(await _reportAICall(sys,user)).replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();
+    const parsed=JSON.parse(text);
+    _reportAnomaliesCache={key,items:parsed.anomalies||[]};
+    _renderAnomalies(parsed.anomalies||[]);
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Anomaly scan failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+}
+function _renderAnomalies(items){
+  const sec=document.getElementById('report-anomalies');if(!sec)return;
+  if(!items||!items.length){sec.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">No anomalies detected — your data looks consistent.</div>`;return;}
+  const sevColor={low:'var(--ac)',med:'var(--warn)',high:'var(--err)'};
+  sec.innerHTML=items.map(a=>`<div style="display:flex;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${sevColor[a.severity]||'var(--t3)'};border-radius:8px;margin-bottom:6px"><span style="font-size:16px">${a.severity==='high'?'🚨':a.severity==='med'?'⚠️':'💡'}</span><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(a.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(a.detail||'')}</div></div></div>`).join('');
+}
+async function aiReportRecommendWidgets(){
+  toast({type:'info',title:'Looking for widget ideas…',duration:2000});
+  try{
+    const ctx=_reportContextCompact();
+    const existing=(_reportWidgets||[]).map(w=>`${w.title} (${w.source}/${w.viz})`).join(', ');
+    const sys=`You are a personal-analytics designer. Given a workspace summary and the user's existing custom widgets, recommend 3 NEW widgets they should add. Each must be specific: title, source (one of: tasks, notes, projects, goals, journal, habits, ideas, focus), viz (one of: kpi, bar, line, donut, heatmap, sparkline, progress, table), groupBy (e.g. status, priority, day(completedAt), project, _total), metric (count, sum(estimatedMins), avg(pct)), and a 1-line "why". Reply with strict JSON: {"widgets":[{"title":"…","source":"…","viz":"…","groupBy":"…","metric":"…","why":"…"}, …]}`;
+    const user=`Cur period: tasks done ${ctx.cur.done}, created ${ctx.cur.created}, focus ${ctx.cur.focus}m, journal ${ctx.cur.journal}, habits done ${ctx.cur.habitsDone}.\nGoals (${ctx.goals.length}): ${ctx.goals.slice(0,5).map(g=>g.title+' '+(g.pct||0)+'%').join(', ')}.\nProjects: ${ctx.projectsCount}.\nExisting widgets: ${existing||'(none)'}.`;
+    const text=String(await _reportAICall(sys,user)).replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'').trim();
+    const parsed=JSON.parse(text);
+    if(!Array.isArray(parsed.widgets))throw new Error('Bad response');
+    window._reportRecCache=parsed.widgets;
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">✨ Recommended Widgets</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Click any to add it to your report.</div>${parsed.widgets.map((w,i)=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;padding:10px" onclick="addRecommendedWidget(${i})" id="recw-${i}"><div style="font-size:12px;font-weight:600;margin-bottom:3px">📊 ${esc(w.title||'')}</div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(w.source||'')} → ${esc(w.viz||'')} (group: ${esc(w.groupBy||'')}, metric: ${esc(w.metric||'')})</div><div style="font-size:11px;color:var(--t2);font-style:italic">${esc(w.why||'')}</div></div>`).join('')}<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'Recommendation failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+function addRecommendedWidget(i){
+  const w=window._reportRecCache?.[i];if(!w)return;
+  const widget={id:Date.now(),title:w.title||'AI widget',source:WIDGET_SOURCES[w.source]?w.source:'tasks',groupBy:w.groupBy||'_total',metric:w.metric||'count',viz:['kpi','bar','line','donut','heatmap','sparkline','progress','table'].includes(w.viz)?w.viz:'kpi',color:'#3b82f6',sizeW:6,filter:[]};
+  _reportWidgets.push(widget);_saveReportWidgets();
+  const card=document.getElementById('recw-'+i);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML+='<div style="font-size:10px;color:var(--ok);margin-top:4px">✓ Added</div>';}
+  toast(`📊 "${widget.title}" added`);
+}
+// ─── R10: drill-down on common widget cells ─────────────────────────
+function reportDrillDown(kind,key){
+  const p=_reportPeriodPair();
+  let items=[];let title='';
+  if(kind==='taskday'){title=`Tasks done on ${key}`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===key);}
+  else if(kind==='taskstatus'){title=`Tasks: ${key}`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>(t.status||'Not Started')===key);}
+  else if(kind==='taskpriority'){title=`Active tasks: ${key} priority`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status!=='Done'&&t.priority===key);}
+  else return;
+  if(!items.length){toast('No items in this slice');return;}
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(title)}</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${items.length} item${items.length===1?'':'s'} — click to open</div><div style="max-height:400px;overflow-y:auto">${items.map(t=>`<div class="lr" style="cursor:pointer;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--bd1)" onclick="closeModal();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||''}</span><span style="font-size:9px;color:var(--t3)">${t.due||''}</span></div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
 
 // Lazy-load SheetJS (xlsx) the first time the user wants Excel export.
 let _xlsxLoaded=false;
@@ -9625,7 +9834,9 @@ function renderReports(){
   const barStep=Math.max(1,Math.ceil(dayKeys.length/30));
   const barData=[];for(let i=0;i<dayKeys.length;i+=barStep){let sum=0;for(let j=i;j<Math.min(i+barStep,dayKeys.length);j++)sum+=completionByDay[j];barData.push({key:dayKeys[i],count:sum});}
   const barMax=Math.max(...barData.map(b=>b.count),1);
-  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px;height:64px;justify-content:flex-end;position:relative"><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--ac),color-mix(in srgb,var(--ac) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${b.key}: ${b.count} task${b.count===1?'':'s'}</div></div>`;}).join('');
+  const tasksBars=barData.map(b=>{const h=Math.round(b.count/barMax*60)+2;return `<div class="lu-bar-wrap" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:6px;height:64px;justify-content:flex-end;position:relative;cursor:${b.count?'pointer':'default'}" ${b.count?`onclick="reportDrillDown('taskday','${b.key}')"`:''}><div class="lu-bar" style="width:80%;background:linear-gradient(180deg,var(--ac),color-mix(in srgb,var(--ac) 35%,transparent));border-radius:3px 3px 0 0;height:${h}px;min-height:2px"></div><div class="lu-bar-tip">${b.key}: ${b.count} task${b.count===1?'':'s'}</div></div>`;}).join('');
+  // R11: x-axis labels for the bars
+  const tasksBarLabels=barData.map((b,i)=>{const showLabel=barData.length<=14||i===0||i===barData.length-1||i%Math.ceil(barData.length/7)===0;return `<div style="flex:1;text-align:center;font-size:8px;color:var(--t3);min-width:6px">${showLabel?esc(b.key.slice(5)):''}</div>`;}).join('');
   const tasksByPriority={High:tasks.filter(t=>t.priority==='High'&&t.status!=='Done').length,Medium:tasks.filter(t=>t.priority==='Medium'&&t.status!=='Done').length,Low:tasks.filter(t=>t.priority==='Low'&&t.status!=='Done').length};
   const tasksByStatus={Done:tasks.filter(t=>t.status==='Done').length,'In Progress':tasks.filter(t=>t.status==='In Progress').length,'Not Started':tasks.filter(t=>t.status==='Not Started').length,Someday:tasks.filter(t=>t.status==='Someday').length};
 
@@ -9658,19 +9869,73 @@ function renderReports(){
   const sColors={Done:'#22c55e','In Progress':'var(--ac)','Not Started':'var(--t3)',Someday:'var(--warn)'};
   let acc=0;const donutStops=Object.entries(tasksByStatus).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
 
+  // R2: previous-period comparison numbers
+  const periodPair=_reportPeriodPair();
+  const inPrev=d=>d&&d>=periodPair.prevStart&&d<=periodPair.prevEnd;
+  const filteredTasks=tasks.filter(_reportTaskMatches);
+  const prevDone=filteredTasks.filter(t=>t.status==='Done'&&inPrev((t.completedAt||'').slice(0,10))).length;
+  const prevCreated=filteredTasks.filter(t=>inPrev((t.createdAt||'').slice(0,10))).length;
+  const prevFocus=Object.entries(focusLog).filter(([d])=>d>=periodPair.prevStart&&d<=periodPair.prevEnd).reduce((a,[,v])=>a+(Number(v)||0),0);
+  const prevJournal=journal.filter(j=>inPrev((j.date||'').slice(0,10))).length;
+  // R6: forecast for next 7 days
+  const forecast7=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
+  // Tasks projects + tags for R9 filter dropdowns
+  const allProjOpts=[{id:'',name:'All projects'},...((D.projects||[]).map(p=>({id:String(p.id),name:p.name})))];
+  const allTagSet=new Set();(D.tasks||[]).forEach(t=>(t.tags||[]).forEach(tg=>allTagSet.add(tg)));
+  const allTagList=[...allTagSet].sort();
   $('reports-main').innerHTML=`
   <div id="lu-report-print-target">
-    <div class="ph-r" style="margin-bottom:16px">
-      <div><h1 style="font-size:24px;font-weight:700">📊 Reports & Insights</h1><p style="font-size:12px;color:var(--t2)">${_reportRangeLabel()} · ${tasksDoneRange.length} tasks completed · ${journalRange.length} journal entries · ${focusTotal} focus minutes</p></div>
+    <div class="ph-r" style="margin-bottom:14px">
+      <div><h1 style="font-size:24px;font-weight:700">📊 Reports & Insights</h1><p style="font-size:12px;color:var(--t2)">${_reportRangeLabel()} · ${tasksDoneRange.length} tasks completed · ${journalRange.length} journal entries · ${focusTotal} focus minutes${_reportProjectFilter?` · filtered: ${esc(allProjOpts.find(o=>o.id===_reportProjectFilter)?.name||_reportProjectFilter)}`:''}${_reportTagFilter?` · #${esc(_reportTagFilter)}`:''}</p></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <select class="inp" style="height:30px;font-size:11px" onchange="setReportRange(this.value)">
           ${['7d','30d','90d','365d','all'].map(r=>`<option value="${r}" ${_reportRange===r?'selected':''}>${({'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'})[r]}</option>`).join('')}
+          <option value="custom" ${_reportRange==='custom'?'selected':''}>Custom range…</option>
         </select>
+        <div style="position:relative;display:inline-block">
+          <button class="btn btn-s no-print" style="height:30px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
+          <div id="rep-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportNarrative(true)">📰 Refresh narrative</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportAnomalies(true)">🔍 Detect anomalies</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportRecommendWidgets()">📊 Recommend widgets</button>
+          </div>
+        </div>
         <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsPDF()">⬇ PDF</button>
         <button class="btn btn-s no-print" style="font-size:11px" onclick="exportReportsExcel()">⬇ Excel</button>
         <button class="btn btn-s no-print" style="font-size:11px" onclick="openReportCustomize()">⚙ Customize</button>
-        <button class="btn btn-p no-print" style="font-size:11px" onclick="saveCurrentReport()" title="Save the current range + sections as a named report">💾 Save Report</button>
+        <button class="btn btn-p no-print" style="font-size:11px" onclick="saveCurrentReport()" title="Save the current range + sections as a named report">💾 Save</button>
       </div>
+    </div>
+    ${_reportRange==='custom'?`<div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:var(--t3);font-weight:600">Custom range:</span><input id="rep-from" type="date" class="inp" value="${esc(_reportCustomFrom)}" style="height:26px;font-size:11px;padding:0 6px"><span style="font-size:11px;color:var(--t3)">to</span><input id="rep-to" type="date" class="inp" value="${esc(_reportCustomTo)}" style="height:26px;font-size:11px;padding:0 6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="setReportCustomRange()">Apply</button></div>`:''}
+    <div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--t3);font-weight:600">Filter:</span>
+      <select class="inp" style="height:26px;font-size:11px;padding:0 6px" onchange="setReportProjectFilter(this.value)">
+        ${allProjOpts.map(p=>`<option value="${esc(p.id)}" ${_reportProjectFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+      </select>
+      <select class="inp" style="height:26px;font-size:11px;padding:0 6px" onchange="setReportTagFilter(this.value)">
+        <option value="" ${!_reportTagFilter?'selected':''}>All tags</option>
+        ${allTagList.map(t=>`<option value="${esc(t)}" ${_reportTagFilter===t?'selected':''}>#${esc(t)}</option>`).join('')}
+      </select>
+      ${(_reportProjectFilter||_reportTagFilter)?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--warn)" onclick="setReportProjectFilter('');setReportTagFilter('')">✕ Clear</button>`:''}
+    </div>
+
+    <!-- R1: AI Narrative Summary -->
+    <div style="margin-bottom:14px">
+      <div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px;margin-bottom:6px">📰 What this report says</div>
+      <div id="report-narrative"></div>
+    </div>
+
+    <!-- R3: AI Q&A -->
+    <div style="margin-bottom:14px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:10px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px;font-weight:600">💬 Ask anything about your data</div>
+      <div style="display:flex;gap:6px"><input id="rep-ask-input" class="inp" placeholder="e.g. when am I most productive? which project is bleeding time? am I improving?" style="flex:1;height:30px;font-size:11px;padding:0 8px" onkeydown="if(event.key==='Enter'){event.preventDefault();aiReportAskQuestion();}"><button class="btn btn-p" style="height:30px;font-size:11px" onclick="aiReportAskQuestion()">Ask</button></div>
+      <div id="rep-ask-output" style="margin-top:8px"></div>
+    </div>
+
+    <!-- R4: AI Anomaly Detection -->
+    <div style="margin-bottom:14px">
+      <div class="sec-h" style="color:var(--warn);display:flex;align-items:center;gap:6px;margin-bottom:6px">🔍 Notable patterns</div>
+      <div id="report-anomalies"></div>
     </div>
 
     ${(()=>{
@@ -9699,12 +9964,16 @@ function renderReports(){
       const sparkCreated=bucketIt(dayKeys.map(k=>tasks.filter(t=>(t.createdAt||'').slice(0,10)===k).length));
       const sparkFocus=bucketIt(focusByDay);
       const sparkMood=bucketIt(dayKeys.map(k=>{const e=journal.find(j=>j&&(j.date||'').slice(0,10)===k);return e&&moodMap[e.mood]?moodMap[e.mood]:0;}));
-      return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px">
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks completed</div></div>${_sparkline(sparkDone,'#22c55e')}</div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks created</div></div>${_sparkline(sparkCreated,'#3b82f6')}</div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);font-weight:500">Focus time</div></div>${_sparkline(sparkFocus,'#a855f7')}</div>
+      // R6: forecast chips on top KPIs
+      const fcDone=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
+      const fcFocus=_reportForecast(focusByDay.slice(-Math.min(14,focusByDay.length)),7);
+      const fcChip=(fc,label)=>fc?`<span style="display:inline-block;font-size:9px;padding:2px 6px;border-radius:8px;background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ac);margin-top:4px" title="Linear projection from your last 14 days">📈 next 7d: ${fc.total}${label||''}</span>`:'';
+      return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:18px">
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks completed</div>${_renderDeltaChip(tasksDoneRange.length,prevDone)}</div>${_sparkline(sparkDone,'#22c55e')}<div>${fcChip(fcDone,'')}</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks created</div>${_renderDeltaChip(tasksCreatedRange.length,prevCreated,{goodIsUp:false})}</div>${_sparkline(sparkCreated,'#3b82f6')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);font-weight:500">Focus time</div>${_renderDeltaChip(focusTotal,prevFocus)}</div>${_sparkline(sparkFocus,'#a855f7')}<div>${fcChip(fcFocus,'m')}</div></div>
         <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Avg mood / 5</div></div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Avg mood / 5</div>${_renderDeltaChip(journalRange.length,prevJournal,{goodIsUp:true})}</div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
         <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
       </div>`;
     })()}
@@ -9727,19 +9996,20 @@ function renderReports(){
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">✓ Tasks Performance</h2>
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
         <div>
-          <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Completion trend (${barData.length} ${barStep===1?'days':'periods'})</div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:6px"><span>Completion trend (${barData.length} ${barStep===1?'days':'periods'})</span><span style="color:var(--t3);font-size:9px">click any bar to drill in</span></div>
           <div style="display:flex;align-items:flex-end;gap:3px;height:64px;padding:4px 0">${tasksBars}</div>
+          <div style="display:flex;gap:3px;margin-top:2px">${tasksBarLabels}</div>
         </div>
         <div>
           <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Status breakdown (${sTotal} total)</div>
           <div style="display:flex;gap:10px;align-items:center">
             <div style="background:conic-gradient(${donutStops});width:70px;height:70px;border-radius:50%;flex-shrink:0"></div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:10px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:10px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskstatus','${k}')"`:''}><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
           </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
-        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:10px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
+        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${k}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:10px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
       </div>
     </div>`:''}
 
@@ -9751,7 +10021,7 @@ function renderReports(){
           <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${goalsOnTrack}</div><div style="font-size:10px;color:var(--t3)">On track (≥50%)</div></div>
           <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">${goalsBehind}</div><div style="font-size:10px;color:var(--t3)">Behind (&lt;30%)</div></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));const pace=_goalPaceCheck(g);return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;gap:6px;flex-wrap:wrap"><span>${g.icon||'🎯'} ${esc(g.title)}</span><span style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;color:${pace.color};font-weight:600" title="Projected completion">${esc(pace.label)}</span><strong style="color:${c}">${pct}%</strong></span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
       `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No goals yet.</div>'}
     </div>`:''}
 
@@ -9794,6 +10064,8 @@ function renderReports(){
 
     <div class="no-print" style="text-align:center;color:var(--t3);font-size:10px;margin:24px 0 12px">Generated ${new Date().toLocaleString()} · LevelUp Second Brain</div>
   </div>`;
+  // Auto-fetch AI panels (cached per filter combo so this is cheap on re-renders)
+  setTimeout(()=>{aiReportNarrative();aiReportAnomalies();},150);
 }
 
 function openReportCustomize(){
