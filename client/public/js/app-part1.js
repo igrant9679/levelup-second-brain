@@ -646,7 +646,11 @@ function _resetTaskContexts(){
 function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
-  document.body.classList.toggle('compact-mode',!!D.prefs.compact);
+  // Density (#13). Backwards-compat: if `compact` is set without `density`,
+  // treat as 'compact'. Otherwise default to 'normal'.
+  const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
+  document.body.classList.toggle('compact-mode',density==='compact');
+  document.body.classList.toggle('dense-mode',density==='dense');
   document.documentElement.style.setProperty('--ac',D.prefs.accent||'#3B82F6');
   // derive ach/acs from accent
   document.documentElement.style.setProperty('--ach',D.prefs.accent||'#60A5FA');
@@ -831,7 +835,7 @@ function applyTheme(opts){
   const fs=Number(D.prefs.themeFontScale)||1;
   root.style.setProperty('--lu-font-scale',String(fs));
   // Apply scale by adjusting body font-size (works alongside compact-mode etc.)
-  let baseFs=document.body.classList.contains('compact-mode')?13:15;
+  let baseFs=document.body.classList.contains('dense-mode')?12:document.body.classList.contains('compact-mode')?13:15;
   document.body.style.fontSize=(baseFs*fs).toFixed(1)+'px';
   // Re-render to update inline-styled colour pickers etc. if requested.
   if(opts&&opts.silent!==true){
@@ -977,9 +981,21 @@ function toggleDarkMode(el){
 function toggleCompact(el){
   el.classList.toggle('on');
   D.prefs.compact=el.classList.contains('on');
+  D.prefs.density=D.prefs.compact?'compact':'normal';
   localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
   applyPrefs();
   toast(D.prefs.compact?'Compact mode on':'Compact mode off');
+}
+// Density selector (#13) — sets D.prefs.density to 'compact' | 'normal' | 'dense'.
+// Keeps the legacy `compact` boolean in sync so old code paths still work.
+function setDensity(level){
+  if(!['compact','normal','dense'].includes(level))level='normal';
+  D.prefs.density=level;
+  D.prefs.compact=(level==='compact');
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  applyPrefs();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined'&&curScreen==='settings')renderScreen('settings');
+  toast({type:'success',title:'Density updated',msg:`Switched to ${level} density.`,duration:2500});
 }
 function setAccent(c){
   D.prefs.accent=c;
@@ -1049,17 +1065,51 @@ function _toggleSCLegend(){
   // Apply to any other instances rendered into other rails
   document.querySelectorAll('.lu-sc-legend').forEach(x=>x.classList.toggle('collapsed',willCollapse));
 }
+// Mini-week strip (#10). 7-day calendar overview pinned to every right rail
+// — today + the next 6 days, each cell showing day-of-week, date number, and
+// dots for tasks (accent) and meetings (blue). Click a cell to jump to Cal.
+// Toggleable via D.prefs.miniWeekStrip (default on).
+function _renderMiniWeekStrip(){
+  if(D.prefs&&D.prefs.miniWeekStrip===false)return;
+  const today=new Date();today.setHours(0,0,0,0);
+  const dayLetters=['S','M','T','W','T','F','S'];
+  const cells=Array.from({length:7},(_,i)=>{
+    const d=new Date(today);d.setDate(d.getDate()+i);
+    const k=d.toISOString().slice(0,10);
+    const isToday=i===0;
+    const taskCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k)).length;
+    const evtCount=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k).length;
+    const dots=[];
+    if(taskCount)dots.push(`<span class="lu-mini-week-dot" title="${taskCount} task${taskCount===1?'':'s'}"></span>`);
+    if(evtCount)dots.push(`<span class="lu-mini-week-dot evt" title="${evtCount} event${evtCount===1?'':'s'}"></span>`);
+    return `<div class="lu-mini-week-cell ${isToday?'today':''}" onclick="nav('cal')" title="${d.toDateString()}${taskCount?` · ${taskCount} task${taskCount===1?'':'s'}`:''}${evtCount?` · ${evtCount} event${evtCount===1?'':'s'}`:''}">
+      <span class="lu-mini-week-dow">${dayLetters[d.getDay()]}</span>
+      <span class="lu-mini-week-num">${d.getDate()}</span>
+      <span class="lu-mini-week-dots">${dots.join('')}</span>
+    </div>`;
+  }).join('');
+  const html=`<div class="lu-mini-week" id="lu-mini-week">
+    <div class="lu-mini-week-h"><span>Next 7 Days</span><a onclick="nav('cal')">Open calendar →</a></div>
+    <div class="lu-mini-week-grid">${cells}</div>
+  </div>`;
+  // Inject as the FIRST child of every visible right rail.
+  const rails=document.querySelectorAll('.scr.on .rr, .scr.on .notes-rail');
+  rails.forEach(r=>{
+    const old=r.querySelector('#lu-mini-week');if(old)old.remove();
+    r.insertAdjacentHTML('afterbegin',html);
+  });
+}
 // Auto-inject after every screen render. renderScreen is the orchestrator
 // that fires per-page render functions; we tack on the legend afterwards.
 const _origRenderScreen=window.renderScreen||function(){};
 window.renderScreen=function(s){
   const r=_origRenderScreen.apply(this,arguments);
-  setTimeout(_renderShortcutsLegend,50);
+  setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();},50);
   return r;
 };
 // Also try on initial load (in case the first page renders before this
 // patch is in scope) and whenever the user opens a new screen.
-document.addEventListener('DOMContentLoaded',()=>setTimeout(_renderShortcutsLegend,500));
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();},500));
 
 // ─── Keyboard shortcuts overlay ──────────────────────────────────────
 function openShortcuts(){
@@ -3175,7 +3225,8 @@ const _homeCardDefs=[
   {id:'quoteOfDay',label:'💭 Quote of the Day',default:false},
   {id:'yesteryear',label:'📸 On this day',default:false},
   {id:'aiInsight',label:'🧠 AI Insight',default:false},
-  {id:'focusSuggestion',label:'🎯 Peak Focus Hour',default:false}
+  {id:'focusSuggestion',label:'🎯 Peak Focus Hour',default:false},
+  {id:'staleContent',label:'🧹 Stale Content (>30d)',default:false},
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -3189,17 +3240,33 @@ function openHomeDashCustomize(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
   const sorted=[...prefs].sort((a,b)=>a.order-b.order);
   const _aiBriefOn=!!(D.prefs&&D.prefs.heroAIBrief);
-  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw">
+  const _todLayoutOn=!!(D.prefs&&D.prefs.homeTimeOfDayLayout);
+  const _miniWeekOn=!(D.prefs&&D.prefs.miniWeekStrip===false);
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw;max-height:90vh;overflow-y:auto">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div style="font-size:14px;font-weight:700">⚙️ Customize Dashboard</div>
     <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('home-cust-ov').remove()">✕</button>
   </div>
-  <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px;background:var(--s2)">
+  <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:8px;background:var(--s2)">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
       <input type="checkbox" id="hc-ai-brief" ${_aiBriefOn?'checked':''} onchange="toggleHeroAIBrief(this.checked)">
       ✨ AI greeting line in hero
     </label>
     <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Replace the rotating quote with a daily AI brief tailored to your workspace. Uses your AI key from Settings.</div>
+  </div>
+  <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:8px;background:var(--s2)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
+      <input type="checkbox" id="hc-tod-layout" ${_todLayoutOn?'checked':''} onchange="toggleHomeTimeOfDayLayout(this.checked)">
+      🕓 Reorder cards by time of day
+    </label>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Morning surfaces habits + agenda; afternoon prioritises tasks + focus; evening lifts reflection cards. Manual order is preserved as a fallback.</div>
+  </div>
+  <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px;background:var(--s2)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
+      <input type="checkbox" id="hc-mini-week" ${_miniWeekOn?'checked':''} onchange="toggleMiniWeekStrip(this.checked)">
+      🗓 Mini-week strip in right rail
+    </label>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Shows today + the next 6 days with task and event indicators. Visible on every page with a right rail.</div>
   </div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle cards on/off or drag to reorder (use ↑↓ buttons).</div>
   <div id="home-cust-list">${sorted.map((p,i)=>{
@@ -3229,6 +3296,43 @@ function toggleHeroAIBrief(on){
   // Clear cached brief so the new state is reflected immediately on next render.
   if(on)delete D.prefs.aiHeroBrief;
   save('prefs');
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+}
+function toggleHomeTimeOfDayLayout(on){
+  D.prefs=D.prefs||{};
+  D.prefs.homeTimeOfDayLayout=!!on;
+  save('prefs');
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+}
+function toggleMiniWeekStrip(on){
+  D.prefs=D.prefs||{};
+  D.prefs.miniWeekStrip=!!on;
+  save('prefs');
+  // Hide immediately if turned off; redraw on render otherwise.
+  if(!on)document.querySelectorAll('#lu-mini-week').forEach(el=>el.remove());
+  else if(typeof _renderMiniWeekStrip==='function')_renderMiniWeekStrip();
+}
+// Stale-content panel actions (#11). _staleOpen drops the user into the right
+// drawer; _staleTouch stamps lastTouchedAt=now so the item is suppressed for
+// another 30 days without changing its semantics.
+function _staleOpen(type,id){
+  const arr=type==='note'?D.notes:type==='task'?D.tasks:type==='goal'?D.goals:null;
+  if(!arr)return;
+  const it=arr.find(x=>x.id==id);
+  if(!it)return;
+  // Stamp touch so the item isn't immediately stale on next render either.
+  it.lastTouchedAt=Date.now();
+  if(typeof openDrawer==='function')openDrawer(type,it);
+  if(type==='note')save('notes');else if(type==='task')save('tasks');else save('goals');
+}
+function _staleTouch(type,id){
+  const arr=type==='note'?D.notes:type==='task'?D.tasks:type==='goal'?D.goals:null;
+  if(!arr)return;
+  const it=arr.find(x=>x.id==id);
+  if(!it)return;
+  it.lastTouchedAt=Date.now();
+  if(type==='note')save('notes');else if(type==='task')save('tasks');else save('goals');
+  toast({type:'success',title:'Marked as fresh',msg:`Hidden from Stale for 30 more days.`,duration:2200});
   if(curScreen==='home'&&typeof renderHome==='function')renderHome();
 }
 function homeCardToggle(id,visible){
@@ -3273,7 +3377,28 @@ function renderHome(){
   const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':_greetTime<21?'evening':'night';
   const _homePrefs=getHomeCardPrefs();
   const _homeVisible=new Set(_homePrefs.filter(p=>p.visible).map(p=>p.id));
-  const _homeOrder=[..._homePrefs].sort((a,b)=>a.order-b.order).map(p=>p.id);
+  let _homeOrder=[..._homePrefs].sort((a,b)=>a.order-b.order).map(p=>p.id);
+  // Time-of-day Home layout (#12). When opted-in via D.prefs.homeTimeOfDayLayout,
+  // re-rank the user's visible cards using a phase priority list so morning shows
+  // habits + agenda first, evening surfaces reflection cards, etc. Cards not in
+  // the phase list keep their original relative order at the end.
+  if(D.prefs&&D.prefs.homeTimeOfDayLayout){
+    const phaseOrders={
+      morning:['habits','meetings','tasks','focus','goals','weather','quoteOfDay','aiInsight','recent'],
+      afternoon:['tasks','focus','projects','deadlines','meetings','goals','reports','recent','focusSuggestion'],
+      evening:['moodTrend','yesteryear','recent','notes','weekAhead','reports','tasks','goals'],
+      night:['weekAhead','deadlines','recent','notes','moodTrend','reports','goals'],
+    };
+    const phase=_greetTime<12?'morning':_greetTime<17?'afternoon':_greetTime<21?'evening':'night';
+    const priority=phaseOrders[phase]||[];
+    _homeOrder=[..._homeOrder].sort((a,b)=>{
+      const ai=priority.indexOf(a),bi=priority.indexOf(b);
+      if(ai>=0&&bi>=0)return ai-bi;
+      if(ai>=0)return -1;
+      if(bi>=0)return 1;
+      return 0;
+    });
+  }
   // ── #1 + #3 — time-of-day adaptive gradient, tinted with theme accent.
   // Phase determines the temperature; the user's accent is the middle stop
   // so the hero always feels "their" theme regardless of time of day.
@@ -3717,6 +3842,27 @@ function renderHome(){
             <div style="font-size:10px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
             <button class="btn btn-s" style="margin-top:8px;font-size:10px;height:24px" onclick="nav('focus')">Start a focus session →</button>
           </div></div>`;
+      })(),
+      // 🧹 Stale Content (#11) — surfaces notes / open tasks / goals untouched
+      // for >30 days so the user can decide if they're still relevant. The "✓"
+      // button stamps `lastTouchedAt=now` to suppress the item for another 30d.
+      staleContent:(()=>{
+        const cutoff=Date.now()-30*86400000;
+        const ts=it=>{const v=it.lastTouchedAt||it.updated||it.updatedAt||it.createdAt||0;const n=typeof v==='number'?v:Date.parse(v);return Number.isFinite(n)?n:0;};
+        const stale=[];
+        (D.notes||[]).forEach(n=>{const t=ts(n);if(t&&t<cutoff)stale.push({type:'note',icon:'📝',id:n.id,title:n.title||'(untitled note)',ago:Math.floor((Date.now()-t)/86400000)});});
+        (D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').forEach(t=>{const u=ts(t);if(u&&u<cutoff)stale.push({type:'task',icon:'📋',id:t.id,title:t.title||'(untitled task)',ago:Math.floor((Date.now()-u)/86400000)});});
+        (D.goals||[]).forEach(g=>{const u=ts(g);if(u&&u<cutoff&&(g.pct||0)<100)stale.push({type:'goal',icon:'🎯',id:g.id,title:g.title||'(untitled goal)',ago:Math.floor((Date.now()-u)/86400000)});});
+        stale.sort((a,b)=>b.ago-a.ago);
+        if(!stale.length)return `<div class="cd"><div class="cd-h"><div class="cd-t">🧹 Stale Content</div></div><div style="padding:18px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing stale — your workspace is fresh. ✨</div></div>`;
+        const top=stale.slice(0,8);
+        const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${it.type}',${it.id})" title="Open ${it.type}">
+          <span style="font-size:13px;flex-shrink:0">${it.icon}</span>
+          <span class="rt" style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</span>
+          <span style="font-size:9px;color:var(--t3);flex-shrink:0">${it.ago}d</span>
+          <button class="btn btn-s" style="height:18px;width:22px;padding:0;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();_staleTouch('${it.type}',${it.id})" title="Mark as still relevant — hide for 30 more days">✓</button>
+        </div>`).join('');
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧹 Stale Content</div><span class="cd-a">${stale.length} item${stale.length===1?'':'s'} >30d old</span></div>${rows}</div>`;
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);

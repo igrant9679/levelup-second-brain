@@ -390,6 +390,18 @@ body[data-screen="graph"]{--page-accent:#a855f7}
 /* Sidebar section label — chunks the long nav into scannable groups. Hidden in compact mode. */
 .sl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:12px 14px 4px;user-select:none}
 body.compact-mode .sl{display:none!important}
+/* Dense mode (#13) — even tighter than compact, for power users on big monitors. */
+body.dense-mode{font-size:12px}
+body.dense-mode .lr{padding:1px 0!important;font-size:11px}
+body.dense-mode .cd{padding:6px 8px!important}
+body.dense-mode h1{font-size:14px!important}
+body.dense-mode .si{padding:4px 8px!important;font-size:10px}
+body.dense-mode .si svg{width:13px;height:13px}
+body.dense-mode .tab{font-size:10px;padding:3px 8px}
+body.dense-mode .inp{font-size:10px;padding:4px 8px}
+body.dense-mode .field label{font-size:9px}
+body.dense-mode .sl{display:none!important}
+body.dense-mode .ph-r h1{font-size:16px!important}
 .su{margin-top:auto;padding:8px 14px;border-top:1px solid var(--bd1);display:flex;align-items:center;gap:8px;font-size:11px}
 
 /* MAIN */
@@ -569,6 +581,22 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 @media (prefers-reduced-motion:reduce){
   .home-hero,.home-hero *,#hero-tile-popover{animation:none!important;transition:none!important}
 }
+
+/* ─── Mini-week strip (#10) ─────────────────────────────────────────── */
+.lu-mini-week{margin:0 0 10px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px}
+.lu-mini-week-h{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:6px;padding:0 2px}
+.lu-mini-week-h a{color:var(--ac);cursor:pointer}
+.lu-mini-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.lu-mini-week-cell{position:relative;aspect-ratio:1;border-radius:6px;background:var(--s1);border:1px solid var(--bd1);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s,border-color .12s,background .12s;padding:2px;min-height:42px}
+.lu-mini-week-cell:hover{transform:translateY(-1px);border-color:var(--ac);background:var(--s3)}
+.lu-mini-week-cell.today{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.lu-mini-week-cell .lu-mini-week-dow{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;line-height:1}
+.lu-mini-week-cell.today .lu-mini-week-dow{color:var(--ac)}
+.lu-mini-week-cell .lu-mini-week-num{font-size:13px;font-weight:700;color:var(--t1);line-height:1.1;margin-top:2px}
+.lu-mini-week-cell.today .lu-mini-week-num{color:var(--ac)}
+.lu-mini-week-cell .lu-mini-week-dots{display:flex;gap:2px;margin-top:2px;min-height:4px;align-items:center;justify-content:center}
+.lu-mini-week-cell .lu-mini-week-dot{width:4px;height:4px;border-radius:50%;background:var(--ac)}
+.lu-mini-week-cell .lu-mini-week-dot.evt{background:#0284c7}
 
 /* ─── Reports charts ────────────────────────────────────────────────── */
 /* Bars draw in on first paint with a height transition. */
