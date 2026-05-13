@@ -598,6 +598,15 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .lu-mini-week-cell .lu-mini-week-dot{width:4px;height:4px;border-radius:50%;background:var(--ac)}
 .lu-mini-week-cell .lu-mini-week-dot.evt{background:#0284c7}
 
+/* Home grid — masonry pack so cards of varying heights don't leave big gaps. */
+#home-grid{column-count:3;column-gap:12px;display:block!important;grid-template-columns:none!important}
+#home-grid .home-card-wrap{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin:0 0 12px;display:block;width:100%;min-width:0}
+#home-grid .home-card-wrap .cd{min-width:0;overflow:hidden}
+#home-grid .home-card-wrap .lr{min-width:0}
+#home-grid .home-card-wrap .lr .rt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:1400px){#home-grid{column-count:2}}
+@media (max-width:768px){#home-grid{column-count:1}}
+
 /* ─── Reports charts ────────────────────────────────────────────────── */
 /* Bars draw in on first paint with a height transition. */
 .lu-bar{transform-origin:bottom;animation:barRise .55s cubic-bezier(.2,.9,.3,1) both}
