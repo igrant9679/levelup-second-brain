@@ -7139,29 +7139,174 @@ function deleteMilestone(goalId,idx){
 // Global so the Journal tab filter persists across re-renders.
 if(typeof _jrnlFilter==='undefined')var _jrnlFilter='All';
 // Hoisted to global scope so inline onclicks in the journal tabs can call it reliably.
-function renderJournalList(filter){
-  _jrnlFilter=filter||_jrnlFilter;
-  const entries=_jrnlFilter==='All'?D.journal:D.journal.filter(j=>j.title&&j.title.toLowerCase().includes(_jrnlFilter.toLowerCase()));
+// Journal page state (J1, J2, J3 — view + search + selected day)
+if(typeof _jrnlSearch==='undefined')var _jrnlSearch='';
+if(typeof _jrnlView==='undefined')var _jrnlView='list';
+if(typeof _jrnlCalDate==='undefined')var _jrnlCalDate=new Date();
+const JOURNAL_CATEGORIES=['Daily','Weekly Review','Gratitude','Planning','Reflection'];
+// Parse free-form journal date strings ("Today · May 12", "May 12, 2026", ISO)
+// into a real Date. Returns null when unparseable.
+function _parseJournalDate(j){
+  const raw=String(j.date||'').replace(/^today\s*[·\-]?\s*/i,'').trim();
+  if(j.createdAt){const d=new Date(j.createdAt);if(!isNaN(d))return d;}
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw))return new Date(raw);
+  const d=new Date(raw);return isNaN(d)?null:d;
+}
+// Strip diaryBody/bodyHtml to plain text for previews (J7).
+function _journalPreviewText(j){
+  if(j.diaryBody){const t=document.createElement('div');t.innerHTML=j.diaryBody;return (t.textContent||t.innerText||'').trim();}
+  if(j.bodyHtml){const t=document.createElement('div');t.innerHTML=j.bodyHtml;return (t.textContent||t.innerText||'').trim();}
+  return j.body||'';
+}
+function _journalCategoryOf(j){
+  if(j.category)return j.category;
+  // Legacy fallback: infer from tags or title keywords.
+  const lc=(j.title||'').toLowerCase()+' '+(j.tags||[]).join(' ').toLowerCase();
+  for(const c of JOURNAL_CATEGORIES)if(lc.includes(c.toLowerCase()))return c;
+  return 'Daily';
+}
+function setJournalCategoryFilter(c){_jrnlFilter=c||'All';renderJournalList();}
+function setJournalSearch(q){_jrnlSearch=q||'';renderJournalList();}
+function setJournalView(v){_jrnlView=v||'list';renderJournal();}
+function jrnlCalNav(delta){const d=new Date(_jrnlCalDate);d.setMonth(d.getMonth()+delta);_jrnlCalDate=d;renderJournal();}
+function _filteredJournalEntries(){
+  let entries=[...(D.journal||[])];
+  if(_jrnlFilter&&_jrnlFilter!=='All')entries=entries.filter(j=>_journalCategoryOf(j)===_jrnlFilter);
+  if(_jrnlSearch){
+    const q=_jrnlSearch.toLowerCase();
+    entries=entries.filter(j=>(j.title||'').toLowerCase().includes(q)||_journalPreviewText(j).toLowerCase().includes(q)||(j.tags||[]).some(t=>t.toLowerCase().includes(q)));
+  }
+  return entries;
+}
+function renderJournalList(){
+  const entries=_filteredJournalEntries();
   const el=document.getElementById('jrnl-entries');
   if(!el)return;
-  el.innerHTML=entries.length?entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):renderEmptyState({icon:'📓',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries yet`:'Your journal is empty',hint:'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:'+ Write your first entry',ctaFn:"openFA('journal')"});
+  if(!entries.length){
+    el.innerHTML=renderEmptyState({icon:'📓',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
+    return;
+  }
+  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date||'')} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
+}
+// J3: month-grid calendar view of journal entries
+function renderJournalCalendar(){
+  const el=document.getElementById('jrnl-entries');
+  if(!el)return;
+  const d=new Date(_jrnlCalDate);
+  const year=d.getFullYear(),month=d.getMonth();
+  const first=new Date(year,month,1);
+  const startDow=first.getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const monthLabel=first.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  // Bucket entries by yyyy-mm-dd
+  const buckets={};
+  (D.journal||[]).forEach(j=>{const dt=_parseJournalDate(j);if(!dt)return;const k=dt.toISOString().slice(0,10);(buckets[k]=buckets[k]||[]).push(j);});
+  const cells=[];
+  for(let i=0;i<startDow;i++)cells.push('<div></div>');
+  const todayKey=new Date().toISOString().slice(0,10);
+  for(let dom=1;dom<=daysInMonth;dom++){
+    const dt=new Date(year,month,dom);
+    const k=dt.toISOString().slice(0,10);
+    const list=buckets[k]||[];
+    const isToday=k===todayKey;
+    const moods=list.map(j=>j.mood||'').filter(Boolean).slice(0,3).join('');
+    const action=list.length?`onclick="openDrawer('journal',D.journal.find(x=>x.id===${list[0].id}))"`:`onclick="openFA('journal')"`;
+    cells.push(`<div class="lu-jcal-cell ${isToday?'today':''} ${list.length?'has-entry':''}" ${action} title="${list.length?list.length+' entr'+(list.length===1?'y':'ies'):'No entry — click to add'}"><span class="lu-jcal-num">${dom}</span><span class="lu-jcal-moods">${moods}</span>${list.length>1?`<span class="lu-jcal-count">${list.length}</span>`:''}</div>`);
+  }
+  el.innerHTML=`<div class="lu-jcal">
+    <div class="lu-jcal-h"><button class="btn btn-s" onclick="jrnlCalNav(-1)">‹</button><span>${monthLabel}</span><button class="btn btn-s" onclick="jrnlCalNav(1)">›</button><button class="btn btn-s" style="margin-left:auto" onclick="_jrnlCalDate=new Date();renderJournal()">Today</button></div>
+    <div class="lu-jcal-dows">${['S','M','T','W','T','F','S'].map(d=>`<span>${d}</span>`).join('')}</div>
+    <div class="lu-jcal-grid">${cells.join('')}</div>
+  </div>`;
+}
+// J4: 14-day mood sparkline (mirrors the home Mood Trend widget but inline)
+function _renderJournalMoodSparkline(){
+  const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
+  const days=Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return d;});
+  const series=days.map(d=>{const k=d.toISOString().slice(0,10);const list=(D.journal||[]).filter(j=>{const jd=_parseJournalDate(j);return jd&&jd.toISOString().slice(0,10)===k;});const last=list[list.length-1];return {date:k,mood:last?last.mood:null,score:last&&moodMap[last.mood]?moodMap[last.mood]:null};});
+  const valid=series.filter(s=>s.score!==null);
+  if(!valid.length)return '';
+  const points=series.map((s,i)=>{const x=i/(series.length-1)*100;const y=s.score?100-((s.score-1)/4)*90-5:null;return {x,y,score:s.score,date:s.date,mood:s.mood};});
+  const path='M '+points.filter(p=>p.y!==null).map(p=>`${p.x},${p.y}`).join(' L ');
+  const dots=points.filter(p=>p.y!==null).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="var(--ac)"><title>${p.date}: ${p.mood} (${p.score}/5)</title></circle>`).join('');
+  const avg=(valid.reduce((s,p)=>s+p.score,0)/valid.length).toFixed(1);
+  return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;flex-shrink:0">Mood · 14d</span><svg viewBox="0 0 100 60" preserveAspectRatio="none" style="width:200px;height:30px;overflow:visible"><path d="${path}" stroke="var(--ac)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>${dots}</svg><span style="font-size:11px;color:var(--t2);flex:1">avg <strong style="color:var(--ac)">${avg}</strong>/5 · ${valid.length} entr${valid.length===1?'y':'ies'}</span></div>`;
+}
+// J5: "On this day" entries from prior years.
+function _onThisDayEntries(){
+  const today=new Date();const md=`${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  return (D.journal||[]).filter(j=>{const d=_parseJournalDate(j);if(!d)return false;return d.getFullYear()<today.getFullYear()&&`${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`===md;}).sort((a,b)=>(_parseJournalDate(b)||0)-(_parseJournalDate(a)||0));
+}
+// J6: rotate writing prompts daily and offer an AI-generated refresh.
+function _journalPromptPool(){
+  return [
+    {icon:'🙏',title:'Gratitude',text:'What are you grateful for today?'},
+    {icon:'💡',title:'Learning',text:'What did you learn today?'},
+    {icon:'🎯',title:'Planning',text:'What is your top priority for tomorrow?'},
+    {icon:'🌟',title:'Wins',text:'What went well today?'},
+    {icon:'🔄',title:'Reflection',text:'What would you do differently?'},
+    {icon:'😊',title:'Check-in',text:'How are you feeling right now?'},
+    {icon:'🧭',title:'Direction',text:'If you only get one thing right this week, what should it be?'},
+    {icon:'🪞',title:'Self-talk',text:'What story am I telling myself right now? Is it true?'},
+    {icon:'🌱',title:'Growth',text:'Where did I push beyond my comfort zone today?'},
+    {icon:'🔋',title:'Energy',text:'What drained my energy today? What restored it?'},
+    {icon:'🤝',title:'Relationships',text:'Who did I help today? Who helped me?'},
+    {icon:'🎨',title:'Creativity',text:'What would I make if no one was watching?'},
+  ];
+}
+async function refreshJournalPromptsAI(){
+  const cached=D.prefs&&D.prefs.aiJournalPrompts;
+  const today=new Date().toISOString().slice(0,10);
+  if(cached&&cached.date===today&&!cached.regenerate){toast('Already fresh — try again tomorrow.');return;}
+  toast({type:'info',title:'Generating fresh prompts…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const recent=(D.journal||[]).slice(-10).map(j=>j.title||(j.body||'').slice(0,80)).join(' / ');
+    const sys=`You are a thoughtful journaling coach. Read the user's recent journal titles and propose 6 fresh writing prompts (each: title 1-3 words, prompt 8-15 words, single emoji). Reply with strict JSON only: {"prompts":[{"icon":"🙏","title":"…","text":"…"}, …]}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Recent entries: ${recent||'(none)'}\nGenerate 6 prompts.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const parsed=JSON.parse(text);
+    if(!parsed||!Array.isArray(parsed.prompts))throw new Error('bad response');
+    D.prefs.aiJournalPrompts={date:today,prompts:parsed.prompts.slice(0,6)};
+    save('prefs');renderJournal();
+    toast({type:'success',title:'✨ Prompts refreshed',duration:1800});
+  }catch(e){
+    toast({type:'error',title:'Could not refresh prompts',msg:'Falling back to today\'s rotation.',duration:3000});
+  }
 }
 function renderJournal(){
-  const journalTabs=['All','Daily','Weekly Review','Gratitude','Planning','Reflection'];
-  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const js=D.journal||[];const s=(typeof calcJournalStreak==='function')?calcJournalStreak():0;return js.length?`${js.length} entr${js.length===1?'y':'ies'}${s?` · ${s}-day streak 🔥`:''}`:'No entries yet — write your first one.';})()}</p></div><div style="display:flex;gap:4px"><div style="position:relative;display:inline-block"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('jrnl-ai-menu')" title="AI tools">✨ AI ▾</button><div id="jrnl-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalSentiment()">📈 Sentiment Trend</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalThemes()">🔍 Recurring Themes</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalPrompt()">✏ Writing Prompt</button></div></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="font-size:11px" onclick="event.stopPropagation();togglePopMenu('jrnl-export-menu')" title="Export">⬇ Export ▾</button><div id="jrnl-export-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-export-menu');openJournalExportModal('md')">⬇ Markdown</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-export-menu');openJournalExportModal('pdf')">🖨 PDF</button></div></div><button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button></div></div>
-  <div class="tabs" id="jrnl-tabs">${journalTabs.map((t,i)=>`<div class="tab ${i===0?'on':''}" onclick="document.querySelectorAll('#jrnl-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderJournalList('${t}')">${t}</div>`).join('')}</div>
-  <div id="jrnl-entries">${D.journal.length?D.journal.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date)}</div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title)}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(j.body)}</div></div>`).join(''):renderEmptyState({icon:'📓',title:'Your journal is empty',hint:'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:'+ Write your first entry',ctaFn:"openFA('journal')"})}</div>`;
-  const streak=calcJournalStreak();
+  const total=D.journal.length;const streak=(typeof calcJournalStreak==='function')?calcJournalStreak():0;
+  const sparkHtml=_renderJournalMoodSparkline();
+  $('jrnl-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✏️ Journal</h1><p style="font-size:12px;color:var(--t2)">${total?`${total} entr${total===1?'y':'ies'}${streak?` · ${streak}-day streak 🔥`:''}`:'No entries yet — write your first one.'}</p></div><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">
+      <button class="btn" style="border-radius:0;height:28px;width:32px;padding:0;font-size:13px;background:${_jrnlView==='list'?'var(--ac)':'transparent'};color:${_jrnlView==='list'?'#fff':'var(--t2)'};border:none" title="List view" onclick="setJournalView('list')">☰</button>
+      <button class="btn" style="border-radius:0;height:28px;width:32px;padding:0;font-size:13px;background:${_jrnlView==='calendar'?'var(--ac)':'transparent'};color:${_jrnlView==='calendar'?'#fff':'var(--t2)'};border:none" title="Calendar view" onclick="setJournalView('calendar')">🗓</button>
+    </div>
+    <div style="position:relative;display:inline-block"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('jrnl-ai-menu')" title="AI tools">✨ AI ▾</button><div id="jrnl-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalSentiment()">📈 Sentiment Trend</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalThemes()">🔍 Recurring Themes</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-ai-menu');aiJournalPrompt()">✏ Writing Prompt</button></div></div>
+    <div style="position:relative;display:inline-block"><button class="btn btn-s" style="font-size:11px" onclick="event.stopPropagation();togglePopMenu('jrnl-export-menu')" title="Export">⬇ Export ▾</button><div id="jrnl-export-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-export-menu');openJournalExportModal('md')">⬇ Markdown</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('jrnl-export-menu');openJournalExportModal('pdf')">🖨 PDF</button></div></div>
+    <button class="btn btn-p" onclick="openFA('journal')">+ New Entry</button>
+  </div></div>
+  ${sparkHtml}
+  <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center"><input id="jrnl-search" class="inp" placeholder="🔍 Search entries…" value="${esc(_jrnlSearch)}" style="flex:1;height:28px;font-size:11px" oninput="setJournalSearch(this.value)"></div>
+  <div class="tabs" id="jrnl-tabs">${['All',...JOURNAL_CATEGORIES].map(t=>`<div class="tab ${(_jrnlFilter||'All')===t?'on':''}" onclick="setJournalCategoryFilter('${t}')">${t}</div>`).join('')}</div>
+  <div id="jrnl-entries"></div>`;
+  if(_jrnlView==='calendar')renderJournalCalendar();
+  else renderJournalList();
+  // Rail
+  const onThisDay=_onThisDayEntries();
+  const promptsCache=D.prefs&&D.prefs.aiJournalPrompts;
+  const today=new Date().toISOString().slice(0,10);
+  const useCached=promptsCache&&promptsCache.date===today&&Array.isArray(promptsCache.prompts)&&promptsCache.prompts.length;
+  // Daily-rotated prompts: pick 6 from the pool seeded by day-of-year.
+  const pool=_journalPromptPool();
+  const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
+  const rotated=Array.from({length:6},(_,i)=>pool[(doy*6+i)%pool.length]);
+  const prompts=useCached?promptsCache.prompts:rotated;
   $('jrnl-rail').innerHTML=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Writing Streak</div><div style="font-size:20px;font-weight:700;color:var(--ac)">${streak} day${streak!==1?'s':''} 🔥</div></div>
-  <div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Prompts</div><p style="font-size:10px;color:var(--t3);margin-bottom:6px">Click a prompt to start a new entry</p>
-  ${[
-    {icon:'🙏',text:'What are you grateful for today?',title:'Gratitude'},
-    {icon:'💡',text:'What did you learn today?',title:'Learning'},
-    {icon:'🎯',text:'What is your top priority for tomorrow?',title:'Planning'},
-    {icon:'🌟',text:'What went well today?',title:'Wins'},
-    {icon:'🔄',text:'What would you do differently?',title:'Reflection'},
-    {icon:'😊',text:'How are you feeling right now?',title:'Check-in'},
-  ].map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${p.title}','${p.text}')"><span style="font-size:14px;flex-shrink:0">${p.icon}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${p.title}</div><div style="font-size:10px;color:var(--t2);line-height:1.3">${p.text}</div></div></div>`).join('')}</div>`;
+  ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><span style="font-size:9px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:10px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
+  <div style="margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-size:12px;font-weight:600">Prompts</div><button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px;color:var(--ac)" onclick="refreshJournalPromptsAI()" title="Generate fresh AI prompts based on your recent entries">✨ Refresh</button></div>
+  <p style="font-size:10px;color:var(--t3);margin-bottom:6px">${useCached?'AI-generated for today':'Rotates daily'}</p>
+  ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${esc(p.title).replace(/'/g,'&#39;')}','${esc(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:10px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
 }
 
 function _getMailItems(){

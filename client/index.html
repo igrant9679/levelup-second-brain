@@ -1022,6 +1022,21 @@ body.notes-focus-mode #notes-focus-exit{display:flex!important}
 /* F: keyboard cursor */
 .lr[data-task-id].lr-kb-on,.tl-row.tl-kb-on{outline:2px solid var(--ac);outline-offset:-2px}
 
+/* ─── Journal calendar view (J3) ────────────────────────────────────── */
+.lu-jcal{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:10px}
+.lu-jcal-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:6px}
+.lu-jcal-h>span{flex:0 0 auto;min-width:140px;text-align:center}
+.lu-jcal-dows{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;text-align:center;padding:4px 0;margin-bottom:2px}
+.lu-jcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.lu-jcal-cell{position:relative;aspect-ratio:1.1;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:6px 4px;cursor:pointer;transition:transform .12s,border-color .12s,background .12s;min-height:60px}
+.lu-jcal-cell:hover{transform:translateY(-1px);border-color:var(--ac);background:var(--s3)}
+.lu-jcal-cell.today{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.lu-jcal-cell.has-entry{background:color-mix(in srgb,var(--ac) 8%,var(--s1))}
+.lu-jcal-num{font-size:13px;font-weight:600;color:var(--t1)}
+.lu-jcal-cell.today .lu-jcal-num{color:var(--ac)}
+.lu-jcal-moods{font-size:14px;line-height:1;margin-top:auto}
+.lu-jcal-count{position:absolute;top:4px;right:4px;font-size:8px;font-weight:700;background:var(--ac);color:#fff;padding:1px 5px;border-radius:8px}
+
 /* ─── Notes page polish (data-screen="notes") ─────────────────────────
    The Notes layout is a 5-column grid (sidebar / nav / list / editor /
    rail) so the global .ph-r gradient strip never appears. These rules
