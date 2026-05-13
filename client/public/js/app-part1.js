@@ -811,12 +811,43 @@ function _hmToMin(s){
 // Push the effective theme onto :root. Called on boot, on toggle, and every
 // minute via the scheduler tick.
 let _lastAppliedThemeKey='';
+// Time-aware accent drift (#15). Slowly nudges the user's accent hue across
+// the day so the UI feels alive without redefining the theme. Peaks warm at
+// hour 6 (+12°), neutral at midnight/noon, cools to -12° at hour 18.
+function _hexToHsl(hex){
+  if(!/^#[0-9a-f]{6}$/i.test(hex))return null;
+  const r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h,s,l=(mx+mn)/2;
+  if(mx===mn){h=s=0;}else{const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    switch(mx){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}h/=6;}
+  return [h*360,s*100,l*100];
+}
+function _hslToHex(h,s,l){
+  s/=100;l/=100;const k=n=>(n+h/30)%12;const a=s*Math.min(l,1-l);
+  const f=n=>{const x=k(n);return l-a*Math.max(-1,Math.min(x-3,9-x,1));};
+  const toHex=v=>Math.round(v*255).toString(16).padStart(2,'0');
+  return '#'+toHex(f(0))+toHex(f(8))+toHex(f(4));
+}
+function _getDriftedAccent(baseHex){
+  const hsl=_hexToHsl(baseHex);if(!hsl)return baseHex;
+  const now=new Date();const hour=now.getHours()+now.getMinutes()/60;
+  const hueShift=12*Math.sin(hour*Math.PI/12);
+  return _hslToHex((hsl[0]+hueShift+360)%360,hsl[1],hsl[2]);
+}
 function applyTheme(opts){
   const t=_getEffectiveTheme();
   const root=document.documentElement;
   for(const [k,v] of Object.entries(t)){
     if(v===undefined||v===null||v==='')continue;
     root.style.setProperty('--'+k,v);
+  }
+  // #15 drift override — applied AFTER base theme so it wins for --ac/--ach/--acs.
+  if(D.prefs&&D.prefs.accentDrift){
+    const base=t.ac||D.prefs.accent||'#3B82F6';
+    const drifted=_getDriftedAccent(base);
+    root.style.setProperty('--ac',drifted);
+    root.style.setProperty('--ach',drifted);
+    root.style.setProperty('--acs',drifted+'26');
   }
   // Page-accent map overrides
   const paMap=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});
@@ -857,7 +888,12 @@ function _themeColorAsHex(c){
   return '#000000';
 }
 function _themeFingerprint(){
-  try{return JSON.stringify([_getEffectiveTheme(),D.prefs.pageAccents||{},D.prefs.themeFontFamily,D.prefs.themeFontScale]);}catch(_){return Math.random().toString();}
+  try{
+    // When drift is on, include a 15-min time bucket so the scheduler re-applies
+    // the theme periodically as the hue rotates through the day.
+    const driftBucket=(D.prefs&&D.prefs.accentDrift)?Math.floor(Date.now()/(15*60*1000)):0;
+    return JSON.stringify([_getEffectiveTheme(),D.prefs.pageAccents||{},D.prefs.themeFontFamily,D.prefs.themeFontScale,driftBucket]);
+  }catch(_){return Math.random().toString();}
 }
 // Scheduler tick: every 60s, re-check the effective theme. If it changed,
 // re-apply. Started lazily on first applyTheme().
@@ -985,6 +1021,14 @@ function toggleCompact(el){
   localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
   applyPrefs();
   toast(D.prefs.compact?'Compact mode on':'Compact mode off');
+}
+function toggleAccentDrift(el){
+  el.classList.toggle('on');
+  D.prefs=D.prefs||{};
+  D.prefs.accentDrift=el.classList.contains('on');
+  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  if(typeof applyTheme==='function')applyTheme();
+  toast(D.prefs.accentDrift?'🌅 Accent drift on':'Accent drift off');
 }
 // Density selector (#13) — sets D.prefs.density to 'compact' | 'normal' | 'dense'.
 // Keeps the legacy `compact` boolean in sync so old code paths still work.
@@ -5840,6 +5884,38 @@ function toggleNoteInlineEdit(id){
     setTimeout(()=>document.getElementById('nie-title')?.focus(),50);
   }
 }
+// Note version timeline sparkline (#16). Renders a tiny SVG strip showing each
+// saved version as a clickable dot positioned by timestamp. Hover for the
+// timestamp; click to jump straight into the diff viewer for that version.
+function _renderNoteVersionSparkline(n){
+  if(!n||!n.versions||!n.versions.length)return '';
+  const versions=n.versions.slice();
+  const now=Date.now();
+  const stamps=versions.map(v=>Date.parse(v.savedAt)).filter(t=>!isNaN(t));
+  if(!stamps.length)return '';
+  const oldest=Math.min(...stamps);
+  // Make sure the strip has at least 1 day of width even for a single edit.
+  const span=Math.max(now-oldest,86400000);
+  const W=160,H=28,pad=6;
+  const dots=versions.map((v,i)=>{
+    const ts=Date.parse(v.savedAt);if(isNaN(ts))return '';
+    const x=pad+((ts-oldest)/span)*(W-pad*2);
+    const ago=Math.max(0,Math.round((now-ts)/86400000));
+    const label=`${esc(v.title||'(untitled)')} · ${ago===0?'today':ago+'d ago'} · ${new Date(ts).toLocaleString()}`;
+    return `<circle cx="${x.toFixed(1)}" cy="${H/2}" r="3" fill="var(--ac)" stroke="var(--bg)" stroke-width="1.2" style="cursor:pointer;transition:r .12s" onmouseover="this.setAttribute('r','5')" onmouseout="this.setAttribute('r','3')" onclick="previewNoteVersion(${n.id},${i})"><title>${label}</title></circle>`;
+  }).join('');
+  // "Now" marker at far right.
+  const nowMark=`<line x1="${W-pad}" y1="${H/2-5}" x2="${W-pad}" y2="${H/2+5}" stroke="var(--t3)" stroke-width="1.2"/>`;
+  return `<div style="display:inline-flex;align-items:center;gap:8px;padding:4px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:14px;cursor:default" title="Edit timeline — click any dot to view that revision">
+    <span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">🕐 ${versions.length} edit${versions.length===1?'':'s'}</span>
+    <svg width="${W}" height="${H}" style="display:block">
+      <line x1="${pad}" y1="${H/2}" x2="${W-pad}" y2="${H/2}" stroke="var(--bd2)" stroke-width="1"/>
+      ${nowMark}
+      ${dots}
+    </svg>
+    <button class="btn btn-s" style="height:20px;padding:0 8px;font-size:9px" onclick="openNoteHistory(${n.id})" title="Open full history list">All →</button>
+  </div>`;
+}
 // ====== NOTE VERSION HISTORY ======
 function openNoteHistory(id){
   const n=D.notes.find(x=>x.id===id);
@@ -6032,6 +6108,7 @@ function renderNoteEditor(n){
   ${backlinkChips}
   <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')} ${meta}</div>
   <div style="font-size:10px;color:var(--t3);padding-bottom:8px;border-bottom:1px solid var(--bd1);margin-bottom:10px">Source: ${n.source||'Manual'} · Updated: ${fmtNoteDate(n.updated)}${n.createdBy?` · by ${n.createdBy}`:''}</div>
+  ${(n.versions&&n.versions.length)?`<div style="margin-bottom:10px">${_renderNoteVersionSparkline(n)}</div>`:''}
   <div style="font-size:12px;color:var(--t2);line-height:1.7" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`;
 }
 
