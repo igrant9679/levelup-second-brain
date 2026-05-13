@@ -1037,6 +1037,61 @@ body.notes-focus-mode #notes-focus-exit{display:flex!important}
 .lu-jcal-moods{font-size:14px;line-height:1;margin-top:auto}
 .lu-jcal-count{position:absolute;top:4px;right:4px;font-size:8px;font-weight:700;background:var(--ac);color:#fff;padding:1px 5px;border-radius:8px}
 
+/* ─── Mind Maps editor ──────────────────────────────────────────────── */
+/* M1+M2: node shapes — applied via .mm-node[data-shape] */
+.mm-node{position:absolute;background:rgba(59,130,246,.13);border:2px solid #3b82f6;cursor:grab;font-size:12px;color:var(--t1);user-select:none;transition:box-shadow .12s,transform .08s;display:flex;align-items:center;gap:6px;min-width:80px;max-width:260px}
+.mm-node[data-shape="rect"]{border-radius:8px;padding:8px 14px}
+.mm-node[data-shape="pill"]{border-radius:999px;padding:6px 16px}
+.mm-node[data-shape="circle"]{border-radius:50%;padding:18px;width:96px;height:96px;justify-content:center;text-align:center;min-width:0}
+.mm-node[data-shape="diamond"]{padding:18px 26px;clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%);border-radius:0;border-width:0;background:var(--mm-fill,#3b82f6) !important}
+.mm-node[data-shape="diamond"] .mm-node-text{color:#fff !important;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.mm-node[data-shape="hexagon"]{padding:14px 28px;clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%);border-radius:0;border-width:0;background:var(--mm-fill,#3b82f6) !important}
+.mm-node[data-shape="hexagon"] .mm-node-text{color:#fff !important;text-shadow:0 1px 2px rgba(0,0,0,.45)}
+.mm-node[data-shape="cloud"]{border-radius:60% 40% 50% 50% / 55% 50% 50% 45%;padding:10px 18px}
+.mm-node.mm-selected{box-shadow:0 0 0 3px var(--ac),0 6px 20px rgba(0,0,0,.35);z-index:10}
+.mm-node.mm-connecting-from{box-shadow:0 0 0 3px #fbbf24,0 0 24px rgba(251,191,36,.6)}
+.mm-node-icon{font-size:14px;line-height:1;flex-shrink:0}
+.mm-node-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mm-node-collapse{cursor:pointer;font-size:10px;color:var(--t3);padding:0 4px;line-height:1;background:rgba(0,0,0,.18);border-radius:4px;flex-shrink:0}
+.mm-node-collapse:hover{color:var(--ac);background:rgba(0,0,0,.32)}
+/* M3: sub-items inside a node */
+.mm-node-subitems{display:flex;flex-direction:column;gap:2px;width:100%;margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;font-weight:400}
+.mm-node-subitem{display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;line-height:1.3}
+.mm-node-subitem .chk{width:11px;height:11px;border:1px solid currentColor;border-radius:2px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;background:transparent}
+.mm-node-subitem.done{opacity:.55;text-decoration:line-through}
+.mm-node-subitem.done .chk::before{content:'✓';color:currentColor}
+.mm-node-subitem-add{font-size:9px;color:var(--t3);cursor:pointer;padding:2px 0;font-weight:400;font-style:italic}
+.mm-node-subitem-add:hover{color:var(--ac)}
+/* M4: inline editing */
+.mm-node-edit{flex:1;min-width:80px;background:transparent;border:none;outline:none;color:inherit;font:inherit;padding:0}
+.mm-node[data-shape="circle"] .mm-node-edit,.mm-node[data-shape="diamond"] .mm-node-edit,.mm-node[data-shape="hexagon"] .mm-node-edit{text-align:center}
+/* M5: side panel for node details */
+.mm-side{flex-shrink:0;width:0;background:var(--s1);border-left:1px solid var(--bd2);overflow:hidden;transition:width .2s}
+.mm-side.open{width:280px;overflow-y:auto;padding:14px}
+.mm-side-h{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;margin-bottom:10px}
+.mm-side-h .mm-side-close{margin-left:auto;cursor:pointer;color:var(--t3);font-size:14px;padding:0 4px}
+.mm-side-section{margin-bottom:14px}
+.mm-side-section-h{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.mm-side textarea{width:100%;min-height:90px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 8px;font-size:11px;color:var(--t1);resize:vertical;font-family:inherit;line-height:1.5}
+.mm-side input[type="text"]{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 8px;font-size:11px;color:var(--t1)}
+.mm-side .mm-shape-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.mm-side .mm-shape-btn{padding:6px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;font-size:9px;text-align:center;cursor:pointer;color:var(--t2)}
+.mm-side .mm-shape-btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.mm-side .mm-color-grid{display:flex;gap:4px;flex-wrap:wrap}
+.mm-side .mm-color-swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;flex-shrink:0}
+.mm-side .mm-color-swatch.on{border-color:#fff}
+.mm-side .mm-icon-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.mm-side .mm-icon-btn{padding:5px;background:var(--s2);border:1px solid var(--bd2);border-radius:5px;font-size:14px;cursor:pointer;text-align:center}
+.mm-side .mm-icon-btn.on{background:var(--ac);border-color:var(--ac)}
+.mm-ctx-item{padding:6px 10px;font-size:11px;cursor:pointer;color:var(--t1);transition:background .1s}
+.mm-ctx-item:hover{background:var(--s3)}
+
+/* M6: marquee selection rectangle */
+.mm-marquee{position:absolute;border:1px dashed var(--ac);background:color-mix(in srgb,var(--ac) 10%,transparent);pointer-events:none;z-index:5}
+
+/* M12: search highlight */
+.mm-node.mm-search-match{box-shadow:0 0 0 3px #fbbf24,0 0 24px rgba(251,191,36,.6)}
+
 /* ─── Notes page polish (data-screen="notes") ─────────────────────────
    The Notes layout is a 5-column grid (sidebar / nav / list / editor /
    rail) so the global .ph-r gradient strip never appears. These rules

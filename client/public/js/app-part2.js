@@ -8331,9 +8331,78 @@ let _mmDrag = null;    // drag state
 let _mmPan = {x:0, y:0}; // canvas pan offset
 let _mmZoom = 1;
 let _mmConnecting = null; // node id being connected from
-let _mmSelected = null; // selected node id
+let _mmSelected = null; // single selection (back-compat)
+let _mmSelectedSet = new Set(); // M6: multi-select set
+let _mmInlineEditId = null; // M4: which node is being inline-edited
+let _mmHistory = []; // M8: undo stack of mindmap snapshots
+let _mmHistoryIdx = -1;
+let _mmSearchQuery = ''; // M12
+let _mmMarquee = null; // M6: drag-rectangle selection state
+
+const MM_SHAPES = ['rect','pill','circle','diamond','hexagon','cloud'];
+const MM_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#64748b','#f97316'];
+const MM_ICONS  = ['','🎯','💡','📋','📁','📝','✅','⚠️','🔥','⭐','🚀','🧩','🔗','💬','🧠','🪴','📊','🛠','📚','🎨','🏆','💎','⚡','🌱','🔭','🪞','🧭','🎓','📦'];
+const MM_LAYOUTS = [{k:'free',l:'Free'},{k:'radial',l:'Radial'},{k:'tree',l:'Tree (L→R)'},{k:'org',l:'Org (top-down)'}];
 
 function _mmNextId(arr){ return arr.length ? Math.max(...arr.map(x=>x.id))+1 : 1; }
+// Backwards-compatible accessor: ensure new fields exist on legacy nodes/edges/maps.
+function _mmDefaults(mm){
+  if(!mm)return;
+  mm.layout=mm.layout||'free';
+  (mm.nodes||[]).forEach(n=>{
+    if(typeof n.shape==='undefined')n.shape='rect';
+    if(typeof n.icon==='undefined')n.icon='';
+    if(!Array.isArray(n.subItems))n.subItems=[];
+    if(typeof n.description==='undefined')n.description='';
+    if(typeof n.collapsed==='undefined')n.collapsed=false;
+  });
+  (mm.edges||[]).forEach(e=>{
+    if(typeof e.style==='undefined')e.style='solid';
+    if(typeof e.arrow==='undefined')e.arrow='none';
+    if(typeof e.thickness==='undefined')e.thickness=2;
+    if(typeof e.label==='undefined')e.label='';
+  });
+}
+// M8: snapshot helpers — capture before each mutation; replay on undo/redo.
+function _mmSnap(){
+  if(!_mmCurrent)return;
+  const snap=JSON.parse(JSON.stringify({nodes:_mmCurrent.nodes,edges:_mmCurrent.edges,layout:_mmCurrent.layout}));
+  _mmHistory=_mmHistory.slice(0,_mmHistoryIdx+1);
+  _mmHistory.push(snap);
+  if(_mmHistory.length>30)_mmHistory.shift();
+  _mmHistoryIdx=_mmHistory.length-1;
+}
+function mmUndo(){if(_mmHistoryIdx<=0)return toast('Nothing to undo');_mmHistoryIdx--;_mmRestoreSnap();}
+function mmRedo(){if(_mmHistoryIdx>=_mmHistory.length-1)return toast('Nothing to redo');_mmHistoryIdx++;_mmRestoreSnap();}
+function _mmRestoreSnap(){
+  const s=_mmHistory[_mmHistoryIdx];if(!s||!_mmCurrent)return;
+  _mmCurrent.nodes=JSON.parse(JSON.stringify(s.nodes));
+  _mmCurrent.edges=JSON.parse(JSON.stringify(s.edges));
+  _mmCurrent.layout=s.layout;
+  _mmCurrent.updatedAt=new Date().toISOString();
+  saveMindmaps();renderMindmapCanvas();
+}
+// M13: collapse helpers — when a node is collapsed, hide all descendants.
+function _mmDescendants(rootId){
+  if(!_mmCurrent)return new Set();
+  const out=new Set();const stack=[rootId];const seen=new Set([rootId]);
+  while(stack.length){
+    const id=stack.pop();
+    _mmCurrent.edges.forEach(e=>{
+      if(e.from===id&&!seen.has(e.to)){seen.add(e.to);out.add(e.to);stack.push(e.to);}
+    });
+  }
+  return out;
+}
+function _mmHiddenNodeIds(){
+  if(!_mmCurrent)return new Set();
+  const hidden=new Set();
+  _mmCurrent.nodes.filter(n=>n.collapsed).forEach(n=>{
+    _mmDescendants(n.id).forEach(id=>hidden.add(id));
+  });
+  return hidden;
+}
+function _mmHasChildren(id){return _mmCurrent&&_mmCurrent.edges.some(e=>e.from===id);}
 
 // ─── Render ──────────────────────────────────────────────────────────────────
 function renderMindmaps(){
@@ -8384,28 +8453,25 @@ function renderMindmaps(){
 }
 
 function mmCreate(){
+  // M11: route through the template picker instead of a bare prompt.
+  if(typeof mmShowTemplates==='function')return mmShowTemplates();
   const title = prompt('Mind map name:', 'New Mind Map');
   if(!title) return;
-  const mm = {
-    id: _mmNextId(D.mindmaps),
-    title: title.trim(),
-    icon: '🧠',
-    nodes: [{id:1, text: title.trim(), x:400, y:300, color:'#3b82f6', isRoot:true}],
-    edges: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-  D.mindmaps.push(mm);
-  saveMindmaps();
-  mmOpen(mm.id);
+  const mm = {id:_mmNextId(D.mindmaps),title:title.trim(),icon:'🧠',nodes:[{id:1,text:title.trim(),x:400,y:300,color:'#3b82f6',shape:'rect',icon:'',subItems:[],description:'',collapsed:false,isRoot:true}],edges:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),layout:'free'};
+  D.mindmaps.push(mm);saveMindmaps();mmOpen(mm.id);
 }
 
 function mmOpen(id){
   _mmCurrent = D.mindmaps.find(m=>m.id===id);
+  _mmDefaults(_mmCurrent);
   _mmPan = {x:0, y:0};
   _mmZoom = 1;
   _mmSelected = null;
+  _mmSelectedSet = new Set();
   _mmConnecting = null;
+  _mmInlineEditId = null;
+  _mmHistory = []; _mmHistoryIdx = -1;
+  _mmSnap();
   renderMindmapCanvas();
 }
 
@@ -8449,79 +8515,147 @@ function mmDelete(id){
 function renderMindmapCanvas(){
   const main = document.getElementById('mindmap-main');
   if(!main || !_mmCurrent) return;
+  _mmDefaults(_mmCurrent);
   const mm = _mmCurrent;
+  const layoutOpts=MM_LAYOUTS.map(l=>`<option value="${l.k}" ${(mm.layout||'free')===l.k?'selected':''}>${l.l}</option>`).join('');
   main.innerHTML = `
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmClose()">← Back</button>
     <h2 style="font-size:16px;font-weight:700;margin:0">${mm.icon} ${esc(mm.title)}</h2>
-    <div style="flex:1"></div>
+    <span style="flex:1"></span>
+    <input id="mm-search" placeholder="🔍 Search…" value="${esc(_mmSearchQuery)}" style="height:26px;font-size:11px;width:140px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="mmSearch(this.value)">
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmUndo()" title="Undo (Cmd/Ctrl+Z)">↶</button>
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmRedo()" title="Redo (Cmd/Ctrl+Shift+Z)">↷</button>
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmAddNode()" title="Add a new node">+ Node</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px;${_mmConnecting?'background:var(--ac);color:#fff':''}" onclick="mmToggleConnect()" title="Click to start connecting nodes">${_mmConnecting?'🔗 Connecting...':'🔗 Connect'}</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmAutoLayout()" title="Auto-arrange nodes">⚡ Auto Layout</button>
+    <button class="btn btn-s" style="height:28px;font-size:10px;${_mmConnecting?'background:var(--ac);color:#fff':''}" onclick="mmToggleConnect()" title="Click to start connecting nodes">${_mmConnecting?'🔗 Connecting…':'🔗 Connect'}</button>
+    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="mmSetLayout(this.value)" title="Layout type">${layoutOpts}</select>
+    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmAutoLayout()" title="Apply layout">⚡ Apply</button>
+    <div style="position:relative;display:inline-block">
+      <button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('mm-ai-menu')" title="AI tools">✨ AI ▾</button>
+      <div id="mm-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-ai-menu');mmAIExpandSelected()">💡 Expand selected node</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-ai-menu');mmAISummarize()">📜 Summarize map</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-ai-menu');mmAISuggestConnections()">🔗 Suggest connections</button>
+      </div>
+    </div>
+    <div style="position:relative;display:inline-block">
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();togglePopMenu('mm-export-menu')" title="Export">⬇ Export ▾</button>
+      <div id="mm-export-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportSVG()">🖼 SVG</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportPNG()">🖼 PNG</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportMarkdown()">⬇ Markdown outline</button>
+      </div>
+    </div>
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmZoomIn()" title="Zoom in">🔍+</button>
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmZoomOut()" title="Zoom out">🔍−</button>
     <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmResetView()" title="Reset view">⊞</button>
   </div>
-  <div id="mm-canvas-wrap" style="position:relative;flex:1;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;overflow:hidden;min-height:500px;cursor:grab"
-    onmousedown="mmCanvasMouseDown(event)"
-    onmousemove="mmCanvasMouseMove(event)"
-    onmouseup="mmCanvasMouseUp(event)"
-    onwheel="mmCanvasWheel(event)"
-    ondblclick="mmCanvasDblClick(event)"
-    oncontextmenu="event.preventDefault()">
-    <svg id="mm-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1"></svg>
-    <div id="mm-nodes" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2"></div>
+  <div class="mm-stage" style="position:relative;flex:1;display:flex;min-height:500px">
+    <div id="mm-canvas-wrap" style="position:relative;flex:1;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;overflow:hidden;cursor:grab"
+      onmousedown="mmCanvasMouseDown(event)"
+      onmousemove="mmCanvasMouseMove(event)"
+      onmouseup="mmCanvasMouseUp(event)"
+      onwheel="mmCanvasWheel(event)"
+      ondblclick="mmCanvasDblClick(event)"
+      oncontextmenu="event.preventDefault()">
+      <svg id="mm-svg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1"></svg>
+      <div id="mm-nodes" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:2"></div>
+      <div id="mm-marquee-layer" style="position:absolute;inset:0;pointer-events:none;z-index:3"></div>
+    </div>
+    <aside class="mm-side" id="mm-side"></aside>
   </div>
-  <div id="mm-context-menu" style="display:none;position:fixed;background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:9999;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
+  <div id="mm-context-menu" style="display:none;position:fixed;background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:9999;min-width:170px;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
   <div style="margin-top:8px;font-size:10px;color:var(--t3)">
-    💡 Double-click canvas to add node · Drag nodes to reposition · Right-click node for actions · Scroll to zoom · Drag canvas to pan
+    💡 Double-click canvas to add · drag node to move · right-click for actions · click node to select · shift+click to multi-select · Tab=child · Enter=sibling · Delete=remove · /=search · scroll=zoom
   </div>`;
   mmDrawNodes();
   mmDrawEdges();
+  mmRenderSidePanel();
+}
+function mmSetLayout(v){if(!_mmCurrent)return;_mmCurrent.layout=v||'free';_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();}
+function mmSearch(q){
+  _mmSearchQuery=q||'';
+  document.querySelectorAll('.mm-node').forEach(el=>el.classList.remove('mm-search-match'));
+  if(!q)return;
+  const lc=q.toLowerCase();
+  (_mmCurrent.nodes||[]).filter(n=>(n.text||'').toLowerCase().includes(lc)||(n.description||'').toLowerCase().includes(lc)).forEach(n=>{
+    const el=document.querySelector(`.mm-node[data-id="${n.id}"]`);if(el)el.classList.add('mm-search-match');
+  });
 }
 
 function mmDrawNodes(){
   const container = document.getElementById('mm-nodes');
   if(!container || !_mmCurrent) return;
   const mm = _mmCurrent;
-  container.innerHTML = mm.nodes.map(n => {
-    const sel = _mmSelected === n.id;
+  const hidden=_mmHiddenNodeIds();
+  container.innerHTML = mm.nodes.filter(n=>!hidden.has(n.id)).map(n => {
+    const isMulti=_mmSelectedSet.size>1;
+    const sel = (isMulti?_mmSelectedSet.has(n.id):_mmSelected === n.id);
     const connecting = _mmConnecting === n.id;
-    return `<div class="mm-node" data-id="${n.id}" 
-      style="position:absolute;left:${n.x * _mmZoom + _mmPan.x}px;top:${n.y * _mmZoom + _mmPan.y}px;
+    const editing = _mmInlineEditId === n.id;
+    const fill = n.color||'#3b82f6';
+    const shape = n.shape||'rect';
+    // Subitems (M3) — only render when there are any
+    const subHtml=(n.subItems&&n.subItems.length)?`<div class="mm-node-subitems">${n.subItems.map((s,i)=>`<div class="mm-node-subitem ${s.done?'done':''}" onclick="event.stopPropagation();mmToggleSubItem(${n.id},${i})"><span class="chk"></span><span>${esc(s.text||'')}</span></div>`).join('')}<div class="mm-node-subitem-add" onclick="event.stopPropagation();mmAddSubItem(${n.id})">+ add sub-item</div></div>`:'';
+    // Collapse triangle (M13) — only when this node has children
+    const hasKids=_mmHasChildren(n.id);
+    const collapseBtn=hasKids?`<span class="mm-node-collapse" title="${n.collapsed?'Expand subtree':'Collapse subtree'}" onclick="event.stopPropagation();mmToggleCollapse(${n.id})">${n.collapsed?'▸':'▾'}</span>`:'';
+    const iconHtml=n.icon?`<span class="mm-node-icon">${n.icon}</span>`:'';
+    const textHtml=editing
+      ? `<input class="mm-node-edit" value="${esc(n.text||'')}" onclick="event.stopPropagation()" onkeydown="mmInlineEditKey(event,${n.id})" onblur="mmInlineEditCommit(${n.id},this.value)" autofocus>`
+      : `<span class="mm-node-text" ondblclick="event.stopPropagation();mmStartInlineEdit(${n.id})">${esc(n.text||'(empty)')}</span>`;
+    return `<div class="mm-node ${sel?'mm-selected':''} ${connecting?'mm-connecting-from':''}" data-id="${n.id}" data-shape="${shape}"
+      style="left:${n.x * _mmZoom + _mmPan.x}px;top:${n.y * _mmZoom + _mmPan.y}px;
         transform:translate(-50%,-50%) scale(${_mmZoom});
-        background:${n.color||'#3b82f6'}22;border:2px solid ${sel?'#fff':connecting?'#fbbf24':n.color||'#3b82f6'};
-        border-radius:8px;padding:8px 14px;cursor:${_mmConnecting?'crosshair':'grab'};
-        font-size:12px;font-weight:${n.isRoot?'700':'500'};color:var(--t1);
-        white-space:nowrap;user-select:none;transition:box-shadow .1s;
-        box-shadow:${sel?'0 0 0 3px var(--ac)':'none'}"
+        --mm-fill:${fill};
+        background:${shape==='diamond'||shape==='hexagon'?fill:fill+'22'};
+        border-color:${fill};
+        cursor:${_mmConnecting?'crosshair':editing?'text':'grab'};
+        font-weight:${n.isRoot?'700':'500'};
+        flex-direction:${(n.subItems&&n.subItems.length)?'column':'row'};
+        align-items:${(n.subItems&&n.subItems.length)?'stretch':'center'}"
       onmousedown="mmNodeMouseDown(event,${n.id})"
       onclick="mmNodeClick(event,${n.id})"
-      oncontextmenu="mmNodeContext(event,${n.id})"
-      ondblclick="event.stopPropagation();mmEditNode(${n.id})">
-      ${esc(n.text)}
+      oncontextmenu="mmNodeContext(event,${n.id})">
+      <div style="display:flex;align-items:center;gap:6px;width:100%">${iconHtml}${textHtml}${collapseBtn}</div>
+      ${subHtml}
     </div>`;
   }).join('');
+  // Focus the inline edit input if active
+  if(_mmInlineEditId){const el=container.querySelector(`.mm-node[data-id="${_mmInlineEditId}"] .mm-node-edit`);if(el)el.focus();}
 }
 
 function mmDrawEdges(){
   const svg = document.getElementById('mm-svg');
   if(!svg || !_mmCurrent) return;
   const mm = _mmCurrent;
+  const hidden=_mmHiddenNodeIds();
+  // Build defs for arrow markers per color (so the arrow inherits the line color).
+  const colors=new Set();
+  mm.edges.forEach(e=>{const f=mm.nodes.find(n=>n.id===e.from);if(f)colors.add(f.color||'#3b82f6');});
+  const defs=`<defs>${[...colors].map((c,i)=>`<marker id="mm-arr-${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('')}</defs>`;
+  const colorIdx=Object.fromEntries([...colors].map((c,i)=>[c,i]));
   let paths = '';
   mm.edges.forEach(e => {
     const from = mm.nodes.find(n=>n.id===e.from);
     const to = mm.nodes.find(n=>n.id===e.to);
     if(!from || !to) return;
+    if(hidden.has(from.id)||hidden.has(to.id))return;
     const x1 = from.x * _mmZoom + _mmPan.x;
     const y1 = from.y * _mmZoom + _mmPan.y;
     const x2 = to.x * _mmZoom + _mmPan.x;
     const y2 = to.y * _mmZoom + _mmPan.y;
     const mx = (x1+x2)/2;
     const my = (y1+y2)/2 - 20;
-    paths += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${from.color||'#3b82f6'}" stroke-width="2" stroke-opacity="0.6"/>`;
+    const c=from.color||'#3b82f6';
+    const dash=(e.style==='dashed')?'6 4':'';
+    const w=Math.max(1,Math.min(6,e.thickness||2));
+    const arrow=e.arrow==='to'||e.arrow==='both'?` marker-end="url(#mm-arr-${colorIdx[c]})"`:'';
+    const arrowStart=e.arrow==='both'?` marker-start="url(#mm-arr-${colorIdx[c]})"`:'';
+    paths += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${c}" stroke-width="${w}" stroke-opacity="0.7"${dash?` stroke-dasharray="${dash}"`:''}${arrow}${arrowStart}/>`;
+    if(e.label){paths+=`<text x="${mx}" y="${my-4}" text-anchor="middle" font-size="10" fill="${c}" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(e.label)}</text>`;}
   });
-  svg.innerHTML = paths;
+  svg.innerHTML = defs+paths;
 }
 
 // ─── Canvas Interactions ─────────────────────────────────────────────────────
@@ -8531,16 +8665,30 @@ let _mmPanStart = null;
 function mmCanvasMouseDown(e){
   if(e.target.closest('.mm-node')) return;
   if(e.button === 0){
-    _mmIsPanning = true;
-    _mmPanStart = {x: e.clientX - _mmPan.x, y: e.clientY - _mmPan.y};
-    e.currentTarget.style.cursor = 'grabbing';
+    // M6: shift-drag = marquee select; plain drag = pan
+    if(e.shiftKey){
+      const rect=document.getElementById('mm-canvas-wrap').getBoundingClientRect();
+      _mmMarquee={x0:e.clientX-rect.left,y0:e.clientY-rect.top,x1:e.clientX-rect.left,y1:e.clientY-rect.top};
+      _mmIsPanning=false;
+    }else{
+      _mmIsPanning = true;
+      _mmPanStart = {x: e.clientX - _mmPan.x, y: e.clientY - _mmPan.y};
+      e.currentTarget.style.cursor = 'grabbing';
+      // Plain click on background clears selection.
+      if(_mmSelectedSet.size||_mmSelected){_mmSelectedSet=new Set();_mmSelected=null;mmDrawNodes();mmRenderSidePanel();}
+    }
   }
-  // Close context menu
   const ctx = document.getElementById('mm-context-menu');
   if(ctx) ctx.style.display = 'none';
 }
 
 function mmCanvasMouseMove(e){
+  if(_mmMarquee){
+    const rect=document.getElementById('mm-canvas-wrap').getBoundingClientRect();
+    _mmMarquee.x1=e.clientX-rect.left;_mmMarquee.y1=e.clientY-rect.top;
+    _mmDrawMarquee();
+    return;
+  }
   if(_mmIsPanning && _mmPanStart){
     _mmPan.x = e.clientX - _mmPanStart.x;
     _mmPan.y = e.clientY - _mmPanStart.y;
@@ -8550,17 +8698,39 @@ function mmCanvasMouseMove(e){
   }
   if(_mmDrag){
     const rect = document.getElementById('mm-canvas-wrap').getBoundingClientRect();
-    const node = _mmCurrent.nodes.find(n=>n.id===_mmDrag.id);
-    if(node){
-      node.x = (e.clientX - rect.left - _mmPan.x) / _mmZoom;
-      node.y = (e.clientY - rect.top - _mmPan.y) / _mmZoom;
-      mmDrawNodes();
-      mmDrawEdges();
+    const newX=(e.clientX - rect.left - _mmPan.x) / _mmZoom;
+    const newY=(e.clientY - rect.top - _mmPan.y) / _mmZoom;
+    const node=_mmCurrent.nodes.find(n=>n.id===_mmDrag.id);
+    if(!node)return;
+    const dx=newX-(_mmDrag.lastX||node.x);
+    const dy=newY-(_mmDrag.lastY||node.y);
+    // M6: if multiple selected and the dragged node is one of them, move the whole set
+    if(_mmSelectedSet.size>1 && _mmSelectedSet.has(node.id)){
+      _mmSelectedSet.forEach(id=>{const n=_mmCurrent.nodes.find(x=>x.id===id);if(n){n.x+=dx;n.y+=dy;}});
+    }else{
+      node.x=newX;node.y=newY;
     }
+    _mmDrag.lastX=newX;_mmDrag.lastY=newY;
+    mmDrawNodes();
+    mmDrawEdges();
   }
 }
 
 function mmCanvasMouseUp(e){
+  if(_mmMarquee){
+    // Compute selection from marquee bounds.
+    const x0=Math.min(_mmMarquee.x0,_mmMarquee.x1),x1=Math.max(_mmMarquee.x0,_mmMarquee.x1);
+    const y0=Math.min(_mmMarquee.y0,_mmMarquee.y1),y1=Math.max(_mmMarquee.y0,_mmMarquee.y1);
+    _mmSelectedSet=new Set();
+    (_mmCurrent.nodes||[]).forEach(n=>{const px=n.x*_mmZoom+_mmPan.x;const py=n.y*_mmZoom+_mmPan.y;if(px>=x0&&px<=x1&&py>=y0&&py<=y1)_mmSelectedSet.add(n.id);});
+    _mmSelected=_mmSelectedSet.size===1?[..._mmSelectedSet][0]:null;
+    _mmMarquee=null;
+    _mmDrawMarquee();
+    mmDrawNodes();
+    mmRenderSidePanel();
+    if(_mmSelectedSet.size>0)toast(`✓ ${_mmSelectedSet.size} node${_mmSelectedSet.size===1?'':'s'} selected`);
+    return;
+  }
   if(_mmIsPanning){
     _mmIsPanning = false;
     _mmPanStart = null;
@@ -8568,10 +8738,18 @@ function mmCanvasMouseUp(e){
     if(wrap) wrap.style.cursor = 'grab';
   }
   if(_mmDrag){
+    _mmSnap(); // snapshot final position
     _mmDrag = null;
     _mmCurrent.updatedAt = new Date().toISOString();
     saveMindmaps();
   }
+}
+function _mmDrawMarquee(){
+  const layer=document.getElementById('mm-marquee-layer');if(!layer)return;
+  if(!_mmMarquee){layer.innerHTML='';return;}
+  const x=Math.min(_mmMarquee.x0,_mmMarquee.x1),y=Math.min(_mmMarquee.y0,_mmMarquee.y1);
+  const w=Math.abs(_mmMarquee.x1-_mmMarquee.x0),h=Math.abs(_mmMarquee.y1-_mmMarquee.y0);
+  layer.innerHTML=`<div class="mm-marquee" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`;
 }
 
 function mmCanvasWheel(e){
@@ -8600,11 +8778,11 @@ function mmNodeMouseDown(e, id){
 function mmNodeClick(e, id){
   e.stopPropagation();
   if(_mmConnecting && _mmConnecting !== id){
-    // Create edge
-    const exists = _mmCurrent.edges.find(edge => 
+    _mmSnap();
+    const exists = _mmCurrent.edges.find(edge =>
       (edge.from===_mmConnecting && edge.to===id) || (edge.from===id && edge.to===_mmConnecting));
     if(!exists){
-      _mmCurrent.edges.push({from:_mmConnecting, to:id});
+      _mmCurrent.edges.push({from:_mmConnecting, to:id, style:'solid', arrow:'none', thickness:2, label:''});
       _mmCurrent.updatedAt = new Date().toISOString();
       saveMindmaps();
     }
@@ -8613,9 +8791,123 @@ function mmNodeClick(e, id){
     toast('🔗 Connected');
     return;
   }
-  _mmSelected = (_mmSelected === id) ? null : id;
+  // M6: shift/cmd for multi-select toggle, plain click = single-select
+  if(e.shiftKey||e.metaKey||e.ctrlKey){
+    if(_mmSelectedSet.has(id))_mmSelectedSet.delete(id);
+    else _mmSelectedSet.add(id);
+    _mmSelected = _mmSelectedSet.size===1?[..._mmSelectedSet][0]:null;
+  }else{
+    _mmSelectedSet=new Set([id]);
+    _mmSelected = (_mmSelected === id) ? id : id;
+  }
   mmDrawNodes();
+  mmRenderSidePanel();
 }
+// M4: inline edit handlers
+function mmStartInlineEdit(id){_mmInlineEditId=id;mmDrawNodes();}
+function mmInlineEditCommit(id,val){
+  const node=_mmCurrent.nodes.find(n=>n.id===id);
+  if(node && (node.text||'')!==(val||'').trim()){
+    _mmSnap();
+    node.text=(val||'').trim()||node.text;
+    _mmCurrent.updatedAt=new Date().toISOString();
+    saveMindmaps();
+  }
+  _mmInlineEditId=null;
+  mmDrawNodes();mmRenderSidePanel();
+}
+function mmInlineEditKey(e,id){
+  if(e.key==='Enter'){e.preventDefault();mmInlineEditCommit(id,e.target.value);}
+  else if(e.key==='Escape'){_mmInlineEditId=null;mmDrawNodes();}
+}
+// M3: sub-item helpers
+function mmAddSubItem(id){
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node)return;
+  const text=prompt('Sub-item text:','');if(!text)return;
+  _mmSnap();
+  node.subItems=Array.isArray(node.subItems)?node.subItems:[];
+  node.subItems.push({text:text.trim(),done:false});
+  _mmCurrent.updatedAt=new Date().toISOString();
+  saveMindmaps();mmDrawNodes();mmRenderSidePanel();
+}
+function mmToggleSubItem(id,idx){
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node||!node.subItems||!node.subItems[idx])return;
+  _mmSnap();
+  node.subItems[idx].done=!node.subItems[idx].done;
+  _mmCurrent.updatedAt=new Date().toISOString();
+  saveMindmaps();mmDrawNodes();mmRenderSidePanel();
+}
+function mmRemoveSubItem(id,idx){
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node||!node.subItems||!node.subItems[idx])return;
+  _mmSnap();
+  node.subItems.splice(idx,1);
+  _mmCurrent.updatedAt=new Date().toISOString();
+  saveMindmaps();mmDrawNodes();mmRenderSidePanel();
+}
+// M13: collapse subtree
+function mmToggleCollapse(id){
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node)return;
+  _mmSnap();
+  node.collapsed=!node.collapsed;
+  saveMindmaps();renderMindmapCanvas();
+}
+// M5: side panel for selected node (icon, shape, color, description, sub-items, edges)
+function mmRenderSidePanel(){
+  const side=document.getElementById('mm-side');if(!side)return;
+  const id=_mmSelectedSet.size===1?[..._mmSelectedSet][0]:_mmSelected;
+  const node=id?(_mmCurrent.nodes.find(n=>n.id===id)):null;
+  if(!node){side.classList.remove('open');side.innerHTML='';return;}
+  side.classList.add('open');
+  const outEdges=_mmCurrent.edges.filter(e=>e.from===node.id||e.to===node.id);
+  side.innerHTML=`
+    <div class="mm-side-h">
+      <span style="font-size:18px">${node.icon||'•'}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(node.text||'')}</span>
+      <span class="mm-side-close" onclick="mmCloseSidePanel()">✕</span>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Title</div>
+      <input type="text" value="${esc(node.text||'')}" onchange="mmSidePanelText(${node.id},this.value)">
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Icon</div>
+      <div class="mm-icon-grid">${MM_ICONS.map(ic=>`<div class="mm-icon-btn ${(node.icon||'')===ic?'on':''}" onclick="mmSidePanelIcon(${node.id},'${ic}')">${ic||'∅'}</div>`).join('')}</div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Shape</div>
+      <div class="mm-shape-grid">${MM_SHAPES.map(s=>`<div class="mm-shape-btn ${(node.shape||'rect')===s?'on':''}" onclick="mmSidePanelShape(${node.id},'${s}')">${s}</div>`).join('')}</div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Color</div>
+      <div class="mm-color-grid">${MM_COLORS.map(c=>`<div class="mm-color-swatch ${(node.color||'')===c?'on':''}" style="background:${c}" onclick="mmSidePanelColor(${node.id},'${c}')"></div>`).join('')}</div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Description</div>
+      <textarea placeholder="Long-form notes for this node…" onblur="mmSidePanelDesc(${node.id},this.value)">${esc(node.description||'')}</textarea>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Sub-items (${(node.subItems||[]).length})</div>
+      ${(node.subItems||[]).map((s,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0"><span class="chk" style="width:13px;height:13px;border:1px solid var(--bd2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;${s.done?'background:var(--ac);color:#fff':''}" onclick="mmToggleSubItem(${node.id},${i})">${s.done?'✓':''}</span><span style="flex:1;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.text)}</span><span style="cursor:pointer;color:var(--red);font-size:11px;padding:0 4px" onclick="mmRemoveSubItem(${node.id},${i})">✕</span></div>`).join('')}
+      <button class="btn btn-s" style="font-size:10px;height:22px;width:100%;margin-top:4px" onclick="mmAddSubItem(${node.id})">+ Add sub-item</button>
+    </div>
+    ${outEdges.length?`<div class="mm-side-section"><div class="mm-side-section-h">Connections (${outEdges.length})</div>${outEdges.map(e=>{const other=_mmCurrent.nodes.find(n=>n.id===(e.from===node.id?e.to:e.from));if(!other)return '';return `<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="_mmSelectedSet=new Set([${other.id}]);_mmSelected=${other.id};mmDrawNodes();mmRenderSidePanel()">${e.from===node.id?'→':'←'} ${esc(other.text||'')}</span></div>`;}).join('')}</div>`:''}
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Actions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmAddChild(${node.id})">+ Child</button>
+        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToTask(${node.id})">📋 Task</button>
+        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToProject(${node.id})">📁 Project</button>
+        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToNote(${node.id})">📝 Note</button>
+        <button class="btn btn-d" style="font-size:10px;height:24px;flex:1" onclick="mmDeleteNode(${node.id})">🗑 Delete</button>
+      </div>
+    </div>`;
+}
+function mmCloseSidePanel(){_mmSelected=null;_mmSelectedSet=new Set();const s=document.getElementById('mm-side');if(s){s.classList.remove('open');s.innerHTML='';}mmDrawNodes();}
+function mmSidePanelText(id,val){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;_mmSnap();n.text=(val||'').trim()||n.text;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawNodes();mmRenderSidePanel();}
+function mmSidePanelIcon(id,ic){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;_mmSnap();n.icon=ic||'';_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawNodes();mmRenderSidePanel();}
+function mmSidePanelShape(id,s){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;_mmSnap();n.shape=s;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawNodes();mmRenderSidePanel();}
+function mmSidePanelColor(id,c){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;_mmSnap();n.color=c;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawNodes();mmRenderSidePanel();}
+function mmSidePanelDesc(id,val){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;if(n.description===val)return;_mmSnap();n.description=val||'';_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();}
 
 function mmNodeContext(e, id){
   e.preventDefault();
@@ -8661,55 +8953,75 @@ function mmAddNode(){
   mmAddNodeAt(x, y);
 }
 
-function mmAddNodeAt(x, y){
-  const text = prompt('Node text:', 'New idea');
-  if(!text) return;
-  const node = {id: _mmNextId(_mmCurrent.nodes), text: text.trim(), x, y, color:'#3b82f6', isRoot:false};
+function mmAddNodeAt(x, y, text){
+  _mmSnap();
+  const t = (text!==undefined?text:(prompt('Node text:', 'New idea')||'')).trim();
+  if(!t) return null;
+  const node = {id: _mmNextId(_mmCurrent.nodes), text: t, x, y, color:'#3b82f6', shape:'rect', icon:'', subItems:[], description:'', collapsed:false, isRoot:false};
   _mmCurrent.nodes.push(node);
   _mmCurrent.updatedAt = new Date().toISOString();
   saveMindmaps();
+  _mmSelectedSet=new Set([node.id]);_mmSelected=node.id;
   renderMindmapCanvas();
+  // Auto-edit the new node so the user can type the title immediately.
+  setTimeout(()=>mmStartInlineEdit(node.id),60);
+  return node;
 }
 
-function mmAddChild(parentId){
+function mmAddChild(parentId, text){
   const parent = _mmCurrent.nodes.find(n=>n.id===parentId);
   if(!parent) return;
-  const text = prompt('Child node text:', '');
-  if(!text) return;
+  _mmSnap();
+  const t = (text!==undefined?text:(prompt('Child node text:', '')||'')).trim();
+  if(!t) return;
   const angle = Math.random() * Math.PI * 2;
   const dist = 120 + Math.random()*40;
-  const child = {id: _mmNextId(_mmCurrent.nodes), text: text.trim(), x: parent.x + Math.cos(angle)*dist, y: parent.y + Math.sin(angle)*dist, color: parent.color, isRoot:false};
+  const child = {id: _mmNextId(_mmCurrent.nodes), text: t, x: parent.x + Math.cos(angle)*dist, y: parent.y + Math.sin(angle)*dist, color: parent.color, shape:parent.shape||'rect', icon:'', subItems:[], description:'', collapsed:false, isRoot:false};
   _mmCurrent.nodes.push(child);
-  _mmCurrent.edges.push({from: parentId, to: child.id});
+  _mmCurrent.edges.push({from: parentId, to: child.id, style:'solid', arrow:'none', thickness:2, label:''});
   _mmCurrent.updatedAt = new Date().toISOString();
   saveMindmaps();
+  _mmSelectedSet=new Set([child.id]);_mmSelected=child.id;
   renderMindmapCanvas();
-  document.getElementById('mm-context-menu').style.display = 'none';
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
+  return child;
+}
+// Add a sibling: child of the parent of the given node (or new root if no parent)
+function mmAddSibling(id, text){
+  const parentEdge=_mmCurrent.edges.find(e=>e.to===id);
+  if(parentEdge)return mmAddChild(parentEdge.from, text);
+  // Top-level — drop a new node nearby.
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node)return null;
+  return mmAddNodeAt(node.x+160, node.y, text);
 }
 
 function mmEditNode(id){
-  const node = _mmCurrent.nodes.find(n=>n.id===id);
-  if(!node) return;
-  const text = prompt('Edit node text:', node.text);
-  if(text !== null && text.trim()){ node.text = text.trim(); _mmCurrent.updatedAt = new Date().toISOString(); saveMindmaps(); renderMindmapCanvas(); }
-  document.getElementById('mm-context-menu').style.display = 'none';
+  // Backwards-compat wrapper — now triggers inline edit.
+  mmStartInlineEdit(id);
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
 }
 
 function mmDeleteNode(id){
-  _mmCurrent.nodes = _mmCurrent.nodes.filter(n=>n.id!==id);
-  _mmCurrent.edges = _mmCurrent.edges.filter(e=>e.from!==id && e.to!==id);
+  _mmSnap();
+  // Delete every node in the multi-select if more than one is selected, else just this id.
+  const ids = _mmSelectedSet.size>1?[..._mmSelectedSet]:[id];
+  _mmCurrent.nodes = _mmCurrent.nodes.filter(n=>!ids.includes(n.id));
+  _mmCurrent.edges = _mmCurrent.edges.filter(e=>!ids.includes(e.from) && !ids.includes(e.to));
   _mmCurrent.updatedAt = new Date().toISOString();
-  _mmSelected = null;
+  _mmSelected = null; _mmSelectedSet = new Set();
   saveMindmaps();
   renderMindmapCanvas();
-  document.getElementById('mm-context-menu').style.display = 'none';
-  toast('🗑 Node deleted');
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
+  toast(`🗑 ${ids.length} node${ids.length===1?'':'s'} deleted`);
 }
 
 function mmSetColor(id, color){
-  const node = _mmCurrent.nodes.find(n=>n.id===id);
-  if(node){ node.color = color; _mmCurrent.updatedAt = new Date().toISOString(); saveMindmaps(); renderMindmapCanvas(); }
-  document.getElementById('mm-context-menu').style.display = 'none';
+  _mmSnap();
+  const ids = _mmSelectedSet.size>1?[..._mmSelectedSet]:[id];
+  ids.forEach(nid=>{const n=_mmCurrent.nodes.find(x=>x.id===nid);if(n)n.color=color;});
+  _mmCurrent.updatedAt = new Date().toISOString();
+  saveMindmaps();renderMindmapCanvas();
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
 }
 
 function mmToggleConnect(){
@@ -8722,45 +9034,7 @@ function mmZoomIn(){ _mmZoom = Math.min(3, _mmZoom + 0.2); mmDrawNodes(); mmDraw
 function mmZoomOut(){ _mmZoom = Math.max(0.3, _mmZoom - 0.2); mmDrawNodes(); mmDrawEdges(); }
 function mmResetView(){ _mmPan = {x:0,y:0}; _mmZoom = 1; mmDrawNodes(); mmDrawEdges(); }
 
-function mmAutoLayout(){
-  if(!_mmCurrent || !_mmCurrent.nodes.length) return;
-  const nodes = _mmCurrent.nodes;
-  const root = nodes.find(n=>n.isRoot) || nodes[0];
-  // Simple radial layout from root
-  const visited = new Set();
-  const queue = [{node:root, level:0, angle:0, spread:Math.PI*2}];
-  root.x = 400; root.y = 300;
-  visited.add(root.id);
-  while(queue.length){
-    const {node, level, angle, spread} = queue.shift();
-    const children = _mmCurrent.edges
-      .filter(e=>e.from===node.id || e.to===node.id)
-      .map(e=>e.from===node.id ? e.to : e.from)
-      .filter(id=>!visited.has(id));
-    if(!children.length) continue;
-    const step = spread / Math.max(children.length, 1);
-    let startAngle = angle - spread/2 + step/2;
-    children.forEach((cid, i) => {
-      const child = nodes.find(n=>n.id===cid);
-      if(!child) return;
-      visited.add(cid);
-      const a = startAngle + i * step;
-      const dist = 140 + level * 40;
-      child.x = node.x + Math.cos(a) * dist;
-      child.y = node.y + Math.sin(a) * dist;
-      queue.push({node:child, level:level+1, angle:a, spread:step*0.8});
-    });
-  }
-  // Position unconnected nodes in a row below
-  let offsetX = 200;
-  nodes.filter(n=>!visited.has(n.id)).forEach(n=>{
-    n.x = offsetX; n.y = 550; offsetX += 140;
-  });
-  _mmCurrent.updatedAt = new Date().toISOString();
-  saveMindmaps();
-  renderMindmapCanvas();
-  toast('⚡ Auto layout applied');
-}
+// (mmAutoLayout is defined later with multi-layout support — this slot kept empty.)
 
 // ─── Convert to Task / Project / Note ────────────────────────────────────────
 function mmConvertToTask(nodeId){
@@ -8823,6 +9097,276 @@ function mmConvertToProject(nodeId){
   save('projects');
   document.getElementById('mm-context-menu').style.display = 'none';
   toast(`📁 Project created: "${node.text}"`);
+}
+
+// ─── M7: keyboard shortcuts (active only on mind map screen w/ map open) ──
+document.addEventListener('keydown',function(e){
+  if(!_mmCurrent)return;
+  if(typeof curScreen!=='undefined'&&curScreen!=='mindmaps')return;
+  const t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  // Cmd/Ctrl+Z / +Shift+Z
+  if((e.metaKey||e.ctrlKey)&&!e.altKey){
+    if(e.key==='z'||e.key==='Z'){e.preventDefault();if(e.shiftKey)mmRedo();else mmUndo();return;}
+    if(e.key==='y'||e.key==='Y'){e.preventDefault();mmRedo();return;}
+    if(e.key==='a'||e.key==='A'){e.preventDefault();_mmSelectedSet=new Set((_mmCurrent.nodes||[]).map(n=>n.id));mmDrawNodes();return;}
+  }
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const id=_mmSelected||(_mmSelectedSet.size===1?[..._mmSelectedSet][0]:null);
+  if(e.key==='Tab'&&id){e.preventDefault();mmAddChild(id);return;}
+  if(e.key==='Enter'&&id&&!_mmInlineEditId){e.preventDefault();mmAddSibling(id);return;}
+  if(e.key==='Delete'&&(_mmSelectedSet.size||id)){e.preventDefault();mmDeleteNode(id);return;}
+  if(e.key==='F2'&&id){e.preventDefault();mmStartInlineEdit(id);return;}
+  if(e.key==='/'&&!_mmInlineEditId){e.preventDefault();const inp=document.getElementById('mm-search');if(inp){inp.focus();inp.select();}return;}
+  if(e.key==='Escape'){if(_mmInlineEditId){_mmInlineEditId=null;mmDrawNodes();}else if(_mmConnecting){_mmConnecting=null;renderMindmapCanvas();}else if(_mmSelectedSet.size||_mmSelected){mmCloseSidePanel();}return;}
+  // Arrow keys: move selection to nearest connected/closer node in that direction.
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)&&id){
+    e.preventDefault();
+    const cur=_mmCurrent.nodes.find(n=>n.id===id);if(!cur)return;
+    const dirX=e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0;
+    const dirY=e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0;
+    const candidates=_mmCurrent.nodes.filter(n=>n.id!==id);
+    candidates.sort((a,b)=>{
+      const da=Math.hypot(a.x-cur.x,a.y-cur.y);const db=Math.hypot(b.x-cur.x,b.y-cur.y);
+      const aIn=((a.x-cur.x)*dirX+(a.y-cur.y)*dirY)>0?0:1;
+      const bIn=((b.x-cur.x)*dirX+(b.y-cur.y)*dirY)>0?0:1;
+      if(aIn!==bIn)return aIn-bIn;
+      return da-db;
+    });
+    if(candidates[0]){_mmSelectedSet=new Set([candidates[0].id]);_mmSelected=candidates[0].id;mmDrawNodes();mmRenderSidePanel();}
+  }
+});
+// ─── M9: layouts beyond radial ────────────────────────────────────────
+function _mmRadialLayout(nodes,edges){
+  const root=nodes.find(n=>n.isRoot)||nodes[0];if(!root)return;
+  const visited=new Set([root.id]);const queue=[{node:root,level:0,angle:0,spread:Math.PI*2}];
+  root.x=400;root.y=300;
+  while(queue.length){
+    const {node,level,angle,spread}=queue.shift();
+    const children=edges.filter(e=>e.from===node.id||e.to===node.id).map(e=>e.from===node.id?e.to:e.from).filter(id=>!visited.has(id));
+    if(!children.length)continue;
+    const step=spread/Math.max(children.length,1);let startAngle=angle-spread/2+step/2;
+    children.forEach((cid,i)=>{const child=nodes.find(n=>n.id===cid);if(!child)return;visited.add(cid);const a=startAngle+i*step;const dist=140+level*40;child.x=node.x+Math.cos(a)*dist;child.y=node.y+Math.sin(a)*dist;queue.push({node:child,level:level+1,angle:a,spread:step*0.8});});
+  }
+  let off=200;nodes.filter(n=>!visited.has(n.id)).forEach(n=>{n.x=off;n.y=550;off+=140;});
+}
+function _mmTreeLayout(nodes,edges,horizontal){
+  const root=nodes.find(n=>n.isRoot)||nodes[0];if(!root)return;
+  const childrenOf={};edges.forEach(e=>{(childrenOf[e.from]=childrenOf[e.from]||[]).push(e.to);});
+  // Compute depth + leaf count
+  const depth={};const leaves=[];
+  function walk(id,d,seen){if(seen.has(id))return;seen.add(id);depth[id]=d;const kids=(childrenOf[id]||[]).filter(c=>!seen.has(c));if(!kids.length)leaves.push(id);kids.forEach(c=>walk(c,d+1,seen));}
+  walk(root.id,0,new Set());
+  // Assign Y (or X for horizontal) by leaf order
+  const leafIdx={};leaves.forEach((id,i)=>leafIdx[id]=i);
+  function pos(id,seen){if(seen.has(id))return [leafIdx[id]||0,leafIdx[id]||0];seen.add(id);const kids=(childrenOf[id]||[]).filter(c=>!seen.has(c));if(!kids.length)return [leafIdx[id]||0,leafIdx[id]||0];let mn=Infinity,mx=-Infinity;kids.forEach(c=>{const [a,b]=pos(c,seen);mn=Math.min(mn,a);mx=Math.max(mx,b);});return [mn,mx];}
+  nodes.forEach(n=>{
+    const [a,b]=pos(n.id,new Set());
+    const ax=(a+b)/2;
+    const d=depth[n.id]||0;
+    if(horizontal){n.x=120+d*180;n.y=120+ax*70;}
+    else{n.x=120+ax*150;n.y=120+d*120;}
+  });
+  // Unconnected nodes — bottom row
+  let off=120;const bottom=Object.keys(depth).length?Math.max(...nodes.filter(n=>n.id in depth).map(n=>horizontal?n.y:n.x))+150:200;
+  nodes.filter(n=>!(n.id in depth)).forEach(n=>{if(horizontal){n.y=bottom;n.x=off;}else{n.x=bottom;n.y=off;}off+=120;});
+}
+function mmAutoLayout(){
+  if(!_mmCurrent||!_mmCurrent.nodes.length)return;
+  _mmSnap();
+  const layout=_mmCurrent.layout||'radial';
+  if(layout==='free'){toast('Free layout — drag nodes to position. Switch layout to apply auto-arrange.');return;}
+  if(layout==='radial')_mmRadialLayout(_mmCurrent.nodes,_mmCurrent.edges);
+  else if(layout==='tree')_mmTreeLayout(_mmCurrent.nodes,_mmCurrent.edges,true);
+  else if(layout==='org')_mmTreeLayout(_mmCurrent.nodes,_mmCurrent.edges,false);
+  _mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();renderMindmapCanvas();
+  toast('⚡ '+layout.charAt(0).toUpperCase()+layout.slice(1)+' layout applied');
+}
+
+// ─── M10: edge styling — exposed via right-click on the connections list in side panel
+function mmCycleEdgeStyle(fromId,toId){
+  const e=_mmCurrent.edges.find(x=>x.from===fromId&&x.to===toId);if(!e)return;
+  _mmSnap();
+  const cycle=['solid','dashed'];e.style=cycle[(cycle.indexOf(e.style||'solid')+1)%cycle.length];
+  saveMindmaps();renderMindmapCanvas();mmRenderSidePanel();
+}
+
+// ─── M11: starter templates ──────────────────────────────────────────
+const MM_TEMPLATES=[
+  {id:'swot',name:'SWOT Analysis',icon:'🧭',build:title=>{
+    const id=Date.now();return {nodes:[
+      {id:1,text:title||'SWOT',x:400,y:300,color:'#3b82f6',shape:'circle',isRoot:true,icon:'🧭'},
+      {id:2,text:'Strengths',x:240,y:160,color:'#10b981',shape:'rect',icon:'💪',subItems:[]},
+      {id:3,text:'Weaknesses',x:560,y:160,color:'#ef4444',shape:'rect',icon:'⚠️',subItems:[]},
+      {id:4,text:'Opportunities',x:240,y:440,color:'#06b6d4',shape:'rect',icon:'🎯',subItems:[]},
+      {id:5,text:'Threats',x:560,y:440,color:'#f59e0b',shape:'rect',icon:'🛡',subItems:[]},
+    ],edges:[{from:1,to:2,style:'solid',arrow:'none',thickness:2,label:''},{from:1,to:3,style:'solid',arrow:'none',thickness:2,label:''},{from:1,to:4,style:'solid',arrow:'none',thickness:2,label:''},{from:1,to:5,style:'solid',arrow:'none',thickness:2,label:''}]};}},
+  {id:'project',name:'Project Plan',icon:'📁',build:title=>{return {nodes:[
+      {id:1,text:title||'Project',x:400,y:300,color:'#3b82f6',shape:'circle',isRoot:true,icon:'📁'},
+      {id:2,text:'Goals',x:200,y:160,color:'#10b981',shape:'rect',icon:'🎯'},
+      {id:3,text:'Milestones',x:600,y:160,color:'#8b5cf6',shape:'rect',icon:'🏁'},
+      {id:4,text:'Tasks',x:200,y:440,color:'#06b6d4',shape:'rect',icon:'📋'},
+      {id:5,text:'Risks',x:600,y:440,color:'#ef4444',shape:'rect',icon:'⚠️'},
+      {id:6,text:'Stakeholders',x:400,y:540,color:'#f59e0b',shape:'rect',icon:'👥'},
+    ],edges:[1,2,3,4,5,6].slice(1).map((to,i)=>({from:1,to:i+2,style:'solid',arrow:'none',thickness:2,label:''}))};}},
+  {id:'goal',name:'Goal Breakdown',icon:'🎯',build:title=>{return {nodes:[
+      {id:1,text:title||'My Goal',x:400,y:300,color:'#10b981',shape:'circle',isRoot:true,icon:'🎯'},
+      {id:2,text:'Why',x:240,y:160,color:'#8b5cf6',shape:'cloud',icon:'💡'},
+      {id:3,text:'How',x:560,y:160,color:'#06b6d4',shape:'rect',icon:'🛠'},
+      {id:4,text:'When',x:240,y:440,color:'#f59e0b',shape:'pill',icon:'📅'},
+      {id:5,text:'Metric',x:560,y:440,color:'#ec4899',shape:'diamond',icon:'📊'},
+    ],edges:[2,3,4,5].map(to=>({from:1,to,style:'solid',arrow:'none',thickness:2,label:''}))};}},
+  {id:'decision',name:'Decision Tree',icon:'🪞',build:title=>{return {nodes:[
+      {id:1,text:title||'Decision',x:400,y:120,color:'#3b82f6',shape:'diamond',isRoot:true,icon:'🪞'},
+      {id:2,text:'Option A',x:240,y:280,color:'#10b981',shape:'rect',icon:''},
+      {id:3,text:'Option B',x:560,y:280,color:'#ef4444',shape:'rect',icon:''},
+      {id:4,text:'Pros',x:160,y:440,color:'#10b981',shape:'pill'},
+      {id:5,text:'Cons',x:320,y:440,color:'#ef4444',shape:'pill'},
+      {id:6,text:'Pros',x:480,y:440,color:'#10b981',shape:'pill'},
+      {id:7,text:'Cons',x:640,y:440,color:'#ef4444',shape:'pill'},
+    ],edges:[
+      {from:1,to:2,style:'solid',arrow:'to',thickness:2,label:''},
+      {from:1,to:3,style:'solid',arrow:'to',thickness:2,label:''},
+      {from:2,to:4,style:'solid',arrow:'none',thickness:2,label:''},
+      {from:2,to:5,style:'solid',arrow:'none',thickness:2,label:''},
+      {from:3,to:6,style:'solid',arrow:'none',thickness:2,label:''},
+      {from:3,to:7,style:'solid',arrow:'none',thickness:2,label:''},
+    ]};}},
+  {id:'journey',name:'Customer Journey',icon:'🚶',build:title=>{return {nodes:[
+      {id:1,text:title||'Journey',x:120,y:300,color:'#3b82f6',shape:'circle',isRoot:true,icon:'🚶'},
+      {id:2,text:'Awareness',x:280,y:300,color:'#06b6d4',shape:'pill',icon:'👀'},
+      {id:3,text:'Consideration',x:440,y:300,color:'#8b5cf6',shape:'pill',icon:'🤔'},
+      {id:4,text:'Decision',x:600,y:300,color:'#f59e0b',shape:'pill',icon:'🛒'},
+      {id:5,text:'Onboarding',x:760,y:300,color:'#10b981',shape:'pill',icon:'🎓'},
+      {id:6,text:'Retention',x:920,y:300,color:'#ec4899',shape:'pill',icon:'💎'},
+    ],edges:[[1,2],[2,3],[3,4],[4,5],[5,6]].map(([f,t])=>({from:f,to:t,style:'solid',arrow:'to',thickness:2,label:''}))};}},
+];
+function mmShowTemplates(){
+  const m=document.getElementById('modal-content');if(!m)return;
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🧠 New Mind Map</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick a starter template or build from a blank canvas.</div>
+    <input id="mm-tpl-title" class="inp" placeholder="Map title…" style="width:100%;height:30px;font-size:12px;margin-bottom:10px" value="New Mind Map">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
+      <div class="cd" style="cursor:pointer;text-align:center;padding:14px 8px" onclick="mmCreateFromTemplate(null)"><div style="font-size:24px;margin-bottom:4px">📄</div><div style="font-size:11px;font-weight:600">Blank</div></div>
+      ${MM_TEMPLATES.map(t=>`<div class="cd" style="cursor:pointer;text-align:center;padding:14px 8px" onclick="mmCreateFromTemplate('${t.id}')"><div style="font-size:24px;margin-bottom:4px">${t.icon}</div><div style="font-size:11px;font-weight:600">${esc(t.name)}</div></div>`).join('')}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function mmCreateFromTemplate(tplId){
+  const titleInp=document.getElementById('mm-tpl-title');
+  const title=(titleInp?titleInp.value:'').trim()||'New Mind Map';
+  closeModal();
+  let mm;
+  if(tplId){
+    const tpl=MM_TEMPLATES.find(t=>t.id===tplId);if(!tpl)return;
+    const built=tpl.build(title);
+    mm={id:_mmNextId(D.mindmaps),title,icon:tpl.icon,nodes:built.nodes,edges:built.edges,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),layout:'free'};
+  }else{
+    mm={id:_mmNextId(D.mindmaps),title,icon:'🧠',nodes:[{id:1,text:title,x:400,y:300,color:'#3b82f6',shape:'rect',icon:'',subItems:[],description:'',collapsed:false,isRoot:true}],edges:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),layout:'free'};
+  }
+  D.mindmaps.push(mm);saveMindmaps();mmOpen(mm.id);
+}
+
+// ─── M14: AI tools ───────────────────────────────────────────────────
+async function mmAIExpandSelected(){
+  if(!_mmCurrent)return;
+  const id=_mmSelected||(_mmSelectedSet.size===1?[..._mmSelectedSet][0]:null);
+  if(!id)return toast('Select a node first');
+  const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node)return;
+  toast({type:'info',title:'Expanding node…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const ctxText=(_mmCurrent.nodes||[]).map(n=>n.text).join(', ');
+    const sys=`You are a mind-map brainstorming assistant. Given a focus topic, propose 5 specific child concepts (3-7 words each, distinct, non-overlapping). Reply with strict JSON only: {"children":["…","…","…","…","…"]}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Focus topic: "${node.text}"\nMap context: ${ctxText}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const parsed=JSON.parse(text);
+    if(!Array.isArray(parsed.children))throw new Error('bad response');
+    _mmSnap();
+    parsed.children.slice(0,5).forEach((t,i)=>{
+      const angle=(i/5)*Math.PI*2;const dist=160;
+      const child={id:_mmNextId(_mmCurrent.nodes),text:String(t).trim(),x:node.x+Math.cos(angle)*dist,y:node.y+Math.sin(angle)*dist,color:node.color||'#3b82f6',shape:'rect',icon:'',subItems:[],description:'',collapsed:false};
+      _mmCurrent.nodes.push(child);
+      _mmCurrent.edges.push({from:node.id,to:child.id,style:'solid',arrow:'none',thickness:2,label:''});
+    });
+    _mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();renderMindmapCanvas();
+    toast({type:'success',title:`✨ Added ${parsed.children.length} child nodes`,duration:2200});
+  }catch(e){toast({type:'error',title:'AI expand failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+async function mmAISummarize(){
+  if(!_mmCurrent||!_mmCurrent.nodes.length)return toast('Map is empty');
+  toast({type:'info',title:'Summarizing map…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const lines=_mmCurrent.nodes.map(n=>`- ${n.text}${n.description?` — ${n.description.slice(0,120)}`:''}`).join('\n');
+    const edgeLines=_mmCurrent.edges.map(e=>{const f=_mmCurrent.nodes.find(n=>n.id===e.from);const t=_mmCurrent.nodes.find(n=>n.id===e.to);return f&&t?`  ${f.text} → ${t.text}`:'';}).filter(Boolean).join('\n');
+    const sys=`You are a knowledge synthesizer. Given a mind map's nodes + connections, write a 3-paragraph summary: 1) the central theme, 2) the main branches and their relationships, 3) what's missing or worth exploring. Plain prose, no headers.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Title: ${_mmCurrent.title}\nNodes:\n${lines}\nConnections:\n${edgeLines}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    const m=document.getElementById('modal-content');
+    if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📜 Map Summary</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
+  }catch(e){toast({type:'error',title:'AI summary failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+async function mmAISuggestConnections(){
+  if(!_mmCurrent||_mmCurrent.nodes.length<3)return toast('Need at least 3 nodes');
+  toast({type:'info',title:'Looking for connections…',duration:2000});
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const idMap={};_mmCurrent.nodes.forEach((n,i)=>idMap[i+1]=n.id);
+    const lines=_mmCurrent.nodes.map((n,i)=>`${i+1}. ${n.text}`).join('\n');
+    const existing=_mmCurrent.edges.map(e=>{const fi=_mmCurrent.nodes.findIndex(n=>n.id===e.from)+1;const ti=_mmCurrent.nodes.findIndex(n=>n.id===e.to)+1;return `${fi}-${ti}`;}).join(', ');
+    const sys=`You are a synthesis assistant. Given a numbered list of mind-map nodes, propose up to 5 NEW non-obvious connections between distinct pairs (do not duplicate existing edges). Reply with strict JSON only: {"edges":[{"from":1,"to":4,"label":"…"}, …]}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Nodes:\n${lines}\nExisting edges (numeric pairs): ${existing||'(none)'}\nPropose new connections.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const parsed=JSON.parse(text);
+    if(!Array.isArray(parsed.edges))throw new Error('bad response');
+    _mmSnap();
+    let added=0;
+    parsed.edges.slice(0,5).forEach(p=>{
+      const fromId=idMap[p.from],toId=idMap[p.to];if(!fromId||!toId||fromId===toId)return;
+      const dup=_mmCurrent.edges.find(e=>(e.from===fromId&&e.to===toId)||(e.from===toId&&e.to===fromId));if(dup)return;
+      _mmCurrent.edges.push({from:fromId,to:toId,style:'dashed',arrow:'to',thickness:1,label:p.label||''});
+      added++;
+    });
+    _mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();renderMindmapCanvas();
+    toast({type:added?'success':'info',title:added?`✨ Added ${added} connection${added===1?'':'s'}`:'No new connections found',duration:2200});
+  }catch(e){toast({type:'error',title:'AI suggest failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+
+// ─── M15: export ────────────────────────────────────────────────────
+function _mmBuildSVG(){
+  if(!_mmCurrent)return '';
+  const nodes=_mmCurrent.nodes;const edges=_mmCurrent.edges;
+  if(!nodes.length)return '';
+  const minX=Math.min(...nodes.map(n=>n.x))-100,maxX=Math.max(...nodes.map(n=>n.x))+100;
+  const minY=Math.min(...nodes.map(n=>n.y))-60,maxY=Math.max(...nodes.map(n=>n.y))+60;
+  const w=maxX-minX,h=maxY-minY;
+  const colors=new Set();edges.forEach(e=>{const f=nodes.find(n=>n.id===e.from);if(f)colors.add(f.color||'#3b82f6');});
+  const defs=`<defs>${[...colors].map((c,i)=>`<marker id="arr-${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('')}</defs>`;
+  const colorIdx=Object.fromEntries([...colors].map((c,i)=>[c,i]));
+  const eHtml=edges.map(e=>{const f=nodes.find(n=>n.id===e.from);const t=nodes.find(n=>n.id===e.to);if(!f||!t)return '';const x1=f.x-minX,y1=f.y-minY,x2=t.x-minX,y2=t.y-minY;const mx=(x1+x2)/2,my=(y1+y2)/2-20;const c=f.color||'#3b82f6';const dash=e.style==='dashed'?' stroke-dasharray="6 4"':'';const arrow=e.arrow==='to'||e.arrow==='both'?` marker-end="url(#arr-${colorIdx[c]})"`:'';return `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${c}" stroke-width="${e.thickness||2}" opacity="0.7"${dash}${arrow}/>${e.label?`<text x="${mx}" y="${my-4}" text-anchor="middle" font-size="11" fill="${c}">${esc(e.label)}</text>`:''}`;}).join('');
+  const nHtml=nodes.map(n=>{const x=n.x-minX,y=n.y-minY;const fill=n.color||'#3b82f6';const text=`${n.icon||''} ${n.text||''}`.trim();const tw=Math.max(80,text.length*7+24);return `<g><rect x="${x-tw/2}" y="${y-16}" width="${tw}" height="32" rx="6" fill="${fill}" fill-opacity="0.18" stroke="${fill}" stroke-width="2"/><text x="${x}" y="${y+5}" text-anchor="middle" font-size="13" font-weight="500" fill="#fff">${esc(text)}</text></g>`;}).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="background:#0a0e1c">${defs}${eHtml}${nHtml}</svg>`;
+}
+function mmExportSVG(){
+  const svg=_mmBuildSVG();if(!svg)return toast('Empty map');
+  const blob=new Blob([svg],{type:'image/svg+xml'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(_mmCurrent.title||'mindmap')+'.svg';a.click();URL.revokeObjectURL(a.href);toast('🖼 SVG exported');
+}
+function mmExportPNG(){
+  const svg=_mmBuildSVG();if(!svg)return toast('Empty map');
+  const blob=new Blob([svg],{type:'image/svg+xml'});const url=URL.createObjectURL(blob);
+  const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.width*2;c.height=img.height*2;const ctx=c.getContext('2d');ctx.scale(2,2);ctx.drawImage(img,0,0);c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(_mmCurrent.title||'mindmap')+'.png';a.click();URL.revokeObjectURL(a.href);URL.revokeObjectURL(url);toast('🖼 PNG exported');},'image/png');};img.src=url;
+}
+function mmExportMarkdown(){
+  if(!_mmCurrent||!_mmCurrent.nodes.length)return toast('Empty map');
+  const root=_mmCurrent.nodes.find(n=>n.isRoot)||_mmCurrent.nodes[0];
+  const childrenOf={};_mmCurrent.edges.forEach(e=>{(childrenOf[e.from]=childrenOf[e.from]||[]).push(e.to);});
+  const out=[`# ${_mmCurrent.title||'Mind Map'}`,''];
+  function walk(id,depth,seen){if(seen.has(id))return;seen.add(id);const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;out.push('  '.repeat(depth)+'- '+(n.icon?n.icon+' ':'')+n.text);(n.subItems||[]).forEach(s=>out.push('  '.repeat(depth+1)+'- ['+(s.done?'x':' ')+'] '+s.text));if(n.description)out.push('  '.repeat(depth+1)+'_'+n.description.split('\n').join('  ')+'_');(childrenOf[id]||[]).forEach(c=>walk(c,depth+1,seen));}
+  const seen=new Set();walk(root.id,0,seen);
+  // Orphans
+  _mmCurrent.nodes.filter(n=>!seen.has(n.id)).forEach(n=>walk(n.id,0,seen));
+  const blob=new Blob([out.join('\n')],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(_mmCurrent.title||'mindmap')+'.md';a.click();URL.revokeObjectURL(a.href);toast('⬇ Markdown exported');
 }
 
 function mmConvertToNote(nodeId){
