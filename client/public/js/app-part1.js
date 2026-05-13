@@ -5303,6 +5303,64 @@ function assignNoteToFolder(noteId,folderId){
   const f=folderId?_noteFolderById(folderId):null;
   toast(f?`📁 Moved to "${f.name}"`:'📁 Removed from folder');
 }
+// ─── Notes panel resize (nav / list / rail are user-sizable) ──────────
+const _notesDefaultWidths={nav:160,list:240,rail:200};
+function _notesGetWidths(){const w=Object.assign({},_notesDefaultWidths,(D.prefs&&D.prefs.notesPanelWidths)||{});return w;}
+function _notesApplyWidths(){
+  const w=_notesGetWidths();
+  const bg=document.querySelector('#s-notes > .bg');
+  if(bg)bg.style.gridTemplateColumns=`var(--side) ${w.nav}px ${w.list}px 1fr ${w.rail}px`;
+}
+function _notesEnsureResizeHandles(){
+  const targets=[
+    {pid:'notes-nav-panel',which:'nav',side:'right'},
+    {pid:'notes-list-panel',which:'list',side:'right'},
+    {pid:'notes-rail-panel',which:'rail',side:'left'},
+  ];
+  targets.forEach(t=>{
+    const el=document.getElementById(t.pid);if(!el)return;
+    if(el.querySelector('.notes-resize'))return;
+    const handle=document.createElement('div');
+    handle.className=`notes-resize ${t.side}`;
+    handle.setAttribute('title','Drag to resize · double-click to reset');
+    handle.onmousedown=ev=>_notesResizeStart(ev,t.which);
+    handle.ondblclick=ev=>{ev.preventDefault();_notesResetWidth(t.which);};
+    el.appendChild(handle);
+  });
+}
+function _notesResetWidth(which){
+  D.prefs=D.prefs||{};
+  D.prefs.notesPanelWidths=Object.assign({},_notesGetWidths(),{[which]:_notesDefaultWidths[which]});
+  save('prefs');_notesApplyWidths();
+  toast('Reset to default width');
+}
+function _notesResizeStart(e,which){
+  e.preventDefault();e.stopPropagation();
+  const startX=e.clientX;
+  const widths=Object.assign({},_notesGetWidths());
+  const startW=widths[which];
+  const limits={nav:[100,360],list:[160,520],rail:[140,420]}[which];
+  // Dragging the rail handle right shrinks the rail (handle is on its LEFT edge).
+  const dir=which==='rail'?-1:1;
+  const handleEl=e.currentTarget;handleEl.classList.add('dragging');
+  document.body.classList.add('notes-resizing');
+  function onMove(ev){
+    const dx=(ev.clientX-startX)*dir;
+    widths[which]=Math.max(limits[0],Math.min(limits[1],startW+dx));
+    const bg=document.querySelector('#s-notes > .bg');
+    if(bg)bg.style.gridTemplateColumns=`var(--side) ${widths.nav}px ${widths.list}px 1fr ${widths.rail}px`;
+  }
+  function onUp(){
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    handleEl.classList.remove('dragging');
+    document.body.classList.remove('notes-resizing');
+    D.prefs=D.prefs||{};D.prefs.notesPanelWidths=widths;
+    try{save('prefs');}catch(_){try{localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));}catch(__){}}
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
 // Drag-to-folder
 let _noteDragId=null;
 function _noteCardDragStart(e,id){_noteDragId=id;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
@@ -6464,6 +6522,10 @@ function renderNotes(){
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
   <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
   <div id="notes-backlinks-panel"></div>`;
+  // Apply persisted column widths + (re-)attach the resize handles. Each
+  // panel's innerHTML wipe above destroys the previous handle children.
+  if(typeof _notesApplyWidths==='function')_notesApplyWidths();
+  if(typeof _notesEnsureResizeHandles==='function')_notesEnsureResizeHandles();
 }
 let _noteInlineEditId=null;
 function saveNoteInlineEdit(id){
