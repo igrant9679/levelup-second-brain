@@ -2718,7 +2718,14 @@ function taskRow(t,showActs=true){
   const timeLabel=t.timeSpent?`<span style="font-size:9px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:9px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
-  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';return `<div class="lr" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red);background:rgba(239,68,68,0.04)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${isOverdueTask?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}<span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}${blockBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Delegate task" onclick="event.stopPropagation();delegateTask(${t.id})">📤</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--purp)" title="AI: Suggest best delegate" onclick="event.stopPropagation();aiSuggestDelegate(${t.id})">🤖 Delegate</button>${t.blockedBy?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px;color:var(--red)" title="AI: Suggest how to unblock" onclick="event.stopPropagation();aiUnblockTask(${t.id})">🔓 Unblock</button>`:''}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze to tomorrow" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="${isSomeday?'Move to Inbox':'Move to Someday'}" onclick="event.stopPropagation();moveSomeday(${t.id})">${isSomeday?'📥':'💤'}</button><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button><button class="btn btn-d" style="height:20px;font-size:9px;padding:0 5px" onclick="event.stopPropagation();deleteItem('task',${t.id})">✕</button></span>`:''}</div>`;
+  const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
+  // K: subtask progress chip
+  const _subs=Array.isArray(t.subtasks)?t.subtasks:[];
+  const _subDone=_subs.filter(s=>s.done).length;
+  const _subChip=_subs.length?`<span class="lu-subtask-chip ${_subDone===_subs.length?'done':''}" title="${_subDone} of ${_subs.length} subtask${_subs.length===1?'':'s'} done">☑ ${_subDone}/${_subs.length}</span>`:'';
+  // E: clickable priority + status pills with inline picker
+  const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')">${t.priority}</span>`;
+  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">📅 Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -3160,6 +3167,198 @@ function togglePin(type,id){
   else{D.prefs.pinned.push({type,id});toast('📌 Pinned to Home');}
   localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
   if(curScreen==='home')renderScreen('home');
+}
+// A: row-action overflow popover toggle
+function _closeAllRowActs(){document.querySelectorAll('.lr-row-acts-pop.show').forEach(el=>el.classList.remove('show'));}
+function _taskRowMoreToggle(e,id){
+  const pop=document.getElementById('lr-row-acts-'+id);
+  if(!pop)return;
+  const wasOpen=pop.classList.contains('show');
+  _closeAllRowActs();
+  if(!wasOpen){pop.classList.add('show');setTimeout(()=>document.addEventListener('click',_closeAllRowActs,{once:true}),0);}
+}
+// L: snooze submenu — popover with tomorrow / Mon / next week / custom
+function _taskSnoozePopover(e,id){
+  const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  // Close any existing popover.
+  const old=document.getElementById('task-snooze-pop');if(old)old.remove();
+  const r=e.currentTarget.getBoundingClientRect();
+  const today=new Date();today.setHours(0,0,0,0);
+  const opts=[];
+  const fmt=d=>d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const iso=d=>d.toISOString().slice(0,10);
+  const tomorrow=new Date(today);tomorrow.setDate(today.getDate()+1);
+  opts.push({label:`Tomorrow · ${fmt(tomorrow)}`,iso:iso(tomorrow)});
+  // Next Monday (or following Mon if today IS Mon)
+  const nextMon=new Date(today);const dow=nextMon.getDay();const addDays=dow===1?7:((1-dow+7)%7||7);nextMon.setDate(today.getDate()+addDays);
+  opts.push({label:`Next Monday · ${fmt(nextMon)}`,iso:iso(nextMon)});
+  const nextWeek=new Date(today);nextWeek.setDate(today.getDate()+7);
+  opts.push({label:`In a week · ${fmt(nextWeek)}`,iso:iso(nextWeek)});
+  const inMonth=new Date(today);inMonth.setMonth(today.getMonth()+1);
+  opts.push({label:`In a month · ${fmt(inMonth)}`,iso:iso(inMonth)});
+  const pop=document.createElement('div');
+  pop.id='task-snooze-pop';
+  pop.className='lu-pill-pop';
+  pop.style.left=Math.min(window.innerWidth-220,r.left)+'px';
+  pop.style.top=(r.bottom+6)+'px';
+  pop.innerHTML=opts.map(o=>`<button data-iso="${o.iso}">⏰ ${esc(o.label)}</button>`).join('')+`<div style="height:1px;background:var(--bd1);margin:3px 2px"></div><button data-custom="1">📅 Pick a date…</button>`;
+  document.body.appendChild(pop);
+  pop.querySelectorAll('button').forEach(b=>{
+    b.onclick=ev=>{
+      ev.stopPropagation();
+      let ds=b.dataset.iso||'';
+      if(b.dataset.custom){ds=prompt('Snooze until (YYYY-MM-DD):',iso(tomorrow))||'';if(!/^\d{4}-\d{2}-\d{2}$/.test(ds))return;}
+      t.myDay=false;t.snoozeUntil=ds;
+      t.due=t.due&&t.due!=='Carry Over'?ds:ds;
+      save('tasks');
+      pop.remove();
+      if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+      toast(`💭 Snoozed until ${ds}`);
+    };
+  });
+  setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
+}
+// E: inline picker for priority + status pills
+function _taskPillPicker(e,id,field){
+  const t=D.tasks.find(x=>x.id===id);if(!t)return;
+  const old=document.getElementById('task-pill-pop');if(old)old.remove();
+  const r=e.currentTarget.getBoundingClientRect();
+  const opts=field==='priority'?['High','Medium','Low']:['Not Started','In Progress','Done','Someday'];
+  const pop=document.createElement('div');
+  pop.id='task-pill-pop';pop.className='lu-pill-pop';
+  pop.style.left=Math.min(window.innerWidth-150,r.left)+'px';
+  pop.style.top=(r.bottom+6)+'px';
+  pop.innerHTML=opts.map(o=>`<button data-v="${esc(o)}" ${t[field]===o?'style="background:var(--acs);color:var(--ac)"':''}>${esc(o)}</button>`).join('');
+  document.body.appendChild(pop);
+  pop.querySelectorAll('button').forEach(b=>{
+    b.onclick=ev=>{
+      ev.stopPropagation();
+      t[field]=b.dataset.v;
+      if(field==='status'&&b.dataset.v==='Done'&&typeof maybeSpawnRecurring==='function')maybeSpawnRecurring(t);
+      save('tasks');pop.remove();
+      if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+      toast(`${field==='priority'?'⚡':'🏷'} ${field} set to ${b.dataset.v}`);
+    };
+  });
+  setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
+}
+// G: smart quick-add parser. Returns {title, priority, due, tags, project, est}
+// from "Buy milk !high tomorrow #shopping @groceries ~30m" style input.
+function _taskSmartParse(raw){
+  let s=' '+raw+' ';
+  const out={title:'',priority:null,due:null,tags:[],project:null,est:null};
+  // Priority: !high / !med / !medium / !low
+  const pm=s.match(/\s!(high|hi|med|medium|low)\b/i);
+  if(pm){out.priority={hi:'High',high:'High',med:'Medium',medium:'Medium',low:'Low'}[pm[1].toLowerCase()];s=s.replace(pm[0],' ');}
+  // Date keywords + ISO date
+  const today=new Date();today.setHours(0,0,0,0);
+  const iso=d=>d.toISOString().slice(0,10);
+  const dateKeywords={today:0,tod:0,tomorrow:1,tom:1,tmrw:1,'next week':7,nextweek:7};
+  const weekdayMap={sun:0,mon:1,tue:2,tues:2,wed:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+  for(const [kw,offset] of Object.entries(dateKeywords)){
+    const re=new RegExp('\\s'+kw.replace(' ','\\s+')+'\\b','i');
+    if(re.test(s)){const d=new Date(today);d.setDate(today.getDate()+offset);out.due=iso(d);s=s.replace(re,' ');break;}
+  }
+  if(!out.due){
+    for(const [name,wd] of Object.entries(weekdayMap)){
+      const re=new RegExp('\\s'+name+'\\b','i');
+      if(re.test(s)){const d=new Date(today);const cur=d.getDay();let diff=wd-cur;if(diff<=0)diff+=7;d.setDate(today.getDate()+diff);out.due=iso(d);s=s.replace(re,' ');break;}
+    }
+  }
+  const dm=s.match(/\s(\d{4}-\d{2}-\d{2})\b/);if(dm){out.due=dm[1];s=s.replace(dm[0],' ');}
+  // Tags: #word
+  const tagMatches=[...s.matchAll(/\s#([\w-]+)/g)];
+  tagMatches.forEach(m=>out.tags.push(m[1]));
+  s=s.replace(/\s#[\w-]+/g,' ');
+  // Project: @word
+  const pjm=s.match(/\s@([\w-]+)/);
+  if(pjm){out.project=pjm[1];s=s.replace(pjm[0],' ');}
+  // Estimated minutes: ~30m / ~2h
+  const em=s.match(/\s~(\d+)(m|h)\b/i);
+  if(em){out.est=em[2].toLowerCase()==='h'?Number(em[1])*60:Number(em[1]);s=s.replace(em[0],' ');}
+  out.title=s.trim().replace(/\s+/g,' ');
+  return out;
+}
+// F: keyboard navigation on Tasks screen
+let _taskKbSelectedId=null;
+function _tasksKbHandler(e){
+  if(typeof curScreen==='undefined'||curScreen!=='tasks')return;
+  const t=e.target;
+  if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  // Visible task rows: cluster taskRow has no data-task-id directly; we look at any [data-task-id]
+  const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]'));
+  if(!visible.length)return;
+  let idx=visible.findIndex(el=>Number(el.dataset.taskId)===_taskKbSelectedId);
+  const sel=()=>{
+    const el=visible[idx];if(!el)return;
+    visible.forEach(v=>v.classList.remove('lr-kb-on','tl-kb-on'));
+    el.classList.add(el.classList.contains('tl-row')?'tl-kb-on':'lr-kb-on');
+    _taskKbSelectedId=Number(el.dataset.taskId);
+    el.scrollIntoView({block:'nearest'});
+  };
+  if(e.key==='j'||e.key==='ArrowDown'){idx=Math.min(visible.length-1,(idx<0?0:idx+1));sel();e.preventDefault();}
+  else if(e.key==='k'||e.key==='ArrowUp'){idx=Math.max(0,(idx<0?0:idx-1));sel();e.preventDefault();}
+  else if(e.key==='Enter'&&_taskKbSelectedId){const tt=D.tasks.find(x=>x.id===_taskKbSelectedId);if(tt)openDrawer('task',tt);e.preventDefault();}
+  else if(e.key==='c'&&_taskKbSelectedId){toggleTask(_taskKbSelectedId);setTimeout(renderCurrentTaskView,80);e.preventDefault();}
+  else if(e.key==='x'&&_taskKbSelectedId){if(typeof toggleBulkSelect==='function'&&_bulkMode){toggleBulkSelect(_taskKbSelectedId,e);}else if(typeof toggleBulkMode==='function'){toggleBulkMode();setTimeout(()=>toggleBulkSelect(_taskKbSelectedId,e),50);}e.preventDefault();}
+  else if(e.key==='e'&&_taskKbSelectedId){const tt=D.tasks.find(x=>x.id===_taskKbSelectedId);if(tt)openDrawer('task',tt);e.preventDefault();}
+}
+document.addEventListener('keydown',_tasksKbHandler);
+// C: saved task views — capture current filter as a named view
+function _currentTaskViewState(){
+  const tabIdx=_taskTabDefs.findIndex(td=>td.filter===_taskFilter);
+  return {tabIdx:tabIdx>=0?tabIdx:0,priority:_taskPriorityFilter||'All',myOnly:!!_taskMyOnly,view:_taskView};
+}
+function saveCurrentTaskView(){
+  const name=prompt('Name this view:','My view');
+  if(!name||!name.trim())return;
+  D.prefs=D.prefs||{};
+  D.prefs.taskSavedViews=D.prefs.taskSavedViews||[];
+  D.prefs.taskSavedViews.push({id:Date.now(),name:name.trim(),state:_currentTaskViewState()});
+  save('prefs');
+  if(typeof renderTasks==='function')renderTasks();
+  toast({type:'success',title:'⭐ View saved',msg:`"${name.trim()}" added to your tabs.`,duration:2200});
+}
+function applySavedTaskView(id){
+  const v=(D.prefs&&D.prefs.taskSavedViews||[]).find(x=>x.id===id);if(!v)return;
+  const s=v.state||{};
+  if(typeof s.tabIdx==='number'&&_taskTabDefs[s.tabIdx])_taskFilter=_taskTabDefs[s.tabIdx].filter;
+  _taskPriorityFilter=s.priority||'All';
+  _taskMyOnly=!!s.myOnly;
+  if(s.view)_taskView=s.view;
+  if(typeof renderTasks==='function')renderTasks();
+}
+function deleteSavedTaskView(id,e){
+  if(e){e.stopPropagation();}
+  if(!confirm('Delete this saved view?'))return;
+  D.prefs.taskSavedViews=(D.prefs.taskSavedViews||[]).filter(v=>v.id!==id);
+  save('prefs');
+  if(typeof renderTasks==='function')renderTasks();
+}
+// N: AI Today's Plan — ranks the current Today set into a suggested order
+async function aiTodaysPlan(){
+  const today=_todayStr;
+  const tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay));
+  if(!tasks.length){toast('Nothing on your plate today — enjoy it.');return;}
+  const btn=document.getElementById('ai-today-plan-btn');if(btn){btn.disabled=true;btn.innerText='⏳ Thinking…';}
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const lines=tasks.map((t,i)=>`${i+1}. [${t.priority||'Medium'}] ${t.title}${t.estimatedMins?` (~${t.estimatedMins}m)`:''}${t.energy?` energy:${t.energy}`:''}`).join('\n');
+    const sys=`You are a focused productivity coach. Reorder the user's task list for today into the most effective sequence considering: deep work first when energy is high, batch shallow/admin work, finish the highest-impact item early. Reply with ONLY a numbered list of the same task titles in your suggested order, plus a one-line reason for each. No preamble.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`My tasks for today:\n${lines}\n\nReorder them into the best sequence.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    // Render as a modal so the user can read + dismiss.
+    const m=document.getElementById('modal-content');
+    if(m){
+      m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🧭 Today's Plan</h2><div style="font-size:10px;color:var(--t3);margin-bottom:10px">AI-suggested order for your ${tasks.length} task${tasks.length===1?'':'s'} today.</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;max-height:400px;overflow-y:auto;font-size:12px;line-height:1.6;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()" style="font-size:11px">Close</button></div>`;
+      document.getElementById('modal-capture').classList.add('show');
+    }
+  }catch(e){
+    toast({type:'error',title:'AI plan failed',msg:String(e.message||e).slice(0,200),duration:5000});
+  }finally{
+    if(btn){btn.disabled=false;btn.innerText='🧭 Today\'s Plan';}
+  }
 }
 function snoozeTask(id){
   const t=D.tasks.find(x=>x.id===id);
@@ -4022,13 +4221,28 @@ function setTaskView(v){
   });
   renderCurrentTaskView();
 }
+// J: persistent group-by selection for the List view.
+if(typeof _taskListGroupBy==='undefined')var _taskListGroupBy='none';
+function setTaskListGroupBy(v){_taskListGroupBy=v||'none';renderCurrentTaskView();}
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
-  if(!filtered.length){list.innerHTML=renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
+  // H: sort by sortOrder when set, falling back to original order
+  filtered=[...filtered].sort((a,b)=>{
+    const ao=typeof a.sortOrder==='number'?a.sortOrder:Number.MAX_SAFE_INTEGER;
+    const bo=typeof b.sortOrder==='number'?b.sortOrder:Number.MAX_SAFE_INTEGER;
+    return ao-bo;
+  });
+  // J: group toolbar
+  const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:10px;color:var(--t3)">
+    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
+    ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
+    <span style="margin-left:auto;font-size:9px;color:var(--t3)">Drag rows to reorder · click pills to edit inline</span>
+  </div>`;
+  if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
   const priColors={High:'rgba(239,68,68,0.15)',Medium:'rgba(245,158,11,0.15)',Low:'rgba(34,197,94,0.15)'};
   const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
@@ -4036,8 +4250,10 @@ function renderTaskList(){
   const statusText={Done:'#86EFAC','In Progress':'#93C5FD','Not Started':'var(--t2)',Someday:'#FBBF24'};
   const projects=D.projects||[];
   const findProject=t=>{if(t.projectId)return projects.find(p=>p.id===t.projectId);if(t.project)return projects.find(p=>p.name===t.project);return null;};
-  // Header
-  const header=`<div style="display:grid;grid-template-columns:24px minmax(180px,2fr) 80px 100px 95px 95px 130px 130px 32px;gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
+  // Header — added drag handle col + bulk-mode checkbox col
+  const colTpl='18px 24px minmax(160px,2fr) 80px 100px 95px 95px 130px 130px 32px';
+  const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
+    <div></div>
     <div></div>
     <div>Title</div>
     <div>Priority</div>
@@ -4048,7 +4264,7 @@ function renderTaskList(){
     <div>Assigned to</div>
     <div></div>
   </div>`;
-  const rows=filtered.map(t=>{
+  function rowFor(t){
     const proj=findProject(t);
     const projColor=proj?proj.color:null;
     const projName=proj?proj.name:(t.project||'');
@@ -4060,14 +4276,19 @@ function renderTaskList(){
     const endDate=t.due||t.endDate||'';
     const assigned=t.assignedTo||t.createdBy||'';
     const initials=(assigned||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
-    return `<div style="display:grid;grid-template-columns:24px minmax(180px,2fr) 80px 100px 95px 95px 130px 130px 32px;gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:var(--s1);font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-      <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">
+    // D: bulk checkbox column when in _bulkMode
+    const bulkChk=_bulkMode
+      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)" style="width:14px;height:14px"></div>`
+      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">`;
+    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+      <span class="tl-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
+      ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
         <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
         ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
       </div>
-      <span style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
-      <span style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600;width:fit-content">${status}</span>
+      <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:9px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
+      <span class="lu-pill-clickable" title="Click to change status" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600;width:fit-content">${status}</span>
       <span style="font-size:10px;color:var(--t3)">${startDate?fmtDate(startDate):'—'}</span>
       <span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t3)'};font-weight:${isOverdue?'600':'400'}">${endDate?fmtDate(endDate):'—'}</span>
       <span style="display:flex;align-items:center;gap:4px;min-width:0">
@@ -4080,8 +4301,60 @@ function renderTaskList(){
       </span>
       <span style="font-size:14px;color:var(--t3);text-align:center" title="Open">›</span>
     </div>`;
-  }).join('');
-  list.innerHTML=`<div style="overflow-x:auto">${header}${rows}<div class="add-c" style="border:1px solid var(--bd1);border-top:none;border-radius:0 0 6px 6px" onclick="openFA('task')">+ Add Task</div></div>`;
+  }
+  // J: build groups when grouping is on
+  let bodyHtml='';
+  if(_taskListGroupBy==='none'){
+    bodyHtml=filtered.map(rowFor).join('');
+  }else{
+    const groups={};
+    const order=[];
+    const groupKey=t=>{
+      switch(_taskListGroupBy){
+        case 'project':{const p=findProject(t);return p?p.name:(t.project||'(no project)');}
+        case 'due':{
+          if(!t.due)return '(no due date)';
+          const d=t.due,t2=_todayStr;
+          if(d<t2)return 'Overdue';
+          if(d===t2)return 'Today';
+          const dd=new Date(d),td=new Date(t2);const diff=Math.round((dd-td)/86400000);
+          if(diff===1)return 'Tomorrow';
+          if(diff<=7)return 'This week';
+          if(diff<=30)return 'This month';
+          return 'Later';
+        }
+        case 'assignee':return t.assignedTo||t.createdBy||'(unassigned)';
+        case 'status':return t.status||'Not Started';
+      }
+      return '(other)';
+    };
+    filtered.forEach(t=>{const k=groupKey(t);if(!(k in groups)){groups[k]=[];order.push(k);}groups[k].push(t);});
+    bodyHtml=order.map(k=>`<div class="tl-group-h">${esc(k)}<span>${groups[k].length} task${groups[k].length===1?'':'s'}</span></div>${groups[k].map(rowFor).join('')}`).join('');
+  }
+  list.innerHTML=`<div style="overflow-x:auto">${groupBar}${header}${bodyHtml}<div class="add-c" style="border:1px solid var(--bd1);border-top:none;border-radius:0 0 6px 6px" onclick="openFA('task')">+ Add Task</div></div>`;
+}
+// H: drag-to-reorder handlers for the List view. Persists t.sortOrder on D.tasks.
+let _tlDragId=null;
+function _tlDragStart(e,id){_tlDragId=id;e.target.classList.add('tl-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
+function _tlDragOver(e,id){if(_tlDragId&&_tlDragId!==id){e.preventDefault();e.currentTarget.classList.add('tl-drop-target');}}
+function _tlDragLeave(e){e.currentTarget.classList.remove('tl-drop-target');}
+function _tlDragEnd(e){e.target.classList.remove('tl-dragging');document.querySelectorAll('.tl-drop-target').forEach(el=>el.classList.remove('tl-drop-target'));_tlDragId=null;}
+function _tlDrop(e,targetId){
+  e.preventDefault();
+  e.currentTarget.classList.remove('tl-drop-target');
+  if(!_tlDragId||_tlDragId===targetId)return;
+  // Pull the dragged task; insert just before the drop target in the visible list.
+  // Rewrite sortOrder across all tasks so subsequent renders reflect the new order.
+  const visible=Array.from(document.querySelectorAll('#tasks-list .tl-row[data-task-id]')).map(el=>Number(el.dataset.taskId));
+  const dragIdx=visible.indexOf(_tlDragId);const dropIdx=visible.indexOf(targetId);
+  if(dragIdx<0||dropIdx<0)return;
+  visible.splice(dragIdx,1);visible.splice(dragIdx<dropIdx?dropIdx-1:dropIdx,0,_tlDragId);
+  visible.forEach((id,i)=>{const t=D.tasks.find(x=>x.id===id);if(t)t.sortOrder=i;});
+  // Tasks not in the visible set get pushed past the visible block.
+  const visibleSet=new Set(visible);
+  D.tasks.filter(t=>!visibleSet.has(t.id)).forEach((t,i)=>{t.sortOrder=visible.length+i+1000;});
+  save('tasks');
+  renderCurrentTaskView();
 }
 function renderTaskBoard(){
   const list=document.getElementById('tasks-list');
@@ -4254,27 +4527,34 @@ function renderTaskGantt(){
 function quickAddTask(){
   const inp=document.getElementById('task-quick-input');
   if(!inp)return;
-  const title=inp.value.trim();
-  if(!title){inp.focus();return;}
-  // New tasks default to Medium priority. Re-prioritize via the task drawer.
-  const priority='Medium';
+  const raw=inp.value.trim();
+  if(!raw){inp.focus();return;}
+  // G: smart parse extracts !priority / dates / #tags / @project / ~30m
+  const p=_taskSmartParse(raw);
+  if(!p.title){inp.focus();return;}
+  // Resolve project name -> project obj if it matches an existing project.
+  let projectId=null,projectName='';
+  if(p.project){
+    const proj=(D.projects||[]).find(pr=>(pr.name||'').toLowerCase().includes(p.project.toLowerCase()));
+    if(proj){projectId=proj.id;projectName=proj.name;}else{projectName=p.project;}
+  }
   const newTask={
     id:Date.now(),
-    title,
-    priority,
+    title:p.title,
+    priority:p.priority||'Medium',
     status:'Not Started',
-    due:'',
+    due:p.due||'',
     startDate:'',
     endDate:'',
     startTime:'',
     endTime:'',
-    estimatedMins:30,
+    estimatedMins:p.est||30,
     context:'',
-    project:'',
-    projectId:null,
+    project:projectName,
+    projectId,
     myDay:false,
     energy:'medium',
-    tags:[],
+    tags:p.tags||[],
     notes:'',
     recurring:'None',
     subtasks:[],
@@ -4288,7 +4568,15 @@ function quickAddTask(){
   inp.value='';
   inp.focus();
   renderCurrentTaskView();
-  toast('✓ Task added!');
+  // Build a confirmation toast that surfaces what was parsed so the user
+  // sees the smart parse landed correctly (or quickly notices it didn't).
+  const bits=[];
+  if(p.priority)bits.push(`!${p.priority.toLowerCase()}`);
+  if(p.due)bits.push(`due ${p.due}`);
+  if(p.tags.length)bits.push(p.tags.map(t=>'#'+t).join(' '));
+  if(projectName)bits.push('@'+projectName);
+  if(p.est)bits.push(`~${p.est}m`);
+  toast(bits.length?`✓ Added · ${bits.join(' · ')}`:'✓ Task added!');
 }
 // ─── Cluster progress roll-up ────────────────────────────────────────────────
 function clusterProgress(cluster){
@@ -4417,15 +4705,14 @@ function renderTaskClusters(){
   groups.forEach(g=>g.shown.forEach(t=>claimedIds.add(t.id)));
   const orphans=visible.filter(t=>!claimedIds.has(t.id));
 
-  // ── Filter pill ribbon (Cluster lens active) ──
-  const pillBar=`<div style="display:flex;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--bd1);margin-bottom:14px;overflow-x:auto;align-items:center">
-    ${['Status','Time','Energy','Location','P/I'].map(n=>`<div title="Lens — coming soon" style="font-size:11px;color:var(--t3);padding:5px 10px;border-radius:6px;cursor:default;white-space:nowrap">${n}</div>`).join('')}
+  // ── Lens ribbon: Cluster is the active grouping. The other lenses
+  //   (status / energy etc.) are reachable via the view switcher's List
+  //   group-by control or the existing tabs, so we don't render dead pills.
+  const pillBar=`<div style="display:flex;gap:6px;padding-bottom:10px;border-bottom:1px solid var(--bd1);margin-bottom:14px;align-items:center">
     <div style="font-size:11px;color:var(--t1);background:rgba(59,130,246,0.15);padding:5px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap">
-      <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>
-      Cluster
-      <span style="font-size:9px;background:#3B82F6;color:#fff;padding:1px 5px;border-radius:999px;font-weight:600;letter-spacing:.3px">NEW</span>
+      <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>Grouped by Cluster
     </div>
-    <div title="Lens — coming soon" style="font-size:11px;color:var(--t3);padding:5px 10px;cursor:default;white-space:nowrap">Edited</div>
+    <span style="font-size:10px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
   </div>`;
 
   function taskRow(t){
@@ -4759,7 +5046,17 @@ function renderTasks(){
   if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${(()=>{const views=[{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'},{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'},{k:'clusters',icon:'⬡',label:'Clusters'}];return views.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');})()}</div><div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="_taskMyOnly=true;document.getElementById('tasks-scope-my').style.background='var(--ac)';document.getElementById('tasks-scope-my').style.color='#fff';document.getElementById('tasks-scope-all').style.background='transparent';document.getElementById('tasks-scope-all').style.color='var(--t2)';renderCurrentTaskView()">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="_taskMyOnly=false;document.getElementById('tasks-scope-all').style.background='var(--ac)';document.getElementById('tasks-scope-all').style.color='#fff';document.getElementById('tasks-scope-my').style.background='transparent';document.getElementById('tasks-scope-my').style.color='var(--t2)';renderCurrentTaskView()">All Items</button></div>${(()=>{
+    // B: visible 3 most-used views + a More dropdown for the rest
+    const visible=[{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
+    const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
+    // If the current view is in overflow, surface it inline so the user sees it active
+    const cur=[...visible,...overflow].find(v=>v.k===_taskView);
+    const inOverflow=overflow.some(v=>v.k===_taskView);
+    const seg=visible.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');
+    const moreLabel=inOverflow?`${cur.icon} ${cur.label} ▾`:'⋯ More ▾';
+    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${v.k}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
+  })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
@@ -4768,10 +5065,23 @@ function renderTasks(){
     <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
-  <div class="tabs" id="tasks-tabs">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderCurrentTaskView()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}</div>
+  <div class="tabs" id="tasks-tabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${_taskTabDefs.map((td,i)=>`<div class="tab ${_taskTabDefs[i].filter===_taskFilter?'on':''}" onclick="_taskFilter=_taskTabDefs[${i}].filter;document.querySelectorAll('#tasks-tabs .tab').forEach(x=>x.classList.remove('on'));this.classList.add('on');renderCurrentTaskView()">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}${(()=>{
+    // C: render saved views as additional tabs
+    const saved=(D.prefs&&D.prefs.taskSavedViews)||[];
+    if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
+    return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
+  })()}</div>
+  ${(()=>{
+    // N: AI Today's Plan banner — only shown when the active filter is the Today tab
+    const isToday=_taskTabDefs[1]&&_taskFilter===_taskTabDefs[1].filter;
+    if(!isToday)return '';
+    const todayCount=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr||t.myDay)).length;
+    if(!todayCount)return '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:10px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
+  })()}
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
-    <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add task… (Enter to save · Tab cycles priority filter)" onkeydown="handleQuickAdd(event)">
+    <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
     <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="_taskPriorityFilter=this.value;renderCurrentTaskView()">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
