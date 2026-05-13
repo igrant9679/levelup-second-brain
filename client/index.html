@@ -931,6 +931,42 @@ body.notes-bulk-mode .nc{user-select:none}
 .nc-section-h{padding:8px 6px 4px;font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:4px;margin-bottom:2px}
 .nc-section-h::before{content:'';flex:1;height:1px;background:var(--bd1);margin-left:6px;order:2}
 
+/* Notes grid view (#C) — Pinterest-style cards with thumbnail-prominent layout. */
+body.notes-grid-view #notes-list-inner{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;padding:6px}
+body.notes-grid-view #notes-list-inner .nc{margin-bottom:0;padding:0;overflow:hidden;border:1px solid var(--bd1);background:var(--s2)}
+body.notes-grid-view #notes-list-inner .nc:hover{transform:translateY(-2px);background:var(--s3);border-color:var(--ac)}
+body.notes-grid-view #notes-list-inner .nc.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 18%,var(--s2))}
+body.notes-grid-view #notes-list-inner .nc-row{flex-direction:column-reverse;gap:0;align-items:stretch}
+body.notes-grid-view #notes-list-inner .nc-thumb{width:100%;height:90px;border-radius:0;border:none;border-bottom:1px solid var(--bd1)}
+body.notes-grid-view #notes-list-inner .nc-body{padding:6px 8px}
+body.notes-grid-view #notes-list-inner .nc-color{margin:0;position:absolute;top:6px;left:6px;z-index:2;box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+body.notes-grid-view #notes-list-inner .nc-section-h{grid-column:1/-1}
+
+/* Row-hover quick actions (#G) — star + pin appear on right edge on hover. */
+.nc-quick-actions{position:absolute;top:6px;right:6px;display:flex;gap:3px;opacity:0;transition:opacity .12s;z-index:3}
+.nc{position:relative}
+.nc:hover .nc-quick-actions{opacity:1}
+.nc-quick-actions button{height:20px;width:22px;padding:0;border:none;background:rgba(15,23,42,.78);color:#fff;border-radius:4px;font-size:11px;cursor:pointer;backdrop-filter:blur(6px);transition:transform .1s}
+.nc-quick-actions button:hover{transform:scale(1.1)}
+.nc-quick-actions button.on{background:var(--warn);color:#0a0e1c}
+
+/* Distraction-free focus mode (#F). Hides nav + list; editor takes full width. */
+body.notes-focus-mode .scr#s-notes>.bg{grid-template-columns:0 0 0 1fr 0!important}
+body.notes-focus-mode .scr#s-notes .notes-nav,
+body.notes-focus-mode .scr#s-notes .notes-list,
+body.notes-focus-mode .scr#s-notes .notes-rail{display:none!important}
+body.notes-focus-mode .scr#s-notes .notes-editor{max-width:760px;margin:0 auto;padding:30px 40px}
+body.notes-focus-mode #notes-focus-exit{display:flex!important}
+#notes-focus-exit{display:none;position:fixed;top:14px;right:14px;height:30px;padding:0 12px;font-size:11px;background:rgba(15,23,42,.85);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:18px;cursor:pointer;z-index:9999;align-items:center;gap:6px;backdrop-filter:blur(8px)}
+
+/* Note outline / TOC (#D) */
+.note-toc{background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:11px}
+.note-toc-h{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.note-toc a{display:block;padding:2px 4px;color:var(--t2);cursor:pointer;border-radius:3px;text-decoration:none;line-height:1.5}
+.note-toc a:hover{background:var(--s3);color:var(--ac)}
+.note-toc a.lvl-2{padding-left:12px}
+.note-toc a.lvl-3{padding-left:22px;font-size:10px}
+
 /* ─── Notes page polish (data-screen="notes") ─────────────────────────
    The Notes layout is a 5-column grid (sidebar / nav / list / editor /
    rail) so the global .ph-r gradient strip never appears. These rules
