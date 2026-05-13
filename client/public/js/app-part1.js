@@ -5295,6 +5295,55 @@ function setNotesFolderFilter(id){
   renderNotes();
 }
 function clearNotesFolderFilter(){setNotesFolderFilter(null);}
+// Shared folder picker modal — used by single-note Move (editor) and bulk Move
+let _movePickerCallback=null;
+function _openFolderPicker(title,currentFolderId,callback){
+  _movePickerCallback=callback;
+  const folders=_noteFolderFlatList();
+  const m=document.getElementById('modal-content');if(!m)return;
+  const row=(label,fid,depth,icon,color)=>{
+    const isSelected=(fid===currentFolderId)||(fid===null&&!currentFolderId);
+    return `<div class="lr move-folder-row" style="cursor:pointer;padding:7px 10px;padding-left:${10+depth*16}px;border-radius:6px;${isSelected?'background:var(--acs);border:1px solid var(--ac);color:var(--ac);font-weight:600':'border:1px solid transparent'}" onmouseover="if(!this.style.background.includes('acs'))this.style.background='var(--s3)'" onmouseout="if(!this.style.background.includes('acs'))this.style.background=''" onclick="_pickMoveFolder(${fid===null?'null':fid})"><span style="color:${color||'var(--t3)'};font-size:12px;width:16px;text-align:center">${icon}</span><span style="flex:1">${esc(label)}</span>${isSelected?'<span style="font-size:11px">✓</span>':''}</div>`;
+  };
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:8px">${esc(title)}</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick a destination folder. Notes outside any folder show in the default Recent / category views.</div>
+    <div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:2px">
+      ${row('No folder',null,0,'↩','var(--t3)')}
+      ${folders.length?folders.map(({f,depth})=>row(f.name,f.id,depth,f.icon||'📁',f.color||'var(--ac)')).join(''):'<div style="font-size:11px;color:var(--t3);padding:14px;text-align:center">No folders yet. Add one in the Notes nav with the + next to "📁 Folders".</div>'}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="_movePickerCallback=null;closeModal()">Cancel</button></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _pickMoveFolder(folderId){
+  const cb=_movePickerCallback;_movePickerCallback=null;
+  closeModal();
+  if(cb)cb(folderId);
+}
+function moveNoteToFolder(noteId){
+  const n=D.notes.find(x=>x.id===noteId);if(!n)return;
+  _openFolderPicker(`📁 Move "${n.title||'(untitled)'}"`,n.folderId||null,fid=>{
+    if(fid)n.folderId=fid;else delete n.folderId;
+    save('notes');
+    if(typeof renderNotes==='function')renderNotes();
+    if(typeof showNoteInEditor==='function'&&curScreen==='notes')setTimeout(()=>showNoteInEditor(noteId),50);
+    const f=fid?_noteFolderById(fid):null;
+    toast(f?`📁 Moved to "${f.name}"`:'📁 Removed from folder');
+  });
+}
+function bulkNotesMove(){
+  const arr=_bulkNotesArr();if(!arr.length)return toast('Nothing selected');
+  // Compute the "current" folder if all selected notes share one — otherwise null
+  const fids=new Set(arr.map(n=>n.folderId||null));
+  const sharedFolder=fids.size===1?[...fids][0]:null;
+  _openFolderPicker(`📁 Move ${arr.length} note${arr.length===1?'':'s'}`,sharedFolder,fid=>{
+    arr.forEach(n=>{if(fid)n.folderId=fid;else delete n.folderId;});
+    save('notes');
+    toggleNotesBulkMode();
+    if(typeof renderNotes==='function')renderNotes();
+    const f=fid?_noteFolderById(fid):null;
+    toast(f?`📁 Moved ${arr.length} note${arr.length===1?'':'s'} to "${f.name}"`:`📁 Removed ${arr.length} note${arr.length===1?'':'s'} from folder`);
+  });
+}
 function assignNoteToFolder(noteId,folderId){
   const n=D.notes.find(x=>x.id===noteId);if(!n)return;
   if(folderId)n.folderId=folderId;else delete n.folderId;
@@ -6875,6 +6924,7 @@ function renderNoteEditor(n){
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full</button>
     <button class="btn btn-s" style="height:26px;font-size:10px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${n.id})" title="${n.pinned?'Unpin':'Pin to top of list'}">📌 ${n.pinned?'Pinned':'Pin'}</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="toggleNoteFocusMode()" title="Focus mode — hide nav + list, full-width editor (Esc to exit)">⛶ Focus</button>
+    <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="moveNoteToFolder(${n.id})" title="${n.folderId?'Move to a different folder':'Move to a folder'}">📁 ${n.folderId?'Move ('+esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12))+')':'Move'}</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openNoteHistory(${n.id})" title="View version history">🕐 History${(n.versions||[]).length?` (${(n.versions||[]).length})`:''}</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="exportNotePDF(${n.id})" title="Export this note as PDF">📄 PDF</button>
     <div style="position:relative;display:inline-block">
