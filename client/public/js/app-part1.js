@@ -1483,6 +1483,62 @@ async function _refreshAIInsight(){
     save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
   }
 }
+// AI-generated hero subtitle (#8). Cached per day in D.prefs.aiHeroBrief.
+// Toggled on via D.prefs.heroAIBrief checkbox in the Customize Dashboard modal.
+async function _refreshHeroBrief(){
+  const today=new Date().toISOString().slice(0,10);
+  const cache=(D.prefs&&D.prefs.aiHeroBrief)||null;
+  // Bail early if a fresh cache already exists.
+  if(cache&&cache.date===today&&cache.text&&!cache.pending)return;
+  // Mark pending so concurrent renders don't kick off duplicate calls.
+  D.prefs.aiHeroBrief={date:today,text:cache?.text||'Generating your daily brief…',pending:true};
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    if(!apiKey&&provider!=='manus'){
+      D.prefs.aiHeroBrief={date:today,text:'Configure an AI key in Settings → AI Features to see daily AI briefs.'};
+      save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+      return;
+    }
+    const ctx=typeof _buildAIContext==='function'?_buildAIContext():'';
+    const res=await _trpc('ai.assist',{
+      systemPrompt:`You are a calm productivity coach. Read the workspace snapshot and write ONE short greeting line (max 18 words, ~110 chars) for the top of the user's dashboard. Reference one specific number or item from their day if useful (e.g. "2 overdue", "habit streak of 18"). End with a gentle nudge or question. No emoji. No quotes. Plain text only.\n\n${ctx}`,
+      userContent:`Generate today's hero greeting line.`,
+      provider:provider||'manus',apiKey:apiKey||undefined,
+    },'mutation');
+    const text=String(res?.result||res?.text||'').trim().replace(/^["']|["']$/g,'')||'Energy is finite — spend it on what compounds.';
+    D.prefs.aiHeroBrief={date:today,text};save('prefs');
+    if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+  }catch(e){
+    D.prefs.aiHeroBrief={date:today,text:'Could not generate today\'s brief — falling back to default. Check your AI key in Settings.'};
+    save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+  }
+}
+// Hover popover for hero stat tiles (#7). One shared #hero-tile-popover lives
+// at body level; we position it on mouseenter using the tile's data-tile-idx
+// to look up content from window._heroTilePops (set by renderHome).
+function _heroTilePopShow(e){
+  const el=e.currentTarget;
+  const idx=Number(el.getAttribute('data-tile-idx'));
+  const html=(window._heroTilePops||[])[idx];
+  if(!html)return;
+  let pop=document.getElementById('hero-tile-popover');
+  if(!pop){
+    pop=document.createElement('div');
+    pop.id='hero-tile-popover';
+    document.body.appendChild(pop);
+  }
+  pop.innerHTML=html;
+  // Position below the tile, clamped horizontally to viewport.
+  const r=el.getBoundingClientRect();
+  pop.style.left='0px';pop.style.top='-9999px';pop.classList.add('show');
+  const pw=pop.offsetWidth||220;
+  pop.style.left=Math.max(8,Math.min(window.innerWidth-pw-8,r.left))+'px';
+  pop.style.top=(r.bottom+8)+'px';
+}
+function _heroTilePopHide(){
+  const pop=document.getElementById('hero-tile-popover');
+  if(pop)pop.classList.remove('show');
+}
 // Hook into the existing focus timer so we accumulate per-hour totals.
 // This piggybacks on the focusLog write path so we don't change the timer code.
 (function wrapFocusLog(){
@@ -3132,10 +3188,18 @@ function openHomeDashCustomize(){
   ov.id='home-cust-ov';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
   const sorted=[...prefs].sort((a,b)=>a.order-b.order);
+  const _aiBriefOn=!!(D.prefs&&D.prefs.heroAIBrief);
   ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div style="font-size:14px;font-weight:700">⚙️ Customize Dashboard</div>
     <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('home-cust-ov').remove()">✕</button>
+  </div>
+  <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px;background:var(--s2)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
+      <input type="checkbox" id="hc-ai-brief" ${_aiBriefOn?'checked':''} onchange="toggleHeroAIBrief(this.checked)">
+      ✨ AI greeting line in hero
+    </label>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Replace the rotating quote with a daily AI brief tailored to your workspace. Uses your AI key from Settings.</div>
   </div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle cards on/off or drag to reorder (use ↑↓ buttons).</div>
   <div id="home-cust-list">${sorted.map((p,i)=>{
@@ -3158,6 +3222,14 @@ function openHomeDashCustomize(){
   </div></div>`;
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+function toggleHeroAIBrief(on){
+  D.prefs=D.prefs||{};
+  D.prefs.heroAIBrief=!!on;
+  // Clear cached brief so the new state is reflected immediately on next render.
+  if(on)delete D.prefs.aiHeroBrief;
+  save('prefs');
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
 }
 function homeCardToggle(id,visible){
   const prefs=getHomeCardPrefs();
@@ -3197,11 +3269,23 @@ function renderHome(){
   const m=$('home-main');const r=$('home-rail');
   const _greetName=(D.creds.userName||'Idris Grant').split(' ')[0];
   const _greetTime=new Date().getHours();
-  const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':'evening';
+  // 4 phases (#1) — used for both copy and the gradient picker.
+  const _greetWord=_greetTime<12?'morning':_greetTime<17?'afternoon':_greetTime<21?'evening':'night';
   const _homePrefs=getHomeCardPrefs();
   const _homeVisible=new Set(_homePrefs.filter(p=>p.visible).map(p=>p.id));
   const _homeOrder=[..._homePrefs].sort((a,b)=>a.order-b.order).map(p=>p.id);
-  // Compute today's stats so we can render them as colorful tiles in the banner.
+  // ── #1 + #3 — time-of-day adaptive gradient, tinted with theme accent.
+  // Phase determines the temperature; the user's accent is the middle stop
+  // so the hero always feels "their" theme regardless of time of day.
+  const _accent=(getComputedStyle(document.documentElement).getPropertyValue('--ac')||'#5b21b6').trim()||'#5b21b6';
+  const _phaseGrad={
+    morning:`linear-gradient(125deg,#fb923c 0%,${_accent} 50%,#a855f7 100%)`,
+    afternoon:`linear-gradient(125deg,#0ea5e9 0%,${_accent} 50%,#7c3aed 100%)`,
+    evening:`linear-gradient(125deg,#1e3a8a 0%,${_accent} 45%,#9d174d 100%)`,
+    night:`linear-gradient(125deg,#020617 0%,#1e1b4b 50%,${_accent} 100%)`,
+  };
+  const _heroGradient=_phaseGrad[_greetWord]||_phaseGrad.evening;
+  // Compute today's primary stats.
   const _stTasksToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).length;
   const _stOverdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
   const _stMeetings=(D.calEvents||[]).filter(e=>{const d=(e.start||'').slice(0,10);return d===_todayStr;}).length;
@@ -3209,9 +3293,14 @@ function renderHome(){
   const _stHabitsDone=(D.habits||[]).filter(h=>h.doneToday).length;
   const _stHabitsTotal=(D.habits||[]).length;
   const _todayLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
-  // Pick a daily-rotating motivational tagline so the subtitle isn't always
-  // the same boring line. Seeded by the day-of-year so it's stable for the
-  // whole day but feels fresh tomorrow.
+  // ── #6 — momentum metrics used to replace zero-stat tiles.
+  const _bestStreak=Math.max(0,...(D.habits||[]).map(h=>Number(h.streak)||0));
+  const _focusToday=Number((D.prefs&&D.prefs.focusLog||{})[_todayStr]||0);
+  const _journalToday=(D.journal||[]).filter(j=>{const d=String(j.date||'').toLowerCase();return d.startsWith(_todayStr)||d.startsWith('today');});
+  const _wordsToday=_journalToday.reduce((s,j)=>s+String(j.body||'').trim().split(/\s+/).filter(Boolean).length,0);
+  const _doneToday=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===_todayStr).length;
+  // ── #4 — daily-rotating motivational tagline (extended pool) +
+  // ── #8 — opt-in AI brief (toggled in Customize Dashboard).
   const _heroLines=[
     'Small consistent wins compound into big outcomes.',
     'Pick three things that move the needle. Ignore the rest.',
@@ -3219,42 +3308,87 @@ function renderHome(){
     'Deep work first. Shallow work fills the cracks on its own.',
     'Energy is finite — spend it on what compounds.',
     'Done > perfect. Ship the messy first draft.',
-    'You don’t have to do it all today. Just do the next right thing.',
+    "You don't have to do it all today. Just do the next right thing.",
     "Your future self is built one focused hour at a time.",
+    "Clarity comes from action, not from thinking about action.",
+    "The work you avoid is usually the work that matters most.",
+    "Protect your attention like it's your most valuable asset — because it is.",
+    "Show up before you feel ready. Motivation follows momentum.",
+    "Cut what doesn't compound. Double down on what does.",
+    "Tiny systems beat grand intentions every time.",
   ];
   const _doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
-  const _heroSub=_heroLines[_doy%_heroLines.length];
-  m.innerHTML=`<div class="home-hero" style="position:relative;padding:26px 28px 22px;margin-bottom:14px;border-radius:18px;overflow:hidden;background:linear-gradient(125deg,#1e3a8a 0%,#5b21b6 45%,#9d174d 100%);border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 48px rgba(91,33,182,.32),0 2px 8px rgba(0,0,0,.4)">
+  const _aiBriefOn=!!(D.prefs&&D.prefs.heroAIBrief);
+  const _aiBriefCache=(D.prefs&&D.prefs.aiHeroBrief)||null;
+  let _heroSub;
+  if(_aiBriefOn){
+    if(_aiBriefCache&&_aiBriefCache.date===_todayStr&&_aiBriefCache.text&&!_aiBriefCache.pending){
+      _heroSub=_aiBriefCache.text;
+    }else{
+      _heroSub=_aiBriefCache&&_aiBriefCache.text?_aiBriefCache.text:'Generating your daily brief…';
+      if(typeof _refreshHeroBrief==='function')setTimeout(_refreshHeroBrief,300);
+    }
+  }else{
+    _heroSub=_heroLines[_doy%_heroLines.length];
+  }
+  // ── #5 + #7 — build dynamic stat tiles with click-to-navigate and
+  //   hover popovers. When a primary metric is 0, we swap in a momentum
+  //   metric (#6) so we never show a wall of zeros.
+  const _overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).slice(0,5);
+  const _todayTasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).slice(0,5);
+  const _todayMeetings=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===_todayStr).slice(0,5);
+  const _myDayTasks=D.tasks.filter(t=>t.myDay&&t.status!=='Done').slice(0,5);
+  const _habitsList=(D.habits||[]).slice(0,5);
+  const _topStreaks=(D.habits||[]).filter(h=>(Number(h.streak)||0)>0).sort((a,b)=>(b.streak||0)-(a.streak||0)).slice(0,5);
+  const popList=(arr,empty)=>arr.length?arr.map(t=>`<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">• ${esc(t.title||t.name||'(untitled)')}</div>`).join(''):`<div style="font-size:10px;color:rgba(226,232,240,.55);padding:3px 0">${esc(empty||'Nothing here.')}</div>`;
+  const popText=t=>`<div style="font-size:11px;color:rgba(226,232,240,.85);padding:2px 0">${esc(t)}</div>`;
+  const _tiles=[];
+  // Tile 1 — Tasks Today, or Done Today if nothing scheduled.
+  _tiles.push(_stTasksToday>0
+    ?{icon:'📋',label:'Tasks Today',val:_stTasksToday,color:'#22c55e',navTo:'tasks',pop:`<div style="font-weight:600;margin-bottom:4px">Due today</div>${popList(_todayTasks,'Nothing due today.')}`}
+    :{icon:'✅',label:'Done Today',val:_doneToday,color:'#22c55e',navTo:'tasks',pop:popText(`${_doneToday} task${_doneToday===1?'':'s'} completed today.`)});
+  // Tile 2 — Overdue (always shown; a non-zero overdue is too important to swap out).
+  _tiles.push({icon:'⚠️',label:'Overdue',val:_stOverdue,color:_stOverdue?'#ef4444':'#64748b',navTo:'tasks',pop:_stOverdue?`<div style="font-weight:600;margin-bottom:4px">Overdue</div>${popList(_overdueTasks)}`:popText('Nothing overdue. Keep it up.')});
+  // Tile 3 — Meetings, or Focus minutes if no meetings.
+  _tiles.push(_stMeetings>0
+    ?{icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7',navTo:'cal',pop:`<div style="font-weight:600;margin-bottom:4px">Today</div>${popList(_todayMeetings)}`}
+    :{icon:'⏱',label:'Focus (min)',val:_focusToday,color:'#0284c7',navTo:'focus',pop:popText(`${_focusToday} focus minute${_focusToday===1?'':'s'} logged today.`)});
+  // Tile 4 — My Day, or Best Streak if My Day empty.
+  _tiles.push(_stMyDay>0
+    ?{icon:'☀',label:'My Day',val:_stMyDay,color:'#f59e0b',navTo:'tasks',pop:`<div style="font-weight:600;margin-bottom:4px">My Day</div>${popList(_myDayTasks)}`}
+    :{icon:'🔥',label:'Best Streak',val:_bestStreak,color:'#f59e0b',navTo:'habits',pop:_topStreaks.length?`<div style="font-weight:600;margin-bottom:4px">Top streaks</div>${_topStreaks.map(h=>`<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)">🔥${h.streak} · ${esc(h.title||'')}</div>`).join('')}`:popText('No active streaks yet — check off a habit today.')});
+  // Tile 5 — Habits ratio, or Words today if no habits configured.
+  _tiles.push(_stHabitsTotal
+    ?{icon:'✅',label:'Habits',val:`${_stHabitsDone}/${_stHabitsTotal}`,color:'#10b981',navTo:'habits',pop:_habitsList.map(h=>`<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)">${h.doneToday?'✅':'⬜'} ${esc(h.title||'')}</div>`).join('')}
+    :{icon:'📔',label:'Words',val:_wordsToday,color:'#10b981',navTo:'journal',pop:popText(`${_wordsToday} word${_wordsToday===1?'':'s'} journaled today.`)});
+  // Stash popover content for the shared hover handler.
+  window._heroTilePops=_tiles.map(t=>t.pop);
+  m.innerHTML=`<div class="home-hero" style="position:relative;padding:18px 22px 14px;margin-bottom:14px;border-radius:18px;overflow:hidden;background:${_heroGradient};background-size:200% 200%;animation:heroBgDrift 30s ease-in-out infinite alternate;border:1px solid rgba(255,255,255,.08);box-shadow:0 12px 48px rgba(91,33,182,.32),0 2px 8px rgba(0,0,0,.4)">
     <!-- Decorative blurred orbs -->
-    <div style="position:absolute;top:-60px;right:-40px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(168,85,247,.55),transparent 70%);pointer-events:none;filter:blur(8px)"></div>
-    <div style="position:absolute;bottom:-80px;left:30%;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.32),transparent 70%);pointer-events:none;filter:blur(10px)"></div>
-    <div style="position:absolute;top:20px;left:35%;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.40),transparent 70%);pointer-events:none;filter:blur(6px)"></div>
-    <!-- Faint grid pattern overlay for texture -->
+    <div style="position:absolute;top:-50px;right:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(168,85,247,.45),transparent 70%);pointer-events:none;filter:blur(8px)"></div>
+    <div style="position:absolute;bottom:-70px;left:30%;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(236,72,153,.28),transparent 70%);pointer-events:none;filter:blur(10px)"></div>
+    <div style="position:absolute;top:10px;left:35%;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(96,165,250,.34),transparent 70%);pointer-events:none;filter:blur(6px)"></div>
+    <!-- Faint grid + #2 noise overlay -->
     <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:32px 32px;pointer-events:none;opacity:.5"></div>
-    <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div class="home-hero-noise"></div>
+    <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
-        <div style="display:inline-flex;align-items:center;gap:8px;padding:4px 12px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:10px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;backdrop-filter:blur(8px)">
-          <span style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite"></span>
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:9px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;backdrop-filter:blur(8px)">
+          <span style="width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite"></span>
           ${_todayLabel}
         </div>
-        <h1 style="font-size:34px;font-weight:800;line-height:1.1;margin:0;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.35);letter-spacing:-.5px">Good ${_greetWord}, <span style="background:linear-gradient(90deg,#fbbf24,#fb7185);-webkit-background-clip:text;background-clip:text;color:transparent">${_greetName}</span>! <span style="display:inline-block;animation:wave 2.4s ease-in-out infinite;transform-origin:70% 70%">👋</span></h1>
-        <p style="font-size:14px;color:rgba(255,255,255,.88);margin-top:8px;border-left:none!important;padding-left:0!important;font-weight:400;line-height:1.5;text-shadow:0 1px 8px rgba(0,0,0,.3)">${esc(_heroSub)}</p>
+        <h1 style="font-size:24px;font-weight:800;line-height:1.15;margin:0;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.35);letter-spacing:-.4px">Good ${_greetWord}, <span style="background:linear-gradient(90deg,#fbbf24,#fb7185);-webkit-background-clip:text;background-clip:text;color:transparent">${_greetName}</span>! <span style="display:inline-block;animation:wave 2.4s ease-in-out infinite;transform-origin:70% 70%">👋</span></h1>
+        <p style="font-size:12.5px;color:rgba(255,255,255,.85);margin-top:4px;border-left:none!important;padding-left:0!important;font-weight:400;line-height:1.45;text-shadow:0 1px 8px rgba(0,0,0,.3)">${esc(_heroSub)}</p>
       </div>
-      <button class="btn btn-s" style="height:32px;font-size:11px;flex-shrink:0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(8px);font-weight:500" onclick="openHomeDashCustomize()">⚙ Customize</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;flex-shrink:0;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(8px);font-weight:500" onclick="openHomeDashCustomize()">⚙ Customize</button>
     </div>
-    <!-- Today's stat strip — colorful inline tiles inside the hero. -->
-    <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:18px">
-      ${[
-        {icon:'📋',label:'Tasks Due',val:_stTasksToday,color:'#22c55e'},
-        {icon:'⚠️',label:'Overdue',val:_stOverdue,color:_stOverdue?'#ef4444':'#64748b'},
-        {icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7'},
-        {icon:'☀',label:'My Day',val:_stMyDay,color:'#f59e0b'},
-        {icon:'✅',label:'Habits',val:_stHabitsTotal?`${_stHabitsDone}/${_stHabitsTotal}`:'0',color:'#10b981'},
-      ].map(s=>`<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);transition:transform .12s;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
-        <div style="width:36px;height:36px;border-radius:9px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
-        <div style="min-width:0">
-          <div style="font-size:22px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:3px">${s.label}</div>
+    <!-- Compressed stat strip with click-through (#5) and hover popovers (#7) -->
+    <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px">
+      ${_tiles.map((s,i)=>`<div class="home-hero-tile" data-tile-idx="${i}" onclick="nav('${s.navTo}')" onmouseenter="_heroTilePopShow(event)" onmouseleave="_heroTilePopHide()" style="display:flex;align-items:center;gap:9px;padding:8px 11px;background:rgba(10,14,28,.72);border:1px solid color-mix(in srgb,${s.color} 50%,transparent);border-radius:10px;backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)">
+        <div style="width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
+        <div style="min-width:0;flex:1">
+          <div style="font-size:18px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">${s.label}</div>
         </div>
       </div>`).join('')}
     </div>

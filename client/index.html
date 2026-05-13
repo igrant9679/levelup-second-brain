@@ -559,6 +559,17 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 #tour-tooltip{animation:tourTooltipIn .25s cubic-bezier(.2,.9,.3,1) both}
 @keyframes wave{0%,60%,100%{transform:rotate(0deg)}10%,30%{transform:rotate(14deg)}20%{transform:rotate(-8deg)}40%{transform:rotate(-4deg)}50%{transform:rotate(10deg)}}
 
+/* ─── Home hero banner ──────────────────────────────────────────────── */
+@keyframes heroBgDrift{0%{background-position:0% 50%}100%{background-position:100% 50%}}
+.home-hero-noise{position:absolute;inset:0;pointer-events:none;opacity:.08;mix-blend-mode:overlay;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/></svg>")}
+.home-hero-tile{cursor:pointer;transition:transform .12s ease,filter .12s ease,box-shadow .15s ease;position:relative}
+.home-hero-tile:hover{transform:translateY(-2px);filter:brightness(1.15);box-shadow:0 6px 18px rgba(0,0,0,.32)}
+#hero-tile-popover{position:fixed;background:#0a0e1c;border:1px solid #334155;border-radius:10px;padding:10px 12px;font-size:11px;color:#e2e8f0;box-shadow:0 12px 40px rgba(0,0,0,.55);z-index:9999;max-width:320px;min-width:180px;pointer-events:none;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s;line-height:1.5}
+#hero-tile-popover.show{opacity:1;transform:translateY(0)}
+@media (prefers-reduced-motion:reduce){
+  .home-hero,.home-hero *,#hero-tile-popover{animation:none!important;transition:none!important}
+}
+
 /* ─── Reports charts ────────────────────────────────────────────────── */
 /* Bars draw in on first paint with a height transition. */
 .lu-bar{transform-origin:bottom;animation:barRise .55s cubic-bezier(.2,.9,.3,1) both}
