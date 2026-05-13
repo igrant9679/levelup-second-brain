@@ -10808,6 +10808,15 @@ function renderIdeas(){
   }
   const ideas=filterIdeas(_ideasView);
 
+  // I8: apply semantic search filter when active
+  let filtered=ideas;
+  if(_ideasSemanticIds)filtered=ideas.filter(i=>_ideasSemanticIds.has(i.id));
+  else if(_ideasSearch){const q=_ideasSearch.toLowerCase();filtered=ideas.filter(i=>(i.title||'').toLowerCase().includes(q)||(i.description||'').toLowerCase().includes(q));}
+  // I5: Monday weekly digest banner
+  const today=new Date();
+  const isMonday=today.getDay()===1;
+  const cachedDigest=D.prefs&&D.prefs.aiIdeasWeeklyDigest;
+  const showDigestBanner=isMonday&&D.ideas.length>=3&&(!cachedDigest||cachedDigest.date!==today.toISOString().slice(0,10));
   el.innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
     <div>
@@ -10815,18 +10824,33 @@ function renderIdeas(){
       <p style="font-size:12px;color:var(--t2)">Develop, stress-test, and decide which ideas earn your time.</p>
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="ideas-search" placeholder="🔍 Search ideas…" value="${esc(_ideasSearch)}" style="height:30px;font-size:11px;width:170px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="setIdeasSearch(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();aiIdeasSemanticSearch();}">
+      <button class="btn btn-s" style="height:30px;font-size:10px;color:var(--ac)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-s" style="height:30px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <div id="ideas-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIIdeaGenerator()">✨ Generate sparks</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiClusterIdeas()">🧩 Cluster by theme</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIRoadmap()">🗺 Roadmap (Now/Next/Later)</button>
+          <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiAutoTagAllIdeas()">🏷 Auto-tag untagged</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiIdeasWeeklyDigest()">📅 Weekly digest</button>
+        </div>
+      </div>
       <button class="btn btn-p" onclick="openNewIdeaModal()">+ New Idea</button>
     </div>
   </div>
+  ${showDigestBanner?`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:10px;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">📅</span><div style="flex:1"><div style="font-size:11px;font-weight:600">It's Monday — want a digest?</div><div style="font-size:10px;color:var(--t3)">AI will summarize top ICE, stale items, and parked-due-for-review.</div></div><button class="btn btn-p" style="font-size:11px;height:28px" onclick="aiIdeasWeeklyDigest()">📅 Show digest</button></div>`:''}
+  ${_ideasSemanticIds?`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;font-size:11px"><span>✨ Semantic search · ${filtered.length} match${filtered.length===1?'':'es'}</span><button class="btn btn-s" style="margin-left:auto;font-size:10px;height:22px" onclick="setIdeasSearch('')">✕ Clear</button></div>`:''}
   <div style="display:flex;gap:0;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden;margin-bottom:16px;width:fit-content">
     ${viewTabs.map(v=>{
       const cnt=filterIdeas(v).length;
       return `<button class="btn" style="border-radius:0;height:28px;font-size:10px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
     }).join('')}
   </div>
-  ${_ideasView==='leaderboard'?renderIdeasLeaderboard():ideas.length===0?renderEmptyState({icon:'💡',title:_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:'+ Capture an idea',ctaFn:'openNewIdeaModal()'}):`
+  ${_ideasView==='leaderboard'?renderIdeasLeaderboard():filtered.length===0?renderEmptyState({icon:'💡',title:_ideasSearch?'No matches for your search':_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasSearch?'Try the ✨ Semantic button for an AI-powered intent search.':_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:_ideasSearch?'Clear search':'+ Capture an idea',ctaFn:_ideasSearch?"setIdeasSearch('')":'openNewIdeaModal()'}):`
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-    ${ideas.map(idea=>{
+    ${filtered.map(idea=>{
       const ice=ideaICE(idea);
       const days=ideaDaysInStage(idea);
       const stale=days>=14&&['develop','stress_test'].includes(idea.stage);
@@ -11014,6 +11038,8 @@ function renderIdeaDetail(idea){
       <span style="font-size:11px;color:var(--t2)">AI mode:</span>
       <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">😈 Devil's Advocate</button>
       <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">🏆 Champion</button>
+      <button class="btn btn-s" style="font-size:10px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
+      ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:10px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
       ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:10px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
     </div>
 
@@ -11247,6 +11273,210 @@ function moveIdeaToStage(id,stage){
 }
 
 // Helper: route Ideas-page AI calls through the user's chosen provider via ai.assist tRPC.
+// ─── Ideas AI suite (I1-I8) ───────────────────────────────────────────
+// I8: semantic search state — when active, only ideas in this id set render.
+if(typeof _ideasSearch==='undefined')var _ideasSearch='';
+if(typeof _ideasSemanticIds==='undefined')var _ideasSemanticIds=null;
+function setIdeasSearch(q){_ideasSearch=q||'';_ideasSemanticIds=null;renderIdeas();}
+async function aiIdeasSemanticSearch(){
+  const q=document.getElementById('ideas-search')?.value.trim();
+  if(!q)return toast('Type a search query first');
+  if(!D.ideas.length)return toast('No ideas yet');
+  toast({type:'info',title:'AI searching…',duration:1500});
+  try{
+    const lines=D.ideas.map((i,idx)=>`${idx+1}. ${i.title} — ${(i.description||'').slice(0,100)}`).join('\n');
+    const sys=`You are a semantic search engine. Given a numbered list of ideas and a user query, return the indices of ideas whose meaning, intent, or theme matches the query (not just keyword matches). Reply with strict JSON only: {"matches":[1,4,12], "reason":"…"}`;
+    const text=String(await _ideaAICall(`Query: "${q}"\nIdeas:\n${lines}\n\nReturn the indices of semantically matching ideas.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const parsed=JSON.parse(text);
+    const matches=Array.isArray(parsed.matches)?parsed.matches.map(n=>D.ideas[n-1]).filter(Boolean):[];
+    _ideasSemanticIds=new Set(matches.map(i=>i.id));
+    renderIdeas();
+    toast({type:'success',title:`✨ ${matches.length} semantic match${matches.length===1?'':'es'}`,msg:parsed.reason||'',duration:3000});
+  }catch(e){toast({type:'error',title:'Semantic search failed',msg:String(e.message||e).slice(0,200),duration:4000});}
+}
+// I1: AI Idea Generator — generate 5 sparks from a prompt
+function openAIIdeaGenerator(){
+  const m=document.getElementById('modal-content');if(!m)return;
+  const goalOpts='<option value="">— No goal —</option>'+D.goals.map(g=>`<option value="${g.id}">${esc(g.icon||'🎯')} ${esc(g.title)}</option>`).join('');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">✨ AI Idea Generator</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Describe a topic, problem, or goal. AI will propose 5 fresh idea sparks you can save with one click.</div>
+    <textarea id="aig-prompt" class="inp" style="width:100%;min-height:80px;font-size:12px;margin-bottom:8px;padding:8px" placeholder="e.g. ways to grow my newsletter audience to 5k subscribers, or, side projects that combine my skills in design and code…"></textarea>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <select id="aig-type" class="inp" style="flex:1;height:30px;font-size:11px;padding:0 6px">${Object.entries(IDEA_TYPE_LABELS).map(([k,v])=>`<option value="${k}">${IDEA_TYPE_ICONS[k]||'💡'} ${v}</option>`).join('')}</select>
+      <select id="aig-goal" class="inp" style="flex:1;height:30px;font-size:11px;padding:0 6px">${goalOpts}</select>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px"><button class="btn btn-p" id="aig-go" onclick="aiIdeaGenerate()">✨ Generate 5 sparks</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>
+    <div id="aig-results"></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('aig-prompt')?.focus(),50);
+}
+async function aiIdeaGenerate(){
+  const promptEl=document.getElementById('aig-prompt');const typeEl=document.getElementById('aig-type');const goalEl=document.getElementById('aig-goal');const btn=document.getElementById('aig-go');const results=document.getElementById('aig-results');
+  const userPrompt=(promptEl?.value||'').trim();if(!userPrompt)return toast('Tell the AI what you want to brainstorm');
+  const type=typeEl?.value||'general';const goalId=parseInt(goalEl?.value||'')||null;
+  const goal=goalId?D.goals.find(g=>g.id===goalId):null;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    const sys=`You are a creative-but-practical brainstorming partner. Given a user prompt, generate 5 distinct idea sparks. Each must be specific (not vague), framed as a single project / experiment / piece of work, and varied in approach (don't propose 5 versions of the same thing). Reply with strict JSON only: {"ideas":[{"title":"…","description":"…"}, …]}`;
+    const userContent=`Topic: ${userPrompt}${goal?`\nLinked goal: ${goal.icon||''} ${goal.title} — ${goal.target||''}`:''}\nIdea type focus: ${IDEA_TYPE_LABELS[type]||type}\nGenerate 5 sparks.`;
+    const text=String(await _ideaAICall(userContent.replace(/^Topic:/,sys+'\n\nTopic:'),true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const parsed=JSON.parse(text);
+    const ideas=Array.isArray(parsed.ideas)?parsed.ideas.slice(0,5):[];
+    if(!ideas.length)throw new Error('No ideas returned');
+    results.innerHTML=`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Click any spark to save it as a new idea:</div>${ideas.map((i,idx)=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;padding:10px" onclick="saveAIGeneratedSpark(${idx})" id="aig-card-${idx}"><div style="font-size:13px;font-weight:600;margin-bottom:3px">💡 ${esc(i.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.45">${esc(i.description||'')}</div></div>`).join('')}<button class="btn btn-s" onclick="aiIdeaGenerate()" style="font-size:11px;margin-top:6px">↻ Regenerate</button>`;
+    window._aigCache={ideas,type,goalId};
+  }catch(e){results.innerHTML=`<div style="color:var(--err);font-size:11px;padding:8px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  finally{if(btn){btn.disabled=false;btn.textContent='✨ Regenerate';}}
+}
+function saveAIGeneratedSpark(idx){
+  const cache=window._aigCache;if(!cache||!cache.ideas[idx])return;
+  const i=cache.ideas[idx];
+  const idea={id:nextId(D.ideas),title:i.title,description:i.description,bodyHtml:'',idea_type:cache.type||'general',stage:'spark',goal_id:cache.goalId||null,ice_impact:5,ice_confidence:5,ice_ease:5,ai_ice_impact:null,ai_ice_confidence:null,ai_ice_ease:null,ai_ice_rationale:null,kill_reason:null,parked_review_date:null,promoted_project_id:null,verdict_outcome:null,spark_at:new Date().toISOString(),develop_at:null,stress_test_at:null,verdict_at:null,answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),ai_generated:true};
+  D.ideas.push(idea);save('ideas');
+  const card=document.getElementById('aig-card-'+idx);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML=card.innerHTML+'<div style="font-size:10px;color:var(--ok);margin-top:4px">✓ Saved</div>';}
+  toast(`💡 "${i.title}" saved`);
+}
+// I2: AI Promote-to-Project
+async function aiIdeaPromoteToProject(id){
+  const idea=D.ideas.find(x=>x.id===id);if(!idea)return;
+  if(!confirm(`AI will draft a project (name + milestones + 5 first tasks) from "${idea.title}". Continue?`))return;
+  toast({type:'info',title:'Drafting project…',duration:2000});
+  try{
+    const answers=(idea.answers||[]).filter(a=>a.body&&a.body.trim()).map(a=>`[${a.stage}] ${a.body}`).join('\n');
+    const ideaCtx=`Idea: ${idea.title}\nDescription: ${idea.description||'(none)'}\nType: ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}\nAnswers:\n${answers||'(none)'}`;
+    const sys=`You are a project planner. Convert an idea into an actionable project. Reply with strict JSON only: {"name":"…","desc":"…","milestones":[{"title":"…","due_offset_days":N}, …max 4],"tasks":[{"title":"…","priority":"High|Medium|Low","est_minutes":N}, …exactly 5]}`;
+    const text=String(await _ideaAICall(`${sys}\n\n${ideaCtx}\n\nDraft the project.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const p=JSON.parse(text);
+    if(!p||!p.name||!Array.isArray(p.tasks))throw new Error('Bad AI response');
+    // Show preview modal so the user can confirm before creating
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📁 Promote to Project</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">AI-drafted project. Review and confirm.</div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(p.name)}</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:8px">${esc(p.desc||'')}</div>
+        ${(p.milestones||[]).length?`<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Milestones</div>${p.milestones.map(ms=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">🏁 ${esc(ms.title||'')} <span style="color:var(--t3);font-size:10px">(in ${ms.due_offset_days||30}d)</span></div>`).join('')}`:''}
+        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">First 5 tasks</div>
+        ${p.tasks.map(t=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">📋 ${esc(t.title||'')} <span style="color:var(--t3);font-size:10px">[${esc(t.priority||'Medium')}, ~${t.est_minutes||30}m]</span></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px"><button class="btn btn-p" onclick="confirmAIPromotion(${id})" style="font-size:11px">✓ Create project + tasks</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>`;
+    window._aigPromote={ideaId:id,plan:p};
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'AI promote failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+function confirmAIPromotion(id){
+  const cache=window._aigPromote;if(!cache||cache.ideaId!==id)return;
+  const idea=D.ideas.find(x=>x.id===id);if(!idea)return;
+  const p=cache.plan;
+  const project={id:Date.now(),name:p.name,desc:p.desc||'',color:'#3b82f6',status:'Active',pct:0,due:'',startDate:new Date().toISOString().slice(0,10),createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),milestones:(p.milestones||[]).map((ms,i)=>({id:i+1,title:ms.title,date:new Date(Date.now()+(ms.due_offset_days||30)*86400000).toISOString().slice(0,10),done:false}))};
+  if(!D.projects)D.projects=[];
+  D.projects.push(project);save('projects');
+  // Create 5 tasks linked to project
+  (p.tasks||[]).slice(0,5).forEach((t,i)=>{
+    D.tasks.push({id:Date.now()+i+1,title:t.title,priority:t.priority||'Medium',status:'Not Started',due:'',startDate:'',endDate:'',startTime:'',endTime:'',estimatedMins:t.est_minutes||30,context:'',project:project.name,projectId:project.id,myDay:false,energy:'medium',tags:['promoted-idea'],notes:`From idea: ${idea.title}`,recurring:'None',subtasks:[],linkedGoalId:idea.goal_id||null,assignedTo:D.creds.userName||'Idris Grant',createdBy:D.creds.userName||'Idris Grant'});
+  });
+  save('tasks');
+  // Mark idea as promoted
+  idea.stage='verdict';idea.verdict_outcome='promoted';idea.verdict_at=new Date().toISOString();idea.promoted_project_id=project.id;
+  save('ideas');
+  closeModal();
+  toast({type:'success',title:`📁 Project + ${(p.tasks||[]).length} tasks created`,msg:`"${project.name}" is in your projects list.`,duration:3500});
+  if(typeof renderIdeas==='function')renderIdeas();
+}
+// I3: AI Decision Brief — combines devil + champion arguments
+async function aiIdeaDecisionBrief(id){
+  const idea=D.ideas.find(x=>x.id===id);if(!idea)return;
+  toast({type:'info',title:'Building decision brief…',duration:2000});
+  try{
+    const answers=(idea.answers||[]).filter(a=>a.body&&a.body.trim()).map(a=>`[${a.stage}/${a.question_key}]: ${a.body}`).join('\n');
+    const ice=ideaICE(idea);
+    const sys=`You are an experienced strategic advisor preparing a one-page decision brief. Output MUST be markdown with these exact sections, in order: ## Recommendation (one line: PROMOTE / PARK / KILL with confidence %), ## Why this idea wins (3 bullets), ## Why it might fail (3 bullets), ## What we don't know yet (2 bullets), ## Decision criteria met / not met, ## Suggested next step (1-2 sentences). Be honest and specific.`;
+    const ctx=`Idea: ${idea.title}\nType: ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}\nDescription: ${idea.description||'(none)'}\nStage: ${idea.stage}\nICE composite: ${ice}\nAnswers so far:\n${answers||'(none)'}\nUser ICE (impact/conf/ease): ${idea.ice_impact}/${idea.ice_confidence}/${idea.ice_ease}\nAI ICE: ${idea.ai_ice_impact||'—'}/${idea.ai_ice_confidence||'—'}/${idea.ai_ice_ease||'—'}`;
+    const text=String(await _ideaAICall(`${sys}\n\n${ctx}\n\nWrite the decision brief.`)||'').trim();
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📋 Decision Brief: ${esc(idea.title)}</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+    idea.decisionBrief=text;idea.decisionBriefAt=new Date().toISOString();save('ideas');
+  }catch(e){toast({type:'error',title:'Brief failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// I4: AI Roadmap Generator
+function openAIRoadmap(){
+  const active=D.ideas.filter(x=>['spark','develop','stress_test'].includes(x.stage));
+  if(!active.length)return toast('No active ideas to roadmap');
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🗺 AI Roadmap Generator</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick the ideas to bundle into Now / Next / Later phases. AI will propose phasing and rationale.</div>
+    <div style="max-height:280px;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;padding:6px;margin-bottom:10px">${active.map(i=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 4px;cursor:pointer;font-size:11px"><input type="checkbox" value="${i.id}" checked style="width:14px;height:14px"><span style="flex:1">${IDEA_TYPE_ICONS[i.idea_type]||'💡'} ${esc(i.title)}</span><span style="font-size:10px;color:var(--t3)">ICE ${ideaICE(i)}</span></label>`).join('')}</div>
+    <div style="display:flex;gap:6px"><button class="btn btn-p" onclick="aiGenerateRoadmap()">🗺 Generate roadmap</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>
+    <div id="airm-results" style="margin-top:10px"></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+async function aiGenerateRoadmap(){
+  const checks=document.querySelectorAll('#modal-content input[type="checkbox"]:checked');
+  const ids=[...checks].map(c=>parseInt(c.value));
+  if(!ids.length)return toast('Pick at least one idea');
+  const ideas=D.ideas.filter(i=>ids.includes(i.id));
+  toast({type:'info',title:'Building roadmap…',duration:2000});
+  try{
+    const lines=ideas.map(i=>`- ${i.title} (ICE ${ideaICE(i)}, ${IDEA_TYPE_LABELS[i.idea_type]||i.idea_type}): ${(i.description||'').slice(0,140)}`).join('\n');
+    const sys=`You are a strategic planner. Bundle the user's ideas into a phased roadmap (Now = 0-30 days, Next = 30-90 days, Later = 90+ days). Reply with strict JSON: {"now":[{"title":"…","why":"…"}, …],"next":[…],"later":[…],"strategy":"1-2 sentence overall theme"}`;
+    const text=String(await _ideaAICall(`${sys}\n\nIdeas:\n${lines}\n\nBuild the roadmap.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const r=JSON.parse(text);
+    const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:10px;color:var(--t3)">(empty)</div>'}</div>`;
+    document.getElementById('airm-results').innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:8px;padding:8px;background:var(--acs);border-radius:6px">🧭 ${esc(r.strategy||'')}</div>${phase('🟢 Now (0-30d)',r.now,'var(--ok)')}${phase('🟡 Next (30-90d)',r.next,'var(--warn)')}${phase('🔵 Later (90d+)',r.later,'var(--ac)')}`;
+  }catch(e){document.getElementById('airm-results').innerHTML=`<div style="color:var(--err);font-size:11px">${esc(String(e.message||e).slice(0,200))}</div>`;}
+}
+// I5: Weekly digest (Mondays) — cached in D.prefs.aiIdeasWeeklyDigest
+async function aiIdeasWeeklyDigest(force){
+  const today=new Date().toISOString().slice(0,10);
+  const cache=D.prefs&&D.prefs.aiIdeasWeeklyDigest;
+  if(!force&&cache&&cache.date===today&&cache.text){renderIdeasWeeklyDigest(cache.text);return;}
+  toast({type:'info',title:'Generating weekly digest…',duration:1800});
+  try{
+    const top=D.ideas.filter(x=>x.stage!=='verdict').sort((a,b)=>ideaICE(b)-ideaICE(a)).slice(0,5);
+    const stale=D.ideas.filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);
+    const parkedDue=D.ideas.filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=today);
+    const ctx=`Top by ICE:\n${top.map(i=>`- ${i.title} (ICE ${ideaICE(i)}, ${i.stage})`).join('\n')||'(none)'}\nStale (14d+):\n${stale.map(i=>`- ${i.title} (${ideaDaysInStage(i)}d in ${i.stage})`).join('\n')||'(none)'}\nParked review due:\n${parkedDue.map(i=>`- ${i.title}`).join('\n')||'(none)'}`;
+    const sys=`You are a productivity coach reviewing someone's idea pipeline. Write a short Monday digest (2 paragraphs max + a bulleted "Suggested actions this week" list with 3 specific items referencing the actual idea names). Encouraging but direct.`;
+    const text=String(await _ideaAICall(`${sys}\n\n${ctx}\n\nWrite the digest.`)||'').trim();
+    D.prefs.aiIdeasWeeklyDigest={date:today,text};save('prefs');
+    renderIdeasWeeklyDigest(text);
+  }catch(e){toast({type:'error',title:'Digest failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+function renderIdeasWeeklyDigest(text){
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Idea Digest</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:420px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="aiIdeasWeeklyDigest(true)">↻ Regenerate</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+// I6: Cluster active ideas by theme
+async function aiClusterIdeas(){
+  const active=D.ideas.filter(x=>['spark','develop','stress_test'].includes(x.stage));
+  if(active.length<3)return toast('Need at least 3 active ideas to cluster');
+  toast({type:'info',title:'Clustering…',duration:2000});
+  try{
+    const lines=active.map((i,idx)=>`${idx+1}. ${i.title} — ${(i.description||'').slice(0,100)}`).join('\n');
+    const sys=`You are a synthesis assistant. Group a numbered list of ideas into 3-5 thematic clusters. For each cluster: name (2-4 words), one-line summary, and the indices of ideas in it. Reply with strict JSON: {"clusters":[{"name":"…","summary":"…","ids":[1,4,7]}, …]}`;
+    const text=String(await _ideaAICall(`${sys}\n\nIdeas:\n${lines}\n\nCluster them.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const c=JSON.parse(text);
+    if(!Array.isArray(c.clusters))throw new Error('Bad response');
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🧩 Idea Clusters</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${c.clusters.length} themes across ${active.length} active ideas</div><div style="max-height:480px;overflow-y:auto">${c.clusters.map(cl=>`<div class="cd" style="margin-bottom:8px;padding:10px"><div style="font-size:13px;font-weight:600;margin-bottom:3px">${esc(cl.name||'')}</div><div style="font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.45">${esc(cl.summary||'')}</div>${(cl.ids||[]).map(idx=>{const idea=active[idx-1];if(!idea)return '';return `<div class="lr" style="font-size:11px;cursor:pointer;padding:3px 0" onclick="closeModal();openIdeaDetail(${idea.id})"><span style="flex-shrink:0">${IDEA_TYPE_ICONS[idea.idea_type]||'💡'}</span><span class="rt">${esc(idea.title)}</span></div>`;}).join('')}</div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="aiClusterIdeas()">↻ Re-cluster</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'Cluster failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// I7: AI auto-tag all untagged active ideas
+async function aiAutoTagAllIdeas(){
+  const active=D.ideas.filter(x=>['spark','develop'].includes(x.stage)&&(!x.tags||!x.tags.length));
+  if(!active.length)return toast('No untagged active ideas');
+  toast({type:'info',title:`Tagging ${active.length} ideas…`,duration:2000});
+  let tagged=0;
+  for(const idea of active){
+    try{
+      const text=String(await _ideaAICall(`Suggest 2-4 single-word lowercase tags (no #) that describe this idea: "${idea.title}". Description: "${idea.description||''}". Reply with strict JSON only: {"tags":["tag1","tag2"]}`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+      const p=JSON.parse(text);
+      if(Array.isArray(p.tags)&&p.tags.length){idea.tags=[...new Set(p.tags.slice(0,4).map(t=>String(t).toLowerCase().trim()).filter(Boolean))];tagged++;}
+    }catch(_){}
+  }
+  if(tagged){save('ideas');renderIdeas();toast({type:'success',title:`🏷 Tagged ${tagged} idea${tagged===1?'':'s'}`,duration:2500});}
+  else toast({type:'error',title:'No tags applied',duration:2500});
+}
 async function _ideaAICall(prompt,jsonMode){
   const {provider,apiKey}=_getAIConfig();
   const systemPrompt=jsonMode?'You are a helpful assistant. Respond with valid JSON only.':'You are a helpful assistant.';
