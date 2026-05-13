@@ -1101,6 +1101,18 @@ body.notes-focus-mode #notes-focus-exit{display:flex!important}
 /* M12: search highlight */
 .mm-node.mm-search-match{box-shadow:0 0 0 3px #fbbf24,0 0 24px rgba(251,191,36,.6)}
 
+/* Notes folders nav */
+.nn-folder{font-size:11px;cursor:pointer;border-radius:4px;transition:background .12s,color .12s}
+.nn-folder:hover{background:var(--s3)}
+.nn-folder.on{background:var(--acs);color:var(--ac);font-weight:600}
+.nn-folder.drag-target{background:color-mix(in srgb,var(--ac) 22%,transparent);outline:1px dashed var(--ac);outline-offset:-1px}
+.nn-folder-act{opacity:0;cursor:pointer;color:var(--t3);font-size:11px;padding:0 3px;line-height:1;flex-shrink:0;transition:opacity .12s,color .12s}
+.nn-folder:hover .nn-folder-act{opacity:.7}
+.nn-folder-act:hover{opacity:1!important;color:var(--ac)}
+.nn-folder-del:hover{color:var(--err)!important}
+.nn-no-folder{opacity:.7}
+.nn-no-folder:hover{opacity:1}
+
 /* ─── Notes page polish (data-screen="notes") ─────────────────────────
    The Notes layout is a 5-column grid (sidebar / nav / list / editor /
    rail) so the global .ph-r gradient strip never appears. These rules

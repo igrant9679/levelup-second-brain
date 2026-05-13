@@ -1949,7 +1949,15 @@ function renderDrawer(type,item){
       </div>
     </div>
     <div class="field"><label>Tags (comma separated)</label><input class="inp" value="${(item.tags||[]).join(', ')}" id="dr-tags"></div>
-    <div class="field"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
+    <div class="field-row">
+      <div class="field" style="flex:1"><label>Source</label><input class="inp" value="${esc(item.source)}" id="dr-source"></div>
+      <div class="field" style="flex:1"><label>📁 Folder</label>
+        <select class="inp" id="dr-folder">
+          <option value="">— No folder —</option>
+          ${_noteFolderFlatList().map(({f,depth})=>`<option value="${f.id}" ${item.folderId===f.id?'selected':''}>${'  '.repeat(depth)}${esc(f.icon||'📁')} ${esc(f.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
     <!-- Linked Items (#2 fix — full edit now exposes everything new-create has) -->
     <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Ctrl/Cmd-click to multi-select · saves with Save Changes</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
@@ -2375,6 +2383,9 @@ function saveItem(type,id){
     n.linkedGoalIds=_selVals(document.getElementById('dr-link-goals'));
     n.linkedTaskIds=_selVals(document.getElementById('dr-link-tasks'));
     n.linkedNoteIds=_selVals(document.getElementById('dr-link-notes'));
+    // Folder assignment
+    const folderSel=document.getElementById('dr-folder');
+    if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
     n.updated='Just now';save('notes')}}
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
@@ -5239,6 +5250,71 @@ let _notesSort=_notesRestored.sort||'newest';
 let _notesFilterPanelOpen=false;
 let _notesFilterCategory=_notesRestored.category||'Recent'; // Active left-nav category
 let _notesFilterSmart=_notesRestored.smart||null; // Active smart folder filter key
+let _notesFilterFolder=typeof _notesRestored.folder==='number'?_notesRestored.folder:null; // Active user-folder filter (id)
+// ─── User folders (D.prefs.noteFolders) ───────────────────────────────
+function _noteFolders(){return (D.prefs&&D.prefs.noteFolders)||[];}
+function _noteFolderById(id){return _noteFolders().find(f=>f.id===id);}
+function _noteFoldersChildrenOf(parentId){return _noteFolders().filter(f=>(f.parentId||null)===(parentId||null));}
+function _noteFolderPath(id){const out=[];let cur=_noteFolderById(id);let safe=10;while(cur&&safe-->0){out.unshift(cur);cur=cur.parentId?_noteFolderById(cur.parentId):null;}return out;}
+function _noteFolderFlatList(){
+  // Flattened list with depth so the folder picker can show indentation.
+  const out=[];const walk=(parentId,depth)=>{
+    _noteFoldersChildrenOf(parentId).forEach(f=>{out.push({f,depth});walk(f.id,depth+1);});
+  };walk(null,0);return out;
+}
+function addNoteFolder(parentId){
+  const parent=parentId?_noteFolderById(parentId):null;
+  const name=prompt(parent?`New subfolder under "${parent.name}":`:'New folder name:');
+  if(!name||!name.trim())return;
+  D.prefs=D.prefs||{};D.prefs.noteFolders=D.prefs.noteFolders||[];
+  const id=Math.max(0,...D.prefs.noteFolders.map(f=>f.id||0))+1;
+  D.prefs.noteFolders.push({id,name:name.trim(),icon:'📁',color:'#3b82f6',parentId:parentId||null});
+  save('prefs');renderNotes();
+}
+function renameNoteFolder(id){
+  const f=_noteFolderById(id);if(!f)return;
+  const name=prompt('Rename folder:',f.name);if(!name||!name.trim())return;
+  f.name=name.trim();save('prefs');renderNotes();
+}
+function deleteNoteFolder(id){
+  const f=_noteFolderById(id);if(!f)return;
+  const childCount=_noteFoldersChildrenOf(id).length;
+  const noteCount=D.notes.filter(n=>n.folderId===id).length;
+  const msg=(childCount||noteCount)?`Delete "${f.name}"? ${noteCount} note${noteCount===1?'':'s'} will move to (no folder)${childCount?', '+childCount+' subfolder'+(childCount===1?'':'s')+' will move up to its parent':''}.`:`Delete folder "${f.name}"?`;
+  if(!confirm(msg))return;
+  _noteFoldersChildrenOf(id).forEach(c=>c.parentId=f.parentId||null);
+  D.notes.filter(n=>n.folderId===id).forEach(n=>delete n.folderId);
+  D.prefs.noteFolders=D.prefs.noteFolders.filter(x=>x.id!==id);
+  if(_notesFilterFolder===id){_notesFilterFolder=null;_persistPageState('notes',{folder:null});}
+  save('prefs');save('notes');renderNotes();
+}
+function setNotesFolderFilter(id){
+  _notesFilterFolder=id;
+  _notesFilterCategory='Recent';_notesFilterSmart=null;
+  _persistPageState('notes',{folder:id,category:'Recent',smart:null});
+  renderNotes();
+}
+function clearNotesFolderFilter(){setNotesFolderFilter(null);}
+function assignNoteToFolder(noteId,folderId){
+  const n=D.notes.find(x=>x.id===noteId);if(!n)return;
+  if(folderId)n.folderId=folderId;else delete n.folderId;
+  save('notes');
+  if(typeof renderNotes==='function')renderNotes();
+  const f=folderId?_noteFolderById(folderId):null;
+  toast(f?`📁 Moved to "${f.name}"`:'📁 Removed from folder');
+}
+// Drag-to-folder
+let _noteDragId=null;
+function _noteCardDragStart(e,id){_noteDragId=id;try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
+function _noteCardDragEnd(){_noteDragId=null;document.querySelectorAll('.nn-folder.drag-target').forEach(el=>el.classList.remove('drag-target'));}
+function _folderDragOver(e){if(!_noteDragId)return;e.preventDefault();try{e.dataTransfer.dropEffect='move';}catch(_){}e.currentTarget.classList.add('drag-target');}
+function _folderDragLeave(e){e.currentTarget.classList.remove('drag-target');}
+function _folderDrop(e,folderId){
+  e.preventDefault();e.currentTarget.classList.remove('drag-target');
+  if(!_noteDragId)return;
+  assignNoteToFolder(_noteDragId,folderId);
+  _noteDragId=null;
+}
 function buildNoteBacklinks(id){
   // Find notes whose body contains [[Title]] linking to this note
   const target=D.notes.find(n=>n.id===id);
@@ -5464,6 +5540,13 @@ function _parseNoteDate(n){
 function applyNotesFilters(){
   const me=D.creds.userName||'Idris Grant';
   let notes=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
+  // User folder filter (left nav). Also includes notes in any descendant folder.
+  if(_notesFilterFolder!==null&&_notesFilterFolder!==undefined){
+    const ids=new Set([_notesFilterFolder]);
+    const collect=p=>{_noteFoldersChildrenOf(p).forEach(c=>{ids.add(c.id);collect(c.id);});};
+    collect(_notesFilterFolder);
+    notes=notes.filter(n=>ids.has(n.folderId));
+  }
   // Category filter (left nav)
   if(_notesFilterSmart){
     const now=new Date();
@@ -5574,7 +5657,7 @@ function applyNotesFilters(){
     const clickAttr=_notesBulkMode
       ?`onclick="toggleNotesBulkSelect(${n.id},event)"`
       :(isGrid?`onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"`:`onclick="showNoteInEditor(${n.id})"`);
-    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" ${clickAttr}>
+    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" draggable="${_notesBulkMode?'false':'true'}" ondragstart="_noteCardDragStart(event,${n.id})" ondragend="_noteCardDragEnd()" ${clickAttr}>
       <div class="nc-row">
         ${bulkCb}
         ${colorDot}
@@ -6190,6 +6273,32 @@ function renderNotes(){
       {icon:'🧹',label:'Stale (>90d)',count:staleNotes,filter:'smart_stale'},
     ];
     return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${sf.count}</span></div>`).join('');
+  })()}
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
+    <span>📁 Folders</span>
+    <span style="cursor:pointer;color:var(--ac);font-size:13px;font-weight:700;padding:0 3px;line-height:1" onclick="addNoteFolder(null)" title="New top-level folder">+</span>
+  </div>
+  ${(()=>{
+    const renderTree=(parentId,depth)=>{
+      return _noteFoldersChildrenOf(parentId).map(f=>{
+        const count=D.notes.filter(n=>n.folderId===f.id).length;
+        const subs=_noteFoldersChildrenOf(f.id);
+        const hasChildren=subs.length>0;
+        const isActive=_notesFilterFolder===f.id;
+        const indent=depth*10;
+        return `<div class="nn nn-folder ${isActive?'on':''}" style="padding-left:${4+indent}px;display:flex;align-items:center;gap:4px;position:relative" data-folder-id="${f.id}" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,${f.id})" onclick="setNotesFolderFilter(${f.id})">
+          <span style="color:${f.color||'var(--ac)'};font-size:12px;width:14px;text-align:center">${esc(f.icon||'📁')}</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
+          <span style="font-size:9px;color:var(--t3);flex-shrink:0">${count}</span>
+          <span class="nn-folder-act" onclick="event.stopPropagation();addNoteFolder(${f.id})" title="Add subfolder">+</span>
+          <span class="nn-folder-act" onclick="event.stopPropagation();renameNoteFolder(${f.id})" title="Rename">✏</span>
+          <span class="nn-folder-act nn-folder-del" onclick="event.stopPropagation();deleteNoteFolder(${f.id})" title="Delete">×</span>
+        </div>${hasChildren?renderTree(f.id,depth+1):''}`;
+      }).join('');
+    };
+    const tree=renderTree(null,0);
+    const allDrop=`<div class="nn nn-folder ${_notesFilterFolder===null?'':'nn-no-folder'}" style="padding-left:4px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t3)" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,null)" onclick="clearNotesFolderFilter()" title="Drop here to remove from folder">↩ No folder · ${D.notes.filter(n=>!n.folderId).length}</div>`;
+    return tree?(tree+allDrop):`<div style="font-size:10px;color:var(--t3);padding:4px 8px;line-height:1.5">No folders. Click + above to add one.<br>Drag any note onto a folder to assign.</div>${allDrop}`;
   })()}
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tag Cloud</div>
   <div style="padding:0 4px" id="notes-tag-cloud">${(()=>{
