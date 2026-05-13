@@ -12455,6 +12455,186 @@ function deleteHabit(hid){
   toast('Habit deleted');
 }
 
+// ─── Coach AI suite (C1-C7) ───────────────────────────────────────────
+async function _coachAICall(systemPrompt,userContent){
+  const {provider,apiKey}=_getAIConfig();
+  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+  return String(res?.result||res?.text||'').trim();
+}
+function _coachWorkspaceContext(){
+  const today=new Date().toISOString().slice(0,10);
+  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const tasksDueToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay));
+  const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
+  const calToday=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today);
+  const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+  const habitsDone=habits.filter(h=>h.doneToday).length;
+  const goalsActive=(D.goals||[]).filter(g=>(g.pct||0)<100).slice(0,5);
+  const recentJournal=(D.journal||[]).slice(-3).map(j=>`- ${j.date||''} (${j.mood||''}): ${(j.body||'').slice(0,160)}`).join('\n');
+  const focusToday=(D.prefs&&D.prefs.focusLog||{})[today]||0;
+  return `Today: ${today}\nTomorrow: ${tomorrow}\n\nTasks due today (${tasksDueToday.length}):\n${tasksDueToday.slice(0,8).map(t=>`- [${t.priority||'M'}] ${t.title}${t.due?` (due ${t.due})`:''}`).join('\n')||'(none)'}\n\nOverdue (${overdue.length}):\n${overdue.slice(0,5).map(t=>`- ${t.title} (${t.due})`).join('\n')||'(none)'}\n\nCalendar today (${calToday.length} events):\n${calToday.slice(0,5).map(e=>`- ${e.title||'(untitled)'} @ ${(e.start||'').slice(11,16)||'?'}`).join('\n')||'(none)'}\n\nDaily habits: ${habitsDone}/${habits.length} done · ${habits.map(h=>`${h.icon||''}${h.title} (streak ${h.streak||0})`).join(', ')}\n\nActive goals (${goalsActive.length}):\n${goalsActive.map(g=>`- ${g.icon||''} ${g.title} — ${g.pct||0}%`).join('\n')||'(none)'}\n\nFocus today: ${focusToday}m\n\nRecent journal:\n${recentJournal||'(no recent entries)'}`;
+}
+// C1: Daily AI Brief — cached per day
+async function aiCoachDailyBrief(force){
+  const today=new Date().toISOString().slice(0,10);
+  const cache=D.prefs&&D.prefs.coachDailyBrief;
+  const sec=document.getElementById('coach-daily-brief');
+  if(!force&&cache&&cache.date===today&&cache.text){if(sec)sec.innerHTML=_coachBriefHtml(cache.text);return;}
+  if(sec)sec.innerHTML=`<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today's brief…</div>`;
+  try{
+    const sys=`You are a calm, sharp productivity coach. Read the user's workspace snapshot and write a personalized morning brief (3 short paragraphs, ~150 words total). Paragraph 1: what today actually looks like (be specific, name 1-2 tasks/events by name). Paragraph 2: the single most important thing to ship today and why. Paragraph 3: one gentle nudge based on patterns (habits, journal sentiment, goals). End with 2 specific suggested actions as bullets. No emoji.`;
+    const text=await _coachAICall(sys,_coachWorkspaceContext());
+    D.prefs=D.prefs||{};D.prefs.coachDailyBrief={date:today,text};save('prefs');
+    if(sec)sec.innerHTML=_coachBriefHtml(text);
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Brief generation failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+}
+function _coachBriefHtml(text){return `<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-s" style="font-size:10px" onclick="aiCoachDailyBrief(true)">↻ Regenerate</button><span style="font-size:9px;color:var(--t3);align-self:center">Cached for today · regenerate after a major change</span></div>`;}
+// C2: Coach chat panel — persistent thread per day
+function _coachThreadKey(){return new Date().toISOString().slice(0,10);}
+function aiCoachChatRender(){
+  const sec=document.getElementById('coach-chat');if(!sec)return;
+  const key=_coachThreadKey();
+  const thread=(D.prefs&&D.prefs.coachThread&&D.prefs.coachThread.date===key)?(D.prefs.coachThread.messages||[]):[];
+  sec.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:10px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:600">💬 Talk to your coach <span style="font-size:9px;color:var(--t3);font-weight:400;margin-left:auto">${thread.length} message${thread.length===1?'':'s'} today</span></div>
+    <div id="coach-chat-thread" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px">${thread.map(m=>`<div style="display:flex;gap:6px;align-items:flex-start"><span style="font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</span><div style="flex:1;font-size:11px;line-height:1.5;background:${m.role==='user'?'var(--acs)':'var(--s3)'};padding:6px 10px;border-radius:8px;white-space:pre-wrap">${esc(m.text||'')}</div></div>`).join('')||'<div style="font-size:10px;color:var(--t3);padding:8px;text-align:center">Ask anything: try &quot;how should I structure today?&quot;, &quot;I am stuck on X&quot;, or &quot;help me decide between A and B&quot;</div>'}</div>
+    <div style="display:flex;gap:6px"><input id="coach-chat-input" class="inp" style="flex:1;height:30px;font-size:11px" placeholder="Ask your coach…" onkeydown="if(event.key==='Enter'){event.preventDefault();aiCoachChatSend();}"><button class="btn btn-p" style="height:30px;font-size:11px;padding:0 12px" onclick="aiCoachChatSend()">Send</button>${thread.length?`<button class="btn btn-s" style="height:30px;font-size:11px" onclick="aiCoachChatClear()" title="Clear today's thread">🗑</button>`:''}</div>
+  </div>`;
+}
+async function aiCoachChatSend(){
+  const inp=document.getElementById('coach-chat-input');if(!inp)return;
+  const text=(inp.value||'').trim();if(!text)return;
+  const key=_coachThreadKey();
+  D.prefs=D.prefs||{};
+  if(!D.prefs.coachThread||D.prefs.coachThread.date!==key)D.prefs.coachThread={date:key,messages:[]};
+  D.prefs.coachThread.messages.push({role:'user',text,ts:Date.now()});
+  inp.value='';save('prefs');aiCoachChatRender();
+  try{
+    const ctx=_coachWorkspaceContext();
+    const history=D.prefs.coachThread.messages.slice(-10).map(m=>`${m.role==='user'?'User':'Coach'}: ${m.text}`).join('\n');
+    const sys=`You are a calm, sharp productivity coach. The user is talking to you in their second-brain app. You have FULL context of their tasks/calendar/habits/goals/journal (provided). Reply concisely (2-4 short paragraphs max), specifically (reference real items by name when relevant), and helpfully. No filler, no excessive empathy phrases, no emoji unless the user used them.`;
+    const userContent=`Workspace context:\n${ctx}\n\nConversation so far:\n${history}\n\nReply to the latest user message.`;
+    const reply=await _coachAICall(sys,userContent);
+    D.prefs.coachThread.messages.push({role:'coach',text:reply,ts:Date.now()});
+    save('prefs');aiCoachChatRender();
+    setTimeout(()=>{const t=document.getElementById('coach-chat-thread');if(t)t.scrollTop=t.scrollHeight;},50);
+  }catch(e){
+    D.prefs.coachThread.messages.push({role:'coach',text:'Sorry — I couldn\'t reach the AI. Check your AI key in Settings.',ts:Date.now()});
+    save('prefs');aiCoachChatRender();
+  }
+}
+function aiCoachChatClear(){if(!confirm('Clear today\'s coach thread?'))return;if(D.prefs)D.prefs.coachThread=null;save('prefs');aiCoachChatRender();}
+// C3: Weekly Review (Friday/Sunday surfacing)
+async function aiCoachWeeklyReview(){
+  toast({type:'info',title:'Building weekly review…',duration:2000});
+  try{
+    const today=new Date();
+    const dow=today.getDay();
+    const monday=new Date(today);monday.setDate(today.getDate()-(dow===0?6:dow-1));monday.setHours(0,0,0,0);
+    const ws=monday.toISOString().slice(0,10);const we=today.toISOString().slice(0,10);
+    const doneWeek=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=ws);
+    const slipped=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<we&&t.due>=ws);
+    const focusLog=D.prefs&&D.prefs.focusLog||{};
+    const focusWeek=Object.entries(focusLog).filter(([d])=>d>=ws).reduce((s,[,v])=>s+v,0);
+    const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+    const habitsRate=habits.length?Math.round(habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>d>=ws).length,0)/(habits.length*7)*100):0;
+    const journalEntries=(D.journal||[]).filter(j=>{const d=j.date||'';return d>=ws||(d.toLowerCase().includes('today'));}).slice(-7);
+    const sys=`You are an experienced productivity coach running a Friday weekly review. Format strictly:\n\n## What shipped this week\n[1-2 sentences naming specific completed work]\n\n## What slipped\n[bullets, each 1 line, naming specific items]\n\n## Patterns I noticed\n[2-3 specific patterns: energy, focus times, habit consistency, journal sentiment]\n\n## For next week\n[3 concrete actions, each 1 line]`;
+    const ctx=`Week ${ws} → ${we}\nDone (${doneWeek.length}):\n${doneWeek.slice(0,12).map(t=>'- '+t.title).join('\n')||'(none)'}\nSlipped past due (${slipped.length}):\n${slipped.slice(0,8).map(t=>`- ${t.title} (was due ${t.due})`).join('\n')||'(none)'}\nFocus minutes: ${focusWeek}m total\nDaily habit completion rate: ${habitsRate}%\nRecent journal moods: ${journalEntries.map(j=>j.mood||'').join(' ')||'(none logged)'}`;
+    const text=await _coachAICall(sys,ctx);
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Review</h2><div style="font-size:10px;color:var(--t3);margin-bottom:10px">Week of ${ws} → ${we}</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'Weekly review failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// C4: Accountability check — looks at yesterday's promised items + today's open tasks
+async function aiCoachAccountability(){
+  toast({type:'info',title:'Running accountability check…',duration:2000});
+  try{
+    const today=new Date().toISOString().slice(0,10);
+    const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const yTasks=D.tasks.filter(t=>(t.due===yesterday||t.startDate===yesterday)&&t.status!=='Done');
+    const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
+    const myDay=D.tasks.filter(t=>t.myDay&&t.status!=='Done');
+    const sys=`You are a kind but firm accountability partner. Look at what the user committed to recently and what's still open. For each top item (max 5): ask one direct question (Done? Deferred? Need help?). Tone: warm, specific, no shame. End with: "Hit reply with what's true."`;
+    const ctx=`Yesterday's open tasks:\n${yTasks.map(t=>'- '+t.title).join('\n')||'(none)'}\nOverdue (${overdue.length}):\n${overdue.slice(0,5).map(t=>`- ${t.title} (was due ${t.due})`).join('\n')||'(none)'}\nMy Day still open:\n${myDay.slice(0,5).map(t=>'- '+t.title).join('\n')||'(none)'}`;
+    const text=await _coachAICall(sys,ctx);
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🤝 Accountability Check</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:420px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="closeModal();nav('tasks')">📋 Open tasks</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'Accountability check failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// C5: Focus pattern recognition
+function aiCoachFocusPattern(){
+  const hourly=(D.prefs&&D.prefs.focusByHour)||{};
+  const fl=(D.prefs&&D.prefs.focusLog)||{};
+  const totalMin=Object.values(fl).reduce((s,v)=>s+(Number(v)||0),0);
+  const completionsByHour={};
+  D.tasks.filter(t=>t.completedAt).forEach(t=>{const h=new Date(t.completedAt).getHours();completionsByHour[h]=(completionsByHour[h]||0)+1;});
+  const peaks=Object.entries(hourly).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const compPeaks=Object.entries(completionsByHour).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const fmt=h=>{const n=Number(h);const ap=n>=12?'pm':'am';const h12=((n%12)||12);return h12+ap;};
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">⏱ Focus Pattern</h2><div style="font-size:11px;color:var(--t2);line-height:1.65">
+    <p style="margin:0 0 10px"><strong>${totalMin}m</strong> of focus time logged total.</p>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top focus hours</div>
+      ${peaks.length?peaks.map(([h,m])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ac)">${fmt(h)}</strong></span><span>${m}m logged</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Use the Focus timer for a few sessions to build this picture.</div>'}
+    </div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top completion hours</div>
+      ${compPeaks.length?compPeaks.map(([h,c])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ok)">${fmt(h)}</strong></span><span>${c} task${c===1?'':'s'} done</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Complete tasks to build this picture.</div>'}
+    </div>
+    <p style="margin:10px 0 0;color:var(--t3);font-size:10px">💡 Schedule deep work in your top focus hours and admin / meetings in the lulls.</p>
+  </div>
+  <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+// C6: Goal-task alignment audit
+async function aiCoachGoalTaskAudit(){
+  const orphans=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday'&&!t.linkedGoalId&&!(t.tags||[]).some(tg=>tg.startsWith('goal:')));
+  if(!orphans.length){toast('Every active task is linked to a goal 🎯');return;}
+  if(!D.goals.length){toast('No goals to align to. Create one first.');return;}
+  toast({type:'info',title:'Auditing alignment…',duration:2000});
+  try{
+    const goalLines=D.goals.map((g,i)=>`${i+1}. ${g.icon||'🎯'} ${g.title} — ${g.target||''}`).join('\n');
+    const taskLines=orphans.slice(0,20).map((t,i)=>`${i+1}. ${t.title}`).join('\n');
+    const sys=`You are an alignment coach. The user has unlinked tasks and goals. For each task, suggest a single goal index (or 0 if none fit). Reply with strict JSON only: {"pairings":[{"task":1,"goal":2,"why":"…"}, …]}`;
+    const text=String(await _coachAICall(sys,`Goals:\n${goalLines}\n\nUnlinked tasks:\n${taskLines}`)).trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+    const p=JSON.parse(text);
+    const pairs=Array.isArray(p.pairings)?p.pairings:[];
+    const m=document.getElementById('modal-content');
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Goal-Task Alignment</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${orphans.length} task${orphans.length===1?'':'s'} not linked to any goal. AI suggested pairings:</div>
+      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:10px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:10px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:10px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id===${t.id}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
+      <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    document.getElementById('modal-capture').classList.add('show');
+  }catch(e){toast({type:'error',title:'Audit failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// C7: Burnout signal — multi-signal check (no AI required for the math)
+function _coachBurnoutSignal(){
+  const today=new Date();const todayStr=today.toISOString().slice(0,10);
+  const past14=Array.from({length:14},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()-i);return d.toISOString().slice(0,10);});
+  const past14Done=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=past14[13]).length;
+  const overdueCount=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayStr).length;
+  const focusLog=D.prefs&&D.prefs.focusLog||{};
+  const focus14=past14.reduce((s,d)=>s+(focusLog[d]||0),0);
+  const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
+  const habitRate14=habits.length?habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>past14.includes(d)).length,0)/(habits.length*14):1;
+  const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
+  const recentMoods=(D.journal||[]).slice(-7).map(j=>moodMap[j.mood]||null).filter(Boolean);
+  const moodAvg=recentMoods.length?recentMoods.reduce((s,v)=>s+v,0)/recentMoods.length:null;
+  // Score: higher = more stress
+  let stress=0;const reasons=[];
+  if(overdueCount>=8){stress+=3;reasons.push(`${overdueCount} overdue tasks`);}else if(overdueCount>=4){stress+=2;reasons.push(`${overdueCount} overdue tasks`);}
+  if(habitRate14<0.4){stress+=2;reasons.push(`Daily habits only ${Math.round(habitRate14*100)}% in last 14 days`);}
+  else if(habitRate14<0.6){stress+=1;reasons.push(`Habit consistency dipping (${Math.round(habitRate14*100)}%)`);}
+  if(moodAvg!==null&&moodAvg<2.7){stress+=2;reasons.push(`Mood average ${moodAvg.toFixed(1)}/5 in recent journal entries`);}
+  else if(moodAvg!==null&&moodAvg<3.3){stress+=1;reasons.push(`Mood average ${moodAvg.toFixed(1)}/5`);}
+  if(focus14>14*120){stress+=2;reasons.push(`${focus14}m of focus time over 14 days (>2h/day average)`);}
+  if(past14Done>=14*5){stress+=1;reasons.push(`Heavy task throughput: ${past14Done} done in 14 days`);}
+  return {stress,reasons,level:stress>=5?'high':stress>=3?'moderate':'low'};
+}
+
 function renderCoach(){
   // ---- Compute real insights from data ----
   const now=new Date();
@@ -12526,11 +12706,32 @@ function renderCoach(){
 
   function insCard(items,cls){return items.map(i=>`<div class="ins ${cls}" style="margin-bottom:8px"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${i.t}</div><div style="font-size:11px;color:var(--t2);line-height:1.5">${i.b}</div>${i.a?`<div style="margin-top:6px">${i.a}</div>`:''}</div>`).join('');}
 
+  // C7: burnout signal — show flag when score >= 3
+  const burnout=_coachBurnoutSignal();
+  // C1: daily AI brief — auto-trigger if cache stale
+  const briefCache=D.prefs&&D.prefs.coachDailyBrief;
+  const briefFresh=briefCache&&briefCache.date===todayStr&&briefCache.text;
   $('coach-main').innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
-    <div><h1 style="font-size:22px;font-weight:700">⚡ Coach</h1><p style="font-size:12px;color:var(--t2)">Real-time insights from your data</p></div>
-    <button class="btn btn-s" onclick="renderCoach()">🔄 Refresh</button>
+    <div><h1 style="font-size:22px;font-weight:700">⚡ Coach</h1><p style="font-size:12px;color:var(--t2)">Personalized insights — rule-based + AI</p></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('coach-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <div id="coach-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:230px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachDailyBrief(true)">📰 Refresh daily brief</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachWeeklyReview()">📅 Weekly review</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachAccountability()">🤝 Accountability check</button>
+          <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachFocusPattern()">⏱ Focus patterns</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('coach-ai-menu');aiCoachGoalTaskAudit()">🎯 Goal-task audit</button>
+        </div>
+      </div>
+      <button class="btn btn-s" onclick="renderCoach()">🔄 Refresh</button>
+    </div>
   </div>
+  ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--err)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:10px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
+  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:9px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
+  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--purp)">💬 Coach Chat</div><div id="coach-chat"></div></div>
   <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
     <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${completionRate}%</div><div style="font-size:9px;color:var(--t3)">Week Tasks</div></div>
     <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${habitRate}%</div><div style="font-size:9px;color:var(--t3)">Habits Today</div></div>
@@ -12543,6 +12744,9 @@ function renderCoach(){
   <div class="sec-h" style="color:var(--ok)">🌟 Encouragement</div>${insCard(encouragements,'enc')}
   ${warnings.length?`<div class="sec-h" style="color:var(--warn)">⚠️ Needs Attention</div>${insCard(warnings,'wrn')}`:''}
   `;
+  // After mount: render the chat panel + auto-fetch brief if stale.
+  if(typeof aiCoachChatRender==='function')aiCoachChatRender();
+  if(!briefFresh)setTimeout(()=>aiCoachDailyBrief(),200);
   $('coach-rail').innerHTML=`
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">🎯 Daily Priorities</div>
   ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:10px;color:var(--t3)">All tasks done! 🎉</p>')}
