@@ -5331,9 +5331,22 @@ function _notesEnsureResizeHandles(){
 function _notesResetWidth(which){
   D.prefs=D.prefs||{};
   D.prefs.notesPanelWidths=Object.assign({},_notesGetWidths(),{[which]:_notesDefaultWidths[which]});
-  save('prefs');_notesApplyWidths();
+  (window.save||save)('prefs');_notesApplyWidths();
   toast('Reset to default width');
 }
+// Apply persisted widths as soon as the DOM is parsed and again on any
+// renderScreen('notes') so the columns never flash at the inline-HTML
+// defaults — and so they sit correctly even before the first renderNotes.
+document.addEventListener('DOMContentLoaded',()=>{try{_notesApplyWidths();}catch(_){}});
+(function(){
+  const _origRS=window.renderScreen;
+  if(typeof _origRS!=='function')return;
+  window.renderScreen=function(s){
+    const r=_origRS.apply(this,arguments);
+    if(s==='notes'){setTimeout(()=>{_notesApplyWidths();_notesEnsureResizeHandles();},30);}
+    return r;
+  };
+})();
 function _notesResizeStart(e,which){
   e.preventDefault();e.stopPropagation();
   const startX=e.clientX;
@@ -5356,7 +5369,11 @@ function _notesResizeStart(e,which){
     handleEl.classList.remove('dragging');
     document.body.classList.remove('notes-resizing');
     D.prefs=D.prefs||{};D.prefs.notesPanelWidths=widths;
-    try{save('prefs');}catch(_){try{localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));}catch(__){}}
+    // Explicit window.save resolves to the wrapped version that ALSO pushes
+    // to the server (debounced 2s). The bare `save` reference can resolve to
+    // the unwrapped local declaration in some scopes — be safe.
+    try{(window.save||save)('prefs');}catch(_){try{localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));}catch(__){}}
+    toast('💾 Saved widths');
   }
   document.addEventListener('mousemove',onMove);
   document.addEventListener('mouseup',onUp);
