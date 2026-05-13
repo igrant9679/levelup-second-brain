@@ -4788,9 +4788,17 @@ function renderTaskClusters(){
     const priShort=pri==='Medium'?'Med':pri;
     const dueLabel=_relDue(t.due);
     // #5 fix — make rows draggable so users can drop them onto another cluster card
-    return `<div class="cl-task-row" data-task-id="${t.id}" draggable="true" ondragstart="_clusterTaskDragStart(event,${t.id})" ondragend="_clusterTaskDragEnd(event)" style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-      <span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>
-      <input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">
+    // Bulk-mode aware: when bulk select is on, the checkbox + row click toggle
+    // selection instead of marking the task Done / opening the drawer.
+    const isBulkChecked=_bulkSelected&&_bulkSelected.has(t.id);
+    const checkboxHtml=_bulkMode
+      ?`<div class="chk ${isBulkChecked?'on':''}" style="width:14px;height:14px;flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)"></div>`
+      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">`;
+    const rowClick=_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
+    const bulkBg=isBulkChecked?'background:var(--acs);':'';
+    return `<div class="cl-task-row" data-task-id="${t.id}" draggable="${_bulkMode?'false':'true'}" ${_bulkMode?'':`ondragstart="_clusterTaskDragStart(event,${t.id})" ondragend="_clusterTaskDragEnd(event)"`} style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative;${bulkBg}${isBulkChecked?'border-left:3px solid var(--ac);padding-left:53px':''}" onclick="${rowClick}">
+      ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
+      ${checkboxHtml}
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
       <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
