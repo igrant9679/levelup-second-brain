@@ -6890,7 +6890,7 @@ function renderProjectsList(header){
         <span title="Health: ${health.label}" style="font-size:14px;cursor:default">${health.icon}</span>
         <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
       </div>
-      <div style="font-size:10px;color:var(--t2);margin-bottom:8px">${esc(p.desc||'')}</div>
+      <div style="font-size:10px;color:var(--t2);margin-bottom:8px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-height:4.5em" title="${esc(p.desc||'')}">${esc(p.desc||'')}</div>
       <div style="display:flex;gap:8px;font-size:10px;color:var(--t3);margin-bottom:6px"><span>📋 ${pts.length} tasks</span><span>✅ ${done} done</span><span>📌 ${subs.length} subtasks</span></div>
       <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due||'—'}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct||0}%</span></div>
       <div style="margin-top:8px;display:flex;gap:4px;align-items:center">
@@ -11725,7 +11725,7 @@ async function aiIdeaPromoteToProject(id){
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📁 Promote to Project</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">AI-drafted project. Review and confirm.</div>
       <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:10px">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(p.name)}</div>
-        <div style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:8px">${esc(p.desc||'')}</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:8px;overflow-wrap:anywhere;word-break:break-word">${esc(p.desc||'')}</div>
         ${(p.milestones||[]).length?`<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Milestones</div>${p.milestones.map(ms=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">🏁 ${esc(ms.title||'')} <span style="color:var(--t3);font-size:10px">(in ${ms.due_offset_days||30}d)</span></div>`).join('')}`:''}
         <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">First 5 tasks</div>
         ${p.tasks.map(t=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">📋 ${esc(t.title||'')} <span style="color:var(--t3);font-size:10px">[${esc(t.priority||'Medium')}, ~${t.est_minutes||30}m]</span></div>`).join('')}
