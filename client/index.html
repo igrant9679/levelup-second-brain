@@ -680,9 +680,17 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
    - Page headers reflow to single column. */
 .menu-toggle{display:none;background:transparent;border:1px solid var(--bd2);color:var(--t1);width:38px;height:38px;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 .menu-toggle:active{transform:scale(.94);background:var(--s3)}
-.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+/* Backdrop sits BELOW the sidebar; mobile sidebar uses a very high z-index
+   (9995) so toasts/news/popovers can't slide in over it and block taps. */
+.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9994;opacity:0;pointer-events:none;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
 .sb-backdrop.show{opacity:1;pointer-events:auto}
 body.light-mode .sb-backdrop{background:rgba(15,21,40,.35)}
+/* Hide every bottom-anchored popup while the sidebar is open so nothing
+   can slide in over the menu. Belt-and-braces alongside the high z-index. */
+body.sb-open .ai-bubble,
+body.sb-open .toast-stack,
+body.sb-open #hero-tile-popover,
+body.sb-open .lu-pill-pop{display:none!important}
 /* iOS Safari notch / safe-area handling for the topbar so the hamburger
    never disappears behind the status bar on landscape iPhones. */
 .topbar{padding-left:max(14px,env(safe-area-inset-left,0));padding-right:max(14px,env(safe-area-inset-right,0))}
@@ -694,7 +702,7 @@ body.light-mode .sb-backdrop{background:rgba(15,21,40,.35)}
      items. overflow-y:auto so long sidebars (lots of nav rows) can scroll
      even on short viewports. background is opaque so the backdrop behind
      it doesn't bleed through and grey-tint the menu items. */
-  .sb{position:fixed;top:var(--top);left:0;width:280px;z-index:95;
+  .sb{position:fixed;top:var(--top);left:0;width:280px;z-index:9995;
     height:calc(100vh - var(--top));height:calc(100dvh - var(--top));
     background:var(--s1);
     overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;
