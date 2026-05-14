@@ -330,7 +330,7 @@ function renderSettingsHTML(){
     <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Control which system emails LevelUp sends to your account. Changes take effect immediately.</p>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:10px;color:var(--t3)">Receive an email when your Microsoft 365 token is about to expire</div></div>
-      <div class="tog on" id="tog-email-expiry" onclick="toggleEmailNotifPref('optOutExpiryEmails',this)"></div>
+      <div class="tog" id="tog-email-expiry" onclick="toggleEmailNotifPref('optOutExpiryEmails',this)"></div>
     </div>
     <div class="lr" style="padding:6px 0">
       <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Emails</div><div style="font-size:10px;color:var(--t3)">Receive a daily email summary of your tasks, habits, and goals</div></div>
@@ -6422,14 +6422,11 @@ function _updateOAuthCard(provider,status){
         expiryEl.style.color='var(--warn,#f59e0b)';
         expiryEl.innerHTML='<strong>\u26a0 Re-authentication required soon</strong> \u2014 Expires in '+diffDays+' day'+(diffDays===1?'':'s')+' ('+expiryDateStr+')';
         if(barDays){barDays.style.color='#f59e0b';barDays.textContent=diffDays+' day'+(diffDays===1?'':'s')+' left';}
-      } else if(diffDays<=14){
-        expiryEl.style.color='var(--warn,#eab308)';
-        expiryEl.textContent='\u26a0 Expires in '+diffDays+' days ('+expiryDateStr+')';
-        if(barDays){barDays.style.color='#eab308';barDays.textContent=diffDays+' days left';}
       } else {
-        expiryEl.style.color='var(--ok,#22c55e)';
-        expiryEl.textContent='\u2713 Token valid \u2014 expires in '+diffDays+' days ('+expiryDateStr+')';
-        if(barDays){barDays.style.color='#22c55e';barDays.textContent=diffDays+' days left';}
+        // Tokens with >7 days left don't need to nag \u2014 hide the row entirely.
+        // Only critical (<=7d) and urgent (<24h) statuses still surface.
+        if(expiryEl)expiryEl.style.display='none';
+        if(barWrap)barWrap.style.display='none';
       }
     } else {
       if(expiryEl)expiryEl.style.display='none';
