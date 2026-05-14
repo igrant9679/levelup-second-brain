@@ -3882,7 +3882,16 @@ function renderHome(){
   ${(()=>{
     const cardHtml={
       tasks:`<div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`,
-      notes:`<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${D.notes.slice(0,5).map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`,
+      notes:(()=>{
+        // Sort by most-recent first using whatever timestamp we have.
+        const byRecent=[...D.notes].sort((a,b)=>{
+          const da=(typeof _parseNoteDate==='function'?_parseNoteDate(b):0)-(typeof _parseNoteDate==='function'?_parseNoteDate(a):0);
+          if(da)return da;
+          // Fallback: createdAt or id (Date.now()-based) — both increase over time.
+          return (Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0);
+        }).slice(0,5);
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
+      })(),
       projects:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`,
       goals:renderGoalCards(3),
       focus:(()=>{
@@ -4351,18 +4360,57 @@ function setTaskPriorityFilter(v){_taskPriorityFilter=v||'All';_persistPageState
 // J: persistent group-by selection for the List view.
 if(typeof _taskListGroupBy==='undefined')var _taskListGroupBy=_tasksRestored.listGroupBy||'none';
 function setTaskListGroupBy(v){_taskListGroupBy=v||'none';_persistPageState('tasks',{listGroupBy:_taskListGroupBy});renderCurrentTaskView();}
+// Click-to-sort on List view column headers. Click once = ASC, click again
+// on the same column = DESC, third click = clear and revert to drag order.
+if(typeof _taskListSortBy==='undefined')var _taskListSortBy=_tasksRestored.listSortBy||'';
+if(typeof _taskListSortDir==='undefined')var _taskListSortDir=_tasksRestored.listSortDir||'asc';
+function setTaskListSort(col){
+  if(_taskListSortBy===col){
+    if(_taskListSortDir==='asc')_taskListSortDir='desc';
+    else{_taskListSortBy='';_taskListSortDir='asc';}
+  }else{
+    _taskListSortBy=col;_taskListSortDir='asc';
+  }
+  _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
+  renderCurrentTaskView();
+}
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
-  // H: sort by sortOrder when set, falling back to original order
-  filtered=[...filtered].sort((a,b)=>{
-    const ao=typeof a.sortOrder==='number'?a.sortOrder:Number.MAX_SAFE_INTEGER;
-    const bo=typeof b.sortOrder==='number'?b.sortOrder:Number.MAX_SAFE_INTEGER;
-    return ao-bo;
-  });
+  // Apply column sort if active, else fall back to drag-reorder sortOrder.
+  if(_taskListSortBy){
+    const projects=D.projects||[];
+    const findProj=t=>{if(t.projectId)return projects.find(p=>p.id===t.projectId);if(t.project)return projects.find(p=>p.name===t.project);return null;};
+    const priRank={High:3,Medium:2,Low:1};
+    const statusRank={'Done':5,'In Progress':4,'Scheduled':3,'Pending':2,'Not Started':1,'Someday':0};
+    const keyFor=t=>{
+      switch(_taskListSortBy){
+        case 'title':return (t.title||'').toLowerCase();
+        case 'priority':return priRank[t.priority||'Medium']||0;
+        case 'status':return statusRank[t.status||'Not Started']||0;
+        case 'start':return t.startDate||'9999';
+        case 'end':return t.due||t.endDate||'9999';
+        case 'project':{const p=findProj(t);return (p?p.name:t.project||'').toLowerCase();}
+        case 'assignee':return (t.assignedTo||t.createdBy||'').toLowerCase();
+      }
+      return '';
+    };
+    filtered=[...filtered].sort((a,b)=>{
+      const ka=keyFor(a),kb=keyFor(b);
+      if(ka<kb)return _taskListSortDir==='asc'?-1:1;
+      if(ka>kb)return _taskListSortDir==='asc'?1:-1;
+      return 0;
+    });
+  }else{
+    filtered=[...filtered].sort((a,b)=>{
+      const ao=typeof a.sortOrder==='number'?a.sortOrder:Number.MAX_SAFE_INTEGER;
+      const bo=typeof b.sortOrder==='number'?b.sortOrder:Number.MAX_SAFE_INTEGER;
+      return ao-bo;
+    });
+  }
   // J: group toolbar
   const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:10px;color:var(--t3)">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
@@ -4379,16 +4427,19 @@ function renderTaskList(){
   const findProject=t=>{if(t.projectId)return projects.find(p=>p.id===t.projectId);if(t.project)return projects.find(p=>p.name===t.project);return null;};
   // Header — added drag handle col + bulk-mode checkbox col
   const colTpl='18px 24px minmax(160px,2fr) 80px 100px 95px 95px 130px 130px 32px';
+  // Sortable column header — click to cycle ASC → DESC → off.
+  const arrow=col=>_taskListSortBy===col?(_taskListSortDir==='asc'?' ↑':' ↓'):'';
+  const sortableCol=(col,label)=>`<div style="cursor:pointer;user-select:none;color:${_taskListSortBy===col?'var(--ac)':'var(--t2)'}" onclick="setTaskListSort('${col}')" title="Click to sort">${label}${arrow(col)}</div>`;
   const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
     <div></div>
     <div></div>
-    <div>Title</div>
-    <div>Priority</div>
-    <div>Status</div>
-    <div>Start</div>
-    <div>End</div>
-    <div>Project</div>
-    <div>Assigned to</div>
+    ${sortableCol('title','Title')}
+    ${sortableCol('priority','Priority')}
+    ${sortableCol('status','Status')}
+    ${sortableCol('start','Start')}
+    ${sortableCol('end','End')}
+    ${sortableCol('project','Project')}
+    ${sortableCol('assignee','Assigned to')}
     <div></div>
   </div>`;
   function rowFor(t){
@@ -4990,7 +5041,10 @@ function renderTaskClusters(){
 
   const newClusterBtn=`<div style="text-align:center;padding:8px"><button class="btn btn-s" style="font-size:11px" onclick="openClusterModal(null)">+ New Cluster</button></div>`;
 
-  list.innerHTML=pillBar+groups.map(clusterCard).join('')+orphanCard+newClusterBtn;
+  // "No cluster" group floats to the TOP — it's the inbox / triage zone
+  // for tasks not yet assigned to a cluster, so it should be the first
+  // thing the user sees on the page.
+  list.innerHTML=pillBar+orphanCard+groups.map(clusterCard).join('')+newClusterBtn;
 }
 // ─── Cluster Modal (create/edit) ─────────────────────────────────────────────
 function openClusterModal(id){
@@ -5535,6 +5589,81 @@ function assignNoteToFolder(noteId,folderId){
   document.addEventListener('touchcancel',()=>{if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}if(_src){if(_ghost){_ghost.remove();_ghost=null;}_src=null;_lastOver=null;}},{passive:true});
 })();
 
+// ─── Right-rail builders (Mail / Calendar / Clusters) ────────────────
+function _populateMailRail(){
+  const r=document.getElementById('mail-rail');if(!r)return;
+  const inbox=(typeof _getMailItems==='function'?_getMailItems():[]);
+  const unread=inbox.filter(m=>!m.read).length;
+  const today=_todayStr;
+  const todayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today).slice(0,5);
+  const senders={};inbox.slice(0,200).forEach(m=>{const f=m.fromName||m.from||m.fromEmail||'(unknown)';senders[f]=(senders[f]||0)+1;});
+  const topSenders=Object.entries(senders).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  r.innerHTML=`
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">📊 Inbox at a glance</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${inbox.length}</div><div style="font-size:9px;color:var(--t3)">Total</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${unread?'var(--warn)':'var(--ok)'}">${unread}</div><div style="font-size:9px;color:var(--t3)">Unread</div></div>
+  </div>
+  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Today's events</div>
+    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="nav('cal')"><span style="font-size:9px;color:var(--ac);width:42px;flex-shrink:0">${(e.start||'').slice(11,16)||'—'}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events today.</div>'}
+  </div>
+  ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:10px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:9px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">✏ Compose</button>
+    <button class="btn btn-s" style="font-size:11px" onclick="syncOAuthMail('microsoft')">☁ Sync now</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ AI Triage</button>
+  </div>`;
+}
+function _populateCalRail(){
+  const r=document.getElementById('cal-rail');if(!r)return;
+  const today=_todayStr;
+  const todayTasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay)).slice(0,6);
+  const next7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
+  const upcoming=(D.calEvents||[]).filter(e=>{const k=(e.start||'').slice(0,10);return k>=today&&k<=next7[6].toISOString().slice(0,10);}).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,6);
+  r.innerHTML=`
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 Today + 7 days</div>
+  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">✓ Tasks for today</div>
+    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority||'M'}</span><span class="rt" style="font-size:10px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Nothing scheduled.</div>'}
+  </div>
+  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Upcoming events</div>
+    ${upcoming.length?upcoming.map(e=>{const d=(e.start||'').slice(0,10);const t=(e.start||'').slice(11,16);return `<div class="lr" style="padding:4px 0;font-size:10px"><span style="width:54px;flex-shrink:0;font-size:9px;color:var(--t3)">${d.slice(5)}${t?' '+t:''}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No events in the next 7 days.</div>'}
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-p" style="font-size:11px" onclick="openNewCalEventModal()">+ New event</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiCalNLP()">💬 NL Event</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiScheduleOptimize()">✨ Optimize day</button>
+  </div>`;
+}
+function _populateClustersRail(){
+  const r=document.getElementById('clusters-rail');if(!r)return;
+  const cls=D.clusters||[];
+  const today=_todayStr;
+  const allTasks=D.tasks||[];
+  const totalActive=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
+  const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  // Per-cluster progress
+  const ranked=cls.map(cl=>{
+    const projIds=new Set(cl.projectIds||[]);
+    const allInCl=allTasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    const done=allInCl.filter(t=>t.status==='Done').length;
+    const ovd=allInCl.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+    return {cl,done,total:allInCl.length,ovd,pct:allInCl.length?Math.round(done/allInCl.length*100):0};
+  }).sort((a,b)=>b.ovd-a.ovd||a.pct-b.pct);
+  r.innerHTML=`
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">⬡ Cluster Insights</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${cls.length}</div><div style="font-size:9px;color:var(--t3)">Clusters</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${overdue?'var(--red)':'var(--ok)'}">${overdue}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
+  </div>
+  ${ranked.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Needs attention</div>${ranked.slice(0,5).map(r=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${esc(r.cl.icon||'📁')} ${esc(r.cl.name||r.cl.title||'(unnamed)')}</span><strong style="color:${r.ovd?'var(--red)':r.pct>=70?'var(--ok)':'var(--ac)'}">${r.ovd?r.ovd+' overdue':r.pct+'%'}</strong></div><div class="pb"><div class="f" style="width:${r.pct}%;background:${r.pct>=70?'var(--ok)':'var(--ac)'}"></div></div></div>`).join('')}</div>`:''}
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-p" style="font-size:11px" onclick="openClusterModal(null)">+ New cluster</button>
+    <button class="btn btn-s" style="font-size:11px" onclick="nav('tasks');setTaskView('clusters')">⬡ Open Cluster view</button>
+  </div>`;
+}
 // Notes mobile pane switcher (Folders / List / Editor / Links).
 // Body class drives which pane is visible on phones (≤900px).
 function setNotesMobilePane(pane){
@@ -5816,9 +5945,15 @@ function setNoteColor(id,hex){
 }
 
 function _parseNoteDate(n){
-  // Try to parse a note's updated/created field into a Date. Falls back to epoch.
+  // Try to parse a note's updated/created field into a Date. Falls back to
+  // createdAt, then to id (Date.now()-based), so newer notes always sort
+  // ahead of older ones even when the legacy 'updated' string is unparseable.
   const rawVal=n.updated||n.created;
-  if(rawVal===undefined||rawVal===null||rawVal==='')return new Date(0);
+  if(rawVal===undefined||rawVal===null||rawVal===''){
+    if(n.createdAt){const c=new Date(n.createdAt);if(!isNaN(c.getTime()))return c;}
+    if(typeof n.id==='number'&&n.id>1e9)return new Date(n.id); // id is a Date.now() timestamp
+    return new Date(0);
+  }
   // Handle numeric timestamps (ms since epoch) directly — avoids raw.trim() error
   if(typeof rawVal==='number')return new Date(rawVal);
   const raw=String(rawVal);
@@ -5950,8 +6085,12 @@ function applyNotesFilters(){
       return true;
     });
   }
-  // Sort
-  if(_notesSort==='newest')notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
+  // Sort. The "Recent" category implicitly forces newest-first regardless
+  // of the user's saved sort, since "Recent" without recency makes no sense.
+  if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder){
+    notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
+  }
+  else if(_notesSort==='newest')notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
   else if(_notesSort==='oldest')notes=[...notes].sort((a,b)=>_parseNoteDate(a)-_parseNoteDate(b));
   else if(_notesSort==='az')notes=[...notes].sort((a,b)=>(a.title||'').localeCompare(b.title||''));
   else if(_notesSort==='za')notes=[...notes].sort((a,b)=>(b.title||'').localeCompare(a.title||''));
@@ -8453,6 +8592,7 @@ function renderMail(){
   $('mail-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📧 Mail, Calendar & Files</h1><p style="font-size:12px;color:var(--t2)">All communications in one place.</p></div><div style="display:flex;gap:6px;align-items:center"><input id="mail-search" type="search" placeholder="🔍 Search mail..." style="height:28px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);border-radius:6px;background:var(--s2);color:var(--t1);width:180px" oninput="filterMail(this.value)"><button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiTriageMail()">✨ Triage</button><button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">+ Compose</button></div></div>
 <div class="tabs" id="mail-tabs"><div class="tab on" onclick="switchMailTab(this,'inbox')">Inbox</div><div class="tab" onclick="switchMailTab(this,'sent')">Sent</div><div class="tab" onclick="switchMailTab(this,'calendar')">Calendar</div><div class="tab" onclick="switchMailTab(this,'files')">Files</div></div>
 <div id="mail-tab-body">${_renderMailInboxPanel()}</div>`;
+  if(typeof _populateMailRail==='function')_populateMailRail();
 }
 
 let _mailSearchQuery='';
@@ -8916,9 +9056,10 @@ let _calDayOffset=0; // days from today for Day view
 let _calMonthOffset=0; // months from today for Month view
 
 function renderCal(){
-  if(_calView==='day'){renderCalDay();return;}
-  if(_calView==='month'){renderCalMonth();return;}
-  renderCalWeek();
+  if(_calView==='day')renderCalDay();
+  else if(_calView==='month')renderCalMonth();
+  else renderCalWeek();
+  if(typeof _populateCalRail==='function')_populateCalRail();
 }
 
 function _calViewTabs(){
@@ -14064,6 +14205,9 @@ var _helpDrawerOpen=false;
 function renderClustersDashboard(){
   const el=document.getElementById('clusters-main');
   if(!el)return;
+  // Populate the right rail at the end too — wire it once via setTimeout
+  // so it runs after the main content is in the DOM.
+  setTimeout(()=>{if(typeof _populateClustersRail==='function')_populateClustersRail();},0);
   const clusters=D.clusters||[];
   const today=_todayStr;
   // Aggregate stats
