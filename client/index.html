@@ -537,10 +537,14 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .fa-tag-x{cursor:pointer;opacity:.7;font-size:11px}
 .fa-tag-input{background:none;border:none;outline:none;color:var(--t1);font-size:12px;min-width:80px;flex:1}
 .fa-typeahead{position:relative}
-.fa-typeahead-drop{position:absolute;top:100%;left:0;right:0;background:#1e2840;border:1px solid rgba(255,255,255,.12);border-radius:6px;z-index:10;max-height:160px;overflow-y:auto;display:none}
+/* Use theme variables so the dropdown is readable in BOTH dark and light mode.
+   Was previously hardcoded #1e2840 which became unreadable in light theme. */
+.fa-typeahead-drop{position:absolute;top:100%;left:0;right:0;background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:6px;z-index:10;max-height:200px;overflow-y:auto;display:none;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .fa-typeahead-drop.show{display:block}
-.fa-typeahead-item{padding:7px 10px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px}
-.fa-typeahead-item:hover{background:rgba(59,130,246,.2)}
+.fa-typeahead-item{padding:7px 10px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:6px;color:var(--t1);background:var(--s1)}
+.fa-typeahead-item:hover{background:var(--acs);color:var(--ac)}
+.fa-typeahead-item.fa-typeahead-empty{color:var(--t3);font-style:italic;cursor:default}
+.fa-typeahead-item.fa-typeahead-empty:hover{background:var(--s1)}
 .fa-linked-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .fa-chip{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:2px 8px;font-size:10px;display:flex;align-items:center;gap:4px;color:var(--ac)}
 .fa-chip-x{cursor:pointer;opacity:.7}
