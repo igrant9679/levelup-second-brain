@@ -1928,30 +1928,13 @@ function renderDrawer(type,item){
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     </div>
-    <!-- Linked Items — match what the New Task modal exposes so existing tasks
-         can be linked to projects/goals/notes/bookmarks/journal entries. -->
-    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Ctrl/Cmd-click to multi-select · saves with Save Changes</span></label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Projects</label>
-          <select class="inp" id="dr-task-link-projects" multiple size="4" style="margin-top:2px">${(D.projects||[]).map(p=>`<option value="${p.id}" ${(item.linkedProjectIds||[]).includes(p.id)?'selected':''}>${esc(p.name)}</option>`).join('')||'<option disabled>(no projects)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Goals</label>
-          <select class="inp" id="dr-task-link-goals" multiple size="4" style="margin-top:2px">${(D.goals||[]).map(g=>`<option value="${g.id}" ${(item.linkedGoalIds||[]).includes(g.id)?'selected':''}>${esc(g.icon||'🎯')} ${esc(g.title)}</option>`).join('')||'<option disabled>(no goals)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Other Tasks</label>
-          <select class="inp" id="dr-task-link-tasks" multiple size="4" style="margin-top:2px">${(D.tasks||[]).filter(t=>t.id!==item.id&&t.status!=='Done').slice(0,200).map(t=>`<option value="${t.id}" ${(item.linkedTaskIds||[]).includes(t.id)?'selected':''}>${esc(t.title)}</option>`).join('')||'<option disabled>(no other open tasks)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Notes</label>
-          <select class="inp" id="dr-task-link-notes" multiple size="4" style="margin-top:2px">${(D.notes||[]).slice(0,200).map(n=>`<option value="${n.id}" ${(item.linkedNoteIds||[]).includes(n.id)?'selected':''}>${esc(n.title||'(untitled)')}</option>`).join('')||'<option disabled>(no notes)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Bookmarks</label>
-          <select class="inp" id="dr-task-link-bookmarks" multiple size="4" style="margin-top:2px">${(D.bookmarks||[]).slice(0,200).map(b=>`<option value="${b.id}" ${(item.linkedBookmarkIds||[]).includes(b.id)?'selected':''}>${esc(b.title||b.url||'(untitled)')}</option>`).join('')||'<option disabled>(no bookmarks)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Journal Entries</label>
-          <select class="inp" id="dr-task-link-journal" multiple size="4" style="margin-top:2px">${(D.journal||[]).slice(-200).map(j=>`<option value="${j.id}" ${(item.linkedJournalIds||[]).includes(j.id)?'selected':''}>${esc((j.date||'')+' · '+(j.title||'(untitled)'))}</option>`).join('')||'<option disabled>(no journal entries)</option>'}</select>
-        </div>
-      </div>
+    <!-- Linked Items — chip-based picker so it's obvious what's actually
+         linked vs. just visible in a multi-select. Initialized below via
+         _drInitLinks(item) which reads item.linkedXxxIds into _drLinks. -->
+    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
+      <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
+    <script>(function(){if(typeof _drInitLinks==='function'){_drInitLinks(${JSON.stringify({projects:item.linkedProjectIds||[],goals:item.linkedGoalIds||[],tasks:item.linkedTaskIds||[],notes:item.linkedNoteIds||[],bookmarks:item.linkedBookmarkIds||[],journal:item.linkedJournalIds||[]})},${item.id});setTimeout(_drRenderTaskLinks,0);}})();</script>
     <div class="field"><label>Comments / Activity</label>
     <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
@@ -2373,6 +2356,57 @@ function fmtNoteDate(raw){
   // Already a human-readable string
   return String(raw);
 }
+// ─── Drawer Linked Items state (chip-based picker) ─────────────────────
+// Held in module scope rather than on the item directly so Cancel doesn't
+// commit changes mid-edit. Hydrated by _drInitLinks when the drawer opens
+// and read on Save by saveItem.
+let _drLinks={projects:[],goals:[],tasks:[],notes:[],bookmarks:[],journal:[]};
+let _drLinksHostId=null;
+function _drInitLinks(initial,hostId){
+  _drLinks={
+    projects:Array.isArray(initial?.projects)?[...initial.projects]:[],
+    goals:Array.isArray(initial?.goals)?[...initial.goals]:[],
+    tasks:Array.isArray(initial?.tasks)?[...initial.tasks]:[],
+    notes:Array.isArray(initial?.notes)?[...initial.notes]:[],
+    bookmarks:Array.isArray(initial?.bookmarks)?[...initial.bookmarks]:[],
+    journal:Array.isArray(initial?.journal)?[...initial.journal]:[],
+  };
+  _drLinksHostId=hostId||null;
+}
+function _drAddLink(category,idStr){
+  const id=parseInt(idStr);if(isNaN(id))return;
+  if(!_drLinks[category])_drLinks[category]=[];
+  if(!_drLinks[category].includes(id))_drLinks[category].push(id);
+  _drRenderTaskLinks();
+}
+function _drRemoveLink(category,id){
+  _drLinks[category]=(_drLinks[category]||[]).filter(x=>x!==id);
+  _drRenderTaskLinks();
+}
+function _drRenderTaskLinks(){
+  const wrap=document.getElementById('dr-task-links');if(!wrap)return;
+  const cats=[
+    {key:'projects',label:'Projects',icon:'📁',source:()=>D.projects||[],labelOf:p=>p.name,filter:()=>true},
+    {key:'goals',label:'Goals',icon:'🎯',source:()=>D.goals||[],labelOf:g=>(g.icon||'🎯')+' '+g.title,filter:()=>true},
+    {key:'tasks',label:'Other Tasks',icon:'📋',source:()=>D.tasks||[],labelOf:t=>t.title,filter:t=>t.id!==_drLinksHostId&&t.status!=='Done'},
+    {key:'notes',label:'Notes',icon:'📝',source:()=>D.notes||[],labelOf:n=>n.title||'(untitled)',filter:()=>true},
+    {key:'bookmarks',label:'Bookmarks',icon:'🔖',source:()=>D.bookmarks||[],labelOf:b=>b.title||b.url||'(untitled)',filter:()=>true},
+    {key:'journal',label:'Journal Entries',icon:'📔',source:()=>D.journal||[],labelOf:j=>(j.date||'')+' · '+(j.title||'(untitled)'),filter:()=>true},
+  ];
+  wrap.innerHTML=cats.map(c=>{
+    const linkedIds=_drLinks[c.key]||[];
+    const all=c.source().filter(c.filter);
+    const linkedItems=linkedIds.map(id=>all.find(x=>x.id===id)).filter(Boolean);
+    const available=all.filter(x=>!linkedIds.includes(x.id)).slice(0,200);
+    const chips=linkedItems.length
+      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:10px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${c.key}',${x.id})">✕</span></span>`).join('')
+      :`<span style="font-size:10px;color:var(--t3);font-style:italic">None linked</span>`;
+    const dropdown=available.length
+      ?`<select class="inp" style="height:26px;font-size:10px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${c.key}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>`<option value="${x.id}">${esc(c.labelOf(x))}</option>`).join('')}</select>`
+      :`<div style="font-size:9px;color:var(--t3);margin-top:6px">No more ${esc(c.label.toLowerCase())} to add.</div>`;
+    return `<div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:9px;color:${linkedItems.length?'var(--ac)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
+  }).join('');
+}
 function saveItem(type,id){
   if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){
     t.title=$('#dr-title').value;
@@ -2398,14 +2432,17 @@ function saveItem(type,id){
     const aHidden=document.getElementById('dr-assignee-val');
     const aSel=document.getElementById('dr-assignee');
     t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
-    // Persist linked items (matches what the New Task modal exposes).
-    const _selVals=sel=>sel?Array.from(sel.selectedOptions).map(o=>parseInt(o.value)).filter(v=>!isNaN(v)):[];
-    const _projLinks=document.getElementById('dr-task-link-projects');if(_projLinks)t.linkedProjectIds=_selVals(_projLinks);
-    const _goalLinks=document.getElementById('dr-task-link-goals');if(_goalLinks)t.linkedGoalIds=_selVals(_goalLinks);
-    const _taskLinks=document.getElementById('dr-task-link-tasks');if(_taskLinks)t.linkedTaskIds=_selVals(_taskLinks);
-    const _noteLinks=document.getElementById('dr-task-link-notes');if(_noteLinks)t.linkedNoteIds=_selVals(_noteLinks);
-    const _bkLinks=document.getElementById('dr-task-link-bookmarks');if(_bkLinks)t.linkedBookmarkIds=_selVals(_bkLinks);
-    const _jrnLinks=document.getElementById('dr-task-link-journal');if(_jrnLinks)t.linkedJournalIds=_selVals(_jrnLinks);
+    // Persist linked items from the chip-based picker state (_drLinks).
+    // Only writes if the picker host matches this task — avoids overwriting
+    // when saving an unrelated drawer that didn't initialize the linker.
+    if(_drLinksHostId===id){
+      t.linkedProjectIds=[..._drLinks.projects];
+      t.linkedGoalIds=[..._drLinks.goals];
+      t.linkedTaskIds=[..._drLinks.tasks];
+      t.linkedNoteIds=[..._drLinks.notes];
+      t.linkedBookmarkIds=[..._drLinks.bookmarks];
+      t.linkedJournalIds=[..._drLinks.journal];
+    }
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
