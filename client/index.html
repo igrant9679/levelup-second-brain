@@ -412,7 +412,7 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 /* On pages without a right rail, cap content width on wide monitors so rows stay scannable. */
 .bg:not(.wr) .mn{max-width:1280px;margin-right:auto}
 .rr{background:var(--s1);border-left:1px solid var(--bd1);padding:14px;overflow-y:auto}
-.scr{display:none;height:calc(100vh - var(--top))}.scr.on{display:block}
+.scr{display:none;height:calc(100vh - var(--top));height:calc(100dvh - var(--top))}.scr.on{display:block}
 .scr>.bg{height:100%;min-height:0}
 
 /* SHARED */
@@ -691,17 +691,23 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
   /* Sidebar becomes a slide-in panel. Uses 100dvh + safe-area-inset-bottom
      so iOS Safari's address bar and home indicator don't cover the bottom
      items. overflow-y:auto so long sidebars (lots of nav rows) can scroll
-     even on short viewports. */
-  .sb{position:fixed;top:var(--top);left:0;bottom:0;width:240px;z-index:95;
+     even on short viewports. background is opaque so the backdrop behind
+     it doesn't bleed through and grey-tint the menu items. */
+  .sb{position:fixed;top:var(--top);left:0;width:280px;z-index:95;
     height:calc(100vh - var(--top));height:calc(100dvh - var(--top));
-    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:var(--s1);
+    overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;
     padding-bottom:env(safe-area-inset-bottom,0);
     transform:translateX(-105%);transition:transform .22s cubic-bezier(.2,.9,.3,1.1);
-    box-shadow:8px 0 32px rgba(0,0,0,.45);border-right:1px solid var(--bd2)}
+    will-change:transform;
+    box-shadow:8px 0 32px rgba(0,0,0,.55);border-right:1px solid var(--bd2)}
   body.sb-open .sb{transform:translateX(0)}
-  /* Lock the body when the sidebar is open so the page underneath
-     doesn't scroll while the user is interacting with the nav. */
-  body.sb-open{overflow:hidden;position:fixed;width:100%}
+  /* Lock the body scroll when the sidebar is open so the page underneath
+     doesn't scroll. NOTE: don't use position:fixed on body — that
+     interferes with iOS Safari's layout calculations and can grey-out
+     the whole page. overflow:hidden is enough on iOS to stop scroll. */
+  body.sb-open{overflow:hidden;touch-action:none}
+  body.sb-open .app{overflow:hidden}
   /* Make every nav row a comfortable touch target on phones (Apple's HIG
      recommends >=44px). Default .si is ~36px. */
   .sb .si{min-height:44px;font-size:13px}
