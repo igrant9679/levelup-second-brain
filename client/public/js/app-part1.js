@@ -4395,6 +4395,7 @@ function renderTaskList(){
         case 'end':return t.due||t.endDate||'9999';
         case 'project':{const p=findProj(t);return (p?p.name:t.project||'').toLowerCase();}
         case 'assignee':return (t.assignedTo||t.createdBy||'').toLowerCase();
+        case 'created':return t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'9999');
       }
       return '';
     };
@@ -4426,7 +4427,7 @@ function renderTaskList(){
   const projects=D.projects||[];
   const findProject=t=>{if(t.projectId)return projects.find(p=>p.id===t.projectId);if(t.project)return projects.find(p=>p.name===t.project);return null;};
   // Header — added drag handle col + bulk-mode checkbox col
-  const colTpl='18px 24px minmax(160px,2fr) 80px 100px 95px 95px 130px 130px 32px';
+  const colTpl='18px 24px minmax(160px,2fr) 80px 100px 95px 95px 130px 130px 95px 32px';
   // Sortable column header — click to cycle ASC → DESC → off.
   const arrow=col=>_taskListSortBy===col?(_taskListSortDir==='asc'?' ↑':' ↓'):'';
   const sortableCol=(col,label)=>`<div style="cursor:pointer;user-select:none;color:${_taskListSortBy===col?'var(--ac)':'var(--t2)'}" onclick="setTaskListSort('${col}')" title="Click to sort">${label}${arrow(col)}</div>`;
@@ -4440,6 +4441,7 @@ function renderTaskList(){
     ${sortableCol('end','End')}
     ${sortableCol('project','Project')}
     ${sortableCol('assignee','Assigned to')}
+    ${sortableCol('created','Created')}
     <div></div>
   </div>`;
   function rowFor(t){
@@ -4454,6 +4456,8 @@ function renderTaskList(){
     const endDate=t.due||t.endDate||'';
     const assigned=t.assignedTo||t.createdBy||'';
     const initials=(assigned||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    const createdISO=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');
+    const createdStr=createdISO?fmtDate(createdISO.slice(0,10)):'—';
     // D: bulk checkbox column when in _bulkMode
     const bulkChk=_bulkMode
       ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)" style="width:14px;height:14px"></div>`
@@ -4477,6 +4481,7 @@ function renderTaskList(){
         ${initials?`<span style="width:18px;height:18px;border-radius:50%;background:var(--acs);color:var(--ach);font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</span>`:''}
         <span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${assigned?'var(--t2)':'var(--t3)'}">${assigned?esc(assigned.split(' ')[0]):'—'}</span>
       </span>
+      <span style="font-size:10px;color:var(--t3)" title="${createdISO?esc(createdISO):''}">${createdStr}</span>
       <span style="font-size:14px;color:var(--t3);text-align:center" title="Open">›</span>
     </div>`;
   }
@@ -4557,6 +4562,7 @@ function renderTaskBoard(){
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
            ${t.due?`<span style="font-size:9px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
           ${t.assignedTo?`<span style="font-size:9px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${t.id})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
@@ -4606,6 +4612,7 @@ function renderTaskMatrix(){
         <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
         ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
         ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
+        ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       </div>
     </div>`).join('');
     return `<div class="mtx-quad" data-quad="${k}" data-target-priority="${q.targetPriority}" data-target-mins="${q.targetMins}" ondragover="_mtxDragOver(event)" ondragleave="_mtxDragLeave(event)" ondrop="_mtxDrop(event,'${q.targetPriority}',${q.targetMins})" style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px;transition:outline .15s,background .15s">
@@ -4986,6 +4993,7 @@ function renderTaskClusters(){
       ${checkboxHtml}
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
       <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
+      ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:10px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
     </div>`;
   }
