@@ -680,8 +680,9 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
    - Page headers reflow to single column. */
 .menu-toggle{display:none;background:transparent;border:1px solid var(--bd2);color:var(--t1);width:38px;height:38px;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
 .menu-toggle:active{transform:scale(.94);background:var(--s3)}
-.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
 .sb-backdrop.show{opacity:1;pointer-events:auto}
+body.light-mode .sb-backdrop{background:rgba(15,21,40,.35)}
 /* iOS Safari notch / safe-area handling for the topbar so the hamburger
    never disappears behind the status bar on landscape iPhones. */
 .topbar{padding-left:max(14px,env(safe-area-inset-left,0));padding-right:max(14px,env(safe-area-inset-right,0))}
@@ -703,14 +704,21 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
     box-shadow:8px 0 32px rgba(0,0,0,.55);border-right:1px solid var(--bd2)}
   body.sb-open .sb{transform:translateX(0)}
   /* Lock the body scroll when the sidebar is open so the page underneath
-     doesn't scroll. NOTE: don't use position:fixed on body — that
-     interferes with iOS Safari's layout calculations and can grey-out
-     the whole page. overflow:hidden is enough on iOS to stop scroll. */
-  body.sb-open{overflow:hidden;touch-action:none}
+     doesn't scroll. NOTE: don't use position:fixed on body or
+     touch-action:none — both break iOS Safari taps and layout. Plain
+     overflow:hidden is enough to stop the body from scrolling without
+     killing tap events on the sidebar children. */
+  body.sb-open{overflow:hidden}
   body.sb-open .app{overflow:hidden}
   /* Make every nav row a comfortable touch target on phones (Apple's HIG
-     recommends >=44px). Default .si is ~36px. */
-  .sb .si{min-height:44px;font-size:13px}
+     recommends >=44px). Default .si is ~36px. Also bump text contrast
+     in mobile so the menu doesn't read as greyed-out next to the dark
+     backdrop — use --t1 (full-strength) instead of --t2 (muted grey). */
+  .sb .si{min-height:44px;font-size:14px;color:var(--t1);font-weight:500}
+  .sb .si svg{width:18px;height:18px}
+  .sb .sl{color:var(--t2);font-size:10px;font-weight:700;padding:14px 14px 6px}
+  /* Stronger active-state highlight so the current page is obvious. */
+  .sb .si.on{background:var(--acs);color:var(--ac);font-weight:600;box-shadow:inset 3px 0 0 var(--ac)}
   /* Sidebar user-block at the very bottom needs to clear the home indicator. */
   .sb .su{padding-bottom:max(10px,env(safe-area-inset-bottom,0))}
   /* Main grid drops the sidebar column on mobile */
