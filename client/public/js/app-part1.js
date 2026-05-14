@@ -1851,6 +1851,19 @@ function openDrawer(type,item){
   ov.classList.add('show');
   // Load related bookmarks for note drawers
   if(type==='note' && item?.id) setTimeout(()=>loadRelatedBookmarks('note', item.id), 0);
+  // Hydrate the chip-based Linked Items picker for task drawers. Inline
+  // <script> tags inside innerHTML don't execute, so we have to do this here.
+  if(type==='task' && item?.id && typeof _drInitLinks==='function'){
+    _drInitLinks({
+      projects:item.linkedProjectIds||[],
+      goals:item.linkedGoalIds||[],
+      tasks:item.linkedTaskIds||[],
+      notes:item.linkedNoteIds||[],
+      bookmarks:item.linkedBookmarkIds||[],
+      journal:item.linkedJournalIds||[],
+    },item.id);
+    setTimeout(_drRenderTaskLinks,0);
+  }
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
 function renderDrawer(type,item){
@@ -1934,7 +1947,6 @@ function renderDrawer(type,item){
     <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
-    <script>(function(){if(typeof _drInitLinks==='function'){_drInitLinks(${JSON.stringify({projects:item.linkedProjectIds||[],goals:item.linkedGoalIds||[],tasks:item.linkedTaskIds||[],notes:item.linkedNoteIds||[],bookmarks:item.linkedBookmarkIds||[],journal:item.linkedJournalIds||[]})},${item.id});setTimeout(_drRenderTaskLinks,0);}})();</script>
     <div class="field"><label>Comments / Activity</label>
     <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
