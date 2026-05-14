@@ -6655,21 +6655,27 @@ function toggleAuditLog(provider){
   entriesEl.style.display=isOpen?'none':'';
   if(toggleEl)toggleEl.textContent=(isOpen?'▶':'▼')+' Recent Activity';
 }
-/** Silently refresh an OAuth token server-side using the stored refresh token */
-async function refreshOAuthToken(provider){
+/** Silently refresh an OAuth token server-side using the stored refresh token.
+ *  When called with silent=true (e.g. from the 60s auto-refresh poll) we
+ *  suppress both success and error toasts so the user isn't spammed every
+ *  minute with "Failed to refresh token" when the refresh-token itself is
+ *  expired. Manual button clicks still show their own status. */
+async function refreshOAuthToken(provider, silent){
   const btn=document.getElementById('btn-'+(provider==='microsoft'?'ms':'google')+'-refresh');
   if(btn){btn.disabled=true;btn.textContent='⏳ Refreshing…';}
   try{
     const result=await _trpc('oauthSync.refreshToken',{provider},'mutation');
     if(result?.success){
-      toast('✅ Token refreshed successfully');
+      if(!silent)toast('✅ Token refreshed successfully');
       // Reload OAuth status to update expiry bar and card
       await loadOAuthStatus();
     } else {
-      toast('⚠ '+(result?.message||'Token refresh failed'));
+      if(!silent)toast('⚠ '+(result?.message||'Token refresh failed'));
     }
+    return !!result?.success;
   }catch(e){
-    toast('⚠ '+(e?.message||'Failed to refresh token'));
+    if(!silent)toast('⚠ '+(e?.message||'Failed to refresh token'));
+    return false;
   }finally{
     if(btn){btn.disabled=false;btn.textContent='🔄 Refresh Token';}
   }
@@ -6833,14 +6839,24 @@ async function checkTokenExpiryBanner(){
     const soonest=expiring[0];
     const diffMs=soonest.expiresAt.getTime()-Date.now();
     const expired=diffMs<=0;
-    // Auto-refresh silently if token is expiring within 5 min (and not already expired)
-    if(!expired&&diffMs<fiveMinMs&&!btn._autoRefreshing){
+    // Auto-refresh silently if token is expiring within 5 min (and not already
+    // expired). Backoff: if a refresh just failed in the last hour, skip the
+    // next try so we don't spam the server (and the user) every minute.
+    const lastFailKey='oauth-refresh-fail-'+soonest.key;
+    const lastFailTs=Number(sessionStorage.getItem(lastFailKey)||0);
+    const oneHourMs=60*60*1000;
+    const recentlyFailed=lastFailTs&&(Date.now()-lastFailTs)<oneHourMs;
+    if(!expired&&diffMs<fiveMinMs&&!btn._autoRefreshing&&!recentlyFailed){
       btn._autoRefreshing=true;
       try{
-        await refreshOAuthToken(soonest.key);
+        const ok=await refreshOAuthToken(soonest.key,true); // silent=true
+        if(ok){sessionStorage.removeItem(lastFailKey);}
+        else{sessionStorage.setItem(lastFailKey,String(Date.now()));}
         // Re-check after auto-refresh
         await checkTokenExpiryBanner();
-      } catch{} finally{
+      } catch{
+        sessionStorage.setItem(lastFailKey,String(Date.now()));
+      } finally{
         btn._autoRefreshing=false;
       }
       return;
