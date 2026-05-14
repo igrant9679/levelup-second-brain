@@ -824,7 +824,10 @@ body.light-mode .sb-backdrop{background:rgba(15,21,40,.35)}
 .modal .close{margin-left:auto;width:26px;height:26px;border-radius:6px;background:var(--s3);border:none;color:var(--t2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px}
 
 /* AI ASSISTANT BUBBLE */
-.ai-bubble{position:fixed;bottom:20px;right:20px;z-index:150;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+.ai-bubble{position:fixed;bottom:20px;right:20px;z-index:80;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+/* Always hide the AI/news bubble while the mobile sidebar is open so news
+   messages can't slide in over it and block taps. */
+body.sb-open .ai-bubble{display:none!important}
 .ai-msg{background:rgba(255,255,255,0.97);border:1px solid rgba(59,130,246,.25);border-radius:12px 12px 4px 12px;padding:10px 14px;max-width:340px;font-size:12px;color:#1a2035;pointer-events:auto;animation:aiSlide .3s ease;box-shadow:0 8px 32px rgba(0,0,0,.18);position:relative}
 @keyframes aiSlide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .ai-msg .ai-close{position:absolute;top:4px;right:6px;background:none;border:none;color:#666;cursor:pointer;font-size:12px;padding:2px}
