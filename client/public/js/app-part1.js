@@ -10957,11 +10957,14 @@ function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Ar
 <input class="inp" style="margin-bottom:10px" placeholder="Search archive...">
 <div class="cd">${['Complete Q1 report|Task|Mar 15','Brand Identity Refresh|Project|Feb 28','Old AI research|Note|Feb 10','Migrate CRM data|Task|Jan 30','Launch company blog|Goal|Jan 15'].map(x=>{const[n,t,d]=x.split('|');return`<div class="lr"><span style="font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;background:var(--s3);color:var(--t3)">${t}</span><span class="rt">${n}</span><span class="rm">Archived ${d}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:8px;padding:0 5px">Restore</button></span></div>`}).join('')}</div>`}
 
-function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
-<div class="subnav"><span class="sn on" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
-<div id="md-p"><div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Auto-assign start times to My Day tasks based on estimated duration">🗓 Schedule My Day</button></div>
+function renderMyDay(){
+// Restore the user's last subnav choice; default to Execute (most-used view).
+const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
+$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
+<div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
+<div id="md-p" style="display:${_mdSec==='p'?'':'none'}"><div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Auto-assign start times to My Day tasks based on estimated duration">🗓 Schedule My Day</button></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
-<div id="md-e" style="display:none">
+<div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
     <div id="pomo-timer" style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac);letter-spacing:1px">25:00</div>
@@ -10986,7 +10989,7 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
 <div class="sec-h">⚡ Execute — My Day tasks</div>
 <div class="tabs"><div class="tab on" onclick="mdExecFilter(this,'all')">All</div><div class="tab" onclick="mdExecFilter(this,'high')">High Priority</div><div class="tab" onclick="mdExecFilter(this,'quickwin')">⚡ Quick Wins</div><div class="tab" onclick="mdExecFilter(this,'pending')">Pending</div><div class="tab" onclick="mdExecFilter(this,'done')">Done</div></div>
 <div id="md-exec-summary">${getMdExecSummary('all')}</div><div id="md-exec-list">${renderMdExecList('all')}</div></div>
-<div id="md-w" style="display:none"><div class="sec-h">🌙 Wrap-Up</div>
+<div id="md-w" style="display:${_mdSec==='w'?'':'none'}"><div class="sec-h">🌙 Wrap-Up</div>
 <div class="g3" style="margin-bottom:12px">
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${D.tasks.filter(t=>t.status==='Done').length}</div><div class="stat-l">Done today</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--warn)">${D.tasks.filter(t=>t.myDay&&t.status!=='Done').length}</div><div class="stat-l">Carried over</div></div>
@@ -11001,8 +11004,110 @@ function renderMyDay(){$('myday-main').innerHTML=`<div class="ph-r" style="margi
   <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Top priority for tomorrow?</div>
   <textarea class="inp" id="wrapup-tomorrow" placeholder="One thing that will make tomorrow great..." style="height:40px;margin-bottom:10px"></textarea>
   <button class="btn btn-p" style="width:100%" onclick="saveWrapUp()">Save as Journal Entry</button>
-</div></div>`}
-function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none')}
+</div></div>`;
+// ── Right rail: Day at a Glance + Up Next + Today's meetings + Quick Wins + Quick Capture
+_populateMyDayRail();
+}
+function _populateMyDayRail(){
+  const rail=document.getElementById('myday-rail');
+  if(!rail)return;
+  const today=_todayStr;
+  const myDay=D.tasks.filter(t=>t.myDay);
+  const myDone=myDay.filter(t=>t.status==='Done').length;
+  const myTotal=myDay.length;
+  const pct=myTotal?Math.round(myDone/myTotal*100):0;
+  const focusMins=Number((D.prefs&&D.prefs.focusLog||{})[today]||0);
+  const totalMins=myDay.reduce((s,t)=>s+(Number(t.estimatedMins)||0),0);
+  const doneMins=myDay.filter(t=>t.status==='Done').reduce((s,t)=>s+(Number(t.estimatedMins)||0),0);
+  const remainMins=Math.max(0,totalMins-doneMins);
+  const fmtH=m=>{const h=Math.floor(m/60),mm=m%60;return (h?h+'h ':'')+(mm?mm+'m':(h?'':'0m'));};
+  // Donut
+  const ringStyle=`background:conic-gradient(var(--ok) 0% ${pct}%, var(--s3) ${pct}% 100%);width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center`;
+  // Up Next: next 3 not-done My Day tasks. Smart sort: scheduled startTime → priority → soonest due.
+  const priRank={High:3,Medium:2,Low:1};
+  const upNext=myDay.filter(t=>t.status!=='Done').slice().sort((a,b)=>{
+    const ta=a.startTime||'99:99',tb=b.startTime||'99:99';
+    if(ta!==tb)return ta<tb?-1:1;
+    const pr=(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0);
+    if(pr)return pr;
+    return (a.due||'9999').localeCompare(b.due||'9999');
+  }).slice(0,4);
+  const upNextHtml=upNext.length?upNext.map(t=>{
+    const colors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
+    const dot=`<span style="width:6px;height:6px;border-radius:50%;background:${colors[t.priority]||'var(--t3)'};flex-shrink:0"></span>`;
+    const time=t.startTime?`<span style="font-size:9px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
+    return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${t.id});mdSec(document.querySelector('#s-myday .sn:nth-child(2)'),'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
+  }).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
+  // Today's meetings
+  const meetings=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
+  const now=new Date();
+  const meetingHtml=meetings.length?meetings.map(e=>{
+    const s=new Date(e.start);
+    const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const mins=Math.floor((s-now)/60000);
+    const rel=mins<-15?'past':mins<0?'now':mins<60?`in ${mins}m`:`in ${Math.floor(mins/60)}h${mins%60?' '+(mins%60)+'m':''}`;
+    const isPast=mins<-15;
+    return `<div class="lr" style="padding:5px 6px;${isPast?'opacity:.55':''}"><span style="font-size:13px;flex-shrink:0">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</div><div style="font-size:9px;color:var(--t3)">${fmtT(s)}</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach);flex-shrink:0">${rel}</span></div>`;
+  }).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">No meetings today.</div>`;
+  // Quick wins (≤15 min, not done, on My Day or due/scheduled today)
+  const wins=D.tasks.filter(t=>t.status!=='Done'&&(Number(t.estimatedMins)||999)<=15&&(t.myDay||t.due===today||t.startDate===today)).slice(0,5);
+  const winsHtml=wins.length?wins.map(t=>`<div class="lr" style="cursor:pointer;padding:4px 6px" onclick="toggleTask(${t.id});setTimeout(()=>renderScreen('myday'),100)" title="Click to mark done"><span style="font-size:11px;flex-shrink:0">⚡</span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:9px;color:var(--t3);flex-shrink:0">${t.estimatedMins||'?'}m</span></div>`).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">No quick wins — set 'Estimated mins' on tasks to see them here.</div>`;
+  // Habits today snapshot
+  const hbs=(D.habits||[]).filter(h=>h.cadence==='Daily');
+  const hbsDone=hbs.filter(h=>h.doneToday).length;
+  const habitsHtml=hbs.length?`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><strong style="color:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length}</strong> habits done<div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${hbs.length?Math.round(hbsDone/hbs.length*100):0}%;background:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'};border-radius:3px"></div></div></div>`:`<div style="font-size:10px;color:var(--t3)">No daily habits set up.</div>`;
+  rail.innerHTML=`
+  <div class="cd" style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📊 Day at a Glance</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="${ringStyle};flex-shrink:0"><div style="width:68px;height:68px;background:var(--bg);border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-size:18px;font-weight:700;color:${pct===100?'var(--ok)':'var(--ac)'};line-height:1">${pct}%</div><div style="font-size:8px;color:var(--t3);margin-top:2px">${myDone}/${myTotal}</div></div></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;font-size:11px">
+        <div>⏱ <strong>${focusMins}m</strong> <span style="color:var(--t3)">focus today</span></div>
+        <div>🎯 <strong>${fmtH(remainMins)}</strong> <span style="color:var(--t3)">work left</span></div>
+        <div style="margin-top:2px">${habitsHtml}</div>
+      </div>
+    </div>
+  </div>
+  <div class="cd" style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">⏭ Up Next</div>
+    ${upNextHtml}
+  </div>
+  <div class="cd" style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📅 Today's Meetings</div>
+    ${meetingHtml}
+  </div>
+  <div class="cd" style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">⚡ Quick Wins (≤15m)</div>
+    ${winsHtml}
+  </div>
+  <div class="cd">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">✏ Quick Capture</div>
+    <textarea id="md-rail-cap" class="inp" placeholder="Brain dump — Enter to save as task" style="font-size:11px;height:54px;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_mdRailCapture();}"></textarea>
+    <div style="display:flex;gap:5px">
+      <button class="btn btn-p" style="flex:1;font-size:10px;height:24px" onclick="_mdRailCapture()">+ Task</button>
+      <button class="btn btn-s" style="flex:1;font-size:10px;height:24px" onclick="_mdRailCaptureNote()">+ Note</button>
+    </div>
+  </div>`;
+}
+function _mdRailCapture(){
+  const ta=document.getElementById('md-rail-cap');if(!ta)return;
+  const v=(ta.value||'').trim();if(!v){ta.focus();return;}
+  D.tasks.push({id:nextId(D.tasks),title:v,priority:'Medium',due:_todayStr,context:'Inbox',project:'',status:'Not Started',myDay:true,energy:'',notes:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'});
+  save('tasks');
+  ta.value='';
+  toast('☀ Added to My Day');
+  renderScreen('myday');
+}
+function _mdRailCaptureNote(){
+  const ta=document.getElementById('md-rail-cap');if(!ta)return;
+  const v=(ta.value||'').trim();if(!v){ta.focus();return;}
+  const firstLine=v.split('\n')[0].slice(0,80);
+  D.notes.unshift({id:nextId(D.notes),title:firstLine||'Quick note',body:v,tags:[],created:new Date().toISOString(),updated:new Date().toISOString(),createdAt:new Date().toISOString()});
+  save('notes');
+  ta.value='';
+  toast('📝 Saved to Notes');
+}
+function mdSec(el,s){el.parentElement.querySelectorAll('.sn').forEach(x=>x.classList.remove('on'));el.classList.add('on');['p','e','w'].forEach(x=>document.getElementById('md-'+x).style.display=x===s?'':'none');D.prefs=D.prefs||{};D.prefs.myDaySection=s;save('prefs');}
 function saveWrapUp(){
   const wins=(document.getElementById('wrapup-wins')||{}).value||'';
   const improve=(document.getElementById('wrapup-improve')||{}).value||'';
