@@ -1,0 +1,25 @@
+{
+  "name": "LevelUp - The Second Brain",
+  "short_name": "LevelUp",
+  "description": "Personal productivity / second brain — tasks, notes, projects, goals, journal, habits, calendar, mail.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B0F1A",
+  "theme_color": "#0B0F1A",
+  "icons": [
+    {
+      "src": "/manus-storage/favicon-192_0a5868b9.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/manus-storage/favicon-512_f76dd5b1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

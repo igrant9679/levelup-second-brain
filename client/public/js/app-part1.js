@@ -5464,6 +5464,93 @@ function assignNoteToFolder(noteId,folderId){
   const f=folderId?_noteFolderById(folderId):null;
   toast(f?`📁 Moved to "${f.name}"`:'📁 Removed from folder');
 }
+// ─── Touch-drag helper ───────────────────────────────────────────────
+// HTML5 drag-and-drop doesn't work on iOS / most touch devices. This
+// installs a single touchstart→touchmove→touchend listener on the
+// document that synthesizes drag/drop events for any element with a
+// `data-touch-drag` attribute. The element's [data-touch-drag] value
+// names a CSS selector for valid drop targets (e.g. ".my-drop-zone").
+// On long-press (550ms), a ghost element follows the finger; on
+// touchend the topmost element under the finger matching the selector
+// fires its `ondrop` handler with a synthesized event whose dataTransfer
+// has the original element id. Synced visually via .lu-touch-drop-target.
+(function installTouchDrag(){
+  let _src=null,_ghost=null,_lpTimer=null,_dropSel=null,_lastOver=null,_dragId=null;
+  function startDrag(srcEl,touch){
+    // Default selector: anything with an inline ondrop handler. Works for
+    // every existing HTML5-drag drop target without requiring a marker attr.
+    _src=srcEl;_dropSel=srcEl.getAttribute('data-touch-drag-targets')||'[data-touch-drop],[ondrop]';
+    _dragId=srcEl.getAttribute('data-task-id')||srcEl.getAttribute('data-nid')||srcEl.getAttribute('data-project-id')||srcEl.getAttribute('data-home-id')||srcEl.dataset.id||'';
+    _ghost=document.createElement('div');_ghost.className='lu-touch-ghost';
+    _ghost.textContent=(srcEl.textContent||srcEl.getAttribute('aria-label')||'Item').trim().slice(0,80);
+    _ghost.style.left=touch.clientX+'px';_ghost.style.top=touch.clientY+'px';
+    document.body.appendChild(_ghost);
+    if('vibrate' in navigator)try{navigator.vibrate(20);}catch(_){}
+    // Fire dragstart on the source so existing handlers initialize state
+    const dt=new DataTransfer();try{dt.setData('text/plain',_dragId);}catch(_){}
+    const ev=new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:dt});
+    srcEl.dispatchEvent(ev);
+  }
+  function moveDrag(touch){
+    if(!_ghost)return;
+    _ghost.style.left=touch.clientX+'px';_ghost.style.top=touch.clientY+'px';
+    _ghost.style.display='none';
+    const under=document.elementFromPoint(touch.clientX,touch.clientY);
+    _ghost.style.display='';
+    const target=under&&_dropSel?under.closest(_dropSel):null;
+    if(_lastOver&&_lastOver!==target){_lastOver.classList.remove('lu-touch-drop-target');const lev=new DragEvent('dragleave',{bubbles:true});_lastOver.dispatchEvent(lev);}
+    if(target){target.classList.add('lu-touch-drop-target');const dt=new DataTransfer();try{dt.setData('text/plain',_dragId);}catch(_){}const oev=new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:dt});target.dispatchEvent(oev);}
+    _lastOver=target;
+  }
+  function endDrag(touch){
+    if(!_src)return;
+    if(_ghost){_ghost.remove();_ghost=null;}
+    if(_lastOver){
+      const dt=new DataTransfer();try{dt.setData('text/plain',_dragId);}catch(_){}
+      const dev=new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:dt,clientX:touch.clientX,clientY:touch.clientY});
+      _lastOver.dispatchEvent(dev);
+      _lastOver.classList.remove('lu-touch-drop-target');
+    }
+    const eev=new DragEvent('dragend',{bubbles:true});_src.dispatchEvent(eev);
+    _src=null;_lastOver=null;_dragId=null;
+  }
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    const src=e.target.closest('[data-touch-drag],[draggable="true"]');
+    if(!src)return;
+    // Skip if the target is an interactive control inside the draggable
+    if(e.target.closest('button,input,select,textarea,a'))return;
+    const t=e.touches[0];
+    if(_lpTimer)clearTimeout(_lpTimer);
+    _lpTimer=setTimeout(()=>{startDrag(src,t);},550);
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(_lpTimer&&!_src){clearTimeout(_lpTimer);_lpTimer=null;return;}
+    if(_src&&e.touches[0]){e.preventDefault();moveDrag(e.touches[0]);}
+  },{passive:false});
+  document.addEventListener('touchend',e=>{
+    if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}
+    if(_src){const t=(e.changedTouches&&e.changedTouches[0])||{clientX:0,clientY:0};endDrag(t);}
+  },{passive:true});
+  document.addEventListener('touchcancel',()=>{if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}if(_src){if(_ghost){_ghost.remove();_ghost=null;}_src=null;_lastOver=null;}},{passive:true});
+})();
+
+// Notes mobile pane switcher (Folders / List / Editor / Links).
+// Body class drives which pane is visible on phones (≤900px).
+function setNotesMobilePane(pane){
+  if(!['folders','list','editor','rail'].includes(pane))pane='editor';
+  document.body.classList.remove('notes-pane-folders','notes-pane-list','notes-pane-editor','notes-pane-rail');
+  document.body.classList.add('notes-pane-'+pane);
+  document.querySelectorAll('#notes-mobile-tabs button').forEach(b=>{b.classList.toggle('on',b.dataset.pane===pane);});
+  // Persist last pane so reopening Notes shows the same view
+  try{D.prefs=D.prefs||{};D.prefs.notesMobilePane=pane;save('prefs');}catch(_){}
+}
+// Apply the persisted mobile pane on initial Notes render so users don't
+// always land on the editor.
+function _applyNotesMobilePane(){
+  const stored=(D.prefs&&D.prefs.notesMobilePane)||'editor';
+  setNotesMobilePane(stored);
+}
 // ─── Notes panel resize (nav / list / rail are user-sizable) ──────────
 const _notesDefaultWidths={nav:160,list:240,rail:200};
 function _notesGetWidths(){const w=Object.assign({},_notesDefaultWidths,(D.prefs&&D.prefs.notesPanelWidths)||{});return w;}
@@ -5611,6 +5698,8 @@ function setNotesGroupBy(v){_notesGroupBy=v||'';_persistPageState('notes',{group
 function showNoteInEditor(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return;
+  // On phones, jump to the editor pane so the user actually SEES the note.
+  if(window.matchMedia&&window.matchMedia('(max-width:900px)').matches&&typeof setNotesMobilePane==='function'){setNotesMobilePane('editor');}
   // Highlight selected
   document.querySelectorAll('.nc').forEach(el=>el.classList.remove('on'));
   const el=document.querySelector(`.nc[data-nid="${id}"]`);
@@ -6713,6 +6802,8 @@ function renderNotes(){
   // panel's innerHTML wipe above destroys the previous handle children.
   if(typeof _notesApplyWidths==='function')_notesApplyWidths();
   if(typeof _notesEnsureResizeHandles==='function')_notesEnsureResizeHandles();
+  // Apply persisted mobile pane (no-op on desktop where the strip is hidden).
+  if(typeof _applyNotesMobilePane==='function')_applyNotesMobilePane();
 }
 let _noteInlineEditId=null;
 function saveNoteInlineEdit(id){

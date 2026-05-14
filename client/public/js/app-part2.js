@@ -8636,6 +8636,8 @@ function mmDrawNodes(){
   }).join('');
   // Focus the inline edit input if active
   if(_mmInlineEditId){const el=container.querySelector(`.mm-node[data-id="${_mmInlineEditId}"] .mm-node-edit`);if(el)el.focus();}
+  // (Re-)attach touch handlers to the freshly-rendered nodes for iOS support.
+  if(typeof _mmAttachTouchHandlers==='function')_mmAttachTouchHandlers();
 }
 
 function mmDrawEdges(){
@@ -8674,6 +8676,49 @@ function mmDrawEdges(){
 // ─── Canvas Interactions ─────────────────────────────────────────────────────
 let _mmIsPanning = false;
 let _mmPanStart = null;
+
+// Touch-to-mouse adapter: wraps a mouse handler so it can be called from
+// touchstart/move/end events (iOS Safari). Single-finger only — pinch
+// gestures are handled separately below for zoom.
+function _mmTouch(handler){
+  return function(e){
+    const t=e.touches&&e.touches[0]||(e.changedTouches&&e.changedTouches[0]);
+    if(!t)return;
+    e.preventDefault();
+    handler({target:e.target,currentTarget:e.currentTarget,
+      clientX:t.clientX,clientY:t.clientY,button:0,shiftKey:false,
+      preventDefault:()=>e.preventDefault(),stopPropagation:()=>e.stopPropagation()});
+  };
+}
+// Attach touch listeners to the canvas + every node after each render.
+// Idempotent — uses a marker attribute so we don't double-bind.
+function _mmAttachTouchHandlers(){
+  const wrap=document.getElementById('mm-canvas-wrap');
+  if(wrap&&!wrap.dataset.touchBound){
+    wrap.addEventListener('touchstart',_mmTouch(mmCanvasMouseDown),{passive:false});
+    wrap.addEventListener('touchmove',_mmTouch(mmCanvasMouseMove),{passive:false});
+    wrap.addEventListener('touchend',_mmTouch(mmCanvasMouseUp));
+    // Pinch-to-zoom — two-finger gesture
+    let _pinchDist=0;
+    wrap.addEventListener('touchstart',e=>{if(e.touches.length===2){_pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:true});
+    wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&_pinchDist){e.preventDefault();const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);const factor=d/_pinchDist;_mmZoom=Math.max(0.3,Math.min(3,_mmZoom*factor));_pinchDist=d;mmDrawNodes();mmDrawEdges();}},{passive:false});
+    wrap.dataset.touchBound='1';
+  }
+  // Per-node touch handlers (re-bind on every render since DOM is rebuilt).
+  document.querySelectorAll('.mm-node[data-id]').forEach(el=>{
+    if(el.dataset.touchBound)return;
+    const id=Number(el.dataset.id);
+    el.addEventListener('touchstart',_mmTouch(e=>mmNodeMouseDown(e,id)),{passive:false});
+    // Long-press = context menu (no right-click on touch)
+    let _lpTimer=null;
+    el.addEventListener('touchstart',e=>{
+      _lpTimer=setTimeout(()=>{const t=e.touches[0];if(t)mmNodeContext({preventDefault:()=>{},stopPropagation:()=>{},clientX:t.clientX,clientY:t.clientY},id);},550);
+    },{passive:true});
+    el.addEventListener('touchmove',()=>{if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}},{passive:true});
+    el.addEventListener('touchend',()=>{if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;}},{passive:true});
+    el.dataset.touchBound='1';
+  });
+}
 
 function mmCanvasMouseDown(e){
   if(e.target.closest('.mm-node')) return;

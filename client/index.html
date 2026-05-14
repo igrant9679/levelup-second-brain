@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LevelUp">
+<meta name="theme-color" content="#0B0F1A">
+<meta name="mobile-web-app-capable" content="yes">
 <title>LevelUp - The Second Brain</title>
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="icon" type="image/png" sizes="192x192" href="/manus-storage/favicon-192_0a5868b9.png">
@@ -671,6 +677,18 @@ body.sidebar-collapsed .si:hover::after{
 .sb-collapse-toggle:hover{background:var(--s3);color:var(--t1)}
 body.sidebar-collapsed .sb-collapse-toggle{left:12px}
 
+/* Hide the Notes mobile tab strip on desktop — it only matters on phones. */
+#notes-mobile-tabs{display:none}
+
+/* Touch-drag ghost (used by tasks/projects/notes drag fallback on touch). */
+.lu-touch-ghost{position:fixed;pointer-events:none;z-index:9990;opacity:.85;
+  background:var(--s2);border:1px solid var(--ac);border-radius:6px;
+  padding:6px 10px;font-size:11px;color:var(--t1);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:240px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transform:translate(-50%,-50%)}
+.lu-touch-drop-target{outline:2px dashed var(--ac)!important;outline-offset:-2px;
+  background:color-mix(in srgb,var(--ac) 14%,transparent)!important}
 /* ─── Mobile responsive layout ──────────────────────────────────────────
    On viewports ≤ 900px:
    - Sidebar collapses behind a hamburger button (slides in from left).
@@ -734,18 +752,26 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Right rail tucked away on phones; users can scroll the rail into view
      via a dedicated button on pages that need it. */
   .rr{display:none}
-  /* Notes page: stack the four panels and reveal them via a top tab strip
-     instead of the 5-column desktop grid. */
+  /* Notes page: stack the four panels into a tab-switched single-pane
+     layout. #notes-mobile-tabs (in the markup) toggles which pane is
+     visible via body.notes-pane-X. */
   .scr#s-notes>.bg{grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important}
-  .scr#s-notes>.bg>.ph-r{grid-column:1/-1!important;margin:8px 12px 0!important}
+  .scr#s-notes>.bg>.ph-r{grid-column:1/-1;margin:8px 12px 0!important}
+  #notes-mobile-tabs{grid-column:1/-1}
   .scr#s-notes .notes-nav,
   .scr#s-notes .notes-list,
-  .scr#s-notes .notes-rail{display:none}
-  .scr#s-notes .notes-editor{padding:14px!important}
-  body.notes-mobile-list .scr#s-notes .notes-list{display:block;border-right:none}
-  body.notes-mobile-list .scr#s-notes .notes-editor{display:none}
-  body.notes-mobile-nav .scr#s-notes .notes-nav{display:block;border-right:none}
-  body.notes-mobile-nav .scr#s-notes .notes-editor{display:none}
+  .scr#s-notes .notes-rail,
+  .scr#s-notes .notes-editor{display:none;border-right:none!important;padding:14px!important;width:auto!important}
+  body.notes-pane-folders .scr#s-notes .notes-nav,
+  body.notes-pane-list .scr#s-notes .notes-list,
+  body.notes-pane-editor .scr#s-notes .notes-editor,
+  body.notes-pane-rail .scr#s-notes .notes-rail{display:block}
+  /* Hide resize handles on phones — panes are full-width tabs now */
+  .scr#s-notes .notes-resize{display:none!important}
+  /* Notes mobile tab strip */
+  #notes-mobile-tabs{display:flex;gap:4px;padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--bd1);overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #notes-mobile-tabs button{flex:1;min-width:60px;height:36px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--t2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;-webkit-tap-highlight-color:transparent}
+  #notes-mobile-tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
   /* Topbar tightens */
   .topbar{padding:0 10px;gap:6px}
   .tb-l small{display:none}
@@ -775,6 +801,20 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Modals: respect viewport edges */
   .modal-ov .modal,.modal{margin:10px;max-height:calc(100vh - 20px)}
 }
+/* On touch devices, every hover-only quick action becomes invisible.
+   Reveal star/pin chips on note cards, ⋮ row menu on tasks, hero tile
+   popovers, etc. Conditional on hover:none so desktop is untouched. */
+@media (hover:none){
+  .nc .nc-quick-actions{opacity:1!important}
+  .lr[data-task-id] .lr-row-acts-toggle{opacity:1!important}
+  .nn-folder .nn-folder-act{opacity:.7!important}
+  .home-card-wrap .home-card-drag{opacity:.5!important}
+  /* Hide drag handles since touch-drag uses long-press, not the handle */
+  .tl-drag,.proj-drag,.cl-task-grip{display:none!important}
+  /* Tap-to-toggle hero tile popover (handled in JS but show pointer cursor) */
+  .home-hero-tile{cursor:pointer}
+}
+
 /* Even tighter for true phones */
 @media (max-width:560px){
   .topbar input::placeholder{content:'Search…'}
@@ -783,7 +823,38 @@ body.sb-open .lu-pill-pop{display:none!important}
   .home-hero h1{font-size:20px!important}
   /* Stat tiles stack 2-up instead of trying to fit 5 */
   .home-hero [style*="repeat(auto-fit,minmax(120px"]{grid-template-columns:repeat(2,1fr)!important}
+  /* Drawer field-rows: stack instead of trying to fit 2 columns */
+  .drawer .field-row{flex-direction:column!important;gap:6px!important}
+  .drawer .field-row>.field{flex:1 1 100%!important;min-width:0}
+  /* FA modal field-rows: same — stack */
+  .fa-modal .fa-row{grid-template-columns:1fr!important}
+  .fa-modal{padding:14px!important}
+  /* Bulk action bars: tighter wrap */
+  #notes-bulk-bar,#bulk-action-bar{padding:6px 8px!important;gap:4px!important}
+  #notes-bulk-bar button,#bulk-action-bar button{font-size:9px!important;padding:0 6px!important;height:24px!important}
+  /* Cluster cards: tighter padding so titles don't wrap awkwardly */
+  .cl-task-row{padding:8px 10px 8px 36px!important;gap:8px!important}
+  /* Calendar: smaller cells */
+  .cal-grid{font-size:10px}
+  /* Topbar: drop the search input on tiny screens, replace with icon-only
+     trigger. Saves space for the hamburger + logo + actions. */
+  .tb-s{display:none!important}
+  /* Topbar logo subtitle hidden so name has room */
+  .tb-l div small{display:none}
+  /* AI bubble bottom-right won't overlap the iOS Safari toolbar */
+  .ai-bubble{bottom:max(90px,env(safe-area-inset-bottom,0))}
+  /* Reports: KPI strip stacks 1-up */
+  #lu-report-print-target>div[style*="repeat(auto-fit,minmax(180px"]{grid-template-columns:1fr!important}
+  /* Custom widget grid stacks fully */
+  #lu-report-print-target>div[style*="grid-template-columns:repeat(12"]{grid-template-columns:1fr!important}
 }
+
+/* Tap-delay removal — global. */
+*{touch-action:manipulation}
+/* But allow scrollable areas to pan normally */
+.mn,.sb,.rr,.notes-rail,#notes-list-inner,#tasks-list,#mindmap-main,
+.cmdp-overlay,.modal-ov,.fa-modal-ov,.drawer,.ai-panel,
+[id$="-main"]{touch-action:auto}
 
 /* ─── Microinteractions ─────────────────────────────────────────────── */
 /* Tactile press feedback on every button. */
@@ -1582,6 +1653,13 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
     <button class="btn btn-p" onclick="openFA('note')">+ New Note</button>
   </div>
 </header>
+<!-- Mobile-only tab strip to switch between the four Notes panes. -->
+<div id="notes-mobile-tabs">
+  <button data-pane="folders" onclick="setNotesMobilePane('folders')">📁 Folders</button>
+  <button data-pane="list" onclick="setNotesMobilePane('list')">📝 List</button>
+  <button data-pane="editor" onclick="setNotesMobilePane('editor')" class="on">✏ Editor</button>
+  <button data-pane="rail" onclick="setNotesMobilePane('rail')">🔗 Links</button>
+</div>
 <!-- Bulk action bar (hidden by default, shown when bulk mode active) -->
 <div id="notes-bulk-bar" style="display:none;grid-column:2/-1;margin:0 16px;padding:8px 12px;background:color-mix(in srgb,var(--page-accent) 14%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 35%,var(--bd2));border-radius:8px;align-items:center;gap:10px;flex-wrap:wrap">
     <span id="notes-bulk-count" style="font-size:11px;font-weight:600;color:var(--page-accent)">0 selected</span>
