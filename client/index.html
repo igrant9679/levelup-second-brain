@@ -149,7 +149,10 @@ body:not(.compact-mode) .drawer .field label{font-size:12px}
 html,body{height:100%;overflow:hidden}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
-.app{display:grid;grid-template-rows:var(--top) 1fr;height:100vh}
+/* Use dvh (dynamic viewport height) so iOS Safari's collapsing address bar
+   doesn't cut off the bottom of the app shell. Falls back to 100vh on older
+   browsers. */
+.app{display:grid;grid-template-rows:var(--top) 1fr;height:100vh;height:100dvh}
 
 /* TOPBAR */
 .topbar{background:var(--s1);border-bottom:1px solid var(--bd1);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:100}
@@ -675,18 +678,35 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
    - Multi-column pages (Notes 5-col, Mail 3-col) stack into tabs.
    - Topbar search shrinks; logo subtitle hides.
    - Page headers reflow to single column. */
-.menu-toggle{display:none;background:transparent;border:1px solid var(--bd2);color:var(--t1);width:34px;height:34px;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.menu-toggle:active{transform:scale(.94)}
-.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s}
+.menu-toggle{display:none;background:transparent;border:1px solid var(--bd2);color:var(--t1);width:38px;height:38px;border-radius:8px;cursor:pointer;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.menu-toggle:active{transform:scale(.94);background:var(--s3)}
+.sb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;opacity:0;pointer-events:none;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
 .sb-backdrop.show{opacity:1;pointer-events:auto}
+/* iOS Safari notch / safe-area handling for the topbar so the hamburger
+   never disappears behind the status bar on landscape iPhones. */
+.topbar{padding-left:max(14px,env(safe-area-inset-left,0));padding-right:max(14px,env(safe-area-inset-right,0))}
 @media (max-width:900px){
   :root{--side:220px}
   .menu-toggle{display:flex}
-  /* Sidebar becomes a slide-in panel */
+  /* Sidebar becomes a slide-in panel. Uses 100dvh + safe-area-inset-bottom
+     so iOS Safari's address bar and home indicator don't cover the bottom
+     items. overflow-y:auto so long sidebars (lots of nav rows) can scroll
+     even on short viewports. */
   .sb{position:fixed;top:var(--top);left:0;bottom:0;width:240px;z-index:95;
+    height:calc(100vh - var(--top));height:calc(100dvh - var(--top));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:env(safe-area-inset-bottom,0);
     transform:translateX(-105%);transition:transform .22s cubic-bezier(.2,.9,.3,1.1);
     box-shadow:8px 0 32px rgba(0,0,0,.45);border-right:1px solid var(--bd2)}
   body.sb-open .sb{transform:translateX(0)}
+  /* Lock the body when the sidebar is open so the page underneath
+     doesn't scroll while the user is interacting with the nav. */
+  body.sb-open{overflow:hidden;position:fixed;width:100%}
+  /* Make every nav row a comfortable touch target on phones (Apple's HIG
+     recommends >=44px). Default .si is ~36px. */
+  .sb .si{min-height:44px;font-size:13px}
+  /* Sidebar user-block at the very bottom needs to clear the home indicator. */
+  .sb .su{padding-bottom:max(10px,env(safe-area-inset-bottom,0))}
   /* Main grid drops the sidebar column on mobile */
   .bg,.bg.wr{grid-template-columns:1fr!important}
   /* Right rail tucked away on phones; users can scroll the rail into view
