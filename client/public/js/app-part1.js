@@ -3592,6 +3592,70 @@ function getHomeCardPrefs(){
   return _homeCardDefs.map(c=>({id:c.id,visible:c.default,order:_homeCardDefs.findIndex(x=>x.id===c.id)}));
 }
 function saveHomeCardPrefs(prefs){localStorage.setItem('lu_home_cards',JSON.stringify(prefs));}
+// ── Home card "determination" modes ─────────────────────────────────────────
+// Each card that surfaces a list (tasks / notes / projects / etc.) supports
+// multiple selection strategies. The user picks one from the Customize
+// dashboard dialog; it persists per-user via D.prefs.homeCardMode and is
+// applied on the next render. Cards not listed here are deterministic
+// (weather, productivity score, etc.) and don't need a mode picker.
+const _homeCardModes={
+  tasks:[
+    {id:'smart',label:'Smart: overdue → due today → priority → soonest'},
+    {id:'priority',label:'Highest priority first (skip Done/Someday)'},
+    {id:'dueSoon',label:'Soonest due first (skip Done/Someday)'},
+    {id:'recent',label:'Most recently created'},
+    {id:'myDay',label:'My Day only'},
+    {id:'oldest',label:'Storage order (oldest first — legacy)'},
+  ],
+  notes:[
+    {id:'recent',label:'Most recently updated'},
+    {id:'created',label:'Most recently created'},
+    {id:'pinned',label:'Pinned first, then recent'},
+    {id:'starred',label:'Starred first, then recent'},
+  ],
+  projects:[
+    {id:'active',label:'Active projects (lowest %% first)'},
+    {id:'recentActivity',label:'Recently updated'},
+    {id:'mostTasks',label:'Most open tasks'},
+    {id:'dueSoon',label:'Soonest due'},
+  ],
+  deadlines:[
+    {id:'14d',label:'Next 14 days · all types'},
+    {id:'7d',label:'Next 7 days · all types'},
+    {id:'30d',label:'Next 30 days · all types'},
+    {id:'tasks14d',label:'Tasks only · next 14 days'},
+  ],
+  mindmaps:[
+    {id:'recent',label:'Most recently created'},
+    {id:'biggest',label:'Most nodes first'},
+  ],
+  bookmarks:[
+    {id:'recent',label:'Most recently added'},
+    {id:'pinned',label:'Pinned first'},
+  ],
+  staleContent:[
+    {id:'oldest',label:'Oldest untouched first (>30 days)'},
+    {id:'newest',label:'Most recently went stale first'},
+    {id:'tasksOnly',label:'Tasks only (>30 days)'},
+    {id:'notesOnly',label:'Notes only (>30 days)'},
+  ],
+  streaks:[
+    {id:'longest',label:'Longest streak first'},
+    {id:'shortest',label:'Shortest active streak first'},
+  ],
+};
+const _homeCardModeDefaults={tasks:'smart',notes:'recent',projects:'active',deadlines:'14d',mindmaps:'recent',bookmarks:'recent',staleContent:'oldest',streaks:'longest'};
+function getHomeCardMode(id){
+  const m=(D.prefs&&D.prefs.homeCardMode)||{};
+  return m[id]||_homeCardModeDefaults[id]||'';
+}
+function setHomeCardMode(id,mode){
+  D.prefs=D.prefs||{};
+  D.prefs.homeCardMode=D.prefs.homeCardMode||{};
+  D.prefs.homeCardMode[id]=mode;
+  save('prefs');
+  if(curScreen==='home'&&typeof renderHome==='function')renderHome();
+}
 function openHomeDashCustomize(){
   const prefs=getHomeCardPrefs();
   const ov=document.createElement('div');
@@ -3630,16 +3694,22 @@ function openHomeDashCustomize(){
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle cards on/off or drag to reorder (use ↑↓ buttons).</div>
   <div id="home-cust-list">${sorted.map((p,i)=>{
     const def=_homeCardDefs.find(c=>c.id===p.id);
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
-      <div style="display:flex;flex-direction:column;gap:1px">
-        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
-        <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+    const modes=_homeCardModes[p.id];
+    const cur=modes?getHomeCardMode(p.id):'';
+    const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:10px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+    return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
+          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+        </div>
+        <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+          <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+          Show
+        </label>
       </div>
-      <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
-      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
-        <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
-        Show
-      </label>
+      ${modeRow}
     </div>`;
   }).join('')}</div>
   <div style="display:flex;gap:6px;margin-top:12px">
@@ -3714,16 +3784,22 @@ function homeCardMove(id,dir){
     const newSorted=[...prefs].sort((a,b)=>a.order-b.order);
     list.innerHTML=newSorted.map((p,i)=>{
       const def=_homeCardDefs.find(c=>c.id===p.id);
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
-        <div style="display:flex;flex-direction:column;gap:1px">
-          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
-          <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+      const modes=_homeCardModes[p.id];
+      const cur=modes?getHomeCardMode(p.id):'';
+      const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:10px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+      return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
+            <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
+          </div>
+          <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+            <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
+            Show
+          </label>
         </div>
-        <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
-          <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
-          Show
-        </label>
+        ${modeRow}
       </div>`;
     }).join('');
   }
@@ -3881,18 +3957,59 @@ function renderHome(){
   ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${c};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
   ${(()=>{
     const cardHtml={
-      tasks:`<div class="cd"><div class="cd-h"><div class="cd-t">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${D.tasks.slice(0,5).map(t=>taskRow(t,false)).join('')}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`,
-      notes:(()=>{
-        // Sort by most-recent first using whatever timestamp we have.
-        const byRecent=[...D.notes].sort((a,b)=>{
-          const da=(typeof _parseNoteDate==='function'?_parseNoteDate(b):0)-(typeof _parseNoteDate==='function'?_parseNoteDate(a):0);
-          if(da)return da;
-          // Fallback: createdAt or id (Date.now()-based) — both increase over time.
-          return (Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0);
-        }).slice(0,5);
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
+      tasks:(()=>{
+        const mode=getHomeCardMode('tasks');
+        const today=_todayStr;
+        const priRank={High:3,Medium:2,Low:1};
+        let pool=D.tasks.slice();
+        const skipDone=t=>t.status!=='Done'&&t.status!=='Someday';
+        let chosen;
+        if(mode==='oldest'){chosen=pool.slice(0,5);}
+        else if(mode==='myDay'){chosen=pool.filter(t=>t.myDay&&t.status!=='Done').slice(0,5);}
+        else if(mode==='recent'){chosen=pool.filter(skipDone).sort((a,b)=>{const ka=Date.parse(a.createdAt||0)||a.id||0;const kb=Date.parse(b.createdAt||0)||b.id||0;return kb-ka;}).slice(0,5);}
+        else if(mode==='priority'){chosen=pool.filter(skipDone).sort((a,b)=>(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0)||(a.due||'9999').localeCompare(b.due||'9999')).slice(0,5);}
+        else if(mode==='dueSoon'){chosen=pool.filter(skipDone).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).slice(0,5);}
+        else{ // 'smart' default — overdue → due today → priority desc → soonest due → newest
+          chosen=pool.filter(skipDone).map(t=>{
+            const overdue=t.due&&t.due<today?1:0;
+            const dueToday=t.due===today?1:0;
+            return {t,overdue,dueToday,pri:priRank[t.priority||'Medium']||0,due:t.due||'9999',ts:Date.parse(t.createdAt||0)||t.id||0};
+          }).sort((a,b)=>b.overdue-a.overdue||b.dueToday-a.dueToday||b.pri-a.pri||a.due.localeCompare(b.due)||b.ts-a.ts).slice(0,5).map(x=>x.t);
+        }
+        const modeLabel=(_homeCardModes.tasks.find(m=>m.id===mode)||{}).label||'';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${chosen.length?chosen.map(t=>taskRow(t,false)).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">Nothing here for this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`;
       })(),
-      projects:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${D.projects.filter(p=>p.status==='Active').slice(0,5).map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`,
+      notes:(()=>{
+        const mode=getHomeCardMode('notes');
+        const tsCreated=n=>Date.parse(n.createdAt||0)||n.id||0;
+        const tsUpdated=n=>(typeof _parseNoteDate==='function'?_parseNoteDate(n):0)||tsCreated(n);
+        let arr=D.notes.slice();
+        if(mode==='created')arr.sort((a,b)=>tsCreated(b)-tsCreated(a));
+        else if(mode==='pinned')arr.sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||(tsUpdated(b)-tsUpdated(a)));
+        else if(mode==='starred')arr.sort((a,b)=>((b.starred?1:0)-(a.starred?1:0))||(tsUpdated(b)-tsUpdated(a)));
+        else arr.sort((a,b)=>tsUpdated(b)-tsUpdated(a)); // 'recent' default
+        const byRecent=arr.slice(0,5);
+        const modeLabel=(_homeCardModes.notes.find(m=>m.id===mode)||{}).label||'';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.length?byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No notes match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
+      })(),
+      projects:(()=>{
+        const mode=getHomeCardMode('projects');
+        let arr=D.projects.filter(p=>p.status==='Active');
+        if(mode==='recentActivity'){
+          const upd=p=>Date.parse(p.updatedAt||p.updated||p.createdAt||0)||p.id||0;
+          arr=arr.slice().sort((a,b)=>upd(b)-upd(a));
+        }else if(mode==='mostTasks'){
+          const open=p=>(D.tasks||[]).filter(t=>(t.projectId===p.id||t.project===p.name)&&t.status!=='Done').length;
+          arr=arr.slice().sort((a,b)=>open(b)-open(a));
+        }else if(mode==='dueSoon'){
+          arr=arr.slice().filter(p=>p.due&&p.due!=='TBD').sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+        }else{ // 'active' default — lowest pct first (needs the most attention)
+          arr=arr.slice().sort((a,b)=>(a.pct||0)-(b.pct||0));
+        }
+        const top=arr.slice(0,5);
+        const modeLabel=(_homeCardModes.projects.find(m=>m.id===mode)||{}).label||'';
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
+      })(),
       goals:renderGoalCards(3),
       focus:(()=>{
         const _fl=D.prefs&&D.prefs.focusLog||{};
@@ -3990,28 +4107,46 @@ function renderHome(){
       })(),
       // ── Recent Mind Maps ──
       mindmaps:(()=>{
-        const maps=(D.mindmaps||[]).slice(-5).reverse();
+        const mode=getHomeCardMode('mindmaps');
+        let maps;
+        if(mode==='biggest'){
+          maps=(D.mindmaps||[]).slice().sort((a,b)=>(b.nodes||[]).length-(a.nodes||[]).length).slice(0,5);
+        }else{ // 'recent' default
+          maps=(D.mindmaps||[]).slice(-5).reverse();
+        }
         const body=maps.length?maps.map(m=>`<div class="lr" style="cursor:pointer" onclick="nav('mindmaps');setTimeout(()=>typeof mmOpen==='function'&&mmOpen(${m.id}),100)"><span style="font-size:14px;flex-shrink:0">🧠</span><span class="rt" style="font-size:11px">${esc(m.title||m.name||'Untitled')}</span><span class="rm">${(m.nodes||[]).length} nodes</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No mind maps yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'mindmaps\')">Create one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 Mind Maps</div><span class="cd-a" onclick="nav('mindmaps')">View all</span></div>${body}<div class="add-c" onclick="nav('mindmaps')">+ New Mind Map</div></div>`;
       })(),
       // ── Recent Bookmarks ──
       bookmarks:(()=>{
-        const bks=(D.bookmarks||[]).slice(0,5);
+        const mode=getHomeCardMode('bookmarks');
+        let bks;
+        if(mode==='pinned'){
+          bks=(D.bookmarks||[]).slice().sort((a,b)=>((b.pinned?1:0)-(a.pinned?1:0))||((Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0))).slice(0,5);
+        }else{ // 'recent' default
+          bks=(D.bookmarks||[]).slice().sort((a,b)=>(Date.parse(b.createdAt||0)||b.id||0)-(Date.parse(a.createdAt||0)||a.id||0)).slice(0,5);
+        }
         const body=bks.length?bks.map(b=>`<div class="lr" style="cursor:pointer" onclick="window.open('${esc(b.url||'')}','_blank')" title="${esc(b.url||'')}"><span style="font-size:14px;flex-shrink:0">🔖</span><span class="rt" style="font-size:11px">${esc(b.title||b.url||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No bookmarks yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'bookmarks\')">Add one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🔖 Bookmarks</div><span class="cd-a" onclick="nav('bookmarks')">View all</span></div>${body}</div>`;
       })(),
-      // ── Upcoming Deadlines (next 14 days) ──
+      // ── Upcoming Deadlines (horizon configurable per-card mode) ──
       deadlines:(()=>{
+        const mode=getHomeCardMode('deadlines');
+        const horizonDays=mode==='7d'?7:mode==='30d'?30:14;
+        const tasksOnly=mode==='tasks14d';
         const today=new Date().toISOString().slice(0,10);
-        const horizon=new Date();horizon.setDate(horizon.getDate()+14);const horizonKey=horizon.toISOString().slice(0,10);
+        const horizon=new Date();horizon.setDate(horizon.getDate()+horizonDays);const horizonKey=horizon.toISOString().slice(0,10);
         const items=[];
         (D.tasks||[]).forEach(t=>{if(t.status!=='Done'&&t.due&&t.due>=today&&t.due<=horizonKey)items.push({type:'task',id:t.id,title:t.title,date:t.due,priority:t.priority||'Medium'});});
-        (D.goals||[]).forEach(g=>{if(g.dueDate&&g.dueDate>=today&&g.dueDate<=horizonKey)items.push({type:'goal',id:g.id,title:(g.icon||'🎯')+' '+g.title,date:g.dueDate});});
-        (D.projects||[]).forEach(p=>{if(p.due&&p.due!=='TBD'&&p.due>=today&&p.due<=horizonKey)items.push({type:'project',id:p.id,title:'📁 '+p.name,date:p.due});});
+        if(!tasksOnly){
+          (D.goals||[]).forEach(g=>{if(g.dueDate&&g.dueDate>=today&&g.dueDate<=horizonKey)items.push({type:'goal',id:g.id,title:(g.icon||'🎯')+' '+g.title,date:g.dueDate});});
+          (D.projects||[]).forEach(p=>{if(p.due&&p.due!=='TBD'&&p.due>=today&&p.due<=horizonKey)items.push({type:'project',id:p.id,title:'📁 '+p.name,date:p.due});});
+        }
         items.sort((a,b)=>a.date.localeCompare(b.date));
         const top=items.slice(0,8);
-        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:10px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next 14 days 🎉</div>';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">⏰ Upcoming Deadlines</div><span class="cd-a">Next 14 days</span></div>${body}</div>`;
+        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:10px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
+        const subLabel=tasksOnly?`Tasks · next ${horizonDays} days`:`Next ${horizonDays} days`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">⏰ Upcoming Deadlines</div><span class="cd-a">${subLabel}</span></div>${body}</div>`;
       })(),
       // ── Productivity Score (composite metric) ──
       productivityScore:(()=>{
@@ -4050,7 +4185,8 @@ function renderHome(){
         const items=[];
         (D.habits||[]).filter(h=>h.streak&&h.streak>0).forEach(h=>items.push({icon:h.icon||'🔥',title:h.title,count:h.streak,unit:'day',type:'habit'}));
         if(typeof calcJournalStreak==='function'){const s=calcJournalStreak();if(s>0)items.push({icon:'📔',title:'Journal',count:s,unit:'day',type:'journal'});}
-        items.sort((a,b)=>b.count-a.count);
+        const streakMode=getHomeCardMode('streaks');
+        items.sort((a,b)=>streakMode==='shortest'?a.count-b.count:b.count-a.count);
         const top=items.slice(0,6);
         const body=top.length?top.map(it=>`<div class="lr" style="padding:5px 0"><span style="font-size:14px;flex-shrink:0">${it.icon}</span><span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:var(--warn);font-weight:700;flex-shrink:0">🔥 ${it.count}${it.unit==='day'?'d':''}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No active streaks yet. Build one by checking off a habit daily.</div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">🏆 Top Streaks</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>${body}</div>`;
@@ -4215,13 +4351,21 @@ function renderHome(){
       // for >30 days so the user can decide if they're still relevant. The "✓"
       // button stamps `lastTouchedAt=now` to suppress the item for another 30d.
       staleContent:(()=>{
+        const stMode=getHomeCardMode('staleContent');
         const cutoff=Date.now()-30*86400000;
         const ts=it=>{const v=it.lastTouchedAt||it.updated||it.updatedAt||it.createdAt||0;const n=typeof v==='number'?v:Date.parse(v);return Number.isFinite(n)?n:0;};
         const stale=[];
-        (D.notes||[]).forEach(n=>{const t=ts(n);if(t&&t<cutoff)stale.push({type:'note',icon:'📝',id:n.id,title:n.title||'(untitled note)',ago:Math.floor((Date.now()-t)/86400000)});});
-        (D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').forEach(t=>{const u=ts(t);if(u&&u<cutoff)stale.push({type:'task',icon:'📋',id:t.id,title:t.title||'(untitled task)',ago:Math.floor((Date.now()-u)/86400000)});});
-        (D.goals||[]).forEach(g=>{const u=ts(g);if(u&&u<cutoff&&(g.pct||0)<100)stale.push({type:'goal',icon:'🎯',id:g.id,title:g.title||'(untitled goal)',ago:Math.floor((Date.now()-u)/86400000)});});
-        stale.sort((a,b)=>b.ago-a.ago);
+        if(stMode!=='tasksOnly'){
+          (D.notes||[]).forEach(n=>{const t=ts(n);if(t&&t<cutoff)stale.push({type:'note',icon:'📝',id:n.id,title:n.title||'(untitled note)',ago:Math.floor((Date.now()-t)/86400000)});});
+        }
+        if(stMode!=='notesOnly'){
+          (D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').forEach(t=>{const u=ts(t);if(u&&u<cutoff)stale.push({type:'task',icon:'📋',id:t.id,title:t.title||'(untitled task)',ago:Math.floor((Date.now()-u)/86400000)});});
+        }
+        if(stMode!=='tasksOnly'&&stMode!=='notesOnly'){
+          (D.goals||[]).forEach(g=>{const u=ts(g);if(u&&u<cutoff&&(g.pct||0)<100)stale.push({type:'goal',icon:'🎯',id:g.id,title:g.title||'(untitled goal)',ago:Math.floor((Date.now()-u)/86400000)});});
+        }
+        // 'oldest' default sorts by largest ago first; 'newest' flips it.
+        stale.sort((a,b)=>stMode==='newest'?a.ago-b.ago:b.ago-a.ago);
         if(!stale.length)return `<div class="cd"><div class="cd-h"><div class="cd-t">🧹 Stale Content</div></div><div style="padding:18px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing stale — your workspace is fresh. ✨</div></div>`;
         const top=stale.slice(0,8);
         const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${it.type}',${it.id})" title="Open ${it.type}">
