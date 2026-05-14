@@ -4460,30 +4460,61 @@ function renderTaskMatrix(){
     return 'q4';                // Low Impact, High Effort → Eliminate
   };
   const quads={
-    q1:{label:'Do First',sub:'High Impact · Low Effort',color:'var(--ok)',bg:'rgba(34,197,94,.08)',tasks:[]},
-    q2:{label:'Plan',sub:'High Impact · High Effort',color:'var(--ac)',bg:'rgba(99,102,241,.08)',tasks:[]},
-    q3:{label:'Quick Wins',sub:'Low Impact · Low Effort',color:'var(--warn)',bg:'rgba(245,158,11,.08)',tasks:[]},
-    q4:{label:'Eliminate',sub:'Low Impact · High Effort',color:'var(--red)',bg:'rgba(239,68,68,.08)',tasks:[]}
+    q1:{label:'Do First',sub:'High Impact · Low Effort (≤90m)',hint:'Tackle these now — biggest payoff for the time spent.',color:'var(--ok)',bg:'rgba(34,197,94,.08)',targetPriority:'High',targetMins:30,tasks:[]},
+    q2:{label:'Plan',sub:'High Impact · High Effort (>90m)',hint:'Schedule these — break into milestones, allocate deep-work blocks.',color:'var(--ac)',bg:'rgba(99,102,241,.08)',targetPriority:'High',targetMins:120,tasks:[]},
+    q3:{label:'Quick Wins',sub:'Low Impact · Low Effort (≤90m)',hint:'Batch or delegate — small jobs that clear the deck.',color:'var(--warn)',bg:'rgba(245,158,11,.08)',targetPriority:'Low',targetMins:30,tasks:[]},
+    q4:{label:'Eliminate',sub:'Low Impact · High Effort (>90m)',hint:'Cut, defer, or shrink — high cost for limited value.',color:'var(--red)',bg:'rgba(239,68,68,.08)',targetPriority:'Low',targetMins:120,tasks:[]}
   };
   tasks.forEach(t=>quads[quadrant(t)].tasks.push(t));
   const quadHtml=Object.entries(quads).map(([k,q])=>{
-    const cards=q.tasks.map(t=>`<div style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:pointer;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+    const cards=q.tasks.map(t=>`<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${t.id})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
       <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
       <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
         <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
         <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
         ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
-        ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}      </div>    </div>`).join('');
-    return `<div style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px">
-      <div style="margin-bottom:10px">
-        <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
-        <div style="font-size:10px;color:var(--t3)">${q.sub} · ${q.tasks.length} task${q.tasks.length!==1?'s':''}</div>
+        ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
       </div>
-      <div style="max-height:340px;overflow-y:auto">${cards||`<div style="font-size:10px;color:var(--t3);text-align:center;padding:12px">No tasks here</div>`}</div>
+    </div>`).join('');
+    return `<div class="mtx-quad" data-quad="${k}" data-target-priority="${q.targetPriority}" data-target-mins="${q.targetMins}" ondragover="_mtxDragOver(event)" ondragleave="_mtxDragLeave(event)" ondrop="_mtxDrop(event,'${q.targetPriority}',${q.targetMins})" style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px;transition:outline .15s,background .15s">
+      <div style="margin-bottom:6px">
+        <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${q.sub} · ${q.tasks.length} task${q.tasks.length!==1?'s':''}</div>
+        <div style="font-size:10px;color:var(--t2);margin-top:4px;line-height:1.4">${q.hint}</div>
+      </div>
+      <div style="max-height:340px;overflow-y:auto;min-height:60px">${cards||`<div style="font-size:10px;color:var(--t3);text-align:center;padding:18px;border:1px dashed var(--bd1);border-radius:6px">Drop tasks here</div>`}</div>
     </div>`;
   }).join('');
-  list.innerHTML=`<div style="margin-bottom:10px;font-size:11px;color:var(--t3)">Tasks plotted by <strong>Impact</strong> (priority) vs <strong>Effort</strong> (estimated time). Drag tasks to Full Edit to adjust.</div>
+  list.innerHTML=`<div style="margin-bottom:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;font-size:11px;color:var(--t2);line-height:1.55">
+    <div style="font-weight:600;color:var(--t1);margin-bottom:4px">🎯 Eisenhower Matrix — Impact × Effort</div>
+    Tasks are placed automatically based on their <strong>Priority</strong> (Impact: High = top row, Low = bottom row) and <strong>Estimated minutes</strong> (Effort: ≤90m = left column, &gt;90m = right column).
+    <strong>Drag any task</strong> between quadrants to update both at once — drops snap the task to that quadrant's typical Priority + estimated minutes. Click a card to open the full drawer for fine-tuning.
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">${quadHtml}</div>`;
+}
+// Matrix drag-to-reposition: drop on a quadrant snaps the task's priority +
+// estimatedMins so it falls into that quadrant on the next render.
+let _mtxDragId=null;
+function _mtxDragStart(e,id){_mtxDragId=id;e.target.classList.add('mtx-dragging');try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(id));}catch(_){}}
+function _mtxDragEnd(e){e.target.classList.remove('mtx-dragging');document.querySelectorAll('.mtx-quad').forEach(el=>{el.style.outline='';el.style.background='';});_mtxDragId=null;}
+function _mtxDragOver(e){if(_mtxDragId){e.preventDefault();e.currentTarget.style.outline='2px dashed var(--ac)';e.currentTarget.style.outlineOffset='-3px';}}
+function _mtxDragLeave(e){e.currentTarget.style.outline='';}
+function _mtxDrop(e,targetPriority,targetMins){
+  e.preventDefault();e.currentTarget.style.outline='';
+  if(!_mtxDragId)return;
+  const t=D.tasks.find(x=>x.id===_mtxDragId);if(!t)return;
+  // Only update fields that need to change so we don't surprise the user with
+  // unrelated edits. If priority is already in the target tier, keep it.
+  const curImpactHigh=(t.priority==='High'||t.priority==='Medium');
+  const wantImpactHigh=targetPriority==='High';
+  if(curImpactHigh!==wantImpactHigh)t.priority=targetPriority;
+  const curMins=t.estimatedMins||30;
+  const curEffortLow=curMins<=90;
+  const wantEffortLow=targetMins<=90;
+  if(curEffortLow!==wantEffortLow)t.estimatedMins=targetMins;
+  save('tasks');
+  toast(`✓ Moved to ${targetPriority==='High'?'high':'low'}-impact / ${wantEffortLow?'low':'high'}-effort`);
+  renderCurrentTaskView();
 }
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
