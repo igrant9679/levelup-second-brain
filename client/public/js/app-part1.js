@@ -1928,6 +1928,30 @@ function renderDrawer(type,item){
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     </div>
+    <!-- Linked Items — match what the New Task modal exposes so existing tasks
+         can be linked to projects/goals/notes/bookmarks/journal entries. -->
+    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Ctrl/Cmd-click to multi-select · saves with Save Changes</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Projects</label>
+          <select class="inp" id="dr-task-link-projects" multiple size="4" style="margin-top:2px">${(D.projects||[]).map(p=>`<option value="${p.id}" ${(item.linkedProjectIds||[]).includes(p.id)?'selected':''}>${esc(p.name)}</option>`).join('')||'<option disabled>(no projects)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Goals</label>
+          <select class="inp" id="dr-task-link-goals" multiple size="4" style="margin-top:2px">${(D.goals||[]).map(g=>`<option value="${g.id}" ${(item.linkedGoalIds||[]).includes(g.id)?'selected':''}>${esc(g.icon||'🎯')} ${esc(g.title)}</option>`).join('')||'<option disabled>(no goals)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Other Tasks</label>
+          <select class="inp" id="dr-task-link-tasks" multiple size="4" style="margin-top:2px">${(D.tasks||[]).filter(t=>t.id!==item.id&&t.status!=='Done').slice(0,200).map(t=>`<option value="${t.id}" ${(item.linkedTaskIds||[]).includes(t.id)?'selected':''}>${esc(t.title)}</option>`).join('')||'<option disabled>(no other open tasks)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Notes</label>
+          <select class="inp" id="dr-task-link-notes" multiple size="4" style="margin-top:2px">${(D.notes||[]).slice(0,200).map(n=>`<option value="${n.id}" ${(item.linkedNoteIds||[]).includes(n.id)?'selected':''}>${esc(n.title||'(untitled)')}</option>`).join('')||'<option disabled>(no notes)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Bookmarks</label>
+          <select class="inp" id="dr-task-link-bookmarks" multiple size="4" style="margin-top:2px">${(D.bookmarks||[]).slice(0,200).map(b=>`<option value="${b.id}" ${(item.linkedBookmarkIds||[]).includes(b.id)?'selected':''}>${esc(b.title||b.url||'(untitled)')}</option>`).join('')||'<option disabled>(no bookmarks)</option>'}</select>
+        </div>
+        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Journal Entries</label>
+          <select class="inp" id="dr-task-link-journal" multiple size="4" style="margin-top:2px">${(D.journal||[]).slice(-200).map(j=>`<option value="${j.id}" ${(item.linkedJournalIds||[]).includes(j.id)?'selected':''}>${esc((j.date||'')+' · '+(j.title||'(untitled)'))}</option>`).join('')||'<option disabled>(no journal entries)</option>'}</select>
+        </div>
+      </div>
+    </div>
     <div class="field"><label>Comments / Activity</label>
     <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
@@ -2374,6 +2398,14 @@ function saveItem(type,id){
     const aHidden=document.getElementById('dr-assignee-val');
     const aSel=document.getElementById('dr-assignee');
     t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
+    // Persist linked items (matches what the New Task modal exposes).
+    const _selVals=sel=>sel?Array.from(sel.selectedOptions).map(o=>parseInt(o.value)).filter(v=>!isNaN(v)):[];
+    const _projLinks=document.getElementById('dr-task-link-projects');if(_projLinks)t.linkedProjectIds=_selVals(_projLinks);
+    const _goalLinks=document.getElementById('dr-task-link-goals');if(_goalLinks)t.linkedGoalIds=_selVals(_goalLinks);
+    const _taskLinks=document.getElementById('dr-task-link-tasks');if(_taskLinks)t.linkedTaskIds=_selVals(_taskLinks);
+    const _noteLinks=document.getElementById('dr-task-link-notes');if(_noteLinks)t.linkedNoteIds=_selVals(_noteLinks);
+    const _bkLinks=document.getElementById('dr-task-link-bookmarks');if(_bkLinks)t.linkedBookmarkIds=_selVals(_bkLinks);
+    const _jrnLinks=document.getElementById('dr-task-link-journal');if(_jrnLinks)t.linkedJournalIds=_selVals(_jrnLinks);
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
