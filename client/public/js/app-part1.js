@@ -697,7 +697,7 @@ const THEME_DEFAULTS_LIGHT={
 const PAGE_ACCENT_DEFAULTS={
   home:'#3b82f6',myday:'#f59e0b',myweek:'#14b8a6',myyear:'#6366f1',
   capture:'#fb7185',ideas:'#eab308',mindmaps:'#ec4899',focus:'#ef4444',
-  process:'#8b5cf6',tasks:'#22c55e',notes:'#10b981',projects:'#a855f7',
+  process:'#8b5cf6',tasks:'#14b8a6',notes:'#10b981',projects:'#6366f1',
   clusters:'#06b6d4',calendar:'#0284c7',mail:'#9333ea',goals:'#dc2626',
   habits:'#10b981',coach:'#facc15',journal:'#f43f5e',team:'#0ea5e9',
   contacts:'#0d9488',bookmarks:'#d97706',archive:'#64748b',reports:'#06b6d4',
@@ -8134,6 +8134,28 @@ function projectHealth(p){
   if(overdueRatio>0.1||daysLeft<=7)return{icon:'🟡',label:'Needs Attention',color:'var(--warn)'};
   return{icon:'🟢',label:'On Track',color:'var(--ok)'};
 }
+function _projPortfolioStrip(){
+  const all=(D.projects||[]).filter(p=>!p.archived);
+  if(!all.length)return '';
+  const active=all.filter(p=>p.status==='Active'||p.status==='In Progress');
+  let onTrack=0,attention=0,risk=0;
+  all.forEach(p=>{const h=projectHealth(p);if(h.label==='On Track')onTrack++;else if(h.label==='At Risk')risk++;else attention++;});
+  const pctOnTrack=all.length?Math.round(onTrack/all.length*100):0;
+  const today=_todayStr;
+  let msOverdue=0,msTotal=0;
+  all.forEach(p=>(Array.isArray(p.milestones)?p.milestones:[]).forEach(m=>{msTotal++;if(!m.done&&m.due&&m.due<today)msOverdue++;}));
+  const avgPct=all.length?Math.round(all.reduce((s,p)=>s+(p.pct||0),0)/all.length):0;
+  const cell=(big,lbl,col)=>`<div class="pf-cell"><div class="pf-n" style="${col?`color:${col}`:''}">${big}</div><div class="pf-l">${lbl}</div></div>`;
+  return `<div class="pf-strip">
+    ${cell(all.length,'Projects')}
+    ${cell(active.length,'Active','var(--ac)')}
+    ${cell(pctOnTrack+'%','On track',pctOnTrack>=70?'var(--ok)':pctOnTrack>=40?'var(--warn)':'var(--red)')}
+    ${cell(risk,'At risk',risk?'var(--red)':'var(--t2)')}
+    ${cell(attention,'Needs attn',attention?'var(--warn)':'var(--t2)')}
+    ${cell(avgPct+'%','Avg progress')}
+    ${cell(msOverdue+'/'+msTotal,'Milestones overdue',msOverdue?'var(--red)':'var(--t2)')}
+  </div>`;
+}
 function renderProjectsList(header){
   const filtered=_filteredProjects();
   // P5: group-by toolbar
@@ -8147,22 +8169,41 @@ function renderProjectsList(header){
     const done=pts.filter(t=>t.status==='Done').length;
     const subs=pts.flatMap(t=>t.subtasks||[]);
     const health=projectHealth(p);
-    return`<div class="proj-card" data-project-id="${p.id}" draggable="true" style="cursor:pointer;border-left:3px solid ${health.color};background:var(--s1);border:1px solid var(--bd1);border-radius:8px;padding:10px;position:relative;${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})" ondragstart="_projDragStart(event,${p.id})" ondragover="_projDragOver(event,${p.id})" ondragleave="_projDragLeave(event)" ondrop="_projDrop(event,${p.id})" ondragend="_projDragEnd(event)">
-      <span class="proj-drag" title="Drag to reorder" onclick="event.stopPropagation()" style="position:absolute;top:8px;right:8px;cursor:grab;color:var(--t3);font-size:11px;user-select:none">⋮⋮</span>
-      <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;padding-right:24px">
-        <span style="width:8px;height:8px;border-radius:2px;background:${p.color}"></span>
-        <span style="cursor:pointer;font-size:14px;${p.pinned?'color:var(--warn)':'color:var(--t3)'};line-height:1" onclick="_projToggleStar(${p.id},event)" title="${p.pinned?'Unpin':'Pin to top'}">${p.pinned?'★':'☆'}</span>
-        <span style="font-size:13px;font-weight:500;flex:1;${p.archived?'text-decoration:line-through':''}">${esc(p.name||'')}</span>
-        <span title="Health: ${health.label}" style="font-size:14px;cursor:default">${health.icon}</span>
-        <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
+    const pct=Math.max(0,Math.min(100,p.pct||0));
+    const ms=Array.isArray(p.milestones)?p.milestones:[];
+    const msDone=ms.filter(m=>m.done).length;
+    const overdue=pts.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
+    const dueOverdue=p.due&&p.due!=='TBD'&&p.due<_todayStr;
+    const ring=`background:conic-gradient(${health.color} ${pct}%, var(--s3) ${pct}% 100%)`;
+    return`<div class="pc" data-project-id="${p.id}" draggable="true" style="--pc-h:${health.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})" ondragstart="_projDragStart(event,${p.id})" ondragover="_projDragOver(event,${p.id})" ondragleave="_projDragLeave(event)" ondrop="_projDrop(event,${p.id})" ondragend="_projDragEnd(event)">
+      <span class="proj-drag pc-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
+      <div class="pc-head">
+        <span class="pc-dot" style="background:${p.color}"></span>
+        <span class="pc-star" onclick="_projToggleStar(${p.id},event)" title="${p.pinned?'Unpin':'Pin to top'}" style="${p.pinned?'color:var(--warn)':'color:var(--t3)'}">${p.pinned?'★':'☆'}</span>
+        <span class="pc-name" style="${p.archived?'text-decoration:line-through':''}">${esc(p.name||'Untitled project')}</span>
       </div>
-      <div style="font-size:10px;color:var(--t2);margin-bottom:8px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;max-height:4.5em" title="${esc(p.desc||'')}">${esc(p.desc||'')}</div>
-      <div style="display:flex;gap:8px;font-size:10px;color:var(--t3);margin-bottom:6px"><span>📋 ${pts.length} tasks</span><span>✅ ${done} done</span><span>📌 ${subs.length} subtasks</span></div>
-      <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9px;color:var(--t3)">Due ${p.due||'—'}</span><div class="pb" style="flex:1"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div><span style="font-size:10px;color:var(--t3)">${p.pct||0}%</span></div>
-      <div style="margin-top:8px;display:flex;gap:4px;align-items:center">
-        <span style="font-size:9px;color:${health.color};font-weight:500">${health.icon} ${health.label}</span>
-        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;margin-left:auto" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))">✏ Edit</button>
-        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
+      <div class="pc-pills">
+        <span class="pc-health" style="color:${health.color};background:color-mix(in srgb,${health.color} 16%,transparent)">${health.icon} ${health.label}</span>
+        <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
+        ${overdue?`<span class="pc-health" style="color:var(--red);background:color-mix(in srgb,var(--red) 16%,transparent)">⚠ ${overdue} overdue</span>`:''}
+      </div>
+      ${p.desc?`<div class="pc-desc" title="${esc(p.desc)}">${esc(p.desc)}</div>`:''}
+      <div class="pc-mid">
+        <div class="pc-ring" style="${ring}"><div class="pc-ring-in">${pct}%</div></div>
+        <div class="pc-stats">
+          <div><b>${done}</b>/${pts.length} tasks done</div>
+          <div><b>${subs.filter(s=>s.done).length}</b>/${subs.length} subtasks</div>
+          ${ms.length?`<div><b>${msDone}</b>/${ms.length} milestones</div>`:'<div style="color:var(--t3)">No milestones</div>'}
+        </div>
+      </div>
+      ${ms.length?`<div class="pc-msbar">${ms.slice(0,12).map(m=>`<span class="${m.done?'on':''}" title="${esc(m.title||'Milestone')}"></span>`).join('')}</div>`:''}
+      <div class="pc-foot">
+        <span>${p.owner?'👤 '+esc(p.owner.split(' ')[0]):''}</span>
+        <span class="${dueOverdue?'pc-od':''}">${p.due&&p.due!=='TBD'?'📅 '+esc(p.due):'No due date'}</span>
+        <span class="pc-acts">
+          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))" title="Edit">✏</button>
+          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
+        </span>
       </div>
     </div>`;
   }
@@ -8183,7 +8224,7 @@ function renderProjectsList(header){
     filtered.forEach(p=>{const k=groupKey(p);if(!(k in groups)){groups[k]=[];order.push(k);}groups[k].push(p);});
     body=order.map(k=>`<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(k)} <span style="font-weight:400;color:var(--t3)">(${groups[k].length})</span></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${groups[k].map(projCard).join('')}</div></div>`).join('');
   }
-  $('proj-main').innerHTML=header+groupBar+body;
+  $('proj-main').innerHTML=header+_projPortfolioStrip()+groupBar+body;
 }
 // P6: drag-reorder handlers for project list
 let _projDragId=null;

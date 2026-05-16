@@ -1036,6 +1036,51 @@ body.sb-open .ai-bubble{display:none!important}
 #wiki-autocomplete .wac-i:hover,#wiki-autocomplete .wac-i.on{background:var(--acs);color:var(--ac)}
 #wiki-autocomplete .wac-h{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;padding:8px 12px 5px;border-bottom:1px solid var(--bd1)}
 
+/* ════ Projects redesign (indigo) ════ */
+.pf-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pf-cell{flex:1;min-width:96px;background:var(--s1);border:1px solid var(--bd1);border-radius:11px;padding:11px 13px}
+.pf-cell .pf-n{font-size:20px;font-weight:780;letter-spacing:-.3px;color:var(--t1);line-height:1.1}
+.pf-cell .pf-l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
+.pc{position:relative;cursor:pointer;background:var(--s1);border:1px solid var(--bd1);border-left:3px solid var(--pc-h,var(--ac));
+  border-radius:13px;padding:13px 14px;transition:transform .14s ease,border-color .14s,box-shadow .14s,background .14s}
+.pc:hover{transform:translateY(-2px);background:var(--s2);box-shadow:0 10px 26px rgba(0,0,0,.3)}
+.pc-drag{position:absolute;top:9px;right:10px;cursor:grab;color:var(--t3);font-size:11px;user-select:none;opacity:.5}
+.pc:hover .pc-drag{opacity:1}
+.pc-head{display:flex;align-items:center;gap:7px;margin-bottom:7px;padding-right:22px}
+.pc-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.pc-star{cursor:pointer;font-size:14px;line-height:1;flex-shrink:0}
+.pc-name{font-size:14px;font-weight:680;letter-spacing:-.1px;color:var(--t1);flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.pc-health{font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
+.pc-desc{font-size:11px;color:var(--t2);line-height:1.55;margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pc-mid{display:flex;align-items:center;gap:14px;margin-bottom:9px}
+.pc-ring{width:54px;height:54px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.pc-ring-in{width:42px;height:42px;border-radius:50%;background:var(--s1);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:750;color:var(--t1)}
+.pc:hover .pc-ring-in{background:var(--s2)}
+.pc-stats{flex:1;min-width:0;font-size:11px;color:var(--t2);display:flex;flex-direction:column;gap:3px}
+.pc-stats b{color:var(--t1)}
+.pc-msbar{display:flex;gap:3px;margin-bottom:9px}
+.pc-msbar span{flex:1;height:5px;border-radius:3px;background:var(--s3)}
+.pc-msbar span.on{background:var(--pc-h,var(--ac))}
+.pc-foot{display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--t3);padding-top:9px;border-top:1px solid var(--bd1)}
+.pc-foot .pc-od{color:var(--red);font-weight:600}
+.pc-foot .pc-acts{margin-left:auto;display:flex;gap:4px}
+.proj-card.proj-dragging,.pc.proj-dragging{opacity:.4}
+
+/* ════ Tasks scoped polish (teal) ════ */
+#s-tasks .tab{border-radius:8px;padding:5px 11px;transition:background .14s,color .14s,transform .1s}
+#s-tasks .tab:not(.on):hover{transform:translateY(-1px);background:var(--s2)}
+#s-tasks .tab.on{background:color-mix(in srgb,var(--ac) 16%,transparent);color:color-mix(in srgb,var(--ac) 92%,#fff);font-weight:600}
+#s-tasks .tl-row{transition:background .12s,box-shadow .12s,transform .12s}
+#s-tasks .tl-row:not(.tl-head):hover{background:var(--s2);box-shadow:0 4px 14px rgba(0,0,0,.22);transform:translateY(-1px)}
+#s-tasks .cl-card{border-radius:12px;transition:border-color .14s,box-shadow .14s,transform .14s}
+#s-tasks .cl-card:hover{box-shadow:0 8px 22px rgba(0,0,0,.26)}
+#s-tasks .pill{border-radius:999px;letter-spacing:.02em}
+#s-tasks #task-quick-add{border-radius:10px}
+
 /* ─── Global app-wide page-accent treatments ─────────────────────────────
    Take the polish that gave the Notes page its identity and propagate
    the broadly-applicable bits to every screen. Each rule keys off the
