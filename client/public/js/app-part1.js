@@ -7774,51 +7774,89 @@ function restoreNoteVersion(noteId,versionIdx){
   toast('✓ Version restored');
 }
 // ====== WIKI-LINK AUTO-COMPLETE ======
+// ── [[ ]] note-link + #tag autocomplete for the contenteditable RTE ──────
 let _wikiAcIdx=-1;
-function noteWikiInput(ta){
+let _wikiAc=null; // {mode:'note'|'tag', node, triggerStart, caretOff, items:[{label,value}]}
+function _wikiAcHide(){const ac=document.getElementById('wiki-autocomplete');if(ac)ac.style.display='none';_wikiAc=null;_wikiAcIdx=-1;}
+function noteWikiInput(el){
   const ac=document.getElementById('wiki-autocomplete');
   if(!ac)return;
-  const val=ta.value;
-  const pos=ta.selectionStart;
-  // Find [[ before cursor
-  const before=val.slice(0,pos);
-  const m=before.match(/\[\[([^\]\n]*)$/);
-  if(!m){ac.style.display='none';return;}
-  const q=m[1].toLowerCase();
-  const matches=D.notes.filter(n=>n.title.toLowerCase().includes(q)).slice(0,8);
-  if(!matches.length){ac.style.display='none';return;}
-  _wikiAcIdx=-1;
+  const sel=window.getSelection&&window.getSelection();
+  if(!sel||!sel.rangeCount||!sel.isCollapsed){_wikiAcHide();return;}
+  const node=sel.anchorNode;
+  if(!node||node.nodeType!==3||!el.contains(node)){_wikiAcHide();return;}
+  const off=sel.anchorOffset;
+  const before=node.textContent.slice(0,off);
+  let mode=null,query='',triggerStart=-1;
+  let m=before.match(/\[\[([^\]\n]*)$/);
+  if(m){mode='note';query=m[1];triggerStart=off-m[0].length;}
+  else{
+    m=before.match(/(^|[\s(])#([\p{L}0-9_-]{0,30})$/u);
+    if(m){mode='tag';query=m[2];triggerStart=off-m[2].length-1;}
+  }
+  if(!mode){_wikiAcHide();return;}
+  const q=query.toLowerCase();
+  let items=[];
+  if(mode==='note'){
+    const curId=_noteInlineEditId;
+    items=D.notes.filter(n=>n.id!==curId&&(n.title||'').toLowerCase().includes(q))
+      .slice(0,7).map(n=>({label:'📄 '+esc(n.title),value:n.title}));
+    if(query.trim())items.push({label:'＋ Create note “'+esc(query.trim())+'”',value:query.trim(),create:true});
+  }else{
+    const freq={};D.notes.forEach(n=>(n.tags||[]).forEach(t=>{freq[t]=(freq[t]||0)+1;}));
+    items=Object.keys(freq).filter(t=>t.toLowerCase().includes(q)).sort((a,b)=>freq[b]-freq[a])
+      .slice(0,7).map(t=>({label:'# '+esc(t)+'  ·  '+freq[t],value:t}));
+    if(query.trim()&&!items.some(i=>i.value.toLowerCase()===q))items.push({label:'＋ New tag “#'+esc(query.trim())+'”',value:query.trim(),create:true});
+  }
+  if(!items.length){_wikiAcHide();return;}
+  _wikiAc={mode,node,triggerStart,caretOff:off,items};
+  _wikiAcIdx=0;
+  ac.innerHTML=`<div class="wac-h">${mode==='note'?'Link to note · ↑↓ ↵':'Tag · ↑↓ ↵'}</div>`+
+    items.map((it,i)=>`<div class="wac-i ${i===0?'on':''}" data-idx="${i}" onmousedown="event.preventDefault();_wikiAcPick(${i})">${it.label}</div>`).join('');
+  // Position at caret.
+  const r=sel.getRangeAt(0).cloneRange();r.collapse(true);
+  let rect=r.getClientRects()[0];
+  if(!rect){const sp=document.createElement('span');sp.textContent='​';r.insertNode(sp);rect=sp.getBoundingClientRect();sp.remove();}
+  ac.style.position='fixed';
+  ac.style.left=Math.min(rect.left,window.innerWidth-280)+'px';
+  ac.style.top=(rect.bottom+4)+'px';
   ac.style.display='block';
-  ac.innerHTML=matches.map((n,i)=>`<div data-idx="${i}" data-title="${esc(n.title)}" onclick="insertWikiLink(this.dataset.title)" style="padding:7px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--bd1);color:var(--t1)" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">[[${esc(n.title)}]]</div>`).join('');
-  // Position dropdown below cursor
-  const rect=ta.getBoundingClientRect();
-  ac.style.top=(ta.offsetHeight+2)+'px';
-  ac.style.left='0';
 }
 function noteWikiKeydown(e){
   const ac=document.getElementById('wiki-autocomplete');
-  if(!ac||ac.style.display==='none')return;
-  const items=ac.querySelectorAll('div');
-  if(e.key==='ArrowDown'){e.preventDefault();_wikiAcIdx=Math.min(_wikiAcIdx+1,items.length-1);items.forEach((el,i)=>el.style.background=i===_wikiAcIdx?'var(--s3)':'');}
-  else if(e.key==='ArrowUp'){e.preventDefault();_wikiAcIdx=Math.max(_wikiAcIdx-1,0);items.forEach((el,i)=>el.style.background=i===_wikiAcIdx?'var(--s3)':'');}
-  else if(e.key==='Enter'&&_wikiAcIdx>=0){e.preventDefault();insertWikiLink(items[_wikiAcIdx].dataset.title);}
-  else if(e.key==='Escape'){ac.style.display='none';}
+  if(!ac||ac.style.display==='none'||!_wikiAc)return;
+  const items=ac.querySelectorAll('.wac-i');
+  if(e.key==='ArrowDown'){e.preventDefault();_wikiAcIdx=Math.min(_wikiAcIdx+1,items.length-1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();_wikiAcIdx=Math.max(_wikiAcIdx-1,0);}
+  else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();_wikiAcPick(_wikiAcIdx);return;}
+  else if(e.key==='Escape'){e.preventDefault();_wikiAcHide();return;}
+  else return;
+  items.forEach((el,i)=>el.classList.toggle('on',i===_wikiAcIdx));
 }
-function insertWikiLink(title){
-  const ta=document.getElementById('nie-body');
-  const ac=document.getElementById('wiki-autocomplete');
-  if(!ta)return;
-  const val=ta.value;
-  const pos=ta.selectionStart;
-  const before=val.slice(0,pos);
-  const after=val.slice(pos);
-  // Replace the partial [[query with [[title]]
-  const newBefore=before.replace(/\[\[[^\]\n]*$/,'[['+title+']]');
-  ta.value=newBefore+after;
-  ta.selectionStart=ta.selectionEnd=newBefore.length;
-  ta.focus();
-  if(ac)ac.style.display='none';
+function _wikiAcPick(i){
+  if(!_wikiAc||!_wikiAc.items[i])return;
+  const {mode,node,triggerStart,caretOff}=_wikiAc;
+  const it=_wikiAc.items[i];
+  const repl=mode==='note'?('[['+it.value+']]'):('#'+it.value+' ');
+  const txt=node.textContent;
+  node.textContent=txt.slice(0,triggerStart)+repl+txt.slice(caretOff);
+  // Restore caret after the inserted text.
+  try{
+    const sel=window.getSelection();const r=document.createRange();
+    r.setStart(node,Math.min(triggerStart+repl.length,node.textContent.length));
+    r.collapse(true);sel.removeAllRanges();sel.addRange(r);
+  }catch(_){}
+  // A #tag selection also adds a real tag to the note being edited.
+  if(mode==='tag'&&_noteInlineEditId){
+    const n=D.notes.find(x=>x.id===_noteInlineEditId);
+    if(n){n.tags=n.tags||[];if(!n.tags.some(t=>t.toLowerCase()===it.value.toLowerCase())){n.tags.push(it.value);save('notes');}}
+  }
+  const el=document.getElementById('nie-body');
+  _wikiAcHide();
+  if(el){el.focus();luRTE_updateCharCount('nie-body');}
 }
+// Back-compat shim (older callers).
+function insertWikiLink(title){if(_wikiAc){const i=_wikiAc.items.findIndex(x=>x.value===title);_wikiAcPick(i>=0?i:0);}}
 function renderNoteEditor(n){
   // Prefer rich-HTML body (from RTE saves or document imports) when present;
   // fall back to markdown-style rendering of n.body for older / plain notes.
