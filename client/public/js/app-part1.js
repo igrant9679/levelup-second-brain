@@ -1248,6 +1248,7 @@ let _kgRaf=null;
 let _kgDrag=null; // {nodeId, startMouse, startNodePos}
 let _kgPan=null;
 let _kgHover=null;
+let _kgMoved=false; // true when the last mouse-down turned into a drag/pan
 function renderKnowledgeGraph(){
   const main=document.getElementById('graph-main');if(!main)return;
   // Build graph from D.notes: nodes = notes (or referenced titles), links =
@@ -1281,10 +1282,13 @@ function renderKnowledgeGraph(){
       }
     }
   }
-  // 3. Nodes — only include notes that have at least one connection OR all if user toggles "show all"
-  const showAll=true; // could be a toggle later
+  // 3. Nodes — "hide unconnected" toggle (persisted). Default shows all so a
+  //    user with few wiki-links still sees their notes; the guide explains why
+  //    they may look disconnected and how to link them.
+  const hideOrphans=localStorage.getItem('lu_kg_hide_orphans')==='1';
   const connectedIds=new Set();[...linkEdges,...tagEdges].forEach(e=>{connectedIds.add(e.a);connectedIds.add(e.b);});
-  const visibleNotes=showAll?notes:notes.filter(n=>connectedIds.has(n.id));
+  const orphanCount=notes.filter(n=>!connectedIds.has(n.id)).length;
+  const visibleNotes=hideOrphans?notes.filter(n=>connectedIds.has(n.id)):notes;
   // 4. Initial positions: circle layout for a reasonable starting config
   const N=visibleNotes.length;
   const W=main.clientWidth||800;const H=main.clientHeight||600;
@@ -1308,20 +1312,49 @@ function renderKnowledgeGraph(){
     nodes,links,
     view:{x:0,y:0,zoom:1},
     selected:null,
+    search:'',
     showWiki:true,showTags:true,
+    orphanCount,
   };
+  const totalEdges=linkEdges.length+tagEdges.length;
+  const helpSeen=localStorage.getItem('lu_kg_help_seen')==='1';
+  // Built-in guide / legend — explains exactly what the graph represents and
+  // how to drive it. Collapsible; auto-shows the first time, then on demand.
+  const guideHtml=`<div id="kg-guide" style="position:absolute;top:14px;left:14px;width:300px;max-width:calc(100% - 28px);background:var(--s1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:20;font-size:11.5px;color:var(--t2);display:${helpSeen?'none':'block'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--bd1)">
+      <strong style="font-size:12px;color:var(--t1)">🕸 How to read this graph</strong>
+      <button class="btn btn-s" style="height:22px;width:22px;padding:0;font-size:12px" onclick="_kgToggleGuide(false)" title="Close">✕</button>
+    </div>
+    <div style="padding:12px;line-height:1.6">
+      <div style="margin-bottom:8px"><strong style="color:var(--t1)">What it shows</strong><br>Every <strong>circle is a note</strong>. Bigger circles have more connections. A <span style="color:#facc15">gold ring</span> means the note is starred.</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><svg width="34" height="8"><line x1="0" y1="4" x2="34" y2="4" stroke="rgba(168,85,247,.75)" stroke-width="2"/></svg> <span><code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki link</span></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><svg width="34" height="8"><line x1="0" y1="4" x2="34" y2="4" stroke="rgba(168,85,247,.4)" stroke-width="2" stroke-dasharray="3 3"/></svg> <span>Shared <strong>#tag</strong> between two notes</span></div>
+      <div style="margin-bottom:6px"><strong style="color:var(--t1)">How to use it</strong></div>
+      <div style="margin-bottom:3px">• <strong>Click</strong> a note → highlight it + its neighbours</div>
+      <div style="margin-bottom:3px">• <strong>Double-click</strong> (or “Open”) → edit the note</div>
+      <div style="margin-bottom:3px">• <strong>Drag</strong> a note to rearrange · drag empty space to pan</div>
+      <div style="margin-bottom:10px">• <strong>Search</strong> to spotlight matching notes</div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;font-size:11px">💡 <strong>No lines?</strong> Your notes aren’t linked yet. Open a note and type <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Another Note Title]]</code> in the body, or give two notes the same #tag.</div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:10px;cursor:pointer;font-size:10.5px;color:var(--t3)"><input type="checkbox" onchange="if(this.checked)localStorage.setItem('lu_kg_help_seen','1');else localStorage.removeItem('lu_kg_help_seen')" ${helpSeen?'checked':''}> Don’t show this automatically</label>
+    </div>
+  </div>`;
+  // Selected-node info panel (hidden until a node is clicked).
+  const infoHtml=`<div id="kg-info" style="position:absolute;top:14px;right:14px;width:260px;max-width:calc(100% - 28px);background:var(--s1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:19;font-size:11.5px;color:var(--t2);display:none"></div>`;
   // Header + canvas
   main.innerHTML=`<div style="position:absolute;inset:0;display:flex;flex-direction:column">
     <div class="ph-r" style="padding:14px 18px;border-bottom:1px solid var(--bd1);background:var(--s1);z-index:5">
       <div>
         <h1 style="font-size:20px;font-weight:700">🕸 Knowledge Graph</h1>
-        <p style="font-size:11px;color:var(--t2);margin-top:2px">${nodes.length} note${nodes.length===1?'':'s'} · ${linkEdges.length} wiki link${linkEdges.length===1?'':'s'} · ${tagEdges.length} shared-tag connection${tagEdges.length===1?'':'s'}</p>
+        <p style="font-size:11px;color:var(--t2);margin-top:2px">${nodes.length} note${nodes.length===1?'':'s'} · ${linkEdges.length} wiki link${linkEdges.length===1?'':'s'} · ${tagEdges.length} shared-tag connection${tagEdges.length===1?'':'s'}${orphanCount?` · ${orphanCount} unconnected`:''}</p>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-wiki" onchange="_kgState.showWiki=this.checked;_kgPaintEdges()"> wiki links</label>
-        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-tags" onchange="_kgState.showTags=this.checked;_kgPaintEdges()"> shared tags</label>
-        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgRecenter()">🎯 Recenter</button>
-        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgFreezeLayout()">⏸ Freeze</button>
+        <input id="kg-search" placeholder="🔍 Find a note…" value="${esc(_kgState.search)}" oninput="_kgSearch(this.value)" style="height:28px;font-size:11px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1);width:150px">
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-wiki" onchange="_kgState.showWiki=this.checked;_kgRender()"> wiki links</label>
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-tags" onchange="_kgState.showTags=this.checked;_kgRender()"> shared tags</label>
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px" title="Hide notes that have no links or shared tags"><input type="checkbox" ${hideOrphans?'checked':''} id="kg-orphans" onchange="_kgToggleOrphans(this.checked)"> hide unconnected</label>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgRecenter()" title="Re-run the layout from scratch">🎯 Recenter</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgFreezeLayout()" title="Stop the auto-layout so nodes hold position">⏸ Freeze</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgToggleGuide()" title="What am I looking at?">❔ Guide</button>
       </div>
     </div>
     <div id="kg-canvas-wrap" style="flex:1;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,#a855f7 6%,var(--bg)),var(--bg) 70%);cursor:grab">
@@ -1330,38 +1363,153 @@ function renderKnowledgeGraph(){
         <g id="kg-nodes-layer"></g>
       </svg>
       <div id="kg-tip" style="position:absolute;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--t1);pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:10"></div>
-      ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">Your graph is empty</div><div style="font-size:12px;max-width:340px;margin:0 auto 14px">Create notes and connect them with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki links to grow your knowledge graph.</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
+      ${guideHtml}
+      ${infoHtml}
+      ${nodes.length&&totalEdges===0?`<div id="kg-nolinks" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:10px 16px;font-size:11.5px;color:var(--t2);box-shadow:0 4px 20px rgba(0,0,0,.4);z-index:12;text-align:center;max-width:90%">None of these notes are linked yet — that’s why they’re floating free. Add <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> in a note’s body or reuse a #tag to connect them. <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="_kgToggleGuide(true)">Show guide</span></div>`:''}
+      ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">${hideOrphans&&orphanCount?'No connected notes yet':'Your graph is empty'}</div><div style="font-size:12px;max-width:360px;margin:0 auto 14px">${hideOrphans&&orphanCount?`You have ${orphanCount} note${orphanCount===1?'':'s'}, but none are linked. Untick “hide unconnected” to see them, or connect notes with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> links / shared #tags.`:'Create notes and connect them with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki links or shared #tags to grow your knowledge graph.'}</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
     </div>
   </div>`;
   if(!nodes.length)return;
   _kgWireEvents();
   _kgStartSimulation();
 }
+// Build the adjacency map once per state for neighbour lookups.
+function _kgNeighborSet(id){
+  const s=new Set();
+  if(!_kgState)return s;
+  for(const l of _kgState.links){
+    if(l.type==='wiki'&&!_kgState.showWiki)continue;
+    if(l.type==='tag'&&!_kgState.showTags)continue;
+    if(l.a===id)s.add(l.b);
+    if(l.b===id)s.add(l.a);
+  }
+  return s;
+}
+function _kgToggleGuide(force){
+  const g=document.getElementById('kg-guide');if(!g)return;
+  const show=typeof force==='boolean'?force:(g.style.display==='none');
+  g.style.display=show?'block':'none';
+  if(!show)localStorage.setItem('lu_kg_help_seen','1');
+}
+function _kgToggleOrphans(checked){
+  localStorage.setItem('lu_kg_hide_orphans',checked?'1':'0');
+  renderKnowledgeGraph();
+}
+function _kgSearch(v){
+  if(!_kgState)return;
+  _kgState.search=(v||'').trim().toLowerCase();
+  _kgRender();
+}
+function _kgSelectNode(id){
+  if(!_kgState)return;
+  _kgState.selected=(_kgState.selected===id?null:id);
+  _kgRender();
+  _kgRenderInfo();
+}
+function _kgClearSelection(){
+  if(!_kgState)return;
+  _kgState.selected=null;
+  const info=document.getElementById('kg-info');if(info)info.style.display='none';
+  _kgRender();
+}
+function _kgOpenNote(id){
+  nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(id);},120);
+}
+function _kgRenderInfo(){
+  const info=document.getElementById('kg-info');if(!info||!_kgState)return;
+  const id=_kgState.selected;
+  if(id==null){info.style.display='none';return;}
+  const node=_kgState.nodes.find(n=>n.id===id);
+  const n=(D.notes||[]).find(x=>x.id===id);
+  if(!node||!n){info.style.display='none';return;}
+  const neigh=[..._kgNeighborSet(id)].map(nid=>_kgState.nodes.find(x=>x.id===nid)).filter(Boolean)
+    .sort((a,b)=>b.degree-a.degree);
+  const tags=(n.tags||[]).slice(0,8);
+  const snippet=esc(String(n.body||'').replace(/\[\[([^\]]+)\]\]/g,'$1').replace(/[#*_>`~-]/g,'').replace(/\s+/g,' ').trim().slice(0,160));
+  info.innerHTML=`
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bd1)">
+      <div style="min-width:0">
+        <div style="font-size:12.5px;font-weight:700;color:var(--t1);word-break:break-word">${esc(node.title)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${node.degree} connection${node.degree===1?'':'s'}${node.starred?' · ★ starred':''}</div>
+      </div>
+      <button class="btn btn-s" style="height:22px;width:22px;padding:0;font-size:12px;flex-shrink:0" onclick="_kgClearSelection()" title="Close">✕</button>
+    </div>
+    <div style="padding:10px 12px;line-height:1.55">
+      ${snippet?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">${snippet}${snippet.length>=160?'…':''}</div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px;font-style:italic">No body text.</div>'}
+      ${tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${tags.map(t=>`<span style="font-size:9px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:8px">#${esc(t)}</span>`).join('')}</div>`:''}
+      ${neigh.length?`<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Connected notes</div><div style="max-height:160px;overflow-y:auto">${neigh.map(x=>`<div class="lr" style="cursor:pointer;padding:4px 4px" onclick="_kgFocusNode(${x.id})" title="Jump to this note in the graph"><span style="width:7px;height:7px;border-radius:50%;background:${x.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(x.title)}</span></div>`).join('')}</div>`:'<div style="font-size:10.5px;color:var(--t3)">No connections yet. Add <code style="background:var(--s3);padding:1px 3px;border-radius:3px">[[link]]</code>s or shared #tags.</div>'}
+      <button class="btn btn-p" style="width:100%;height:28px;font-size:11px;margin-top:10px" onclick="_kgOpenNote(${id})">✎ Open note</button>
+    </div>`;
+  info.style.display='block';
+}
+function _kgFocusNode(id){
+  if(!_kgState)return;
+  _kgState.selected=id;
+  // Recenter the canvas on the focused node so the user doesn't lose it.
+  const wrap=document.getElementById('kg-canvas-wrap');
+  const node=_kgState.nodes.find(n=>n.id===id);
+  if(wrap&&node){
+    const W=wrap.clientWidth,H=wrap.clientHeight;
+    const dx=W/2-node.x,dy=H/2-node.y;
+    _kgState.nodes.forEach(n=>{n.x+=dx;n.y+=dy;});
+  }
+  _kgRender();
+  _kgRenderInfo();
+}
+// Resolve which node ids are "active" (full-opacity) given the current
+// search query and/or selection. Returns null when nothing is constraining
+// the view (everything is active).
+function _kgActiveSet(){
+  if(!_kgState)return null;
+  const sel=_kgState.selected;
+  const q=_kgState.search;
+  if(sel!=null){
+    const s=_kgNeighborSet(sel);s.add(sel);return s;
+  }
+  if(q){
+    const s=new Set();
+    _kgState.nodes.forEach(n=>{if((n.title||'').toLowerCase().includes(q))s.add(n.id);});
+    return s;
+  }
+  return null;
+}
 function _kgPaintEdges(){
   const layer=document.getElementById('kg-edges-layer');if(!layer||!_kgState)return;
   const {nodes,links,showWiki,showTags}=_kgState;
   const byId={};nodes.forEach(n=>{byId[n.id]=n;});
+  const active=_kgActiveSet();
+  const sel=_kgState.selected;
   const parts=[];
   for(const l of links){
     if(l.type==='wiki'&&!showWiki)continue;
     if(l.type==='tag'&&!showTags)continue;
     const a=byId[l.a],b=byId[l.b];if(!a||!b)continue;
-    const stroke=l.type==='wiki'?'rgba(168,85,247,.55)':'rgba(168,85,247,.18)';
+    // An edge is "lit" when it touches the selection, or (no selection) when
+    // both endpoints survive the search filter.
+    let lit;
+    if(sel!=null)lit=(l.a===sel||l.b===sel);
+    else if(active)lit=active.has(l.a)&&active.has(l.b);
+    else lit=true;
+    const base=l.type==='wiki'?(lit?'rgba(168,85,247,.75)':'rgba(168,85,247,.12)'):(lit?'rgba(168,85,247,.4)':'rgba(168,85,247,.06)');
     const dash=l.type==='tag'?'stroke-dasharray="3 3"':'';
-    parts.push(`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${stroke}" stroke-width="${l.type==='wiki'?1.5:1}" ${dash}/>`);
+    parts.push(`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${base}" stroke-width="${l.type==='wiki'?(lit?2:1):1}" ${dash}/>`);
   }
   layer.innerHTML=parts.join('');
 }
 function _kgPaintNodes(){
   const layer=document.getElementById('kg-nodes-layer');if(!layer||!_kgState)return;
-  const {nodes,view}=_kgState;
+  const {nodes}=_kgState;
+  const active=_kgActiveSet();
   layer.innerHTML=nodes.map(n=>{
     const sel=_kgState.selected===n.id;
+    const isActive=!active||active.has(n.id);
+    const op=isActive?'.95':'.16';
     const stroke=sel?'#fff':n.starred?'#facc15':'rgba(0,0,0,.4)';
-    const sw=sel?2.5:n.starred?1.5:1;
+    const sw=sel?3:n.starred?1.5:1;
+    const showLabel=isActive&&(n.r>8||sel||active);
     return `<g transform="translate(${n.x.toFixed(1)},${n.y.toFixed(1)})" data-node-id="${n.id}" style="cursor:pointer">
-      <circle r="${n.r}" fill="${n.color}" stroke="${stroke}" stroke-width="${sw}" opacity=".92"/>
-      <text x="0" y="${n.r+13}" text-anchor="middle" font-size="10" fill="var(--t1)" style="pointer-events:none;font-family:-apple-system,Inter,sans-serif" opacity="${n.r>8||sel?1:.7}">${esc(n.title.slice(0,32))}${n.title.length>32?'…':''}</text>
+      <circle r="${n.r}" fill="${n.color}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>
+      ${showLabel?`<text x="0" y="${n.r+13}" text-anchor="middle" font-size="10" fill="var(--t1)" style="pointer-events:none;font-family:-apple-system,Inter,sans-serif" opacity="${isActive?1:.5}">${esc(n.title.slice(0,32))}${n.title.length>32?'…':''}</text>`:''}
     </g>`;
   }).join('');
 }
@@ -1423,6 +1571,7 @@ function _kgWireEvents(){
   if(!wrap||!svg)return;
   // Mouse down on node → start drag; on background → start pan
   svg.onmousedown=(e)=>{
+    _kgMoved=false;
     const g=e.target.closest('[data-node-id]');
     if(g){
       const nid=Number(g.dataset.nodeId);
@@ -1456,26 +1605,34 @@ function _kgWireEvents(){
     }else tip.style.display='none';
   };
   svg.onmouseleave=()=>{const tip=document.getElementById('kg-tip');if(tip)tip.style.display='none';};
-  // Click on node to open the note
+  // Single click = select node (highlight it + neighbours, open info panel).
+  // Click on empty space = clear selection. Double-click = open the note.
   svg.onclick=(e)=>{
     if(_kgPan||_kgDrag)return;
+    if(_kgMoved){_kgMoved=false;return;} // ignore click that ended a drag
     const g=e.target.closest('[data-node-id]');
     if(g){
-      const nid=Number(g.dataset.nodeId);
-      // Single-click: select. Double-click: open. Easier — single click opens.
-      nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(nid);},120);
+      _kgSelectNode(Number(g.dataset.nodeId));
+    }else{
+      _kgClearSelection();
     }
+  };
+  svg.ondblclick=(e)=>{
+    const g=e.target.closest('[data-node-id]');
+    if(g)_kgOpenNote(Number(g.dataset.nodeId));
   };
 }
 function _kgMouseMove(e){
   if(_kgDrag){
     const dx=e.clientX-_kgDrag.startMouse.x;
     const dy=e.clientY-_kgDrag.startMouse.y;
+    if(Math.abs(dx)>3||Math.abs(dy)>3)_kgMoved=true;
     const node=_kgState.nodes.find(n=>n.id===_kgDrag.nodeId);
     if(node){node.x=_kgDrag.startNodePos.x+dx;node.y=_kgDrag.startNodePos.y+dy;node.vx=0;node.vy=0;}
   }else if(_kgPan){
     // Panning: shift all nodes uniformly
     const dx=e.clientX-_kgPan.start.x;const dy=e.clientY-_kgPan.start.y;
+    if(Math.abs(dx)>2||Math.abs(dy)>2)_kgMoved=true;
     _kgPan.start={x:e.clientX,y:e.clientY};
     _kgState.nodes.forEach(n=>{n.x+=dx;n.y+=dy;});
     _kgRender();
