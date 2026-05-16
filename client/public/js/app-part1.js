@@ -6271,6 +6271,74 @@ function buildNoteOutlinks(n){
   const matches=[...n.body.matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1]);
   return matches.map(title=>D.notes.find(x=>x.title===title)).filter(Boolean);
 }
+// Plain text of a note (strip html/markdown) for context extraction.
+function _noteText(n){
+  let s=String(n.bodyHtml?n.bodyHtml.replace(/<[^>]+>/g,' '):(n.body||''));
+  return s.replace(/!\[[^\]]*\]\([^)]*\)/g,' ').replace(/\s+/g,' ').trim();
+}
+// Pull the sentence/snippet around the first occurrence of `needle`.
+function _ctxAround(text,needle){
+  const lc=text.toLowerCase(),i=lc.indexOf(needle.toLowerCase());
+  if(i<0)return '';
+  const a=Math.max(0,i-70),b=Math.min(text.length,i+needle.length+90);
+  let s=(a>0?'…':'')+text.slice(a,b)+(b<text.length?'…':'');
+  return esc(s).replace(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'ig'),m=>`<mark>${m}</mark>`);
+}
+// Notes that [[link]] to this note, with the surrounding sentence.
+function _noteBacklinksRich(id){
+  const t=D.notes.find(n=>n.id===id);if(!t||!t.title)return[];
+  const token='[['+t.title+']]';
+  return D.notes.filter(n=>n.id!==id&&((n.body||'')+(n.bodyHtml||'')).includes(token))
+    .map(n=>({id:n.id,title:n.title||'(untitled)',ctx:_ctxAround(_noteText(n).replace(/\[\[([^\]]+)\]\]/g,'$1'),t.title)}));
+}
+// Notes whose plain text NAMES this note's title but do NOT [[link]] it.
+function _noteUnlinkedMentions(id){
+  const t=D.notes.find(n=>n.id===id);
+  if(!t||!t.title||t.title.trim().length<4)return[];
+  const title=t.title.trim(),tl=title.toLowerCase(),token=('[['+title+']]').toLowerCase();
+  const out=[];
+  D.notes.forEach(n=>{
+    if(n.id===id)return;
+    const raw=((n.body||'')+' '+(n.bodyHtml||'')).toLowerCase();
+    if(raw.includes(token))return;            // already linked
+    if(_noteText(n).toLowerCase().includes(tl))out.push({id:n.id,title:n.title||'(untitled)'});
+  });
+  return out;
+}
+// Materialize an unlinked mention: wrap the first plain-text occurrence of
+// `targetTitle` inside note `fromId` with [[ ]] (skips text already in [[..]]).
+function linkUnlinkedMention(fromId,targetTitle){
+  const n=D.notes.find(x=>x.id===fromId);if(!n)return;
+  const segs=String(n.body||'').split(/(\[\[[^\]]+\]\])/g);
+  const tl=targetTitle.toLowerCase();let done=false;
+  for(let i=0;i<segs.length&&!done;i++){
+    if(/^\[\[[^\]]+\]\]$/.test(segs[i]))continue;
+    const idx=segs[i].toLowerCase().indexOf(tl);
+    if(idx>=0){segs[i]=segs[i].slice(0,idx)+'[['+segs[i].slice(idx,idx+targetTitle.length)+']]'+segs[i].slice(idx+targetTitle.length);done=true;}
+  }
+  if(!done){toast('Mention not found in body text.');return;}
+  n.body=segs.join('');n.updated=new Date().toISOString();save('notes');
+  toast('🔗 Linked from “'+(n.title||'note')+'”');
+  const cur=document.querySelector('.nc.on');
+  if(cur&&cur.dataset.nid)showNoteInEditor(Number(cur.dataset.nid));
+}
+function _renderNotesBacklinkRail(id){
+  const bl=_noteBacklinksRich(id);
+  const um=_noteUnlinkedMentions(id).slice(0,12);
+  let h=`<div class="rail-sec">⛓ Linked references <span class="n">${bl.length}</span></div>
+  <div class="rail-note">Notes that <b>[[link]]</b> to this one.</div>`;
+  h+= bl.length
+    ? bl.map(b=>`<div class="bl-card" onclick="showNoteInEditor(${b.id})"><div class="blt">${esc(b.title)}</div>${b.ctx?`<div class="blx">${b.ctx}</div>`:''}</div>`).join('')
+    : `<div class="rail-note" style="font-style:italic">None yet. Reference this note as <code>[[${esc((D.notes.find(n=>n.id===id)||{}).title||'')}]]</code> elsewhere.</div>`;
+  h+=`<div style="height:1px;background:var(--bd1);margin:18px 0"></div>
+  <div class="rail-sec">✦ Unlinked mentions <span class="n ${um.length?'':'dim'}">${um.length}</span></div>
+  <div class="rail-note">Notes that name this one without linking.</div>`;
+  const tt=((D.notes.find(n=>n.id===id)||{}).title||'').replace(/'/g,"\\'");
+  h+= um.length
+    ? um.map(u=>`<div class="bl-um"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${esc(u.title)}</span><span class="lk" onclick="event.stopPropagation();linkUnlinkedMention(${u.id},'${tt}')">+ Link</span></div>`).join('')
+    : `<div class="rail-note" style="font-style:italic">No unlinked mentions.</div>`;
+  return h;
+}
 function renderNotesGraph(id){
   const n=D.notes.find(x=>x.id===id);
   if(!n)return '<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>';
@@ -6333,15 +6401,7 @@ function showNoteInEditor(id){
   const gc=document.getElementById('notes-graph-container');
   if(gc)gc.innerHTML=renderNotesGraph(id);
   const bp=document.getElementById('notes-backlinks-panel');
-  if(bp){
-    const backlinks=buildNoteBacklinks(id);
-    const outlinks=buildNoteOutlinks(n);
-    let html='';
-    if(backlinks.length)html+=`<div style="font-size:11px;font-weight:600;margin-bottom:4px">🔗 Backlinks (${backlinks.length})</div>${backlinks.map(b=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${b.id})"><span style="color:var(--purp)">←</span> <span class="rt">${esc(b.title)}</span></div>`).join('')}<div style="margin-bottom:6px"></div>`;
-    if(outlinks.length)html+=`<div style="font-size:11px;font-weight:600;margin-bottom:4px">🔗 Outlinks (${outlinks.length})</div>${outlinks.map(o=>`<div class="lr" style="font-size:10px;cursor:pointer" onclick="showNoteInEditor(${o.id})"><span style="color:var(--ac)">→</span> <span class="rt">${esc(o.title)}</span></div>`).join('')}<div style="margin-bottom:6px"></div>`;
-    if(!html)html='<div style="font-size:10px;color:var(--t3)">No links. Use [[Note Title]] to link notes.</div>';
-    bp.innerHTML=html;
-  }
+  if(bp)bp.innerHTML=_renderNotesBacklinkRail(id);
 }
 // ─── Unified Notes Filter Engine ─────────────────────────────────────────────
 // ─── Note polish helpers ────────────────────────────────────────────────
@@ -7490,7 +7550,7 @@ function renderNotes(){
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
   <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
-  <div id="notes-backlinks-panel"></div>`;
+  <div id="notes-backlinks-panel">${D.notes.length?_renderNotesBacklinkRail(D.notes[0].id):''}</div>`;
   // Apply persisted column widths + (re-)attach the resize handles. Each
   // panel's innerHTML wipe above destroys the previous handle children.
   if(typeof _notesApplyWidths==='function')_notesApplyWidths();
