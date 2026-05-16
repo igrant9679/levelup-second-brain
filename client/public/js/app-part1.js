@@ -1249,74 +1249,151 @@ let _kgDrag=null; // {nodeId, startMouse, startNodePos}
 let _kgPan=null;
 let _kgHover=null;
 let _kgMoved=false; // true when the last mouse-down turned into a drag/pan
+// Edge taxonomy. Priority order = which type "wins" the line style when a
+// pair is connected several ways; also the order shown in the legend.
+const KG_TYPE_ORDER=['wiki','linked','mention','tag','similar','folder'];
+const KG_EDGE_STYLE={
+  wiki   :{c:'168,85,247', w:2,   dash:'',    label:'[[wiki link]]'},
+  linked :{c:'59,130,246', w:2,   dash:'',    label:'Linked item (drawer)'},
+  mention:{c:'168,85,247', w:1.3, dash:'2 4', label:'Title mentioned in text'},
+  tag    :{c:'168,85,247', w:1,   dash:'4 3', label:'Shared #tag'},
+  similar:{c:'45,212,191', w:1,   dash:'5 4', label:'Similar content'},
+  folder :{c:'148,163,184',w:1,   dash:'1 4', label:'Same folder'},
+};
+const KG_PALETTE=['#a855f7','#3b82f6','#22c55e','#f59e0b','#ec4899','#06b6d4','#ef4444','#14b8a6','#8b5cf6','#0ea5e9','#f97316','#84cc16'];
+function _kgHashHue(s){let h=0;s=String(s||'');for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h;}
+function _kgColorForKey(s){if(!s)return '#64748b';return KG_PALETTE[_kgHashHue(s)%KG_PALETTE.length];}
+const KG_STOP=new Set(('the a an and or but if then else of to in on at by for with from into over under is are was were be been being this that these those it its as not no do does did have has had will would can could should i you he she they we my your our their about more most some any all out up down so than too very just'.split(' ')));
+function _kgTokens(s){
+  return (String(s||'').toLowerCase().replace(/\[\[([^\]]+)\]\]/g,'$1').match(/[a-z][a-z0-9]{3,}/g)||[]).filter(w=>!KG_STOP.has(w));
+}
+function _kgSettings(){
+  let edges;try{edges=JSON.parse(localStorage.getItem('lu_kg_edges')||'null');}catch(_){}
+  if(!edges||typeof edges!=='object')edges={wiki:true,linked:true,mention:true,tag:true,similar:false,folder:false};
+  return {
+    edges,
+    colorBy:localStorage.getItem('lu_kg_colorby')||'palette', // palette|tag|folder|color
+    cluster:localStorage.getItem('lu_kg_cluster')||'none',     // none|tag|folder|color
+    tagFilter:localStorage.getItem('lu_kg_tagfilter')||'',
+    hideOrphans:localStorage.getItem('lu_kg_hide_orphans')==='1',
+  };
+}
+function _kgSetEdge(type,on){const s=_kgSettings();s.edges[type]=!!on;localStorage.setItem('lu_kg_edges',JSON.stringify(s.edges));if(_kgState){_kgState.enabled=s.edges;_kgRender();_kgRenderInfo();}}
+function _kgSetColorBy(v){localStorage.setItem('lu_kg_colorby',v);renderKnowledgeGraph();}
+function _kgSetCluster(v){localStorage.setItem('lu_kg_cluster',v);renderKnowledgeGraph();}
+function _kgSetTagFilter(v){if(v)localStorage.setItem('lu_kg_tagfilter',v);else localStorage.removeItem('lu_kg_tagfilter');renderKnowledgeGraph();}
+function _kgToggleSettingsPop(){const p=document.getElementById('kg-settings-pop');if(p)p.style.display=p.style.display==='none'?'block':'none';}
 function renderKnowledgeGraph(){
   const main=document.getElementById('graph-main');if(!main)return;
-  // Build graph from D.notes: nodes = notes (or referenced titles), links =
-  // wiki-link pairs + shared-tag pairs (lighter).
-  const notes=D.notes||[];
-  // 1. Wiki-link edges
-  const titleToId={};notes.forEach(n=>{titleToId[(n.title||'').toLowerCase()]=n.id;});
-  const linkEdges=[];const tagEdges=[];
-  const degree={};
+  const cfg=_kgSettings();
+  let notes=(D.notes||[]).slice();
+  // Optional single-tag focus.
+  const allTags=[...new Set((D.notes||[]).flatMap(n=>n.tags||[]))].sort((a,b)=>a.localeCompare(b));
+  if(cfg.tagFilter)notes=notes.filter(n=>(n.tags||[]).includes(cfg.tagFilter));
+  const folders=(typeof _noteFolders==='function'?_noteFolders():[])||[];
+  const folderName=id=>{const f=folders.find(x=>x.id===id);return f?f.name:null;};
+  const titleToId={};notes.forEach(n=>{const t=(n.title||'').trim().toLowerCase();if(t&&!(t in titleToId))titleToId[t]=n.id;});
+  // ── Build every edge type into one de-duped pair map (edge.types = Set). ──
+  const pairs=new Map();
+  const addEdge=(a,b,type)=>{if(a==null||b==null||a===b)return;const k=a<b?a+'_'+b:b+'_'+a;let e=pairs.get(k);if(!e){e={a:Math.min(a,b),b:Math.max(a,b),types:[]};pairs.set(k,e);}if(!e.types.includes(type))e.types.push(type);};
   notes.forEach(n=>{
-    const ms=[...(n.body||'').matchAll(/\[\[([^\]]+)\]\]/g)].map(m=>m[1].toLowerCase());
-    ms.forEach(t=>{
-      const targetId=titleToId[t];
-      if(targetId&&targetId!==n.id){
-        linkEdges.push({a:n.id,b:targetId,type:'wiki'});
-        degree[n.id]=(degree[n.id]||0)+1;degree[targetId]=(degree[targetId]||0)+1;
-      }
-    });
+    // wiki [[Title]]
+    [...String(n.body||'').matchAll(/\[\[([^\]]+)\]\]/g)].forEach(m=>{const id=titleToId[m[1].trim().toLowerCase()];if(id)addEdge(n.id,id,'wiki');});
+    // explicit drawer "Linked items"
+    (n.linkedNoteIds||[]).forEach(id=>{if((D.notes||[]).some(x=>x.id===id))addEdge(n.id,id,'linked');});
   });
-  // 2. Shared-tag edges (only when ≥1 tag in common AND not already linked)
+  // mention: another note's title appears verbatim in this note's text
+  const mentionTitles=notes.filter(n=>{const t=(n.title||'').trim();return t.length>=5&&!/^untitled/i.test(t);}).map(n=>({id:n.id,t:(n.title||'').trim().toLowerCase()}));
+  if(notes.length<=900){
+    notes.forEach(n=>{
+      const body=(' '+String(n.body||'').toLowerCase().replace(/\[\[([^\]]+)\]\]/g,'$1')+' ');
+      if(body.length<6)return;
+      mentionTitles.forEach(mt=>{if(mt.id!==n.id&&body.indexOf(mt.t)>=0)addEdge(n.id,mt.id,'mention');});
+    });
+  }
+  // shared #tag
   const tagged=notes.filter(n=>(n.tags||[]).length);
-  for(let i=0;i<tagged.length;i++){
-    for(let j=i+1;j<tagged.length;j++){
-      const a=tagged[i],b=tagged[j];
-      const shared=(a.tags||[]).filter(t=>(b.tags||[]).includes(t));
-      if(shared.length>=1){
-        // De-dupe against wiki edges
-        if(!linkEdges.some(e=>(e.a===a.id&&e.b===b.id)||(e.a===b.id&&e.b===a.id))){
-          tagEdges.push({a:a.id,b:b.id,type:'tag',count:shared.length});
-        }
-      }
+  for(let i=0;i<tagged.length;i++)for(let j=i+1;j<tagged.length;j++){
+    if((tagged[i].tags||[]).some(t=>(tagged[j].tags||[]).includes(t)))addEdge(tagged[i].id,tagged[j].id,'tag');
+  }
+  // similar content (top-token Jaccard) — capped for perf
+  if(notes.length<=600){
+    const tok=notes.map(n=>({id:n.id,s:new Set(_kgTokens(n.title+' '+n.body).slice(0,40))}));
+    for(let i=0;i<tok.length;i++)for(let j=i+1;j<tok.length;j++){
+      const A=tok[i].s,B=tok[j].s;if(A.size<4||B.size<4)continue;
+      let inter=0;A.forEach(w=>{if(B.has(w))inter++;});
+      if(inter<3)continue;
+      const jac=inter/(A.size+B.size-inter);
+      if(jac>=0.16)addEdge(tok[i].id,tok[j].id,'similar');
     }
   }
-  // 3. Nodes — "hide unconnected" toggle (persisted). Default shows all so a
-  //    user with few wiki-links still sees their notes; the guide explains why
-  //    they may look disconnected and how to link them.
-  const hideOrphans=localStorage.getItem('lu_kg_hide_orphans')==='1';
-  const connectedIds=new Set();[...linkEdges,...tagEdges].forEach(e=>{connectedIds.add(e.a);connectedIds.add(e.b);});
+  // same folder — connect as a star to the folder's first note (keeps it O(n))
+  const byFolder={};notes.forEach(n=>{if(n.folderId!=null){(byFolder[n.folderId]=byFolder[n.folderId]||[]).push(n.id);}});
+  Object.values(byFolder).forEach(ids=>{if(ids.length<2)return;ids.sort((a,b)=>a-b);for(let i=1;i<ids.length;i++)addEdge(ids[0],ids[i],'folder');});
+  const links=[...pairs.values()];
+  // Degree from all built edges (stable node sizing regardless of toggles).
+  const degree={};links.forEach(e=>{degree[e.a]=(degree[e.a]||0)+1;degree[e.b]=(degree[e.b]||0)+1;});
+  const connectedIds=new Set();links.forEach(e=>{connectedIds.add(e.a);connectedIds.add(e.b);});
   const orphanCount=notes.filter(n=>!connectedIds.has(n.id)).length;
-  const visibleNotes=hideOrphans?notes.filter(n=>connectedIds.has(n.id)):notes;
-  // 4. Initial positions: circle layout for a reasonable starting config
+  const visibleNotes=cfg.hideOrphans?notes.filter(n=>connectedIds.has(n.id)):notes;
+  const hideOrphans=cfg.hideOrphans;
+  // ── Clustering layout: assign each node a cluster key + a fixed centroid ──
+  const clusterKeyOf=n=>{
+    if(cfg.cluster==='tag')return (n.tags&&n.tags[0])||'(untagged)';
+    if(cfg.cluster==='folder')return folderName(n.folderId)||'(no folder)';
+    if(cfg.cluster==='color')return n.color||'(no color)';
+    return null;
+  };
+  const W=main.clientWidth||900;const H=main.clientHeight||640;
+  const cx=W/2,cy=H/2;const R=Math.min(W,H)*0.34;
+  let clusters=[];
+  if(cfg.cluster!=='none'){
+    const keys=[...new Set(visibleNotes.map(clusterKeyOf))];
+    const cols=Math.ceil(Math.sqrt(keys.length));
+    const rows=Math.ceil(keys.length/cols);
+    const gx=W/(cols+1),gy=H/(rows+1);
+    clusters=keys.map((k,i)=>({key:k,label:String(k),cx:gx*((i%cols)+1),cy:gy*(Math.floor(i/cols)+1),color:_kgColorForKey(k)}));
+  }
+  const clusterByKey={};clusters.forEach(c=>{clusterByKey[c.key]=c;});
+  const colorOf=n=>{
+    if(cfg.colorBy==='tag')return _kgColorForKey((n.tags&&n.tags[0])||'');
+    if(cfg.colorBy==='folder')return _kgColorForKey(folderName(n.folderId)||'');
+    if(cfg.colorBy==='color')return n.color||'#64748b';
+    return n.color||KG_PALETTE[_kgHashHue(n.title||'')%KG_PALETTE.length];
+  };
   const N=visibleNotes.length;
-  const W=main.clientWidth||800;const H=main.clientHeight||600;
-  const cx=W/2,cy=H/2;const R=Math.min(W,H)*0.32;
-  const palette=['#a855f7','#3b82f6','#22c55e','#f59e0b','#ec4899','#06b6d4','#ef4444','#facc15','#8b5cf6','#0ea5e9'];
   const nodes=visibleNotes.map((n,i)=>{
-    const ang=(i/Math.max(N,1))*Math.PI*2;
     const deg=degree[n.id]||0;
+    const ck=clusterKeyOf(n);const cl=ck!=null?clusterByKey[ck]:null;
+    const baseX=cl?cl.cx:cx,baseY=cl?cl.cy:cy;
+    const ang=(i/Math.max(N,1))*Math.PI*2;const rr=cl?60:R;
     return {
       id:n.id,title:n.title||'(untitled)',
-      x:cx+Math.cos(ang)*R,y:cy+Math.sin(ang)*R,
+      x:baseX+Math.cos(ang)*rr+(Math.random()-0.5)*30,
+      y:baseY+Math.sin(ang)*rr+(Math.random()-0.5)*30,
       vx:0,vy:0,
       r:Math.max(5,Math.min(22,6+deg*1.4)),
-      color:n.color||palette[(i+Math.abs((n.title||'').length))%palette.length],
+      color:colorOf(n),
       degree:deg,
       starred:!!n.starred,
+      clusterKey:ck,
     };
   });
-  const links=[...linkEdges.map(e=>({...e})),...tagEdges.map(e=>({...e}))];
   _kgState={
     nodes,links,
     view:{x:0,y:0,zoom:1},
     selected:null,
     search:'',
-    showWiki:true,showTags:true,
+    enabled:cfg.edges,
+    colorBy:cfg.colorBy,
+    cluster:cfg.cluster,
+    clusters,
     orphanCount,
   };
-  const totalEdges=linkEdges.length+tagEdges.length;
+  // Per-type counts (for legend / header).
+  const typeCounts={};links.forEach(e=>e.types.forEach(t=>{typeCounts[t]=(typeCounts[t]||0)+1;}));
+  const enabledLinkCount=links.filter(e=>e.types.some(t=>cfg.edges[t])).length;
+  const totalEdges=enabledLinkCount;
   const helpSeen=localStorage.getItem('lu_kg_help_seen')==='1';
   // Built-in guide / legend — explains exactly what the graph represents and
   // how to drive it. Collapsible; auto-shows the first time, then on demand.
@@ -1326,15 +1403,15 @@ function renderKnowledgeGraph(){
       <button class="btn btn-s" style="height:22px;width:22px;padding:0;font-size:12px" onclick="_kgToggleGuide(false)" title="Close">✕</button>
     </div>
     <div style="padding:12px;line-height:1.6">
-      <div style="margin-bottom:8px"><strong style="color:var(--t1)">What it shows</strong><br>Every <strong>circle is a note</strong>. Bigger circles have more connections. A <span style="color:#facc15">gold ring</span> means the note is starred.</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><svg width="34" height="8"><line x1="0" y1="4" x2="34" y2="4" stroke="rgba(168,85,247,.75)" stroke-width="2"/></svg> <span><code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki link</span></div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><svg width="34" height="8"><line x1="0" y1="4" x2="34" y2="4" stroke="rgba(168,85,247,.4)" stroke-width="2" stroke-dasharray="3 3"/></svg> <span>Shared <strong>#tag</strong> between two notes</span></div>
-      <div style="margin-bottom:6px"><strong style="color:var(--t1)">How to use it</strong></div>
+      <div style="margin-bottom:8px"><strong style="color:var(--t1)">What it shows</strong><br>Every <strong>circle is a note</strong>. Bigger circles have more connections; a <span style="color:#facc15">gold ring</span> means starred. Lines connect related notes — six ways:</div>
+      ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];const on=cfg.edges[t];return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;${on?'':'opacity:.45'}"><svg width="32" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="32" y2="4" stroke="rgba(${s.c},.85)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg> <span>${esc(s.label)}${typeof typeCounts!=='undefined'&&typeCounts[t]?` <span style="color:var(--t3)">· ${typeCounts[t]}</span>`:''}</span></div>`;}).join('')}
+      <div style="margin:8px 0 6px"><strong style="color:var(--t1)">How to use it</strong></div>
       <div style="margin-bottom:3px">• <strong>Click</strong> a note → highlight it + its neighbours</div>
       <div style="margin-bottom:3px">• <strong>Double-click</strong> (or “Open”) → edit the note</div>
-      <div style="margin-bottom:3px">• <strong>Drag</strong> a note to rearrange · drag empty space to pan</div>
-      <div style="margin-bottom:10px">• <strong>Search</strong> to spotlight matching notes</div>
-      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;font-size:11px">💡 <strong>No lines?</strong> Your notes aren’t linked yet. Open a note and type <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Another Note Title]]</code> in the body, or give two notes the same #tag.</div>
+      <div style="margin-bottom:3px">• <strong>Drag</strong> a note · drag empty space to pan</div>
+      <div style="margin-bottom:3px">• <strong>Search</strong> to spotlight matching notes</div>
+      <div style="margin-bottom:10px">• <strong>⚙ View</strong> → choose edge types, colour-by, cluster layout</div>
+      <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;font-size:11px">💡 Even without manual <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[links]]</code>, the graph auto-connects notes that mention each other, share tags, sit in the same folder, or cover similar topics. Toggle these under <strong>⚙ View</strong>.</div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:10px;cursor:pointer;font-size:10.5px;color:var(--t3)"><input type="checkbox" onchange="if(this.checked)localStorage.setItem('lu_kg_help_seen','1');else localStorage.removeItem('lu_kg_help_seen')" ${helpSeen?'checked':''}> Don’t show this automatically</label>
     </div>
   </div>`;
@@ -1345,41 +1422,65 @@ function renderKnowledgeGraph(){
     <div class="ph-r" style="padding:14px 18px;border-bottom:1px solid var(--bd1);background:var(--s1);z-index:5">
       <div>
         <h1 style="font-size:20px;font-weight:700">🕸 Knowledge Graph</h1>
-        <p style="font-size:11px;color:var(--t2);margin-top:2px">${nodes.length} note${nodes.length===1?'':'s'} · ${linkEdges.length} wiki link${linkEdges.length===1?'':'s'} · ${tagEdges.length} shared-tag connection${tagEdges.length===1?'':'s'}${orphanCount?` · ${orphanCount} unconnected`:''}</p>
+        <p style="font-size:11px;color:var(--t2);margin-top:2px">${nodes.length} note${nodes.length===1?'':'s'} · ${enabledLinkCount} connection${enabledLinkCount===1?'':'s'}${orphanCount?` · ${orphanCount} unconnected`:''}${cfg.tagFilter?` · filtered by #${esc(cfg.tagFilter)}`:''}</p>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input id="kg-search" placeholder="🔍 Find a note…" value="${esc(_kgState.search)}" oninput="_kgSearch(this.value)" style="height:28px;font-size:11px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1);width:150px">
-        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-wiki" onchange="_kgState.showWiki=this.checked;_kgRender()"> wiki links</label>
-        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px"><input type="checkbox" checked id="kg-tags" onchange="_kgState.showTags=this.checked;_kgRender()"> shared tags</label>
-        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px" title="Hide notes that have no links or shared tags"><input type="checkbox" ${hideOrphans?'checked':''} id="kg-orphans" onchange="_kgToggleOrphans(this.checked)"> hide unconnected</label>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:relative">
+        <input id="kg-search" placeholder="🔍 Find a note…" value="${esc(_kgState.search)}" oninput="_kgSearch(this.value)" style="height:28px;font-size:11px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1);width:140px">
+        <select onchange="_kgSetTagFilter(this.value)" style="height:28px;font-size:11px;padding:0 6px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1);max-width:130px" title="Show only notes with this tag">
+          <option value="" ${!cfg.tagFilter?'selected':''}>All tags</option>
+          ${allTags.map(t=>`<option value="${esc(t)}" ${cfg.tagFilter===t?'selected':''}>#${esc(t)}</option>`).join('')}
+        </select>
+        <label style="font-size:11px;color:var(--t2);cursor:pointer;display:flex;align-items:center;gap:4px" title="Hide notes with no connections"><input type="checkbox" ${hideOrphans?'checked':''} id="kg-orphans" onchange="_kgToggleOrphans(this.checked)"> hide unconnected</label>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgToggleSettingsPop()" title="Edge types, colour-by, cluster layout">⚙ View</button>
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgRecenter()" title="Re-run the layout from scratch">🎯 Recenter</button>
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgFreezeLayout()" title="Stop the auto-layout so nodes hold position">⏸ Freeze</button>
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgToggleGuide()" title="What am I looking at?">❔ Guide</button>
+        <div id="kg-settings-pop" style="display:none;position:absolute;top:34px;right:0;width:248px;background:var(--s1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:30;padding:12px;font-size:11.5px;color:var(--t2)">
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Connection types</div>
+          ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];return `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0"><input type="checkbox" ${cfg.edges[t]?'checked':''} onchange="_kgSetEdge('${t}',this.checked)"><svg width="26" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="26" y2="4" stroke="rgba(${s.c},.9)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg><span style="flex:1">${esc(s.label)}</span><span style="color:var(--t3);font-size:10px">${typeCounts[t]||0}</span></label>`;}).join('')}
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Colour nodes by</div>
+          <select onchange="_kgSetColorBy(this.value)" class="inp" style="width:100%;height:26px;font-size:11px;padding:0 6px">
+            ${[['palette','Note colour / auto'],['tag','First tag'],['folder','Folder'],['color','Manual colour tag']].map(([v,l])=>`<option value="${v}" ${cfg.colorBy===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Cluster layout by</div>
+          <select onchange="_kgSetCluster(this.value)" class="inp" style="width:100%;height:26px;font-size:11px;padding:0 6px">
+            ${[['none','None (free-floating)'],['tag','First tag'],['folder','Folder'],['color','Colour']].map(([v,l])=>`<option value="${v}" ${cfg.cluster===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+          <button class="btn btn-s" style="width:100%;height:26px;font-size:10px;margin-top:10px" onclick="_kgToggleSettingsPop()">Close</button>
+        </div>
       </div>
     </div>
     <div id="kg-canvas-wrap" style="flex:1;position:relative;overflow:hidden;background:radial-gradient(circle at 50% 50%,color-mix(in srgb,#a855f7 6%,var(--bg)),var(--bg) 70%);cursor:grab">
       <svg id="kg-svg" width="100%" height="100%" style="display:block;user-select:none">
+        <g id="kg-cluster-layer"></g>
         <g id="kg-edges-layer"></g>
         <g id="kg-nodes-layer"></g>
       </svg>
       <div id="kg-tip" style="position:absolute;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px;font-size:11px;color:var(--t1);pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.4);z-index:10"></div>
+      <div id="kg-legend" style="position:absolute;bottom:14px;left:14px;background:color-mix(in srgb,var(--s1) 88%,transparent);border:1px solid var(--bd1);border-radius:8px;padding:8px 10px;font-size:10.5px;color:var(--t2);z-index:11;max-width:240px;${cfg.colorBy==='palette'?'display:none':''}"></div>
       ${guideHtml}
       ${infoHtml}
-      ${nodes.length&&totalEdges===0?`<div id="kg-nolinks" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:10px 16px;font-size:11.5px;color:var(--t2);box-shadow:0 4px 20px rgba(0,0,0,.4);z-index:12;text-align:center;max-width:90%">None of these notes are linked yet — that’s why they’re floating free. Add <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> in a note’s body or reuse a #tag to connect them. <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="_kgToggleGuide(true)">Show guide</span></div>`:''}
-      ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">${hideOrphans&&orphanCount?'No connected notes yet':'Your graph is empty'}</div><div style="font-size:12px;max-width:360px;margin:0 auto 14px">${hideOrphans&&orphanCount?`You have ${orphanCount} note${orphanCount===1?'':'s'}, but none are linked. Untick “hide unconnected” to see them, or connect notes with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> links / shared #tags.`:'Create notes and connect them with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> wiki links or shared #tags to grow your knowledge graph.'}</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
+      ${nodes.length&&totalEdges===0?`<div id="kg-nolinks" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:10px 16px;font-size:11.5px;color:var(--t2);box-shadow:0 4px 20px rgba(0,0,0,.4);z-index:12;text-align:center;max-width:90%">No connections with the current settings. Open <strong>⚙ View</strong> and enable more connection types (mentions, similar content, same folder), or add <code style="background:var(--s3);padding:1px 4px;border-radius:3px">[[Note Title]]</code> links / shared #tags. <span style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="_kgToggleGuide(true)">Show guide</span></div>`:''}
+      ${nodes.length===0?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);text-align:center;padding:40px"><div><div style="font-size:48px;margin-bottom:10px">🕸</div><div style="font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px">${cfg.tagFilter?'No notes with #'+esc(cfg.tagFilter):(hideOrphans&&orphanCount?'No connected notes yet':'Your graph is empty')}</div><div style="font-size:12px;max-width:360px;margin:0 auto 14px">${cfg.tagFilter?'Try a different tag or choose “All tags”.':(hideOrphans&&orphanCount?`You have ${orphanCount} note${orphanCount===1?'':'s'} but none are connected with the current settings. Untick “hide unconnected”, or enable more connection types under ⚙ View.`:'Create notes — the graph auto-connects them by mentions, tags, folders and similar content.')}</div><button class="btn btn-p" onclick="openFA('note')">+ Create a note</button></div></div>`:''}
     </div>
   </div>`;
   if(!nodes.length)return;
   _kgWireEvents();
   _kgStartSimulation();
 }
-// Build the adjacency map once per state for neighbour lookups.
+// Highest-priority *enabled* type for an edge, or null if all its types are
+// toggled off (meaning the edge is currently hidden).
+function _kgEdgeType(e){
+  const en=(_kgState&&_kgState.enabled)||{};
+  for(const t of KG_TYPE_ORDER){if(e.types&&e.types.includes(t)&&en[t])return t;}
+  return null;
+}
+// Adjacency for neighbour lookups — only counts currently-visible edges.
 function _kgNeighborSet(id){
   const s=new Set();
   if(!_kgState)return s;
   for(const l of _kgState.links){
-    if(l.type==='wiki'&&!_kgState.showWiki)continue;
-    if(l.type==='tag'&&!_kgState.showTags)continue;
+    if(!_kgEdgeType(l))continue;
     if(l.a===id)s.add(l.b);
     if(l.b===id)s.add(l.a);
   }
@@ -1415,6 +1516,37 @@ function _kgClearSelection(){
 function _kgOpenNote(id){
   nav('notes');setTimeout(()=>{if(typeof showNoteInEditor==='function')showNoteInEditor(id);},120);
 }
+// Wrap the first verbatim occurrence of each mentioned note title in [[ ]] so
+// detected mentions become permanent wiki links. Operates only on text
+// outside existing [[...]] segments.
+function _kgMaterializeMentions(id){
+  const n=(D.notes||[]).find(x=>x.id===id);if(!n)return;
+  let segs=String(n.body||'').split(/(\[\[[^\]]+\]\])/g);
+  const alreadyLinked=new Set();
+  segs.forEach(s=>{const m=/^\[\[([^\]]+)\]\]$/.exec(s);if(m)alreadyLinked.add(m[1].trim().toLowerCase());});
+  const titles=(D.notes||[]).filter(o=>o.id!==id&&(o.title||'').trim().length>=5)
+    .map(o=>o.title.trim()).sort((a,b)=>b.length-a.length);
+  let count=0;
+  titles.forEach(title=>{
+    const tl=title.toLowerCase();
+    if(alreadyLinked.has(tl))return;
+    for(let i=0;i<segs.length;i++){
+      const s=segs[i];
+      if(/^\[\[[^\]]+\]\]$/.test(s))continue; // skip existing links
+      const idx=s.toLowerCase().indexOf(tl);
+      if(idx>=0){
+        segs[i]=s.slice(0,idx)+'[['+s.slice(idx,idx+title.length)+']]'+s.slice(idx+title.length);
+        alreadyLinked.add(tl);count++;break;
+      }
+    }
+  });
+  if(!count){toast('No new mentions to link.');return;}
+  n.body=segs.join('');
+  n.updated=new Date().toISOString();
+  if(typeof save==='function')save('notes');
+  toast('🔗 Linked '+count+' mention'+(count===1?'':'s')+' in “'+(n.title||'note')+'”');
+  renderKnowledgeGraph();
+}
 function _kgRenderInfo(){
   const info=document.getElementById('kg-info');if(!info||!_kgState)return;
   const id=_kgState.selected;
@@ -1422,8 +1554,17 @@ function _kgRenderInfo(){
   const node=_kgState.nodes.find(n=>n.id===id);
   const n=(D.notes||[]).find(x=>x.id===id);
   if(!node||!n){info.style.display='none';return;}
-  const neigh=[..._kgNeighborSet(id)].map(nid=>_kgState.nodes.find(x=>x.id===nid)).filter(Boolean)
+  // Build neighbour list with the relationship type for each.
+  const relOf={};
+  for(const l of _kgState.links){
+    const t=_kgEdgeType(l);if(!t)continue;
+    if(l.a===id)relOf[l.b]=t;else if(l.b===id)relOf[l.a]=t;
+  }
+  const neigh=Object.keys(relOf).map(nid=>_kgState.nodes.find(x=>x.id===Number(nid))).filter(Boolean)
     .sort((a,b)=>b.degree-a.degree);
+  // Mentions this note makes that aren't real [[links]] yet → offer to convert.
+  const bodyLc=' '+String(n.body||'').toLowerCase().replace(/\[\[([^\]]+)\]\]/g,' ')+' ';
+  const convertible=(D.notes||[]).filter(o=>o.id!==id&&(o.title||'').trim().length>=5&&bodyLc.indexOf((o.title||'').trim().toLowerCase())>=0).length;
   const tags=(n.tags||[]).slice(0,8);
   const snippet=esc(String(n.body||'').replace(/\[\[([^\]]+)\]\]/g,'$1').replace(/[#*_>`~-]/g,'').replace(/\s+/g,' ').trim().slice(0,160));
   info.innerHTML=`
@@ -1437,8 +1578,9 @@ function _kgRenderInfo(){
     <div style="padding:10px 12px;line-height:1.55">
       ${snippet?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">${snippet}${snippet.length>=160?'…':''}</div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px;font-style:italic">No body text.</div>'}
       ${tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${tags.map(t=>`<span style="font-size:9px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:8px">#${esc(t)}</span>`).join('')}</div>`:''}
-      ${neigh.length?`<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Connected notes</div><div style="max-height:160px;overflow-y:auto">${neigh.map(x=>`<div class="lr" style="cursor:pointer;padding:4px 4px" onclick="_kgFocusNode(${x.id})" title="Jump to this note in the graph"><span style="width:7px;height:7px;border-radius:50%;background:${x.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(x.title)}</span></div>`).join('')}</div>`:'<div style="font-size:10.5px;color:var(--t3)">No connections yet. Add <code style="background:var(--s3);padding:1px 3px;border-radius:3px">[[link]]</code>s or shared #tags.</div>'}
-      <button class="btn btn-p" style="width:100%;height:28px;font-size:11px;margin-top:10px" onclick="_kgOpenNote(${id})">✎ Open note</button>
+      ${neigh.length?`<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Connected notes (${neigh.length})</div><div style="max-height:150px;overflow-y:auto">${neigh.map(x=>{const rt=relOf[x.id];const st=KG_EDGE_STYLE[rt]||{c:'148,163,184',label:rt};return `<div class="lr" style="cursor:pointer;padding:4px 4px" onclick="_kgFocusNode(${x.id})" title="${esc(st.label)} — click to jump"><span style="width:7px;height:7px;border-radius:50%;background:${x.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(x.title)}</span><span style="font-size:8px;color:rgb(${st.c});flex-shrink:0;border:1px solid rgba(${st.c},.5);border-radius:7px;padding:0 5px">${esc(rt)}</span></div>`;}).join('')}</div>`:'<div style="font-size:10.5px;color:var(--t3)">No connections with the current ⚙ View settings.</div>'}
+      ${convertible?`<button class="btn btn-s" style="width:100%;height:26px;font-size:10.5px;margin-top:8px" onclick="_kgMaterializeMentions(${id})" title="Wrap the ${convertible} note title${convertible===1?'':'s'} mentioned in this note's text with [[ ]] so they become permanent links">🔗 Convert ${convertible} mention${convertible===1?'':'s'} to [[links]]</button>`:''}
+      <button class="btn btn-p" style="width:100%;height:28px;font-size:11px;margin-top:8px" onclick="_kgOpenNote(${id})">✎ Open note</button>
     </div>`;
   info.style.display='block';
 }
@@ -1475,26 +1617,52 @@ function _kgActiveSet(){
 }
 function _kgPaintEdges(){
   const layer=document.getElementById('kg-edges-layer');if(!layer||!_kgState)return;
-  const {nodes,links,showWiki,showTags}=_kgState;
+  const {nodes,links}=_kgState;
   const byId={};nodes.forEach(n=>{byId[n.id]=n;});
   const active=_kgActiveSet();
   const sel=_kgState.selected;
   const parts=[];
   for(const l of links){
-    if(l.type==='wiki'&&!showWiki)continue;
-    if(l.type==='tag'&&!showTags)continue;
+    const t=_kgEdgeType(l);if(!t)continue;
     const a=byId[l.a],b=byId[l.b];if(!a||!b)continue;
-    // An edge is "lit" when it touches the selection, or (no selection) when
-    // both endpoints survive the search filter.
     let lit;
     if(sel!=null)lit=(l.a===sel||l.b===sel);
     else if(active)lit=active.has(l.a)&&active.has(l.b);
     else lit=true;
-    const base=l.type==='wiki'?(lit?'rgba(168,85,247,.75)':'rgba(168,85,247,.12)'):(lit?'rgba(168,85,247,.4)':'rgba(168,85,247,.06)');
-    const dash=l.type==='tag'?'stroke-dasharray="3 3"':'';
-    parts.push(`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${base}" stroke-width="${l.type==='wiki'?(lit?2:1):1}" ${dash}/>`);
+    const st=KG_EDGE_STYLE[t];
+    const stroke=`rgba(${st.c},${lit?0.75:0.08})`;
+    const dash=st.dash?`stroke-dasharray="${st.dash}"`:'';
+    parts.push(`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${stroke}" stroke-width="${lit?st.w:Math.min(st.w,1)}" ${dash}/>`);
   }
   layer.innerHTML=parts.join('');
+}
+function _kgPaintClusters(){
+  const layer=document.getElementById('kg-cluster-layer');if(!layer||!_kgState)return;
+  const cl=_kgState.clusters||[];
+  if(!cl.length){layer.innerHTML='';return;}
+  layer.innerHTML=cl.map(c=>`<text x="${c.cx.toFixed(0)}" y="${c.cy.toFixed(0)}" text-anchor="middle" font-size="13" font-weight="700" fill="${c.color}" opacity=".18" style="pointer-events:none;font-family:-apple-system,Inter,sans-serif;text-transform:uppercase;letter-spacing:1px">${esc(String(c.label).slice(0,22))}</text>`).join('');
+}
+function _kgRenderLegend(){
+  const el=document.getElementById('kg-legend');if(!el||!_kgState)return;
+  const cb=_kgState.colorBy;
+  if(cb==='palette'){el.style.display='none';return;}
+  // Tally the colour groups currently shown.
+  const groups=new Map();
+  _kgState.nodes.forEach(n=>{groups.set(n.color,(groups.get(n.color)||0)+1);});
+  const folders=(typeof _noteFolders==='function'?_noteFolders():[])||[];
+  // Re-derive a human label per colour from one representative note.
+  const labelFor=color=>{
+    const node=_kgState.nodes.find(n=>n.color===color);if(!node)return '';
+    const src=(D.notes||[]).find(x=>x.id===node.id)||{};
+    if(cb==='tag')return (src.tags&&src.tags[0])?'#'+src.tags[0]:'(untagged)';
+    if(cb==='folder'){const f=folders.find(x=>x.id===src.folderId);return f?f.name:'(no folder)';}
+    if(cb==='color')return src.color?'colour':'(none)';
+    return '';
+  };
+  const rows=[...groups.entries()].sort((a,b)=>b[1]-a[1]).slice(0,9)
+    .map(([color,n])=>`<div style="display:flex;align-items:center;gap:6px;padding:1px 0"><span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(labelFor(color))}</span><span style="color:var(--t3)">${n}</span></div>`).join('');
+  el.style.display='block';
+  el.innerHTML=`<div style="font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-size:9px;margin-bottom:4px">Colour: ${cb==='tag'?'first tag':cb==='folder'?'folder':'manual colour'}</div>${rows}`;
 }
 function _kgPaintNodes(){
   const layer=document.getElementById('kg-nodes-layer');if(!layer||!_kgState)return;
@@ -1513,7 +1681,7 @@ function _kgPaintNodes(){
     </g>`;
   }).join('');
 }
-function _kgRender(){_kgPaintEdges();_kgPaintNodes();}
+function _kgRender(){_kgPaintClusters();_kgPaintEdges();_kgPaintNodes();_kgRenderLegend();}
 function _kgStartSimulation(){
   // Force-directed simulation (Verlet-style) for ~200 ticks then idle.
   if(_kgRaf)cancelAnimationFrame(_kgRaf);
@@ -1538,19 +1706,26 @@ function _kgStartSimulation(){
         b.ax-=dx/d*f;b.ay-=dy/d*f;
       }
     }
-    // Spring attraction along edges
+    // Spring attraction along visible edges only.
     const byId={};nodes.forEach(n=>{byId[n.id]=n;});
     for(const l of links){
+      if(!_kgEdgeType(l))continue;
       const a=byId[l.a],b=byId[l.b];if(!a||!b)continue;
       const dx=b.x-a.x,dy=b.y-a.y;const d=Math.sqrt(dx*dx+dy*dy)+0.01;
       const force=SPRING*(d-SPRING_LEN);
       a.ax+=dx/d*force;a.ay+=dy/d*force;
       b.ax-=dx/d*force;b.ay-=dy/d*force;
     }
-    // Centring pull
+    // Centring pull — toward the node's cluster centroid when clustering is
+    // on, otherwise toward canvas centre.
     const cx=W/2,cy=H/2;
+    const clById={};(_kgState.clusters||[]).forEach(c=>{clById[c.key]=c;});
+    const clustered=(_kgState.clusters||[]).length>0;
     nodes.forEach(n=>{
-      n.ax+=(cx-n.x)*CENTER_PULL;n.ay+=(cy-n.y)*CENTER_PULL;
+      const c=clustered&&n.clusterKey!=null?clById[n.clusterKey]:null;
+      const tx=c?c.cx:cx,ty=c?c.cy:cy;
+      const pull=c?CENTER_PULL*9:CENTER_PULL;
+      n.ax+=(tx-n.x)*pull;n.ay+=(ty-n.y)*pull;
     });
     // Integrate
     nodes.forEach(n=>{
