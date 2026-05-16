@@ -1080,6 +1080,34 @@ body.sb-open .ai-bubble{display:none!important}
 #s-tasks .cl-card:hover{box-shadow:0 8px 22px rgba(0,0,0,.26)}
 #s-tasks .pill{border-radius:999px;letter-spacing:.02em}
 #s-tasks #task-quick-add{border-radius:10px}
+/* Focus execution view */
+.tf-wrap{max-width:780px;margin:0 auto}
+.tf-hero{display:flex;align-items:center;gap:26px;background:var(--s1);border:1px solid var(--bd1);
+  border-radius:14px;padding:16px 22px;margin-bottom:18px}
+.tf-hero-big{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--t1);line-height:1}
+.tf-hero-l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.tf-sec{margin-bottom:18px}
+.tf-sec-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:8px}
+.tf-sec-h .tf-sec-n{font-size:10px;color:var(--t3);background:var(--s3);border-radius:999px;padding:1px 8px}
+.tf-row{display:flex;align-items:center;gap:12px;background:var(--s1);border:1px solid var(--bd1);
+  border-radius:11px;padding:12px 14px;margin-bottom:8px;cursor:pointer;
+  transition:transform .12s,border-color .12s,box-shadow .12s,background .12s}
+.tf-row:hover{transform:translateY(-1px);background:var(--s2);border-color:var(--bd2);box-shadow:0 6px 18px rgba(0,0,0,.26)}
+.tf-chk{width:20px;height:20px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;cursor:pointer;
+  transition:border-color .12s,background .12s}
+.tf-chk:hover{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 18%,transparent)}
+.tf-pri{width:4px;align-self:stretch;border-radius:3px;flex-shrink:0}
+.tf-main{flex:1;min-width:0}
+.tf-t{font-size:14px;font-weight:600;color:var(--t1);letter-spacing:-.1px;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tf-meta{display:flex;gap:11px;flex-wrap:wrap;font-size:11px;color:var(--t3)}
+.tf-meta .tf-od{color:var(--red);font-weight:600}
+.tf-acts{display:flex;gap:5px;align-items:center;flex-shrink:0}
+.tf-acts button{height:28px;min-width:30px;padding:0 8px;border:1px solid var(--bd2);background:var(--s2);
+  color:var(--t2);border-radius:8px;font-size:12px;cursor:pointer;transition:border-color .12s,color .12s}
+.tf-acts button:hover{border-color:var(--ac);color:var(--ac)}
+.tf-acts .tf-ip{font-size:10px;color:var(--ac);font-weight:600;white-space:nowrap}
 
 /* ─── Global app-wide page-accent treatments ─────────────────────────────
    Take the polish that gave the Notes page its identity and propagate

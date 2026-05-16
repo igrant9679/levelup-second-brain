@@ -4801,6 +4801,7 @@ function renderCurrentTaskView(){
   if(_taskView==='gantt')return renderTaskGantt();
   if(_taskView==='calendar')return renderTaskCalendar();
   if(_taskView==='clusters')return renderTaskClusters();
+  if(_taskView==='focus')return renderTaskFocus();
   return renderTaskList();
 }
 // Generic dropdown-menu toggle. Closes on the next outside click.
@@ -4820,7 +4821,7 @@ function closeTaskAIMenu(){closePopMenu('task-ai-menu');}
 function setTaskView(v){
   _taskView=v;
   _persistPageState('tasks',{view:v});
-  ['list','board','matrix','gantt','calendar','clusters'].forEach(k=>{
+  ['list','board','matrix','gantt','calendar','clusters','focus'].forEach(k=>{
     const b=document.getElementById('tasks-view-'+k);
     if(!b)return;
     const on=k===v;
@@ -5014,6 +5015,70 @@ function _tlDrop(e,targetId){
   D.tasks.filter(t=>!visibleSet.has(t.id)).forEach((t,i)=>{t.sortOrder=visible.length+i+1000;});
   save('tasks');
   renderCurrentTaskView();
+}
+// ⚡ Focus — an execution surface (not a list manager). Surfaces what to do
+// right now in priority order with one-click complete / start / focus.
+function renderTaskFocus(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  const today=_todayStr;
+  let pool=D.tasks.filter(t=>!t.createdBy||!_taskMyOnly||t.createdBy===(D.creds.userName||'Idris Grant'));
+  if(_taskMyOnly)pool=D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  pool=_applyPriorityFilter(pool.slice());
+  const active=t=>t.status!=='Done'&&t.status!=='Someday';
+  const seen=new Set();
+  const take=(arr)=>arr.filter(t=>!seen.has(t.id)).map(t=>{seen.add(t.id);return t;});
+  const priRank={High:3,Medium:2,Low:1};
+  const byPriDue=(a,b)=>(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0)||(a.due||'9999').localeCompare(b.due||'9999');
+  const overdue=take(pool.filter(t=>active(t)&&t.due&&t.due<today).sort((a,b)=>(a.due||'').localeCompare(b.due||'')));
+  const dueToday=take(pool.filter(t=>active(t)&&(t.due===today||t.startDate===today)).sort(byPriDue));
+  const inProg=take(pool.filter(t=>t.status==='In Progress').sort(byPriDue));
+  const myDay=take(pool.filter(t=>t.myDay&&active(t)).sort(byPriDue));
+  const upNext=take(pool.filter(t=>active(t)&&(t.priority==='High'||t.priority==='Medium')).sort(byPriDue)).slice(0,8);
+  const doneToday=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===today).length;
+  const totalQueued=overdue.length+dueToday.length+inProg.length+myDay.length;
+  const priColors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
+  const proj=t=>{const p=(D.projects||[]).find(x=>x.id===t.projectId||x.name===t.project);return p?p.name:'';};
+  function row(t){
+    const pc=priColors[t.priority||'Medium']||'#f59e0b';
+    const od=t.due&&t.due<today;
+    const pn=proj(t);
+    return `<div class="tf-row" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      <div class="tf-chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,120)" title="Mark done"></div>
+      <span class="tf-pri" style="background:${pc}" title="${t.priority||'Medium'} priority"></span>
+      <div class="tf-main">
+        <div class="tf-t">${esc(t.title||'Untitled')}</div>
+        <div class="tf-meta">
+          ${t.due?`<span class="${od?'tf-od':''}">📅 ${fmtDate(t.due)}</span>`:''}
+          ${t.startTime?`<span>⏰ ${esc(t.startTime)}</span>`:''}
+          ${t.estimatedMins?`<span>⏱ ${t.estimatedMins}m</span>`:''}
+          ${pn?`<span>📁 ${esc(pn)}</span>`:''}
+          ${(t.subtasks||[]).length?`<span>☑ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length}</span>`:''}
+        </div>
+      </div>
+      <div class="tf-acts" onclick="event.stopPropagation()">
+        <button title="Focus timer on this" onclick="if(typeof pomoSelectTask==='function')pomoSelectTask(${t.id});toast('🎯 Focusing: '+esc(D.tasks.find(x=>x.id===${t.id})?.title||''))">⏱</button>
+        ${t.status!=='In Progress'?`<button title="Start" onclick="const x=D.tasks.find(z=>z.id===${t.id});if(x){x.status='In Progress';save('tasks');renderCurrentTaskView();}">▶</button>`:`<span class="tf-ip">● In progress</span>`}
+      </div>
+    </div>`;
+  }
+  const section=(icon,label,arr,color)=>arr.length?`<div class="tf-sec"><div class="tf-sec-h"><span style="color:${color}">${icon} ${label}</span><span class="tf-sec-n">${arr.length}</span></div>${arr.map(row).join('')}</div>`:'';
+  let html=`<div class="tf-wrap">
+    <div class="tf-hero">
+      <div><div class="tf-hero-big">${totalQueued}</div><div class="tf-hero-l">to do now</div></div>
+      <div><div class="tf-hero-big" style="color:var(--red)">${overdue.length}</div><div class="tf-hero-l">overdue</div></div>
+      <div><div class="tf-hero-big" style="color:var(--ok)">${doneToday}</div><div class="tf-hero-l">done today</div></div>
+      <div style="flex:1"></div>
+      <button class="btn btn-p" style="height:30px;font-size:11px" onclick="openFA('task')">+ Add task</button>
+    </div>`;
+  const body=section('⚠','Overdue',overdue,'var(--red)')
+    +section('🔥','Due today',dueToday,'var(--ac)')
+    +section('▶','In progress',inProg,'var(--ac)')
+    +section('☀','My Day',myDay,'#f59e0b')
+    +section('⏭','Up next',upNext,'var(--t2)');
+  html+= body || `<div style="text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎯</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">Nothing demanding your attention</div><div style="font-size:12px">No overdue, due-today, in-progress or My Day tasks. Inbox zero — enjoy it.</div></div>`;
+  html+=`</div>`;
+  list.innerHTML=html;
 }
 function renderTaskBoard(){
   const list=document.getElementById('tasks-list');
@@ -5825,7 +5890,7 @@ function renderTasks(){
   }
   $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
     // B: visible 3 most-used views + a More dropdown for the rest
-    const visible=[{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
+    const visible=[{k:'focus',icon:'⚡',label:'Focus'},{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
     const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
     // If the current view is in overflow, surface it inline so the user sees it active
     const cur=[...visible,...overflow].find(v=>v.k===_taskView);
