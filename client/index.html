@@ -970,12 +970,71 @@ body.sb-open .ai-bubble{display:none!important}
 .notes-rail{background:var(--s1);border-left:1px solid var(--bd1)}
 .nn{display:flex;align-items:center;gap:6px;padding:3px 6px;border-radius:5px;font-size:11px;color:var(--t2);cursor:pointer;margin-bottom:1px;transition:background .12s,color .12s,padding-left .12s}
 .nn:hover{background:var(--s3);color:var(--t1);padding-left:9px}.nn.on{background:var(--acs);color:var(--ach)}
-.nc{padding:6px;border-radius:6px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;transition:background .12s,border-color .12s,transform .12s}
-.nc:hover{background:var(--s3);transform:translateX(1px)}.nc.on{background:var(--acs);border-color:var(--ac)}
-.nc-t{font-size:11px;font-weight:500;margin-bottom:2px}
-.nc-tg{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:2px}
-.nc-tg span{font-size:8px;color:var(--ac);background:var(--acs);padding:1px 4px;border-radius:2px}
-.nc-m{font-size:9px;color:var(--t3);display:flex;gap:4px}
+/* ── Redesigned note cards (Emerald) ── */
+.nc{padding:11px 12px;border-radius:11px;cursor:pointer;margin-bottom:8px;border:1px solid var(--bd1);
+  background:var(--s1);transition:transform .14s ease,border-color .14s,box-shadow .14s,background .14s}
+.nc:hover{background:var(--s2);border-color:var(--bd2);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.28)}
+.nc.on{background:color-mix(in srgb,var(--ac) 12%,var(--s1));border-color:var(--ac);
+  box-shadow:0 0 0 1px var(--ac),0 8px 22px rgba(0,0,0,.28)}
+.nc.on::before{content:'';position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--ac)}
+.nc-t{font-size:13.5px;font-weight:650;margin-bottom:4px;letter-spacing:-.1px;color:var(--t1);line-height:1.32;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nc-snip{font-size:11.5px;color:var(--t2);line-height:1.5;margin-bottom:8px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nc-tg{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
+.nc-tg span{font-size:9.5px;color:var(--t2);background:var(--s3);border:1px solid var(--bd1);padding:1px 7px;border-radius:999px}
+.nc-m{font-size:10px;color:var(--t3);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nc-m .nc-dim{margin-left:auto;color:var(--t3)}
+.nc-status{font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;letter-spacing:.02em}
+.nc-row{position:relative}
+
+/* ── Notes editor: comfortable centered reading column + typography ── */
+#s-notes .notes-editor{padding:0;background:var(--bg)}
+#s-notes #notes-editor-panel{max-width:none}
+.note-doc{max-width:720px;margin:0 auto;padding:30px 40px 80px}
+.note-doc .note-title{font-size:30px;font-weight:780;letter-spacing:-.5px;line-height:1.18;color:var(--t1);margin:14px 0 16px}
+.note-doc .note-body{font-size:15.5px;line-height:1.78;color:var(--t1)}
+.note-doc .note-body p{margin:0 0 15px;color:var(--t2)}
+.note-doc .note-body h1{font-size:23px;font-weight:760;margin:28px 0 12px;letter-spacing:-.3px;color:var(--t1)}
+.note-doc .note-body h2{font-size:19px;font-weight:720;margin:24px 0 10px;color:var(--t1)}
+.note-doc .note-body h3{font-size:16px;font-weight:680;margin:20px 0 8px;color:var(--t1)}
+.note-doc .note-body ul,.note-doc .note-body ol{margin:0 0 15px 22px;color:var(--t2)}
+.note-doc .note-body li{margin-bottom:6px}
+.note-doc .note-body a,.note-doc .note-body .wikilink{color:var(--ac);border-bottom:1px solid color-mix(in srgb,var(--ac) 40%,transparent);cursor:pointer}
+.note-doc .note-body blockquote{border-left:3px solid var(--ac);margin:0 0 15px;padding:4px 0 4px 16px;color:var(--t2);font-style:italic}
+.note-doc .note-body img{max-width:100%;border-radius:10px;margin:10px 0}
+.note-doc .note-body code{background:var(--s2);border:1px solid var(--bd1);border-radius:5px;padding:1px 5px;font-size:13px}
+.note-doc .note-toolbar{display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap}
+/* Note property block */
+.note-props{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:13px;
+  border:1px solid var(--bd1);border-radius:12px;padding:13px 16px;margin:0 0 22px;background:var(--s1)}
+.note-props .k{color:var(--t3);display:flex;align-items:center;gap:7px;white-space:nowrap}
+.note-props .v{color:var(--t1);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.note-props .chip{display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--bd2);
+  border-radius:8px;padding:2px 10px;font-size:12px;color:var(--t2);cursor:pointer;transition:border-color .12s}
+.note-props .chip:hover{border-color:var(--ac)}
+.note-props .chip.ac{border-color:var(--ac);color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent)}
+/* Status picker popover */
+.nsp{position:absolute;z-index:60;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;
+  padding:5px;box-shadow:0 12px 36px rgba(0,0,0,.45);min-width:220px}
+.nsp-i:hover{background:var(--acs)}
+/* Backlinks rail */
+.bl-card{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:10px 11px;margin-bottom:8px;cursor:pointer;transition:border-color .12s}
+.bl-card:hover{border-color:var(--bd2)}
+.bl-card .blt{font-size:12px;font-weight:650;color:var(--t1);margin-bottom:4px}
+.bl-card .blx{font-size:11px;color:var(--t3);line-height:1.5}
+.bl-card .blx mark{background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--ac);border-radius:3px;padding:0 2px}
+.bl-um{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--bd2);border-radius:9px;margin-bottom:7px;font-size:11.5px;color:var(--t2)}
+.bl-um .lk{margin-left:auto;font-size:10.5px;font-weight:650;color:var(--ac);border:1px solid var(--ac);border-radius:7px;padding:3px 9px;cursor:pointer;background:color-mix(in srgb,var(--ac) 12%,transparent);flex-shrink:0}
+.bl-um .lk:hover{background:color-mix(in srgb,var(--ac) 22%,transparent)}
+.rail-sec{font-size:11px;font-weight:700;color:var(--t1);text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px;display:flex;align-items:center;gap:7px}
+.rail-sec .n{margin-left:auto;font-size:10px;color:#fff;background:var(--ac);border-radius:999px;padding:0 7px;font-weight:700;letter-spacing:0}
+.rail-sec .n.dim{background:var(--s3);color:var(--t2)}
+.rail-note{font-size:10.5px;color:var(--t3);margin-bottom:12px}
+/* [[ ]] / # autocomplete popover */
+#wiki-autocomplete .wac-i{display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;font-size:12.5px;color:var(--t2)}
+#wiki-autocomplete .wac-i:hover,#wiki-autocomplete .wac-i.on{background:var(--acs);color:var(--ac)}
+#wiki-autocomplete .wac-h{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;padding:8px 12px 5px;border-bottom:1px solid var(--bd1)}
 
 /* ─── Global app-wide page-accent treatments ─────────────────────────────
    Take the polish that gave the Notes page its identity and propagate
