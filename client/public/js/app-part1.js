@@ -8315,30 +8315,65 @@ function openProjectDetail(pid){
   const pts=D.tasks.filter(t=>t.projectId===pid);
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
-  const taskRows=pts.map(t=>{
-    const subs=t.subtasks||[];
-    const done=subs.filter(s=>s.done).length;
+  const health=projectHealth(p);
+  const doneN=pts.filter(t=>t.status==='Done').length;
+  const ipN=pts.filter(t=>t.status==='In Progress').length;
+  const nsN=pts.filter(t=>t.status==='Not Started').length;
+  const odN=pts.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
+  const subs=pts.flatMap(t=>t.subtasks||[]);
+  const ms=Array.isArray(p.milestones)?p.milestones:[];
+  const msDone=ms.filter(m=>m.done).length;
+  const pct=Math.max(0,Math.min(100,p.pct||0));
+  const goalIds=[...new Set(pts.map(t=>t.linkedGoalId).filter(Boolean))];
+  const goals=(D.goals||[]).filter(g=>goalIds.includes(g.id)||g.projectId===pid);
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const msRows=ms.length?ms.map((m,i)=>{
+    const od=!m.done&&(m.date||m.due)&&(m.date||m.due)<_todayStr;
+    return `<div class="lr" style="padding:7px 0;border-bottom:1px solid var(--bd1);align-items:center">
+      <div class="chk ${m.done?'on':''}" style="flex-shrink:0" onclick="event.stopPropagation();(D.projects.find(x=>x.id===${pid}).milestones||[])[${i}].done=!(D.projects.find(x=>x.id===${pid}).milestones||[])[${i}].done;save('projects');openProjectDetail(${pid})"></div>
+      <span class="rt" style="font-size:12px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title||m.name||'Milestone')}</span>
+      ${(m.date||m.due)?`<span style="font-size:10px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${esc(m.date||m.due)}</span>`:''}
+    </div>`;}).join(''):'<p style="font-size:11px;color:var(--t3);padding:4px 0">No milestones yet — add them in ✏ Edit Project.</p>';
+  const taskRows=pts.slice().sort((a,b)=>(a.status==='Done')-(b.status==='Done')||(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
+    const sb=t.subtasks||[];const sd=sb.filter(s=>s.done).length;
+    const od=t.status!=='Done'&&t.due&&t.due<_todayStr;
     return`<div style="padding:6px 0;border-bottom:1px solid var(--bd1)">
       <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="cursor:pointer">
         <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
         <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
         <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
-        <span style="font-size:9px;color:var(--t3)">${t.due||''}</span>
+        <span style="font-size:9px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${t.due||''}</span>
       </div>
-      ${subs.length?`<div style="padding-left:24px;font-size:10px;color:var(--t3)">${done}/${subs.length} subtasks · ${subs.filter(s=>!s.done).map(s=>`<span style="margin-right:6px">◦ ${esc(s.title)}</span>`).join('')}</div>`:''}
+      ${sb.length?`<div style="padding-left:24px;font-size:10px;color:var(--t3)">${sd}/${sb.length} subtasks</div>`:''}
     </div>`}).join('');
-  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:${p.color}"></span>${esc(p.name)}<button class="close" onclick="closeDrawer()">✕</button></h2>
-  <div style="display:flex;gap:8px;margin-bottom:10px">
-    <span class="pill ${statusPill(p.status)}">${p.status}</span>
-    <span style="font-size:11px;color:var(--t3)">Due ${p.due}</span>
-    <span style="font-size:11px;color:var(--t3)">${p.pct}% complete</span>
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${health.color};font-weight:700">${health.icon} ${health.label}</span>
+    <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
+    ${p.owner?`<span style="font-size:11px;color:var(--t3);align-self:center">👤 ${esc(p.owner)}</span>`:''}
+    <span style="font-size:11px;color:${p.due&&p.due!=='TBD'&&p.due<_todayStr?'var(--red)':'var(--t3)'};align-self:center">📅 ${esc(p.due||'No due date')}</span>
   </div>
-  <div class="pb" style="margin-bottom:12px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div>
-  <div class="md-body" style="font-size:11px;color:var(--t2);margin-bottom:12px;line-height:1.5">${renderMd(p.desc||'')}</div>
-  <div style="font-size:12px;font-weight:600;margin-bottom:6px">Tasks & Subtasks (${pts.length})</div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+    <div style="background:conic-gradient(${p.color} ${pct}%,var(--s3) ${pct}%);width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:750">${pct}%</div></div>
+    <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">
+      ${statChip(pts.length,'Tasks')}
+      ${statChip(doneN,'Done','var(--ok)')}
+      ${statChip(ipN,'Active','var(--ac)')}
+      ${statChip(odN,'Overdue',odN?'var(--red)':'var(--t2)')}
+      ${statChip(msDone+'/'+ms.length,'Milestones')}
+    </div>
+  </div>
+  ${p.desc?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Overview</div>
+  <div class="md-body" style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.65;max-width:62ch">${renderMd(p.desc||'')}</div>`:''}
+  <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Milestones (${msDone}/${ms.length})</div>
+  ${ms.length?`<div class="pb" style="margin-bottom:8px"><div class="f" style="width:${ms.length?Math.round(msDone/ms.length*100):0}%;background:${p.color}"></div></div>`:''}
+  ${msRows}
+  ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
+  <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Tasks (${pts.length}) · ${subs.filter(s=>s.done).length}/${subs.length} subtasks</div>
   ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
-  <div style="display:flex;gap:8px;margin-top:12px">
+  <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0">
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
+    <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
   </div>`;
   ov.classList.add('show');
