@@ -5901,6 +5901,15 @@ let _notesFilterPanelOpen=false;
 let _notesFilterCategory=_notesRestored.category||'Recent'; // Active left-nav category
 let _notesFilterSmart=_notesRestored.smart||null; // Active smart folder filter key
 let _notesFilterFolder=typeof _notesRestored.folder==='number'?_notesRestored.folder:null; // Active user-folder filter (id)
+let _notesFilterStatus=_notesRestored.status||null; // Active lifecycle filter (fleeting/literature/evergreen/archived)
+function filterNotesByStatus(s){
+  _notesFilterStatus=(_notesFilterStatus===s?null:s);
+  // Lifecycle is independent of category/smart — clear smart so it doesn't
+  // double-filter, keep folder context.
+  _notesFilterSmart=null;
+  _persistPageState('notes',{status:_notesFilterStatus,smart:null});
+  if(typeof renderNotes==='function')renderNotes();else applyNotesFilters();
+}
 // ─── User folders (D.prefs.noteFolders) ───────────────────────────────
 function _noteFolders(){return (D.prefs&&D.prefs.noteFolders)||[];}
 function _noteFolderById(id){return _noteFolders().find(f=>f.id===id);}
@@ -6549,6 +6558,10 @@ function applyNotesFilters(){
     const catFilter=catMap[_notesFilterCategory]||(()=>true);
     notes=notes.filter(catFilter);
   }
+  // Lifecycle filter (independent of category)
+  if(_notesFilterStatus){
+    notes=notes.filter(n=>_noteStatus(n)===_notesFilterStatus);
+  }
   // Text search
   const q=_notesFilterText.trim().toLowerCase();
   if(q){
@@ -6757,6 +6770,7 @@ function clearNotesFilters(){
   _notesSort='newest';
   _notesGroupBy='';
   _notesFilterSmart=null;
+  _notesFilterStatus=null;
   const si=document.getElementById('notes-search');
   if(si)si.value='';
   // Reset all chip/button states
@@ -7240,7 +7254,16 @@ function renderNotes(){
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
-  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
+  ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
+  <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Lifecycle</div>
+  ${(()=>{
+    const _u=D.notes.filter(n=>!n.folderId);
+    return _NOTE_STATUSES.map(s=>{
+      const c=_u.filter(n=>_noteStatus(n)===s.id).length;
+      const on=_notesFilterStatus===s.id;
+      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${s.id}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${c}</span></div>`;
+    }).join('');
+  })()}
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Smart Folders</div>
   ${(()=>{
     const now=new Date(); const todayStr=now.toISOString().slice(0,10);
