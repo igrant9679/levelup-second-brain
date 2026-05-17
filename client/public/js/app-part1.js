@@ -12175,16 +12175,86 @@ function renderMyYear(){
 }
 
 let _processTab='tasks';
+let _processGtdTab='Inbox';
+// GTD bucket model — derived from existing task fields (no new schema):
+//   Inbox     = Not Started, undated, not delegated/snoozed (unprocessed)
+//   Do Next   = flagged for action (My Day) or In Progress
+//   Calendar  = has a start/due date (date-bound action)
+//   Delegated = status Delegated, or assigned to someone else
+//   Snoozed   = snoozeUntil is set and still in the future
+//   Someday   = status Someday (maybe / not now)
+//   Done      = completed
+function _gtdBuckets(){
+  const me=D.creds.userName||'Idris Grant';
+  const today=new Date().toISOString().slice(0,10);
+  const snoozed=t=>t.snoozeUntil&&String(t.snoozeUntil).slice(0,10)>=today&&t.status!=='Done';
+  const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||(t.assignedTo&&t.assignedTo!==me));
+  const dated=t=>!!(t.due||t.startDate);
+  return {
+    Inbox:t=>t.status==='Not Started'&&!dated(t)&&!delegated(t)&&!snoozed(t)&&!t.myDay,
+    'Do Next':t=>t.status!=='Done'&&t.status!=='Someday'&&!delegated(t)&&!snoozed(t)&&(t.myDay||t.status==='In Progress'),
+    Calendar:t=>t.status!=='Done'&&t.status!=='Someday'&&!delegated(t)&&!snoozed(t)&&dated(t),
+    Delegated:delegated,
+    Snoozed:snoozed,
+    Someday:t=>t.status==='Someday',
+    Done:t=>t.status==='Done',
+  };
+}
+function setProcessGtdTab(tab){_processGtdTab=tab;renderProcess();}
+// Triage actions — these are what "feed" each bucket.
+function gtdDoNext(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.myDay=true;t.snoozeUntil='';if(t.status==='Someday'||t.status==='Not Started')t.status='In Progress';save('tasks');renderProcess();toast('⚡ Moved to Do Next');}
+function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||new Date().toISOString().slice(0,10));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')t.status='In Progress';save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
+function gtdSomeday(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Someday';t.myDay=false;t.snoozeUntil='';save('tasks');renderProcess();toast('🗓 Moved to Someday');}
+function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Done';t.completedAt=new Date().toISOString();save('tasks');renderProcess();toast('✓ Done');}
+function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Not Started';t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
 function renderProcess(){
   const sparkIdeas=(D.ideas||[]).filter(x=>x.stage==='spark');
   const tabBar=`<div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:12px;width:fit-content">
     <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='tasks'?'var(--ac)':'transparent'};color:${_processTab==='tasks'?'#fff':'var(--t2)'};border:none" onclick="_processTab='tasks';renderProcess()">Tasks (${D.tasks.filter(t=>t.status==='Not Started').length})</button>
     <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='ideas'?'var(--ac)':'transparent'};color:${_processTab==='ideas'?'#fff':'var(--t2)'};border:none" onclick="_processTab='ideas';renderProcess()">💡 Ideas (${sparkIdeas.length})</button>
   </div>`;
+  const _gtdB=_gtdBuckets();
+  const _gtdOrder=['Inbox','Do Next','Calendar','Delegated','Snoozed','Someday','Done'];
+  const _gtdIcons={Inbox:'📥','Do Next':'⚡',Calendar:'📅',Delegated:'📤',Snoozed:'⏰',Someday:'🗓',Done:'✓'};
+  const _gtdHints={
+    Inbox:'Unprocessed captures. Triage each one below — that’s what feeds every other list.',
+    'Do Next':'Your actionable next actions (flagged for My Day or already In Progress).',
+    Calendar:'Date-bound actions — anything with a start or due date.',
+    Delegated:'Waiting on someone else (status Delegated or assigned to another person).',
+    Snoozed:'Deferred until a future date (Snooze sets the wake date).',
+    Someday:'Maybe / not now. Review periodically and pull back when ready.',
+    Done:'Completed tasks.',
+  };
+  if(!_gtdB[_processGtdTab])_processGtdTab='Inbox';
+  const bucketTasks=D.tasks.filter(_gtdB[_processGtdTab]);
+  function gtdRow(t){
+    const inbox=_processGtdTab==='Inbox';
+    const acts=inbox
+      ?`<button class="btn btn-s gtd-a" title="Actionable now — adds to Do Next / My Day" onclick="event.stopPropagation();gtdDoNext(${t.id})">⚡ Do Next</button>
+        <button class="btn btn-s gtd-a" title="Give it a date" onclick="event.stopPropagation();gtdSchedule(${t.id})">📅 Schedule</button>
+        <button class="btn btn-s gtd-a" title="Hand off to someone" onclick="event.stopPropagation();delegateTask(${t.id})">📤 Delegate</button>
+        <button class="btn btn-s gtd-a" title="Defer to a future date" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰ Snooze</button>
+        <button class="btn btn-s gtd-a" title="Maybe / not now" onclick="event.stopPropagation();gtdSomeday(${t.id})">🗓 Someday</button>
+        <button class="btn btn-s gtd-a" style="color:var(--ok)" title="2-min rule: just do it" onclick="event.stopPropagation();gtdDone(${t.id})">✓ Done</button>`
+      :`${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdDoNext(${t.id})">⚡ Do Next</button>`:''}
+        ${_processGtdTab!=='Calendar'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSchedule(${t.id})">📅 Schedule</button>`:''}
+        ${_processGtdTab!=='Someday'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSomeday(${t.id})">🗓 Someday</button>`:''}
+        ${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" style="color:var(--ok)" onclick="event.stopPropagation();gtdDone(${t.id})">✓ Done</button>`:''}
+        <button class="btn btn-s gtd-a" title="Reset to unprocessed Inbox" onclick="event.stopPropagation();gtdToInbox(${t.id})">📥 Inbox</button>`;
+    return `<div class="gtd-item">${taskRow(t,false)}<div class="gtd-acts">${acts}</div></div>`;
+  }
+  const tabBarG=`<div class="tabs gtd-tabs">${_gtdOrder.map(name=>{
+    const n=D.tasks.filter(_gtdB[name]).length;
+    return `<div class="tab ${_processGtdTab===name?'on':''}" onclick="setProcessGtdTab('${name.replace(/'/g,"\\'")}')">${_gtdIcons[name]} ${name}${n?` <span class="tc">${n}</span>`:''}</div>`;
+  }).join('')}</div>`;
+  const emptyMsg={
+    Inbox:'🎉 Inbox zero — every capture has been clarified.',
+    Done:'No completed tasks yet.',
+  }[_processGtdTab]||`Nothing in ${_processGtdTab} right now.`;
   const tasksHtml=`<div class="sec-h">📥 Task Processing</div>
-<div class="tabs">${['Inbox','Do Next','Calendar','Delegated','Snoozed','Someday','Done'].map((t,i)=>`<div class="tab ${i===0?'on':''}">${t}</div>`).join('')}</div>
-<div style="font-size:10px;color:var(--t2);margin-bottom:6px">Keys: <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">D</kbd> Do Next · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">S</kbd> Someday · <kbd style="background:var(--s3);padding:1px 3px;border-radius:2px;font-size:9px">X</kbd> Done</div>
-<div class="cd">${D.tasks.filter(t=>t.status==='Not Started').map(t=>taskRow(t)).join('')}</div>`;
+${tabBarG}
+<div style="font-size:10.5px;color:var(--t2);margin-bottom:10px;line-height:1.5">${_gtdIcons[_processGtdTab]} <strong>${_processGtdTab}</strong> — ${esc(_gtdHints[_processGtdTab])}</div>
+<div class="cd" style="padding:6px">${bucketTasks.length?bucketTasks.map(gtdRow).join(''):`<div style="text-align:center;padding:34px 18px;color:var(--t3);font-size:12px">${emptyMsg}</div>`}</div>`;
   const ideasHtml=sparkIdeas.length===0
     ?`<div style="text-align:center;padding:40px 20px;color:var(--t3)">🎉 No ideas in Spark stage — all caught up!</div>`
     :`<div style="font-size:10px;color:var(--t2);margin-bottom:10px">Triage each Spark idea: <strong>Develop</strong> to move forward, <strong>Park</strong> for later, or <strong>Kill</strong> to discard.</div>
