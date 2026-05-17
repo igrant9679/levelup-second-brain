@@ -801,6 +801,15 @@ body.sb-open .lu-pill-pop{display:none!important}
   #s-reports [style*="grid-template-columns:repeat(12,1fr)"]{grid-template-columns:1fr!important}
   #s-reports [style*="grid-template-columns:repeat(3,1fr)"]{grid-template-columns:repeat(2,1fr)!important}
   #s-reports #reports-main{padding:14px!important}
+  /* Settings: 160px nav + content grid is too tight on a phone. Stack it —
+     nav becomes a horizontally-scrollable strip above the active panel. */
+  #s-settings [style*="grid-template-columns:160px 1fr"]{grid-template-columns:1fr!important;gap:10px!important}
+  #s-settings [style*="grid-template-columns:160px 1fr"]>div:first-child{display:flex;flex-wrap:wrap;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--bd1);padding-bottom:8px}
+  #s-settings [style*="grid-template-columns:160px 1fr"]>div:first-child .si{flex:0 0 auto}
+  #s-settings [style*="grid-template-columns:160px 1fr"]>div:first-child .sl{flex-basis:100%;padding:6px 4px 2px!important}
+  /* My Week day columns scroll horizontally (already overflow-x:auto) —
+     give each a min width so they're readable, not crushed. */
+  #s-myweek [style*="overflow-x:auto"]>div{min-width:150px}
   /* Drawers go full-width */
   .drawer{width:100vw!important;max-width:none!important}
   /* AI panel goes full-width */
@@ -897,6 +906,9 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Drawer field-rows: stack instead of trying to fit 2 columns */
   .drawer .field-row{flex-direction:column!important;gap:6px!important}
   .drawer .field-row>.field{flex:1 1 100%!important;min-width:0}
+  /* Settings inner rows ("label 1fr | 120px | 120px") get too cramped on a
+     phone — collapse the fixed control columns so they wrap under the label. */
+  #s-settings [style*="grid-template-columns:1fr 120px 120px"]{grid-template-columns:1fr 1fr!important;gap:6px!important}
   /* FA modal field-rows: same — stack */
   .fa-modal .fa-row{grid-template-columns:1fr!important}
   .fa-modal{padding:14px!important}
