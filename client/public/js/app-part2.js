@@ -8278,8 +8278,10 @@ async function _pushKeyToServer(k){
   if(!_syncKeys.has(k))return;
   if(!_serverSyncReady){
     // Hold the write until we've loaded server data, so seed/empty local
-    // state can't clobber a good server copy during the boot race.
+    // state can't clobber a good server copy during the boot race. Kick the
+    // self-heal watchdog so a stuck/never-run load gets retried.
     _pendingSyncKeys.add(k);
+    if(typeof _ensureSyncReady==='function')_ensureSyncReady();
     return;
   }
   try{
@@ -8355,17 +8357,33 @@ async function loadBookmarksCache(){
     D.bookmarks=Array.isArray(items)?items.map(b=>({id:b.id,title:b.title||b.url,url:b.url})):[];
   }catch(e){console.warn('[bookmarks] cache load failed',e.message);D.bookmarks=D.bookmarks||[];}
 }
+let _loadInFlight=false;
 async function loadServerData(){
+  if(_loadInFlight)return;
+  _loadInFlight=true;
   // Load bookmarks cache in parallel — fire and forget, used by linker dropdowns.
   loadBookmarksCache();
+  let sd=null;
   try{
-    const sd=await _trpc('appData.load',undefined,'query');
+    sd=await _trpc('appData.load',undefined,'query');
+  }catch(e){
+    // The load network call itself failed — server state unknown, so stay
+    // gated (don't risk clobbering server with seed/empty). Retry soon so a
+    // transient failure can't permanently disable sync for the session.
+    console.warn('[appData] load failed — retrying; sync paused until reachable',e&&e.message);
+    _loadInFlight=false;
+    setTimeout(()=>{ if(!_serverSyncReady) loadServerData(); },8000);
+    return;
+  }
+  // We now have a definitive answer from the server. Open the sync gate
+  // IMMEDIATELY — before the merge/render below — so that an exception in
+  // that code (or anything else) can never permanently disable syncing.
+  // (That exact bug left _serverSyncReady=false and silently lost edits.)
+  _serverSyncReady=true;
+  try{
     if(!sd){
-      // No server data yet — genuine first-time user. Safe to start
-      // syncing the local (real) data up.
-      _serverSyncReady=true;_flushPendingSync();
-      return;
-    }
+      // No server data yet — genuine first-time user.
+    }else{
     const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters'];
     let changed=false;
     keys.forEach(k=>{
@@ -8422,15 +8440,23 @@ async function loadServerData(){
       }
       updateSidebarBadges&&updateSidebarBadges();
     }
-    // Server data is now applied (or server genuinely had none for some
-    // keys) — it's safe to start pushing local edits up.
-    _serverSyncReady=true;_flushPendingSync();
-  }catch(e){
-    // Load FAILED — server state is unknown. Stay gated so we never push
-    // possibly-seed/empty local data over a good server copy this session.
-    // localStorage still works locally; sync resumes next successful load.
-    console.warn('[appData] load failed — server sync paused this session to protect your data',e.message);
+    } // end else (sd present)
+  }catch(mergeErr){
+    // Non-fatal: the server load succeeded and the gate is already open,
+    // so syncing still works even if merging/re-rendering hiccupped.
+    console.warn('[appData] post-load merge/render error (non-fatal)',mergeErr&&mergeErr.message);
   }
+  _loadInFlight=false;
+  _flushPendingSync();
+}
+// Self-heal watchdog: if something edits before sync is ready (e.g. the
+// returning-session path never ran loadServerData, or it errored), kick a
+// load so the gate opens and the user's edits actually reach the server.
+let _syncWatchT=null;
+function _ensureSyncReady(){
+  if(_serverSyncReady||_loadInFlight)return;
+  clearTimeout(_syncWatchT);
+  _syncWatchT=setTimeout(()=>{ if(!_serverSyncReady&&!_loadInFlight) loadServerData(); },1200);
 }
 // ═══════════════════════════════════════════════════════════════════════════════
 // MINDMAP FEATURE — LevelUp Second Brain
