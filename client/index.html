@@ -809,15 +809,20 @@ body.sb-open .lu-pill-pop{display:none!important}
    vertically. */
 @media (max-width:1024px){
   #s-tasks #tasks-list{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-  #s-tasks #tasks-list .tl-row{min-width:960px}
   /* subtle swipe affordance above the list */
-  #s-tasks #tasks-list::before{content:'↔ swipe to see more columns';display:block;
-    position:sticky;left:0;font-size:10px;color:var(--t3);padding:2px 2px 6px;
-    width:max-content}
+  #s-tasks #tasks-list::before{content:'↔ swipe sideways · drag a column edge to resize';display:block;
+    position:sticky;left:0;font-size:10px;color:var(--t3);padding:2px 2px 6px;width:max-content}
   /* Board / Matrix / Gantt are intrinsically wide — touch scroll too. */
   #s-tasks #tasks-list>div[style*="overflow-x"],
   #s-projects #proj-main>div[style*="display:flex"]{ -webkit-overflow-scrolling:touch }
 }
+/* Column resize handle on the Tasks-List header cells. */
+#s-tasks .tl-hc{padding-right:12px}
+#s-tasks .tl-resizer{position:absolute;top:0;right:0;width:12px;height:100%;cursor:col-resize;
+  touch-action:none;z-index:6}
+#s-tasks .tl-resizer::after{content:'';position:absolute;top:16%;bottom:16%;right:3px;width:2px;
+  background:var(--bd2);border-radius:2px;transition:background .12s}
+#s-tasks .tl-hc:hover .tl-resizer::after,#s-tasks .tl-resizer:active::after{background:var(--ac)}
 /* Phone (≤900px) tightenings beyond the main block above. */
 @media (max-width:900px){
   /* Tasks: stack the toolbar/segmented controls so they don't overflow. */

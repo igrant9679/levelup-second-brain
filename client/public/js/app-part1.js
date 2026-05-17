@@ -4851,6 +4851,61 @@ function setTaskListSort(col){
   _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
   renderCurrentTaskView();
 }
+// ── Resizable Tasks-List columns (persisted in D.prefs.taskColW) ─────────
+const _TASK_COLS=[
+  {k:'drag',w:18,fixed:true},
+  {k:'check',w:24,fixed:true},
+  {k:'title',w:260,min:120,label:'Title',sort:'title'},
+  {k:'priority',w:90,min:56,label:'Priority',sort:'priority'},
+  {k:'status',w:112,min:70,label:'Status',sort:'status'},
+  {k:'start',w:95,min:56,label:'Start',sort:'start'},
+  {k:'end',w:95,min:56,label:'End',sort:'end'},
+  {k:'project',w:130,min:64,label:'Project',sort:'project'},
+  {k:'assignee',w:130,min:64,label:'Assigned to',sort:'assignee'},
+  {k:'created',w:100,min:60,label:'Created',sort:'created'},
+  {k:'open',w:32,fixed:true},
+];
+function _taskColW(k){
+  const d=_TASK_COLS.find(c=>c.k===k);
+  const stored=D.prefs&&D.prefs.taskColW&&D.prefs.taskColW[k];
+  const v=typeof stored==='number'&&stored>0?stored:(d?d.w:80);
+  return d&&d.min?Math.max(d.min,v):v;
+}
+function _taskColTpl(){return _TASK_COLS.map(c=>_taskColW(c.k)+'px').join(' ');}
+function _taskRowMinW(){return _TASK_COLS.reduce((s,c)=>s+_taskColW(c.k),0)+(_TASK_COLS.length-1)*8;}
+function resetTaskColWidths(){
+  if(D.prefs)D.prefs.taskColW={};
+  save('prefs');renderCurrentTaskView();
+  toast('↔ Column widths reset');
+}
+let _tlRz=null;
+function _tlResizeStart(e,key){
+  e.preventDefault();e.stopPropagation();
+  const startX=(e.touches?e.touches[0].clientX:e.clientX);
+  _tlRz={key,startX,startW:_taskColW(key)};
+  document.body.style.cursor='col-resize';
+  document.body.style.userSelect='none';
+  window.addEventListener('pointermove',_tlResizeMove,{passive:false});
+  window.addEventListener('pointerup',_tlResizeEnd,{once:true});
+}
+function _tlResizeMove(e){
+  if(!_tlRz)return;
+  e.preventDefault();
+  const x=e.clientX;
+  const def=_TASK_COLS.find(c=>c.k===_tlRz.key);
+  const min=def&&def.min?def.min:50;
+  const w=Math.max(min,Math.min(640,Math.round(_tlRz.startW+(x-_tlRz.startX))));
+  _tlRz.cur=w;
+  // Live-apply to header + every row without a full re-render.
+  D.prefs=D.prefs||{};D.prefs.taskColW=D.prefs.taskColW||{};D.prefs.taskColW[_tlRz.key]=w;
+  const tpl=_taskColTpl(),mw=_taskRowMinW()+'px';
+  document.querySelectorAll('#tasks-list .tl-row').forEach(r=>{r.style.gridTemplateColumns=tpl;r.style.minWidth=mw;});
+}
+function _tlResizeEnd(){
+  window.removeEventListener('pointermove',_tlResizeMove);
+  document.body.style.cursor='';document.body.style.userSelect='';
+  if(_tlRz){save('prefs');_tlRz=null;}
+}
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -4893,7 +4948,8 @@ function renderTaskList(){
   const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:10px;color:var(--t3)">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
     ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
-    <span style="margin-left:auto;font-size:9px;color:var(--t3)">Drag rows to reorder · click pills to edit inline</span>
+    <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 8px;margin-left:auto" onclick="resetTaskColWidths()" title="Reset all column widths to default">↔ Reset columns</button>
+    <span style="font-size:9px;color:var(--t3)">Drag a column's right edge to resize</span>
   </div>`;
   if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
@@ -4903,23 +4959,19 @@ function renderTaskList(){
   const statusText={Done:'#86EFAC','In Progress':'#93C5FD','Not Started':'var(--t2)',Someday:'#FBBF24'};
   const projects=D.projects||[];
   const findProject=t=>{if(t.projectId)return projects.find(p=>p.id===t.projectId);if(t.project)return projects.find(p=>p.name===t.project);return null;};
-  // Header — added drag handle col + bulk-mode checkbox col
-  const colTpl='18px 24px minmax(160px,2fr) 80px 100px 95px 95px 130px 130px 95px 32px';
-  // Sortable column header — click to cycle ASC → DESC → off.
+  // Header — model-driven, user-resizable columns. colTpl + row min-width
+  // come from _taskColW so dragging a header edge resizes that column and
+  // the choice persists in D.prefs.taskColW.
+  const colTpl=_taskColTpl();
+  const rowMinW=_taskRowMinW();
   const arrow=col=>_taskListSortBy===col?(_taskListSortDir==='asc'?' ↑':' ↓'):'';
-  const sortableCol=(col,label)=>`<div style="cursor:pointer;user-select:none;color:${_taskListSortBy===col?'var(--ac)':'var(--t2)'}" onclick="setTaskListSort('${col}')" title="Click to sort">${label}${arrow(col)}</div>`;
-  const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
-    <div></div>
-    <div></div>
-    ${sortableCol('title','Title')}
-    ${sortableCol('priority','Priority')}
-    ${sortableCol('status','Status')}
-    ${sortableCol('start','Start')}
-    ${sortableCol('end','End')}
-    ${sortableCol('project','Project')}
-    ${sortableCol('assignee','Assigned to')}
-    ${sortableCol('created','Created')}
-    <div></div>
+  const headCell=c=>{
+    if(c.fixed)return '<div></div>';
+    const active=_taskListSortBy===c.sort;
+    return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ac)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${c.sort}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
+  };
+  const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;min-width:${rowMinW}px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
+    ${_TASK_COLS.map(headCell).join('')}
   </div>`;
   function rowFor(t){
     const proj=findProject(t);
@@ -4939,7 +4991,7 @@ function renderTaskList(){
     const bulkChk=_bulkMode
       ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)" style="width:14px;height:14px"></div>`
       :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">`;
-    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;min-width:${rowMinW}px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
       <span class="tl-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
       ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
