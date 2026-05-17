@@ -825,9 +825,14 @@ body.sb-open .lu-pill-pop{display:none!important}
      min-width:0, so it wouldn't shrink and pushed the card past the
      viewport (then got clipped, no ellipsis). Force flex children to
      shrink so titles/descriptions ellipsize within the card. */
-  #s-bookmarks #bk-cards .cd{overflow:hidden}
-  #s-bookmarks #bk-cards .cd div{min-width:0}
-  #s-bookmarks #bk-cards .cd [style*="flex:1"]{min-width:0!important}
+  #s-bookmarks #bk-cards .cd{overflow:hidden;max-width:100%}
+  /* Every descendant becomes shrinkable so the flex:1 title can collapse
+     and use its own overflow:hidden + ellipsis instead of widening the
+     card past the screen. Favicon/og-image keep explicit width +
+     flex-shrink:0 so this stays safe. */
+  #s-bookmarks #bk-cards .cd *{min-width:0!important}
+  #s-bookmarks #bk-cards .cd span[style*="white-space:nowrap"]{
+    overflow:hidden!important;text-overflow:ellipsis!important;flex:1 1 0%!important}
   /* Drawers go full-width */
   .drawer{width:100vw!important;max-width:none!important}
   /* AI panel goes full-width */
@@ -2298,7 +2303,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-6';
+  var APP_BUILD='2026-05-18-7';
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
     s.src=src+'?v='+APP_BUILD;
