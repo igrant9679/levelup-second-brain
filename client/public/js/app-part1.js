@@ -5015,9 +5015,40 @@ function renderTaskList(){
     </div>`;
   }
   // J: build groups when grouping is on
+  // Phones can't use an 11-column grid — render stacked cards instead:
+  // title full-width on line 1, meta chips on line 2. Tap opens the task;
+  // the round check toggles Done. No horizontal scrolling needed.
+  const cardMode=window.innerWidth<=700;
+  function cardRow(t){
+    const proj=findProject(t);
+    const projName=proj?proj.name:(t.project||'');
+    const isOverdue=t.due&&t.due<today&&t.status!=='Done';
+    const done=t.status==='Done';
+    const pri=t.priority||'Medium';
+    const status=t.status||'Not Started';
+    const endDate=t.due||t.endDate||'';
+    const chk=_bulkMode
+      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)"></div>`
+      :`<div class="tlc-chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>`;
+    return `<div class="tlc ${isOverdue?'tlc-od':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+      ${chk}
+      <div class="tlc-body">
+        <div class="tlc-t" style="${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor}`:'')}">${esc(t.title||'Untitled')}</div>
+        <div class="tlc-m">
+          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium}">${pri}</span>
+          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']}">${status}</span>
+          ${endDate?`<span class="${isOverdue?'tlc-odt':''}">📅 ${fmtDate(endDate)}</span>`:''}
+          ${projName?`<span>📁 ${esc(projName)}</span>`:''}
+          ${(t.subtasks||[]).length?`<span>☑ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length}</span>`:''}
+        </div>
+      </div>
+      <span class="tlc-go">›</span>
+    </div>`;
+  }
+  const _rowR=cardMode?cardRow:rowFor;
   let bodyHtml='';
   if(_taskListGroupBy==='none'){
-    bodyHtml=filtered.map(rowFor).join('');
+    bodyHtml=filtered.map(_rowR).join('');
   }else{
     const groups={};
     const order=[];
@@ -5041,9 +5072,30 @@ function renderTaskList(){
       return '(other)';
     };
     filtered.forEach(t=>{const k=groupKey(t);if(!(k in groups)){groups[k]=[];order.push(k);}groups[k].push(t);});
-    bodyHtml=order.map(k=>`<div class="tl-group-h">${esc(k)}<span>${groups[k].length} task${groups[k].length===1?'':'s'}</span></div>${groups[k].map(rowFor).join('')}`).join('');
+    bodyHtml=order.map(k=>`<div class="tl-group-h">${esc(k)}<span>${groups[k].length} task${groups[k].length===1?'':'s'}</span></div>${groups[k].map(_rowR).join('')}`).join('');
   }
-  list.innerHTML=`<div style="overflow-x:auto">${groupBar}${header}${bodyHtml}<div class="add-c" style="border:1px solid var(--bd1);border-top:none;border-radius:0 0 6px 6px" onclick="openFA('task')">+ Add Task</div></div>`;
+  if(cardMode){
+    list.innerHTML=`<div class="tlc-wrap">${groupBar}${bodyHtml}<div class="add-c" style="border:1px solid var(--bd1);border-radius:10px;margin-top:8px" onclick="openFA('task')">+ Add Task</div></div>`;
+  }else{
+    list.innerHTML=`<div style="overflow-x:auto">${groupBar}${header}${bodyHtml}<div class="add-c" style="border:1px solid var(--bd1);border-top:none;border-radius:0 0 6px 6px" onclick="openFA('task')">+ Add Task</div></div>`;
+  }
+}
+// Re-render the Tasks List when the viewport crosses the phone/desktop
+// breakpoint (e.g. iPhone rotate) so it swaps between card and grid layout.
+if(typeof _tlBpWired==='undefined'){
+  var _tlBpWired=true;
+  var _tlLastNarrow=window.innerWidth<=700;
+  let _tlRzT=null;
+  window.addEventListener('resize',()=>{
+    clearTimeout(_tlRzT);
+    _tlRzT=setTimeout(()=>{
+      const narrow=window.innerWidth<=700;
+      if(narrow!==_tlLastNarrow){
+        _tlLastNarrow=narrow;
+        if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&_taskView==='list'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+      }
+    },180);
+  });
 }
 // H: drag-to-reorder handlers for the List view. Persists t.sortOrder on D.tasks.
 let _tlDragId=null;
