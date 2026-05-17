@@ -926,6 +926,9 @@ body.sb-open .lu-pill-pop{display:none!important}
 .mn,.sb,.rr,.notes-rail,#notes-list-inner,#tasks-list,#mindmap-main,
 .cmdp-overlay,.modal-ov,.fa-modal-ov,.drawer,.ai-panel,
 [id$="-main"]{touch-action:auto}
+/* Knowledge Graph canvas handles its own touch pan/drag — stop the
+   browser from scrolling/zooming over it. */
+#kg-canvas-wrap,#kg-svg{touch-action:none}
 
 /* ─── Microinteractions ─────────────────────────────────────────────── */
 /* Tactile press feedback on every button. */

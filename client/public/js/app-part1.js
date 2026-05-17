@@ -1796,6 +1796,37 @@ function _kgWireEvents(){
     const g=e.target.closest('[data-node-id]');
     if(g)_kgOpenNote(Number(g.dataset.nodeId));
   };
+  // ── Touch support (iPhone/iPad): the graph was mouse-only, so panning,
+  // dragging nodes and tapping to select did nothing on a touch device.
+  // Bridge touch events into the existing mouse handlers. svg + wrap are
+  // re-created on every render so these listeners don't accumulate. ──
+  const _pt=e=>{const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0]);return t?{clientX:t.clientX,clientY:t.clientY,target:e.target}:null;};
+  let _kgTapStart=null;
+  svg.addEventListener('touchstart',e=>{
+    const p=_pt(e);if(!p)return;
+    e.preventDefault();
+    _kgTapStart={x:p.clientX,y:p.clientY,t:Date.now()};
+    svg.onmousedown(p);
+  },{passive:false});
+  wrap.addEventListener('touchmove',e=>{
+    if(!_kgDrag&&!_kgPan)return;
+    const p=_pt(e);if(!p)return;
+    e.preventDefault();
+    _kgMouseMove(p);
+  },{passive:false});
+  wrap.addEventListener('touchend',e=>{
+    const moved=_kgMoved;
+    _kgMouseUp();
+    // A quick, near-stationary touch = a tap → select / clear (mirrors click).
+    const cp=e.changedTouches&&e.changedTouches[0];
+    const quick=_kgTapStart&&(Date.now()-_kgTapStart.t)<350;
+    const still=cp&&_kgTapStart&&Math.abs(cp.clientX-_kgTapStart.x)<8&&Math.abs(cp.clientY-_kgTapStart.y)<8;
+    _kgTapStart=null;
+    if(moved||!quick||!still||!cp)return;
+    const el=document.elementFromPoint(cp.clientX,cp.clientY);
+    const g=el&&el.closest?el.closest('[data-node-id]'):null;
+    if(g)_kgSelectNode(Number(g.dataset.nodeId));else _kgClearSelection();
+  });
 }
 function _kgMouseMove(e){
   if(_kgDrag){
