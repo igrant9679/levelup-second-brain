@@ -845,6 +845,17 @@ body.sb-open .lu-pill-pop{display:none!important}
   #s-bookmarks #bk-cards .cd div[style*="-webkit-line-clamp"]{
     max-width:calc(100vw - 80px)!important;overflow:hidden!important}
   #s-bookmarks #bk-cards .cd img[style*="width:80px"]{display:none!important}
+  /* The 7-button action row was position:absolute over the title and ran
+     off-screen on a phone, chopping the titles. Move it into normal flow
+     below the card content where it wraps. */
+  #s-bookmarks #bk-cards .cd [style*="position:absolute;top:8px;right:8px"]{
+    position:static!important;top:auto!important;right:auto!important;
+    display:flex!important;flex-wrap:wrap;gap:6px!important;
+    margin-top:10px;padding-top:10px;border-top:1px solid var(--bd1);
+    justify-content:flex-start;width:100%}
+  /* Title no longer competes with overlaid buttons — relax its cap a bit. */
+  #s-bookmarks #bk-cards .cd span[style*="white-space:nowrap"]{
+    max-width:calc(100vw - 90px)!important}
   /* Drawers go full-width */
   .drawer{width:100vw!important;max-width:none!important}
   /* AI panel goes full-width */
@@ -2315,7 +2326,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-10';
+  var APP_BUILD='2026-05-18-11';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
