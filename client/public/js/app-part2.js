@@ -8386,21 +8386,32 @@ async function loadServerData(){
     }else{
     const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters'];
     let changed=false;
+    // Timestamp the server blob was last written. A local-only item is only
+    // "rescued" if it's NEWER than this — i.e. a genuinely new local add the
+    // server hasn't seen yet. An older local-only item means it was DELETED
+    // on another device (server written since it existed, and it's gone), so
+    // we must NOT resurrect it — that was making deletes bounce back and
+    // re-append at the bottom. 90s grace absorbs device/server clock skew
+    // and the create-then-close race window.
+    let _srvUpd=0;
+    try{ if(sd&&sd.updatedAt!=null)_srvUpd=new Date(sd.updatedAt).getTime()||0; }catch(_){ _srvUpd=0; }
+    const _GRACE=90*1000;
+    const _itemTime=x=>{
+      const t=Date.parse(x&&(x.createdAt||x.updatedAt||x.created)||0);
+      if(t)return t;
+      return (x&&typeof x.id==='number'&&x.id>1e12)?x.id:0; // Date.now() id
+    };
     keys.forEach(k=>{
       const srv=sd[k];
       if(srv&&Array.isArray(srv)&&srv.length>0){
-        // MERGE, don't clobber. Server wins for items present on both
-        // sides (keeps cross-device edits fresh), but any LOCAL-ONLY item
-        // (id not on the server) is kept — these are unsynced local
-        // additions, e.g. tasks added then the app was closed before the
-        // 2s sync fired. Blindly overwriting here is what lost them.
-        // Trade-off: an item deleted on another device but still present
-        // locally can reappear; preventing silent data loss wins.
         let local=[];
         try{local=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
         if(!Array.isArray(local))local=Array.isArray(D[k])?D[k]:[];
         const srvIds=new Set(srv.map(x=>x&&x.id));
-        const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id));
+        // Keep a local-only item only if it looks like a brand-new local
+        // addition (created at/after the server's last write, minus grace).
+        // Otherwise it's a remote deletion → drop it so the delete sticks.
+        const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id)&&(!_srvUpd|| _itemTime(x) >= (_srvUpd-_GRACE)));
         const merged=localOnly.length?srv.concat(localOnly):srv;
         D[k]=merged;
         localStorage.setItem('lu_'+k,JSON.stringify(merged));
