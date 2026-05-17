@@ -8286,12 +8286,44 @@ async function _pushKeyToServer(k){
     const val=JSON.stringify(D[k]);
     await _trpc('appData.save',{[k]:val},'mutation');
     _dirtyKeys.delete(k); // confirmed persisted on the server
+    window._luLastSyncOk=Date.now();
   }catch(e){
-    // Silent fail — localStorage is still the source of truth locally;
-    // stays dirty so it retries on next change / app-hide flush.
-    console.warn('[appData] sync failed for key',k,e.message);
+    // Was silent — now surfaced so we can actually diagnose device sync
+    // failures (auth vs network) instead of guessing. Throttled to 1/12s.
+    console.warn('[appData] sync failed for key',k,e&&e.message);
+    const now=Date.now();
+    if(!window._luSyncErrAt||now-window._luSyncErrAt>12000){
+      window._luSyncErrAt=now;
+      const msg=(e&&(e.message||e.toString()))||'unknown';
+      if(typeof toast==='function')toast({type:'error',title:'⚠ Sync to server failed',msg:('Saved on this device only. Reason: '+msg).slice(0,160),duration:7000});
+    }
   }
 }
+// User-runnable sync self-check: compares this device's local data with
+// what the server actually has, and reports it in a visible alert so the
+// problem can be diagnosed without dev tools. Call _syncDiagnose().
+async function _syncDiagnose(){
+  let report='SYNC DIAGNOSTIC\n\n';
+  try{
+    const me=(D&&D.creds)?(D.creds.email||D.creds.userName||'?'):'(not logged in)';
+    report+='Account: '+me+'\n';
+    report+='Local tasks: '+((D.tasks||[]).length)+'\n';
+    report+='Server-sync ready: '+(typeof _serverSyncReady!=='undefined'?_serverSyncReady:'?')+'\n';
+    report+='Dirty (unsynced) keys: '+([..._dirtyKeys].join(',')||'none')+'\n';
+    report+='Last successful save: '+(window._luLastSyncOk?new Date(window._luLastSyncOk).toLocaleTimeString():'NEVER this session')+'\n\n';
+    let sd=null,err=null;
+    try{sd=await _trpc('appData.load',undefined,'query');}catch(e){err=e&&(e.message||e.toString());}
+    if(err){report+='Server LOAD failed: '+err+'\n(If this says 401/unauthorized, the iPhone is not logged in / cookie not sent.)';}
+    else if(!sd){report+='Server has NO data for this account yet.';}
+    else{report+='Server tasks: '+((sd.tasks&&sd.tasks.length)||0)+'\nServer updatedAt: '+(sd.updatedAt||'?');}
+    // Probe a write too.
+    try{await _trpc('appData.save',{prefs:JSON.stringify(D.prefs||{})},'mutation');report+='\n\nServer WRITE test: OK ✓';}
+    catch(e){report+='\n\nServer WRITE test: FAILED — '+((e&&(e.message||e.toString()))||'?');}
+  }catch(e){report+='\n(diagnostic error: '+(e&&e.message)+')';}
+  alert(report);
+  return report;
+}
+window._syncDiagnose=_syncDiagnose;
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
   // user_app_data table has no aiTopics column, so we ride along with prefs).
