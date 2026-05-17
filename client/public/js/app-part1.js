@@ -8299,25 +8299,26 @@ function renderProjects(){
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectNextMilestone()">🎯 Suggest Next Milestone</button>
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectRisks()">⚠️ Identify Risks</button>
   </div></div>`;
-  const filterRow=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-    <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setProjFilter('search',this.value)">
-    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('status',this.value)">
+  // Compact filter dropdowns — styled like the small header buttons and
+  // moved up into the top action row (per user request).
+  const _selSty=`height:28px;font-size:10px;padding:0 7px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t2);cursor:pointer;max-width:120px`;
+  const headerFilters=`<select title="Status filter" style="${_selSty}" onchange="setProjFilter('status',this.value)">
       ${['Active','On Hold','Not Started','Completed','All'].map(s=>`<option ${_projStatusFilter===s?'selected':''}>${s}</option>`).join('')}
-    </select>
-    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('health',this.value)">
-      ${['All','On Track','Needs Attention','At Risk'].map(s=>`<option ${_projHealthFilter===s?'selected':''}>${s}</option>`).join('')}
-    </select>
-    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="setProjFilter('sort',this.value)">
-      <option value="order" ${_projSort==='order'?'selected':''}>Default</option>
+    </select><select title="Health filter" style="${_selSty}" onchange="setProjFilter('health',this.value)">
+      ${['All','On Track','Needs Attention','At Risk'].map(s=>`<option ${_projHealthFilter===s?'selected':''}>${s==='All'?'Health: All':s}</option>`).join('')}
+    </select><select title="Sort" style="${_selSty}" onchange="setProjFilter('sort',this.value)">
+      <option value="order" ${_projSort==='order'?'selected':''}>Sort: Default</option>
       <option value="dueAsc" ${_projSort==='dueAsc'?'selected':''}>Due soon</option>
       <option value="pctDesc" ${_projSort==='pctDesc'?'selected':''}>% high → low</option>
       <option value="pctAsc" ${_projSort==='pctAsc'?'selected':''}>% low → high</option>
       <option value="az" ${_projSort==='az'?'selected':''}>A → Z</option>
-    </select>
+    </select>`;
+  const filterRow=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setProjFilter('search',this.value)">
     ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
     ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:10px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
   </div>`;
-  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">📊 Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">👥 Workload</button>${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
+  const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📁 Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">📋 List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">🗂 Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">📊 Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">👥 Workload</button><span style="width:1px;height:20px;background:var(--bd2);margin:0 2px"></span>${headerFilters}${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
   if(projView==='list') renderProjectsList(header);
   else if(projView==='kanban') renderProjectsKanban(header);
   else if(projView==='workload'||projView==='team') renderProjectsTeamKanban(header);
