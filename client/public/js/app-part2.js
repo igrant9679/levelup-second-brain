@@ -4601,9 +4601,9 @@ function paintBookmarks(){
         ${_bkMultiSelect?`<div style="position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px;border-radius:4px;border:2px solid ${isSelected?'var(--ac)':'var(--bd2)'};background:${isSelected?'var(--ac)':'var(--s1)'};display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="event.stopPropagation();toggleBkSelect(${b.id})">${isSelected?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>':''}</div>`:''}
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;min-width:0;overflow:hidden">
               ${favicon}
-              <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(b.title||'Untitled')}</span>
+              <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 0%;min-width:0">${esc(b.title||'Untitled')}</span>
               <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(domain)}</span>
             </div>
             ${b.description?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(b.description)}</div>`:''}
@@ -4632,7 +4632,7 @@ function paintBookmarks(){
   const collTitle=_bkCollFilter?(_bkCollections.find(c=>c.id===_bkCollFilter)||{name:'Collection'}).name:'All Bookmarks';
 
   el.innerHTML=`<div class="pg-h ph-r">
-    <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'}</p></div>
+    <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'} <span style="opacity:.45;font-size:10px">· build ${esc(String((window.__APP_BUILD)||'?'))}</span></p></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">&#128278; Bookmarklet</button>
       ${_bkCollFilter?`<button class="btn btn-s" style="font-size:11px" onclick="shareCollection(${_bkCollFilter})">&#128279; Share Collection</button>`:''}
