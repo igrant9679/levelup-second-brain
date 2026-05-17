@@ -1010,7 +1010,7 @@ function deleteThemeSchedule(id){
 function toggleDarkMode(el){
   el.classList.toggle('on');
   D.prefs.darkMode=el.classList.contains('on');
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs'); // was raw localStorage — bypassed server sync, so it reverted on refresh
   applyPrefs();
   toast(D.prefs.darkMode?'🌙 Dark mode on':'☀️ Light mode on');
 }
@@ -1018,7 +1018,7 @@ function toggleCompact(el){
   el.classList.toggle('on');
   D.prefs.compact=el.classList.contains('on');
   D.prefs.density=D.prefs.compact?'compact':'normal';
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs');
   applyPrefs();
   toast(D.prefs.compact?'Compact mode on':'Compact mode off');
 }
@@ -1026,7 +1026,7 @@ function toggleAccentDrift(el){
   el.classList.toggle('on');
   D.prefs=D.prefs||{};
   D.prefs.accentDrift=el.classList.contains('on');
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs');
   if(typeof applyTheme==='function')applyTheme();
   toast(D.prefs.accentDrift?'🌅 Accent drift on':'Accent drift off');
 }
@@ -1036,14 +1036,14 @@ function setDensity(level){
   if(!['compact','normal','dense'].includes(level))level='normal';
   D.prefs.density=level;
   D.prefs.compact=(level==='compact');
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs');
   applyPrefs();
   if(typeof renderScreen==='function'&&typeof curScreen!=='undefined'&&curScreen==='settings')renderScreen('settings');
   toast({type:'success',title:'Density updated',msg:`Switched to ${level} density.`,duration:2500});
 }
 function setAccent(c){
   D.prefs.accent=c;
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs');
   applyPrefs();
   renderScreen('settings');
   toast('Accent color updated');
@@ -3644,7 +3644,7 @@ function togglePin(type,id){
   const idx=D.prefs.pinned.findIndex(p=>p.type===type&&p.id===id);
   if(idx>=0){D.prefs.pinned.splice(idx,1);toast('📌 Unpinned');}
   else{D.prefs.pinned.push({type,id});toast('📌 Pinned to Home');}
-  localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
+  save('prefs');
   if(curScreen==='home')renderScreen('home');
 }
 // A: row-action overflow popover toggle
