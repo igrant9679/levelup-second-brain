@@ -8250,10 +8250,29 @@ const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','
 // finishes. Edits made during the gate are queued and flushed afterwards.
 let _serverSyncReady=false;
 const _pendingSyncKeys=new Set();
+// Keys changed locally but not yet confirmed-pushed to the server. Flushed
+// immediately when the app is backgrounded/closed so leaving the app (esp.
+// on mobile, within the 2s debounce) doesn't lose the edit.
+const _dirtyKeys=new Set();
 function _flushPendingSync(){
   if(!_serverSyncReady)return;
   const ks=[..._pendingSyncKeys];_pendingSyncKeys.clear();
   ks.forEach(k=>setTimeout(()=>_pushKeyToServer(k),60));
+}
+function _flushDirtyNow(){
+  // Cancel pending debounces and push everything dirty right now. Fired on
+  // visibilitychange→hidden / pagehide (iOS Safari fires these while the
+  // page is still alive enough for the request to go out).
+  _dirtyKeys.forEach(k=>{
+    try{clearTimeout(_syncTimers[k]);}catch(_){}
+    _pushKeyToServer(k);
+  });
+}
+if(typeof document!=='undefined'&&!window._luSyncFlushWired){
+  window._luSyncFlushWired=true;
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')_flushDirtyNow();});
+  window.addEventListener('pagehide',_flushDirtyNow);
+  window.addEventListener('beforeunload',_flushDirtyNow);
 }
 async function _pushKeyToServer(k){
   if(!_syncKeys.has(k))return;
@@ -8266,8 +8285,10 @@ async function _pushKeyToServer(k){
   try{
     const val=JSON.stringify(D[k]);
     await _trpc('appData.save',{[k]:val},'mutation');
+    _dirtyKeys.delete(k); // confirmed persisted on the server
   }catch(e){
-    // Silent fail — localStorage is still the source of truth locally
+    // Silent fail — localStorage is still the source of truth locally;
+    // stays dirty so it retries on next change / app-hide flush.
     console.warn('[appData] sync failed for key',k,e.message);
   }
 }
@@ -8285,8 +8306,10 @@ window.save=function(k){
   }
   _origSave(k);
   invalidateSearchIndex();
-  // Debounce server push by 2s to batch rapid edits
+  // Debounce server push by 2s to batch rapid edits. Mark the key dirty so
+  // an app-hide before the debounce fires still flushes it.
   if(_syncKeys.has(k)){
+    _dirtyKeys.add(k);
     clearTimeout(_syncTimers[k]);
     _syncTimers[k]=setTimeout(()=>_pushKeyToServer(k),2000);
   }
@@ -8314,10 +8337,30 @@ async function loadServerData(){
     const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters'];
     let changed=false;
     keys.forEach(k=>{
-      if(sd[k]&&Array.isArray(sd[k])&&sd[k].length>0){
-        D[k]=sd[k];
-        localStorage.setItem('lu_'+k,JSON.stringify(sd[k]));
+      const srv=sd[k];
+      if(srv&&Array.isArray(srv)&&srv.length>0){
+        // MERGE, don't clobber. Server wins for items present on both
+        // sides (keeps cross-device edits fresh), but any LOCAL-ONLY item
+        // (id not on the server) is kept — these are unsynced local
+        // additions, e.g. tasks added then the app was closed before the
+        // 2s sync fired. Blindly overwriting here is what lost them.
+        // Trade-off: an item deleted on another device but still present
+        // locally can reappear; preventing silent data loss wins.
+        let local=[];
+        try{local=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
+        if(!Array.isArray(local))local=Array.isArray(D[k])?D[k]:[];
+        const srvIds=new Set(srv.map(x=>x&&x.id));
+        const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id));
+        const merged=localOnly.length?srv.concat(localOnly):srv;
+        D[k]=merged;
+        localStorage.setItem('lu_'+k,JSON.stringify(merged));
         changed=true;
+        // Rescued unsynced local items → heal the server so they persist.
+        if(localOnly.length){
+          try{clearTimeout(_syncTimers[k]);}catch(_){}
+          setTimeout(()=>_pushKeyToServer(k),1500);
+          console.warn('[appData] rescued',localOnly.length,'unsynced local '+k+' item(s) and re-syncing');
+        }
         // If habits just arrived from the server, re-run the owner-
         // migration so server-side seed data also lands under the
         // current user.
