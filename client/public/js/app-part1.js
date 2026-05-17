@@ -6788,6 +6788,10 @@ function applyNotesFilters(){
     const collect=p=>{_noteFoldersChildrenOf(p).forEach(c=>{ids.add(c.id);collect(c.id);});};
     collect(_notesFilterFolder);
     notes=notes.filter(n=>ids.has(n.folderId));
+  }else if(_notesFilterCategory==='Favorites'&&!_notesFilterSmart){
+    // Favorites/starred is a cross-folder view: a starred note should show
+    // here no matter which folder it lives in (this matches the "N starred"
+    // count in the header). Don't apply the "hide foldered notes" rule.
   }else{
     notes=notes.filter(n=>!n.folderId);
   }
