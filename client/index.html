@@ -813,7 +813,13 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Bookmarks: the 190px Collections sidebar + cards is a non-reflowing
      flex row that crushed the card area on a phone. Stack it — Collections
      on top (full width, horizontally scrollable), cards full width below. */
-  #s-bookmarks [style*="display:flex;gap:0;align-items:flex-start"]{flex-direction:column!important}
+  /* CRITICAL: this container is align-items:flex-start. Once it's
+     flex-direction:column, flex-start makes children SHRINK-WRAP to
+     content instead of taking full width — so the cards box grew as wide
+     as the longest title and overflowed the screen. align-items:stretch
+     forces both the sidebar and the cards column to the viewport width. */
+  #s-bookmarks [style*="display:flex;gap:0;align-items:flex-start"]{flex-direction:column!important;align-items:stretch!important;width:100%!important;max-width:100%!important;overflow:hidden}
+  #s-bookmarks [style*="display:flex;gap:0;align-items:flex-start"]>div{width:100%!important;max-width:100%!important;box-sizing:border-box}
   #s-bookmarks [style*="width:190px;flex-shrink:0;border-right"]{
     width:100%!important;border-right:none!important;margin-right:0!important;
     padding-right:0!important;border-bottom:1px solid var(--bd1);
@@ -2303,7 +2309,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-8';
+  var APP_BUILD='2026-05-18-9';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
