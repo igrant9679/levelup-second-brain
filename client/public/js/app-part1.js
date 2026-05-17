@@ -11727,10 +11727,48 @@ function openReportCustomize(){
   document.body.style.overflow='hidden';
 }
 
-function renderArchive(){$('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">Completed and archived items.</p></div>
-<div class="tabs"><div class="tab on">All</div><div class="tab">Tasks</div><div class="tab">Notes</div><div class="tab">Projects</div></div>
-<input class="inp" style="margin-bottom:10px" placeholder="Search archive...">
-<div class="cd">${['Complete Q1 report|Task|Mar 15','Brand Identity Refresh|Project|Feb 28','Old AI research|Note|Feb 10','Migrate CRM data|Task|Jan 30','Launch company blog|Goal|Jan 15'].map(x=>{const[n,t,d]=x.split('|');return`<div class="lr"><span style="font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;background:var(--s3);color:var(--t3)">${t}</span><span class="rt">${n}</span><span class="rm">Archived ${d}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:8px;padding:0 5px">Restore</button></span></div>`}).join('')}</div>`}
+// BUGFIX: Archive was hardcoded placeholder UI — dead tabs, dead search,
+// fake rows, dead Restore. Rebuilt to aggregate real completed/archived
+// items with working filter tabs, search and restore.
+let _archiveTab='All';
+let _archiveSearch='';
+function setArchiveTab(t){_archiveTab=t;renderArchive();}
+function archiveSearchInput(v){_archiveSearch=(v||'').toLowerCase();renderArchive();}
+function _archiveItems(){
+  const items=[];
+  (D.tasks||[]).forEach(t=>{if(t.status==='Done')items.push({type:'Task',id:t.id,title:t.title||'(untitled task)',date:(t.completedAt||t.updated||t.createdAt||''),restore:'task'});});
+  (D.projects||[]).forEach(p=>{if(p.archived)items.push({type:'Project',id:p.id,title:p.name||'(untitled project)',date:(p.updatedAt||p.updated||''),restore:'project'});});
+  (D.goals||[]).forEach(g=>{if((g.pct||0)>=100)items.push({type:'Goal',id:g.id,title:(g.icon?g.icon+' ':'')+(g.title||'(untitled goal)'),date:(g.updatedAt||g.completedAt||''),restore:'goal'});});
+  (D.notes||[]).forEach(n=>{if(n.archived)items.push({type:'Note',id:n.id,title:n.title||'(untitled note)',date:(n.updated||n.createdAt||''),restore:'note'});});
+  return items.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+}
+function archiveRestore(type,id){
+  if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){t.status='Not Started';t.completedAt='';save('tasks');toast('↩ Task reopened');}}
+  else if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.archived=false;save('projects');toast('↩ Project restored');}}
+  else if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){if(typeof openDrawer==='function')openDrawer('goal',g);return;}}
+  else if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.archived=false;save('notes');toast('↩ Note restored');}}
+  renderArchive();
+}
+function renderArchive(){
+  const tabs=['All','Task','Project','Goal','Note'];
+  let items=_archiveItems();
+  const counts={All:items.length};
+  tabs.slice(1).forEach(t=>counts[t]=items.filter(i=>i.type===t).length);
+  if(_archiveTab!=='All')items=items.filter(i=>i.type===_archiveTab);
+  if(_archiveSearch)items=items.filter(i=>(i.title||'').toLowerCase().includes(_archiveSearch));
+  const fmt=d=>{if(!d)return '';try{const dt=new Date(d);return isNaN(dt)?'':dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}};
+  const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
+  const rows=items.length?items.map(i=>`<div class="lr">
+    <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
+    <span class="rt" style="cursor:pointer" onclick="archiveRestore('${i.restore}',${i.id})" title="Open / restore">${esc(i.title)}</span>
+    <span class="rm">${i.date?fmt(i.date):''}</span>
+    <span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 8px" onclick="archiveRestore('${i.restore}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
+  </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
+  $('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">${counts.All} item${counts.All===1?'':'s'} · completed &amp; archived</p></div>
+<div class="tabs">${tabs.map(t=>`<div class="tab ${_archiveTab===t?'on':''}" onclick="setArchiveTab('${t}')">${t==='All'?'All':t+'s'}${counts[t]?` <span class="tc">${counts[t]}</span>`:''}</div>`).join('')}</div>
+<input class="inp" style="margin-bottom:10px" placeholder="🔍 Search archive..." value="${esc(_archiveSearch)}" oninput="archiveSearchInput(this.value)">
+<div class="cd">${rows}</div>`;
+}
 
 function renderMyDay(){
 // Restore the user's last subnav choice; default to Execute (most-used view).
@@ -13363,6 +13401,35 @@ function moveIdeaToStage(id,stage){
   save('ideas');
   renderIdeaDetail(idea);
   toast(`→ Moved to ${IDEA_STAGE_LABELS[stage]}`);
+}
+// BUGFIX: the Process (GTD) Ideas-triage buttons (→ Develop / 🅿 Park /
+// 🗑 Kill) and the Ideas "👍 Vote" / empty-state "+ Add Note" buttons
+// called these functions, which were never defined — the buttons did
+// nothing. Lightweight stage setter (no skip-confirm / no detail re-render
+// since the Process page re-renders itself afterwards).
+function ideaAdvanceStage(id,stage){
+  const idea=(D.ideas||[]).find(x=>x.id===id);
+  if(!idea)return;
+  idea.stage=stage;
+  if(stage&&!idea[stage+'_at'])idea[stage+'_at']=new Date().toISOString();
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+}
+function openIdeaVote(id){
+  const idea=(D.ideas||[]).find(x=>x.id===id);
+  if(!idea)return;
+  idea.votes=idea.votes||[];
+  const me=D.creds.userName||'Idris Grant';
+  const i=idea.votes.findIndex(v=>v.by===me);
+  if(i>=0){idea.votes.splice(i,1);toast('Vote removed');}
+  else{idea.votes.push({by:me,score:1,ts:new Date().toISOString()});toast('👍 Voted');}
+  idea.updatedAt=new Date().toISOString();
+  save('ideas');
+  if(typeof curScreen!=='undefined'&&curScreen==='ideas'&&typeof renderIdeas==='function')renderIdeas();
+}
+function openNewNote(){
+  if(typeof openFA==='function')openFA('note');
+  else if(typeof openModal==='function')openModal('capture');
 }
 
 // Helper: route Ideas-page AI calls through the user's chosen provider via ai.assist tRPC.
