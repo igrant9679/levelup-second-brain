@@ -784,7 +784,23 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Page headers reflow tighter */
   .ph-r,.pg-h{padding:0!important}
   .ph-r{flex-direction:column;align-items:stretch!important;gap:8px!important}
-  .ph-r>div:last-child{justify-content:flex-start!important}
+  /* The action-button cluster on the right of nearly every page header was
+     a non-wrapping flex row — on a phone its 4-8 buttons overflowed and got
+     clipped (e.g. Calendar's + Event was unreachable). Force it to wrap. */
+  .ph-r>div:last-child{justify-content:flex-start!important;flex-wrap:wrap!important;row-gap:6px!important}
+  /* Calendar week grid already scrolls (min-width:600); make the scroll
+     wrapper touch-friendly and the month grid readable. */
+  #s-calendar .cal-grid{min-width:560px}
+  #s-calendar [style*="grid-template-columns:repeat(7,1fr)"]{gap:2px!important}
+  /* Mail: the Inbox/Sent list+reading split is a fixed 280px+1fr grid that
+     leaves the reading pane unusable on a phone. Stack it vertically. */
+  #s-mail [style*="grid-template-columns:280px 1fr"]{grid-template-columns:1fr!important;min-height:0!important}
+  #s-mail [style*="grid-template-columns:280px 1fr"]>div:first-child{border-right:none!important;border-bottom:1px solid var(--bd1);max-height:46vh}
+  #s-mail #mail-detail{min-height:240px}
+  /* Reports: collapse the 12-col widget grid + tighten small stat rows. */
+  #s-reports [style*="grid-template-columns:repeat(12,1fr)"]{grid-template-columns:1fr!important}
+  #s-reports [style*="grid-template-columns:repeat(3,1fr)"]{grid-template-columns:repeat(2,1fr)!important}
+  #s-reports #reports-main{padding:14px!important}
   /* Drawers go full-width */
   .drawer{width:100vw!important;max-width:none!important}
   /* AI panel goes full-width */
