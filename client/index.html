@@ -826,18 +826,10 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Modals: respect viewport edges */
   .modal-ov .modal,.modal{margin:10px;max-height:calc(100vh - 20px)}
 }
-/* ─── Tablet / phone (≤1024px): the Tasks List view is an 11-column
-   ~1040px grid that can't fit an iPad/iPhone. Rather than hide columns,
-   make the whole list a horizontal scroller — keep every column at its
-   natural width and let the user swipe left/right. Header + rows share
-   one min-width so they scroll together; the sticky header stays put
-   vertically. */
+/* ─── Tablet / phone (≤1024px): List is now a card layout (no columns),
+   so nothing to scroll sideways. Board / Matrix / Gantt are still
+   intrinsically wide — keep them touch-scrollable. */
 @media (max-width:1024px){
-  #s-tasks #tasks-list{overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-  /* subtle swipe affordance above the list */
-  #s-tasks #tasks-list::before{content:'↔ swipe sideways · drag a column edge to resize';display:block;
-    position:sticky;left:0;font-size:10px;color:var(--t3);padding:2px 2px 6px;width:max-content}
-  /* Board / Matrix / Gantt are intrinsically wide — touch scroll too. */
   #s-tasks #tasks-list>div[style*="overflow-x"],
   #s-projects #proj-main>div[style*="display:flex"]{ -webkit-overflow-scrolling:touch }
 }
@@ -849,11 +841,25 @@ body.sb-open .lu-pill-pop{display:none!important}
   background:var(--bd2);border-radius:2px;transition:background .12s}
 #s-tasks .tl-hc:hover .tl-resizer::after,#s-tasks .tl-resizer:active::after{background:var(--ac)}
 /* Phone card layout for the Tasks List (replaces the grid ≤700px). */
-.tlc-wrap{display:flex;flex-direction:column;gap:8px}
+.tlc-wrap{display:flex;flex-direction:column;gap:9px;max-width:920px}
 .tlc{display:flex;align-items:flex-start;gap:11px;background:var(--s1);border:1px solid var(--bd1);
-  border-radius:12px;padding:13px 14px;cursor:pointer;position:relative;transition:background .12s,border-color .12s}
+  border-radius:12px;padding:13px 15px;cursor:pointer;position:relative;
+  transition:transform .12s,background .12s,border-color .12s,box-shadow .12s}
+.tlc:hover{background:var(--s2);border-color:var(--bd2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.26)}
 .tlc:active{background:var(--s2)}
 .tlc.tlc-od{border-left:3px solid var(--red)}
+.tlc.tlc-sel{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,var(--s1));box-shadow:0 0 0 1px var(--ac)}
+.tlc.tl-dragging{opacity:.4}
+.tlc.tl-drop-target{box-shadow:inset 0 2px 0 var(--ac)}
+.tlc-drag{align-self:center;color:var(--t3);font-size:12px;cursor:grab;user-select:none;opacity:0;
+  flex-shrink:0;transition:opacity .12s;margin:-2px -4px -2px 0}
+.tlc:hover .tlc-drag{opacity:.6}
+.tlc-sub{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.tlc-sub-bar{flex:0 0 90px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.tlc-sub-bar>div{height:100%;background:var(--ac);border-radius:3px}
+.tlc-sub>span{font-size:10px;color:var(--t3)}
+.tlc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:7px}
+.tlc-tags span{font-size:9.5px;color:var(--t2);background:var(--s3);border:1px solid var(--bd1);padding:1px 7px;border-radius:999px}
 .tlc-chk{width:22px;height:22px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;margin-top:1px;
   transition:background .12s,border-color .12s}
 .tlc-chk.on{background:var(--ac);border-color:var(--ac);position:relative}
@@ -1190,8 +1196,18 @@ body.sb-open .ai-bubble{display:none!important}
 #s-tasks .tl-row .lu-pill-clickable:hover{filter:brightness(1.18)}
 #s-tasks .cl-card{border-radius:12px;transition:border-color .14s,box-shadow .14s,transform .14s}
 #s-tasks .cl-card:hover{box-shadow:0 8px 22px rgba(0,0,0,.26)}
+#s-tasks .cl-task-row{transition:background .12s}
+#s-tasks .cl-task-row:hover{background:var(--s2)}
 #s-tasks .pill{border-radius:999px;letter-spacing:.02em}
 #s-tasks #task-quick-add{border-radius:10px}
+/* Board + Matrix cards aligned to the card aesthetic (rounded, hover lift,
+   pill-shaped chips) to match List/Notes/Projects. */
+#s-tasks .mtx-card{border-radius:11px!important;transition:transform .12s,border-color .12s,box-shadow .12s}
+#s-tasks .mtx-card:hover{transform:translateY(-2px);border-color:var(--bd2)!important;box-shadow:0 8px 20px rgba(0,0,0,.26)}
+#s-tasks .mtx-quad{border-radius:13px!important}
+#s-tasks .mtx-card .pill{border-radius:999px}
+#s-tasks #tasks-list [style*="border-radius:7px"]{border-radius:12px!important}
+#s-tasks #tasks-list [style*="border-radius:7px"]:hover{box-shadow:0 8px 20px rgba(0,0,0,.24)}
 /* Focus execution view */
 .tf-wrap{max-width:780px;margin:0 auto}
 .tf-hero{display:flex;align-items:center;gap:26px;background:var(--s1);border:1px solid var(--bd1);

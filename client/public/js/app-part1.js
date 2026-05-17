@@ -4882,6 +4882,18 @@ function setTaskListSort(col){
   _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
   renderCurrentTaskView();
 }
+// Card-view sort dropdown (no column headers to click anymore).
+function setTaskListSortValue(by){
+  _taskListSortBy=by||'';
+  if(!_taskListSortBy)_taskListSortDir='asc';
+  _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
+  renderCurrentTaskView();
+}
+function toggleTaskListSortDir(){
+  _taskListSortDir=_taskListSortDir==='asc'?'desc':'asc';
+  _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
+  renderCurrentTaskView();
+}
 // ── Resizable Tasks-List columns (persisted in D.prefs.taskColW) ─────────
 const _TASK_COLS=[
   {k:'drag',w:18,fixed:true},
@@ -4979,8 +4991,11 @@ function renderTaskList(){
   const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:10px;color:var(--t3)">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
     ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
-    <button class="btn btn-s" style="height:22px;font-size:9px;padding:0 8px;margin-left:auto" onclick="resetTaskColWidths()" title="Reset all column widths to default">↔ Reset columns</button>
-    <span style="font-size:9px;color:var(--t3)">Drag a column's right edge to resize</span>
+    <span style="margin-left:auto;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sort:</span>
+    <select class="inp" style="height:22px;font-size:10px;padding:0 4px" onchange="setTaskListSortValue(this.value)">
+      ${[['','Manual (drag)'],['title','Title'],['priority','Priority'],['status','Status'],['start','Start date'],['end','Due date'],['created','Created']].map(([v,l])=>`<option value="${v}" ${_taskListSortBy===v?'selected':''}>${l}</option>`).join('')}
+    </select>
+    ${_taskListSortBy?`<button class="btn btn-s" style="height:22px;width:24px;padding:0;font-size:11px" onclick="toggleTaskListSortDir()" title="Sort direction">${_taskListSortDir==='asc'?'↑':'↓'}</button>`:''}
   </div>`;
   if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
@@ -5049,28 +5064,39 @@ function renderTaskList(){
   // Phones can't use an 11-column grid — render stacked cards instead:
   // title full-width on line 1, meta chips on line 2. Tap opens the task;
   // the round check toggles Done. No horizontal scrolling needed.
-  const cardMode=window.innerWidth<=700;
+  // Full card redesign: the List view renders modern task cards at every
+  // width (no more 11-column grid). Sort/drag/bulk all preserved.
+  const cardMode=true;
   function cardRow(t){
     const proj=findProject(t);
+    const projColor=proj?proj.color:null;
     const projName=proj?proj.name:(t.project||'');
     const isOverdue=t.due&&t.due<today&&t.status!=='Done';
     const done=t.status==='Done';
     const pri=t.priority||'Medium';
     const status=t.status||'Not Started';
     const endDate=t.due||t.endDate||'';
+    const startDate=t.startDate||'';
+    const assigned=t.assignedTo||t.createdBy||'';
+    const initials=(assigned||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+    const subs=t.subtasks||[];const subDone=subs.filter(s=>s.done).length;
     const chk=_bulkMode
       ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)"></div>`
       :`<div class="tlc-chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>`;
-    return `<div class="tlc ${isOverdue?'tlc-od':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+    return `<div class="tlc ${isOverdue?'tlc-od':''} ${_bulkSelected.has(t.id)?'tlc-sel':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="${_bulkMode?'false':'true'}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+      ${_bulkMode?'':`<span class="tlc-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>`}
       ${chk}
       <div class="tlc-body">
-        <div class="tlc-t" style="${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor}`:'')}">${esc(t.title||'Untitled')}</div>
+        <div class="tlc-t" style="${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'')}">${esc(t.title||'Untitled')}</div>
+        ${subs.length?`<div class="tlc-sub"><div class="tlc-sub-bar"><div style="width:${Math.round(subDone/subs.length*100)}%"></div></div><span>${subDone}/${subs.length}</span></div>`:''}
+        ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
         <div class="tlc-m">
           <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium}">${pri}</span>
           <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']}">${status}</span>
+          ${startDate?`<span>▶ ${fmtDate(startDate)}</span>`:''}
           ${endDate?`<span class="${isOverdue?'tlc-odt':''}">📅 ${fmtDate(endDate)}</span>`:''}
-          ${projName?`<span>📁 ${esc(projName)}</span>`:''}
-          ${(t.subtasks||[]).length?`<span>☑ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length}</span>`:''}
+          ${projName?`<span>${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};margin-right:4px;vertical-align:middle"></i>`:''}${esc(projName)}</span>`:''}
+          ${initials?`<span title="${esc(assigned)}">👤 ${esc(assigned.split(' ')[0])}</span>`:''}
         </div>
       </div>
       <span class="tlc-go">›</span>
@@ -5140,7 +5166,7 @@ function _tlDrop(e,targetId){
   if(!_tlDragId||_tlDragId===targetId)return;
   // Pull the dragged task; insert just before the drop target in the visible list.
   // Rewrite sortOrder across all tasks so subsequent renders reflect the new order.
-  const visible=Array.from(document.querySelectorAll('#tasks-list .tl-row[data-task-id]')).map(el=>Number(el.dataset.taskId));
+  const visible=Array.from(document.querySelectorAll('#tasks-list [data-task-id]')).map(el=>Number(el.dataset.taskId));
   const dragIdx=visible.indexOf(_tlDragId);const dropIdx=visible.indexOf(targetId);
   if(dragIdx<0||dropIdx<0)return;
   visible.splice(dragIdx,1);visible.splice(dragIdx<dropIdx?dropIdx-1:dropIdx,0,_tlDragId);
