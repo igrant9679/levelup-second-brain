@@ -4939,7 +4939,7 @@ function renderTaskList(){
     const bulkChk=_bulkMode
       ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)" style="width:14px;height:14px"></div>`
       :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">`;
-    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
       <span class="tl-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
       ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
@@ -8425,19 +8425,20 @@ function renderProjectsGantt(header){
     const barW=Math.max(2,endPct-startPct);
     const filledW=barW*((p.pct||0)/100);
     const ms=Array.isArray(p.milestones)?p.milestones:[];
-    const msMarks=ms.map(m=>{const d=parseDate(m.date||m.due);if(!d)return '';const mp=pct(d);return `<div title="${esc(m.title||m.name||'milestone')} · ${m.date||m.due||''}" style="position:absolute;left:${mp}%;top:50%;transform:translate(-50%,-50%);width:9px;height:9px;background:${m.done?'var(--ok)':'#fff'};border:2px solid ${p.color};border-radius:50%;z-index:3"></div>`;}).join('');
-    return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--bd1)">
-      <div style="width:160px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)}">
-        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:4px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}
+    const msMarks=ms.map(m=>{const d=parseDate(m.date||m.due);if(!d)return '';const mp=pct(d);const od=!m.done&&(m.date||m.due)&&(m.date||m.due)<_todayStr;return `<div title="${esc(m.title||m.name||'milestone')} · ${m.date||m.due||''}${od?' · overdue':''}" style="position:absolute;left:${mp}%;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:9px;height:9px;background:${m.done?'var(--ok)':od?'var(--red)':'var(--s1)'};border:2px solid ${m.done?'var(--ok)':od?'var(--red)':p.color};border-radius:2px;z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`;}).join('');
+    const hp=projectHealth(p);
+    return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
+      <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)} · ${hp.label}">
+        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:5px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}
       </div>
-      <div style="flex:1;position:relative;height:20px;background:var(--s3);border-radius:3px;overflow:hidden">
+      <div style="flex:1;position:relative;height:22px;background:var(--s3);border-radius:6px;overflow:hidden">
         ${markerHtml}
-        <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:color-mix(in srgb,${p.color} 25%,transparent);border-radius:3px;display:flex;align-items:center;padding:0 4px;z-index:1"></div>
-        <div style="position:absolute;left:${startPct}%;width:${filledW}%;height:100%;background:${p.color};border-radius:3px;opacity:.85;display:flex;align-items:center;padding:0 4px;z-index:2"><span style="font-size:9px;color:#fff;white-space:nowrap;overflow:hidden">${p.pct||0}%</span></div>
+        <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:color-mix(in srgb,${p.color} 22%,transparent);border-radius:6px;z-index:1"></div>
+        <div style="position:absolute;left:${startPct}%;width:${filledW}%;height:100%;background:linear-gradient(90deg,${p.color},color-mix(in srgb,${p.color} 70%,#fff));border-radius:6px;display:flex;align-items:center;padding:0 6px;z-index:2;box-shadow:0 1px 6px color-mix(in srgb,${p.color} 45%,transparent)"><span style="font-size:9px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.4)">${p.pct||0}%</span></div>
         ${msMarks}
-        <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:1px;background:var(--warn);opacity:.8;z-index:4"></div>
+        <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:2px;background:var(--warn);box-shadow:0 0 6px var(--warn);z-index:4"></div>
       </div>
-      <div style="width:64px;flex-shrink:0;font-size:9px;color:var(--t3);text-align:right">${p.due||'—'}</div>
+      <div style="width:70px;flex-shrink:0;font-size:9px;color:${due&&p.due<_todayStr?'var(--red)':'var(--t3)'};text-align:right">${p.due||'—'}</div>
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${z}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
 }

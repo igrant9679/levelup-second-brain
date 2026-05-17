@@ -1069,13 +1069,28 @@ body.sb-open .ai-bubble{display:none!important}
 .pc-foot .pc-od{color:var(--red);font-weight:600}
 .pc-foot .pc-acts{margin-left:auto;display:flex;gap:4px}
 .proj-card.proj-dragging,.pc.proj-dragging{opacity:.4}
+#s-projects .gantt-row{transition:background .12s}
+#s-projects .gantt-row:hover{background:var(--s2)}
 
 /* ════ Tasks scoped polish (teal) ════ */
 #s-tasks .tab{border-radius:8px;padding:5px 11px;transition:background .14s,color .14s,transform .1s}
 #s-tasks .tab:not(.on):hover{transform:translateY(-1px);background:var(--s2)}
 #s-tasks .tab.on{background:color-mix(in srgb,var(--ac) 16%,transparent);color:color-mix(in srgb,var(--ac) 92%,#fff);font-weight:600}
-#s-tasks .tl-row{transition:background .12s,box-shadow .12s,transform .12s}
-#s-tasks .tl-row:not(.tl-head):hover{background:var(--s2);box-shadow:0 4px 14px rgba(0,0,0,.22);transform:translateY(-1px)}
+#s-tasks .tl-row{transition:background .12s,box-shadow .12s,transform .12s;position:relative}
+#s-tasks .tl-row:not(.tl-head):hover{background:var(--s2)!important;box-shadow:0 4px 14px rgba(0,0,0,.22);transform:translateY(-1px);z-index:2}
+/* rounded list container edges + a touch more breathing room */
+#s-tasks .tl-head{border-radius:10px 10px 0 0!important;padding:10px 14px!important;font-size:9.5px!important;letter-spacing:.7px!important}
+#s-tasks .tl-row:not(.tl-head){padding:11px 14px!important}
+#s-tasks #tasks-list>.tl-row:last-child,#s-tasks #tasks-list .tl-grp:last-child .tl-row:last-child{border-radius:0 0 10px 10px}
+/* subtle priority hairline on the left of each row (overdue keeps its red bar) */
+#s-tasks .tl-row:not(.tl-head):not(.tl-overdue)::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;opacity:.7}
+#s-tasks .tl-row[data-pri="High"]:not(.tl-overdue)::before{background:#ef4444}
+#s-tasks .tl-row[data-pri="Medium"]:not(.tl-overdue)::before{background:#f59e0b}
+#s-tasks .tl-row[data-pri="Low"]:not(.tl-overdue)::before{background:#10b981}
+#s-tasks .tl-row[data-done="1"]::before{opacity:.2}
+/* modern pill chips (override the inline 4px radius) */
+#s-tasks .tl-row .lu-pill-clickable{border-radius:999px!important;padding:3px 11px!important;font-size:9.5px!important;letter-spacing:.02em;transition:filter .12s}
+#s-tasks .tl-row .lu-pill-clickable:hover{filter:brightness(1.18)}
 #s-tasks .cl-card{border-radius:12px;transition:border-color .14s,box-shadow .14s,transform .14s}
 #s-tasks .cl-card:hover{box-shadow:0 8px 22px rgba(0,0,0,.26)}
 #s-tasks .pill{border-radius:999px;letter-spacing:.02em}
