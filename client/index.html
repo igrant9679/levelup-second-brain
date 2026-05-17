@@ -2273,6 +2273,20 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
-<script src="/js/app-part1.js" defer></script>
-<script src="/js/app-part2.js" defer></script>
+<!-- Cache-buster: the two app bundles are versioned with APP_BUILD so a new
+     deploy is never served stale from Safari / iOS PWA caches (this was
+     causing fixes to never reach the device). Bump APP_BUILD on every
+     change to client/public/js/app-part*.js. index.html itself revalidates
+     via ETag so the new APP_BUILD is always picked up. -->
+<script>
+(function(){
+  var APP_BUILD='2026-05-18-1';
+  ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
+    var s=document.createElement('script');
+    s.src=src+'?v='+APP_BUILD;
+    s.defer=true;s.async=false; // preserve execution order (part1 then part2)
+    document.head.appendChild(s);
+  });
+})();
+</script>
 </body></html>
