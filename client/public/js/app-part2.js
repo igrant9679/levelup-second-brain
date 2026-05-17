@@ -8243,8 +8243,26 @@ const _origSave=window.save||save;
 const _syncTimers={};
 // Keys that are synced to the server
 const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters']);
+// SAFETY GUARD: never push to the server until loadServerData() has
+// successfully pulled (or confirmed there is no) server data. Without this,
+// a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
+// could overwrite the user's real server copy before the load round-trip
+// finishes. Edits made during the gate are queued and flushed afterwards.
+let _serverSyncReady=false;
+const _pendingSyncKeys=new Set();
+function _flushPendingSync(){
+  if(!_serverSyncReady)return;
+  const ks=[..._pendingSyncKeys];_pendingSyncKeys.clear();
+  ks.forEach(k=>setTimeout(()=>_pushKeyToServer(k),60));
+}
 async function _pushKeyToServer(k){
   if(!_syncKeys.has(k))return;
+  if(!_serverSyncReady){
+    // Hold the write until we've loaded server data, so seed/empty local
+    // state can't clobber a good server copy during the boot race.
+    _pendingSyncKeys.add(k);
+    return;
+  }
   try{
     const val=JSON.stringify(D[k]);
     await _trpc('appData.save',{[k]:val},'mutation');
@@ -8287,7 +8305,12 @@ async function loadServerData(){
   loadBookmarksCache();
   try{
     const sd=await _trpc('appData.load',undefined,'query');
-    if(!sd)return; // No server data yet — first time user
+    if(!sd){
+      // No server data yet — genuine first-time user. Safe to start
+      // syncing the local (real) data up.
+      _serverSyncReady=true;_flushPendingSync();
+      return;
+    }
     const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters'];
     let changed=false;
     keys.forEach(k=>{
@@ -8324,8 +8347,14 @@ async function loadServerData(){
       }
       updateSidebarBadges&&updateSidebarBadges();
     }
+    // Server data is now applied (or server genuinely had none for some
+    // keys) — it's safe to start pushing local edits up.
+    _serverSyncReady=true;_flushPendingSync();
   }catch(e){
-    console.warn('[appData] load failed',e.message);
+    // Load FAILED — server state is unknown. Stay gated so we never push
+    // possibly-seed/empty local data over a good server copy this session.
+    // localStorage still works locally; sync resumes next successful load.
+    console.warn('[appData] load failed — server sync paused this session to protect your data',e.message);
   }
 }
 // ═══════════════════════════════════════════════════════════════════════════════
