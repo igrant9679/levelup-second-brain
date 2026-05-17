@@ -801,6 +801,42 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Modals: respect viewport edges */
   .modal-ov .modal,.modal{margin:10px;max-height:calc(100vh - 20px)}
 }
+/* ─── Tablet / narrow-desktop (≤1024px): the Tasks List view is an
+   11-column fixed-width grid (~1040px) that can't fit an iPad, which
+   crushed the Title track to a couple of letters. Collapse it to a
+   compact 6-track grid (drag · check · Title(1fr) · priority · status ·
+   open) and hide the Start/End/Project/Assignee/Created columns. Applies
+   to both rows AND the sticky header since both are .tl-row grids with
+   the same column order. The inline grid-template is overridden with
+   !important. */
+@media (max-width:1024px){
+  #s-tasks .tl-row{grid-template-columns:16px 22px minmax(0,1fr) auto auto 24px!important;gap:7px!important;padding:11px 12px!important}
+  #s-tasks .tl-row>*:nth-child(6),
+  #s-tasks .tl-row>*:nth-child(7),
+  #s-tasks .tl-row>*:nth-child(8),
+  #s-tasks .tl-row>*:nth-child(9),
+  #s-tasks .tl-row>*:nth-child(10){display:none!important}
+  #s-tasks .tl-row .lu-pill-clickable{font-size:9px!important;padding:2px 8px!important}
+  /* Board / Matrix / Gantt are intrinsically wide — let them scroll
+     horizontally instead of clipping content. */
+  #s-tasks #tasks-list>div[style*="overflow-x"],
+  #s-projects #proj-main>div[style*="display:flex"]{ -webkit-overflow-scrolling:touch }
+}
+/* Phone (≤900px) tightenings beyond the main block above. */
+@media (max-width:900px){
+  /* Tasks: stack the toolbar/segmented controls so they don't overflow. */
+  #s-tasks .ph-r>div:last-child{flex-wrap:wrap}
+  #s-tasks .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px}
+  /* Projects card grid → single column; portfolio strip wraps. */
+  #s-projects [style*="grid-template-columns:repeat(auto-fill"]{grid-template-columns:1fr!important}
+  .pf-strip .pf-cell{min-width:calc(50% - 5px)}
+  /* Process: triage buttons wrap (already flex-wrap) — ensure tabs scroll. */
+  #s-process .gtd-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+  /* Generic: keep any inline fixed-min grid from blowing out the page. */
+  .mn{overflow-x:hidden}
+  /* Focus view + project detail ring/stat rows wrap on phones. */
+  .tf-hero{flex-wrap:wrap;gap:14px}
+}
 /* On touch devices, every hover-only quick action becomes invisible.
    Reveal star/pin chips on note cards, ⋮ row menu on tasks, hero tile
    popovers, etc. Conditional on hover:none so desktop is untouched. */
