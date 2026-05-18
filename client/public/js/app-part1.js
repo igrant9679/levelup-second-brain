@@ -2752,11 +2752,14 @@ function _drAddLink(category,idStr){
   const id=parseInt(idStr);if(isNaN(id))return;
   if(!_drLinks[category])_drLinks[category]=[];
   if(!_drLinks[category].includes(id))_drLinks[category].push(id);
-  _drRenderTaskLinks();
+  // Defer the re-render: rebuilding #dr-task-links innerHTML *inside* the
+  // <select>'s own change event makes iOS Safari swallow the selection
+  // (picking a Note appeared to do nothing). Let the event finish first.
+  setTimeout(_drRenderTaskLinks,0);
 }
 function _drRemoveLink(category,id){
   _drLinks[category]=(_drLinks[category]||[]).filter(x=>x!==id);
-  _drRenderTaskLinks();
+  setTimeout(_drRenderTaskLinks,0);
 }
 function _drRenderTaskLinks(){
   const wrap=document.getElementById('dr-task-links');if(!wrap)return;
