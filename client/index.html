@@ -768,6 +768,16 @@ body.sb-open .lu-pill-pop{display:none!important}
   body.notes-pane-rail .scr#s-notes .notes-rail{display:block}
   /* Hide resize handles on phones — panes are full-width tabs now */
   .scr#s-notes .notes-resize{display:none!important}
+  /* The list/editor panes use a desktop height:100% + overflow:hidden flex
+     trick with an inner overflow-y:auto. On mobile the grid's 1fr row has
+     no definite height, so the inner scroll area collapses and only ~1
+     note shows with no scroll. Let the panes flow naturally and scroll the
+     page instead. */
+  .scr#s-notes>.bg{grid-template-rows:auto auto auto!important;min-height:0!important;height:auto!important}
+  .scr#s-notes .notes-list,.scr#s-notes .notes-editor,
+  .scr#s-notes .notes-nav,.scr#s-notes .notes-rail{height:auto!important;max-height:none!important;overflow:visible!important}
+  .scr#s-notes .notes-list>div,.scr#s-notes .notes-editor>div{height:auto!important;max-height:none!important;overflow:visible!important}
+  .scr#s-notes #notes-list-inner{height:auto!important;max-height:none!important;overflow:visible!important;flex:none!important}
   /* Notes mobile tab strip */
   #notes-mobile-tabs{display:flex;gap:4px;padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--bd1);overflow-x:auto;-webkit-overflow-scrolling:touch}
   #notes-mobile-tabs button{flex:1;min-width:60px;height:36px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--t2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;-webkit-tap-highlight-color:transparent}
@@ -955,9 +965,16 @@ body.sb-open .lu-pill-pop{display:none!important}
   .home-hero h1{font-size:20px!important}
   /* Stat tiles stack 2-up instead of trying to fit 5 */
   .home-hero [style*="repeat(auto-fit,minmax(120px"]{grid-template-columns:repeat(2,1fr)!important}
-  /* Drawer field-rows: stack instead of trying to fit 2 columns */
-  .drawer .field-row{flex-direction:column!important;gap:6px!important}
-  .drawer .field-row>.field{flex:1 1 100%!important;min-width:0}
+  /* Drawer field-rows: stack instead of trying to fit 2 columns. Some rows
+     have inline align-items:flex-end — once stacked that shrink-wraps &
+     right-aligns the fields (Title got squished + pushed off-screen), so
+     force stretch + full width and full-width controls. */
+  .drawer .field-row{flex-direction:column!important;gap:6px!important;align-items:stretch!important;width:100%!important}
+  .drawer .field-row>.field{flex:1 1 100%!important;width:100%!important;min-width:0}
+  .drawer .field-row>*{flex:1 1 100%!important;width:100%!important;min-width:0}
+  .drawer .field .inp,.drawer .field input,.drawer .field select,.drawer .field textarea,
+  .drawer .field-row .inp,.drawer .field-row input,.drawer .field-row select,.drawer .field-row textarea{
+    width:100%!important;max-width:100%!important;box-sizing:border-box}
   /* Settings inner rows ("label 1fr | 120px | 120px") get too cramped on a
      phone — collapse the fixed control columns so they wrap under the label. */
   #s-settings [style*="grid-template-columns:1fr 120px 120px"]{grid-template-columns:1fr 1fr!important;gap:6px!important}
@@ -2326,7 +2343,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-12';
+  var APP_BUILD='2026-05-18-13';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
