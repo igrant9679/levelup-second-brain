@@ -7019,7 +7019,20 @@ function applyNotesFilters(){
   }
   const el=document.getElementById('notes-list-inner');
   if(!el)return;
-  el.innerHTML=(pinnedHtml+(html||''))||renderEmptyState({icon:'🔍',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'});
+  // Visible escape hatch: if a filter/scope/category/folder is clamping the
+  // list well below the true total, say so loudly with a one-tap "Show
+  // all" — on mobile the active filter is otherwise invisible.
+  const _total=(D.notes||[]).length;
+  const _clamped=(_notesFilterCategory!=='Recent')||_notesFilterSmart||_notesFilterStatus||
+    (_notesFilterFolder!=null)||_notesMyOnly||_notesFilterTags.size||_notesFilterSources.size||
+    _notesFilterDatePreset||q;
+  const _banner=(_clamped&&_total>0&&notes.length<_total)
+    ?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--warns);border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--t1)">
+        <span>Showing <b>${notes.length}</b> of <b>${_total}</b> notes — a filter is active.</span>
+        <button class="btn btn-p" style="height:24px;font-size:10px;padding:0 10px;margin-left:auto" onclick="clearNotesFilters()">Show all notes</button>
+      </div>`
+    :'';
+  el.innerHTML=_banner+((pinnedHtml+(html||''))||renderEmptyState({icon:'🔍',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'}));
 
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
@@ -7058,6 +7071,14 @@ function clearNotesFilters(){
   _notesGroupBy='';
   _notesFilterSmart=null;
   _notesFilterStatus=null;
+  // These were NOT being reset — a stuck category (e.g. 'Resources' only
+  // matches source==='Manual'), a folder filter, or 'Mine' scope could
+  // clamp the list to a handful even after "Clear filters". Reset them
+  // too, and persist the reset so it survives a reload.
+  _notesFilterCategory='Recent';
+  _notesFilterFolder=null;
+  _notesMyOnly=false;
+  try{_persistPageState('notes',{category:'Recent',smart:null,status:null,folder:null,myOnly:false,sort:'newest',groupBy:''});}catch(_){}
   const si=document.getElementById('notes-search');
   if(si)si.value='';
   // Reset all chip/button states
@@ -7068,7 +7089,9 @@ function clearNotesFilters(){
   if(customRow)customRow.style.display='none';
   const sortSel=document.getElementById('nf-sort-select');
   if(sortSel)sortSel.value='newest';
-  applyNotesFilters();
+  // Full re-render so the left-nav category highlight + Mine/All scope
+  // buttons reflect the reset (applyNotesFilters alone wouldn't).
+  if(typeof renderNotes==='function')renderNotes();else applyNotesFilters();
 }
 function toggleNotesFilterTag(tag,el){
   const k=tag.toLowerCase();
