@@ -972,9 +972,15 @@ body.sb-open .lu-pill-pop{display:none!important}
   .drawer .field-row{flex-direction:column!important;gap:6px!important;align-items:stretch!important;width:100%!important}
   .drawer .field-row>.field{flex:1 1 100%!important;width:100%!important;min-width:0}
   .drawer .field-row>*{flex:1 1 100%!important;width:100%!important;min-width:0}
-  .drawer .field .inp,.drawer .field input,.drawer .field select,.drawer .field textarea,
-  .drawer .field-row .inp,.drawer .field-row input,.drawer .field-row select,.drawer .field-row textarea{
+  /* Only stretch text-like controls — NOT color/checkbox/radio/range
+     swatches (that turned the title-colour picker into a giant oval). */
+  .drawer .field .inp,.drawer .field-row .inp,
+  .drawer .field select,.drawer .field-row select,
+  .drawer .field textarea,.drawer .field-row textarea,
+  .drawer .field input:not([type=color]):not([type=checkbox]):not([type=radio]):not([type=range]),
+  .drawer .field-row input:not([type=color]):not([type=checkbox]):not([type=radio]):not([type=range]){
     width:100%!important;max-width:100%!important;box-sizing:border-box}
+  .drawer input[type=color]{width:24px!important;height:24px!important;flex:0 0 auto!important;padding:0;border:none}
   /* Settings inner rows ("label 1fr | 120px | 120px") get too cramped on a
      phone — collapse the fixed control columns so they wrap under the label. */
   #s-settings [style*="grid-template-columns:1fr 120px 120px"]{grid-template-columns:1fr 1fr!important;gap:6px!important}
@@ -1979,8 +1985,8 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- Mobile-only tab strip to switch between the four Notes panes. -->
 <div id="notes-mobile-tabs">
   <button data-pane="folders" onclick="setNotesMobilePane('folders')">📁 Folders</button>
-  <button data-pane="list" onclick="setNotesMobilePane('list')">📝 List</button>
-  <button data-pane="editor" onclick="setNotesMobilePane('editor')" class="on">✏ Editor</button>
+  <button data-pane="list" onclick="setNotesMobilePane('list')" class="on">📝 List</button>
+  <button data-pane="editor" onclick="setNotesMobilePane('editor')">✏ Editor</button>
   <button data-pane="rail" onclick="setNotesMobilePane('rail')">🔗 Links</button>
 </div>
 <!-- Bulk action bar (hidden by default, shown when bulk mode active) -->
@@ -2343,7 +2349,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-13';
+  var APP_BUILD='2026-05-18-14';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

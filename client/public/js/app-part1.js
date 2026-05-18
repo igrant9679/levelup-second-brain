@@ -6386,7 +6386,7 @@ function _populateClustersRail(){
 // Notes mobile pane switcher (Folders / List / Editor / Links).
 // Body class drives which pane is visible on phones (≤900px).
 function setNotesMobilePane(pane){
-  if(!['folders','list','editor','rail'].includes(pane))pane='editor';
+  if(!['folders','list','editor','rail'].includes(pane))pane='list';
   document.body.classList.remove('notes-pane-folders','notes-pane-list','notes-pane-editor','notes-pane-rail');
   document.body.classList.add('notes-pane-'+pane);
   document.querySelectorAll('#notes-mobile-tabs button').forEach(b=>{b.classList.toggle('on',b.dataset.pane===pane);});
@@ -6396,7 +6396,7 @@ function setNotesMobilePane(pane){
 // Apply the persisted mobile pane on initial Notes render so users don't
 // always land on the editor.
 function _applyNotesMobilePane(){
-  const stored=(D.prefs&&D.prefs.notesMobilePane)||'editor';
+  const stored=(D.prefs&&D.prefs.notesMobilePane)||'list';
   setNotesMobilePane(stored);
 }
 // ─── Notes panel resize (nav / list / rail are user-sizable) ──────────
