@@ -837,9 +837,20 @@ function _getDriftedAccent(baseHex){
 function applyTheme(opts){
   const t=_getEffectiveTheme();
   const root=document.documentElement;
+  // Apply the CSS vars to BOTH <html> and <body>. The static stylesheet has a
+  // `body.light-mode{--bg:…;--s1:…;--t1:…;…}` block that re-declares every
+  // colour var ON <body>. For any element inside <body>, custom-property
+  // resolution finds that body-level declaration before it reaches an inline
+  // value set only on <html> — so in Light mode the hardcoded light palette
+  // shadowed presets / custom colours / accent drift and they appeared to do
+  // nothing. An inline style on the <body> element beats the body.light-mode
+  // class rule on that same element, so setting the vars on body too makes
+  // them win in both modes.
+  const bodyEl=document.body;
   for(const [k,v] of Object.entries(t)){
     if(v===undefined||v===null||v==='')continue;
     root.style.setProperty('--'+k,v);
+    if(bodyEl)bodyEl.style.setProperty('--'+k,v);
   }
   // #15 drift override — applied AFTER base theme so it wins for --ac/--ach/--acs.
   if(D.prefs&&D.prefs.accentDrift){
@@ -848,6 +859,11 @@ function applyTheme(opts){
     root.style.setProperty('--ac',drifted);
     root.style.setProperty('--ach',drifted);
     root.style.setProperty('--acs',drifted+'26');
+    if(bodyEl){
+      bodyEl.style.setProperty('--ac',drifted);
+      bodyEl.style.setProperty('--ach',drifted);
+      bodyEl.style.setProperty('--acs',drifted+'26');
+    }
   }
   // Page-accent map overrides
   const paMap=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});
