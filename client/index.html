@@ -768,16 +768,25 @@ body.sb-open .lu-pill-pop{display:none!important}
   body.notes-pane-rail .scr#s-notes .notes-rail{display:block}
   /* Hide resize handles on phones — panes are full-width tabs now */
   .scr#s-notes .notes-resize{display:none!important}
-  /* The list/editor panes use a desktop height:100% + overflow:hidden flex
-     trick with an inner overflow-y:auto. On mobile the grid's 1fr row has
-     no definite height, so the inner scroll area collapses and only ~1
-     note shows with no scroll. Let the panes flow naturally and scroll the
-     page instead. */
-  .scr#s-notes>.bg{grid-template-rows:auto auto auto!important;min-height:0!important;height:auto!important}
+  /* The desktop panes scroll an inner area inside a fixed-height shell.
+     "Let the page flow/scroll" fights that shell (content clips, no
+     scroll). Instead: don't let the pane/wrapper clip, and make the
+     LIST's inner area a DETERMINISTIC viewport-sized scroll region
+     (dvh) — same approach that fixed Bookmarks. */
+  .scr#s-notes>.bg{grid-template-rows:auto auto 1fr!important;min-height:0!important}
   .scr#s-notes .notes-list,.scr#s-notes .notes-editor,
-  .scr#s-notes .notes-nav,.scr#s-notes .notes-rail{height:auto!important;max-height:none!important;overflow:visible!important}
-  .scr#s-notes .notes-list>div,.scr#s-notes .notes-editor>div{height:auto!important;max-height:none!important;overflow:visible!important}
-  .scr#s-notes #notes-list-inner{height:auto!important;max-height:none!important;overflow:visible!important;flex:none!important}
+  .scr#s-notes .notes-nav,.scr#s-notes .notes-rail{height:auto!important;overflow:visible!important}
+  .scr#s-notes .notes-list>div{height:auto!important;overflow:visible!important;display:flex!important;flex-direction:column}
+  .scr#s-notes #notes-list-inner{
+    flex:none!important;height:auto!important;
+    max-height:calc(100dvh - 230px)!important;min-height:200px;
+    overflow-y:auto!important;-webkit-overflow-scrolling:touch}
+  /* Editor / Folders / Links panes: the pane itself becomes the scroller. */
+  body.notes-pane-editor .scr#s-notes .notes-editor,
+  body.notes-pane-folders .scr#s-notes .notes-nav,
+  body.notes-pane-rail .scr#s-notes .notes-rail{
+    max-height:calc(100dvh - 160px)!important;overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch}
   /* Notes mobile tab strip */
   #notes-mobile-tabs{display:flex;gap:4px;padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--bd1);overflow-x:auto;-webkit-overflow-scrolling:touch}
   #notes-mobile-tabs button{flex:1;min-width:60px;height:36px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--t2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;-webkit-tap-highlight-color:transparent}
@@ -2349,7 +2358,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-14';
+  var APP_BUILD='2026-05-18-15';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
