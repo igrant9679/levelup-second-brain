@@ -2216,7 +2216,7 @@ function openDrawer(type,item){
   if(type==='note' && item?.id) setTimeout(()=>loadRelatedBookmarks('note', item.id), 0);
   // Hydrate the chip-based Linked Items picker for task drawers. Inline
   // <script> tags inside innerHTML don't execute, so we have to do this here.
-  if(type==='task' && item?.id && typeof _drInitLinks==='function'){
+  if((type==='task'||type==='note') && item?.id && typeof _drInitLinks==='function'){
     _drInitLinks({
       projects:item.linkedProjectIds||[],
       goals:item.linkedGoalIds||[],
@@ -2340,22 +2340,12 @@ function renderDrawer(type,item){
         </select>
       </div>
     </div>
-    <!-- Linked Items (#2 fix — full edit now exposes everything new-create has) -->
-    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Ctrl/Cmd-click to multi-select · saves with Save Changes</span></label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Projects</label>
-          <select class="inp" id="dr-link-projects" multiple size="4" style="margin-top:2px">${(D.projects||[]).map(p=>`<option value="${p.id}" ${(item.linkedProjectIds||[]).includes(p.id)?'selected':''}>${esc(p.name)}</option>`).join('')||'<option disabled>(no projects)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Goals</label>
-          <select class="inp" id="dr-link-goals" multiple size="4" style="margin-top:2px">${(D.goals||[]).map(g=>`<option value="${g.id}" ${(item.linkedGoalIds||[]).includes(g.id)?'selected':''}>${esc(g.icon||'🎯')} ${esc(g.title)}</option>`).join('')||'<option disabled>(no goals)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Tasks</label>
-          <select class="inp" id="dr-link-tasks" multiple size="4" style="margin-top:2px">${(D.tasks||[]).filter(t=>t.status!=='Done').slice(0,200).map(t=>`<option value="${t.id}" ${(item.linkedTaskIds||[]).includes(t.id)?'selected':''}>${esc(t.title)}</option>`).join('')||'<option disabled>(no open tasks)</option>'}</select>
-        </div>
-        <div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase">Other Notes</label>
-          <select class="inp" id="dr-link-notes" multiple size="4" style="margin-top:2px">${(D.notes||[]).filter(n=>n.id!==item.id).slice(0,200).map(n=>`<option value="${n.id}" ${(item.linkedNoteIds||[]).includes(n.id)?'selected':''}>${esc(n.title||'(untitled)')}</option>`).join('')||'<option disabled>(no other notes)</option>'}</select>
-        </div>
-      </div>
+    <!-- Linked Items — chip-based picker (same as the Task drawer). The
+         old 4× <select multiple> rendered as if everything was selected
+         (and listed all example data), which read as "every note linked
+         to everything". Hydrated by openDrawer -> _drInitLinks. -->
+    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
+      <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
@@ -2767,7 +2757,7 @@ function _drRenderTaskLinks(){
     {key:'projects',label:'Projects',icon:'📁',source:()=>D.projects||[],labelOf:p=>p.name,filter:()=>true},
     {key:'goals',label:'Goals',icon:'🎯',source:()=>D.goals||[],labelOf:g=>(g.icon||'🎯')+' '+g.title,filter:()=>true},
     {key:'tasks',label:'Other Tasks',icon:'📋',source:()=>D.tasks||[],labelOf:t=>t.title,filter:t=>t.id!==_drLinksHostId&&t.status!=='Done'},
-    {key:'notes',label:'Notes',icon:'📝',source:()=>D.notes||[],labelOf:n=>n.title||'(untitled)',filter:()=>true},
+    {key:'notes',label:'Notes',icon:'📝',source:()=>D.notes||[],labelOf:n=>n.title||'(untitled)',filter:n=>n.id!==_drLinksHostId},
     {key:'bookmarks',label:'Bookmarks',icon:'🔖',source:()=>D.bookmarks||[],labelOf:b=>b.title||b.url||'(untitled)',filter:()=>true},
     {key:'journal',label:'Journal Entries',icon:'📔',source:()=>D.journal||[],labelOf:j=>(j.date||'')+' · '+(j.title||'(untitled)'),filter:()=>true},
   ];
@@ -2824,12 +2814,16 @@ function saveItem(type,id){
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
-    // Persist linked items (#2 fix)
-    const _selVals=sel=>sel?Array.from(sel.selectedOptions).map(o=>parseInt(o.value)).filter(v=>!isNaN(v)):[];
-    n.linkedProjectIds=_selVals(document.getElementById('dr-link-projects'));
-    n.linkedGoalIds=_selVals(document.getElementById('dr-link-goals'));
-    n.linkedTaskIds=_selVals(document.getElementById('dr-link-tasks'));
-    n.linkedNoteIds=_selVals(document.getElementById('dr-link-notes'));
+    // Persist linked items from the chip-based picker state (_drLinks),
+    // only when the picker host matches this note (mirrors the task save).
+    if(_drLinksHostId===id){
+      n.linkedProjectIds=[..._drLinks.projects];
+      n.linkedGoalIds=[..._drLinks.goals];
+      n.linkedTaskIds=[..._drLinks.tasks];
+      n.linkedNoteIds=[..._drLinks.notes];
+      n.linkedBookmarkIds=[..._drLinks.bookmarks];
+      n.linkedJournalIds=[..._drLinks.journal];
+    }
     // Folder assignment
     const folderSel=document.getElementById('dr-folder');
     if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
