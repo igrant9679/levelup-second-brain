@@ -1133,7 +1133,7 @@ function _emojiPickPaintTabs(){
 function _emojiPickRender(){
   const ov=_emojiOv();
   const tabs=EMOJI_CATALOG.map(c=>`<button type="button" data-cat="${c.id}" onclick="_emojiPickSetCat('${c.id}')" style="flex:0 0 auto;height:30px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);background:transparent;color:var(--t2);border-radius:7px;cursor:pointer;white-space:nowrap">${c.label}</button>`).join('');
-  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:min(580px,96vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden">
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:min(580px,96vw);max-height:86dvh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden">
     <div style="display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd1)">
       <span style="font-size:14px;font-weight:700;flex:1">${esc(ov.dataset.title||'Pick an icon')}</span>
       ${_emojiPickAllowClear?`<button type="button" class="btn btn-s" style="font-size:11px;height:28px" onclick="_emojiPickChoose('')">✕ No icon</button>`:''}
@@ -4244,7 +4244,7 @@ function openHomeDashCustomize(){
   const _aiBriefOn=!!(D.prefs&&D.prefs.heroAIBrief);
   const _todLayoutOn=!!(D.prefs&&D.prefs.homeTimeOfDayLayout);
   const _miniWeekOn=!(D.prefs&&D.prefs.miniWeekStrip===false);
-  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw;max-height:90vh;overflow-y:auto">
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:380px;max-width:95vw;max-height:90dvh;overflow-y:auto">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
     <div style="font-size:14px;font-weight:700">⚙️ Customize Dashboard</div>
     <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('home-cust-ov').remove()">✕</button>
@@ -15893,7 +15893,7 @@ function simpleMarkdown(md){
 function renderHelpAskTab(){
   const msgs=_helpAIMessages;
   return `
-<div style="display:flex;flex-direction:column;height:calc(100vh - 280px);min-height:300px">
+<div style="display:flex;flex-direction:column;height:calc(100dvh - 280px);min-height:300px">
   <div id="help-ai-msgs" style="flex:1;overflow-y:auto;padding:4px 0;display:flex;flex-direction:column;gap:10px">
     ${msgs.length===0?`<div style="text-align:center;padding:40px 20px;color:var(--t3)">
       <div style="font-size:32px;margin-bottom:12px">🤖</div>

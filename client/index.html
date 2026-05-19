@@ -88,7 +88,7 @@ body:not(.compact-mode){font-size:15px}
   opacity:0;pointer-events:none;transition:opacity .18s}
 .shortcuts-overlay.show{opacity:1;pointer-events:auto}
 .shortcuts-modal{background:var(--s2);border:1px solid var(--bd2);border-radius:14px;
-  max-width:760px;width:100%;max-height:84vh;overflow-y:auto;
+  max-width:760px;width:100%;max-height:84vh;max-height:84dvh;overflow-y:auto;
   box-shadow:0 24px 64px rgba(0,0,0,.55),0 0 0 1px color-mix(in srgb,var(--page-accent) 22%,transparent);
   transform:scale(.96) translateY(-8px);opacity:0;transition:transform .18s cubic-bezier(.2,.9,.3,1.2),opacity .15s}
 .shortcuts-overlay.show .shortcuts-modal{transform:scale(1) translateY(0);opacity:1}
@@ -179,13 +179,13 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 /* ─── Command Palette (Cmd+K) ─────────────────────────────────────────── */
 .cmdp-overlay{position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);
   backdrop-filter:blur(6px) saturate(1.2);-webkit-backdrop-filter:blur(6px) saturate(1.2);
-  display:flex;align-items:flex-start;justify-content:center;padding-top:13vh;
+  display:flex;align-items:flex-start;justify-content:center;padding-top:13vh;padding-top:13dvh;
   opacity:0;pointer-events:none;transition:opacity .15s ease}
 .cmdp-overlay.show{opacity:1;pointer-events:auto}
 .cmdp{width:min(640px,92vw);background:color-mix(in srgb,var(--s2) 92%,transparent);
   border:1px solid var(--bd2);border-radius:14px;
   box-shadow:0 24px 64px rgba(0,0,0,.55),0 0 0 1px color-mix(in srgb,var(--page-accent) 22%,transparent);
-  overflow:hidden;display:flex;flex-direction:column;max-height:70vh;
+  overflow:hidden;display:flex;flex-direction:column;max-height:70vh;max-height:70dvh;
   transform:scale(.96) translateY(-8px);opacity:0;transition:transform .18s cubic-bezier(.2,.9,.3,1.2),opacity .15s}
 .cmdp-overlay.show .cmdp{transform:scale(1) translateY(0);opacity:1}
 .cmdp-input-row{display:flex;align-items:center;gap:10px;padding:14px 18px;
@@ -521,7 +521,7 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .fa-modal{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:720px;max-width:96vw;display:flex;flex-direction:column;animation:popIn .2s ease;margin:auto}
 .fa-hd{display:flex;align-items:center;gap:8px;padding:16px 20px;border-bottom:1px solid var(--bd1);position:sticky;top:0;background:var(--s1);z-index:2;border-radius:14px 14px 0 0}
 .fa-hd h2{flex:1;font-size:16px;font-weight:700;margin:0}
-.fa-body{padding:20px;overflow-y:auto;max-height:calc(85vh - 120px)}
+.fa-body{padding:20px;overflow-y:auto;max-height:calc(85vh - 120px);max-height:calc(85dvh - 120px)}
 .fa-ft{display:flex;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--bd1);position:sticky;bottom:0;background:var(--s1);z-index:2;border-radius:0 0 14px 14px;justify-content:flex-end}
 .fa-section{margin-bottom:18px}
 .fa-due-chip{font-size:9px;padding:2px 7px;border-radius:3px;border:1px solid var(--bd2);background:var(--s2);color:var(--t2);cursor:pointer;transition:background .15s,color .15s;white-space:nowrap}
@@ -2376,7 +2376,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div>
 <!-- DAILY DIGEST MODAL -->
 <div id="digest-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
-  <div style="background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:min(480px,96vw);max-height:80vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.6);padding:0">
+  <div style="background:var(--s1);border:1px solid var(--bd2);border-radius:16px;width:min(480px,96vw);max-height:80dvh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.6);padding:0">
     <div style="padding:18px 20px 14px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between">
       <div><div style="font-size:16px;font-weight:700">☀️ Good morning!</div><div id="digest-date" style="font-size:11px;color:var(--t3);margin-top:2px"></div></div>
       <button class="close" onclick="closeDigest()">✕</button>
@@ -2403,7 +2403,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-23';
+  var APP_BUILD='2026-05-19-1';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
