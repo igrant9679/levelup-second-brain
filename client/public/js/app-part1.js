@@ -953,6 +953,131 @@ function applyThemePreset(preset){
   if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
   toast(`${preset.emoji||'🎨'} Applied: ${preset.name}`);
 }
+
+// ───────────────────────── Universal icon / emoji picker ─────────────────────────
+// One picker reused everywhere an icon/symbol can be assigned: Projects, Notes,
+// Clusters, Goals, Habits, Note folders, quick-capture forms. Renders its own
+// top-level overlay (z-index above every drawer/modal) so it can be opened from
+// inside another drawer or modal and stack cleanly on top.
+const EMOJI_CATALOG=[
+  {id:'fav',label:'⭐ Popular',e:`⭐ 🌟 ✨ 🔥 🚀 🎯 💡 ✅ ✔️ ❤️ 📌 📍 🏆 🥇 💎 👑 🎉 🎁 🔑 🔒 🧠 💪 👀 👍 🙌 🙏 💯 ⚡ 🌈 ☀️ 🌙 ⏰ 📅 📆 🗓️ 📝 📒 📔 📚 📖 ✏️ 🖊️ 🗂️ 📁 📂 🗄️ 📦 🏠 🏢 💼 💰 💵 💳 📈 📉 📊 🧩 🔧 🛠️ ⚙️ 🔬 🔭 🧪 🩺 🎨 🎵 🎬 📷 🎮 ☕ 🍎 🌱 🌳 🐶 🐱 ✈️ 🚗 🌍 ⚽ 🏋️ 🧘 🛒 🔔 💬 📧 📞 ❓ ❗ ➕ ➖ ✖️ ♻️ 🚩 🏁 🎓 🛡️ 🧭 🤖`},
+  {id:'smile',label:'😀 Smileys',e:`😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😋 😛 😜 🤪 😎 🥳 🤓 🧐 🤔 🤨 😐 😏 😒 🙄 😬 😌 😔 😪 😴 😷 🤒 🤕 🤢 🤮 🥵 🥶 😵 🤯 🤠 😈 👿 👻 💀 ☠️ 👽 👾 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾`},
+  {id:'people',label:'🙌 People',e:`👋 🤚 ✋ 🖖 👌 🤏 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 👐 🤲 🙏 ✍️ 💅 🤳 💪 🦾 🦵 🦶 👂 👃 🧠 🫀 🫁 🦷 🦴 👀 👁️ 👅 👄 👶 🧒 👦 👧 🧑 👨 👩 🧓 👴 👵 🧔 👮 🕵️ 💂 👷 🤴 👸 🤵 👰 🤰 🤱 👼 🎅 🤶 🦸 🦹 🧙 🧚 🧛 🧜 🧝 🧞 🧟 💆 💇 🚶 🏃 💃 🕺 🧘`},
+  {id:'nature',label:'🐶 Nature',e:`🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🐛 🦋 🐌 🐞 🐜 🦗 🕷️ 🦂 🐢 🐍 🦎 🦖 🦕 🐙 🦑 🦐 🦀 🐡 🐠 🐟 🐬 🐳 🐋 🦈 🐊 🐅 🐆 🦓 🦍 🐘 🦏 🐪 🐫 🦒 🦘 🐃 🐂 🐄 🐎 🐖 🐏 🐑 🐐 🦌 🐕 🐈 🐓 🦃 🦚 🦜 🦢 🕊️ 🐇 🐁 🐀 🐿️ 🦔 🐾 🐉 🌵 🎄 🌲 🌳 🌴 🌱 🌿 ☘️ 🍀 🎍 🎋 🍃 🍂 🍁 🍄 🐚 🌾 💐 🌷 🌹 🥀 🌺 🌸 🌼 🌻 🌞 🌝 🌛 🌜 🌚 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔 🌙 🌎 🌍 🌏 🪐 💫 ⭐ 🌟 ✨ ⚡ ☄️ 💥 🔥 🌪️ 🌈 ☀️ 🌤️ ⛅ 🌥️ ☁️ 🌦️ 🌧️ ⛈️ 🌩️ 🌨️ ❄️ ☃️ ⛄ 🌬️ 💨 💧 💦 ☔ 🌊`},
+  {id:'food',label:'🍎 Food',e:`🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🌽 🥕 🧄 🧅 🥔 🍠 🥐 🥯 🍞 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🥪 🌮 🌯 🥗 🥘 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🍤 🍙 🍚 🍘 🍥 🥠 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🌰 🥜 🍯 🥛 🍼 ☕ 🍵 🧃 🥤 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🧉 🍾 🧊 🥄 🍴 🍽️`},
+  {id:'activity',label:'⚽ Activity',e:`⚽ 🏀 🏈 ⚾ 🥎 🎾 🏐 🏉 🥏 🎱 🪀 🏓 🏸 🏒 🏑 🥍 🏏 🥅 ⛳ 🪁 🏹 🎣 🤿 🥊 🥋 🎽 🛹 🛷 ⛸️ 🥌 🎿 ⛷️ 🏂 🪂 🏋️ 🤼 🤸 ⛹️ 🤺 🤾 🏌️ 🏇 🧘 🏄 🏊 🤽 🚣 🧗 🚵 🚴 🏆 🥇 🥈 🥉 🏅 🎖️ 🏵️ 🎗️ 🎫 🎟️ 🎪 🤹 🎭 🩰 🎨 🎬 🎤 🎧 🎼 🎹 🥁 🎷 🎺 🎸 🪕 🎻 🎲 ♟️ 🎯 🎳 🎮 🎰 🧩`},
+  {id:'travel',label:'✈️ Travel',e:`🚗 🚕 🚙 🚌 🚎 🏎️ 🚓 🚑 🚒 🚐 🚚 🚛 🚜 🛴 🚲 🛵 🏍️ 🛺 🚨 🚔 🚍 🚘 🚖 🚡 🚠 🚟 🚃 🚋 🚞 🚝 🚄 🚅 🚈 🚂 🚆 🚇 🚊 🚉 ✈️ 🛫 🛬 🛩️ 💺 🛰️ 🚀 🛸 🚁 🛶 ⛵ 🚤 🛥️ 🛳️ ⛴️ 🚢 ⚓ ⛽ 🚧 🚦 🚥 🚏 🗺️ 🗿 🗽 🗼 🏰 🏯 🏟️ 🎡 🎢 🎠 ⛲ ⛱️ 🏖️ 🏝️ 🏜️ 🌋 ⛰️ 🏔️ 🗻 🏕️ ⛺ 🏠 🏡 🏘️ 🏚️ 🏗️ 🏭 🏢 🏬 🏣 🏥 🏦 🏨 🏪 🏫 🏩 💒 🏛️ ⛪ 🕌 🕍 🛕 🕋 ⛩️ 🛤️ 🛣️ 🗾 🌅 🌄 🌠 🎇 🎆 🌇 🌆 🏙️ 🌃 🌌 🌉 🌁`},
+  {id:'objects',label:'💡 Objects',e:`⌚ 📱 💻 ⌨️ 🖥️ 🖨️ 🖱️ 🕹️ 💽 💾 💿 📀 📼 📷 📸 📹 🎥 📽️ 🎞️ 📞 ☎️ 📟 📠 📺 📻 🎙️ ⏱️ ⏲️ ⏰ 🕰️ ⌛ ⏳ 📡 🔋 🔌 💡 🔦 🕯️ 🧯 🛢️ 💸 💵 💴 💶 💷 💰 💳 🧾 💎 ⚖️ 🧰 🔧 🔨 ⚒️ 🛠️ ⛏️ 🔩 ⚙️ 🧱 ⛓️ 🧲 🔫 💣 🧨 🪓 🔪 🗡️ ⚔️ 🛡️ 🚬 ⚰️ ⚱️ 🏺 🔮 📿 🧿 💈 ⚗️ 🔭 🔬 🕳️ 🩹 🩺 💊 💉 🩸 🧬 🦠 🧫 🧪 🌡️ 🧹 🧺 🧻 🚽 🚿 🛁 🛀 🧼 🪥 🧽 🪣 🔑 🗝️ 🚪 🪑 🛋️ 🛏️ 🧸 🖼️ 🛍️ 🛒 🎁 🎈 🎀 🎊 🎉 🪔 🏮 ✉️ 📩 📨 📧 💌 📥 📦 📫 📪 📬 📭 📮 🗳️ ✏️ ✒️ 🖋️ 🖊️ 🖌️ 🖍️ 📝 💼 📁 📂 🗂️ 📅 📆 🗒️ 🗓️ 📇 📈 📉 📊 📋 📌 📍 📎 🖇️ 📏 📐 ✂️ 🗃️ 🗄️ 🗑️ 🔒 🔓 🔏 🔐`},
+  {id:'symbols',label:'❤️ Symbols',e:`❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ☮️ ✝️ ☪️ 🕉️ ☸️ ✡️ 🔯 🕎 ☯️ ☦️ 🛐 ⛎ ♈ ♉ ♊ ♋ ♌ ♍ ♎ ♏ ♐ ♑ ♒ ♓ 🆔 ⚛️ 🉑 ☢️ ☣️ ✴️ 🆚 💮 🉐 ㊙️ ㊗️ 🈴 🈵 🈹 🈲 🅰️ 🅱️ 🆎 🆑 🅾️ 🆘 ❌ ⭕ 🛑 ⛔ 📛 🚫 💯 💢 ♨️ 🔞 ❗ ❕ ❓ ❔ ‼️ ⁉️ 🔅 🔆 〽️ ⚠️ 🚸 🔱 ⚜️ 🔰 ♻️ ✅ 🈯 💹 ❇️ ✳️ ❎ 🌐 💠 Ⓜ️ 🌀 💤 🏧 🚾 ♿ 🅿️ 🛗 🈳 🈂️ 🛂 🛃 🛄 🛅 🚹 🚺 🚼 🚻 🚮 🎦 📶 🈁 🔣 ℹ️ 🔤 🔡 🔠 🆖 🆗 🆙 🆒 🆕 🆓 0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🔢 #️⃣ *️⃣ ⏏️ ▶️ ⏸️ ⏯️ ⏹️ ⏺️ ⏭️ ⏮️ ⏩ ⏪ ⏫ ⏬ ◀️ 🔼 🔽 ➡️ ⬅️ ⬆️ ⬇️ ↗️ ↘️ ↙️ ↖️ ↕️ ↔️ ↩️ ↪️ ⤴️ ⤵️ 🔀 🔁 🔂 🔄 🔃 ➕ ➖ ➗ ✖️ ♾️ 💲 💱 ™️ ©️ ®️ 〰️ ➰ ➿ 🔚 🔙 🔛 🔝 🔜 ✔️ ☑️ 🔘 🔴 🟠 🟡 🟢 🔵 🟣 ⚫ ⚪ 🟤 🔺 🔻 🔸 🔹 🔶 🔷 🔳 🔲 ▪️ ▫️ ◾ ◽ ◼️ ◻️ 🟥 🟧 🟨 🟩 🟦 🟪 ⬛ ⬜ 🟫 🔈 🔇 🔉 🔊 🔔 🔕 📣 📢 💬 💭 🗯️ ♠️ ♣️ ♥️ ♦️ 🃏 🀄 🕐 🕑 🕒 🕓 🕔 🕕`},
+];
+const _EMOJI_KW={
+  '🚀':'rocket launch ship startup fast','🎯':'target goal aim focus','💡':'idea light bulb tip','🔥':'fire hot trending streak',
+  '⭐':'star favorite','🌟':'star sparkle glow','✨':'sparkle shine magic new','✅':'check done complete task','✔️':'check done tick',
+  '❤️':'heart love like','📌':'pin pinned save','📍':'pin location place map','🏆':'trophy win award winner','🥇':'medal gold first',
+  '💎':'diamond gem premium quality','👑':'crown king vip best','🎉':'party celebrate done launch','🎁':'gift present reward','🔑':'key access login secret',
+  '🔒':'lock secure private safe','🧠':'brain mind think learn idea','💪':'muscle strong strength gym power','👀':'eyes look watch review',
+  '👍':'thumbs up good approve like','🙏':'pray thanks please hope','💯':'hundred perfect score','⚡':'bolt energy power fast quick',
+  '🌈':'rainbow color pride','☀️':'sun day weather bright','🌙':'moon night sleep','⏰':'alarm clock time reminder',
+  '📅':'calendar date schedule plan','📆':'calendar date','🗓️':'calendar planner schedule','📝':'memo note write task','📒':'notebook journal log',
+  '📚':'books library learn study','📖':'book read open story','✏️':'pencil write edit','🖊️':'pen write sign','🗂️':'folders files organize sort',
+  '📁':'folder directory group','📂':'folder open','🗄️':'cabinet archive files store','📦':'box package archive ship','🏠':'home house main',
+  '🏢':'office building company work','💼':'briefcase work business job','💰':'money bag finance budget save','💵':'cash money dollar',
+  '💳':'card credit payment buy','📈':'chart up growth stats gain','📉':'chart down loss stats drop','📊':'bar chart stats report data',
+  '🧩':'puzzle piece solve part','🔧':'wrench tool fix settings','🛠️':'tools build fix maintain','⚙️':'gear settings config system',
+  '🔬':'microscope research science lab','🔭':'telescope research vision future','🧪':'test tube experiment science','🩺':'health medical doctor care',
+  '🎨':'art design palette paint create','🎵':'music note song audio','🎬':'movie film video','📷':'camera photo picture','🎮':'game gaming play fun',
+  '☕':'coffee break cafe morning','🍎':'apple fruit food health','🌱':'seedling grow plant new start','🌳':'tree nature grow evergreen',
+  '🐶':'dog pet animal','🐱':'cat pet animal','✈️':'plane travel flight trip','🚗':'car drive travel commute','🌍':'earth world global map',
+  '⚽':'soccer ball sport football','🏋️':'gym workout fitness lift exercise','🧘':'yoga meditate calm mindful zen','🛒':'cart shopping buy store',
+  '🔔':'bell notification alert remind','💬':'chat message comment talk','📧':'email mail message inbox','📞':'phone call contact',
+  '❓':'question help unknown ask','❗':'exclamation important alert','➕':'plus add new create','➖':'minus remove subtract','✖️':'multiply close x cancel',
+  '♻️':'recycle reuse eco green','🚩':'flag milestone mark report','🏁':'flag finish goal done race','💀':'skull danger dead risk','👻':'ghost spooky',
+  '🤖':'robot bot ai automation','🌵':'cactus plant desert','🍕':'pizza food meal','🎓':'graduation school education learn degree',
+  '🛡️':'shield security protect defend safe','🧭':'compass navigate direction explore','🪐':'planet space cosmos','🌊':'wave water ocean sea flow',
+};
+let _emojiPickCb=null,_emojiPickCat='fav',_emojiPickQuery='',_emojiPickAllowClear=true;
+function _emojiOv(){
+  let ov=document.getElementById('lu-emoji-ov');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='lu-emoji-ov';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(3px)';
+    ov.onclick=function(e){if(e.target===ov)_emojiPickClose();};
+    document.body.appendChild(ov);
+  }
+  return ov;
+}
+function openEmojiPicker(opts){
+  opts=opts||{};
+  _emojiPickCb=typeof opts.onPick==='function'?opts.onPick:null;
+  _emojiPickQuery='';
+  _emojiPickAllowClear=opts.allowClear!==false;
+  _emojiPickCat='fav';
+  const ov=_emojiOv();
+  ov.dataset.title=opts.title||'Pick an icon';
+  ov.style.display='flex';
+  _emojiPickRender();
+  setTimeout(function(){const s=document.getElementById('lu-emoji-search');if(s)s.focus();},60);
+}
+function _emojiPickClose(){const ov=document.getElementById('lu-emoji-ov');if(ov)ov.style.display='none';_emojiPickCb=null;}
+function _emojiPickChoose(e){const cb=_emojiPickCb;_emojiPickClose();if(cb)try{cb(e);}catch(_){}}
+function _emojiPickSetCat(c){_emojiPickCat=c;_emojiPickQuery='';const s=document.getElementById('lu-emoji-search');if(s)s.value='';_emojiPickRender();}
+function _emojiPickSearch(v){_emojiPickQuery=(v||'').trim().toLowerCase();_emojiPickGrid();_emojiPickPaintTabs();}
+function _emojiPickList(){
+  const split=s=>s.split(/\s+/).filter(Boolean);
+  if(_emojiPickQuery){
+    const q=_emojiPickQuery,seen={},out=[];
+    EMOJI_CATALOG.forEach(c=>{
+      split(c.e).forEach(em=>{
+        if(seen[em])return;
+        const kw=_EMOJI_KW[em]||'';
+        if(kw.indexOf(q)>=0||c.label.toLowerCase().indexOf(q)>=0){seen[em]=1;out.push(em);}
+      });
+    });
+    return out;
+  }
+  const cat=EMOJI_CATALOG.find(c=>c.id===_emojiPickCat)||EMOJI_CATALOG[0];
+  return split(cat.e);
+}
+function _emojiPickGrid(){
+  const g=document.getElementById('lu-emoji-grid');if(!g)return;
+  const list=_emojiPickList();
+  g.innerHTML=list.length
+    ? list.map(em=>`<button type="button" title="${esc(em)}" onclick="_emojiPickChoose('${em}')" style="font-size:22px;line-height:1;height:42px;width:42px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s,transform .1s" onmouseover="this.style.background='var(--s3)';this.style.transform='scale(1.12)'" onmouseout="this.style.background='transparent';this.style.transform='scale(1)'">${em}</button>`).join('')
+    : `<div style="grid-column:1/-1;padding:24px;text-align:center;font-size:12px;color:var(--t3)">No matches. Try another word, or browse a category above.</div>`;
+}
+function _emojiPickPaintTabs(){
+  document.querySelectorAll('#lu-emoji-tabs [data-cat]').forEach(b=>{
+    const on=!_emojiPickQuery&&b.dataset.cat===_emojiPickCat;
+    b.style.border='1px solid '+(on?'var(--ac)':'var(--bd2)');
+    b.style.background=on?'var(--ac)':'transparent';
+    b.style.color=on?'#fff':'var(--t2)';
+  });
+}
+function _emojiPickRender(){
+  const ov=_emojiOv();
+  const tabs=EMOJI_CATALOG.map(c=>`<button type="button" data-cat="${c.id}" onclick="_emojiPickSetCat('${c.id}')" style="flex:0 0 auto;height:30px;padding:0 10px;font-size:11px;border:1px solid var(--bd2);background:transparent;color:var(--t2);border-radius:7px;cursor:pointer;white-space:nowrap">${c.label}</button>`).join('');
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:min(580px,96vw);max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.55);overflow:hidden">
+    <div style="display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--bd1)">
+      <span style="font-size:14px;font-weight:700;flex:1">${esc(ov.dataset.title||'Pick an icon')}</span>
+      ${_emojiPickAllowClear?`<button type="button" class="btn btn-s" style="font-size:11px;height:28px" onclick="_emojiPickChoose('')">✕ No icon</button>`:''}
+      <button type="button" class="btn btn-s" style="font-size:13px;height:28px;width:30px;padding:0" onclick="_emojiPickClose()" title="Cancel">✕</button>
+    </div>
+    <div style="padding:10px 16px 6px"><input id="lu-emoji-search" class="inp" placeholder="🔍 Search — rocket, money, idea, calendar…" oninput="_emojiPickSearch(this.value)" style="width:100%"></div>
+    <div id="lu-emoji-tabs" style="display:flex;gap:5px;overflow-x:auto;padding:4px 16px 10px;border-bottom:1px solid var(--bd1)">${tabs}</div>
+    <div id="lu-emoji-grid" style="padding:12px 14px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:4px;align-content:start"></div>
+  </div>`;
+  _emojiPickGrid();_emojiPickPaintTabs();
+}
+// Field helper: a hidden input (keeps the id the caller's save logic already
+// reads) + a button that shows the current glyph and opens the picker.
+function _iconPickBtn(inputId,current,placeholder){
+  current=current||'';
+  const safe=esc(current);
+  return `<input type="hidden" id="${inputId}" value="${safe}">`+
+  `<button type="button" id="${inputId}-btn" class="btn btn-s" onclick="openEmojiPicker({title:'Choose an icon',current:document.getElementById('${inputId}').value,onPick:function(e){var i=document.getElementById('${inputId}');if(i)i.value=e;var b=document.getElementById('${inputId}-btn');if(b){var c=b.querySelector('.lu-ip-cur'),p=b.querySelector('.lu-ip-ph');if(c)c.textContent=e||'';if(p)p.style.display=e?'none':'';}}})" style="display:inline-flex;align-items:center;gap:7px;height:36px;min-width:64px;padding:0 12px;font-size:20px;justify-content:center;cursor:pointer">`+
+  `<span class="lu-ip-cur">${safe}</span><span class="lu-ip-ph" style="font-size:11px;color:var(--t3);${current?'display:none':''}">${esc(placeholder||'Pick…')}</span></button>`;
+}
 function saveThemeAsProfile(){
   const name=prompt('Name this profile (e.g. "Morning Focus", "Evening Wind-down"):','');
   if(!name||!name.trim())return;
@@ -2336,8 +2461,9 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
    if(type==='note'){
-    return `<h2>\ud83d\udcdd Edit Note ${pinBtn('note',item.id)}${cb}</h2>
+    return `<h2>${item.icon?esc(item.icon)+' ':'\ud83d\udcdd '}Edit Note ${pinBtn('note',item.id)}${cb}</h2>
     <div class="field-row" style="align-items:flex-end">
+      <div class="field" style="flex:0 0 auto"><label>Icon</label>${_iconPickBtn('dr-note-icon',item.icon||'','Pick\u2026')}</div>
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
@@ -2413,8 +2539,9 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='project'){
-    return `<h2>📁 Edit Project ${cb}</h2>
-    <div class="field"><label>Name</label><input class="inp" value="${esc(item.name)}" id="dr-title"></div>
+    return `<h2>${item.icon?esc(item.icon)+' ':'📁 '}Edit Project ${cb}</h2>
+    <div class="field-row" style="align-items:flex-end"><div class="field" style="flex:0 0 auto"><label>Icon</label>${_iconPickBtn('dr-proj-icon',item.icon||'','Pick…')}</div>
+    <div class="field" style="flex:1"><label>Name</label><input class="inp" value="${esc(item.name)}" id="dr-title"></div></div>
     <div class="field-row"><div class="field"><label>Color</label><input type="color" value="${item.color}" id="dr-color" style="height:32px;width:60px;border:none;background:none;cursor:pointer"></div>
     <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div></div>
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
@@ -2430,7 +2557,7 @@ function renderDrawer(type,item){
     return `<h2>🎯 Edit Goal ${pinBtn('goal',item.id)}${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field-row">
-      <div class="field"><label>Icon</label><input class="inp" value="${item.icon}" id="dr-icon" style="width:60px"></div>
+      <div class="field"><label>Icon</label>${_iconPickBtn('dr-icon',item.icon||'🎯','Pick…')}</div>
       <div class="field"><label>Category</label><select class="inp" id="dr-category"><option ${(item.category||'')==='Work'?'selected':''}>Work</option><option ${item.category==='Learning'?'selected':''}>Learning</option><option ${item.category==='Health'?'selected':''}>Health</option><option ${item.category==='Personal Brand'?'selected':''}>Personal Brand</option><option ${item.category==='Finance'?'selected':''}>Finance</option><option ${item.category==='Personal'?'selected':''}>Personal</option></select></div>
       <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div>
     </div>
@@ -2829,7 +2956,7 @@ function saveItem(type,id){
     }
     save('tasks');
   }}
-  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
+  if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
     // Persist linked items from the chip-based picker state (_drLinks),
     // only when the picker host matches this note (mirrors the task save).
     if(_drLinksHostId===id){
@@ -2844,7 +2971,7 @@ function saveItem(type,id){
     const folderSel=document.getElementById('dr-folder');
     if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
     n.updated='Just now';save('notes')}}
-  if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
+  if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
     g.icon=$('#dr-icon').value;
@@ -2961,7 +3088,7 @@ function renderCaptureModal(active){
   if(active==='Goal'){
     return `<h2>🎯 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Icon (emoji)</label><input class="inp" placeholder="🚀" id="cap-icon" value="🎯"></div>
+    <div class="field"><label>Icon</label>${_iconPickBtn('cap-icon','🎯','Pick…')}</div>
     <div class="field"><label>Target description</label><input class="inp" placeholder="e.g. 5 of 12 done" id="cap-target"></div></div>${footer}`;
   }
   if(active==='Journal'){
@@ -4384,7 +4511,7 @@ function renderHome(){
         }
         const top=arr.slice(0,5);
         const modeLabel=(_homeCardModes.projects.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
       })(),
       goals:renderGoalCards(3),
       focus:(()=>{
@@ -5786,7 +5913,7 @@ function openClusterModal(id){
     <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>
     <div class="field-row">
       <div class="field" style="flex:1"><label>Name</label><input id="cl-name" class="inp" value="${esc(cl?.name||'')}" placeholder="Cluster name"></div>
-      <div class="field"><label>Icon</label><input id="cl-icon" class="inp" value="${cl?.icon||'📁'}" placeholder="Emoji" style="width:70px;text-align:center"></div>
+      <div class="field"><label>Icon</label>${_iconPickBtn('cl-icon',cl?.icon||'📁','Pick…')}</div>
       <div class="field"><label>Color</label><input id="cl-color" type="color" value="${cl?.color||'#3B82F6'}" style="width:60px;height:32px;padding:2px;border:1px solid var(--bd2);border-radius:6px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -6173,6 +6300,10 @@ function renameNoteFolder(id){
   const f=_noteFolderById(id);if(!f)return;
   const name=prompt('Rename folder:',f.name);if(!name||!name.trim())return;
   f.name=name.trim();save('prefs');renderNotes();
+}
+function changeNoteFolderIcon(id){
+  const f=_noteFolderById(id);if(!f)return;
+  openEmojiPicker({title:`Icon for "${f.name}"`,current:f.icon||'📁',onPick:function(e){f.icon=e||'📁';save('prefs');renderNotes();}});
 }
 function deleteNoteFolder(id){
   const f=_noteFolderById(id);if(!f)return;
@@ -6977,7 +7108,7 @@ function applyNotesFilters(){
         ${bulkCb}
         ${colorDot}
         <div class="nc-body">
-          <div class="nc-t">${pin}${hi(n.title)||'<span style="color:var(--t3)">Untitled</span>'}</div>
+          <div class="nc-t">${pin}${n.icon?esc(n.icon)+' ':''}${hi(n.title)||'<span style="color:var(--t3)">Untitled</span>'}</div>
           ${snippet?`<div class="nc-snip">${snippet}</div>`:''}
           ${(n.tags||[]).length?`<div class="nc-tg">${(n.tags||[]).slice(0,4).map(t=>`<span>${_notesFilterTags.has(t.toLowerCase())?`<b style="color:var(--ac)">#${esc(t)}</b>`:`#${esc(t)}`}</span>`).join('')}</div>`:''}
           <div class="nc-m">${metaBits.join('')}</div>
@@ -7644,6 +7775,7 @@ function renderNotes(){
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
           <span style="font-size:9px;color:var(--t3);flex-shrink:0">${count}</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();addNoteFolder(${f.id})" title="Add subfolder">+</span>
+          <span class="nn-folder-act" onclick="event.stopPropagation();changeNoteFolderIcon(${f.id})" title="Change icon">🎨</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();renameNoteFolder(${f.id})" title="Rename">✏</span>
           <span class="nn-folder-act nn-folder-del" onclick="event.stopPropagation();deleteNoteFolder(${f.id})" title="Delete">×</span>
         </div>${hasChildren?renderTree(f.id,depth+1):''}`;
@@ -8186,7 +8318,7 @@ function renderNoteEditor(n){
     </div>
     <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
-  <div class="note-title" ondblclick="toggleNoteInlineEdit(${n.id})">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};margin-right:10px;vertical-align:middle"></span>`:''}${esc(n.title||'Untitled')}</div>
+  <div class="note-title" ondblclick="toggleNoteInlineEdit(${n.id})">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};margin-right:10px;vertical-align:middle"></span>`:''}${n.icon?esc(n.icon)+' ':''}${esc(n.title||'Untitled')}</div>
   <div class="note-props">
     <div class="k">◇ Status</div>
     <div class="v"><div style="position:relative;display:inline-block">
@@ -8447,7 +8579,7 @@ function renderProjectsList(header){
       <div class="pc-head">
         <span class="pc-dot" style="background:${p.color}"></span>
         <span class="pc-star" onclick="_projToggleStar(${p.id},event)" title="${p.pinned?'Unpin':'Pin to top'}" style="${p.pinned?'color:var(--warn)':'color:var(--t3)'}">${p.pinned?'★':'☆'}</span>
-        <span class="pc-name" style="${p.archived?'text-decoration:line-through':''}">${esc(p.name||'Untitled project')}</span>
+        <span class="pc-name" style="${p.archived?'text-decoration:line-through':''}">${p.icon?esc(p.icon)+' ':''}${esc(p.name||'Untitled project')}</span>
       </div>
       <div class="pc-pills">
         <span class="pc-health" style="color:${health.color};background:color-mix(in srgb,${health.color} 16%,transparent)">${health.icon} ${health.label}</span>
@@ -8548,7 +8680,7 @@ function openProjectDetail(pid){
       </div>
       ${sb.length?`<div style="padding-left:24px;font-size:10px;color:var(--t3)">${sd}/${sb.length} subtasks</div>`:''}
     </div>`}).join('');
-  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span>${p.icon?`<span style="font-size:18px;flex-shrink:0">${esc(p.icon)}</span>`:''}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
     <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${health.color};font-weight:700">${health.icon} ${health.label}</span>
     <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
@@ -8592,7 +8724,7 @@ function renderProjectsKanban(header){
     return`<div style="flex:1;min-width:180px;max-width:260px">
       <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:10px;color:var(--t3)">(${ps.length})</span></div>
       ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})">
-        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="cursor:pointer;font-size:13px;${p.pinned?'color:var(--warn)':'color:var(--t3)'}" onclick="_projToggleStar(${p.id},event)">${p.pinned?'★':'☆'}</span><span style="font-size:12px;font-weight:500;flex:1">${esc(p.name)}</span></div>
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="cursor:pointer;font-size:13px;${p.pinned?'color:var(--warn)':'color:var(--t3)'}" onclick="_projToggleStar(${p.id},event)">${p.pinned?'★':'☆'}</span><span style="font-size:12px;font-weight:500;flex:1">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span></div>
         <div style="font-size:10px;color:var(--t3)">Due ${p.due||'—'} · ${p.pct||0}%</div>
         <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div>
       </div>`).join('')}
@@ -14632,7 +14764,7 @@ function openHabitDrawer(hid){
   d.innerHTML=`<h2>${isNew?'+ New Habit':h.icon+' Edit Habit'} <button class="close" onclick="closeDrawer()">✕</button></h2>
   <div class="field"><label>Title</label><input class="inp" value="${esc(h?.title||'')}" id="hdr-title"></div>
   <div class="field-row">
-    <div class="field"><label>Icon (emoji)</label><input class="inp" value="${h?.icon||'✅'}" id="hdr-icon" style="width:60px"></div>
+    <div class="field"><label>Icon</label>${_iconPickBtn('hdr-icon',h?.icon||'✅','Pick…')}</div>
     <div class="field"><label>Category</label><select class="inp" id="hdr-cat"><option ${(h?.category||'')==='Mindfulness'?'selected':''}>Mindfulness</option><option ${h?.category==='Health'?'selected':''}>Health</option><option ${h?.category==='Learning'?'selected':''}>Learning</option><option ${h?.category==='Productivity'?'selected':''}>Productivity</option><option ${h?.category==='Reflection'?'selected':''}>Reflection</option><option ${h?.category==='Finance'?'selected':''}>Finance</option><option ${h?.category==='Social'?'selected':''}>Social</option></select></div>
   </div>
   <div class="field-row">
