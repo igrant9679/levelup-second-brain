@@ -744,6 +744,82 @@ const THEME_PRESETS=[
     bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
     brd:'rgba(0,0,0,.10)',
   }},
+  // ── 5 more dark presets ──
+  {id:'_ocean',name:'Ocean Deep',emoji:'🌊',theme:{
+    bg:'#06141F',s1:'#0A1B29',s2:'#0F2536',s3:'#163349',s4:'#1F4861',
+    ac:'#14b8a6',ach:'#2dd4bf',acs:'rgba(20,184,166,.18)',
+    t1:'#E0F2F1',t2:'#7FB8B5',
+  }},
+  {id:'_crimson',name:'Crimson Night',emoji:'🩸',theme:{
+    bg:'#140A0C',s1:'#1C0E11',s2:'#261318',s3:'#371A20',s4:'#4A222A',
+    ac:'#ef4444',ach:'#f87171',acs:'rgba(239,68,68,.18)',
+    t1:'#FCEBEB',t2:'#D49AA0',
+  }},
+  {id:'_amethyst',name:'Amethyst',emoji:'🔮',theme:{
+    bg:'#120A22',s1:'#190F2E',s2:'#22153B',s3:'#301E52',s4:'#3F2A6B',
+    ac:'#a855f7',ach:'#c084fc',acs:'rgba(168,85,247,.18)',
+    t1:'#F2EBFF',t2:'#B69FD8',
+  }},
+  {id:'_slate',name:'Slate Pro',emoji:'🪨',theme:{
+    bg:'#0E1217',s1:'#141A21',s2:'#1B232C',s3:'#26313D',s4:'#33414F',
+    ac:'#38bdf8',ach:'#7dd3fc',acs:'rgba(56,189,248,.16)',
+    t1:'#E8EDF2',t2:'#94A3B8',
+  }},
+  {id:'_carbon',name:'Carbon (OLED)',emoji:'⬛',theme:{
+    bg:'#000000',s1:'#070707',s2:'#0E0E0E',s3:'#171717',s4:'#222222',
+    ac:'#3b82f6',ach:'#60a5fa',acs:'rgba(59,130,246,.20)',
+    t1:'#F5F5F5',t2:'#9CA3AF',
+  }},
+  // ── 7 more light presets ──
+  {id:'_cloud',name:'Cloud (Light)',emoji:'☁️',theme:{
+    bg:'#F4F6FA',s1:'#FFFFFF',s2:'#FAFBFD',s3:'#EEF1F6',s4:'#E2E7EF',
+    ac:'#3b82f6',ach:'#60a5fa',acs:'rgba(59,130,246,.14)',
+    t1:'#0F172A',t2:'#475569',t3:'#94A3B8',t4:'#CBD5E1',
+    bd1:'rgba(0,0,0,.06)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+  {id:'_sand',name:'Sand (Light)',emoji:'🏜️',theme:{
+    bg:'#FBF6EE',s1:'#FFFDF8',s2:'#F5EDDF',s3:'#EEE2CC',s4:'#E2D2B2',
+    ac:'#d97706',ach:'#f59e0b',acs:'rgba(217,119,6,.15)',
+    t1:'#3A2E1A',t2:'#6B5A3C',t3:'#94815C',t4:'#BFAE86',
+    bd1:'rgba(0,0,0,.07)',bd2:'rgba(0,0,0,.11)',bd3:'rgba(0,0,0,.17)',
+    brd:'rgba(0,0,0,.11)',
+  }},
+  {id:'_mint',name:'Mint (Light)',emoji:'🌿',theme:{
+    bg:'#F1FAF5',s1:'#FFFFFF',s2:'#E9F6EE',s3:'#DCEFE3',s4:'#C7E4D2',
+    ac:'#059669',ach:'#10b981',acs:'rgba(5,150,105,.14)',
+    t1:'#0F2A1E',t2:'#3D6354',t3:'#6E8E7F',t4:'#9DB8AC',
+    bd1:'rgba(0,0,0,.06)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+  {id:'_sky',name:'Sky (Light)',emoji:'🌤️',theme:{
+    bg:'#EFF6FD',s1:'#FFFFFF',s2:'#E6F1FB',s3:'#D7E8F6',s4:'#C2DBEF',
+    ac:'#0284c7',ach:'#0ea5e9',acs:'rgba(2,132,199,.14)',
+    t1:'#0C2433',t2:'#37536A',t3:'#6586A0',t4:'#9BB6CB',
+    bd1:'rgba(0,0,0,.06)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+  {id:'_blush',name:'Blush (Light)',emoji:'🌸',theme:{
+    bg:'#FDF2F6',s1:'#FFFFFF',s2:'#FBE8EF',s3:'#F6D9E4',s4:'#EFC3D5',
+    ac:'#db2777',ach:'#ec4899',acs:'rgba(219,39,119,.13)',
+    t1:'#33121F',t2:'#6B3B4D',t3:'#9C6B7C',t4:'#C99FAD',
+    bd1:'rgba(0,0,0,.06)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
+  {id:'_sollight',name:'Solarized Light',emoji:'🔆',theme:{
+    bg:'#FDF6E3',s1:'#FFFCF0',s2:'#EEE8D5',s3:'#E3DCC4',s4:'#D6CFB4',
+    ac:'#268BD2',ach:'#3a9fe0',acs:'rgba(38,139,210,.15)',
+    t1:'#073642',t2:'#586E75',t3:'#839496',t4:'#93A1A1',
+    bd1:'rgba(101,123,131,.14)',bd2:'rgba(101,123,131,.22)',bd3:'rgba(101,123,131,.30)',
+    brd:'rgba(101,123,131,.22)',
+  }},
+  {id:'_lavender',name:'Lavender (Light)',emoji:'💜',theme:{
+    bg:'#F6F3FC',s1:'#FFFFFF',s2:'#EFEAFA',s3:'#E4DCF4',s4:'#D3C7EC',
+    ac:'#7c3aed',ach:'#8b5cf6',acs:'rgba(124,58,237,.13)',
+    t1:'#241733',t2:'#4F3D6B',t3:'#7E6E9C',t4:'#AC9FC6',
+    bd1:'rgba(0,0,0,.06)',bd2:'rgba(0,0,0,.10)',bd3:'rgba(0,0,0,.16)',
+    brd:'rgba(0,0,0,.10)',
+  }},
 ];
 const THEME_VAR_GROUPS=[
   {label:'Backgrounds',keys:[
