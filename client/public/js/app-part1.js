@@ -2531,7 +2531,7 @@ function renderDrawer(type,item){
     <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:9px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:9px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
@@ -2609,7 +2609,7 @@ function renderDrawer(type,item){
       </div>
       <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('note',${item.id})">Save Changes</button>
     <button class="btn btn-d" onclick="deleteItem('note',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
@@ -2623,7 +2623,7 @@ function renderDrawer(type,item){
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('project',${item.id})">Save</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${item.id})">🧩 AI Suggest Tasks</button>
     <button class="btn btn-d" onclick="deleteItem('project',${item.id})">Delete</button>
@@ -2666,7 +2666,7 @@ function renderDrawer(type,item){
       >${item.descriptionHtml||''}</div>
     </div>
     <div class="field"><label>Linked Tasks</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px">${D.tasks.map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.linkedTaskIds||[]).includes(t.id)?'checked':''} data-tid="${t.id}" class="goal-task-cb"> ${esc(t.title)}</label>`).join('')}</div></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('goal',${item.id})">Save</button>
     <button class="btn btn-d" onclick="deleteItem('goal',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
@@ -2713,7 +2713,7 @@ function renderDrawer(type,item){
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
     </div>
-    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+    <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
     <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
     <button class="btn btn-s" onclick="exportSingleJournalMD(${item.id})" title="Export this entry as Markdown">⬇ MD</button>
@@ -14850,7 +14850,7 @@ function openHabitDrawer(hid){
   </div>
   <div class="field"><label>Link to Task (optional)</label><select class="inp" id="hdr-task"><option value="">None</option>${D.tasks.filter(t=>t.status!=='Done').map(t=>`<option value="${t.id}" ${h?.linkedTaskId===t.id?'selected':''}>${esc(t.title)}</option>`).join('')}</select></div>
   <div class="field"><label>Notes</label><textarea class="inp" id="hdr-notes">${esc(h?.notes||'')}</textarea></div>
-  <div style="display:flex;gap:8px;margin-top:12px">
+  <div class="dr-actions">
     <button class="btn btn-p" onclick="saveHabit(${hid||'null'})">${isNew?'Create Habit':'Save Changes'}</button>
     ${!isNew?`<button class="btn btn-d" onclick="deleteHabit(${hid})">Delete</button>`:''}
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>

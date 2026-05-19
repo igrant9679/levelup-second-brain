@@ -493,6 +493,12 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .drawer .field label{display:block;font-size:11px;font-weight:500;color:var(--t2);margin-bottom:3px}
 .drawer .field-row{display:flex;gap:8px;margin-bottom:10px}
 .drawer .field-row>*{flex:1}
+/* Sticky action footer for edit drawers — keeps Save / Cancel / Delete
+   pinned to the bottom of the (often very long) drawer so they're always
+   reachable without scrolling to the end. Combined with the mobile
+   safe-area padding on .drawer, the bar sits clear of the iOS home
+   indicator / Safari toolbar. */
+.drawer .dr-actions{position:sticky;bottom:0;display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:12px 0;background:var(--s1);border-top:1px solid var(--bd1);z-index:3}
 
 /* MODAL */
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
@@ -875,10 +881,28 @@ body.sb-open .lu-pill-pop{display:none!important}
   /* Title no longer competes with overlaid buttons — relax its cap a bit. */
   #s-bookmarks #bk-cards .cd span[style*="white-space:nowrap"]{
     max-width:calc(100vw - 90px)!important}
-  /* Drawers go full-width */
-  .drawer{width:100vw!important;max-width:none!important}
-  /* AI panel goes full-width */
-  .ai-panel{width:100vw!important;max-width:none!important}
+  /* Drawers go full-width.
+     iOS FIX: the overlay uses position:fixed;inset:0 which on iOS Safari is
+     the *layout* viewport — its bottom sits BEHIND the dynamic browser
+     toolbar + home indicator. A no-height drawer stretched to that means the
+     trailing Save / Cancel / Delete button row is physically unreachable.
+     Pin the overlay to the *visible* viewport (100dvh) and give the drawer a
+     dvh height + safe-area bottom padding so its last buttons clear the iOS
+     chrome and are tappable. Shared by every page's edit drawer (Notes,
+     Tasks, Projects, Goals, Journal, Habits). */
+  .drawer-overlay{height:100vh;height:100dvh}
+  .drawer{
+    width:100vw!important;max-width:none!important;
+    height:100dvh!important;max-height:100dvh!important;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:calc(28px + env(safe-area-inset-bottom,0))!important;
+    scroll-padding-bottom:calc(28px + env(safe-area-inset-bottom,0))}
+  /* AI panel goes full-width; same iOS bottom-chrome fix so the composer
+     and send button at the bottom stay reachable. */
+  .ai-panel{
+    width:100vw!important;max-width:none!important;
+    height:100dvh!important;
+    padding-bottom:env(safe-area-inset-bottom,0)}
   /* Reports widget grid: each widget spans full width on phones */
   .lu-widget{grid-column:span 12!important}
   /* Make tables horizontally scrollable so they don't blow out the layout */
@@ -888,8 +912,21 @@ body.sb-open .lu-pill-pop{display:none!important}
   .home-hero h1{font-size:24px!important}
   /* Settings: 2-pane → 1-pane (settings nav above content) */
   body.settings-mobile-list #settings-main .sp{display:none}
-  /* Modals: respect viewport edges */
-  .modal-ov .modal,.modal{margin:10px;max-height:calc(100vh - 20px)}
+  /* Modals: respect viewport edges. iOS FIX: 100vh overflowed behind the
+     browser toolbar so the Save/Cancel row of centered modals (cluster
+     editor, quick-capture, etc.) was cut off. Center within the *visible*
+     viewport and pad the bottom for the home indicator. */
+  .modal-ov{height:100vh;height:100dvh}
+  .modal-ov .modal,.modal{
+    margin:10px;
+    max-height:calc(100dvh - 20px);
+    padding-bottom:calc(20px + env(safe-area-inset-bottom,0));
+    -webkit-overflow-scrolling:touch}
+  /* Quick-Add (FA) modal: it's a scroll-overlay with a sticky footer.
+     Pin to visible viewport + pad the sticky footer so its action buttons
+     clear the iOS home indicator. */
+  .fa-modal-ov{height:100vh;height:100dvh;-webkit-overflow-scrolling:touch}
+  .fa-ft{padding-bottom:calc(14px + env(safe-area-inset-bottom,0))!important}
 }
 /* ─── Tablet / phone (≤1024px): List is now a card layout (no columns),
    so nothing to scroll sideways. Board / Matrix / Gantt are still
@@ -2358,7 +2395,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-21';
+  var APP_BUILD='2026-05-18-22';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
