@@ -685,6 +685,7 @@ body.sidebar-collapsed .sb-collapse-toggle{left:12px}
 
 /* Hide the Notes mobile tab strip on desktop — it only matters on phones. */
 #notes-mobile-tabs{display:none}
+.notes-mobile-back{display:none!important}
 
 /* Touch-drag ghost (used by tasks/projects/notes drag fallback on touch). */
 .lu-touch-ghost{position:fixed;pointer-events:none;z-index:9990;opacity:.85;
@@ -793,10 +794,17 @@ body.sb-open .lu-pill-pop{display:none!important}
   body.notes-pane-rail .scr#s-notes .notes-rail{
     max-height:calc(100dvh - 160px)!important;overflow-y:auto!important;
     -webkit-overflow-scrolling:touch}
-  /* Notes mobile tab strip */
-  #notes-mobile-tabs{display:flex;gap:4px;padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--bd1);overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Notes mobile tab strip — sticky so it never scrolls out of reach
+     (long notes scroll the editor pane; the strip must stay pinned so the
+     user can always switch back to the List). */
+  #notes-mobile-tabs{display:flex;gap:4px;padding:8px 12px;background:var(--s2);border-bottom:1px solid var(--bd1);overflow-x:auto;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:7}
   #notes-mobile-tabs button{flex:1;min-width:60px;height:36px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--t2);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;-webkit-tap-highlight-color:transparent}
   #notes-mobile-tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+  /* Explicit always-visible "← All Notes" button at the top of an open
+     note. Sticky within the editor pane so it's reachable even mid-scroll.
+     Redundant with the tab strip on purpose — the user reported being
+     unable to get back to the list. */
+  .notes-mobile-back{display:inline-flex!important;align-items:center;gap:6px;position:sticky;top:0;z-index:6;margin:0 0 12px;height:36px;padding:0 14px;font-size:12px;font-weight:700;background:var(--ac);color:#fff;border:none;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
   /* Topbar tightens */
   .topbar{padding:0 10px;gap:6px}
   .tb-l small{display:none}
@@ -2395,7 +2403,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-18-22';
+  var APP_BUILD='2026-05-18-23';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

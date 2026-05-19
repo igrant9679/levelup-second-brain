@@ -8349,7 +8349,7 @@ function renderNoteEditor(n){
   }
   const isEditing=_noteInlineEditId===n.id;
   if(isEditing){
-    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
+    return `<button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
   <div style="display:flex;gap:6px">
     <button class="btn btn-p" style="height:26px;font-size:10px" onclick="saveNoteInlineEdit(${n.id})">💾 Save</button>
     <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_noteInlineEditId=null;showNoteInEditor(${n.id})">✕ Cancel</button>
@@ -8370,7 +8370,7 @@ function renderNoteEditor(n){
     const sel=(n.color||'')===c.value;
     return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${n.id},'${c.value}')"></span>`;
   }).join('');
-  return `<div class="note-doc">
+  return `<div class="note-doc"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
   <div class="note-toolbar" style="margin-bottom:14px">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-p" style="height:26px;font-size:10px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
