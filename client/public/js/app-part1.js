@@ -15646,12 +15646,26 @@ var _helpDrawerOpen=false;
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLUSTERS DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
+// Sort / filter / view state for the Clusters dashboard. Persist via D.prefs
+// so the user's choice survives across sessions and devices.
+let _clusterSort = null;
+let _clusterFilter = null;
+let _clusterView = null;
+function _clusterInitPrefs(){
+  if(_clusterSort==null) _clusterSort = (D.prefs&&D.prefs.clustersSort) || 'name';
+  if(_clusterFilter==null) _clusterFilter = (D.prefs&&D.prefs.clustersFilter) || 'all';
+  if(_clusterView==null) _clusterView = (D.prefs&&D.prefs.clustersView) || 'grid';
+}
+function setClusterSort(v){_clusterSort=v||'name';try{D.prefs=D.prefs||{};D.prefs.clustersSort=_clusterSort;save('prefs');}catch(_){}renderClustersDashboard();}
+function setClusterFilter(v){_clusterFilter=v||'all';try{D.prefs=D.prefs||{};D.prefs.clustersFilter=_clusterFilter;save('prefs');}catch(_){}renderClustersDashboard();}
+function setClusterView(v){_clusterView=v||'grid';try{D.prefs=D.prefs||{};D.prefs.clustersView=_clusterView;save('prefs');}catch(_){}renderClustersDashboard();}
 function renderClustersDashboard(){
   const el=document.getElementById('clusters-main');
   if(!el)return;
   // Populate the right rail at the end too — wire it once via setTimeout
   // so it runs after the main content is in the DOM.
   setTimeout(()=>{if(typeof _populateClustersRail==='function')_populateClustersRail();},0);
+  _clusterInitPrefs();
   const clusters=D.clusters||[];
   const today=_todayStr;
   // Aggregate stats
@@ -15725,21 +15739,94 @@ function renderClustersDashboard(){
       ${(projRows||looseRow)?`<div style="border-top:1px solid var(--bd2);padding-top:8px">${projRows}${looseRow}</div>`:''}
     </div>`;
   }
-  const cardsHtml=clusters.length
-    ?clusters.map(clusterCard).join('')
-    :`<div style="text-align:center;padding:40px;color:var(--t3)">
+  // Per-cluster aggregate used by sort + filter (computed once per cluster).
+  function _clusterStats(cl){
+    const projIds=new Set(cl.projectIds||[]);
+    const clTasks=D.tasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    const doneTasks=clTasks.filter(t=>t.status==='Done').length;
+    const pct=clTasks.length?Math.round((doneTasks/clTasks.length)*100):0;
+    const overdueCount=clTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+    return {nTasks:clTasks.length,nProjects:(cl.projectIds||[]).length,pct,overdue:overdueCount,doneTasks};
+  }
+  // Apply filter + sort to clusters.
+  let displayClusters=clusters.slice();
+  if(_clusterFilter==='overdue') displayClusters=displayClusters.filter(cl=>_clusterStats(cl).overdue>0);
+  else if(_clusterFilter==='ontrack') displayClusters=displayClusters.filter(cl=>_clusterStats(cl).overdue===0);
+  else if(_clusterFilter==='empty') displayClusters=displayClusters.filter(cl=>_clusterStats(cl).nTasks===0);
+  displayClusters.sort((a,b)=>{
+    switch(_clusterSort){
+      case 'progress': return _clusterStats(b).pct - _clusterStats(a).pct;
+      case 'overdue': return _clusterStats(b).overdue - _clusterStats(a).overdue;
+      case 'tasks': return _clusterStats(b).nTasks - _clusterStats(a).nTasks;
+      case 'projects': return _clusterStats(b).nProjects - _clusterStats(a).nProjects;
+      case 'recent': return (b.createdAt||'').localeCompare(a.createdAt||'');
+      case 'name':
+      default: return (a.name||'').localeCompare(b.name||'');
+    }
+  });
+  // List-view row renderer (compact alternative to the cards).
+  function clusterRow(cl){
+    const s=_clusterStats(cl);
+    return `<div onclick="openClusterModal(${cl.id})" style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;cursor:pointer;transition:background .12s,border-color .12s" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='var(--s2)'">
+      <div style="width:32px;height:32px;border-radius:7px;background:${cl.color||'#3B82F6'}22;border:1.5px solid ${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${cl.icon||'📁'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cl.name)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${s.nProjects} project${s.nProjects!==1?'s':''} · ${s.nTasks} task${s.nTasks!==1?'s':''}${s.overdue>0?` · <span style="color:var(--red)">${s.overdue} overdue</span>`:''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <div style="width:90px;height:5px;background:var(--s3);border-radius:3px"><div style="height:5px;border-radius:3px;background:${cl.color||'#3B82F6'};width:${s.pct}%;transition:width .3s"></div></div>
+        <span style="font-size:11px;font-weight:600;color:var(--t1);width:36px;text-align:right">${s.pct}%</span>
+      </div>
+    </div>`;
+  }
+  const emptyHtml=`<div style="text-align:center;padding:40px;color:var(--t3)">
         <div style="font-size:36px;margin-bottom:8px">⬡</div>
-        <div style="font-size:14px;font-weight:600">No clusters yet</div>
-        <div style="font-size:12px;margin-top:4px;margin-bottom:12px">Clusters group your projects and tasks into meaningful areas of work.</div>
-        <button class="btn btn-p" onclick="openClusterModal(null)">+ Create First Cluster</button>
+        <div style="font-size:14px;font-weight:600">${clusters.length?'No clusters match this filter':'No clusters yet'}</div>
+        <div style="font-size:12px;margin-top:4px;margin-bottom:12px">${clusters.length?'Try a different filter.':'Clusters group your projects and tasks into meaningful areas of work.'}</div>
+        ${clusters.length?`<button class="btn btn-s" onclick="setClusterFilter('all')">Show all clusters</button>`:`<button class="btn btn-p" onclick="openClusterModal(null)">+ Create First Cluster</button>`}
       </div>`;
+  let bodyHtml;
+  if(!displayClusters.length){bodyHtml=emptyHtml;}
+  else if(_clusterView==='list'){
+    bodyHtml=`<div style="display:flex;flex-direction:column;gap:8px">${displayClusters.map(clusterRow).join('')}</div>`;
+  } else {
+    bodyHtml=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">${displayClusters.map(clusterCard).join('')}</div>`;
+  }
+  // View / filter / sort toolbar — mirrors the pattern used on Projects.
+  const viewToggle=`<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">
+    <button class="btn" title="Grid view" style="border-radius:0;height:28px;padding:0 10px;font-size:11px;border:none;background:${_clusterView==='grid'?'var(--ac)':'transparent'};color:${_clusterView==='grid'?'#fff':'var(--t2)'}" onclick="setClusterView('grid')">🔲 Grid</button>
+    <button class="btn" title="List view" style="border-radius:0;height:28px;padding:0 10px;font-size:11px;border:none;background:${_clusterView==='list'?'var(--ac)':'transparent'};color:${_clusterView==='list'?'#fff':'var(--t2)'}" onclick="setClusterView('list')">📋 List</button>
+  </div>`;
+  const filterSel=`<select class="inp" title="Filter clusters" style="height:28px;font-size:11px;padding:0 8px;width:auto" onchange="setClusterFilter(this.value)">
+    <option value="all" ${_clusterFilter==='all'?'selected':''}>All clusters (${clusters.length})</option>
+    <option value="overdue" ${_clusterFilter==='overdue'?'selected':''}>Has overdue</option>
+    <option value="ontrack" ${_clusterFilter==='ontrack'?'selected':''}>On track</option>
+    <option value="empty" ${_clusterFilter==='empty'?'selected':''}>Empty (no tasks)</option>
+  </select>`;
+  const sortSel=`<select class="inp" title="Sort clusters" style="height:28px;font-size:11px;padding:0 8px;width:auto" onchange="setClusterSort(this.value)">
+    <option value="name" ${_clusterSort==='name'?'selected':''}>Sort: Name (A→Z)</option>
+    <option value="progress" ${_clusterSort==='progress'?'selected':''}>Sort: Progress %</option>
+    <option value="overdue" ${_clusterSort==='overdue'?'selected':''}>Sort: Overdue</option>
+    <option value="tasks" ${_clusterSort==='tasks'?'selected':''}>Sort: # Tasks</option>
+    <option value="projects" ${_clusterSort==='projects'?'selected':''}>Sort: # Projects</option>
+    <option value="recent" ${_clusterSort==='recent'?'selected':''}>Sort: Recently created</option>
+  </select>`;
+  const showingHtml=clusters.length&&displayClusters.length!==clusters.length
+    ?`<div style="font-size:11px;color:var(--t3);margin-bottom:12px">Showing <b style="color:var(--t1)">${displayClusters.length}</b> of <b style="color:var(--t1)">${clusters.length}</b> clusters · <a style="color:var(--ac);cursor:pointer" onclick="setClusterFilter('all')">show all</a></div>`
+    :'';
   el.innerHTML=`
     <div class="ph-r" style="margin-bottom:16px">
       <div><h1 style="font-size:22px;font-weight:700">⬡ Clusters</h1><p style="font-size:12px;color:var(--t2)">Your areas of work — each cluster groups related projects and tasks.</p></div>
-      <button class="btn btn-p" onclick="openClusterModal(null)">+ New Cluster</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${viewToggle}
+        ${filterSel}
+        ${sortSel}
+        <button class="btn btn-p" onclick="openClusterModal(null)">+ New Cluster</button>
+      </div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">${statHtml}</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">${cardsHtml}</div>
+    ${showingHtml}
+    ${bodyHtml}
   `;
 }
 
