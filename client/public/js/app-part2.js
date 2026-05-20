@@ -8359,14 +8359,15 @@ async function forceResyncFromServer(){
         // ALWAYS update the in-memory copy first so the rest of the app
         // (including the current render) sees the fresh server data this
         // session, even if the device's localStorage cache is full.
+        // _safeOrigSave will auto-shed the biggest caches (notes etc.) and
+        // retry once if it hits a QuotaExceededError, so usually only the
+        // truly oversized keys still fail.
         D[k]=v;touched++;
-        if(typeof _origSave==='function'){
-          try{ _origSave(k); }
-          catch(e){
-            const isQuota=e&&(e.name==='QuotaExceededError'||/quota/i.test(e.message||''));
-            if(isQuota) quotaFails.push(k);
-            console.warn('[resync] cache write failed for',k,e&&e.message);
-          }
+        if(typeof _safeOrigSave==='function'){
+          const ok=_safeOrigSave(k);
+          if(!ok) quotaFails.push(k);
+        } else if(typeof _origSave==='function'){
+          try{ _origSave(k); }catch(e){ quotaFails.push(k); }
         }
       }
     });
@@ -8383,27 +8384,69 @@ async function forceResyncFromServer(){
   }
 }
 window.forceResyncFromServer=forceResyncFromServer;
+// Nuclear option: wipe ALL of this device's localStorage cache (keeps the
+// login session) and reload. Server is the source of truth; everything
+// repopulates from the next loadServerData(). Use when the local cache is
+// truly broken / wedged. Exposed globally so the user can paste it into
+// the browser console.
+function clearLocalCacheAndReload(){
+  if(!confirm('Wipe ALL local cache on this device and reload?\n\nYour login stays signed in. Everything else (notes, tasks, prefs, etc.) reloads fresh from the server. Unsynced edits on THIS device will be lost.'))return;
+  try{
+    const keep={};
+    ['lu_session','lu_creds','lu_examples_seeded_v1','lu_tour_v1_done','lu_tour_v1_offered']
+      .forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keep[k]=v;});
+    localStorage.clear();
+    Object.entries(keep).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch(_){}});
+  }catch(_){}
+  location.reload();
+}
+window.clearLocalCacheAndReload=clearLocalCacheAndReload;
 // Helper: localStorage write that swallows QuotaExceededError so the
 // caller can still keep the in-memory D updated AND still queue the
 // server push. On iPhone Safari the per-origin localStorage budget is
 // ~5MB; large notes with embedded data-URI images blow past that and the
 // thrown exception was previously killing the rest of the save() chain
 // (so the server push never queued, and edits made on the phone silently
-// stayed local). Toast once per ~15s so the user knows what happened.
+// stayed local).
+//
+// When quota IS hit, we now also attempt to FREE SPACE by dropping the
+// biggest cache (notes, plus a couple of large legacy keys) and retry
+// the original write. The server still has the full notes, so on next
+// load they reload normally; meanwhile every OTHER key (clusters, prefs,
+// folders, tasks) gets to cache so they survive a reload.
+const _LU_CACHE_SHED_KEYS = ['lu_notes','lu_notes_payload','lu_bookmarks','lu_calEvents','lu_journal'];
 function _safeOrigSave(k){
   try{ _origSave(k); return true; }
   catch(e){
     const isQuota = e && (e.name==='QuotaExceededError' || /quota/i.test(e.message||''));
-    console.warn('[appData] localStorage write failed for key',k,e&&e.message);
     if(isQuota){
-      const now=Date.now();
-      if(!window._luQuotaWarnAt || now-window._luQuotaWarnAt>15000){
-        window._luQuotaWarnAt=now;
-        if(typeof toast==='function')toast({type:'warn',title:'⚠ This device is out of storage',msg:'Your edits will still sync to the server, but cannot be cached locally. Likely cause: notes with embedded images. Configure S3 / Google Drive on the server to offload images.',duration:9000});
+      // Try to free space and retry once.
+      let freedAny=false;
+      for(const cacheKey of _LU_CACHE_SHED_KEYS){
+        // Don't drop the key we're trying to write — that'd be silly.
+        if(cacheKey==='lu_'+k) continue;
+        if(localStorage.getItem(cacheKey)){
+          try{ localStorage.removeItem(cacheKey); freedAny=true; }catch(_){}
+        }
       }
+      if(freedAny){
+        try{ _origSave(k); _luQuotaWarn('shed','Cleared cached '+_LU_CACHE_SHED_KEYS.filter(c=>!localStorage.getItem(c)).map(c=>c.replace(/^lu_/,'')).join(' / ')+' to make room. They will reload from the server.'); return true; }
+        catch(_){ /* still doesn't fit — fall through */ }
+      }
+      _luQuotaWarn('full','Edits still sync to the server, but cannot be cached locally. Configure S3 / Google Drive on the server to offload images.');
+    } else {
+      console.warn('[appData] localStorage write failed for key',k,e&&e.message);
     }
     return false;
   }
+}
+function _luQuotaWarn(kind,msg){
+  const now=Date.now();
+  if(window._luQuotaWarnAt && now-window._luQuotaWarnAt<15000) return; // throttle
+  window._luQuotaWarnAt=now;
+  if(typeof toast!=='function')return;
+  if(kind==='shed') toast({type:'success',title:'✓ Freed local cache',msg:msg,duration:7000});
+  else toast({type:'warn',title:'⚠ This device is out of storage',msg:msg,duration:9000});
 }
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
