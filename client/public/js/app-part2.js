@@ -8309,16 +8309,25 @@ async function _syncDiagnose(){
   try{
     const me=(D&&D.creds)?(D.creds.email||D.creds.userName||'?'):'(not logged in)';
     report+='Account: '+me+'\n';
-    report+='Local tasks: '+((D.tasks||[]).length)+'\n';
-    report+='Server-sync ready: '+(typeof _serverSyncReady!=='undefined'?_serverSyncReady:'?')+'\n';
+    report+='Build: '+((typeof window!=='undefined'&&window.__APP_BUILD)||'?')+'\n\n';
+    const keys=['tasks','notes','projects','goals','clusters','habits','journal','ideas'];
+    report+='LOCAL counts:\n';
+    keys.forEach(k=>{report+='  '+k+': '+((D[k]||[]).length)+'\n';});
+    report+='\nServer-sync ready: '+(typeof _serverSyncReady!=='undefined'?_serverSyncReady:'?')+'\n';
     report+='Dirty (unsynced) keys: '+([..._dirtyKeys].join(',')||'none')+'\n';
     report+='Last successful save: '+(window._luLastSyncOk?new Date(window._luLastSyncOk).toLocaleTimeString():'NEVER this session')+'\n\n';
     let sd=null,err=null;
     try{sd=await _trpc('appData.load',undefined,'query');}catch(e){err=e&&(e.message||e.toString());}
-    if(err){report+='Server LOAD failed: '+err+'\n(If this says 401/unauthorized, the iPhone is not logged in / cookie not sent.)';}
+    if(err){report+='Server LOAD failed: '+err+'\n(If this says 401/unauthorized, this device is not logged in / cookie not sent.)';}
     else if(!sd){report+='Server has NO data for this account yet.';}
-    else{report+='Server tasks: '+((sd.tasks&&sd.tasks.length)||0)+'\nServer updatedAt: '+(sd.updatedAt||'?');}
-    // Probe a write too.
+    else{
+      report+='SERVER counts:\n';
+      keys.forEach(k=>{
+        let v=sd[k];if(typeof v==='string'){try{v=JSON.parse(v);}catch(_){v=null;}}
+        report+='  '+k+': '+((v&&v.length)||0)+'\n';
+      });
+      report+='\nServer updatedAt: '+(sd.updatedAt||'?');
+    }
     try{await _trpc('appData.save',{prefs:JSON.stringify(D.prefs||{})},'mutation');report+='\n\nServer WRITE test: OK ✓';}
     catch(e){report+='\n\nServer WRITE test: FAILED — '+((e&&(e.message||e.toString()))||'?');}
   }catch(e){report+='\n(diagnostic error: '+(e&&e.message)+')';}
@@ -8326,6 +8335,29 @@ async function _syncDiagnose(){
   return report;
 }
 window._syncDiagnose=_syncDiagnose;
+// Force-replace local state with whatever the server currently has, then
+// re-render. Use when local data is stale on one device (e.g. PC has 6
+// clusters, phone shows 3) — gives the user an explicit, immediate "pull
+// latest from server" without having to clear browser data.
+async function forceResyncFromServer(){
+  if(!confirm('Pull the latest data from the server and replace this device\'s local copy? Any unsynced changes on THIS device will be discarded.'))return;
+  try{
+    const sd=await _trpc('appData.load',undefined,'query');
+    if(!sd){alert('Server has no data for this account.');return;}
+    const keys=['tasks','notes','projects','goals','clusters','habits','journal','ideas','calEvents','contacts','teams','prefs','bookmarks','focusSessions'];
+    let touched=0;
+    keys.forEach(k=>{
+      let v=sd[k];if(typeof v==='string'){try{v=JSON.parse(v);}catch(_){v=null;}}
+      if(v!==undefined&&v!==null){D[k]=v;if(typeof _origSave==='function')_origSave(k);touched++;}
+    });
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+    if(typeof toast==='function')toast({type:'success',title:'✓ Re-synced from server',msg:'Updated '+touched+' data sets from the server. Reloading view…',duration:3000});
+    else alert('Re-synced '+touched+' data sets from the server.');
+  }catch(e){
+    alert('Re-sync failed: '+((e&&(e.message||e.toString()))||'?'));
+  }
+}
+window.forceResyncFromServer=forceResyncFromServer;
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
   // user_app_data table has no aiTopics column, so we ride along with prefs).
