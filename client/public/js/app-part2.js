@@ -8345,35 +8345,77 @@ async function forceResyncFromServer(){
     const sd=await _trpc('appData.load',undefined,'query');
     if(!sd){alert('Server has no data for this account.');return;}
     const keys=['tasks','notes','projects','goals','clusters','habits','journal','ideas','calEvents','contacts','teams','prefs','bookmarks','focusSessions'];
-    let touched=0;
+    let touched=0, quotaFails=[];
     keys.forEach(k=>{
       let v=sd[k];if(typeof v==='string'){try{v=JSON.parse(v);}catch(_){v=null;}}
-      if(v!==undefined&&v!==null){D[k]=v;if(typeof _origSave==='function')_origSave(k);touched++;}
+      if(v!==undefined&&v!==null){
+        // ALWAYS update the in-memory copy first so the rest of the app
+        // (including the current render) sees the fresh server data this
+        // session, even if the device's localStorage cache is full.
+        D[k]=v;touched++;
+        if(typeof _origSave==='function'){
+          try{ _origSave(k); }
+          catch(e){
+            const isQuota=e&&(e.name==='QuotaExceededError'||/quota/i.test(e.message||''));
+            if(isQuota) quotaFails.push(k);
+            console.warn('[resync] cache write failed for',k,e&&e.message);
+          }
+        }
+      }
     });
     if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
-    if(typeof toast==='function')toast({type:'success',title:'✓ Re-synced from server',msg:'Updated '+touched+' data sets from the server. Reloading view…',duration:3000});
-    else alert('Re-synced '+touched+' data sets from the server.');
+    if(quotaFails.length){
+      alert('✓ Re-synced '+touched+' data sets from the server (this session).\n\n⚠ This device is out of localStorage space, so '+quotaFails.length+' could not be cached locally and will reload from the server again next time you open the app:\n  '+quotaFails.join(', ')+'\n\nLikely cause: notes with embedded images. To fix permanently, configure S3 or Google Drive on the server so importers offload images instead of inlining them.');
+    } else if(typeof toast==='function'){
+      toast({type:'success',title:'✓ Re-synced from server',msg:'Updated '+touched+' data sets from the server.',duration:3000});
+    } else {
+      alert('Re-synced '+touched+' data sets from the server.');
+    }
   }catch(e){
     alert('Re-sync failed: '+((e&&(e.message||e.toString()))||'?'));
   }
 }
 window.forceResyncFromServer=forceResyncFromServer;
+// Helper: localStorage write that swallows QuotaExceededError so the
+// caller can still keep the in-memory D updated AND still queue the
+// server push. On iPhone Safari the per-origin localStorage budget is
+// ~5MB; large notes with embedded data-URI images blow past that and the
+// thrown exception was previously killing the rest of the save() chain
+// (so the server push never queued, and edits made on the phone silently
+// stayed local). Toast once per ~15s so the user knows what happened.
+function _safeOrigSave(k){
+  try{ _origSave(k); return true; }
+  catch(e){
+    const isQuota = e && (e.name==='QuotaExceededError' || /quota/i.test(e.message||''));
+    console.warn('[appData] localStorage write failed for key',k,e&&e.message);
+    if(isQuota){
+      const now=Date.now();
+      if(!window._luQuotaWarnAt || now-window._luQuotaWarnAt>15000){
+        window._luQuotaWarnAt=now;
+        if(typeof toast==='function')toast({type:'warn',title:'⚠ This device is out of storage',msg:'Your edits will still sync to the server, but cannot be cached locally. Likely cause: notes with embedded images. Configure S3 / Google Drive on the server to offload images.',duration:9000});
+      }
+    }
+    return false;
+  }
+}
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
   // user_app_data table has no aiTopics column, so we ride along with prefs).
   if(k==='aiTopics'){
     D.prefs=D.prefs||{};
     D.prefs.aiTopics=Array.isArray(D.aiTopics)?D.aiTopics.slice():[];
-    _origSave('prefs');
+    _safeOrigSave('prefs');
     if(_syncKeys.has('prefs')){
       clearTimeout(_syncTimers['prefs']);
       _syncTimers['prefs']=setTimeout(()=>_pushKeyToServer('prefs'),2000);
     }
   }
-  _origSave(k);
+  _safeOrigSave(k);
   invalidateSearchIndex();
   // Debounce server push by 2s to batch rapid edits. Mark the key dirty so
-  // an app-hide before the debounce fires still flushes it.
+  // an app-hide before the debounce fires still flushes it. We do this
+  // REGARDLESS of whether the local cache write succeeded — losing the
+  // local cache must not also lose the server push.
   if(_syncKeys.has(k)){
     _dirtyKeys.add(k);
     clearTimeout(_syncTimers[k]);
