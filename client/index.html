@@ -1011,7 +1011,7 @@ body.sb-open .lu-pill-pop{display:none!important}
 @media (hover:none){
   .nc .nc-quick-actions{opacity:1!important}
   .lr[data-task-id] .lr-row-acts-toggle{opacity:1!important}
-  .nn-folder .nn-folder-act{opacity:.7!important}
+  .nn-folder .nn-folder-act{opacity:.7!important;width:auto!important;padding:0 3px!important}
   .home-card-wrap .home-card-drag{opacity:.5!important}
   /* Hide drag handles since touch-drag uses long-press, not the handle */
   .tl-drag,.proj-drag,.cl-task-grip{display:none!important}
@@ -1617,8 +1617,15 @@ body.notes-focus-mode #notes-focus-exit{display:flex!important}
 .nn-folder:hover{background:var(--s3)}
 .nn-folder.on{background:var(--acs);color:var(--ac);font-weight:600}
 .nn-folder.drag-target{background:color-mix(in srgb,var(--ac) 22%,transparent);outline:1px dashed var(--ac);outline-offset:-1px}
-.nn-folder-act{opacity:0;cursor:pointer;color:var(--t3);font-size:11px;padding:0 3px;line-height:1;flex-shrink:0;transition:opacity .12s,color .12s}
-.nn-folder:hover .nn-folder-act{opacity:.7}
+/* Per-folder action chips (+, 🎨, ✏, ×). Hidden FROM LAYOUT until the
+   folder row is hovered — `opacity:0` alone still reserved their width
+   and squeezed the folder name down to a single letter on the default
+   ~160px Notes nav, especially after the icon-picker added a 4th chip.
+   width:0 + overflow:hidden collapses them out of the flow; on hover
+   they expand back. On touch (hover:none) they stay visible via the
+   override at the @media (hover:none) block. */
+.nn-folder-act{width:0;padding:0;overflow:hidden;opacity:0;cursor:pointer;color:var(--t3);font-size:11px;line-height:1;flex-shrink:0;transition:width .12s,padding .12s,opacity .12s,color .12s;white-space:nowrap}
+.nn-folder:hover .nn-folder-act{width:auto;padding:0 3px;opacity:.7}
 .nn-folder-act:hover{opacity:1!important;color:var(--ac)}
 .nn-folder-del:hover{color:var(--err)!important}
 .nn-no-folder{opacity:.7}
@@ -2411,7 +2418,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-20-4';
+  var APP_BUILD='2026-05-20-5';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
