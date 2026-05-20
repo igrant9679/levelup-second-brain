@@ -8320,8 +8320,15 @@ async function _syncDiagnose(){
     const keys=['tasks','notes','projects','goals','clusters','habits','journal','ideas'];
     report+='LOCAL counts:\n';
     keys.forEach(k=>{report+='  '+k+': '+((D[k]||[]).length)+'\n';});
+    // prefs sub-keys (these aren't a top-level data set but they cause the
+    // most confusion when one device has them and another doesn't):
+    const lp=D.prefs||{};
+    report+='  prefs.noteFolders: '+((Array.isArray(lp.noteFolders)?lp.noteFolders.length:0))+'\n';
+    report+='  prefs.themeProfiles: '+((Array.isArray(lp.themeProfiles)?lp.themeProfiles.length:0))+'\n';
+    report+='  prefs.aiChat.messages: '+((lp.aiChat&&Array.isArray(lp.aiChat.messages))?lp.aiChat.messages.length:0)+'\n';
     report+='\nServer-sync ready: '+(typeof _serverSyncReady!=='undefined'?_serverSyncReady:'?')+'\n';
     report+='Dirty (unsynced) keys: '+([..._dirtyKeys].join(',')||'none')+'\n';
+    report+='Oversized-for-cache keys: '+([...(window._luOversizedKeys||[])].join(',')||'none')+'\n';
     report+='Last successful save: '+(window._luLastSyncOk?new Date(window._luLastSyncOk).toLocaleTimeString():'NEVER this session')+'\n\n';
     let sd=null,err=null;
     try{sd=await _trpc('appData.load',undefined,'query');}catch(e){err=e&&(e.message||e.toString());}
@@ -8333,6 +8340,12 @@ async function _syncDiagnose(){
         let v=sd[k];if(typeof v==='string'){try{v=JSON.parse(v);}catch(_){v=null;}}
         report+='  '+k+': '+((v&&v.length)||0)+'\n';
       });
+      let sp=sd.prefs;
+      if(typeof sp==='string'){try{sp=JSON.parse(sp);}catch(_){sp=null;}}
+      sp=sp||{};
+      report+='  prefs.noteFolders: '+((Array.isArray(sp.noteFolders)?sp.noteFolders.length:0))+'\n';
+      report+='  prefs.themeProfiles: '+((Array.isArray(sp.themeProfiles)?sp.themeProfiles.length:0))+'\n';
+      report+='  prefs.aiChat.messages: '+((sp.aiChat&&Array.isArray(sp.aiChat.messages))?sp.aiChat.messages.length:0)+'\n';
       report+='\nServer updatedAt: '+(sd.updatedAt||'?');
     }
     try{await _trpc('appData.save',{prefs:JSON.stringify(D.prefs||{})},'mutation');report+='\n\nServer WRITE test: OK ✓';}
@@ -8415,7 +8428,15 @@ window.clearLocalCacheAndReload=clearLocalCacheAndReload;
 // load they reload normally; meanwhile every OTHER key (clusters, prefs,
 // folders, tasks) gets to cache so they survive a reload.
 const _LU_CACHE_SHED_KEYS = ['lu_notes','lu_notes_payload','lu_bookmarks','lu_calEvents','lu_journal'];
+// Keys this device has proven CAN'T fit in localStorage this session.
+// We skip caching them silently after the first failure so we don't keep
+// retrying-and-failing (and don't keep toasting the user).
+window._luOversizedKeys = window._luOversizedKeys || new Set();
 function _safeOrigSave(k){
+  // Short-circuit: this key has already failed to fit this session.
+  // The in-memory D[k] is still authoritative; the server still gets pushed
+  // by the patched save(). We just don't waste cycles trying to cache.
+  if(window._luOversizedKeys.has(k)) return false;
   try{ _origSave(k); return true; }
   catch(e){
     const isQuota = e && (e.name==='QuotaExceededError' || /quota/i.test(e.message||''));
@@ -8433,7 +8454,14 @@ function _safeOrigSave(k){
         try{ _origSave(k); _luQuotaWarn('shed','Cleared cached '+_LU_CACHE_SHED_KEYS.filter(c=>!localStorage.getItem(c)).map(c=>c.replace(/^lu_/,'')).join(' / ')+' to make room. They will reload from the server.'); return true; }
         catch(_){ /* still doesn't fit — fall through */ }
       }
-      _luQuotaWarn('full','Edits still sync to the server, but cannot be cached locally. Configure S3 / Google Drive on the server to offload images.');
+      // Mark this key oversized so we don't keep hammering localStorage
+      // for it every save. Only the FIRST time per key do we toast — for
+      // 'notes' on iPhone this is once per session, not on every edit.
+      const firstTimeForKey = !window._luOversizedKeys.has(k);
+      window._luOversizedKeys.add(k);
+      if(firstTimeForKey){
+        _luQuotaWarn('full',k+' is too big to cache on this device — edits still sync to the server. Configure S3 / Google Drive on the server to offload images.');
+      }
     } else {
       console.warn('[appData] localStorage write failed for key',k,e&&e.message);
     }
