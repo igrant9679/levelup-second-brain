@@ -446,7 +446,7 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .lr:last-child{border-bottom:none}.lr:hover{background:rgba(255,255,255,.03);color:var(--t1)}
 .lr .rt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lr .rm{font-size:10px;color:var(--t3);white-space:nowrap}
-.lr .acts{display:none;gap:3px}.lr:hover .acts{display:flex}
+.lr .acts{display:flex;gap:3px;opacity:.55;transition:opacity .12s}.lr:hover .acts{opacity:1}
 .add-c{display:flex;align-items:center;gap:4px;padding:5px 0;font-size:11px;color:var(--ac);cursor:pointer}.add-c:hover{color:var(--ach)}
 .tog{width:36px;height:18px;border-radius:9px;background:var(--s4);position:relative;cursor:pointer;transition:.15s;flex-shrink:0}
 .tog.on{background:var(--ac)}.tog::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.15s}.tog.on::after{transform:translateX(18px)}
@@ -2411,7 +2411,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-20-1';
+  var APP_BUILD='2026-05-20-2';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

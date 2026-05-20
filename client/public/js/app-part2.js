@@ -2700,6 +2700,13 @@ function scheduleMidnightReset(){
 
 // ====== GOAL AUTO-PROGRESS CALCULATION ======
 function autoCalcGoalPct(g){
+  // Respect manual override: if the user typed a Progress % in the drawer
+  // we record g.pctManual=true and the auto-calc skips this goal. Without
+  // this gate, every render of the Goals page would overwrite the manual
+  // value with the linked-tasks/milestones formula — so users reported
+  // that "the Progress % won't save". A "↺ Reset to auto" link in the
+  // drawer clears the flag.
+  if(g.pctManual)return;
   // Weight: 60% linked tasks completion, 40% milestones completion
   const tasks=D.tasks.filter(t=>(g.linkedTaskIds||[]).includes(t.id));
   const ms=g.milestones||[];

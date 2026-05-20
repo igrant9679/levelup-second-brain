@@ -2635,7 +2635,7 @@ function renderDrawer(type,item){
     <div class="field-row">
       <div class="field"><label>Icon</label>${_iconPickBtn('dr-icon',item.icon||'🎯','Pick…')}</div>
       <div class="field"><label>Category</label><select class="inp" id="dr-category"><option ${(item.category||'')==='Work'?'selected':''}>Work</option><option ${item.category==='Learning'?'selected':''}>Learning</option><option ${item.category==='Health'?'selected':''}>Health</option><option ${item.category==='Personal Brand'?'selected':''}>Personal Brand</option><option ${item.category==='Finance'?'selected':''}>Finance</option><option ${item.category==='Personal'?'selected':''}>Personal</option></select></div>
-      <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div>
+      <div class="field"><label>Progress %${item.pctManual?` <span style="font-size:9px;color:var(--warn);font-weight:600">(manual)</span>`:''}</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"><div style="font-size:9px;color:var(--t3);margin-top:3px">${item.pctManual?'Manual override active — auto-calculation from linked tasks &amp; milestones is paused. <a style="color:var(--ac);cursor:pointer" onclick="event.stopPropagation();document.getElementById(\'dr-pct\').dataset.resetAuto=\'1\';this.textContent=\'✓ will reset on Save\'">↺ Reset to auto</a>':'Auto-calculated from linked tasks &amp; milestones. Edit to lock to a manual value.'}</div></div>
     </div>
     <div class="field"><label>Target <span style="font-size:10px;color:var(--t3);font-weight:400">(short summary, e.g. "5 of 12 done")</span></label><input class="inp" value="${esc(item.target||'')}" id="dr-target"></div>
     <div class="field-row">
@@ -3051,7 +3051,19 @@ function saveItem(type,id){
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
     g.icon=$('#dr-icon').value;
-    g.pct=parseInt($('#dr-pct').value)||0;
+    const _pctEl=$('#dr-pct');
+    const _newPct=parseInt(_pctEl?.value)||0;
+    if(_pctEl&&_pctEl.dataset&&_pctEl.dataset.resetAuto==='1'){
+      // User clicked "↺ Reset to auto" — clear the manual lock so the
+      // auto-calc takes over on next render.
+      delete g.pctManual; g.pct=_newPct;
+    } else if(_newPct!==g.pct){
+      // User typed a new value — lock as manual so the auto-calc can't
+      // immediately overwrite it on the next renderGoals() pass.
+      g.pct=_newPct; g.pctManual=true;
+    } else {
+      g.pct=_newPct;
+    }
     g.target=$('#dr-target').value;
     g.category=document.getElementById('dr-category')?.value||'';
     g.startDate=document.getElementById('dr-startdate')?.value||'';
@@ -9289,7 +9301,7 @@ function openGoalDetail(gid){
       }).join('')}
     </div>
   </div>
-  <div id="ms-list" style="display:none">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
+  <div id="ms-list" style="display:block">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
   const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
     <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
     <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span>
