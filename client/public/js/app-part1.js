@@ -4127,6 +4127,8 @@ function toggleTask(id){
   renderScreen(curScreen);
 }
 function autoCalcGoalPctBidirectional(g){
+  // Respect manual override — see comment on autoCalcGoalPct() in app-part2.js.
+  if(g.pctManual)return;
   // Collect tasks linked in BOTH directions: goal.linkedTaskIds and tasks with task.linkedGoalId===g.id
   const linkedIds=new Set([...(g.linkedTaskIds||[])]);
   D.tasks.forEach(t=>{if(t.linkedGoalId===g.id)linkedIds.add(t.id);});
@@ -9301,10 +9303,10 @@ function openGoalDetail(gid){
       }).join('')}
     </div>
   </div>
-  <div id="ms-list" style="display:block">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
+  <div id="ms-list" style="display:block">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
   const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
     <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
-    <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span>
+    <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span>
     <span style="font-size:9px;color:var(--t3)">${m.due||''}</span>
   </div>`).join('');
   const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
@@ -9330,7 +9332,7 @@ function toggleMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   toast(g.milestones[idx].done?'🏁 Milestone complete!':'Milestone unmarked');
 }
@@ -9347,7 +9349,7 @@ function addMilestone(goalId){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   inp.value=''; if(due)due.value='';
   toast('Milestone added');
@@ -9365,7 +9367,7 @@ function editMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m2,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m2.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m2.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m2.title)}</span><span style="font-size:9px;color:var(--t3)">${m2.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m2,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m2.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m2.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m2.title)}</span><span style="font-size:9px;color:var(--t3)">${m2.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   toast('Milestone updated');
 }
@@ -9379,7 +9381,7 @@ function deleteMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">\${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   renderGoalCards();
   toast('Milestone deleted');
