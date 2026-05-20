@@ -8348,7 +8348,18 @@ async function _syncDiagnose(){
       report+='  prefs.aiChat.messages: '+((sp.aiChat&&Array.isArray(sp.aiChat.messages))?sp.aiChat.messages.length:0)+'\n';
       report+='\nServer updatedAt: '+(sd.updatedAt||'?');
     }
-    try{await _trpc('appData.save',{prefs:JSON.stringify(D.prefs||{})},'mutation');report+='\n\nServer WRITE test: OK ✓';}
+    // BUG FIX: this used to write D.prefs (the LOCAL prefs) back to the
+    // server — which silently CLOBBERED the server's prefs with whatever
+    // junk this device had cached locally. Running the diagnostic on a
+    // device with empty/stale prefs literally wiped folders / themes /
+    // chat history from the server for everyone. Now we write back what
+    // the server just returned — fully idempotent, still proves the
+    // mutation endpoint works.
+    try{
+      const payload=(sd&&sd.prefs)?{prefs:(typeof sd.prefs==='string'?sd.prefs:JSON.stringify(sd.prefs))}:{prefs:'{}'};
+      await _trpc('appData.save',payload,'mutation');
+      report+='\n\nServer WRITE test: OK ✓ (idempotent — wrote server\'s own prefs back)';
+    }
     catch(e){report+='\n\nServer WRITE test: FAILED — '+((e&&(e.message||e.toString()))||'?');}
   }catch(e){report+='\n(diagnostic error: '+(e&&e.message)+')';}
   alert(report);
@@ -8397,6 +8408,31 @@ async function forceResyncFromServer(){
   }
 }
 window.forceResyncFromServer=forceResyncFromServer;
+// Opposite of forceResyncFromServer: push THIS device's in-memory copy of
+// every major data set up to the server, immediately. Use when the
+// server's copy has gone stale (e.g. it was clobbered, or this device has
+// edits that didn't sync). Bypasses the 2s debounce.
+async function forcePushAllToServer(){
+  if(!confirm('Push THIS device\'s current data up to the server? Any data ONLY on the server (not in this browser\'s memory) will be replaced. Use this if another device shows fewer items than this one.'))return;
+  const keys=['tasks','notes','projects','goals','clusters','habits','journal','ideas','calEvents','contacts','teams','prefs'];
+  let ok=0,fails=[];
+  for(const k of keys){
+    if(D[k]===undefined||D[k]===null)continue;
+    try{
+      const val=JSON.stringify(D[k]);
+      await _trpc('appData.save',{[k]:val},'mutation');
+      window._luLastSyncOk=Date.now();
+      _dirtyKeys.delete(k);
+      ok++;
+    }catch(e){
+      fails.push(k+' ('+(e&&(e.message||e.toString())||'?').slice(0,80)+')');
+    }
+  }
+  if(fails.length) alert('Pushed '+ok+' data sets.\n\nFailed: '+fails.join('\n'));
+  else if(typeof toast==='function') toast({type:'success',title:'✓ Pushed '+ok+' data sets to server',duration:3500});
+  else alert('Pushed '+ok+' data sets to server.');
+}
+window.forcePushAllToServer=forcePushAllToServer;
 // Nuclear option: wipe ALL of this device's localStorage cache (keeps the
 // login session) and reload. Server is the source of truth; everything
 // repopulates from the next loadServerData(). Use when the local cache is

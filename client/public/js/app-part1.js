@@ -15861,7 +15861,8 @@ function renderClustersDashboard(){
         ${viewToggle}
         ${filterSel}
         ${sortSel}
-        <button class="btn btn-s" title="Pull latest from server (use if a device is showing stale data)" onclick="forceResyncFromServer()" style="height:28px;font-size:11px;padding:0 10px">🔄 Re-sync</button>
+        <button class="btn btn-s" title="Pull latest from server (use if THIS device is showing stale data)" onclick="forceResyncFromServer()" style="height:28px;font-size:11px;padding:0 10px">🔄 Re-sync ↓</button>
+        <button class="btn btn-s" title="Push THIS device's data up to the server (use if ANOTHER device is showing stale data)" onclick="forcePushAllToServer()" style="height:28px;font-size:11px;padding:0 10px">📤 Push ↑</button>
         <button class="btn btn-p" onclick="openClusterModal(null)">+ New Cluster</button>
       </div>
     </div>
