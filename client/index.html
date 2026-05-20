@@ -992,8 +992,16 @@ body.sb-open .lu-pill-pop{display:none!important}
   .pf-strip .pf-cell{min-width:calc(50% - 5px)}
   /* Process: triage buttons wrap (already flex-wrap) — ensure tabs scroll. */
   #s-process .gtd-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
-  /* Generic: keep any inline fixed-min grid from blowing out the page. */
-  .mn{overflow-x:hidden}
+  /* Generic: keep any inline fixed-min grid from blowing out the page,
+     and harden mobile scrolling — iOS Safari needs -webkit-overflow-scrolling
+     for momentum scroll, and a safe-area bottom padding so the last item
+     isn't hidden behind the home indicator / dynamic browser toolbar.
+     Applies to every page's main scroll region. */
+  .mn{
+    overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:calc(20px + env(safe-area-inset-bottom,0))!important;
+    max-height:calc(100dvh - var(--top))}
   /* Focus view + project detail ring/stat rows wrap on phones. */
   .tf-hero{flex-wrap:wrap;gap:14px}
 }
@@ -2403,7 +2411,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-19-2';
+  var APP_BUILD='2026-05-19-3';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
