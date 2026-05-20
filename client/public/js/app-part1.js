@@ -6635,12 +6635,38 @@ function _applyNotesMobilePane(){
 }
 // ─── Notes panel resize (nav / list / rail are user-sizable) ──────────
 const _notesDefaultWidths={nav:160,list:240,rail:200};
-function _notesGetWidths(){const w=Object.assign({},_notesDefaultWidths,(D.prefs&&D.prefs.notesPanelWidths)||{});return w;}
+// Hard minimums / maximums per panel. Must match _notesResizeStart's limits
+// so a width persisted under earlier code (or out-of-range from a sync
+// round-trip) can't render the panel as a sliver that hides folder names
+// AND covers the resize handle.
+const _notesWidthLimits={nav:[100,360],list:[160,520],rail:[140,420]};
+function _notesGetWidths(){
+  const raw=Object.assign({},_notesDefaultWidths,(D.prefs&&D.prefs.notesPanelWidths)||{});
+  const w={};
+  for(const k of ['nav','list','rail']){
+    const [lo,hi]=_notesWidthLimits[k];
+    const n=Number(raw[k])||_notesDefaultWidths[k];
+    w[k]=Math.max(lo,Math.min(hi,n));
+  }
+  return w;
+}
 function _notesApplyWidths(){
   const w=_notesGetWidths();
   const bg=document.querySelector('#s-notes > .bg');
   if(bg)bg.style.gridTemplateColumns=`var(--side) ${w.nav}px ${w.list}px 1fr ${w.rail}px`;
 }
+// User-callable escape hatch in case the handles ever feel stuck. Resets
+// ALL three panels to their factory defaults and saves. Exposed globally so
+// the user can hit it from any keyboard / console fallback if the panel
+// got too narrow to grab.
+function resetNotesLayout(){
+  D.prefs=D.prefs||{};
+  D.prefs.notesPanelWidths=Object.assign({},_notesDefaultWidths);
+  try{(window.save||save)('prefs');}catch(_){}
+  _notesApplyWidths();
+  if(typeof toast==='function')toast({type:'success',title:'✓ Notes layout reset',msg:'Nav 160 · List 240 · Rail 200',duration:2500});
+}
+window.resetNotesLayout=resetNotesLayout;
 function _notesEnsureResizeHandles(){
   const targets=[
     {pid:'notes-nav-panel',which:'nav',side:'right'},
