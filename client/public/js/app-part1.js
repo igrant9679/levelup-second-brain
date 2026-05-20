@@ -9327,7 +9327,7 @@ function openGoalDetail(gid){
     <span style="font-size:14px;font-weight:700;color:var(--ac)">${g.pct}%</span>
   </div>
   ${g.descriptionHtml?`<div class="md-body" style="font-size:12px;color:var(--t1);margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;line-height:1.6">${g.descriptionHtml}</div>`:''}
-   ${ms.length?`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:12px;font-weight:600">🏁 Milestones (${doneMs}/${totalMs})</div><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="document.getElementById('ms-list').style.display=document.getElementById('ms-list').style.display==='none'?'block':'none'">List ▾</button></div>${msTimelineHtml}<div style="display:flex;gap:6px;margin:6px 0 12px"><input class="inp" placeholder="Add milestone..." id="new-ms" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMilestone(${gid})}"><input class="inp" type="date" id="new-ms-due" style="width:120px"><button class="btn btn-s" onclick="addMilestone(${gid})">+ Add</button></div>`:''}  ${linkedTasks.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">📋 Linked Tasks (${linkedTasks.length})</div>${taskHtml}`:''}  <div style="display:flex;gap:8px;margin-top:12px">    <button class="btn btn-p" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${gid}))">✏ Edit Goal</button>    <button class="btn btn-s" onclick="closeDrawer()">Close</button>  </div>`;
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:12px;font-weight:600">🏁 Milestones${totalMs?` (${doneMs}/${totalMs})`:''}</div>${totalMs?`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px" onclick="document.getElementById('ms-list').style.display=document.getElementById('ms-list').style.display==='none'?'block':'none'">List ▾</button>`:''}</div>${msTimelineHtml||`<div id="ms-list" style="font-size:11px;color:var(--t3);padding:6px 0">No milestones yet — add the first one below.</div>`}<div style="display:flex;gap:6px;margin:6px 0 12px"><input class="inp" placeholder="Add milestone..." id="new-ms" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addMilestone(${gid})}"><input class="inp" type="date" id="new-ms-due" style="width:120px"><button class="btn btn-s" onclick="addMilestone(${gid})">+ Add</button></div>  ${linkedTasks.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">📋 Linked Tasks (${linkedTasks.length})</div>${taskHtml}`:''}  <div style="display:flex;gap:8px;margin-top:12px">    <button class="btn btn-p" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${gid}))">✏ Edit Goal</button>    <button class="btn btn-s" onclick="closeDrawer()">Close</button>  </div>`;
   ov.classList.add('show');
 }
 function toggleMilestone(goalId,idx){
@@ -9351,13 +9351,10 @@ function addMilestone(goalId){
   if(!title){toast('Enter a milestone title');return;}
   if(!g.milestones)g.milestones=[];
   g.milestones.push({id:Date.now(),title,done:false,due:due?.value||''});
+  autoCalcGoalPct(g);
   save('goals');
-  const list=document.getElementById('ms-list');
-  if(list){
-    const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:9px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:9px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
-  }
-  inp.value=''; if(due)due.value='';
+  if(typeof renderGoalCards==='function')renderGoalCards();
+  openGoalDetail(goalId);
   toast('Milestone added');
 }
 function editMilestone(goalId,idx){
