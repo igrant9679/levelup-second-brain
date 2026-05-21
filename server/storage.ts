@@ -308,6 +308,38 @@ export async function storageSelfTest(): Promise<{
   }
 }
 
+/**
+ * Masked summary of the active backend's config, for the health-check page.
+ * Shows value lengths + first/last 3 chars so truncation or stray whitespace
+ * is visible without exposing full secrets.
+ */
+export function storageConfigSummary(): { label: string; value: string }[] {
+  const backend = storageBackend();
+  const mask = (s: string): string => {
+    if (!s) return "(empty)";
+    if (s.length <= 10) return `${s.length} chars`;
+    return `${s.length} chars (${s.slice(0, 3)}…${s.slice(-3)})`;
+  };
+  if (backend === "drive") {
+    return [
+      { label: "Client ID", value: mask(ENV.googleDriveClientId) },
+      { label: "Client secret", value: mask(ENV.googleDriveClientSecret) },
+      { label: "Refresh token", value: mask(ENV.googleDriveRefreshToken) },
+      { label: "Folder ID", value: ENV.googleDriveFolderId || "(empty)" },
+    ];
+  }
+  if (backend === "s3") {
+    return [
+      { label: "Bucket", value: ENV.s3Bucket || "(empty)" },
+      { label: "Region", value: ENV.s3Region || "(empty)" },
+      { label: "Access key ID", value: mask(ENV.s3AccessKeyId) },
+      { label: "Secret access key", value: mask(ENV.s3SecretAccessKey) },
+      { label: "Endpoint", value: ENV.s3Endpoint || "(default AWS)" },
+    ];
+  }
+  return [];
+}
+
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const key = normalizeKey(relKey);
   // S3 path: just return the public URL (works for public buckets / CDN /

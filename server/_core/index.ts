@@ -185,18 +185,21 @@ async function startServer() {
         res.status(401).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Unauthorized</h2><p>Open this page while logged in to LevelUp.</p></body></html>');
         return;
       }
-      const { storageSelfTest } = await import('../storage');
+      const { storageSelfTest, storageConfigSummary } = await import('../storage');
       const r = await storageSelfTest();
+      const cfg = storageConfigSummary();
       const labels: Record<string, string> = { s3: 'S3-compatible', drive: 'Google Drive', forge: 'Manus Forge (legacy)', none: 'Not configured' };
       const esc = (s: string) => s.replace(/[<>&]/g, c => c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;');
       const icon = r.ok ? '✅' : (r.backend === 'none' ? '⚠️' : '❌');
       const color = r.ok ? '#16a34a' : '#dc2626';
+      const cfgRows = cfg.map(c => `<tr><td style="padding:3px 14px 3px 0;color:#6b7280">${esc(c.label)}</td><td style="padding:3px 0;font-family:ui-monospace,monospace">${esc(c.value)}</td></tr>`).join('');
       res.send(`<html><head><title>Storage status</title><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:48px auto;padding:0 20px;line-height:1.6;color:#1f2937">
         <h2 style="margin-bottom:4px">${icon} Storage backend</h2>
         <p style="font-size:15px"><strong>Active backend:</strong> ${labels[r.backend] || r.backend}</p>
         <p style="font-size:15px;color:${color}"><strong>Live upload test:</strong> ${r.ok ? 'PASSED' : 'FAILED'}</p>
         ${r.ok && r.url ? `<p style="font-size:13px;color:#6b7280">Test file uploaded to:<br><a href="${esc(r.url)}">${esc(r.url)}</a><br><span style="font-size:12px">(harmless few-byte file in the <code>_healthcheck</code> path — safe to delete)</span></p>` : ''}
         ${!r.ok && r.error ? `<pre style="background:#f3f4f6;padding:12px;border-radius:6px;font-size:12px;white-space:pre-wrap;color:#991b1b">${esc(r.error)}</pre>` : ''}
+        ${cfgRows ? `<h3 style="font-size:14px;margin:20px 0 4px">Configuration</h3><table style="font-size:13px;border-collapse:collapse">${cfgRows}</table><p style="font-size:12px;color:#9ca3af;margin-top:6px">Values shown masked (length + first/last 3 chars) to spot truncation or stray whitespace.</p>` : ''}
         ${r.backend === 'none' ? `<p style="font-size:13px;color:#6b7280">Set the Google Drive (or S3) env vars on Railway, then reload this page.</p>` : ''}
       </body></html>`);
     } catch (err) {

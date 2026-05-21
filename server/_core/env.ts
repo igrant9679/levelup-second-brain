@@ -42,8 +42,10 @@ export const ENV = {
   // writable by the account that owns the refresh token). Files are then
   // shared with "anyone with the link" so the public uc?id= URL works as
   // an <img src> / download link.
-  googleDriveClientId: process.env.GOOGLE_DRIVE_CLIENT_ID ?? "",
-  googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "",
-  googleDriveRefreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN ?? "",
-  googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID ?? "",
+  // Trimmed: pasting credentials into a host's env-var UI commonly adds a
+  // trailing space/newline, which breaks Google's token exchange (invalid_grant).
+  googleDriveClientId: (process.env.GOOGLE_DRIVE_CLIENT_ID ?? "").trim(),
+  googleDriveClientSecret: (process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "").trim(),
+  googleDriveRefreshToken: (process.env.GOOGLE_DRIVE_REFRESH_TOKEN ?? "").trim(),
+  googleDriveFolderId: (process.env.GOOGLE_DRIVE_FOLDER_ID ?? "").trim(),
 };
