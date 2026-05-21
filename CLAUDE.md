@@ -194,17 +194,25 @@ User stopped using Manus AI, so the Forge presign flow is dead on this env.
 2. **Google Drive** — set `GOOGLE_DRIVE_CLIENT_ID` + `GOOGLE_DRIVE_CLIENT_SECRET` +
    `GOOGLE_DRIVE_REFRESH_TOKEN` + `GOOGLE_DRIVE_FOLDER_ID`. Refresh-token OAuth,
    no new deps (plain `fetch`). Uploads to the folder, shares "anyone with the
-   link can view", returns `drive.google.com/uc?export=view&id=…` URLs. See
-   CLAUDE.md inline comments in `env.ts` for the refresh-token generation flow
-   via OAuth Playground.
+   link can view", returns `drive.google.com/thumbnail?id=…&sz=w1600` URLs for
+   images and `uc?export=download` URLs for other files. (The `uc?export=view`
+   form Google no longer serves to `<img>` tags — it returns an HTML
+   interstitial; switched to `thumbnail` on 2026-05-21.) See `env.ts` inline
+   comments for the refresh-token generation flow via OAuth Playground.
 3. **Manus Forge presign** — legacy fallback. Only used if 1 & 2 unconfigured.
 
 If none are configured, `storagePut` throws and the caller's data-URI fallback
 kicks in (see Word/Notes import section below).
 
-**As of May 12 the user has NOT yet wired env vars on Railway** — storage
-attempts fail silently, so importers fall back to data URIs. User plans to
-wire S3 or Drive in a future session.
+**Status (2026-05-21):** Google Drive is the live backend — the four
+`GOOGLE_DRIVE_*` env vars are wired on the `levelup-second-brain / production`
+Railway service and verified end-to-end via `/api/storage-status`. Importers
+now upload images to Drive instead of inlining `data:` URIs. Two open
+follow-ups: (a) notes imported before the Drive wiring still carry inline
+`data:` URI images — no retroactive backfill yet, and they bloat the
+localStorage cache; (b) any note imported before the 2026-05-21 URL fix has
+dead `uc?export=view` image URLs that need rewriting to the `thumbnail` form
+(one-shot console snippet does this — see commit `219e615`).
 
 ### Word/Notes document import (May 11–12)
 
@@ -274,8 +282,12 @@ wire S3 or Drive in a future session.
 - `4cbc821` + `f4585bf` Notes title banner — replaced the bespoke `.notes-page-header` (icon block + chip pills + peach surface) with the standard `.ph-r` pattern used by every other page; added the Notes layout to the global `.ph-r::before` accent-strip selector since its parent isn't `.mn`.
 - `aa3f770` Home hero banner restored to the original indigo→purple→magenta gradient after experiments with indigo / red variants.
 
-## Recent commit refs (May 11–12 2026, newest first)
+## Recent commit refs (May 11–21 2026, newest first)
 
+- `aa768fe` — Bump APP_BUILD cache-buster (`2026-05-21-01`) so import fixes reach cached clients
+- `219e615` — Fix doc-import Drive image URLs (`thumbnail?id=`) + imported-note persistence (in-memory merge rescue + immediate server push)
+- `355c558` — Storage: trim Drive env vars + show masked config on status page
+- `48bb93e` — Storage: add `/api/storage-status` health-check endpoint
 - `bd8a874` — doFASave: defensive try/catch/finally so Save button never hangs
 - `23c22eb` — Word import: bypass binaries checkbox + Google Drive storage backend
 - `1ebfe0b` — Storage: add S3-compatible backend (works without Manus Forge)
