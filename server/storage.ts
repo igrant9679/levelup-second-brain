@@ -271,6 +271,43 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
   return { key, url: `/manus-storage/${key}` };
 }
 
+/** Which storage backend is currently active (resolved the same way storagePut picks one). */
+export function storageBackend(): "s3" | "drive" | "forge" | "none" {
+  if (hasS3Config()) return "s3";
+  if (hasDriveConfig()) return "drive";
+  if (hasForgeConfig()) return "forge";
+  return "none";
+}
+
+/**
+ * Live end-to-end check: uploads a tiny text file via the active backend and
+ * reports whether it succeeded. Proves the credentials actually work — not
+ * just that the env vars are present (a typo'd refresh token passes the
+ * presence check but fails here). The test file is a few bytes; for Google
+ * Drive it lands in the configured folder and is safe to delete.
+ */
+export async function storageSelfTest(): Promise<{
+  backend: "s3" | "drive" | "forge" | "none";
+  ok: boolean;
+  url?: string;
+  error?: string;
+}> {
+  const backend = storageBackend();
+  if (backend === "none") {
+    return { backend, ok: false, error: "No storage backend configured." };
+  }
+  try {
+    const { url } = await storagePut(
+      `_healthcheck/storage-test-${Date.now()}.txt`,
+      `LevelUp storage self-test ${new Date().toISOString()}`,
+      "text/plain",
+    );
+    return { backend, ok: true, url };
+  } catch (err) {
+    return { backend, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const key = normalizeKey(relKey);
   // S3 path: just return the public URL (works for public buckets / CDN /
