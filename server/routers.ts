@@ -22,6 +22,7 @@ import { pdfImportRouter } from "./routers/pdfImport";
 import { appDataRouter } from "./routers/appData";
 import { notesImportRouter } from "./routers/notesImport";
 import { aiSettingsRouter } from "./routers/aiSettings";
+import { imageMigrationRouter } from "./routers/imageMigration";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -83,6 +84,7 @@ export const appRouter = router({
   appData: appDataRouter,
   notesImport: notesImportRouter,
   aiSettings: aiSettingsRouter,
+  imageMigration: imageMigrationRouter,
 });
 
 export type AppRouter = typeof appRouter;

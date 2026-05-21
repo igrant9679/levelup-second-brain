@@ -8403,7 +8403,7 @@ async function forceResyncFromServer(){
     });
     if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
     if(quotaFails.length){
-      alert('✓ Re-synced '+touched+' data sets from the server (this session).\n\n⚠ This device is out of localStorage space, so '+quotaFails.length+' could not be cached locally and will reload from the server again next time you open the app:\n  '+quotaFails.join(', ')+'\n\nLikely cause: notes with embedded images. To fix permanently, configure S3 or Google Drive on the server so importers offload images instead of inlining them.');
+      alert('✓ Re-synced '+touched+' data sets from the server (this session).\n\n⚠ This device is out of localStorage space, so '+quotaFails.length+' could not be cached locally and will reload from the server again next time you open the app:\n  '+quotaFails.join(', ')+'\n\nLikely cause: older imported notes with embedded images. New imports already offload images to Google Drive; the existing ones can be migrated to shrink the cache.');
     } else if(typeof toast==='function'){
       toast({type:'success',title:'✓ Re-synced from server',msg:'Updated '+touched+' data sets from the server.',duration:3000});
     } else {
@@ -8502,7 +8502,7 @@ function _safeOrigSave(k){
       const firstTimeForKey = !window._luOversizedKeys.has(k);
       window._luOversizedKeys.add(k);
       if(firstTimeForKey){
-        _luQuotaWarn('full',k+' is too big to cache on this device — edits still sync to the server. Configure S3 / Google Drive on the server to offload images.');
+        _luQuotaWarn('full',k+' is too big to cache on this device — your edits still sync to the server, so nothing is lost. Cause: older imported notes with embedded images bloating the cache.');
       }
     } else {
       console.warn('[appData] localStorage write failed for key',k,e&&e.message);
