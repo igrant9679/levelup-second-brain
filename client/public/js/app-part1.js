@@ -7746,6 +7746,13 @@ async function importDocumentAsNote(file){
     save('notes');
     invalidateSearchIndex();
     renderNotes();
+    // Push to the server right away instead of waiting on the 2s debounce.
+    // A freshly imported note that's too big to fit the localStorage cache
+    // exists only in memory until the server has it, so a quick reload would
+    // otherwise lose it entirely.
+    if(typeof _pushKeyToServer==='function'){
+      try{await _pushKeyToServer('notes');}catch(_){}
+    }
     const msg=notes.length===1
       ?`📄 Imported "${notes[0].title}" from ${file.name}`
       :`📄 Imported ${notes.length} notes from ${file.name}`;

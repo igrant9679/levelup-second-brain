@@ -8,7 +8,9 @@
 //   2. Google Drive (refresh-token auth) when GOOGLE_DRIVE_CLIENT_ID +
 //      GOOGLE_DRIVE_CLIENT_SECRET + GOOGLE_DRIVE_REFRESH_TOKEN +
 //      GOOGLE_DRIVE_FOLDER_ID are set. Uploads to the configured folder,
-//      shares "anyone with the link", returns the uc?export=view&id= URL.
+//      shares "anyone with the link", and returns a thumbnail?id= URL for
+//      images (the only Drive URL form that still renders inline in an
+//      <img> tag) or a uc?export=download URL for other file types.
 //
 //   3. Manus Forge presigned-URL flow (legacy).
 //
@@ -149,7 +151,16 @@ async function storagePutDrive(
     // Don't throw — file is uploaded; user can fix sharing manually if needed.
   }
 
-  return { key, url: `https://drive.google.com/uc?export=view&id=${fileId}` };
+  // Google restricted the `uc?export=view` endpoint — it no longer serves
+  // image bytes to an <img> tag (it returns an HTML interstitial), which
+  // silently broke every inline image. The `thumbnail` endpoint still serves
+  // real image bytes for "anyone with the link" files and is the reliable
+  // embed URL. Non-image files keep a direct-download URL for <a href> links.
+  const isImage = contentType.toLowerCase().startsWith("image/");
+  const url = isImage
+    ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`
+    : `https://drive.google.com/uc?export=download&id=${fileId}`;
+  return { key, url };
 }
 
 let _s3Client: S3Client | null = null;

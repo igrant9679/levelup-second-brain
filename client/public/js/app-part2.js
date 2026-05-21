@@ -5751,6 +5751,12 @@ async function wdiImportSelected(){
     imported++;
   }
   save('notes');
+  // Push to the server immediately rather than relying on the 2s debounce —
+  // imported notes too big for the localStorage cache live only in memory
+  // until the server has them, so a reload right after import would lose them.
+  if(typeof _pushKeyToServer==='function'){
+    try{await _pushKeyToServer('notes');}catch(_){}
+  }
   // Record history
   const histEl=document.getElementById('wdi-history');
   const entry=document.createElement('div');
@@ -8594,7 +8600,15 @@ async function loadServerData(){
       if(srv&&Array.isArray(srv)&&srv.length>0){
         let local=[];
         try{local=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
-        if(!Array.isArray(local))local=Array.isArray(D[k])?D[k]:[];
+        if(!Array.isArray(local))local=[];
+        // The localStorage cache goes stale whenever a write hit the quota
+        // limit — e.g. a freshly imported note too big to fit. The running
+        // app's in-memory D[k] is authoritative for this session, so fold in
+        // any in-memory items the cache is missing; otherwise the merge below
+        // silently drops them and the import is lost on the next load.
+        const _mem=Array.isArray(D[k])?D[k]:[];
+        const _cachedIds=new Set(local.map(x=>x&&x.id));
+        for(const _x of _mem){ if(_x&&_x.id!=null&&!_cachedIds.has(_x.id))local.push(_x); }
         const srvIds=new Set(srv.map(x=>x&&x.id));
         // Keep a local-only item only if it looks like a brand-new local
         // addition (created at/after the server's last write, minus grace).
@@ -8602,7 +8616,10 @@ async function loadServerData(){
         const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id)&&(!_srvUpd|| _itemTime(x) >= (_srvUpd-_GRACE)));
         const merged=localOnly.length?srv.concat(localOnly):srv;
         D[k]=merged;
-        localStorage.setItem('lu_'+k,JSON.stringify(merged));
+        // Use the quota-safe writer — merged can exceed the cache limit, and
+        // a raw setItem throw here would abort the rest of the merge.
+        if(typeof _safeOrigSave==='function')_safeOrigSave(k);
+        else localStorage.setItem('lu_'+k,JSON.stringify(merged));
         changed=true;
         // Rescued unsynced local items → heal the server so they persist.
         if(localOnly.length){
