@@ -7564,23 +7564,98 @@ function importMarkdownFiles(files){
     reader.readAsText(file);
   });
 }
-// ─── Document Import (PDF / DOCX / TXT) ──────────────────────────────────────
-// Batch importer: walks every selected file through importDocumentAsNote
-// one at a time. Lets the user drop in 10 PDFs at once and walk away.
+// ─── Document Import (PDF / DOCX / TXT / RTF) ────────────────────────────────
+// Bulk importer: parses every selected file server-side, stages the resulting
+// notes, then opens a review modal where the user picks which notes to import
+// and how to handle title duplicates (skip / overwrite / rename) — mirrors the
+// Word-doc importer in Settings.
+let _docImportStaged=[];   // [{title,body,bodyHtml,source,tags,fileName}]
+let _docImportWarnings=[]; // per-file warnings collected during parsing
+
+// Encode one file to base64 and parse it via the notesImport endpoint.
+async function _parseDocumentFile(file){
+  const base64=await new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const bytes=new Uint8Array(e.target.result);
+      let b64str='';const chunk=8192;
+      for(let c=0;c<bytes.length;c+=chunk){
+        b64str+=String.fromCharCode.apply(null,bytes.subarray(c,c+chunk));
+      }
+      resolve(btoa(b64str));
+    };
+    reader.onerror=reject;
+    reader.readAsArrayBuffer(file);
+  });
+  return _trpc('notesImport.importDocument',{
+    fileBase64:base64,
+    fileName:file.name,
+    mimeType:file.type||'application/octet-stream'
+  },'mutation');
+}
+
+// Shared full-screen overlay — used first for the parsing progress bar, then
+// swapped to the review UI.
+function _docImportOverlay(){
+  let ov=document.getElementById('doc-import-ov');
+  if(ov)return ov;
+  ov=document.createElement('div');
+  ov.id='doc-import-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  document.body.appendChild(ov);
+  return ov;
+}
+function closeDocImportReview(){
+  const ov=document.getElementById('doc-import-ov');
+  if(ov)ov.remove();
+}
+
 async function importDocumentsBatch(fileList){
   const files=Array.from(fileList||[]);
   if(!files.length)return;
-  if(files.length===1)return importDocumentAsNote(files[0]);
-  toast({type:'info',title:`📥 Importing ${files.length} documents…`,duration:2500});
-  let ok=0,fail=0;
-  for(const f of files){
-    try{await importDocumentAsNote(f);ok++;}
-    catch(e){fail++;console.warn('[importBatch] failed:',f.name,e);}
-  }
-  toast({type:ok?'success':'error',title:`Imported ${ok} of ${files.length} documents`,msg:fail?`${fail} failed — check console for details.`:undefined,duration:4000});
-  // Clear input so re-selecting same files works
+  const MAX_BYTES=100*1024*1024; // 100 MB
+  const tooBig=files.filter(f=>f.size>MAX_BYTES);
+  const ok=files.filter(f=>f.size<=MAX_BYTES);
   const inp=document.getElementById('doc-import-input');
-  if(inp)inp.value='';
+  if(inp)inp.value=''; // clear so re-selecting the same files works
+  if(tooBig.length)toast({type:'error',title:`⚠ ${tooBig.length} file${tooBig.length===1?'':'s'} over 100 MB skipped`,duration:5000});
+  if(!ok.length)return;
+  _docImportStaged=[];
+  _docImportWarnings=[];
+  const ov=_docImportOverlay();
+  let failed=0;
+  for(let i=0;i<ok.length;i++){
+    const f=ok[i];
+    ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:12px;padding:26px 32px;text-align:center;min-width:300px;max-width:90vw">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">📄 Reading documents…</div>
+      <div style="font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i+1} of ${ok.length} · ${esc(f.name)}</div>
+      <div style="margin-top:12px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden"><div style="height:100%;width:${Math.round((i/ok.length)*100)}%;background:var(--ac);transition:width .2s"></div></div>
+    </div>`;
+    try{
+      const result=await _parseDocumentFile(f);
+      (result.warnings||[]).forEach(w=>_docImportWarnings.push(`${f.name}: ${w}`));
+      (result.notes||[]).forEach(n=>{
+        _docImportStaged.push({
+          title:((n.title||'').trim()||f.name.replace(/\.[^.]+$/,'')||'Imported Document'),
+          body:n.body||'',
+          bodyHtml:n.bodyHtml||'',
+          source:n.source||'Document Import',
+          tags:Array.isArray(n.tags)?n.tags:[],
+          fileName:f.name
+        });
+      });
+    }catch(e){
+      failed++;
+      console.warn('[docImport] parse failed:',f.name,e);
+      _docImportWarnings.push(`${f.name}: ${(e&&e.message)||'could not be read'}`);
+    }
+  }
+  if(!_docImportStaged.length){
+    closeDocImportReview();
+    toast({type:'error',title:'⚠ No importable content found',msg:failed?`${failed} file${failed===1?'':'s'} failed — see console.`:'The selected files were empty.',duration:6000});
+    return;
+  }
+  openDocImportReview();
 }
 
 // ─── Notes bulk-select mode ─────────────────────────────────────────────
@@ -7692,80 +7767,146 @@ function bulkNotesExport(){
   toast(`⬇ Exported ${arr.length} note${arr.length===1?'':'s'} as Markdown`);
 }
 
-async function importDocumentAsNote(file){
-  if(!file)return;
-  const MAX_BYTES=100*1024*1024; // 100 MB
-  if(file.size>MAX_BYTES){toast('⚠ File too large (max 100 MB)','error');return;}
-  // Show progress toast
-  const toastId='doc-import-'+Date.now();
-  toast('⏳ Importing '+file.name+'…');
-  try{
-    // Encode file to base64 (chunked to avoid call stack overflow)
-    const base64=await new Promise((resolve,reject)=>{
-      const reader=new FileReader();
-      reader.onload=e=>{
-        const bytes=new Uint8Array(e.target.result);
-        let b64str='';
-        const chunk=8192;
-        for(let c=0;c<bytes.length;c+=chunk){
-          b64str+=String.fromCharCode.apply(null,bytes.subarray(c,c+chunk));
-        }
-        resolve(btoa(b64str));
-      };
-      reader.onerror=reject;
-      reader.readAsArrayBuffer(file);
+// Review modal: lists every staged note with a checkbox + duplicate badge,
+// plus a skip / overwrite / rename selector for title duplicates.
+function openDocImportReview(){
+  const ov=_docImportOverlay();
+  ov.onclick=e=>{if(e.target===ov)closeDocImportReview();};
+  const warnHtml=_docImportWarnings.length
+    ?`<div style="background:var(--warn-bg,#fffbeb);border:1px solid var(--warn,#f59e0b);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--t2);max-height:96px;overflow-y:auto">
+        <div style="font-weight:700;margin-bottom:3px">⚠ ${_docImportWarnings.length} warning${_docImportWarnings.length===1?'':'s'}</div>
+        ${_docImportWarnings.map(w=>`<div>• ${esc(w)}</div>`).join('')}
+      </div>`
+    :'';
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:12px;width:560px;max-width:96vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--bd1)">
+      <div style="font-size:14px;font-weight:700">📄 Review import — ${_docImportStaged.length} note${_docImportStaged.length===1?'':'s'}</div>
+      <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="closeDocImportReview()">✕</button>
+    </div>
+    <div style="padding:14px 16px;overflow-y:auto">
+      ${warnHtml}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-s" style="font-size:10px;height:24px" onclick="docImportSelectAll(true)">Select all</button>
+          <button class="btn btn-s" style="font-size:10px;height:24px" onclick="docImportSelectAll(false)">Deselect all</button>
+        </div>
+        <div id="doc-import-dupinfo" style="font-size:10px;color:var(--t3)"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px">
+        <span style="font-size:10px;font-weight:600;color:var(--t2);white-space:nowrap">Duplicate handling:</span>
+        <select id="doc-import-dup-mode" class="inp" style="height:24px;font-size:10px;flex:1" onchange="_renderDocImportRows()">
+          <option value="skip">Skip duplicates (keep existing)</option>
+          <option value="overwrite">Overwrite duplicates</option>
+          <option value="rename">Import as new (rename with suffix)</option>
+        </select>
+      </div>
+      <div id="doc-import-list" style="max-height:46vh;overflow-y:auto;border:1px solid var(--bd1);border-radius:8px"></div>
+    </div>
+    <div style="display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--bd1)">
+      <button class="btn btn-s" style="flex:1;font-size:12px" onclick="closeDocImportReview()">Cancel</button>
+      <button class="btn btn-p" style="flex:2;font-size:12px" onclick="confirmDocImport()">📥 Import selected</button>
+    </div>
+  </div>`;
+  _renderDocImportRows();
+}
+
+// A staged note is a duplicate when its (trimmed, case-insensitive) title
+// already exists among the user's notes.
+function _docImportIsDup(title){
+  const t=(title||'').trim().toLowerCase();
+  return !!t&&D.notes.some(n=>(n.title||'').trim().toLowerCase()===t);
+}
+
+function _renderDocImportRows(){
+  const list=document.getElementById('doc-import-list');
+  if(!list)return;
+  // Preserve checkbox state — changing the duplicate mode re-renders the list.
+  const wasChecked=_docImportStaged.map((_,i)=>{
+    const c=document.getElementById('doc-import-chk-'+i);
+    return c?c.checked:true;
+  });
+  const dupMode=(document.getElementById('doc-import-dup-mode')||{}).value||'skip';
+  let dupCount=0;
+  list.innerHTML=_docImportStaged.map((n,i)=>{
+    const isDup=_docImportIsDup(n.title);
+    if(isDup)dupCount++;
+    const dupTag=isDup
+      ?`<span style="margin-left:6px;font-size:9px;background:var(--warn,#f59e0b);color:#fff;padding:1px 6px;border-radius:8px">duplicate · ${dupMode}</span>`
+      :'';
+    const plain=String(n.body||(n.bodyHtml||'').replace(/<[^>]+>/g,' ')).replace(/\s+/g,' ').trim().slice(0,90);
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;${i<_docImportStaged.length-1?'border-bottom:1px solid var(--bd1)':''}">
+      <input type="checkbox" id="doc-import-chk-${i}" ${wasChecked[i]?'checked':''} style="margin-top:2px;flex-shrink:0;accent-color:var(--ac)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.title)}${dupTag}</div>
+        <div style="font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.fileName)}${plain?' · '+esc(plain):''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const info=document.getElementById('doc-import-dupinfo');
+  if(info)info.textContent=dupCount?`${dupCount} duplicate${dupCount===1?'':'s'} found`:'No duplicates';
+}
+
+function docImportSelectAll(sel){
+  _docImportStaged.forEach((_,i)=>{
+    const chk=document.getElementById('doc-import-chk-'+i);
+    if(chk)chk.checked=sel;
+  });
+}
+
+async function confirmDocImport(){
+  const dupMode=(document.getElementById('doc-import-dup-mode')||{}).value||'skip';
+  const selected=_docImportStaged.filter((_,i)=>{
+    const chk=document.getElementById('doc-import-chk-'+i);
+    return chk&&chk.checked;
+  });
+  if(!selected.length){toast('⚠ Select at least one note to import','error');return;}
+  const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  let imported=0,skipped=0,overwritten=0;
+  for(const n of selected){
+    const isDup=_docImportIsDup(n.title);
+    if(isDup&&dupMode==='skip'){skipped++;continue;}
+    if(isDup&&dupMode==='overwrite'){
+      const t=n.title.trim().toLowerCase();
+      const ex=D.notes.find(x=>(x.title||'').trim().toLowerCase()===t);
+      if(ex){
+        ex.body=n.body;ex.bodyHtml=n.bodyHtml;ex.source=n.source;
+        if(n.tags.length)ex.tags=[...new Set([...(ex.tags||[]),...n.tags])];
+        ex.updated=now;
+        overwritten++;
+        continue;
+      }
+    }
+    const title=(isDup&&dupMode==='rename')?n.title+' (imported)':n.title;
+    D.notes.push({
+      id:nextId(D.notes),
+      title,
+      body:n.body,
+      bodyHtml:n.bodyHtml,
+      tags:n.tags,
+      source:n.source,
+      updated:now,
+      starred:false,
+      createdBy:D.creds.userName||'Idris Grant',
+      createdAt:new Date().toISOString()
     });
-    const result=await _trpc('notesImport.importDocument',{
-      fileBase64:base64,
-      fileName:file.name,
-      mimeType:file.type||'application/octet-stream'
-    },'mutation');
-    if(result.warnings&&result.warnings.length){
-      result.warnings.forEach(w=>toast('⚠ '+w,'error',6000));
-    }
-    const notes=result.notes||[];
-    if(!notes.length){
-      toast('⚠ No content could be extracted from this file.','error');
-      return;
-    }
-    const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    notes.forEach(n=>{
-      D.notes.push({
-        id:nextId(D.notes),
-        title:n.title||file.name.replace(/\.[^.]+$/,''),
-        body:n.body||'',
-        bodyHtml:n.bodyHtml||'',
-        tags:n.tags||[],
-        source:n.source||'Document Import',
-        updated:now,
-        starred:false,
-        createdBy:D.creds.userName||'Idris Grant',
-        createdAt:new Date().toISOString()
-      });
-    });
-    save('notes');
-    invalidateSearchIndex();
-    renderNotes();
-    // Push to the server right away instead of waiting on the 2s debounce.
-    // A freshly imported note that's too big to fit the localStorage cache
-    // exists only in memory until the server has it, so a quick reload would
-    // otherwise lose it entirely.
-    if(typeof _pushKeyToServer==='function'){
-      try{await _pushKeyToServer('notes');}catch(_){}
-    }
-    const msg=notes.length===1
-      ?`📄 Imported "${notes[0].title}" from ${file.name}`
-      :`📄 Imported ${notes.length} notes from ${file.name}`;
-    toast(msg);
-    // Reset input so same file can be re-imported
-    const inp=document.getElementById('doc-import-input');
-    if(inp)inp.value='';
-  }catch(err){
-    console.error('Document import error',err);
-    toast('⚠ Import failed: '+(err.message||'Unknown error'),'error',8000);
-    const inp=document.getElementById('doc-import-input');
-    if(inp)inp.value='';
+    imported++;
   }
+  save('notes');
+  invalidateSearchIndex();
+  renderNotes();
+  // Push to the server immediately — a freshly imported note too big for the
+  // localStorage cache lives only in memory until the server has it.
+  if(typeof _pushKeyToServer==='function'){
+    try{await _pushKeyToServer('notes');}catch(_){}
+  }
+  closeDocImportReview();
+  _docImportStaged=[];
+  _docImportWarnings=[];
+  const parts=[];
+  if(imported)parts.push(`${imported} imported`);
+  if(overwritten)parts.push(`${overwritten} overwritten`);
+  if(skipped)parts.push(`${skipped} skipped`);
+  toast({type:'success',title:'📄 Document import complete',msg:parts.join(' · ')||'Nothing imported',duration:4500});
 }
 const _noteTemplates=[
   {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
