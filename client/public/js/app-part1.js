@@ -15421,7 +15421,8 @@ function renderTeam(){
     const done=tasks.filter(t=>t.status==='Done').length;
     const overdue=tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
     const habits=D.habits.filter(h=>h.createdBy===m.name);
-    const habitsDone=habits.filter(h=>h.doneToday).length;
+    const dailyHabits=habits.filter(h=>h.cadence==='Daily');
+    const habitsDone=dailyHabits.filter(h=>h.doneToday).length;
     const topStreak=habits.reduce((max,h)=>Math.max(max,h.streak||0),0);
     const goals=D.goals.filter(g=>g.createdBy===m.name);
     const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+g.pct,0)/goals.length):null;
@@ -15457,7 +15458,7 @@ function renderTeam(){
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:${overdue?'var(--red)':'var(--t3)'}">${overdue}</div><div style="font-size:8px;color:var(--t3)">Overdue</div></div>
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--warn)">🔥${topStreak}</div><div style="font-size:8px;color:var(--t3)">Streak</div></div>
       </div>
-      ${habits.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${habits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${habits.length?Math.round(habitsDone/habits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
+      ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
       ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
       <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
       ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
@@ -15505,7 +15506,7 @@ function renderTeam(){
   const totalTasks=D.tasks.length;
   const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
-  const habitsDoneToday=D.habits.filter(h=>h.doneToday).length;
+  const habitsDoneToday=D.habits.filter(h=>h.doneToday&&h.cadence==='Daily').length;
   $('team-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:8px">📊 Team Stats</div>
   <div class="stat"><div class="stat-n">${allMembers.length}</div><div class="stat-l">Members</div></div>
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${doneTasks}</div><div class="stat-l">Tasks Done</div></div>
