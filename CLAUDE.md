@@ -36,11 +36,23 @@ package.json          ← `start` runs `drizzle-kit migrate || echo … && node 
 
 ## Schema architecture (important)
 
-33 tables. Hybrid:
+34 tables. Hybrid:
 - **Properly relational**: bookmarks, calendar events, oauth tokens, team invites, help articles, etc.
 - **JSON blobs**: `userAppData` stores tasks, notes, projects, goals, journal, habits, contacts, ideas, teams, prefs, calEvents per user as **stringified JSON columns**. This is legacy from the original single-HTML/localStorage version. No DB-level querying within those blobs; whole row is read/written.
 
 Newer features were built relationally; older "second brain" data is still blob-based. Migrating it is a known piece of tech debt.
+
+### Blob → relational migration (in progress — pilot stage)
+- **`tasks` table** (migration `0030`) — a relational **mirror** of the `tasks`
+  JSON blob: queryable columns (status, priority, due, projectId, myDay, …)
+  plus a `raw` column with the full task JSON. `appData.save` **dual-writes**
+  into it (try/caught — the blob stays the source of truth and a relational
+  failure can't break the blob save). `appData.backfillTasksRelational`
+  populates it from the existing blob. Verified: 18 rows == 18-task blob.
+- The client is **unchanged** — still runs entirely on the blob. The table is
+  a queryable shadow copy. Next steps (future session): add a relational
+  read/count endpoint, flip task reads to the table, then retire the
+  `user_app_data.tasks` column. Repeat the pattern for the other entities.
 
 ## Deploy workflow
 
