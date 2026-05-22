@@ -12067,6 +12067,21 @@ function renderReports(){
           <option value="custom" ${_reportRange==='custom'?'selected':''}>Custom range…</option>
         </select>
         <div style="position:relative;display:inline-block">
+          <button class="btn btn-s no-print" style="height:30px;font-size:10px" onclick="event.stopPropagation();togglePopMenu('rep-filter-menu')" title="Filter by project / tag">🔍 Filter${(_reportProjectFilter||_reportTagFilter)?` • ${(_reportProjectFilter?1:0)+(_reportTagFilter?1:0)}`:''} ▾</button>
+          <div id="rep-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:240px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+            <div style="font-size:10px;color:var(--t3);font-weight:600;margin-bottom:4px">Project</div>
+            <select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:8px;box-sizing:border-box" onchange="setReportProjectFilter(this.value)">
+              ${allProjOpts.map(p=>`<option value="${esc(p.id)}" ${_reportProjectFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
+            </select>
+            <div style="font-size:10px;color:var(--t3);font-weight:600;margin-bottom:4px">Tag</div>
+            <select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:8px;box-sizing:border-box" onchange="setReportTagFilter(this.value)">
+              <option value="" ${!_reportTagFilter?'selected':''}>All tags</option>
+              ${allTagList.map(t=>`<option value="${esc(t)}" ${_reportTagFilter===t?'selected':''}>#${esc(t)}</option>`).join('')}
+            </select>
+            ${(_reportProjectFilter||_reportTagFilter)?`<button class="btn btn-s" style="width:100%;height:26px;font-size:10px;color:var(--warn)" onclick="setReportProjectFilter('');setReportTagFilter('')">✕ Clear filters</button>`:''}
+          </div>
+        </div>
+        <div style="position:relative;display:inline-block">
           <button class="btn btn-s no-print" style="height:30px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
           <div id="rep-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportNarrative(true)">📰 Refresh narrative</button>
@@ -12081,18 +12096,6 @@ function renderReports(){
       </div>
     </div>
     ${_reportRange==='custom'?`<div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:var(--t3);font-weight:600">Custom range:</span><input id="rep-from" type="date" class="inp" value="${esc(_reportCustomFrom)}" style="height:26px;font-size:11px;padding:0 6px"><span style="font-size:11px;color:var(--t3)">to</span><input id="rep-to" type="date" class="inp" value="${esc(_reportCustomTo)}" style="height:26px;font-size:11px;padding:0 6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="setReportCustomRange()">Apply</button></div>`:''}
-    <div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--t3);font-weight:600">Filter:</span>
-      <select class="inp" style="height:26px;font-size:11px;padding:0 6px" onchange="setReportProjectFilter(this.value)">
-        ${allProjOpts.map(p=>`<option value="${esc(p.id)}" ${_reportProjectFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
-      </select>
-      <select class="inp" style="height:26px;font-size:11px;padding:0 6px" onchange="setReportTagFilter(this.value)">
-        <option value="" ${!_reportTagFilter?'selected':''}>All tags</option>
-        ${allTagList.map(t=>`<option value="${esc(t)}" ${_reportTagFilter===t?'selected':''}>#${esc(t)}</option>`).join('')}
-      </select>
-      ${(_reportProjectFilter||_reportTagFilter)?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--warn)" onclick="setReportProjectFilter('');setReportTagFilter('')">✕ Clear</button>`:''}
-    </div>
-
     <!-- R1: AI Narrative Summary -->
     <div style="margin-bottom:14px">
       <div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px;margin-bottom:6px">📰 What this report says</div>
