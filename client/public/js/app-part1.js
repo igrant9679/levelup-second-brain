@@ -481,6 +481,8 @@ function luRTE_htmlToMd(html){
 // toISOString().split('T')[0] — that returns the UTC day, which is wrong
 // (off by one) for users west of UTC during the evening.
 function _ymd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// Platform detection for keyboard-shortcut hints — Mac/iOS show ⌘, everything else Ctrl.
+const _isMac=/Mac|iPhone|iPod|iPad/i.test((navigator.platform||'')+' '+(navigator.userAgent||''));
 // Global today string used across screens (YYYY-MM-DD), in LOCAL time.
 var _todayStr=_ymd();
 var D = {
@@ -1297,11 +1299,12 @@ function nav(s){
 function _renderShortcutsLegend(){
   const collapsed=localStorage.getItem('lu_sc_legend_collapsed')==='1';
   // Common essentials — short list to keep the card compact.
+  const _ck=_isMac?'⌘':'Ctrl';
   const rows=[
-    {label:'Command Palette',keys:['⌘','K']},
-    {label:'AI Chat',keys:['⌘','J']},
-    {label:'New Task',keys:['⌘','N']},
-    {label:'Save',keys:['⌘','S']},
+    {label:'Command Palette',keys:[_ck,'K']},
+    {label:'AI Chat',keys:[_ck,'J']},
+    {label:'New Task',keys:[_ck,'N']},
+    {label:'Save',keys:[_ck,'S']},
     {label:'All shortcuts',keys:['?']},
     {label:'Close',keys:['Esc']},
   ];
@@ -1372,9 +1375,19 @@ window.renderScreen=function(s){
   setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();},50);
   return r;
 };
+// On non-Mac, swap the static Mac ⌘ glyph for "Ctrl" in keyboard-shortcut hints.
+function _applyPlatformKeys(){
+  if(_isMac)return;
+  document.querySelectorAll('kbd').forEach(k=>{
+    if(k.textContent.indexOf('⌘')>-1)k.textContent=k.textContent.replace(/⌘/g,'Ctrl');
+  });
+  document.querySelectorAll('.cmdp-kbd,#gSearch+span').forEach(el=>{
+    if(el.textContent.indexOf('⌘')>-1)el.textContent=el.textContent.replace(/⌘/g,'Ctrl ');
+  });
+}
 // Also try on initial load (in case the first page renders before this
 // patch is in scope) and whenever the user opens a new screen.
-document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();},500));
+document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();_applyPlatformKeys();},500));
 
 // ─── Keyboard shortcuts overlay ──────────────────────────────────────
 function openShortcuts(){
@@ -8665,7 +8678,7 @@ function _filteredProjects(){
   return arr;
 }
 function _projToggleStar(id,e){if(e)e.stopPropagation();const p=D.projects.find(x=>x.id===id);if(!p)return;p.pinned=!p.pinned;save('projects');renderProjects();toast(p.pinned?'📌 Pinned':'Unpinned');}
-function _projToggleArchive(id,e){if(e)e.stopPropagation();const p=D.projects.find(x=>x.id===id);if(!p)return;p.archived=!p.archived;save('projects');renderProjects();toast(p.archived?'🗄 Archived':'Restored from archive');}
+function _projToggleArchive(id,e){if(e)e.stopPropagation();const p=D.projects.find(x=>x.id===id);if(!p)return;p.archived=!p.archived;if(p.archived)p.archivedAt=new Date().toISOString();save('projects');renderProjects();toast(p.archived?'🗄 Archived':'Restored from archive');}
 async function aiProjectHealth(){
   if(!D.projects.length){toast('No projects yet');return;}
   toast({type:'info',title:'Generating project health summary…',duration:2000});
@@ -8868,7 +8881,7 @@ function renderProjectsList(header){
       <div class="pc-mid">
         <div class="pc-ring" style="${ring}"><div class="pc-ring-in">${pct}%</div></div>
         <div class="pc-stats">
-          <div><b>${done}</b>/${pts.length} tasks done</div>
+          <div>${pts.length?`<b>${done}</b>/${pts.length} tasks done`:'<span style="color:var(--t3)">No linked tasks</span>'}</div>
           <div><b>${subs.filter(s=>s.done).length}</b>/${subs.length} subtasks</div>
           ${ms.length?`<div><b>${msDone}</b>/${ms.length} milestones</div>`:'<div style="color:var(--t3)">No milestones</div>'}
         </div>
@@ -12252,7 +12265,7 @@ function archiveSearchInput(v){_archiveSearch=(v||'').toLowerCase();renderArchiv
 function _archiveItems(){
   const items=[];
   (D.tasks||[]).forEach(t=>{if(t.status==='Done')items.push({type:'Task',id:t.id,title:t.title||'(untitled task)',date:(t.completedAt||t.updated||t.createdAt||''),restore:'task'});});
-  (D.projects||[]).forEach(p=>{if(p.archived)items.push({type:'Project',id:p.id,title:p.name||'(untitled project)',date:(p.updatedAt||p.updated||''),restore:'project'});});
+  (D.projects||[]).forEach(p=>{if(p.archived)items.push({type:'Project',id:p.id,title:p.name||'(untitled project)',date:(p.archivedAt||p.updatedAt||p.updated||''),restore:'project'});});
   (D.goals||[]).forEach(g=>{if((g.pct||0)>=100)items.push({type:'Goal',id:g.id,title:(g.icon?g.icon+' ':'')+(g.title||'(untitled goal)'),date:(g.updatedAt||g.completedAt||''),restore:'goal'});});
   (D.notes||[]).forEach(n=>{if(n.archived)items.push({type:'Note',id:n.id,title:n.title||'(untitled note)',date:(n.updated||n.createdAt||''),restore:'note'});});
   return items.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -12276,7 +12289,7 @@ function renderArchive(){
   const rows=items.length?items.map(i=>`<div class="lr">
     <span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
     <span class="rt" style="cursor:pointer" onclick="archiveRestore('${i.restore}',${i.id})" title="Open / restore">${esc(i.title)}</span>
-    <span class="rm">${i.date?fmt(i.date):''}</span>
+    <span class="rm">${fmt(i.date)||'<span style="color:var(--t3)">—</span>'}</span>
     <span class="acts"><button class="btn btn-s" style="height:20px;font-size:9px;padding:0 8px" onclick="archiveRestore('${i.restore}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
   </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
   $('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">${counts.All} item${counts.All===1?'':'s'} · completed &amp; archived</p></div>

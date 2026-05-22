@@ -1239,24 +1239,23 @@ function startAIAssistant(){
   // Load live news first, then start cycling
   loadLiveNews().then(()=>{
     showAIMsg();
-    aiTimer=setInterval(showAIMsg,45000); // every 45 seconds
+    aiTimer=setInterval(showAIMsg,240000); // every 4 minutes
   });
 }
 function showAIMsg(){
   const bubble=document.getElementById('ai-bubble');
-  // Skip messages the user has dismissed
-  let attempts=0;
-  let m;
-  do{
-    m=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;attempts++;
-    const k='lu_dismissed_'+btoa(unescape(encodeURIComponent(m.msg.slice(0,40))));
-    if(!localStorage.getItem(k))break;
-  }while(attempts<aiMsgs.length);
+  if(!bubble)return;
+  // Skip whole categories (news / info / encourage / warning) the user has dismissed.
+  let attempts=0,m=null;
+  while(attempts<aiMsgs.length){
+    const cand=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;attempts++;
+    if(!localStorage.getItem('lu_dismissed_type_'+cand.type)){m=cand;break;}
+  }
+  if(!m)return; // every category dismissed — stay quiet
   const div=document.createElement('div');
   div.className='ai-msg';
   const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:9px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
-  const _msgKey='lu_dismissed_'+btoa(unescape(encodeURIComponent(m.msg.slice(0,40))));
-  div.innerHTML=`<button class="ai-close" onclick="localStorage.setItem('${_msgKey}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
+  div.innerHTML=`<button class="ai-close" title="Hide ${m.type} messages" onclick="localStorage.setItem('lu_dismissed_type_${m.type}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
   if('speechSynthesis' in window && D.creds.aiSpeak){
@@ -2265,7 +2264,7 @@ function _cmdpActions(){
     {id:'nav-focus',group:'Navigate',icon:'⏱',title:'Go to Focus / Pomodoro',run:()=>nav('focus')},
     {id:'nav-process',group:'Navigate',icon:'⚡',title:'Go to Process (GTD)',run:()=>nav('process')},
     {id:'nav-settings',group:'Navigate',icon:'⚙',title:'Open Settings',run:()=>nav('settings')},
-    {id:'create-task',group:'Create',icon:'📋',title:'Add new task…',shortcut:'⌘N',run:()=>openFA('task')},
+    {id:'create-task',group:'Create',icon:'📋',title:'Add new task…',shortcut:(_isMac?'⌘N':'Ctrl+N'),run:()=>openFA('task')},
     {id:'create-note',group:'Create',icon:'📝',title:'Add new note…',run:()=>openFA('note')},
     {id:'create-project',group:'Create',icon:'📁',title:'Add new project…',run:()=>openFA('project')},
     {id:'create-goal',group:'Create',icon:'🎯',title:'Add new goal…',run:()=>openFA('goal')},
