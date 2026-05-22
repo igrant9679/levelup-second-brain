@@ -196,12 +196,12 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Imported notes push to the server immediately (not the 2s debounce);
   `loadServerData()` now rescues in-memory items the localStorage cache dropped.
 
-### UI audit + fixes (May 22) — IN PROGRESS
+### UI audit + fixes (May 22) — per-screen bugs DONE, Batch 4 UX remaining
 
 A full feature-by-feature audit of the live app was done (every screen except
-Contacts/Bookmarks). Fixes are shipping in batches.
+Contacts/Bookmarks). Fixes shipped in batches.
 
-**Done & deployed (builds `2026-05-22-01` … `-04`):**
+**Done & deployed (builds `2026-05-22-01` … `-07`):**
 - **Batch 1 — date handling.** Root cause: `_todayStr` (app-part1.js) was built
   with `toISOString()` (UTC) → flipped to "tomorrow" each evening for users
   west of UTC. Now local; added global `_ymd()` helper. Also fixed the Focus
@@ -209,29 +209,40 @@ Contacts/Bookmarks). Fixes are shipping in batches.
   `_fmtJournalDate` recompute the display from the real date; the parser pins
   the year so yearless strings like "May 19" don't resolve to 2001 in V8).
 - **Batch 2 — count consistency.** `_twFmt` week boundary (same UTC bug);
-  Tasks "this week" header now routes through `_taskInWeek` so it matches the
+  Tasks "this week" header routes through `_taskInWeek` so it matches the
   "This Week" tab badge; habits "done today" counts only `cadence==='Daily'`
-  (Habits page header + Home HABITS tile) — matches My Day / Coach / Reports.
+  (Habits page header + Home HABITS tile + Team card) — matches My Day /
+  Coach / Reports.
 - **Batch 3a** — Settings profile completeness (the form showed `||default`
   values as if saved while the meter read empty `D.creds` fields; now shows
   real state + placeholders); `renderTeam` `today` UTC fix.
+- **Per-screen bugs — all four fixed:**
+  - **Process (GTD)** — header "tasks to clarify", the Tasks sub-tab pill and
+    the sidebar badge now all use the GTD Inbox bucket count
+    (`_gtdBuckets().Inbox`) so they agree with the Inbox tab. UTC `today` →
+    `_todayStr` in `_gtdBuckets` and `updateSidebarBadges`.
+  - **Clusters** — the "On Track" stat tile is now a cluster count (`X/Y`
+    clusters with no overdue task) instead of a not-overdue task %, so it no
+    longer clashes with the per-cluster completion bars.
+  - **Reports** — journal entry count + "Avg mood/5" KPI normalise the
+    free-form journal dates through `_parseJournalDate` before range-checking
+    (entries store strings like "Today · Monday, May 19", not ISO). Task
+    completion paths (`toggleTask`, bulk, drawer edit, complete-all) now stamp
+    `completedAt` via the new `_syncTaskCompletedAt(t)` helper, so "tasks
+    completed" is recorded going forward. Historical Done tasks predate this
+    and stay undated (genuine, unrecoverable data gap).
+  - **Calendar + Mail rails** — "Today's events" / "Upcoming events" read from
+    `_calEvents` (the store the calendar grid actually renders) via the new
+    `_calEventsOn(date)` / `_upcomingCalEvents(limit)` helpers, instead of the
+    empty `D.calEvents`. Same fix applied to the Home "Upcoming Meetings" rail
+    and the "Next 7 Days" mini-week. NOTE: `D.calEvents` (OAuth-synced) and
+    `_calEvents` (grid/seed) are still two separate stores — merging them so
+    synced events appear in the grid is a known larger follow-up.
+- Team member card habits denominator → daily-only (`/5`, was `/6`).
+- `aiWeeklyReview` — journal filter parses dates via `_parseJournalDate`; its
+  stale mood map aligned to the canonical `{😊5,🙂4,😐3,😫2,😰1}` set.
 
-**Remaining audit work — spec for the next session:**
-
-Per-screen bugs:
-- **Process (GTD)** — sidebar badge vs header "tasks to clarify" disagree
-  (8 vs 9): `setBadge('badge-process',inboxCount)` ~line 3280 vs the `inbox`
-  count in `renderProcess` ~line 12936. Unify into one computation.
-- **Clusters** — "85% On Track" tile contradicts the cluster cards (all
-  0–33%). Check the on-track metric in the clusters render (app-part2.js).
-- **Reports** — header "0 journal entries (last 30 days)" though 4 exist in
-  range; "Avg mood /5" KPI shows no value; "0 tasks completed" (tasks carry
-  no completion timestamp — data-model gap).
-- **Calendar + Mail** right rails say "no events" while the Calendar grid is
-  full — rails count `D.calEvents` (empty); the grid shows the recurring
-  `_calEventsDefault` seed. Decide: count recurring events, or relabel.
-
-Interface / UX (Batch 4):
+**Remaining — Interface / UX (Batch 4):**
 - Auto-toasts (NEWS / INFO / ENCOURAGE) pop on nearly every screen and overlap
   content — reduce frequency / make "don't show again" stick.
 - Shortcut hints show the Mac `⌘` glyph on Windows. Make it **platform-aware**
@@ -257,7 +268,9 @@ All audit fixes are client-side in `client/public/js/app-part*.js` — **bump
 `APP_BUILD` in `client/index.html` on every change** or browsers serve stale
 JS. Keep everything iPhone/iPad/iOS-compatible.
 
-Session commits (newest first): `3990eec` batch 3a · `6847986` batch 2 ·
+Session commits (newest first): `21c431e` Home rail + weekly review ·
+`2a21c34` per-screen audit batch (Process/Clusters/Reports/Calendar) ·
+`cba4c4a` Team card habits · `3990eec` batch 3a · `6847986` batch 2 ·
 `b8caea4` journal parser · `f1117c5` batch 1 · `c8c1bd7` bulk doc import ·
 `7b1c3a0` image migration · `58d8024` CLAUDE.md storage · `aa768fe` APP_BUILD
 bump · `219e615` doc-import URL + persistence fix.
