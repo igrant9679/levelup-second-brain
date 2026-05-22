@@ -196,12 +196,12 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Imported notes push to the server immediately (not the 2s debounce);
   `loadServerData()` now rescues in-memory items the localStorage cache dropped.
 
-### UI audit + fixes (May 22) — per-screen bugs DONE, Batch 4 UX remaining
+### UI audit + fixes (May 22) — COMPLETE
 
 A full feature-by-feature audit of the live app was done (every screen except
 Contacts/Bookmarks). Fixes shipped in batches.
 
-**Done & deployed (builds `2026-05-22-01` … `-07`):**
+**Done & deployed (builds `2026-05-22-01` … `-09`):**
 - **Batch 1 — date handling.** Root cause: `_todayStr` (app-part1.js) was built
   with `toISOString()` (UTC) → flipped to "tomorrow" each evening for users
   west of UTC. Now local; added global `_ymd()` helper. Also fixed the Focus
@@ -242,18 +242,27 @@ Contacts/Bookmarks). Fixes shipped in batches.
 - `aiWeeklyReview` — journal filter parses dates via `_parseJournalDate`; its
   stale mood map aligned to the canonical `{😊5,🙂4,😐3,😫2,😰1}` set.
 
-**Remaining — Interface / UX (Batch 4):**
-- Auto-toasts (NEWS / INFO / ENCOURAGE) pop on nearly every screen and overlap
-  content — reduce frequency / make "don't show again" stick.
-- Shortcut hints show the Mac `⌘` glyph on Windows. Make it **platform-aware**
-  (detect Mac/iOS → `⌘`, else `Ctrl`) — iPad with a keyboard uses ⌘, keep
-  that. Note `⌘J`→`Ctrl+J` on Windows collides with Chrome's downloads.
-- Ideas page: content + right rail overflow the viewport horizontally.
-- My Week: top-right "+ New / + Full Add" button clipped at the viewport edge.
-- Settings: narrow content column with a large empty area to the right.
-- Goals: cards in the same row have unequal heights.
-- Projects: progress donuts show 90%/70% next to "0/0 tasks done" (confusing).
-- Archive: some items show an archived date, others none.
+**Batch 4 — Interface / UX — DONE (builds `-08` … `-09`):**
+- Auto-toasts: cycle interval 45s → 4min; the close button now dismisses the
+  whole category (news/info/encourage/warning) and persists, so closing one
+  stops them all (`lu_dismissed_type_*`). Engine is `showAIMsg` in app-part2.js.
+- Shortcut hints are platform-aware via the global `_isMac` flag — Mac/iOS keep
+  `⌘`, Windows/Linux show `Ctrl`. `_renderShortcutsLegend` renders the right
+  glyph; `_applyPlatformKeys()` rewrites the static index.html `<kbd>` /
+  `.cmdp-kbd` / search-hint markup. NOTE: it's called from the renderScreen
+  hook, not a DOMContentLoaded listener — the bundles are injected as dynamic
+  scripts that load *after* DOMContentLoaded, so that listener never fires.
+- Ideas page: the rail had an inline `width:320px` fighting the 280px grid
+  track — removed. `.rr` got `min-width:0` so it always respects its track.
+- My Week + Settings: `.bg:not(.wr) .mn` had `margin-right:auto` with no
+  definite width → it sized to content (too wide on My Week — clipped the
+  + button; too narrow on Settings — empty space right). Added `width:100%`
+  so it fills the track, still capped at `max-width:1280px` on wide monitors.
+- Projects: cards with no linked tasks show "No linked tasks" instead of a
+  confusing "0/0 tasks done" next to the progress donut.
+- Archive: dateless rows show a muted "—"; project archive records `archivedAt`.
+- Goals "unequal card heights" — NOT reproduced: `#goals-grid` cells already
+  stretch equal (grid default `align-items`). Left as-is.
 
 **Reclassified — not code fixes:**
 - "Jun 31" dates (one Project card + one Goal) = bad data typed into those
@@ -268,7 +277,9 @@ All audit fixes are client-side in `client/public/js/app-part*.js` — **bump
 `APP_BUILD` in `client/index.html` on every change** or browsers serve stale
 JS. Keep everything iPhone/iPad/iOS-compatible.
 
-Session commits (newest first): `21c431e` Home rail + weekly review ·
+Session commits (newest first): `8f940df` Batch 4 layout + platform-key timing ·
+`a99af9b` Batch 4 logic (toasts/glyph/Projects/Archive) · `d50af55` CLAUDE.md ·
+`21c431e` Home rail + weekly review ·
 `2a21c34` per-screen audit batch (Process/Clusters/Reports/Calendar) ·
 `cba4c4a` Team card habits · `3990eec` batch 3a · `6847986` batch 2 ·
 `b8caea4` journal parser · `f1117c5` batch 1 · `c8c1bd7` bulk doc import ·
