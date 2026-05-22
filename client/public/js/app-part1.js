@@ -4447,8 +4447,8 @@ function renderHome(){
   const _stOverdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
   const _stMeetings=(D.calEvents||[]).filter(e=>{const d=(e.start||'').slice(0,10);return d===_todayStr;}).length;
   const _stMyDay=D.tasks.filter(t=>t.myDay&&t.status!=='Done').length;
-  const _stHabitsDone=(D.habits||[]).filter(h=>h.doneToday).length;
-  const _stHabitsTotal=(D.habits||[]).length;
+  const _stHabitsDone=(D.habits||[]).filter(h=>h.cadence==='Daily'&&h.doneToday).length;
+  const _stHabitsTotal=(D.habits||[]).filter(h=>h.cadence==='Daily').length;
   const _todayLabel=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
   // ── #6 — momentum metrics used to replace zero-stat tiles.
   const _bestStreak=Math.max(0,...(D.habits||[]).map(h=>Number(h.streak)||0));
@@ -6258,10 +6258,11 @@ function renderTasks(){
   const _twSun=new Date(_twMon);
   _twSun.setDate(_twMon.getDate()+6);
   _twSun.setHours(23,59,59,999);
-  const _twFmt=d=>d.toISOString().split('T')[0];
+  const _twFmt=_ymd; // local YYYY-MM-DD — not UTC
   const _twStart=_twFmt(_twMon);
   const _twEnd=_twFmt(_twSun);
   function _taskInWeek(t){
+    if(!t||t.status==='Done'||t.status==='Someday')return false;
     const d=t.startDate||t.due||'';
     return d>=_twStart&&d<=_twEnd;
   }
@@ -6283,7 +6284,7 @@ function renderTasks(){
   }else if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;_taskFilterTabIdx=0;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(t=>{const d=t.startDate||t.due||'';return d>=_twStart&&d<=_twEnd&&t.status!=='Done';}).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(_taskInWeek).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
     // B: visible 3 most-used views + a More dropdown for the rest
     const visible=[{k:'focus',icon:'⚡',label:'Focus'},{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
     const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
@@ -14945,8 +14946,12 @@ function reassignHabitsToOwner(){
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
   const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
-  const done=visibleHabits.filter(h=>h.doneToday).length;
-  const total=visibleHabits.length;
+  // "Done today" is measured against habits scheduled daily — non-daily
+  // habits (weekly, 3x/week) aren't part of today's ratio. Matches Home,
+  // Coach and Reports, which all count cadence==='Daily'.
+  const todayHabits=visibleHabits.filter(h=>h.cadence==='Daily');
+  const done=todayHabits.filter(h=>h.doneToday).length;
+  const total=todayHabits.length;
   const pct=total?Math.round(done/total*100):0;
   $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">✅ Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   ${visibleHabits.length===0?renderEmptyState({icon:'🌱',title:_habitsMyOnly?'No habits yet':'No team habits',hint:_habitsMyOnly?'Small daily reps compound. Start with one habit you can stick to.':'Switch to "My Habits" or add one to get the team going.',ctaLabel:'+ Start your first habit',ctaFn:"openFA('habit')"}):`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
