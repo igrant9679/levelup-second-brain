@@ -3004,6 +3004,7 @@ function saveItem(type,id){
     t.titleColor=$('#dr-title-color')?.value||'';
     t.priority=$('#dr-pri').value;
     t.status=$('#dr-status').value;
+    _syncTaskCompletedAt(t);
     t.startDate=$('#dr-startdate').value;
     t.endDate=$('#dr-due').value;
     t.due=$('#dr-due').value;
@@ -3265,7 +3266,7 @@ function playNotifChime(){
   }catch(e){}
 }
 function updateSidebarBadges(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=_todayStr;
   // My Day: tasks in My Day not done
   const myDayCount=D.tasks.filter(t=>t.myDay&&t.status!=='Done').length;
   setBadge('badge-myday',myDayCount);
@@ -3275,8 +3276,8 @@ function updateSidebarBadges(){
   // Notes: starred notes
   const starredNotes=D.notes.filter(n=>n.starred).length;
   setBadge('badge-notes',starredNotes);
-  // Process: inbox tasks (Not Started, no project)
-  const inboxCount=D.tasks.filter(t=>t.status==='Not Started'&&!t.projectId).length;
+  // Process: GTD Inbox bucket — unprocessed captures to triage (matches the Process header + Inbox tab)
+  const inboxCount=D.tasks.filter(_gtdBuckets().Inbox).length;
   setBadge('badge-process',inboxCount);
   // Habits: habits not done today
   const habitsPending=D.habits.filter(h=>!h.doneToday).length;
@@ -3350,6 +3351,7 @@ function bulkAction(action){
       const t=D.tasks.find(x=>x.id===id);
       if(t){
         t.status='Done';
+        _syncTaskCompletedAt(t);
         maybeSpawnRecurring(t);
         D.goals.forEach(g=>{if((g.linkedTaskIds||[]).includes(t.id))affectedGoalIds.add(g.id);});
         if(t.linkedGoalId)affectedGoalIds.add(t.linkedGoalId);
@@ -4100,11 +4102,19 @@ function moveSomeday(id){
   save('tasks');
   renderScreen(curScreen);
 }
+// Keep completedAt in sync with status: stamp it when a task enters Done,
+// clear it when it leaves. Tasks completed before this was tracked have none.
+function _syncTaskCompletedAt(t){
+  if(!t)return;
+  if(t.status==='Done'){if(!t.completedAt)t.completedAt=new Date().toISOString();}
+  else t.completedAt='';
+}
 function toggleTask(id){
   const t=D.tasks.find(x=>x.id===id);
   if(!t)return;
   const wasDone=t.status==='Done';
   t.status=wasDone?'Not Started':'Done';
+  _syncTaskCompletedAt(t);
   save('tasks');
   if(!wasDone){
     _trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});
@@ -6342,7 +6352,7 @@ function bulkCompleteVisible(){
   rows.forEach(el=>{
     const id=parseInt(el.dataset.taskId);
     const t=D.tasks.find(x=>x.id===id);
-    if(t&&t.status!=='Done'){t.status='Done';maybeSpawnRecurring(t);}
+    if(t&&t.status!=='Done'){t.status='Done';_syncTaskCompletedAt(t);maybeSpawnRecurring(t);}
   });
   save('tasks');updateSidebarBadges();renderScreen(curScreen);
   toast(`✓ ${rows.length} task(s) marked Done`);
@@ -6552,8 +6562,7 @@ function _populateMailRail(){
   const r=document.getElementById('mail-rail');if(!r)return;
   const inbox=(typeof _getMailItems==='function'?_getMailItems():[]);
   const unread=inbox.filter(m=>!m.read).length;
-  const today=_todayStr;
-  const todayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today).slice(0,5);
+  const todayEvents=_calEventsOn(new Date()).slice(0,5);
   const senders={};inbox.slice(0,200).forEach(m=>{const f=m.fromName||m.from||m.fromEmail||'(unknown)';senders[f]=(senders[f]||0)+1;});
   const topSenders=Object.entries(senders).sort((a,b)=>b[1]-a[1]).slice(0,5);
   r.innerHTML=`
@@ -6564,7 +6573,7 @@ function _populateMailRail(){
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Today's events</div>
-    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="nav('cal')"><span style="font-size:9px;color:var(--ac);width:42px;flex-shrink:0">${(e.start||'').slice(11,16)||'—'}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events today.</div>'}
+    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="nav('cal')"><span style="font-size:9px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events today.</div>'}
   </div>
   ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:10px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:9px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
@@ -6577,8 +6586,8 @@ function _populateCalRail(){
   const r=document.getElementById('cal-rail');if(!r)return;
   const today=_todayStr;
   const todayTasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay)).slice(0,6);
-  const next7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
-  const upcoming=(D.calEvents||[]).filter(e=>{const k=(e.start||'').slice(0,10);return k>=today&&k<=next7[6].toISOString().slice(0,10);}).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,6);
+  const upcoming=[];
+  for(let i=0;i<7&&upcoming.length<6;i++){const d=new Date();d.setDate(d.getDate()+i);_calEventsOn(d).forEach(e=>{if(upcoming.length<6)upcoming.push({e,dateLabel:_ymd(d).slice(5)});});}
   r.innerHTML=`
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 Today + 7 days</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
@@ -6587,7 +6596,7 @@ function _populateCalRail(){
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Upcoming events</div>
-    ${upcoming.length?upcoming.map(e=>{const d=(e.start||'').slice(0,10);const t=(e.start||'').slice(11,16);return `<div class="lr" style="padding:4px 0;font-size:10px"><span style="width:54px;flex-shrink:0;font-size:9px;color:var(--t3)">${d.slice(5)}${t?' '+t:''}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No events in the next 7 days.</div>'}
+    ${upcoming.length?upcoming.map(o=>`<div class="lr" style="padding:4px 0;font-size:10px"><span style="width:54px;flex-shrink:0;font-size:9px;color:var(--t3)">${esc(o.dateLabel)} ${esc(_calEventTimeLabel(o.e))}</span><span class="rt" style="font-size:10px">${esc(o.e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events in the next 7 days.</div>'}
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openNewCalEventModal()">+ New event</button>
@@ -10185,6 +10194,18 @@ const _calEventsDefault=[
   {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,endHour:16,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
 ];
 var _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
+// Mail/Calendar rails read event data from _calEvents — the same store the calendar
+// grid renders — so a visibly-full calendar no longer shows "no events" in the rail.
+function _calEventTimeLabel(e){
+  if(e&&e.time)return e.time;
+  if(e&&typeof e.hour==='number'){const h=e.hour;return (h%12||12)+(h<12?' AM':' PM');}
+  return '';
+}
+function _calEventsOn(dateObj){
+  const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
+  return (_calEvents||[]).filter(e=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)))
+    .slice().sort((a,b)=>(a.hour||0)-(b.hour||0));
+}
 function openCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
   if(!ev)return;
@@ -11940,6 +11961,9 @@ function renderReports(){
   const startKey=_reportStartDate();
   const todayKey=new Date().toISOString().slice(0,10);
   const inRange=d=>d&&d>=startKey&&d<=todayKey;
+  // Journal entries store free-form dates ("Today · Monday, May 19"); normalise
+  // through _parseJournalDate before any range comparison.
+  const jKey=j=>{const d=_parseJournalDate(j);return d?_ymd(d):'';};
   const tasks=D.tasks||[];const goals=D.goals||[];const habits=D.habits||[];const journal=D.journal||[];const projects=D.projects||[];
   const days=Math.min(_reportRangeDays(),365);
   const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
@@ -11979,7 +12003,7 @@ function renderReports(){
 
   // Journal/Mood data
   const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
-  const journalRange=journal.filter(j=>j&&inRange(j.date||''));
+  const journalRange=journal.filter(j=>j&&inRange(jKey(j)));
   const journalScored=journalRange.filter(j=>moodMap[j.mood]).map(j=>moodMap[j.mood]);
   const avgMood=journalScored.length?(journalScored.reduce((a,b)=>a+b,0)/journalScored.length).toFixed(1):'—';
 
@@ -11995,7 +12019,7 @@ function renderReports(){
   const prevDone=filteredTasks.filter(t=>t.status==='Done'&&inPrev((t.completedAt||'').slice(0,10))).length;
   const prevCreated=filteredTasks.filter(t=>inPrev((t.createdAt||'').slice(0,10))).length;
   const prevFocus=Object.entries(focusLog).filter(([d])=>d>=periodPair.prevStart&&d<=periodPair.prevEnd).reduce((a,[,v])=>a+(Number(v)||0),0);
-  const prevJournal=journal.filter(j=>inPrev((j.date||'').slice(0,10))).length;
+  const prevJournal=journal.filter(j=>inPrev(jKey(j))).length;
   // R6: forecast for next 7 days
   const forecast7=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
   // Tasks projects + tags for R9 filter dropdowns
@@ -12082,7 +12106,7 @@ function renderReports(){
       const sparkDone=bucketIt(completionByDay);
       const sparkCreated=bucketIt(dayKeys.map(k=>tasks.filter(t=>(t.createdAt||'').slice(0,10)===k).length));
       const sparkFocus=bucketIt(focusByDay);
-      const sparkMood=bucketIt(dayKeys.map(k=>{const e=journal.find(j=>j&&(j.date||'').slice(0,10)===k);return e&&moodMap[e.mood]?moodMap[e.mood]:0;}));
+      const sparkMood=bucketIt(dayKeys.map(k=>{const e=journal.find(j=>j&&jKey(j)===k);return e&&moodMap[e.mood]?moodMap[e.mood]:0;}));
       // R6: forecast chips on top KPIs
       const fcDone=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
       const fcFocus=_reportForecast(focusByDay.slice(-Math.min(14,focusByDay.length)),7);
@@ -12832,7 +12856,7 @@ let _processGtdTab='Inbox';
 //   Done      = completed
 function _gtdBuckets(){
   const me=D.creds.userName||'Idris Grant';
-  const today=new Date().toISOString().slice(0,10);
+  const today=_todayStr;
   const snoozed=t=>t.snoozeUntil&&String(t.snoozeUntil).slice(0,10)>=today&&t.status!=='Done';
   const delegated=t=>t.status!=='Done'&&(t.status==='Delegated'||(t.assignedTo&&t.assignedTo!==me));
   const dated=t=>!!(t.due||t.startDate);
@@ -12855,11 +12879,11 @@ function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='D
 function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Not Started';t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
 function renderProcess(){
   const sparkIdeas=(D.ideas||[]).filter(x=>x.stage==='spark');
+  const _gtdB=_gtdBuckets();
   const tabBar=`<div style="display:flex;gap:2px;background:var(--s3);border-radius:6px;padding:2px;margin-bottom:12px;width:fit-content">
-    <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='tasks'?'var(--ac)':'transparent'};color:${_processTab==='tasks'?'#fff':'var(--t2)'};border:none" onclick="_processTab='tasks';renderProcess()">Tasks (${D.tasks.filter(t=>t.status==='Not Started').length})</button>
+    <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='tasks'?'var(--ac)':'transparent'};color:${_processTab==='tasks'?'#fff':'var(--t2)'};border:none" onclick="_processTab='tasks';renderProcess()">Tasks (${D.tasks.filter(_gtdB.Inbox).length})</button>
     <button class="btn" style="border-radius:4px;height:28px;font-size:11px;background:${_processTab==='ideas'?'var(--ac)':'transparent'};color:${_processTab==='ideas'?'#fff':'var(--t2)'};border:none" onclick="_processTab='ideas';renderProcess()">💡 Ideas (${sparkIdeas.length})</button>
   </div>`;
-  const _gtdB=_gtdBuckets();
   const _gtdOrder=['Inbox','Do Next','Calendar','Delegated','Snoozed','Someday','Done'];
   const _gtdIcons={Inbox:'📥','Do Next':'⚡',Calendar:'📅',Delegated:'📤',Snoozed:'⏰',Someday:'🗓',Done:'✓'};
   const _gtdHints={
@@ -12927,8 +12951,8 @@ ${tabBarG}
         </div>
       </div>`;
     }).join('')}`;
-  const inbox=D.tasks.filter(t=>t.status==='Not Started').length;
-  const today=new Date().toISOString().slice(0,10);
+  const inbox=D.tasks.filter(_gtdB.Inbox).length;
+  const today=_todayStr;
   const overdueProc=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
   $('process-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px">
     <div>
@@ -15875,13 +15899,20 @@ function renderClustersDashboard(){
   const activeClusters=clusters.length;
   const totalTasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
   const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
-  const onTrackPct=totalTasks>0?Math.round(((totalTasks-overdueTasks)/totalTasks)*100):100;
+  // "On Track" = clusters with no overdue task (matches the On Track filter). Shown as a
+  // count, not a not-overdue %, so it no longer reads like a sibling of the per-cluster
+  // completion bars (which measure done/total and run much lower).
+  const onTrackClusters=clusters.filter(cl=>{
+    const projIds=new Set(cl.projectIds||[]);
+    const clTasks=D.tasks.filter(t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId)));
+    return !clTasks.some(t=>t.status!=='Done'&&t.due&&t.due<today);
+  }).length;
   // Stat tiles
   const statTiles=[
     {label:'Active Clusters',value:activeClusters,icon:'⬡',color:'var(--ac)'},
     {label:'Total Tasks',value:totalTasks,icon:'✓',color:'var(--ok)'},
     {label:'Overdue',value:overdueTasks,icon:'⚠',color:'var(--red)'},
-    {label:'On Track',value:onTrackPct+'%',icon:'📈',color:'var(--purp)'},
+    {label:'On Track',value:onTrackClusters+'/'+activeClusters,icon:'📈',color:'var(--purp)'},
   ];
   const statHtml=statTiles.map(s=>`<div style="flex:1;min-width:120px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:14px 16px">
     <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
