@@ -42,17 +42,84 @@ package.json          ← `start` runs `drizzle-kit migrate || echo … && node 
 
 Newer features were built relationally; older "second brain" data is still blob-based. Migrating it is a known piece of tech debt.
 
-### Blob → relational migration (in progress — pilot stage)
-- **`tasks` table** (migration `0030`) — a relational **mirror** of the `tasks`
-  JSON blob: queryable columns (status, priority, due, projectId, myDay, …)
-  plus a `raw` column with the full task JSON. `appData.save` **dual-writes**
-  into it (try/caught — the blob stays the source of truth and a relational
-  failure can't break the blob save). `appData.backfillTasksRelational`
-  populates it from the existing blob. Verified: 18 rows == 18-task blob.
-- The client is **unchanged** — still runs entirely on the blob. The table is
-  a queryable shadow copy. Next steps (future session): add a relational
-  read/count endpoint, flip task reads to the table, then retire the
-  `user_app_data.tasks` column. Repeat the pattern for the other entities.
+### Blob → relational migration (tasks pilot — Steps 1-2 DONE)
+
+**Status:** the `tasks` entity is migrated through *read-flip*. Steps 3-4 are
+deliberately deferred — see the detailed handoff below.
+
+**What's live (server-only — the client is untouched throughout):**
+- **`tasks` table** (migration `0030`, `drizzle/schema.ts` → `tasksTable`) —
+  queryable columns (status, priority, due, projectId, clusterId, myDay, …)
+  plus a `raw` mediumtext column holding the full task JSON (lossless).
+  `(userId, taskId)` unique; `userId` index.
+- **Dual-write** — `appData.save` mirrors the `tasks` blob into the table on
+  every save (`mirrorTasksToRelational`, delete-all + re-insert in array order
+  so PK order == manual task order). Wrapped in try/catch — a relational
+  failure can't break the blob save.
+- **Reads flipped** — `appData.load` serves tasks from the table via
+  `readTasks()`. The blob is a *consistency-checked fallback*: if the table is
+  empty/unreadable, or its id-set diverges from the blob, the blob is served
+  and the divergence `console.warn`'d. `load` returns `_tasksSource`
+  (`relational` | `blob-empty` | `blob-mismatch` | `blob-error`) for monitoring.
+- **Endpoints** — `appData.backfillTasksRelational` (one-shot: populate the
+  table from the current blob) and `appData.tasksRelationalStatus` (returns
+  `{tableCount, blobCount, consistent}`). All in `server/routers/appData.ts`.
+- The JSON blob is **still dual-written and is still the source of truth.**
+  `user_app_data.tasks` has NOT been dropped.
+
+**Migration files with no local toolchain:** `node_modules` isn't installed
+here, so `drizzle-kit generate` can't run. Migration `0030` was produced by a
+one-off node script that: writes the `.sql` (tab-indented `CREATE TABLE`),
+copies the previous `drizzle/meta/<n>_snapshot.json`, adds the new table object
+(format mirrors an existing table like `bookmarks`), rechains `id`/`prevId`,
+writes `<n+1>_snapshot.json`, and appends the entry to `meta/_journal.json`.
+`drizzle-kit migrate` (run at Railway startup) only needs the `.sql` + journal
+entry; the snapshot is for future `generate` correctness. Repeat that approach,
+or install deps and use `drizzle-kit generate` properly.
+
+#### Step 3 — retire `user_app_data.tasks` (DEFERRED — destructive)
+**Precondition (must be genuinely met first):** a soak period of the flipped
+reads proving stable under real use — recommend ≥1 week. Verify before starting:
+`appData.tasksRelationalStatus` always returns `consistent:true`, `load` always
+returns `_tasksSource:'relational'`, and the Railway logs have no
+`[appData] tasks blob/relational` warnings. **Take a DB backup/export of
+`user_app_data` first — dropping the column is irreversible.**
+Then, in order:
+1. **Promote the table to sole store.** In `appData.save`, stop putting `tasks`
+   into the `user_app_data` upsert `updates` object (the blob column stops
+   being written). Make the `mirrorTasksToRelational` call *propagate* errors
+   (remove the try/catch swallow) — once it's the only store, a failed write
+   must surface to the client as a failed save, not be silent.
+2. **Drop the fallback.** In `readTasks`, serve the table unconditionally —
+   remove the blob read + consistency check (the blob is now stale).
+3. **Drop the column.** New migration `ALTER TABLE user_app_data DROP COLUMN
+   tasks;` (generate it the same snapshot-copy way; the snapshot's
+   `user_app_data` entry loses its `tasks` column). Remove `tasks` from the
+   `userAppData` schema definition.
+4. **Keep `tasks` in the `appData.save` zod input and the `load` output** — the
+   client still sends/expects a `tasks` array; only the storage moved. No
+   client change is needed at any point in Step 3.
+
+#### Step 4 — repeat for the other blob entities
+Still blob-backed: notes, projects, goals, journal, habits, contacts, ideas,
+teams, clusters, calEvents, prefs. For each, repeat the tasks pattern: schema
+table (queryable cols + `raw`) → migration → `mirrorXToRelational` + dual-write
+→ `backfillXRelational` → `readX` + flip the `load` branch + `xRelationalStatus`
+→ backfill → soak → Step 3 retire. Per-entity gotchas:
+- **notes** — large `bodyHtml` (imported Word docs); use `mediumtext`/`longtext`
+  for `raw`.
+- **journal** — freeform `date` strings ("Today · Monday, May 19"); keep `date`
+  as varchar, optionally add a normalized `dateNorm` column (`_parseJournalDate`
+  → ISO) for querying.
+- **prefs** — a single JSON *object*, not an array; the row-per-item pattern
+  doesn't fit. Recommend leaving `prefs` as a blob (it's small, one row).
+  `aiTopics` rides inside `prefs.aiTopics` — leave it there.
+- **calEvents** — the blob `D.calEvents` (OAuth-synced) is a *separate* store
+  from `_calEvents` (the grid/seed store the calendar actually renders).
+  Unify those two stores before/with migrating, or it just moves the mess.
+- **teams** — nested (team → members[]); `raw` carries it, few queryable cols.
+- **projects / goals / ideas / clusters / contacts / habits** — plain arrays,
+  follow the tasks pattern directly. Good order to tackle them in.
 
 ## Deploy workflow
 
@@ -289,7 +356,10 @@ All audit fixes are client-side in `client/public/js/app-part*.js` — **bump
 `APP_BUILD` in `client/index.html` on every change** or browsers serve stale
 JS. Keep everything iPhone/iPad/iOS-compatible.
 
-Session commits (newest first): `8f940df` Batch 4 layout + platform-key timing ·
+Session commits (newest first): `7eae284` flip task reads to relational table +
+status endpoint · `6ab8afa` fix overlays closing on text-selection drag ·
+`0262958` relational tasks-table pilot (dual-write + backfill) ·
+`8f940df` Batch 4 layout + platform-key timing ·
 `a99af9b` Batch 4 logic (toasts/glyph/Projects/Archive) · `d50af55` CLAUDE.md ·
 `21c431e` Home rail + weekly review ·
 `2a21c34` per-screen audit batch (Process/Clusters/Reports/Calendar) ·
