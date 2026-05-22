@@ -180,6 +180,88 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 20–22 2026 session arc)
+
+### Storage + import follow-ups (May 20–21)
+- Google Drive storage is live and verified on Railway (`/api/storage-status`).
+  `server/storage.ts` emits `drive.google.com/thumbnail?id=…&sz=w1600` URLs
+  for images (the old `uc?export=view` no longer renders in `<img>`) and
+  `uc?export=download` for other files.
+- `imageMigration.migrateNoteImages` tRPC mutation — one-shot backfill that
+  moves inline `data:image;base64` URIs out of notes into Drive. Run from the
+  console: `_trpc('imageMigration.migrateNoteImages',undefined,'mutation')`.
+- Notes-page doc import is now **bulk**: parses every selected file, opens a
+  review modal with per-note checkboxes + duplicate detection (skip /
+  overwrite / rename) — mirrors the Settings Word importer.
+- Imported notes push to the server immediately (not the 2s debounce);
+  `loadServerData()` now rescues in-memory items the localStorage cache dropped.
+
+### UI audit + fixes (May 22) — IN PROGRESS
+
+A full feature-by-feature audit of the live app was done (every screen except
+Contacts/Bookmarks). Fixes are shipping in batches.
+
+**Done & deployed (builds `2026-05-22-01` … `-04`):**
+- **Batch 1 — date handling.** Root cause: `_todayStr` (app-part1.js) was built
+  with `toISOString()` (UTC) → flipped to "tomorrow" each evening for users
+  west of UTC. Now local; added global `_ymd()` helper. Also fixed the Focus
+  7-day history and Journal weekday/Today labels (`_parseJournalDate` /
+  `_fmtJournalDate` recompute the display from the real date; the parser pins
+  the year so yearless strings like "May 19" don't resolve to 2001 in V8).
+- **Batch 2 — count consistency.** `_twFmt` week boundary (same UTC bug);
+  Tasks "this week" header now routes through `_taskInWeek` so it matches the
+  "This Week" tab badge; habits "done today" counts only `cadence==='Daily'`
+  (Habits page header + Home HABITS tile) — matches My Day / Coach / Reports.
+- **Batch 3a** — Settings profile completeness (the form showed `||default`
+  values as if saved while the meter read empty `D.creds` fields; now shows
+  real state + placeholders); `renderTeam` `today` UTC fix.
+
+**Remaining audit work — spec for the next session:**
+
+Per-screen bugs:
+- **Process (GTD)** — sidebar badge vs header "tasks to clarify" disagree
+  (8 vs 9): `setBadge('badge-process',inboxCount)` ~line 3280 vs the `inbox`
+  count in `renderProcess` ~line 12936. Unify into one computation.
+- **Clusters** — "85% On Track" tile contradicts the cluster cards (all
+  0–33%). Check the on-track metric in the clusters render (app-part2.js).
+- **Reports** — header "0 journal entries (last 30 days)" though 4 exist in
+  range; "Avg mood /5" KPI shows no value; "0 tasks completed" (tasks carry
+  no completion timestamp — data-model gap).
+- **Calendar + Mail** right rails say "no events" while the Calendar grid is
+  full — rails count `D.calEvents` (empty); the grid shows the recurring
+  `_calEventsDefault` seed. Decide: count recurring events, or relabel.
+
+Interface / UX (Batch 4):
+- Auto-toasts (NEWS / INFO / ENCOURAGE) pop on nearly every screen and overlap
+  content — reduce frequency / make "don't show again" stick.
+- Shortcut hints show the Mac `⌘` glyph on Windows. Make it **platform-aware**
+  (detect Mac/iOS → `⌘`, else `Ctrl`) — iPad with a keyboard uses ⌘, keep
+  that. Note `⌘J`→`Ctrl+J` on Windows collides with Chrome's downloads.
+- Ideas page: content + right rail overflow the viewport horizontally.
+- My Week: top-right "+ New / + Full Add" button clipped at the viewport edge.
+- Settings: narrow content column with a large empty area to the right.
+- Goals: cards in the same row have unequal heights.
+- Projects: progress donuts show 90%/70% next to "0/0 tasks done" (confusing).
+- Archive: some items show an archived date, others none.
+
+**Reclassified — not code fixes:**
+- "Jun 31" dates (one Project card + one Goal) = bad data typed into those
+  records; edit the records, no code change helps.
+- Team activity feed "Yesterday + 41m ago" = not a bug (audited at the
+  midnight rollover; a late-yesterday event legitimately read "41m ago").
+- Team member card "Goals Avg 5%" vs Goals page "14%" = by design — the member
+  card is `createdBy`-scoped. Real issue: the "Velocity" goal has no
+  `createdBy` (data attribution gap).
+
+All audit fixes are client-side in `client/public/js/app-part*.js` — **bump
+`APP_BUILD` in `client/index.html` on every change** or browsers serve stale
+JS. Keep everything iPhone/iPad/iOS-compatible.
+
+Session commits (newest first): `3990eec` batch 3a · `6847986` batch 2 ·
+`b8caea4` journal parser · `f1117c5` batch 1 · `c8c1bd7` bulk doc import ·
+`7b1c3a0` image migration · `58d8024` CLAUDE.md storage · `aa768fe` APP_BUILD
+bump · `219e615` doc-import URL + persistence fix.
+
 ## Most recently shipped (May 11–12 2026 session arc)
 
 ### Storage backend overhaul (May 11–12)
