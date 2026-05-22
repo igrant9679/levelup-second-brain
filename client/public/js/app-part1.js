@@ -15415,7 +15415,7 @@ function renderTeam(){
     }
   }catch(_){}
   const allMembers=D.teams.flatMap(t=>t.members);
-  const today=new Date().toISOString().split('T')[0];
+  const today=_todayStr; // local — was UTC toISOString()
   function memberCard(m){
     const tasks=D.tasks.filter(t=>t.createdBy===m.name);
     const done=tasks.filter(t=>t.status==='Done').length;
