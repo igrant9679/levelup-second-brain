@@ -9561,11 +9561,15 @@ function _parseJournalDate(j){
   raw=raw.replace(/^(today|yesterday|tomorrow)\b\s*[·\-,]?\s*/i,'')
          .replace(/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b\s*[·\-,]?\s*/i,'')
          .trim();
-  let d=new Date(raw);
-  if(isNaN(d)){
-    const m=raw.match(/([A-Za-z]{3,9})\s+(\d{1,2})/);
-    if(m)d=new Date(`${m[1]} ${m[2]}, ${new Date().getFullYear()}`);
+  // Extract "Month Day" and force a year — yearless strings like "May 19"
+  // otherwise parse to year 2001 in V8, which gives the wrong weekday.
+  const m=raw.match(/([A-Za-z]{3,9})\s+(\d{1,2})/);
+  if(m){
+    const yr=(raw.match(/\b(20\d{2})\b/)||[])[1]||new Date().getFullYear();
+    const d=new Date(`${m[1]} ${m[2]}, ${yr}`);
+    if(!isNaN(d))return d;
   }
+  const d=new Date(raw);
   return isNaN(d)?null:d;
 }
 // Format a journal entry's date for display — recomputes the weekday and the
