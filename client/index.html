@@ -416,8 +416,8 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 /* MAIN */
 .mn{padding:16px 24px;overflow-y:auto;min-width:0}
 /* On pages without a right rail, cap content width on wide monitors so rows stay scannable. */
-.bg:not(.wr) .mn{max-width:1280px;margin-right:auto}
-.rr{background:var(--s1);border-left:1px solid var(--bd1);padding:14px;overflow-y:auto}
+.bg:not(.wr) .mn{width:100%;max-width:1280px;margin-right:auto}
+.rr{background:var(--s1);border-left:1px solid var(--bd1);padding:14px;overflow-y:auto;min-width:0}
 .scr{display:none;height:calc(100vh - var(--top));height:calc(100dvh - var(--top))}.scr.on{display:block}
 .scr>.bg{height:100%;min-height:0}
 
@@ -2111,7 +2111,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- ===== S-17 PROCESS ===== -->
 <div class="scr" id="s-process"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="process-main"></main></div></div>
 <!-- ===== S-IDEAS ===== -->
-<div class="scr" id="s-ideas"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="ideas-main"></main><aside class="rr" id="ideas-rail" style="width:320px"></aside></div></div>
+<div class="scr" id="s-ideas"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="ideas-main"></main><aside class="rr" id="ideas-rail"></aside></div></div>
 <!-- ===== S-MINDMAPS ===== -->
 <div class="scr" id="s-mindmaps"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="mindmap-main" style="display:flex;flex-direction:column"></main></div></div>
 <!-- ===== S-GRAPH (Knowledge Graph of Notes) ===== -->
@@ -2418,7 +2418,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-22-08';
+  var APP_BUILD='2026-05-22-09';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

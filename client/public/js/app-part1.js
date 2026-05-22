@@ -1372,7 +1372,7 @@ function _renderMiniWeekStrip(){
 const _origRenderScreen=window.renderScreen||function(){};
 window.renderScreen=function(s){
   const r=_origRenderScreen.apply(this,arguments);
-  setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();},50);
+  setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();_applyPlatformKeys();},50);
   return r;
 };
 // On non-Mac, swap the static Mac ⌘ glyph for "Ctrl" in keyboard-shortcut hints.
