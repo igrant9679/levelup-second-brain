@@ -1343,7 +1343,7 @@ function _renderMiniWeekStrip(){
     const k=d.toISOString().slice(0,10);
     const isToday=i===0;
     const taskCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k)).length;
-    const evtCount=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k).length;
+    const evtCount=_calEventsOn(d).length;
     const dots=[];
     if(taskCount)dots.push(`<span class="lu-mini-week-dot" title="${taskCount} task${taskCount===1?'':'s'}"></span>`);
     if(evtCount)dots.push(`<span class="lu-mini-week-dot evt" title="${evtCount} event${evtCount===1?'':'s'}"></span>`);
@@ -5023,7 +5023,7 @@ function renderHome(){
   const _todayIdx=6;
   const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:9px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:8px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
   r.innerHTML=focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
-  ${(()=>{const now=new Date();const ev=(D.calEvents||[]).filter(e=>e.start&&new Date(e.start)>=now).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);if(!ev.length)return '<div style="font-size:10px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(e=>{const s=new Date(e.start);const en=e.end?new Date(e.end):null;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':(mins%60===0?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/60)+'h '+(mins%60)+'m');return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(e.title||'(untitled)')+'</div><div style="font-size:9px;color:var(--t3)">'+range+'</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
+  ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:10px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:9px;color:var(--t3)">'+range+'</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
   <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
   ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
   ${(()=>{
@@ -9110,8 +9110,8 @@ function aiWeeklyReview(){
     return sum+(done/target);
   },0)/D.habits.length*100):0;
   // Journal
-  const journalEntries=D.journal.filter(j=>weekDates.includes(j.date));
-  const moodMap={'😄':5,'😊':4,'😐':3,'😔':2,'😢':1,'😤':2,'😴':2,'🤩':5,'😌':4};
+  const journalEntries=D.journal.filter(j=>{const d=_parseJournalDate(j);return d&&weekDates.includes(_ymd(d));});
+  const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
   const moodScores=journalEntries.filter(j=>moodMap[j.mood]).map(j=>moodMap[j.mood]);
   const avgMood=moodScores.length?moodScores.reduce((a,b)=>a+b,0)/moodScores.length:null;
   // Goals
@@ -10205,6 +10205,24 @@ function _calEventsOn(dateObj){
   const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
   return (_calEvents||[]).filter(e=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)))
     .slice().sort((a,b)=>(a.hour||0)-(b.hour||0));
+}
+// Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
+// real {start,end} datetimes, skipping ones already past today.
+function _upcomingCalEvents(limit){
+  const now=new Date(),out=[];
+  for(let i=0;i<8&&out.length<limit;i++){
+    const day=new Date();day.setHours(0,0,0,0);day.setDate(day.getDate()+i);
+    _calEventsOn(day).forEach(e=>{
+      if(out.length>=limit)return;
+      const h=typeof e.hour==='number'?e.hour:0;
+      const start=new Date(day);start.setHours(h,0,0,0);
+      if(start<now)return;
+      const eh=(typeof e.endHour==='number'&&e.endHour>h)?e.endHour:h+1;
+      const end=new Date(day);end.setHours(eh,0,0,0);
+      out.push({e,start,end});
+    });
+  }
+  return out;
 }
 function openCalEvent(id){
   const ev=_calEvents.find(e=>e.id===id);
