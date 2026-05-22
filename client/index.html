@@ -2140,12 +2140,12 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="scr" id="s-bookmarks"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="bookmarks-main"></main></div></div>
 
 <!-- DETAIL DRAWER -->
-<div class="drawer-overlay" id="drawer-ov" onclick="if(event.target===this)closeDrawer()">
+<div class="drawer-overlay" id="drawer-ov" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeDrawer()">
 <div class="drawer" id="drawer-content"></div>
 </div>
 
 <!-- HELP DRAWER -->
-<div id="help-drawer-ov" onclick="if(event.target===this)closeHelpDrawer()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;justify-content:flex-end">
+<div id="help-drawer-ov" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeHelpDrawer()" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:none;justify-content:flex-end">
   <div id="help-drawer-panel" style="width:480px;max-width:100vw;background:var(--bg);height:100%;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.2);display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--br);flex-shrink:0">
       <div style="font-size:15px;font-weight:700">❓ Help &amp; Learning</div>
@@ -2200,7 +2200,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
   style="position:fixed;bottom:24px;right:24px;width:22px;height:22px;border-radius:50%;background:var(--ac);color:#fff;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:250;transition:transform .15s" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="Help &amp; Learning (?)">❓</button>
 
 <!-- COMMAND PALETTE (Cmd+K) -->
-<div class="cmdp-overlay" id="cmdp-overlay" onclick="if(event.target===this)closeCommandPalette()">
+<div class="cmdp-overlay" id="cmdp-overlay" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeCommandPalette()">
   <div class="cmdp" role="dialog" aria-label="Command palette">
     <div class="cmdp-input-row">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -2220,14 +2220,14 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div>
 
 <!-- QUICK CAPTURE MODAL -->
-<div class="modal-ov" id="modal-capture" onclick="if(event.target===this)closeModal()">
+<div class="modal-ov" id="modal-capture" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeModal()">
 <div class="modal" id="modal-content"></div>
 </div>
 <!-- IMPORT FILE INPUT (hidden) -->
 <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(this.files[0])">
 
 <!-- FULL ADD MODAL -->
-<div class="fa-modal-ov" id="fa-modal-ov" onclick="if(event.target===this)closeFA()">
+<div class="fa-modal-ov" id="fa-modal-ov" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeFA()">
   <div class="fa-modal">
     <div class="fa-hd">
       <div style="flex:1;min-width:0">
@@ -2251,7 +2251,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div>
 
 <!-- KEYBOARD SHORTCUTS OVERLAY -->
-<div class="shortcuts-overlay" id="shortcuts-overlay" onclick="if(event.target===this)closeShortcuts()">
+<div class="shortcuts-overlay" id="shortcuts-overlay" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeShortcuts()">
   <div class="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts">
     <h2>⌨ Keyboard Shortcuts <small>Press <kbd>?</kbd> anytime · <kbd>Esc</kbd> to close</small></h2>
     <p class="sm-intro">Speed up everything you do in LevelUp. All shortcuts work from any page — except when typing in an input or editor.</p>
@@ -2305,7 +2305,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div>
 
 <!-- IMAGE LIGHTBOX -->
-<div class="lu-lightbox" id="lu-lightbox" onclick="if(event.target===this||event.target.classList.contains('lu-lightbox'))closeLightbox()">
+<div class="lu-lightbox" id="lu-lightbox" onmousedown="this._md=event.target===this||event.target.classList.contains('lu-lightbox')" onclick="if((event.target===this||event.target.classList.contains('lu-lightbox'))&&this._md)closeLightbox()">
   <button class="lu-lightbox-close" onclick="closeLightbox()" title="Close (Esc)">✕</button>
   <button class="lu-lightbox-nav prev" id="lu-lightbox-prev" onclick="event.stopPropagation();stepLightbox(-1)" title="Previous (←)">‹</button>
   <img id="lu-lightbox-img" src="" alt="" onclick="closeLightbox()">
@@ -2418,7 +2418,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-22-09';
+  var APP_BUILD='2026-05-22-10';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
