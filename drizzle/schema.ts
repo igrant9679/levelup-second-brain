@@ -579,3 +579,36 @@ export const userAppData = mysqlTable('user_app_data', {
 }));
 export type UserAppData = typeof userAppData.$inferSelect;
 export type InsertUserAppData = typeof userAppData.$inferInsert;
+
+/**
+ * Relational mirror of the per-user `tasks` JSON blob in user_app_data.
+ * Pilot for migrating the blob-based "second brain" data to real tables.
+ * The JSON blob stays the source of truth; appData.save dual-writes here so
+ * tasks become queryable at the DB level. `raw` keeps the full task object
+ * so nothing is lost. IDs are stored as strings — app task ids can be
+ * Date.now() values that overflow a 32-bit int.
+ */
+export const tasksTable = mysqlTable('tasks', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  taskId: varchar('taskId', { length: 40 }).notNull(),
+  title: varchar('title', { length: 512 }),
+  status: varchar('status', { length: 32 }),
+  priority: varchar('priority', { length: 16 }),
+  due: varchar('due', { length: 32 }),
+  startDate: varchar('startDate', { length: 32 }),
+  completedAt: varchar('completedAt', { length: 40 }),
+  projectId: varchar('projectId', { length: 40 }),
+  clusterId: varchar('clusterId', { length: 40 }),
+  myDay: tinyint('myDay').default(0).notNull(),
+  context: varchar('context', { length: 64 }),
+  assignedTo: varchar('assignedTo', { length: 255 }),
+  createdBy: varchar('createdBy', { length: 255 }),
+  raw: mediumtext('raw'),
+  syncedAt: timestamp('syncedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_tasks_user').on(t.userId),
+  uqUserTask: unique('uq_tasks_user_task').on(t.userId, t.taskId),
+}));
+export type TaskRow = typeof tasksTable.$inferSelect;
+export type InsertTaskRow = typeof tasksTable.$inferInsert;
