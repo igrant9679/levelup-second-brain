@@ -52,6 +52,38 @@ async function mirrorTasksToRelational(db: any, userId: number, tasksJson: strin
   return rows.length;
 }
 
+/**
+ * Read a user's tasks. Reads come from the relational `tasks` table; the JSON
+ * blob is a consistency-checked fallback, used only if the table is empty /
+ * unreadable, or its id-set diverges from the blob (a missed dual-write).
+ * Rows are ordered by PK, which mirrors the blob array order (the mirror
+ * delete+re-inserts in array order on every save), so manual task order is
+ * preserved. Returns the array plus which source served it.
+ */
+async function readTasks(db: any, userId: number, blobRaw: string | null): Promise<{ tasks: any[]; source: string }> {
+  let blobTasks: any[] = [];
+  try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobTasks = a; } catch {}
+  let tableRows: any[];
+  try {
+    tableRows = await db.select().from(tasksTable).where(eq(tasksTable.userId, userId)).orderBy(tasksTable.id);
+  } catch (err) {
+    console.warn('[appData] relational tasks read failed — serving blob:', (err as Error)?.message);
+    return { tasks: blobTasks, source: 'blob-error' };
+  }
+  if (!tableRows.length) return { tasks: blobTasks, source: 'blob-empty' };
+  const tableTasks = tableRows
+    .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
+    .filter((t: any) => t);
+  const blobIds = new Set(blobTasks.filter((t: any) => t && t.id != null).map((t: any) => String(t.id)));
+  const tableIds = new Set(tableTasks.map((t: any) => String(t.id)));
+  const consistent = blobIds.size === tableIds.size && [...blobIds].every((id) => tableIds.has(id));
+  if (!consistent) {
+    console.warn('[appData] tasks blob/relational id mismatch — serving blob', { blob: blobIds.size, table: tableIds.size });
+    return { tasks: blobTasks, source: 'blob-mismatch' };
+  }
+  return { tasks: tableTasks, source: 'relational' };
+}
+
 export const appDataRouter = router({
   /**
    * Load all saved data blobs for the current user.
@@ -72,6 +104,14 @@ export const appDataRouter = router({
     const result: Record<string, unknown> = {};
     for (const key of DATA_KEYS) {
       const raw = row[key as keyof typeof row] as string | null;
+      if (key === 'tasks') {
+        // Tasks now read from the relational `tasks` table (blob is the
+        // consistency-checked fallback). _tasksSource lets the flip be monitored.
+        const tr = await readTasks(db, ctx.user.id, raw);
+        result.tasks = tr.tasks;
+        result._tasksSource = tr.source;
+        continue;
+      }
       if (raw != null) {
         try {
           result[key] = JSON.parse(raw);
@@ -158,5 +198,34 @@ export const appDataRouter = router({
     if (!rows.length || rows[0].tasks == null) return { ok: true, count: 0 };
     const count = await mirrorTasksToRelational(db, ctx.user.id, rows[0].tasks);
     return { ok: true, count: count ?? 0 };
+  }),
+
+  /**
+   * Verify the relational tasks mirror independently of the read path:
+   * row count in the `tasks` table vs the JSON blob, and whether they agree.
+   */
+  tasksRelationalStatus: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const };
+    const tableRows = await db
+      .select({ taskId: tasksTable.taskId })
+      .from(tasksTable)
+      .where(eq(tasksTable.userId, ctx.user.id));
+    const blobRow = await db
+      .select({ tasks: userAppData.tasks })
+      .from(userAppData)
+      .where(eq(userAppData.userId, ctx.user.id))
+      .limit(1);
+    let blobCount = 0;
+    try {
+      const a = JSON.parse(blobRow[0]?.tasks || '[]');
+      if (Array.isArray(a)) blobCount = a.filter((t: any) => t && t.id != null).length;
+    } catch {}
+    return {
+      ok: true as const,
+      tableCount: tableRows.length,
+      blobCount,
+      consistent: tableRows.length === blobCount,
+    };
   }),
 });
