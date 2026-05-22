@@ -477,8 +477,12 @@ function luRTE_htmlToMd(html){
 }
 
 // ====== DATA STORE ======
-// Global today string used across screens (YYYY-MM-DD)
-var _todayStr=(()=>{const d=new Date();return d.toISOString().split('T')[0];})();
+// Local YYYY-MM-DD for a date (defaults to now). Use this instead of
+// toISOString().split('T')[0] — that returns the UTC day, which is wrong
+// (off by one) for users west of UTC during the evening.
+function _ymd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// Global today string used across screens (YYYY-MM-DD), in LOCAL time.
+var _todayStr=_ymd();
 var D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
     {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
@@ -9549,10 +9553,34 @@ const JOURNAL_CATEGORIES=['Daily','Weekly Review','Gratitude','Planning','Reflec
 // Parse free-form journal date strings ("Today · May 12", "May 12, 2026", ISO)
 // into a real Date. Returns null when unparseable.
 function _parseJournalDate(j){
-  const raw=String(j.date||'').replace(/^today\s*[·\-]?\s*/i,'').trim();
   if(j.createdAt){const d=new Date(j.createdAt);if(!isNaN(d))return d;}
-  if(/^\d{4}-\d{2}-\d{2}/.test(raw))return new Date(raw);
-  const d=new Date(raw);return isNaN(d)?null:d;
+  let raw=String(j.date||'').trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){const d=new Date(raw);if(!isNaN(d))return d;}
+  // Strip leading relative words / weekday names so strings like
+  // "Yesterday · Sunday, May 18" still resolve to a real date.
+  raw=raw.replace(/^(today|yesterday|tomorrow)\b\s*[·\-,]?\s*/i,'')
+         .replace(/^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b\s*[·\-,]?\s*/i,'')
+         .trim();
+  let d=new Date(raw);
+  if(isNaN(d)){
+    const m=raw.match(/([A-Za-z]{3,9})\s+(\d{1,2})/);
+    if(m)d=new Date(`${m[1]} ${m[2]}, ${new Date().getFullYear()}`);
+  }
+  return isNaN(d)?null:d;
+}
+// Format a journal entry's date for display — recomputes the weekday and the
+// Today/Yesterday prefix from the real date, so stale stored strings (the
+// sample entries hardcode the wrong weekday) still render correctly.
+function _fmtJournalDate(j){
+  const d=_parseJournalDate(j);
+  if(!d)return String(j.date||'');
+  const t=new Date();t.setHours(0,0,0,0);
+  const dd=new Date(d);dd.setHours(0,0,0,0);
+  const diff=Math.round((t-dd)/86400000);
+  const wd=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  const rel=diff===0?'Today · ':diff===1?'Yesterday · ':'';
+  return `${rel}${wd}, ${mo} ${d.getDate()}`;
 }
 // Strip diaryBody/bodyHtml to plain text for previews (J7).
 function _journalPreviewText(j){
@@ -9588,7 +9616,7 @@ function renderJournalList(){
     el.innerHTML=renderEmptyState({icon:'📓',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
     return;
   }
-  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(j.date||'')} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
+  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
 }
 // J3: month-grid calendar view of journal entries
 function renderJournalCalendar(){
@@ -12960,7 +12988,7 @@ function renderFocus(){
     // 7-day bar chart
     const days7=Array.from({length:7},(_,i)=>{
       const d=new Date();d.setDate(d.getDate()-6+i);
-      return d.toISOString().split('T')[0];
+      return _ymd(d);
     });
     const dayLabels=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const dayMins=days7.map(ds=>_focusSessions.filter(s=>s.date===ds).reduce((a,s)=>a+(s.mins||0),0));
