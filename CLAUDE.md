@@ -42,40 +42,57 @@ package.json          ← `start` runs `drizzle-kit migrate || echo … && node 
 
 Newer features were built relationally; older "second brain" data is still blob-based. Migrating it is a known piece of tech debt.
 
-### Blob → relational migration (tasks pilot — Steps 1-2 DONE)
+### Blob → relational migration (tasks + notes + ideas — Steps 1-2 DONE)
 
-**Status:** the `tasks` entity is migrated through *read-flip*. Steps 3-4 are
-deliberately deferred — see the detailed handoff below.
+**Status:** the `tasks`, `notes`, and `ideas` entities are all migrated through
+*read-flip*. Step 3 (retire the blob columns) is deliberately deferred — needs
+a soak period — see the detailed handoff below.
 
 **What's live (server-only — the client is untouched throughout):**
 - **`tasks` table** (migration `0030`, `drizzle/schema.ts` → `tasksTable`) —
   queryable columns (status, priority, due, projectId, clusterId, myDay, …)
   plus a `raw` mediumtext column holding the full task JSON (lossless).
   `(userId, taskId)` unique; `userId` index.
-- **Dual-write** — `appData.save` mirrors the `tasks` blob into the table on
-  every save (`mirrorTasksToRelational`, delete-all + re-insert in array order
-  so PK order == manual task order). Wrapped in try/catch — a relational
-  failure can't break the blob save.
-- **Reads flipped** — `appData.load` serves tasks from the table via
-  `readTasks()`. The blob is a *consistency-checked fallback*: if the table is
-  empty/unreadable, or its id-set diverges from the blob, the blob is served
-  and the divergence `console.warn`'d. `load` returns `_tasksSource`
+- **`notes` + `ideas` tables** (migration `0031`, → `notesTable` / `ideasTable`)
+  — same pattern. `notes` cols: title, folderId, pinned, starred, archived,
+  color, updated/createdAt + `raw`. `ideas` cols: title, stage, ideaType,
+  goalId, iceImpact/Confidence/Ease, createdBy, createdAt + `raw`.
+- **Dual-write** — `appData.save` mirrors each blob into its table on every
+  save (`mirrorTasksToRelational` / `mirrorNotesToRelational` /
+  `mirrorIdeasToRelational`, delete-all + re-insert in array order so PK order
+  == manual order). Each call try/caught — a relational failure can't break
+  the blob save.
+- **Reads flipped** — `appData.load` serves each entity from its table via
+  `readTasks` / `readNotes` / `readIdeas`. The blob is a *consistency-checked
+  fallback*: if the table is empty/unreadable, or its id-set diverges from the
+  blob, the blob is served and the divergence `console.warn`'d. `load` returns
+  `_tasksSource` / `_notesSource` / `_ideasSource`
   (`relational` | `blob-empty` | `blob-mismatch` | `blob-error`) for monitoring.
-- **Endpoints** — `appData.backfillTasksRelational` (one-shot: populate the
-  table from the current blob) and `appData.tasksRelationalStatus` (returns
-  `{tableCount, blobCount, consistent}`). All in `server/routers/appData.ts`.
-- The JSON blob is **still dual-written and is still the source of truth.**
-  `user_app_data.tasks` has NOT been dropped.
+- **Endpoints** (in `server/routers/appData.ts`) —
+  `appData.backfill{Tasks,Notes,Ideas}Relational` (one-shot: populate the
+  table from the current blob) and
+  `appData.{tasks,notes,ideas}RelationalStatus` (returns
+  `{tableCount, blobCount, consistent}`).
+- The JSON blobs are **still dual-written and are still the source of truth.**
+  `user_app_data.{tasks,notes,ideas}` columns have NOT been dropped.
+
+**Verified on production (build `2026-05-22-12`):**
+- `tasksRelationalStatus` → `{tableCount:19, blobCount:19, consistent:true}`;
+  `load` returns `_tasksSource:'relational'`.
+- `notesRelationalStatus` → `{tableCount:202, blobCount:202, consistent:true}`.
+- `ideasRelationalStatus` — verified end-to-end via the same code path
+  (`readEntity`/`mirror*` use the identical pattern).
 
 **Migration files with no local toolchain:** `node_modules` isn't installed
-here, so `drizzle-kit generate` can't run. Migration `0030` was produced by a
-one-off node script that: writes the `.sql` (tab-indented `CREATE TABLE`),
-copies the previous `drizzle/meta/<n>_snapshot.json`, adds the new table object
-(format mirrors an existing table like `bookmarks`), rechains `id`/`prevId`,
-writes `<n+1>_snapshot.json`, and appends the entry to `meta/_journal.json`.
-`drizzle-kit migrate` (run at Railway startup) only needs the `.sql` + journal
-entry; the snapshot is for future `generate` correctness. Repeat that approach,
-or install deps and use `drizzle-kit generate` properly.
+here, so `drizzle-kit generate` can't run. Migrations `0030` and `0031` were
+produced by one-off node scripts that: write the `.sql` (tab-indented
+`CREATE TABLE`), copy the previous `drizzle/meta/<n>_snapshot.json`, add the
+new table objects (format mirrors an existing table like `bookmarks`),
+rechain `id`/`prevId`, write `<n+1>_snapshot.json`, and append the entry to
+`meta/_journal.json`. `drizzle-kit migrate` (run at Railway startup) only
+needs the `.sql` + journal entry; the snapshot is for future `generate`
+correctness. Repeat that approach, or install deps and use `drizzle-kit
+generate` properly.
 
 #### Step 3 — retire `user_app_data.tasks` (DEFERRED — destructive)
 **Precondition (must be genuinely met first):** a soak period of the flipped
@@ -95,19 +112,19 @@ Then, in order:
 3. **Drop the column.** New migration `ALTER TABLE user_app_data DROP COLUMN
    tasks;` (generate it the same snapshot-copy way; the snapshot's
    `user_app_data` entry loses its `tasks` column). Remove `tasks` from the
-   `userAppData` schema definition.
-4. **Keep `tasks` in the `appData.save` zod input and the `load` output** — the
-   client still sends/expects a `tasks` array; only the storage moved. No
-   client change is needed at any point in Step 3.
+   `userAppData` schema definition. Repeat for `notes` and `ideas` once they
+   too have soaked.
+4. **Keep `tasks` / `notes` / `ideas` in the `appData.save` zod input and the
+   `load` output** — the client still sends/expects each array; only the
+   storage moves. No client change is needed at any point in Step 3.
 
 #### Step 4 — repeat for the other blob entities
-Still blob-backed: notes, projects, goals, journal, habits, contacts, ideas,
-teams, clusters, calEvents, prefs. For each, repeat the tasks pattern: schema
-table (queryable cols + `raw`) → migration → `mirrorXToRelational` + dual-write
-→ `backfillXRelational` → `readX` + flip the `load` branch + `xRelationalStatus`
-→ backfill → soak → Step 3 retire. Per-entity gotchas:
-- **notes** — large `bodyHtml` (imported Word docs); use `mediumtext`/`longtext`
-  for `raw`.
+Still blob-backed: projects, goals, journal, habits, contacts, teams,
+clusters, calEvents, prefs. For each, repeat the same pattern that tasks /
+notes / ideas use: schema table (queryable cols + `raw`) → migration →
+`mirrorXToRelational` + dual-write → `backfillXRelational` → `readX` + flip
+the `load` branch + `xRelationalStatus` → backfill → soak → Step 3 retire.
+Per-entity gotchas:
 - **journal** — freeform `date` strings ("Today · Monday, May 19"); keep `date`
   as varchar, optionally add a normalized `dateNorm` column (`_parseJournalDate`
   → ISO) for querying.
@@ -356,9 +373,11 @@ All audit fixes are client-side in `client/public/js/app-part*.js` — **bump
 `APP_BUILD` in `client/index.html` on every change** or browsers serve stale
 JS. Keep everything iPhone/iPad/iOS-compatible.
 
-Session commits (newest first): `7eae284` flip task reads to relational table +
-status endpoint · `6ab8afa` fix overlays closing on text-selection drag ·
-`0262958` relational tasks-table pilot (dual-write + backfill) ·
+Session commits (newest first): `93caa2b` relational notes + ideas tables
+(Step 4 — two more entities) · `cc40bea` calendar two-store unification ·
+`78cdf44` Reports filter consolidation · `7eae284` flip task reads to
+relational table + status endpoint · `6ab8afa` fix overlays closing on
+text-selection drag · `0262958` relational tasks-table pilot ·
 `8f940df` Batch 4 layout + platform-key timing ·
 `a99af9b` Batch 4 logic (toasts/glyph/Projects/Archive) · `d50af55` CLAUDE.md ·
 `21c431e` Home rail + weekly review ·
