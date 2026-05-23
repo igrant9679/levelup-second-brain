@@ -3743,8 +3743,11 @@ function _applyAISubtasks(id){
   let nextId=t.subtasks.length?Math.max(...t.subtasks.map(s=>s.id||0))+1:1;
   picks.forEach(title=>{t.subtasks.push({id:nextId++,title,done:false});});
   save('tasks');closeModal();
-  // Refresh drawer if open
-  if(typeof openDrawer==='function'){const d=document.querySelector('.drawer.open');if(d)openDrawer('task',t);}
+  // Refresh drawer if open. The actual open marker is `.show` on #drawer-ov;
+  // the previous `.drawer.open` selector never matched, so the new subtasks
+  // didn't appear until the user closed and reopened the task.
+  const ov=document.getElementById('drawer-ov');
+  if(ov&&ov.classList.contains('show')&&typeof openDrawer==='function')openDrawer('task',t);
   toast('✓ Added '+picks.length+' subtask'+(picks.length===1?'':'s'));
 }
 
