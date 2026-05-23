@@ -218,6 +218,13 @@
       "when": 1779465966192,
       "tag": "0030_pilot_tasks_table",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1779554093927,
+      "tag": "0031_pilot_notes_ideas",
+      "breakpoints": true
     }
   ]
 }

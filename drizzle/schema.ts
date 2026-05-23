@@ -612,3 +612,55 @@ export const tasksTable = mysqlTable('tasks', {
 }));
 export type TaskRow = typeof tasksTable.$inferSelect;
 export type InsertTaskRow = typeof tasksTable.$inferInsert;
+
+/**
+ * Relational mirror of the per-user `notes` JSON blob in user_app_data.
+ * Step 4 of the relational migration. See `tasksTable` for the pattern.
+ * `raw` holds the full note JSON (bodyHtml can be large — mediumtext).
+ */
+export const notesTable = mysqlTable('notes', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  noteId: varchar('noteId', { length: 40 }).notNull(),
+  title: varchar('title', { length: 512 }),
+  folderId: varchar('folderId', { length: 40 }),
+  pinned: tinyint('pinned').default(0).notNull(),
+  starred: tinyint('starred').default(0).notNull(),
+  archived: tinyint('archived').default(0).notNull(),
+  color: varchar('color', { length: 32 }),
+  updatedAt: varchar('updatedAt', { length: 40 }),
+  createdAt: varchar('createdAt', { length: 40 }),
+  raw: mediumtext('raw'),
+  syncedAt: timestamp('syncedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_notes_user').on(t.userId),
+  uqUserNote: unique('uq_notes_user_note').on(t.userId, t.noteId),
+}));
+export type NoteRow = typeof notesTable.$inferSelect;
+export type InsertNoteRow = typeof notesTable.$inferInsert;
+
+/**
+ * Relational mirror of the per-user `ideas` JSON blob in user_app_data.
+ * Step 4 of the relational migration. See `tasksTable` for the pattern.
+ */
+export const ideasTable = mysqlTable('ideas', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  ideaId: varchar('ideaId', { length: 40 }).notNull(),
+  title: varchar('title', { length: 512 }),
+  stage: varchar('stage', { length: 32 }),
+  ideaType: varchar('ideaType', { length: 32 }),
+  goalId: varchar('goalId', { length: 40 }),
+  iceImpact: int('iceImpact'),
+  iceConfidence: int('iceConfidence'),
+  iceEase: int('iceEase'),
+  createdBy: varchar('createdBy', { length: 255 }),
+  createdAt: varchar('createdAt', { length: 40 }),
+  raw: mediumtext('raw'),
+  syncedAt: timestamp('syncedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_ideas_user').on(t.userId),
+  uqUserIdea: unique('uq_ideas_user_idea').on(t.userId, t.ideaId),
+}));
+export type IdeaRow = typeof ideasTable.$inferSelect;
+export type InsertIdeaRow = typeof ideasTable.$inferInsert;
