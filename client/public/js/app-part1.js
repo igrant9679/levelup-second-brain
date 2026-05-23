@@ -10185,7 +10185,8 @@ function switchMailTab(el,tab){
     const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
     const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
-    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:9px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=_calEvents.filter(e=>e.day===d&&e.hour===h);return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:9px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
+    const weekDateStrs=days.map((_,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
+    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:9px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calEvents.filter(e=>e.day===d&&e.hour===h),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:9px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
     body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:10px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:10px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
   } else {
     body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
@@ -10214,10 +10215,47 @@ function _calEventTimeLabel(e){
   if(e&&typeof e.hour==='number'){const h=e.hour;return (h%12||12)+(h<12?' AM':' PM');}
   return '';
 }
+// Synced calendar events from D.calEvents (OAuth-populated) that fall on a
+// given date, normalized to a shape compatible with _calEvents items so the
+// existing render code (cells, rails) works unchanged.
+function _syncedEventsOn(dateObj){
+  const ds=_ymd(dateObj);
+  return ((typeof D!=='undefined'&&D&&D.calEvents)||[]).filter((e)=>e&&e.start&&String(e.start).slice(0,10)===ds).map((e)=>{
+    const s=String(e.start);
+    const hour=parseInt(s.slice(11,13))||0;
+    const eh=e.end?parseInt(String(e.end).slice(11,13))||(hour+1):(hour+1);
+    return {
+      id:e.id,title:e.title||e.subject||'(untitled)',
+      hour,endHour:eh,time:s.slice(11,16),
+      dateStr:ds,day:(dateObj.getDay()+6)%7,
+      color:e.color||'var(--purp)',
+      location:e.location||'',
+      desc:e.description||e.bodyPreview||e.desc||'',
+      attendees:(e.attendees||[]).map((a)=>a&&typeof a==='object'?((a.emailAddress&&(a.emailAddress.name||a.emailAddress.address))||a.name||a.email||''):a).filter(Boolean),
+      start:e.start,end:e.end||'',
+      _synced:true,
+    };
+  });
+}
+// Synced events for a specific (dateStr, hour) cell. Used by the calendar grid
+// renderers to union OAuth-synced events into the cell's local-events list.
+function _cellEventsForDate(dateStr,hour){
+  return ((typeof D!=='undefined'&&D&&D.calEvents)||[]).filter((e)=>{
+    if(!e||!e.start)return false;
+    const s=String(e.start);
+    if(s.slice(0,10)!==dateStr)return false;
+    return (parseInt(s.slice(11,13))||0)===hour;
+  }).map((e)=>{
+    const s=String(e.start);
+    const h=parseInt(s.slice(11,13))||0;
+    const eh=e.end?parseInt(String(e.end).slice(11,13))||(h+1):(h+1);
+    return {id:e.id,title:e.title||e.subject||'(untitled)',hour:h,endHour:eh,color:e.color||'var(--purp)',dateStr,_synced:true};
+  });
+}
 function _calEventsOn(dateObj){
   const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
-  return (_calEvents||[]).filter(e=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)))
-    .slice().sort((a,b)=>(a.hour||0)-(b.hour||0));
+  const local=(_calEvents||[]).filter((e)=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)));
+  return [...local,..._syncedEventsOn(dateObj)].sort((a,b)=>(a.hour||0)-(b.hour||0));
 }
 // Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
 // real {start,end} datetimes, skipping ones already past today.
@@ -10238,17 +10276,36 @@ function _upcomingCalEvents(limit){
   return out;
 }
 function openCalEvent(id){
-  const ev=_calEvents.find(e=>e.id===id);
+  let ev=_calEvents.find(e=>e.id===id);
+  let isSynced=false;
+  if(!ev){
+    const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&e.id===id);
+    if(raw){
+      isSynced=true;
+      const s=String(raw.start||'');
+      ev={
+        ...raw,
+        title:raw.title||raw.subject||'(untitled)',
+        dateStr:s.slice(0,10),
+        start:s.slice(11,16),
+        end:raw.end?String(raw.end).slice(11,16):'',
+        location:raw.location||'',
+        desc:raw.description||raw.bodyPreview||raw.desc||'',
+        attendees:(raw.attendees||[]).map(a=>a&&typeof a==='object'?((a.emailAddress&&(a.emailAddress.name||a.emailAddress.address))||a.name||a.email||''):a).filter(Boolean),
+      };
+    }
+  }
   if(!ev)return;
   const m=document.getElementById('modal-content');
   const dateDisplay=ev.dateStr||'This week';
   const timeDisplay=(ev.start||ev.time||'')+' – '+(ev.end||'');
+  const actions=isSynced
+    ?`<span style="font-size:10px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
+    :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>`;
   m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <h2 style="font-size:16px;font-weight:600;margin:0">${esc(ev.title)}</h2>
-    <div style="display:flex;gap:6px">
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>
-    </div>
+    <div style="display:flex;gap:6px;align-items:center">${actions}</div>
   </div>
   <div style="display:flex;flex-direction:column;gap:10px">
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:10px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
@@ -10545,7 +10602,7 @@ function renderCalWeek(){
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
-  const evs=_calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek)));
+  const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek))),..._cellEventsForDate(weekDayStrs[d],h)];
   return`<div class="cal-c">${evs.map(e=>`<div class="cal-ev" style="background:${e.color}22;border-left:2px solid ${e.color};color:var(--t1);cursor:pointer" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('')}</div></div>`;
 }
 
@@ -10561,7 +10618,7 @@ function renderCalDay(){
   const hours=[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
   const rows=hours.map(h=>{
     const label=h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
-    const evs=_calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0)));
+    const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0))),..._cellEventsForDate(dayStr,h)];
     const evHtml=evs.map(e=>{
       // Calculate duration in hours for visual height hint
       const durationH=e.endHour&&e.endHour>e.hour?e.endHour-e.hour:1;
@@ -10707,7 +10764,7 @@ function renderCalMonth(){
     const dStr=d.toISOString().split('T')[0];
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
-    const evs=_calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth()));
+    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d)];
     const evDots=evs.slice(0,3).map(e=>`<div style="font-size:9px;background:${e.color}22;border-left:2px solid ${e.color};padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="event.stopPropagation();openCalEvent(${e.id})">${esc(e.title)}</div>`).join('');
     const moreCount=evs.length>3?`<div style="font-size:8px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
