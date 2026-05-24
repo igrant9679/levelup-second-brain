@@ -2516,6 +2516,11 @@ function openDrawer(type,item){
   ov.classList.add('show');
   // Load related bookmarks for note drawers
   if(type==='note' && item?.id) setTimeout(()=>loadRelatedBookmarks('note', item.id), 0);
+  // Hydrate "Estimated X / Actual Y" line for task drawer from time_entries.
+  // Fire-and-forget: failure leaves the line blank, never blocks the drawer.
+  if(type==='task' && item?.id){
+    setTimeout(()=>_hydrateTaskActuals(item),0);
+  }
   // Hydrate the chip-based Linked Items picker for task drawers. Inline
   // <script> tags inside innerHTML don't execute, so we have to do this here.
   if((type==='task'||type==='note') && item?.id && typeof _drInitLinks==='function'){
@@ -2602,7 +2607,7 @@ function renderDrawer(type,item){
           <div style="display:flex;gap:8px"><label style="font-size:10px;color:var(--t2);flex:1">Until <input type="date" id="dr-rec-until" class="inp" value="${r.until||''}" style="font-size:11px;padding:2px 4px"></label><label style="font-size:10px;color:var(--t2);flex:1">Max count <input type="number" id="dr-rec-count" class="inp" min="0" placeholder="∞" value="${r.count||''}" style="font-size:11px;padding:2px 4px"></label></div>`;})()}
         </div>
       </div>
-      <div class="field"><label>Est. Time (min)</label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
+      <div class="field"><label>Est. Time (min)<span id="dr-actual-line" style="font-size:9px;color:var(--t3);margin-left:6px"></span></label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Energy</label><select class="inp" id="dr-energy"><option ${item.energy==='high'?'selected':''}>high</option><option ${item.energy==='medium'?'selected':''}>medium</option><option ${item.energy==='low'?'selected':''}>low</option></select></div>
@@ -3572,6 +3577,36 @@ function stopTaskTimer(){
     _trpc('timeEntries.stop',{taskId:String(stoppedId)},'mutation').catch(()=>{});
   }
 }
+// Drawer "Estimated 90m / Actual 67m" line. Reads from the server
+// time_entries table so it survives device wipes. Falls back to the local
+// t.timeSpent counter when offline.
+async function _hydrateTaskActuals(t){
+  const lineEl=document.getElementById('dr-actual-line');
+  if(!lineEl)return;
+  const fmt=mins=>{
+    if(!mins)return '0m';
+    const h=Math.floor(mins/60);const m=mins%60;
+    return (h?h+'h ':'')+(m?m+'m':(h?'':'0m'));
+  };
+  const est=t.estimatedMins||0;
+  // Local fallback first so something shows immediately.
+  if(t.timeSpent){
+    lineEl.textContent=`· Actual ${fmt(t.timeSpent)}`;
+    lineEl.style.color=est&&t.timeSpent>est?'var(--red)':'var(--ok)';
+  }
+  try{
+    const totals=await _trpc('timeEntries.totalsByTask',{},'query');
+    const row=Array.isArray(totals)?totals.find(r=>String(r.taskId)===String(t.id)):null;
+    const actualMins=row?Number(row.mins)||0:0;
+    if(actualMins){
+      const variance=est?Math.round((actualMins-est)/est*100):0;
+      const varianceLabel=est?` (${variance>=0?'+':''}${variance}%)`:'';
+      lineEl.textContent=`· Actual ${fmt(actualMins)}${varianceLabel}`;
+      lineEl.style.color=est&&actualMins>est?'var(--red)':(est?'var(--ok)':'var(--t3)');
+    }
+  }catch{ /* offline — leave local fallback if any */ }
+}
+
 // Recover from a page reload mid-timer: ask the server whether a timer is
 // running for the current user and resume the in-page counter from its start.
 // Idempotent — safe to call on every boot.
@@ -5781,17 +5816,52 @@ function renderTaskMatrix(){
     q4:{label:'Eliminate',sub:'Low Impact · High Effort (>90m)',hint:'Cut, defer, or shrink — high cost for limited value.',color:'var(--red)',bg:'rgba(239,68,68,.08)',targetPriority:'Low',targetMins:120,tasks:[]}
   };
   tasks.forEach(t=>quads[quadrant(t)].tasks.push(t));
+  // External tasks: priority defaults to Medium, no estimatedMins ⇒ they
+  // all fall into q1 (High Impact, Low Effort) which is misleading. Bucket
+  // them separately by their override.localPriority if set, otherwise drop
+  // them into q2 ("Plan") — outline-style work usually isn't quick.
+  const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))
+    ?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&!/(^|\s)(done|complete|closed|cancell?ed)/i.test(t.status||'')):[];
+  extTasks.forEach(et=>{
+    const ov=et.override||{};
+    const pri=ov.localPriority||et.priority||'Medium';
+    const q=pri==='High'?'q2':pri==='Low'?'q3':'q2';
+    quads[q].tasks.push(et);
+  });
+  const isExt=t=>!!t._source||(typeof t.source==='string'&&['smartsheet','nifty'].includes(t.source));
   const quadHtml=Object.entries(quads).map(([k,q])=>{
-    const cards=q.tasks.map(t=>`<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${t.id})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-      <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
-      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-        <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
-        <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
-        ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
-        ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
-        ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
-      </div>
-    </div>`).join('');
+    const cards=q.tasks.map(t=>{
+      // External rows have a different shape (et.source, et.externalUrl, etc.)
+      // and need a read-only treatment with a deep-link.
+      if(t.source==='smartsheet'||t.source==='nifty'){
+        const url=t.externalUrl||'#';
+        const myDay=t.override&&t.override.myDay;
+        const ov=t.override||{};
+        const pri=ov.localPriority||t.priority||'Medium';
+        return `<div class="mtx-card" style="background:var(--s1);border:1px dashed var(--bd2);border-radius:6px;padding:6px 8px;margin-bottom:5px;font-size:11px">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+            ${_extSourceBadge(t.source)}
+            <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in source" style="flex:1;font-weight:500;color:var(--t1);text-decoration:none;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+            <span class="pill ${pillClass(pri)}" style="font-size:8px">${pri}</span>
+            ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
+            ${t.projectLabel?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.projectLabel)}</span>`:''}
+            <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px;margin-left:auto" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+          </div>
+        </div>`;
+      }
+      return `<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${t.id})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+        <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+          <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
+          <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
+          ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
+          ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+        </div>
+      </div>`;
+    }).join('');
     return `<div class="mtx-quad" data-quad="${k}" data-target-priority="${q.targetPriority}" data-target-mins="${q.targetMins}" ondragover="_mtxDragOver(event)" ondragleave="_mtxDragLeave(event)" ondrop="_mtxDrop(event,'${q.targetPriority}',${q.targetMins})" style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px;transition:outline .15s,background .15s">
       <div style="margin-bottom:6px">
         <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
@@ -5835,9 +5905,32 @@ function _mtxDrop(e,targetPriority,targetMins){
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate));
+  let tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'}));
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
+  // Overlay external tasks with dates (localDue overrides, or source-provided
+  // due/startDate). Skipped under "My Items" scope. Externals are click-to-
+  // open-source rather than open-drawer; rendered with dashed bar treatment.
+  if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    D.externalTasks.forEach(et=>{
+      if(et.override&&et.override.tombstoned)return;
+      if(isDone(et))return;
+      const due=(et.override&&et.override.localDue)||et.due;
+      const start=et.startDate||due;
+      if(!due&&!start)return;
+      tasks.push({
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title,
+        due,startDate:start,
+        priority:(et.override&&et.override.localPriority)||et.priority||'Medium',
+        status:et.status,
+        _source:et.source,
+        _url:et.externalUrl,
+        _externalId:et.externalId,
+      });
+    });
+  }
   if(!tasks.length){
     list.innerHTML=`<div style="text-align:center;padding:40px;color:var(--t3)">
       <div style="font-size:32px;margin-bottom:8px">📅</div>
@@ -5881,16 +5974,20 @@ function renderTaskGantt(){
     const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const p=D.tasks.find(x=>x.id===pid);return p&&p.status!=='Done';});
     // Today marker offset
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
+    const isExt=t._source&&t._source!=='local';
+    const titleClickHandler=isExt?`window.open('${esc(t._url||'#')}','_blank','noopener')`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
+    const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
-      <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">
+      <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
         ${isBlocked?'<span style="color:var(--err);margin-right:3px">🔒</span>':''}
+        ${isExt?_extSourceBadge(t._source):''}
         <span style="font-weight:500;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</span>
       </div>
       <div style="flex:1;position:relative;height:32px;overflow:hidden">
         <!-- Today line -->
         ${todayOffset>=0&&todayOffset<totalDays?`<div style="position:absolute;left:${todayOffset*dayPx}px;top:0;bottom:0;width:2px;background:var(--ac);opacity:.5;z-index:2"></div>`:''}
         <!-- Bar -->
-        <div style="position:absolute;top:6px;left:${barLeft}px;width:${barWidth}px;height:20px;background:${barColor};border-radius:4px;opacity:.85;cursor:pointer;display:flex;align-items:center;padding:0 6px;font-size:9px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">
+        <div style="position:absolute;top:6px;left:${barLeft}px;width:${barWidth}px;height:20px;${barStyle};border-radius:4px;opacity:.9;cursor:pointer;display:flex;align-items:center;padding:0 6px;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box" onclick="${titleClickHandler}" title="${esc(t.title)}">
           ${barWidth>40?esc(t.title.substring(0,20)):''}
         </div>
       </div>
