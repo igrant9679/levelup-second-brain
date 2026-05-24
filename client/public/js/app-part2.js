@@ -3442,10 +3442,10 @@ function doLoginSuccess(member){
     const _detail=window._pendingOAuthErrorDetail;
     window._pendingOAuthError=null;
     window._pendingOAuthErrorDetail=null;
-    const _msg=_err==='microsoft_token'&&_detail
-      ?'⚠️ Microsoft token error: '+_detail
+    const _msg=(_err==='microsoft_token'||_err==='nifty_token'||_err==='nifty_server')&&_detail
+      ?`⚠️ ${_err.startsWith('nifty')?'Nifty':'Microsoft'} error: ${_detail}`
       :'⚠️ OAuth error: '+_err.replace(/_/g,' ');
-    toast(_msg,'error',8000);
+    toast(_msg,'error',12000);
   }
 
   // Handle deep-link URL: ?goto=accounts[&provider=microsoft|google]
@@ -7918,8 +7918,9 @@ window._pendingOAuthErrorDetail=null;
   const success=p.get('oauth_success');
   const error=p.get('oauth_error');
   const msErr=p.get('ms_err');
+  const detail=p.get('detail'); // Nifty callbacks use ?detail=...
   if(success){window._pendingOAuthSuccess=success;history.replaceState(null,'',window.location.pathname);}
-  if(error){window._pendingOAuthError=error;if(msErr)window._pendingOAuthErrorDetail=msErr;history.replaceState(null,'',window.location.pathname);}
+  if(error){window._pendingOAuthError=error;if(msErr)window._pendingOAuthErrorDetail=msErr;else if(detail)window._pendingOAuthErrorDetail=detail;history.replaceState(null,'',window.location.pathname);}
 })();
 
 // ====== TOUR ENGINE ======

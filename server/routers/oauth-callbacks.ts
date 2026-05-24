@@ -173,6 +173,7 @@ export function registerProviderOAuthCallbacks(app: Express) {
     const redirectUri = `${stateData.origin}/api/oauth/nifty/callback`;
     const basic = Buffer.from(`${cred.clientId}:${cred.clientSecret}`).toString("base64");
     try {
+      console.log("[Nifty OAuth] Exchanging code for token. redirect_uri=", redirectUri, "clientId starts=", cred.clientId.slice(0, 6));
       const tokenResp = await fetch("https://openapi.niftypm.com/oauth/token", {
         method: "POST",
         headers: {
@@ -185,19 +186,27 @@ export function registerProviderOAuthCallbacks(app: Express) {
           grant_type: "authorization_code",
         }),
       });
+      console.log("[Nifty OAuth] Token response status:", tokenResp.status);
       if (!tokenResp.ok) {
         const body = await tokenResp.text();
-        console.error("[Nifty OAuth] Token exchange failed:", tokenResp.status, body.slice(0, 500));
-        res.redirect(`/?oauth_error=nifty_token&detail=${encodeURIComponent(body.slice(0, 120))}`);
+        console.error("[Nifty OAuth] Token exchange failed:", tokenResp.status, body.slice(0, 1000));
+        res.redirect(`/?oauth_error=nifty_token&detail=${encodeURIComponent(body.slice(0, 200))}`);
         return;
       }
-      const tokenData = await tokenResp.json() as {
+      const raw = await tokenResp.json() as Record<string, unknown>;
+      // Nifty may wrap the response (some endpoints return {data: {...}}). Tolerate both.
+      const tokenData = (raw.access_token ? raw : (raw.data as Record<string, unknown> | undefined) ?? {}) as {
         access_token: string;
         refresh_token?: string;
         expires_in?: number;
         scope?: string;
         token_type?: string;
       };
+      if (!tokenData.access_token) {
+        console.error("[Nifty OAuth] Token response had no access_token. Raw keys:", Object.keys(raw));
+        res.redirect(`/?oauth_error=nifty_token&detail=${encodeURIComponent('no_access_token_in_response')}`);
+        return;
+      }
 
       // Fetch /users/me to capture account identity for the rail UI.
       const meResp = await fetch("https://openapi.niftypm.com/api/v1.0/users/me", {
@@ -224,8 +233,10 @@ export function registerProviderOAuthCallbacks(app: Express) {
       });
       res.redirect("/?oauth_success=nifty");
     } catch (err) {
-      console.error("[Nifty OAuth] Callback error:", err);
-      res.redirect("/?oauth_error=nifty_server");
+      const msg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack?.slice(0, 500) : '';
+      console.error("[Nifty OAuth] Callback error:", msg, stack);
+      res.redirect(`/?oauth_error=nifty_server&detail=${encodeURIComponent(msg.slice(0, 200))}`);
     }
   });
 }
