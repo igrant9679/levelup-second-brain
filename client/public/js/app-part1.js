@@ -6361,10 +6361,15 @@ function _renderExternalTasksRailWidget(){
   // Show: overdue + today + next 7 days, excluding tombstoned overrides.
   const horizon=new Date();horizon.setDate(horizon.getDate()+7);
   const horizonKey=horizon.toISOString().slice(0,10);
+  // Include: anything dated within the horizon, anything flagged My Day, and
+  // any open item without a due date (common in outline-style sheets like CF's
+  // 120-Day Plan — there's no "due", just a Phase). Sort by due (no-due last).
+  const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
   const relevant=ext.filter(t=>{
     if(t.override&&t.override.tombstoned)return false;
+    if(isDone(t))return false;
     const due=(t.override&&t.override.localDue)||t.due;
-    if(!due)return !!(t.override&&t.override.myDay);
+    if(!due)return true;
     return due<=horizonKey;
   }).sort((a,b)=>{
     const ad=(a.override&&a.override.localDue)||a.due||'9999';
@@ -6416,11 +6421,20 @@ function _renderDailyCommandCenterCard(){
   const ss=dueByBucket('smartsheet');
   const nf=dueByBucket('nifty');
   const noExternal=(ss.total+nf.total)===0;
-  const cell=(label,color,c)=>`<div style="background:var(--s3);border-radius:6px;padding:8px;text-align:center">
-    <div style="font-size:9px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
-    <div style="font-size:18px;font-weight:700;margin-top:2px">${c.today}</div>
-    <div style="font-size:9px;color:${c.overdue>0?'var(--red)':'var(--t3)'}">${c.overdue>0?c.overdue+' overdue':'on track'}</div>
-  </div>`;
+  // Headline metric is "total open items on my plate" (works for sheets without
+  // a due column). Subtitle adds today/overdue context when present, else
+  // shows total to make it explicit.
+  const cell=(label,color,c)=>{
+    const headline=c.today>0?c.today:c.total;
+    const sub=c.overdue>0
+      ?`<span style="color:var(--red)">${c.overdue} overdue</span>`
+      :(c.today>0?`${c.total} open total`:(c.total>0?'no due dates':'on track'));
+    return `<div style="background:var(--s3);border-radius:6px;padding:8px;text-align:center">
+      <div style="font-size:9px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
+      <div style="font-size:18px;font-weight:700;margin-top:2px">${headline}</div>
+      <div style="font-size:9px;color:var(--t3)">${sub}</div>
+    </div>`;
+  };
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <span style="font-size:12px;font-weight:600">🎯 Today's Command Center</span>
