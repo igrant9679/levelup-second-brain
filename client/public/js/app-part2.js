@@ -3442,10 +3442,10 @@ function doLoginSuccess(member){
     const _detail=window._pendingOAuthErrorDetail;
     window._pendingOAuthError=null;
     window._pendingOAuthErrorDetail=null;
-    const _msg=(_err==='microsoft_token'||_err==='nifty_token'||_err==='nifty_server')&&_detail
+    const _msg=(_err==='microsoft_token'||_err==='nifty_token'||_err==='nifty_server'||_err==='nifty_db')&&_detail
       ?`⚠️ ${_err.startsWith('nifty')?'Nifty':'Microsoft'} error: ${_detail}`
       :'⚠️ OAuth error: '+_err.replace(/_/g,' ');
-    toast(_msg,'error',12000);
+    toast(_msg,'error',20000);
   }
 
   // Handle deep-link URL: ?goto=accounts[&provider=microsoft|google]

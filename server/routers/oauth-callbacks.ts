@@ -217,20 +217,30 @@ export function registerProviderOAuthCallbacks(app: Express) {
         try { me = await meResp.json() as typeof me; } catch { /* tolerate */ }
       }
 
-      await db.upsertExternalSourceCredential({
-        userId: stateData.userId,
-        source: "nifty",
-        apiToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token ?? null,
-        expiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
-        scope: tokenData.scope ?? null,
-        accountEmail: me.email ?? null,
-        accountDisplayName: me.name ?? null,
-        accountExternalId: me.id ? String(me.id) : null,
-        // Keep clientId/clientSecret as-is — they're already stored.
-        clientId: cred.clientId,
-        clientSecret: cred.clientSecret,
-      });
+      try {
+        await db.upsertExternalSourceCredential({
+          userId: stateData.userId,
+          source: "nifty",
+          apiToken: tokenData.access_token,
+          refreshToken: tokenData.refresh_token ?? null,
+          expiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
+          scope: tokenData.scope ?? null,
+          accountEmail: me.email ?? null,
+          accountDisplayName: me.name ?? null,
+          accountExternalId: me.id ? String(me.id) : null,
+          // Keep clientId/clientSecret as-is — they're already stored.
+          clientId: cred.clientId,
+          clientSecret: cred.clientSecret,
+        });
+      } catch (dbErr) {
+        // Expose MySQL error code + message so the toast tells us if the
+        // problem is a NOT NULL violation, missing column, etc.
+        const e = dbErr as { code?: string; errno?: number; sqlMessage?: string; sqlState?: string; message?: string };
+        const detail = `db:${e.code || 'unknown'} ${e.sqlMessage || e.message || ''}`.slice(0, 250);
+        console.error("[Nifty OAuth] upsert failed:", e.code, e.errno, e.sqlState, e.sqlMessage, e.message);
+        res.redirect(`/?oauth_error=nifty_db&detail=${encodeURIComponent(detail)}`);
+        return;
+      }
       res.redirect("/?oauth_success=nifty");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
