@@ -590,8 +590,76 @@ var D = {
   ],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
+  // External tasks pulled from Smartsheet / NiftyPM by the server cron. Read-only
+  // mirror; the source tool is authoritative. Populated by loadExternalTasks()
+  // on app boot + after manual refresh. Each row carries `_source` and `_url`
+  // for the [CF]/[LSI] badge + deep-link.
+  externalTasks: [],
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
+
+// ─── External tasks (Smartsheet + NiftyPM) ──────────────────────────────────
+// Loaded from /api/trpc/externalSources.listExternalTasks. Source-owned fields
+// (title, due, status, assignee, url) are read-only here; local overlay
+// (myDay flag, localPriority, localNote) lives in row.override.
+async function loadExternalTasks(){
+  try{
+    const rows=await _trpc('externalSources.listExternalTasks',{includeRemoved:false},'query');
+    D.externalTasks=Array.isArray(rows)?rows:[];
+    return D.externalTasks.length;
+  }catch(e){
+    // No network / no tables / user not signed in — fine, just leave empty.
+    if(window.__DEV__)console.warn('[external] load failed:',e.message||e);
+    return 0;
+  }
+}
+async function refreshExternalTasksNow(){
+  try{
+    toast({type:'info',title:'Refreshing external sources…',duration:2000});
+    const stats=await _trpc('externalSources.refreshNow',undefined,'mutation');
+    await loadExternalTasks();
+    toast({type:'success',title:`Refreshed ${stats.sheetsProcessed} sheet(s), ${stats.projectsProcessed} project(s)`,duration:3000});
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){
+    toast({type:'warn',title:'Refresh failed',msg:e.message||String(e),duration:4500});
+  }
+}
+function _extSourceBadge(src){
+  if(src==='smartsheet')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From CommunityForce Smartsheet">CF</span>';
+  if(src==='nifty')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From LSI Media NiftyPM">LSI</span>';
+  return '';
+}
+// Build a unified iterator: native tasks + non-tombstoned external tasks
+// shaped to look enough like native tasks that existing render code can
+// consume them. Used by My Day rendering and the daily cross-source widget.
+function _unifiedTasks(opts){
+  opts=opts||{};
+  const includeExt=opts.includeExternal!==false;
+  const out=D.tasks.map(t=>Object.assign({},t,{_source:'local'}));
+  if(includeExt&&Array.isArray(D.externalTasks)){
+    D.externalTasks.forEach(et=>{
+      const ov=et.override||{};
+      if(ov.tombstoned)return;
+      out.push({
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title,
+        status:et.status||'Not Started',
+        priority:ov.localPriority||et.priority,
+        due:ov.localDue||et.due,
+        assignee:et.assignee,
+        project:et.projectLabel,
+        myDay:!!ov.myDay,
+        tags:(ov.localTags||'').split(',').filter(Boolean),
+        notes:ov.localNote||et.description||'',
+        _source:et.source,
+        _url:et.externalUrl,
+        _externalId:et.externalId,
+        _readOnly:true,
+      });
+    });
+  }
+  return out;
+}
 
 // ─── Task Context (customizable dropdown) ────────────────────────────────────
 // Stored in D.prefs.taskContexts so it rides with the prefs sync. Defaults
@@ -5038,7 +5106,11 @@ function renderHome(){
   const _chartMax=Math.max(..._chartVals,1);
   const _todayIdx=6;
   const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:9px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:8px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
-  r.innerHTML=focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
+  // Daily cross-source command-center card — Today across CF / LSI / Personal.
+  // Always rendered on Home; collapses to a single line when external sources
+  // aren't configured yet (still useful as a personal-tasks-today summary).
+  const dailyCommandCenterHtml=_renderDailyCommandCenterCard();
+  r.innerHTML=dailyCommandCenterHtml+focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
   ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:10px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:9px;color:var(--t3)">'+range+'</div></div><span style="font-size:9px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
   <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
   ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
@@ -6268,10 +6340,109 @@ function renderTaskRailHTML(){
   };
   const prefs=getTaskRailPrefs().sort((a,b)=>a.order-b.order);
   const visibleHTML=prefs.filter(p=>p.visible).map(p=>widgets[p.id]||'').join('');
+  // External-tasks widget — always rendered when external tasks exist (not
+  // governed by the customize-rail prefs system, so it shows up without any
+  // per-user setup once Smartsheet/Nifty is wired in Settings).
+  const externalWidget=_renderExternalTasksRailWidget();
   return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:700">📊 Insights</div>
     <button class="btn btn-s" style="font-size:9px;padding:0 8px;height:22px" onclick="openTaskRailCustomize()">⚙ Customize</button>
-  </div>${visibleHTML}`;
+  </div>${externalWidget}${visibleHTML}`;
+}
+
+// External-tasks rail widget — surfaces today's + overdue rows from Smartsheet
+// and NiftyPM with deep-links back to the source. Empty (returns '') when no
+// external tasks are loaded so the rail isn't cluttered for users without
+// integrations configured.
+function _renderExternalTasksRailWidget(){
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
+  if(!ext.length)return '';
+  const today=new Date().toISOString().slice(0,10);
+  // Show: overdue + today + next 7 days, excluding tombstoned overrides.
+  const horizon=new Date();horizon.setDate(horizon.getDate()+7);
+  const horizonKey=horizon.toISOString().slice(0,10);
+  const relevant=ext.filter(t=>{
+    if(t.override&&t.override.tombstoned)return false;
+    const due=(t.override&&t.override.localDue)||t.due;
+    if(!due)return !!(t.override&&t.override.myDay);
+    return due<=horizonKey;
+  }).sort((a,b)=>{
+    const ad=(a.override&&a.override.localDue)||a.due||'9999';
+    const bd=(b.override&&b.override.localDue)||b.due||'9999';
+    return ad.localeCompare(bd);
+  });
+  if(!relevant.length)return '';
+  const rows=relevant.slice(0,12).map(t=>{
+    const due=(t.override&&t.override.localDue)||t.due;
+    const overdue=due&&due<today;
+    const dueLabel=due?(due===today?'Today':(overdue?'Overdue · '+due:due)):'';
+    const url=t.externalUrl||'#';
+    const myDay=t.override&&t.override.myDay;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:10px">
+      ${_extSourceBadge(t.source)}
+      <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:9px">${dueLabel}</span>
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+    </div>`;
+  }).join('');
+  const counts={
+    smartsheet:relevant.filter(t=>t.source==='smartsheet').length,
+    nifty:relevant.filter(t=>t.source==='nifty').length,
+  };
+  const summary=[counts.smartsheet?`${counts.smartsheet} CF`:'',counts.nifty?`${counts.nifty} LSI`:''].filter(Boolean).join(' · ');
+  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-size:11px;font-weight:600">🔗 External · Next 7 days</div>
+      <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
+    ${rows}
+  </div>`;
+}
+// Daily command-center card — single-glance rollup of what's on the user's
+// plate TODAY across CF (Smartsheet), LSI (Nifty), and personal (D.tasks).
+// Lives on the Home rail; refresh button kicks the external-sources cron.
+function _renderDailyCommandCenterCard(){
+  const today=new Date().toISOString().slice(0,10);
+  const all=typeof _unifiedTasks==='function'?_unifiedTasks():D.tasks.map(t=>Object.assign({},t,{_source:'local'}));
+  const isOpen=t=>(t.status||'Not Started')!=='Done';
+  const dueByBucket=(src)=>{
+    const items=all.filter(t=>t._source===src&&isOpen(t));
+    const overdue=items.filter(t=>t.due&&t.due<today).length;
+    const today_=items.filter(t=>t.due===today||t.myDay).length;
+    return {overdue,today:today_,total:items.length};
+  };
+  const local=dueByBucket('local');
+  const ss=dueByBucket('smartsheet');
+  const nf=dueByBucket('nifty');
+  const noExternal=(ss.total+nf.total)===0;
+  const cell=(label,color,c)=>`<div style="background:var(--s3);border-radius:6px;padding:8px;text-align:center">
+    <div style="font-size:9px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
+    <div style="font-size:18px;font-weight:700;margin-top:2px">${c.today}</div>
+    <div style="font-size:9px;color:${c.overdue>0?'var(--red)':'var(--t3)'}">${c.overdue>0?c.overdue+' overdue':'on track'}</div>
+  </div>`;
+  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;font-weight:600">🎯 Today's Command Center</span>
+      <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh CF + LSI">↻</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      ${cell('PERSONAL','var(--ac)',local)}
+      ${cell('CF',(noExternal?'var(--t3)':'#1f6feb'),ss)}
+      ${cell('LSI',(noExternal?'var(--t3)':'#9333ea'),nf)}
+    </div>
+    ${noExternal?`<div style="font-size:9px;color:var(--t3);margin-top:8px;text-align:center">Connect Smartsheet + NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
+  </div>`;
+}
+
+async function _toggleExternalMyDay(source,externalId,myDay){
+  try{
+    await _trpc('externalSources.upsertOverride',{source,externalId,myDay:!!myDay},'mutation');
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){
+    toast({type:'warn',title:'My Day toggle failed',msg:e.message||String(e)});
+  }
 }
 
 function renderTasks(){

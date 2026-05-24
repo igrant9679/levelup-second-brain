@@ -14,6 +14,8 @@ import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
 import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduledTaskLog } from "../db";
 import { processScheduledReports, startScheduledReportsCron } from "./scheduledReports";
+import { startExternalTasksCron } from "./externalTasksCron";
+import { startRecurrenceCron } from "./recurrenceEngine";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -349,6 +351,10 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Kick off the hourly scheduled-reports tick. Safe to call multiple times.
     try { startScheduledReportsCron(); } catch (e) { console.error('[startup] scheduled-reports cron failed:', e); }
+    // Kick off the hourly external-tasks puller (Smartsheet + Nifty).
+    try { startExternalTasksCron(); } catch (e) { console.error('[startup] external-tasks cron failed:', e); }
+    // Kick off the daily recurrence-engine tick (materialize next instances).
+    try { startRecurrenceCron(); } catch (e) { console.error('[startup] recurrence cron failed:', e); }
   });
 }
 

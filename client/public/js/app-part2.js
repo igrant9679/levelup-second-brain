@@ -564,6 +564,18 @@ function renderSettingsHTML(){
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:6px">${D.creds.clo_key?'<span style="color:var(--ok)">✓ Configured</span>':'Not configured — <a href="https://clodura.ai" target="_blank" style="color:var(--ac)">Get a Clodura API key</a>'}</div>
   </div>
+  <!-- Smartsheet (CommunityForce) + NiftyPM (LSI) command-center pulls.
+       Hydrated by _hydrateExternalSourcesPanel() after the settings page
+       mounts (status + watch lists are async). -->
+  <div id="ext-sources-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 Command Center — Smartsheet + NiftyPM</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Pull tasks owned by you from Smartsheet (CF) and NiftyPM (LSI) into LevelUp's rails and reports. Source tools stay authoritative; LevelUp is read-only with local annotations.</p>
+    <div id="ext-sources-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="refreshExternalTasksNow()">↻ Refresh now</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
+    </div>
+  </div>
   <!-- External Task Sync / Webhooks -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 External Task Sync — Webhook</div>
@@ -881,10 +893,264 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
+  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();}
   if(id==='sp-3')loadEmailNotifPrefs();
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
+}
+
+// ─── External Sources (Smartsheet + Nifty) Settings UI ─────────────────────
+// All async helpers for the sp-5 Integrations panel. Builds the connection
+// status / watch lists / add-modal flow against the externalSources.* tRPC
+// procedures. Kept in one block for grep-ability.
+
+async function _hydrateExternalSourcesPanel(){
+  const body=document.getElementById('ext-sources-body');
+  if(!body)return;
+  body.innerHTML='Loading…';
+  try{
+    const status=await _trpc('externalSources.status',undefined,'query');
+    const ssWatches=status.smartsheet.connected?await _trpc('externalSources.listSmartsheetWatches',undefined,'query'):[];
+    const nfWatches=status.nifty.connected?await _trpc('externalSources.listNiftyWatches',undefined,'query'):[];
+    body.innerHTML=_renderExternalSourcesPanelHTML(status,ssWatches,nfWatches);
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
+  }
+}
+
+function _renderExternalSourcesPanelHTML(status,ssWatches,nfWatches){
+  return `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    ${_renderSourceCard('smartsheet','📊 Smartsheet (CF)',status.smartsheet,ssWatches,'https://app.smartsheet.com/b/personalsettings')}
+    ${_renderSourceCard('nifty','💜 NiftyPM (LSI)',status.nifty,nfWatches,'https://niftypm.com/api/')}
+  </div>`;
+}
+
+function _renderSourceCard(source,label,s,watches,tokenHelpUrl){
+  const connected=!!s.connected;
+  const tokenInputId=`ext-token-${source}`;
+  return `
+  <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">${label}</div>
+    ${connected
+      ?`<div style="font-size:10px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>`
+      :`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — <a href="${tokenHelpUrl}" target="_blank" style="color:var(--ac)">get an API token</a></div>`}
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input id="${tokenInputId}" class="inp" type="password" placeholder="${connected?'(token saved — paste to replace)':'Paste API token'}" style="flex:1;font-size:10px;height:26px">
+      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSetToken('${source}')">${connected?'Update':'Connect'}</button>
+      ${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('${source}')" title="Removes token, watches, and pulled tasks">✕</button>`:''}
+    </div>
+    ${connected?_renderWatchList(source,watches):''}
+    ${connected?`<button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('${source}')">+ Watch ${source==='smartsheet'?'a sheet':'a project'}</button>`:''}
+  </div>`;
+}
+
+function _renderWatchList(source,watches){
+  if(!watches.length){
+    return `<div style="font-size:10px;color:var(--t3);padding:6px 0">No ${source==='smartsheet'?'sheets':'projects'} watched yet.</div>`;
+  }
+  return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">${watches.map(w=>{
+    const lastPull=w.lastPulledAt?new Date(w.lastPulledAt).toLocaleString():'never';
+    const errBadge=w.lastError?`<span title="${esc(w.lastError)}" style="color:var(--red);font-size:9px">⚠ error</span>`:'';
+    const label=w.label||(source==='smartsheet'?w.sheetId:w.projectId);
+    const matchSummary=source==='smartsheet'?`${esc(w.ownerColumn)} ${w.matchMode} "${esc(w.ownerMatchValue)}"`:`${w.filterByAssignee?'My tasks only':'All tasks'}`;
+    const removeFn=source==='smartsheet'?'_extRemoveSmartsheetWatch':'_extRemoveNiftyWatch';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-radius:4px;font-size:10px">
+      <div style="flex:1;overflow:hidden">
+        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div>
+        <div style="color:var(--t3);font-size:9px">${matchSummary} · last pull: ${lastPull} ${errBadge}</div>
+      </div>
+      <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="${removeFn}(${w.id})" title="Remove">✕</button>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function _extSetToken(source){
+  const inp=document.getElementById(`ext-token-${source}`);
+  if(!inp||!inp.value.trim()){toast({type:'warn',title:'Paste an API token first'});return;}
+  try{
+    const res=await _trpc('externalSources.setToken',{source,apiToken:inp.value.trim()},'mutation');
+    inp.value='';
+    toast({type:'success',title:`Connected as ${res.account.name||res.account.email}`});
+    await _hydrateExternalSourcesPanel();
+  }catch(e){toast({type:'warn',title:'Connect failed',msg:e.message||String(e)});}
+}
+
+async function _extDisconnect(source){
+  if(!confirm(`Disconnect ${source}? This removes the token, all watches, and all pulled tasks for this source. Local overrides (notes/priorities) are preserved.`))return;
+  try{
+    await _trpc('externalSources.disconnect',{source},'mutation');
+    toast({type:'success',title:`Disconnected ${source}`});
+    await _hydrateExternalSourcesPanel();
+    await loadExternalTasks();
+  }catch(e){toast({type:'warn',title:'Disconnect failed',msg:e.message||String(e)});}
+}
+
+async function _extRemoveSmartsheetWatch(id){
+  if(!confirm('Stop watching this sheet?'))return;
+  try{
+    await _trpc('externalSources.removeSmartsheetWatch',{id},'mutation');
+    await _hydrateExternalSourcesPanel();
+    await loadExternalTasks();
+  }catch(e){toast({type:'warn',title:'Remove failed',msg:e.message||String(e)});}
+}
+
+async function _extRemoveNiftyWatch(id){
+  if(!confirm('Stop watching this project?'))return;
+  try{
+    await _trpc('externalSources.removeNiftyWatch',{id},'mutation');
+    await _hydrateExternalSourcesPanel();
+    await loadExternalTasks();
+  }catch(e){toast({type:'warn',title:'Remove failed',msg:e.message||String(e)});}
+}
+
+async function _extOpenAddWatch(source){
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
+  modal.innerHTML='<div style="padding:14px"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Loading available '+(source==='smartsheet'?'sheets':'projects')+'…</div></div>';
+  modalBg.classList.add('show');
+  try{
+    if(source==='smartsheet'){
+      const sheets=await _trpc('externalSources.listSmartsheetSheets',undefined,'query');
+      modal.innerHTML=_renderAddSmartsheetWatchModal(sheets);
+    }else{
+      const projects=await _trpc('externalSources.listNiftyProjects',undefined,'query');
+      modal.innerHTML=_renderAddNiftyWatchModal(projects);
+    }
+  }catch(e){
+    modal.innerHTML=`<div style="padding:14px"><div style="color:var(--red);font-size:11px">Failed: ${esc(e.message||String(e))}</div><button class="btn" onclick="closeModal()" style="margin-top:8px">Close</button></div>`;
+  }
+}
+
+function _renderAddSmartsheetWatchModal(sheets){
+  return `<div style="padding:14px;max-width:520px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">Watch a Smartsheet</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:6px">Sheet</div>
+    <select id="ext-ss-sheet" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" onchange="_extOnSheetPicked(this.value)">
+      <option value="">Pick a sheet…</option>
+      ${sheets.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}
+    </select>
+    <div id="ext-ss-cols-wrap" style="display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Owner column</div>
+          <select id="ext-ss-owner-col" class="inp" style="width:100%;font-size:11px"></select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Match mode</div>
+          <select id="ext-ss-match-mode" class="inp" style="width:100%;font-size:11px">
+            <option value="contains">Contains (e.g. "Idris + Ayesha")</option>
+            <option value="exact">Exact</option>
+            <option value="contact">Contact-list cell (your email)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Match value (the name/email to look for)</div>
+        <input id="ext-ss-match-value" class="inp" style="width:100%;font-size:11px" placeholder="Idris" value="${esc((D.creds&&D.creds.userName||'').split(' ')[0]||'')}">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Status column (optional)</div>
+          <select id="ext-ss-status-col" class="inp" style="width:100%;font-size:11px"></select>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Due column (optional)</div>
+          <select id="ext-ss-due-col" class="inp" style="width:100%;font-size:11px"></select>
+        </div>
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Friendly label</div>
+        <input id="ext-ss-label" class="inp" style="width:100%;font-size:11px" placeholder="CF: 120-Day Plan">
+      </div>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Exclude these statuses (comma-separated)</div>
+        <input id="ext-ss-exclude" class="inp" style="width:100%;font-size:11px" placeholder="Done,Complete,Closed,Cancelled" value="Done,Complete,Closed,Cancelled">
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_extSubmitSmartsheetWatch()">Save & Refresh</button>
+    </div>
+  </div>`;
+}
+
+async function _extOnSheetPicked(sheetId){
+  const wrap=document.getElementById('ext-ss-cols-wrap');
+  if(!sheetId){wrap.style.display='none';return;}
+  wrap.style.display='';
+  try{
+    const cols=await _trpc('externalSources.fetchSheetColumns',{sheetId},'query');
+    const ownerSel=document.getElementById('ext-ss-owner-col');
+    const statusSel=document.getElementById('ext-ss-status-col');
+    const dueSel=document.getElementById('ext-ss-due-col');
+    const opts=cols.map(c=>`<option value="${esc(c.title)}">${esc(c.title)}${c.primary?' (primary)':''} · ${esc(c.type)}</option>`).join('');
+    const guessOwner=cols.find(c=>/owner|assignee|ao|assigned/i.test(c.title));
+    const guessStatus=cols.find(c=>/status|state/i.test(c.title));
+    const guessDue=cols.find(c=>/due|end\s*date|deadline/i.test(c.title));
+    ownerSel.innerHTML=opts;if(guessOwner)ownerSel.value=guessOwner.title;
+    statusSel.innerHTML='<option value="">(none)</option>'+opts;if(guessStatus)statusSel.value=guessStatus.title;
+    dueSel.innerHTML='<option value="">(none)</option>'+opts;if(guessDue)dueSel.value=guessDue.title;
+  }catch(e){toast({type:'warn',title:'Could not load columns',msg:e.message||String(e)});}
+}
+
+async function _extSubmitSmartsheetWatch(){
+  const sheetId=document.getElementById('ext-ss-sheet').value;
+  if(!sheetId){toast({type:'warn',title:'Pick a sheet first'});return;}
+  const ownerColumn=document.getElementById('ext-ss-owner-col').value;
+  const ownerMatchValue=document.getElementById('ext-ss-match-value').value.trim();
+  if(!ownerColumn||!ownerMatchValue){toast({type:'warn',title:'Owner column + match value are required'});return;}
+  try{
+    await _trpc('externalSources.addSmartsheetWatch',{
+      sheetId,
+      label:document.getElementById('ext-ss-label').value.trim()||undefined,
+      ownerColumn,
+      ownerMatchValue,
+      matchMode:document.getElementById('ext-ss-match-mode').value,
+      statusColumn:document.getElementById('ext-ss-status-col').value||undefined,
+      dueColumn:document.getElementById('ext-ss-due-col').value||undefined,
+      excludeDoneStatuses:document.getElementById('ext-ss-exclude').value||undefined,
+    },'mutation');
+    closeModal();
+    toast({type:'success',title:'Sheet added — pulling now…'});
+    await refreshExternalTasksNow();
+    await _hydrateExternalSourcesPanel();
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+
+function _renderAddNiftyWatchModal(projects){
+  return `<div style="padding:14px;max-width:480px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">Watch a NiftyPM project</div>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Project</div>
+    <select id="ext-nf-project" class="inp" style="width:100%;font-size:11px;margin-bottom:8px">
+      <option value="">Pick a project…</option>
+      ${projects.map(p=>`<option value="${esc(p.id)}" data-name="${esc(p.name)}">${esc(p.name)}</option>`).join('')}
+    </select>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Friendly label</div>
+    <input id="ext-nf-label" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" placeholder="LSI: Q3 Launch">
+    <label style="display:flex;align-items:center;gap:8px;font-size:11px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_extSubmitNiftyWatch()">Save & Refresh</button>
+    </div>
+  </div>`;
+}
+
+async function _extSubmitNiftyWatch(){
+  const sel=document.getElementById('ext-nf-project');
+  const projectId=sel.value;
+  if(!projectId){toast({type:'warn',title:'Pick a project first'});return;}
+  const label=document.getElementById('ext-nf-label').value.trim()||sel.options[sel.selectedIndex].dataset.name||undefined;
+  const filterByAssignee=document.getElementById('ext-nf-mine-only').checked;
+  try{
+    await _trpc('externalSources.addNiftyWatch',{projectId,label,filterByAssignee},'mutation');
+    closeModal();
+    toast({type:'success',title:'Project added — pulling now…'});
+    await refreshExternalTasksNow();
+    await _hydrateExternalSourcesPanel();
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 // ====== EXPORT / IMPORT ======
 function exportData(){
@@ -3039,6 +3305,10 @@ function doLoginSuccess(member){
   updateSidebarBadges();
   // Load server-side data (restores data across deployments and devices)
   setTimeout(loadServerData,300);
+  // Pull external-source tasks (Smartsheet/Nifty) into D.externalTasks.
+  // Independent of loadServerData — its own table, its own endpoint, its
+  // own failure mode (no token / no watches = empty array, never throws).
+  setTimeout(()=>{ if(typeof loadExternalTasks==='function') loadExternalTasks().then(()=>{ if(typeof renderScreen==='function') renderScreen(curScreen); }); },800);
   // Show onboarding splash on first-ever login
   const _splashKey='lu_splash_shown_v1';
   if(!localStorage.getItem(_splashKey)){

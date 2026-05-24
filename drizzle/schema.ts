@@ -604,10 +604,18 @@ export const tasksTable = mysqlTable('tasks', {
   context: varchar('context', { length: 64 }),
   assignedTo: varchar('assignedTo', { length: 255 }),
   createdBy: varchar('createdBy', { length: 255 }),
+  // Migration 0032: nested subtasks. parentTaskId references another tasks.taskId
+  // (string, since taskIds can be Date.now() values). Null = top-level task.
+  parentTaskId: varchar('parentTaskId', { length: 40 }),
+  // Migration 0032: structured recurrence. JSON-encoded RRULE-shaped object
+  // {freq:'daily'|'weekly'|'monthly'|'yearly', interval, byDay?, until?, count?}.
+  // Replaces the freeform string `recurring` field inside `raw` going forward.
+  recurrenceRule: mediumtext('recurrenceRule'),
   raw: mediumtext('raw'),
   syncedAt: timestamp('syncedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUser: index('idx_tasks_user').on(t.userId),
+  idxParent: index('idx_tasks_parent').on(t.userId, t.parentTaskId),
   uqUserTask: unique('uq_tasks_user_task').on(t.userId, t.taskId),
 }));
 export type TaskRow = typeof tasksTable.$inferSelect;
@@ -664,3 +672,173 @@ export const ideasTable = mysqlTable('ideas', {
 }));
 export type IdeaRow = typeof ideasTable.$inferSelect;
 export type InsertIdeaRow = typeof ideasTable.$inferInsert;
+
+// ─── External Sources (Smartsheet, Nifty, …) ─────────────────────────────────
+// Migration 0032. LevelUp acts as a command center: pulls tasks owned by the
+// user from external PM tools and surfaces them alongside native tasks. Source
+// tools remain authoritative; we never push back unless the user explicitly
+// completes an item (status-only write-back is a v2 add).
+
+/**
+ * Per-user API token for an external source (smartsheet | nifty | future).
+ * One row per user per source. accountExternalId is the user's identity in
+ * that source (e.g., Smartsheet userId, Nifty member id) — captured on token
+ * entry so owner-matching can use the canonical id instead of a typed name.
+ */
+export const externalSourceCredentials = mysqlTable('external_source_credentials', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  source: varchar('source', { length: 32 }).notNull(), // 'smartsheet' | 'nifty'
+  apiToken: text('apiToken').notNull(),
+  accountEmail: varchar('accountEmail', { length: 320 }),
+  accountDisplayName: varchar('accountDisplayName', { length: 255 }),
+  accountExternalId: varchar('accountExternalId', { length: 128 }),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_ext_cred_user').on(t.userId),
+  uqUserSource: unique('uq_ext_cred_user_source').on(t.userId, t.source),
+}));
+export type ExternalSourceCredential = typeof externalSourceCredentials.$inferSelect;
+export type InsertExternalSourceCredential = typeof externalSourceCredentials.$inferInsert;
+
+/**
+ * Smartsheet sheets the user wants polled. Per-sheet owner column + match
+ * config because column names ("Owner" / "Assignee" / "AO") and owner-value
+ * formats ("Idris" / "Idris + Ayesha" / contact-list cells) vary by sheet.
+ * matchMode: 'exact' | 'contains' | 'contact' (contact-list cell → match
+ * against accountExternalId from credentials).
+ */
+export const smartsheetWatchedSheets = mysqlTable('smartsheet_watched_sheets', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  sheetId: varchar('sheetId', { length: 64 }).notNull(),
+  label: varchar('label', { length: 128 }),
+  ownerColumn: varchar('ownerColumn', { length: 64 }).notNull(),
+  ownerMatchValue: varchar('ownerMatchValue', { length: 128 }).notNull(),
+  matchMode: varchar('matchMode', { length: 16 }).default('contains').notNull(),
+  statusColumn: varchar('statusColumn', { length: 64 }),
+  dueColumn: varchar('dueColumn', { length: 64 }),
+  // Comma-separated list of statuses to exclude (default: "Done,Complete,Closed").
+  excludeDoneStatuses: varchar('excludeDoneStatuses', { length: 256 }),
+  enabled: tinyint('enabled').default(1).notNull(),
+  lastPulledAt: timestamp('lastPulledAt'),
+  lastError: mediumtext('lastError'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_ss_watch_user').on(t.userId),
+  uqUserSheet: unique('uq_ss_watch_user_sheet').on(t.userId, t.sheetId),
+}));
+export type SmartsheetWatchedSheet = typeof smartsheetWatchedSheets.$inferSelect;
+export type InsertSmartsheetWatchedSheet = typeof smartsheetWatchedSheets.$inferInsert;
+
+/**
+ * NiftyPM projects the user wants polled. Simpler than Smartsheet — Nifty's
+ * task model already has typed assignee IDs, so no per-project column config.
+ */
+export const niftyWatchedProjects = mysqlTable('nifty_watched_projects', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  projectId: varchar('projectId', { length: 64 }).notNull(),
+  label: varchar('label', { length: 128 }),
+  filterByAssignee: tinyint('filterByAssignee').default(1).notNull(),
+  enabled: tinyint('enabled').default(1).notNull(),
+  lastPulledAt: timestamp('lastPulledAt'),
+  lastError: mediumtext('lastError'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_nifty_watch_user').on(t.userId),
+  uqUserProject: unique('uq_nifty_watch_user_project').on(t.userId, t.projectId),
+}));
+export type NiftyWatchedProject = typeof niftyWatchedProjects.$inferSelect;
+export type InsertNiftyWatchedProject = typeof niftyWatchedProjects.$inferInsert;
+
+/**
+ * Tasks pulled from external sources. Kept in a separate table from the
+ * native `tasks` so they render with distinct UI treatment (source badge,
+ * non-editable source-owned fields, deep-link back to origin) and so a
+ * destructive pull-and-replace can't accidentally wipe native tasks.
+ *
+ * sourceConfigId points at smartsheetWatchedSheets.id OR niftyWatchedProjects.id
+ * (disambiguated by `source`). removedAt is set when a row disappears from
+ * the source feed — kept for a grace period so overrides can be tombstoned
+ * rather than orphaned.
+ */
+export const externalTasks = mysqlTable('external_tasks', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  source: varchar('source', { length: 32 }).notNull(),
+  sourceConfigId: int('sourceConfigId').notNull(),
+  externalId: varchar('externalId', { length: 128 }).notNull(),
+  externalUrl: varchar('externalUrl', { length: 1024 }),
+  title: varchar('title', { length: 1024 }).notNull(),
+  description: mediumtext('description'),
+  status: varchar('status', { length: 64 }),
+  priority: varchar('priority', { length: 32 }),
+  due: varchar('due', { length: 32 }),
+  startDate: varchar('startDate', { length: 32 }),
+  assignee: varchar('assignee', { length: 255 }),
+  projectLabel: varchar('projectLabel', { length: 255 }),
+  parentExternalId: varchar('parentExternalId', { length: 128 }),
+  raw: mediumtext('raw'),
+  fetchedAt: timestamp('fetchedAt').defaultNow().onUpdateNow().notNull(),
+  removedAt: timestamp('removedAt'),
+}, (t) => ({
+  idxUser: index('idx_ext_task_user').on(t.userId),
+  idxSourceCfg: index('idx_ext_task_source_cfg').on(t.sourceConfigId),
+  idxDue: index('idx_ext_task_due').on(t.userId, t.due),
+  uqUserSourceId: unique('uq_ext_task_user_source_id').on(t.userId, t.source, t.externalId),
+}));
+export type ExternalTask = typeof externalTasks.$inferSelect;
+export type InsertExternalTask = typeof externalTasks.$inferInsert;
+
+/**
+ * User-local overlay on an external task: My Day flag, local priority override,
+ * personal note, local tags, alternate due date. Source data stays clean.
+ * When the source row vanishes the override is tombstoned (kept with a
+ * "(source removed)" badge) so personal notes are never lost.
+ */
+export const externalTaskOverrides = mysqlTable('external_task_overrides', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  source: varchar('source', { length: 32 }).notNull(),
+  externalId: varchar('externalId', { length: 128 }).notNull(),
+  myDay: tinyint('myDay').default(0).notNull(),
+  localPriority: varchar('localPriority', { length: 32 }),
+  localNote: mediumtext('localNote'),
+  localTags: varchar('localTags', { length: 512 }),
+  localDue: varchar('localDue', { length: 32 }),
+  tombstoned: tinyint('tombstoned').default(0).notNull(),
+  tombstonedAt: timestamp('tombstonedAt'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_ext_override_user').on(t.userId),
+  uqUserSourceId: unique('uq_ext_override_user_source_id').on(t.userId, t.source, t.externalId),
+}));
+export type ExternalTaskOverride = typeof externalTaskOverrides.$inferSelect;
+export type InsertExternalTaskOverride = typeof externalTaskOverrides.$inferInsert;
+
+// ─── Time entries (PM polish A3) ──────────────────────────────────────────────
+/**
+ * Time tracking actuals. taskId may reference either tasksTable.taskId
+ * (source='local') or externalTasks.externalId (source='smartsheet'|'nifty').
+ * endedAt null = timer currently running. durationMins materialized on stop
+ * so reports don't need to compute it on the fly.
+ */
+export const timeEntries = mysqlTable('time_entries', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  taskId: varchar('taskId', { length: 40 }).notNull(),
+  source: varchar('source', { length: 32 }).default('local').notNull(),
+  startedAt: timestamp('startedAt').notNull(),
+  endedAt: timestamp('endedAt'),
+  durationMins: int('durationMins'),
+  note: text('note'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUserTask: index('idx_time_entries_user_task').on(t.userId, t.taskId),
+  idxUserStarted: index('idx_time_entries_user_started').on(t.userId, t.startedAt),
+}));
+export type TimeEntry = typeof timeEntries.$inferSelect;
+export type InsertTimeEntry = typeof timeEntries.$inferInsert;
