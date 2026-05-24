@@ -689,10 +689,20 @@ export const externalSourceCredentials = mysqlTable('external_source_credentials
   id: int('id').autoincrement().primaryKey(),
   userId: int('userId').notNull(),
   source: varchar('source', { length: 32 }).notNull(), // 'smartsheet' | 'nifty'
-  apiToken: text('apiToken').notNull(),
+  // PAT for sources that allow it (Smartsheet). For OAuth sources (Nifty)
+  // this holds the access_token after the OAuth dance completes. Nullable
+  // since OAuth flows save clientId+clientSecret first, then exchange for
+  // an access_token on consent. Migration 0033 dropped the NOT NULL.
+  apiToken: text('apiToken'),
   accountEmail: varchar('accountEmail', { length: 320 }),
   accountDisplayName: varchar('accountDisplayName', { length: 255 }),
   accountExternalId: varchar('accountExternalId', { length: 128 }),
+  // OAuth fields (Nifty). Mirror of oauth_tokens for external sources.
+  clientId: varchar('clientId', { length: 255 }),
+  clientSecret: text('clientSecret'),
+  refreshToken: text('refreshToken'),
+  expiresAt: timestamp('expiresAt'),
+  scope: text('scope'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({

@@ -139,4 +139,93 @@ export function registerProviderOAuthCallbacks(app: Express) {
 
   // ---- Google ----
   // Google OAuth removed — replaced with SMTP/IMAP secondary account
+
+  // ---- Nifty ----
+  // Nifty uses authorization-code OAuth 2.0. Consent at https://nifty.pm/authorize,
+  // token exchange at https://openapi.niftypm.com/oauth/token with HTTP Basic
+  // auth (base64 client_id:client_secret). Stores tokens in
+  // external_source_credentials (source='nifty'). State carries userId +
+  // origin so we know which row to update after the redirect.
+  app.get("/api/oauth/nifty/callback", async (req: Request, res: Response) => {
+    const code = getQueryParam(req, "code");
+    const state = getQueryParam(req, "state");
+    const error = getQueryParam(req, "error");
+    if (error) {
+      console.error("[Nifty OAuth] Error:", error, getQueryParam(req, "error_description"));
+      res.redirect("/?oauth_error=nifty_denied");
+      return;
+    }
+    if (!code || !state) {
+      res.status(400).send("Missing code or state");
+      return;
+    }
+    const stateData = parseState(state);
+    if (!stateData) {
+      res.status(400).send("Invalid state");
+      return;
+    }
+    // Load the user's stored clientId / clientSecret for nifty.
+    const cred = await db.getExternalSourceCredential(stateData.userId, "nifty");
+    if (!cred?.clientId || !cred?.clientSecret) {
+      res.redirect("/?oauth_error=nifty_no_app");
+      return;
+    }
+    const redirectUri = `${stateData.origin}/api/oauth/nifty/callback`;
+    const basic = Buffer.from(`${cred.clientId}:${cred.clientSecret}`).toString("base64");
+    try {
+      const tokenResp = await fetch("https://openapi.niftypm.com/oauth/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${basic}`,
+        },
+        body: JSON.stringify({
+          code,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+      });
+      if (!tokenResp.ok) {
+        const body = await tokenResp.text();
+        console.error("[Nifty OAuth] Token exchange failed:", tokenResp.status, body.slice(0, 500));
+        res.redirect(`/?oauth_error=nifty_token&detail=${encodeURIComponent(body.slice(0, 120))}`);
+        return;
+      }
+      const tokenData = await tokenResp.json() as {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+        scope?: string;
+        token_type?: string;
+      };
+
+      // Fetch /users/me to capture account identity for the rail UI.
+      const meResp = await fetch("https://openapi.niftypm.com/api/v1.0/users/me", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}`, Accept: "application/json" },
+      });
+      let me: { id?: string; email?: string; name?: string } = {};
+      if (meResp.ok) {
+        try { me = await meResp.json() as typeof me; } catch { /* tolerate */ }
+      }
+
+      await db.upsertExternalSourceCredential({
+        userId: stateData.userId,
+        source: "nifty",
+        apiToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token ?? null,
+        expiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
+        scope: tokenData.scope ?? null,
+        accountEmail: me.email ?? null,
+        accountDisplayName: me.name ?? null,
+        accountExternalId: me.id ? String(me.id) : null,
+        // Keep clientId/clientSecret as-is — they're already stored.
+        clientId: cred.clientId,
+        clientSecret: cred.clientSecret,
+      });
+      res.redirect("/?oauth_success=nifty");
+    } catch (err) {
+      console.error("[Nifty OAuth] Callback error:", err);
+      res.redirect("/?oauth_error=nifty_server");
+    }
+  });
 }

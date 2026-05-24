@@ -10,8 +10,44 @@
 
 import type { NiftyWatchedProject, ExternalSourceCredential } from "../../drizzle/schema";
 import type { ExternalTaskInput as SmartsheetExternalTaskInput } from "./smartsheetAdapter";
+import { upsertExternalSourceCredential, getExternalSourceCredential } from "../db";
 
 const NIFTY_API = "https://openapi.niftypm.com/api/v1.0";
+const NIFTY_TOKEN_URL = "https://openapi.niftypm.com/oauth/token";
+
+/**
+ * Refresh a Nifty access token if it expires within the next 60 seconds.
+ * Returns the (possibly updated) credential row. No-op for non-OAuth creds
+ * (Smartsheet) or when no refresh_token is present.
+ */
+async function ensureFreshNiftyToken(cred: ExternalSourceCredential): Promise<ExternalSourceCredential> {
+  if (!cred.refreshToken || !cred.clientId || !cred.clientSecret) return cred;
+  const now = Date.now();
+  const exp = cred.expiresAt ? new Date(cred.expiresAt).getTime() : 0;
+  if (exp - now > 60_000) return cred; // still valid for ≥60s
+  const basic = Buffer.from(`${cred.clientId}:${cred.clientSecret}`).toString('base64');
+  const resp = await fetch(NIFTY_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
+    body: JSON.stringify({ refresh_token: cred.refreshToken, grant_type: 'refresh_token' }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Nifty token refresh failed: ${resp.status} ${await resp.text()}`);
+  }
+  const data = await resp.json() as { access_token: string; refresh_token?: string; expires_in?: number; scope?: string };
+  await upsertExternalSourceCredential({
+    userId: cred.userId,
+    source: 'nifty',
+    apiToken: data.access_token,
+    refreshToken: data.refresh_token ?? cred.refreshToken,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
+    scope: data.scope ?? cred.scope ?? null,
+    clientId: cred.clientId,
+    clientSecret: cred.clientSecret,
+  });
+  const fresh = await getExternalSourceCredential(cred.userId, 'nifty');
+  return fresh ?? cred;
+}
 
 export type NiftyExternalTaskInput = Omit<SmartsheetExternalTaskInput, 'source'> & { source: 'nifty' };
 
@@ -98,7 +134,11 @@ export async function pullNiftyProject(
   cfg: NiftyWatchedProject,
   cred: ExternalSourceCredential,
 ): Promise<NiftyExternalTaskInput[]> {
-  const tasks = await fetchAllProjectTasks(cred.apiToken, cfg.projectId);
+  const fresh = await ensureFreshNiftyToken(cred);
+  if (!fresh.apiToken) {
+    throw new Error('Nifty access_token missing — reconnect required (re-run OAuth consent).');
+  }
+  const tasks = await fetchAllProjectTasks(fresh.apiToken, cfg.projectId);
   const myId = cred.accountExternalId;
 
   const out: NiftyExternalTaskInput[] = [];

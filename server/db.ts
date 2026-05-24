@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lte, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog } from "../drizzle/schema";
+import { credentialAuditLog, emailDeliveryLog, emailNotificationPrefs, InsertCredentialAuditLog, InsertEmailDeliveryLog, InsertOAuthToken, InsertUser, InsertUserOauthCredential, InsertScheduledTaskLog, oauthTokens, scheduledTaskLog, systemSettings, userOauthCredentials, users, smtpImapAccounts, InsertSmtpImapAccount, SmtpImapAccount, userActivityLog, externalSourceCredentials, InsertExternalSourceCredential } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -148,6 +148,40 @@ export async function deleteOAuthToken(userId: number, provider: string): Promis
   if (!db) return;
   await db.delete(oauthTokens)
     .where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.provider, provider)));
+}
+
+// ─── External source credentials (Smartsheet PAT / Nifty OAuth) ────────────
+// Two shapes share this table: PAT sources (apiToken only) and OAuth sources
+// (clientId+clientSecret+accessToken+refreshToken+expiresAt). The Express
+// callback in oauth-callbacks.ts and the externalSources tRPC router both
+// go through these helpers so the column set stays consistent.
+export async function getExternalSourceCredential(userId: number, source: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(externalSourceCredentials)
+    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, source)))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertExternalSourceCredential(cred: InsertExternalSourceCredential): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  // Only update fields explicitly present on the input — preserves any
+  // OAuth-app credentials (clientId/clientSecret) when only the token rotates,
+  // and vice versa.
+  const set: Record<string, unknown> = {};
+  for (const k of ['apiToken','accountEmail','accountDisplayName','accountExternalId','clientId','clientSecret','refreshToken','expiresAt','scope'] as const) {
+    if (k in cred && (cred as Record<string, unknown>)[k] !== undefined) set[k] = (cred as Record<string, unknown>)[k];
+  }
+  await db.insert(externalSourceCredentials).values(cred).onDuplicateKeyUpdate({ set });
+}
+
+export async function deleteExternalSourceCredential(userId: number, source: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(externalSourceCredentials)
+    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, source)));
 }
 
 // ---- Per-User OAuth App Credentials helpers ----

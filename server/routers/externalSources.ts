@@ -55,14 +55,24 @@ export const externalSourcesRouter = router({
     const db = await requireDb();
     const creds = await db.select().from(externalSourceCredentials)
       .where(eq(externalSourceCredentials.userId, ctx.user.id));
-    const summary: Record<string, { connected: boolean; accountEmail: string | null; accountDisplayName: string | null; watchCount: number }> = {
+    const summary: Record<string, { connected: boolean; oauthAppConfigured?: boolean; accountEmail: string | null; accountDisplayName: string | null; watchCount: number }> = {
       smartsheet: { connected: false, accountEmail: null, accountDisplayName: null, watchCount: 0 },
-      nifty: { connected: false, accountEmail: null, accountDisplayName: null, watchCount: 0 },
+      nifty: { connected: false, oauthAppConfigured: false, accountEmail: null, accountDisplayName: null, watchCount: 0 },
     };
     for (const c of creds) {
-      if (c.source === 'smartsheet' || c.source === 'nifty') {
-        summary[c.source] = {
-          connected: true,
+      if (c.source === 'smartsheet') {
+        summary.smartsheet = {
+          connected: !!c.apiToken,
+          accountEmail: c.accountEmail,
+          accountDisplayName: c.accountDisplayName,
+          watchCount: 0,
+        };
+      } else if (c.source === 'nifty') {
+        // Nifty has two states: clientId/Secret saved (oauthAppConfigured) and
+        // OAuth consent completed (connected = apiToken present).
+        summary.nifty = {
+          connected: !!c.apiToken,
+          oauthAppConfigured: !!c.clientId,
           accountEmail: c.accountEmail,
           accountDisplayName: c.accountDisplayName,
           watchCount: 0,
@@ -85,6 +95,9 @@ export const externalSourcesRouter = router({
     .input(z.object({ source: sourceEnum, apiToken: z.string().min(10).max(2000) }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
+      if (input.source === 'nifty') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Nifty uses OAuth — paste Client ID + Secret via saveNiftyOAuthApp, then click Connect.' });
+      }
       let identity: { id: string | number; email: string; name: string };
       try {
         if (input.source === 'smartsheet') {
@@ -115,6 +128,53 @@ export const externalSourcesRouter = router({
         },
       });
       return { success: true, account: identity };
+    }),
+
+  /**
+   * Nifty OAuth — save Client ID + Secret (from the user's Nifty Create App
+   * page), then call getNiftyAuthUrl to start the consent flow. Token gets
+   * stored automatically by the /api/oauth/nifty/callback handler.
+   */
+  saveNiftyOAuthApp: protectedProcedure
+    .input(z.object({
+      clientId: z.string().min(8).max(255),
+      clientSecret: z.string().min(8).max(2000),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      // Insert/update without touching apiToken / refreshToken / expiresAt —
+      // those land later via the OAuth callback.
+      await db.insert(externalSourceCredentials).values({
+        userId: ctx.user.id,
+        source: 'nifty',
+        apiToken: null,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+      }).onDuplicateKeyUpdate({
+        set: { clientId: input.clientId, clientSecret: input.clientSecret },
+      });
+      return { success: true };
+    }),
+
+  /**
+   * Build the Nifty consent URL using the saved Client ID. State encodes
+   * userId + origin so the callback can attribute the returned code.
+   */
+  getNiftyAuthUrl: protectedProcedure
+    .input(z.object({ origin: z.string().url() }))
+    .query(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.clientId) {
+        throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Save Client ID + Secret first' });
+      }
+      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString('base64url');
+      const redirectUri = `${input.origin}/api/oauth/nifty/callback`;
+      const scope = 'task,project,member,task_group,subtask,milestone,subteam,doc,message,file,label,time_tracking';
+      const url = `https://nifty.pm/authorize?response_type=code&client_id=${encodeURIComponent(cred.clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
+      return { authUrl: url };
     }),
 
   disconnect: protectedProcedure
@@ -264,7 +324,8 @@ export const externalSourcesRouter = router({
     const [cred] = await db.select().from(externalSourceCredentials)
       .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
       .limit(1);
-    if (!cred) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
+    if (!cred) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty credentials configured' });
+    if (!cred.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Nifty connected but not authorized — click Connect to complete OAuth consent' });
     const resp = await fetch(`${NIFTY_API}/projects`, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
     if (!resp.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Nifty projects failed: ${resp.status}` });
     const data = await resp.json() as Array<{ id: string; name: string; url?: string }> | { projects?: Array<{ id: string; name: string; url?: string }> };

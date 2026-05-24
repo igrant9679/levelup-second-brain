@@ -922,28 +922,93 @@ async function _hydrateExternalSourcesPanel(){
 function _renderExternalSourcesPanelHTML(status,ssWatches,nfWatches){
   return `
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-    ${_renderSourceCard('smartsheet','📊 Smartsheet (CF)',status.smartsheet,ssWatches,'https://app.smartsheet.com/b/personalsettings')}
-    ${_renderSourceCard('nifty','💜 NiftyPM (LSI)',status.nifty,nfWatches,'https://niftypm.com/api/')}
+    ${_renderSmartsheetCard(status.smartsheet,ssWatches)}
+    ${_renderNiftyCard(status.nifty,nfWatches)}
   </div>`;
 }
 
-function _renderSourceCard(source,label,s,watches,tokenHelpUrl){
+function _renderSmartsheetCard(s,watches){
   const connected=!!s.connected;
-  const tokenInputId=`ext-token-${source}`;
   return `
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">${label}</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet (CF)</div>
     ${connected
       ?`<div style="font-size:10px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>`
-      :`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — <a href="${tokenHelpUrl}" target="_blank" style="color:var(--ac)">get an API token</a></div>`}
+      :`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — <a href="https://app.smartsheet.com/b/personalsettings" target="_blank" style="color:var(--ac)">get an API token</a></div>`}
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      <input id="${tokenInputId}" class="inp" type="password" placeholder="${connected?'(token saved — paste to replace)':'Paste API token'}" style="flex:1;font-size:10px;height:26px">
-      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSetToken('${source}')">${connected?'Update':'Connect'}</button>
-      ${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('${source}')" title="Removes token, watches, and pulled tasks">✕</button>`:''}
+      <input id="ext-token-smartsheet" class="inp" type="password" placeholder="${connected?'(token saved — paste to replace)':'Paste API token'}" style="flex:1;font-size:10px;height:26px">
+      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSetToken('smartsheet')">${connected?'Update':'Connect'}</button>
+      ${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('smartsheet')" title="Removes token, watches, and pulled tasks">✕</button>`:''}
     </div>
-    ${connected?_renderWatchList(source,watches):''}
-    ${connected?`<button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('${source}')">+ Watch ${source==='smartsheet'?'a sheet':'a project'}</button>`:''}
+    ${connected?_renderWatchList('smartsheet',watches):''}
+    ${connected?`<button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('smartsheet')">+ Watch a sheet</button>`:''}
   </div>`;
+}
+
+// Nifty has THREE possible UI states because it's OAuth, not PAT:
+//   (a) no app configured       → show Client ID + Secret form
+//   (b) app saved, not connected → show "Connect to NiftyPM" (kicks OAuth)
+//   (c) fully connected          → normal watch list + add-project flow
+function _renderNiftyCard(s,watches){
+  const connected=!!s.connected;
+  const appConfigured=!!s.oauthAppConfigured;
+  let body;
+  if(connected){
+    body=`<div style="font-size:10px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extConnectNifty()" title="Re-authorize (e.g. if scope changed)">↻ Reconnect</button>
+        <button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('nifty')" title="Removes credentials, watches, and pulled tasks">✕</button>
+      </div>
+      ${_renderWatchList('nifty',watches)}
+      <button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('nifty')">+ Watch a project</button>`;
+  }else if(appConfigured){
+    body=`<div style="font-size:10px;color:var(--warn);margin-bottom:6px">App saved · click <strong>Connect</strong> to authorize</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extConnectNifty()">🔗 Connect to NiftyPM</button>
+        <button class="btn" style="height:26px;font-size:10px" onclick="_extEditNiftyApp()" title="Edit Client ID / Secret">Edit app</button>
+        <button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('nifty')">✕</button>
+      </div>`;
+  }else{
+    body=`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — create an app at <a href="https://nifty.pm/integrations/apps" target="_blank" style="color:var(--ac)">Nifty → Integrations → Apps</a> (use redirect URL <code style="background:var(--s2);padding:1px 4px;border-radius:3px;font-size:9px">${window.location.origin}/api/oauth/nifty/callback</code>)</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px">
+        <input id="ext-nifty-client-id" class="inp" placeholder="Client ID" style="font-size:10px;height:26px">
+        <input id="ext-nifty-client-secret" class="inp" type="password" placeholder="Client Secret" style="font-size:10px;height:26px">
+        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSaveNiftyApp()">Save & Connect</button>
+      </div>`;
+  }
+  return `
+  <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">💜 NiftyPM (LSI)</div>
+    ${body}
+  </div>`;
+}
+
+async function _extSaveNiftyApp(){
+  const cid=document.getElementById('ext-nifty-client-id').value.trim();
+  const cs=document.getElementById('ext-nifty-client-secret').value.trim();
+  if(!cid||!cs){toast({type:'warn',title:'Both Client ID and Secret are required'});return;}
+  try{
+    await _trpc('externalSources.saveNiftyOAuthApp',{clientId:cid,clientSecret:cs},'mutation');
+    toast({type:'success',title:'App saved — opening Nifty authorization…'});
+    await _extConnectNifty();
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+
+async function _extEditNiftyApp(){
+  // Surface the saved-app state by transitioning the card back to "no app"
+  // visually (the user can re-enter creds). The existing row is upserted.
+  try{
+    await _trpc('externalSources.disconnect',{source:'nifty'},'mutation');
+    await _hydrateExternalSourcesPanel();
+  }catch(e){toast({type:'warn',title:'Could not reset',msg:e.message||String(e)});}
+}
+
+async function _extConnectNifty(){
+  try{
+    const res=await _trpc('externalSources.getNiftyAuthUrl',{origin:window.location.origin},'query');
+    // Open in the same tab so the OAuth callback redirect lands back at our app.
+    window.location.href=res.authUrl;
+  }catch(e){toast({type:'warn',title:'Could not start Nifty OAuth',msg:e.message||String(e)});}
 }
 
 function _renderWatchList(source,watches){
@@ -3339,21 +3404,38 @@ function doLoginSuccess(member){
   if(window._pendingOAuthSuccess){
     const _prov=window._pendingOAuthSuccess;
     window._pendingOAuthSuccess=null;
-    const _provLabel=_prov==='microsoft'?'Microsoft 365':'Google Workspace';
-    toast('\u2713 '+_provLabel+' connected \u2014 running connection test\u2026');
-    setTimeout(()=>{
-      nav('settings');
+    // Nifty lands on the Integrations tab (sp-5) \u2014 not Accounts.
+    if(_prov==='nifty'){
+      toast({type:'success',title:'\u2713 NiftyPM connected \u2014 pulling tasks\u2026',duration:3500});
       setTimeout(()=>{
-        const accountsBtn=Array.from(document.querySelectorAll('.si')).find(x=>x.textContent.trim()==='Accounts');
-        if(accountsBtn)accountsBtn.click();
-        else{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');const sp4=document.getElementById('sp-4');if(sp4){sp4.style.display='';loadOAuthStatus&&loadOAuthStatus();loadEmailDeliveryLog&&loadEmailDeliveryLog();}}
-        setTimeout(async()=>{
-          const card=document.getElementById('oauth-'+(_prov==='microsoft'?'ms':_prov)+'-card');
-          if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='2px solid var(--ac)';setTimeout(()=>card.style.outline='',3000);}
-          await testOAuthConnection(_prov);
-        },600);
-      },300);
-    },500);
+        nav('settings');
+        setTimeout(()=>{
+          const intBtn=Array.from(document.querySelectorAll('.si')).find(x=>x.textContent.trim()==='Integrations');
+          if(intBtn)intBtn.click();
+          // Fire the first pull and refresh the panel state.
+          setTimeout(async()=>{
+            if(typeof refreshExternalTasksNow==='function')await refreshExternalTasksNow();
+            if(typeof _hydrateExternalSourcesPanel==='function')await _hydrateExternalSourcesPanel();
+          },600);
+        },300);
+      },500);
+    }else{
+      const _provLabel=_prov==='microsoft'?'Microsoft 365':'Google Workspace';
+      toast('\u2713 '+_provLabel+' connected \u2014 running connection test\u2026');
+      setTimeout(()=>{
+        nav('settings');
+        setTimeout(()=>{
+          const accountsBtn=Array.from(document.querySelectorAll('.si')).find(x=>x.textContent.trim()==='Accounts');
+          if(accountsBtn)accountsBtn.click();
+          else{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');const sp4=document.getElementById('sp-4');if(sp4){sp4.style.display='';loadOAuthStatus&&loadOAuthStatus();loadEmailDeliveryLog&&loadEmailDeliveryLog();}}
+          setTimeout(async()=>{
+            const card=document.getElementById('oauth-'+(_prov==='microsoft'?'ms':_prov)+'-card');
+            if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.style.outline='2px solid var(--ac)';setTimeout(()=>card.style.outline='',3000);}
+            await testOAuthConnection(_prov);
+          },600);
+        },300);
+      },500);
+    }
   }
   if(window._pendingOAuthError){
     const _err=window._pendingOAuthError;
