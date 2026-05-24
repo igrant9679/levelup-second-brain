@@ -6043,8 +6043,31 @@ function renderTaskCalendar(){
   filtered.forEach(t=>{
     const k=t.due||t.startDate;
     if(!k)return;
-    (byDay[k]=byDay[k]||[]).push(t);
+    (byDay[k]=byDay[k]||[]).push(Object.assign({},t,{_source:'local'}));
   });
+  // Overlay external tasks (Smartsheet/Nifty) with due dates. Outline-style
+  // rows without due dates aren't shown on the grid — the rail/Command Center
+  // surface them instead. Tombstoned + Done rows are excluded. Respects "My
+  // Items only" by excluding externals when that scope is active.
+  if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    D.externalTasks.forEach(et=>{
+      if(et.override&&et.override.tombstoned)return;
+      if(isDone(et))return;
+      const k=(et.override&&et.override.localDue)||et.due||et.startDate;
+      if(!k)return;
+      (byDay[k]=byDay[k]||[]).push({
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title,
+        status:et.status,
+        priority:et.priority,
+        due:k,
+        _source:et.source,
+        _url:et.externalUrl,
+        _externalId:et.externalId,
+      });
+    });
+  }
   const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
   const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const header=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0">
@@ -6065,7 +6088,15 @@ function renderTaskCalendar(){
     const bg=isToday?'rgba(99,102,241,0.10)':'transparent';
     return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${k}';},50)">
       <div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
-      ${items.slice(0,4).map(t=>`<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`).join('')}
+      ${items.slice(0,4).map(t=>{
+        if(t._source&&t._source!=='local'){
+          const url=t._url||'#';
+          const badgeColor=t._source==='smartsheet'?'#1f6feb':'#9333ea';
+          const badgeText=t._source==='smartsheet'?'CF':'LSI';
+          return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
+        }
+        return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
+      }).join('')}
       ${items.length>4?`<div style="font-size:9px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
     </div>`;
   }).join('')}</div>`;
@@ -6226,10 +6257,75 @@ function renderTaskClusters(){
 
   const newClusterBtn=`<div style="text-align:center;padding:8px"><button class="btn btn-s" style="font-size:11px" onclick="openClusterModal(null)">+ New Cluster</button></div>`;
 
+  // External-task pseudo-clusters — one card per active source. Skipped under
+  // "My Items" scope (external rows have no `createdBy` field to match).
+  const extCards=(!_taskMyOnly)?_renderExternalClusterCards():'';
+
   // "No cluster" group floats to the TOP — it's the inbox / triage zone
   // for tasks not yet assigned to a cluster, so it should be the first
   // thing the user sees on the page.
-  list.innerHTML=pillBar+orphanCard+groups.map(clusterCard).join('')+newClusterBtn;
+  list.innerHTML=pillBar+orphanCard+extCards+groups.map(clusterCard).join('')+newClusterBtn;
+}
+
+// Build pseudo-cluster cards for each active external source (Smartsheet/Nifty).
+// Same visual chrome as native clusters (collapse toggle, count badge) but
+// rows are dotted-border + deep-link + read-only. Returns '' when no external
+// tasks loaded — keeps the page clean for users without integrations.
+function _renderExternalClusterCards(){
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)):[];
+  if(!ext.length)return '';
+  const today=_todayStr;
+  const sources=[
+    {key:'smartsheet',label:'CommunityForce · Smartsheet',accent:'#1f6feb',icon:'📊'},
+    {key:'nifty',     label:'LSI Media · NiftyPM',       accent:'#9333ea',icon:'💜'},
+  ];
+  return sources.map(src=>{
+    const rows=ext.filter(t=>t.source===src.key);
+    if(!rows.length)return '';
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const open=rows.filter(t=>!isDone(t));
+    const overdue=open.filter(t=>{const due=(t.override&&t.override.localDue)||t.due;return due&&due<today;}).length;
+    const collapseKey='__ext__'+src.key;
+    const collapsed=!!_clusterCollapsed[collapseKey];
+    const total=rows.length;
+    const doneN=total-open.length;
+    let subtitle=`${doneN} of ${total} task${total!==1?'s':''} · from source`;
+    if(overdue>0)subtitle+=` · <span style="color:var(--red);font-weight:600">${overdue} overdue</span>`;
+    const pct=total?Math.round((doneN/total)*100):0;
+    const taskRows=open.slice(0,40).map(t=>{
+      const due=(t.override&&t.override.localDue)||t.due;
+      const overdueRow=due&&due<today;
+      const myDay=t.override&&t.override.myDay;
+      const url=t.externalUrl||'#';
+      const dueLabel=due?_relDue(due):'';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
+        <span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
+        <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:500;color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
+        ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0">${esc(t.status)}</span>`:''}
+        <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+        <span style="font-size:11px;${overdueRow?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
+      </div>`;
+    }).join('');
+    const tooMany=open.length>40?`<div style="padding:8px 14px 8px 56px;font-size:10px;color:var(--t3);border-top:1px solid var(--bd1);font-style:italic">… and ${open.length-40} more. Open the source to see all.</div>`:'';
+    return `<div class="cl-card" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid ${src.accent};border-radius:10px;margin-bottom:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${collapseKey}']=!_clusterCollapsed['${collapseKey}'];renderTaskClusters()">
+        <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
+        <div style="width:28px;height:28px;border-radius:6px;background:${src.accent}22;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${src.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--t1)">${esc(src.label)}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${subtitle}</div>
+        </div>
+        <div style="width:120px;flex-shrink:0">
+          <div style="height:4px;background:var(--s3);border-radius:999px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${src.accent};border-radius:999px;transition:width .3s"></div>
+          </div>
+          <div style="font-size:10px;color:var(--t3);text-align:right;margin-top:3px">${pct}%</div>
+        </div>
+        <button title="Refresh from source" style="height:24px;width:24px;padding:0;font-size:12px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();refreshExternalTasksNow()">↻</button>
+      </div>
+      ${collapsed?'':`<div>${taskRows}${tooMany}</div>`}
+    </div>`;
+  }).join('');
 }
 // ─── Cluster Modal (create/edit) ─────────────────────────────────────────────
 function openClusterModal(id){
@@ -11333,6 +11429,13 @@ const WIDGET_TEMPLATES=[
   {id:'t-projects-status',label:'📁 Projects by status',w:{title:'Projects by Status',source:'projects',filter:{},groupBy:'status',metric:'count',viz:'donut',color:'#a855f7',sizeW:6}},
   {id:'t-ideas-stage',label:'💡 Ideas by stage',w:{title:'Ideas Pipeline',source:'ideas',filter:{},groupBy:'stage',metric:'count',viz:'donut',color:'#eab308',sizeW:6}},
   {id:'t-habits-heat',label:'🔥 Habit consistency (heatmap)',w:{title:'Daily Habit Activity',source:'habits',filter:{},groupBy:'_total',metric:'count',viz:'kpi',color:'#10b981',sizeW:3}},
+  // ── Cross-source command-center widgets ────────────────────────────────────
+  // These use the `allTasks` source (native + Smartsheet + Nifty) so a single
+  // widget surfaces "what's on Idris's plate across CF + LSI + Personal".
+  {id:'t-all-today-bar',label:'🎯 Today across CF / LSI / Personal',w:{title:'Today — by source',source:'allTasks',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'_sourceLabel',metric:'count',viz:'bar',color:'#3b82f6',sizeW:6}},
+  {id:'t-all-by-pri',label:'🎯 All open work by priority',w:{title:'All Open Work — by Priority',source:'allTasks',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'priority',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6}},
+  {id:'t-all-overdue',label:'⚠ Overdue across all sources',w:{title:'Overdue — All Sources',source:'allTasks',filter:[{op:'overdue'}],groupBy:'_total',metric:'count',viz:'kpi',color:'#ef4444',sizeW:3}},
+  {id:'t-all-table',label:'📋 All open work (table)',w:{title:'All Open Work',source:'allTasks',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'_rows',metric:'list',viz:'table',color:'#3b82f6',sizeW:12}},
 ];
 
 // Sensible default groupBy/metric/viz suggestions per source. Used by the
@@ -11400,6 +11503,32 @@ const WIDGET_SOURCES={
     const fl=(D.prefs&&D.prefs.focusLog)||{};
     return Object.entries(fl).map(([date,mins])=>({date,mins:Number(mins)||0}));
   },dateField:'date',label:'Focus sessions'},
+  // Cross-source: native tasks + external (Smartsheet/Nifty) tasks normalized
+  // into the same shape so widgets like "Open across CF/LSI/Personal" work.
+  // Each external row gets a virtual `project` = source label and `priority`
+  // falls back to Medium so the standard groupBy=priority widgets still bucket
+  // them. Tombstoned externals are skipped.
+  allTasks: {arr:()=>{
+    const local=(D.tasks||[]).map(t=>Object.assign({},t,{_source:'local',_sourceLabel:'Personal'}));
+    const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned)).map(et=>{
+      const ov=et.override||{};
+      return {
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title,
+        status:et.status||'Not Started',
+        priority:ov.localPriority||et.priority||'Medium',
+        due:ov.localDue||et.due,
+        startDate:et.startDate,
+        completedAt:null,
+        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        assignee:et.assignee,
+        myDay:!!ov.myDay,
+        _source:et.source,
+        _sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+      };
+    });
+    return local.concat(ext);
+  },dateField:'completedAt',label:'All tasks (Personal + CF + LSI)'},
 };
 
 // Mood map (same as legacy reports)
@@ -11733,7 +11862,7 @@ async function _runAIWidgetBuilder(){
 Schema:
 {
   "title": string,                            // short human-readable label
-  "source": one of: tasks, habits, goals, journal, projects, ideas, bookmarks, focus
+  "source": one of: tasks, habits, goals, journal, projects, ideas, bookmarks, focus, allTasks (= native tasks + Smartsheet/Nifty external — use when the user asks about "all my work" / "across companies" / "CF + LSI + personal")
   "groupBy": one of: _total, _rows, day(<dateField>), week(<dateField>), month(<dateField>), or a field name like status / priority / project / context / assignedTo / title / cadence / category / stage / idea_type / mood / name / color
   "metric": one of: count, list, sum(<field>), avg(<field>)
   "viz": one of: kpi, bar, line, donut, heatmap, sparkline, progress, table
