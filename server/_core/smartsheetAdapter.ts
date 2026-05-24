@@ -156,6 +156,29 @@ function inferTitleColumn(columns: SsColumn[]): number | undefined {
   return columns[0]?.id;
 }
 
+/**
+ * For outline-style sheets where the primary column is empty on most rows
+ * (e.g. the 120-Day Plan sheet has Project / Task / SubTask / Outline cols;
+ * only top-level rows fill Project), resolve a per-row title by walking
+ * left-to-right through TEXT_NUMBER columns until finding one with content.
+ * Falls back to "(row N)" if every text column is empty.
+ */
+function resolveRowTitle(row: SsRow, columns: SsColumn[], primaryColId: number | undefined): string {
+  // Try the primary column first — fast path for normal sheets.
+  if (primaryColId !== undefined) {
+    const t = cellText(cellByColumn(row, primaryColId));
+    if (t && t.trim()) return t;
+  }
+  // Walk the remaining text-like columns in display order.
+  for (const c of columns) {
+    if (c.id === primaryColId) continue;
+    if (c.type !== 'TEXT_NUMBER' && c.type !== 'PICKLIST') continue;
+    const t = cellText(cellByColumn(row, c.id));
+    if (t && t.trim()) return t;
+  }
+  return `(row ${row.rowNumber})`;
+}
+
 function findColumnIdByTitle(columns: SsColumn[], title: string | null | undefined): number | undefined {
   if (!title) return undefined;
   const lower = title.toLowerCase();
@@ -197,7 +220,7 @@ export async function pullSmartsheet(
     const status = cellText(cellByColumn(row, statusColId));
     if (status && excludeStatuses.includes(status.toLowerCase())) continue;
 
-    const title = cellText(cellByColumn(row, titleColId)) ?? `(row ${row.rowNumber})`;
+    const title = resolveRowTitle(row, sheet.columns, titleColId);
     const due = cellText(cellByColumn(row, dueColId));
     const assignee = cellText(ownerCell);
 
