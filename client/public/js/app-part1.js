@@ -2590,7 +2590,18 @@ function renderDrawer(type,item){
       <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Context<button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 6px" onclick="manageTaskContexts()" title="Add, rename, or remove options">⚙ Manage</button></label>${_renderContextSelect('dr-ctx',item.context||'')}</div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Recurring</label><select class="inp" id="dr-recurring"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option></select></div>
+      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Recurring<button type="button" class="btn btn-s" style="height:18px;font-size:9px;padding:0 6px" onclick="_toggleRecurrenceAdvanced(${item.id})" title="Advanced: weekday picker, end date, count">⚙ Advanced</button></label><select class="inp" id="dr-recurring" onchange="_onRecurringChange(${item.id})"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option><option ${item.recurring==='Yearly'?'selected':''}>Yearly</option></select>
+        <div id="dr-recurring-adv" style="display:none;margin-top:6px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px">
+          ${(()=>{const r=_parseRecurrenceRule(item.recurrenceRule);const days=['S','M','T','W','T','F','S'];return `
+          <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Fine-tune the recurrence rule (writes <code>recurrenceRule</code> JSON for the server-side generator).</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px"><label style="font-size:10px;color:var(--t2);flex:1">Every <input type="number" id="dr-rec-interval" class="inp" min="1" max="365" value="${r.interval||1}" style="width:60px;font-size:11px;padding:2px 4px"></label></div>
+          <div id="dr-rec-byday" style="margin-bottom:6px">
+            <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Weekdays (Weekly/Bi-weekly only)</div>
+            <div style="display:flex;gap:3px">${days.map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;font-size:10px;padding:3px 5px;background:${(r.byDay||[]).includes(i)?'var(--ac)':'var(--s3)'};color:${(r.byDay||[]).includes(i)?'#fff':'var(--t2)'};border-radius:3px;cursor:pointer"><input type="checkbox" data-rec-day="${i}" ${(r.byDay||[]).includes(i)?'checked':''} style="display:none">${d}</label>`).join('')}</div>
+          </div>
+          <div style="display:flex;gap:8px"><label style="font-size:10px;color:var(--t2);flex:1">Until <input type="date" id="dr-rec-until" class="inp" value="${r.until||''}" style="font-size:11px;padding:2px 4px"></label><label style="font-size:10px;color:var(--t2);flex:1">Max count <input type="number" id="dr-rec-count" class="inp" min="0" placeholder="∞" value="${r.count||''}" style="font-size:11px;padding:2px 4px"></label></div>`;})()}
+        </div>
+      </div>
       <div class="field"><label>Est. Time (min)</label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
     </div>
     <div class="field-row">
@@ -3096,6 +3107,11 @@ function saveItem(type,id){
     t.project=pSel.value?D.projects.find(p=>p.id===parseInt(pSel.value))?.name||'':'';
     t.context=$('#dr-ctx').value;
     t.recurring=$('#dr-recurring').value;
+    // Mirror the dropdown choice + (optional) advanced fields into the
+    // structured recurrenceRule the server-side generator consumes. If the
+    // user picks 'None' we clear the rule too. Advanced byDay checkboxes
+    // only apply to Weekly / Bi-weekly.
+    t.recurrenceRule=_buildRecurrenceRuleFromDrawer();
     t.estimatedMins=parseInt($('#dr-estmins').value)||0;
     t.energy=$('#dr-energy').value;
     const gSel=document.getElementById('dr-goal');
@@ -3460,7 +3476,59 @@ function bulkAction(action){
   updateSidebarBadges();
   renderCurrentTaskView();
 }
+// ====== RECURRENCE RULE HELPERS ======
+// The drawer keeps the existing "None / Daily / Weekly / Bi-weekly / Monthly /
+// Yearly" dropdown that long-term users know, then mirrors the choice into a
+// structured `recurrenceRule` JSON object the server-side cron consumes to
+// materialize future instances. The "⚙ Advanced" expander lets a user pick
+// specific weekdays (for weekly rules), an "until" date, or a max count
+// — anything the simple dropdown can't express.
+function _parseRecurrenceRule(raw){
+  if(!raw)return {};
+  try{const r=typeof raw==='string'?JSON.parse(raw):raw;return r&&typeof r==='object'?r:{};}catch{return {};}
+}
+function _toggleRecurrenceAdvanced(){
+  const el=document.getElementById('dr-recurring-adv');
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function _onRecurringChange(){
+  // Reveal byDay row only when relevant.
+  const sel=document.getElementById('dr-recurring');
+  const byDay=document.getElementById('dr-rec-byday');
+  if(!sel||!byDay)return;
+  byDay.style.display=(sel.value==='Weekly'||sel.value==='Bi-weekly')?'block':'none';
+}
+function _buildRecurrenceRuleFromDrawer(){
+  const sel=document.getElementById('dr-recurring');
+  if(!sel)return null;
+  const v=sel.value;
+  if(!v||v==='None')return null;
+  const freqMap={Daily:'daily',Weekly:'weekly','Bi-weekly':'weekly',Monthly:'monthly',Yearly:'yearly'};
+  const freq=freqMap[v];
+  if(!freq)return null;
+  const intervalEl=document.getElementById('dr-rec-interval');
+  let interval=parseInt(intervalEl?intervalEl.value:'',10);
+  if(!Number.isFinite(interval)||interval<1)interval=1;
+  if(v==='Bi-weekly')interval=Math.max(interval,2);
+  const rule={freq,interval};
+  if(freq==='weekly'){
+    const days=Array.from(document.querySelectorAll('[data-rec-day]')).filter(el=>el.checked).map(el=>Number(el.getAttribute('data-rec-day')));
+    if(days.length)rule.byDay=days;
+  }
+  const untilEl=document.getElementById('dr-rec-until');
+  if(untilEl&&untilEl.value)rule.until=untilEl.value;
+  const countEl=document.getElementById('dr-rec-count');
+  const count=countEl?parseInt(countEl.value,10):NaN;
+  if(Number.isFinite(count)&&count>0)rule.count=count;
+  return JSON.stringify(rule);
+}
 // ====== TASK TIME TRACKER ======
+// Local-first: t.timeSpent stays as the in-memory counter so the timer feels
+// instant and survives offline. The server endpoints (timeEntries.start /
+// .stop) fire-and-forget so the time_entries table accrues a real audit log
+// that survives device wipes and powers cross-device totals. If the server
+// call fails the local counter is still correct.
 let _timerTaskId=null,_timerStart=null,_timerInterval=null;
 function startTaskTimer(id,event){
   if(event)event.stopPropagation();
@@ -3480,11 +3548,18 @@ function startTaskTimer(id,event){
   const btn=document.getElementById('timer-btn-'+id);
   if(btn){btn.style.background='var(--red)';btn.style.color='#fff';btn.title='Stop timer';}
   toast('▶ Timer started for task');
+  // Fire-and-forget server start. Server-side single-active-timer enforcement
+  // means an in-flight previous run gets auto-stopped too — matches the
+  // existing local "stop any running timer first" behaviour.
+  if(typeof _trpc==='function'){
+    _trpc('timeEntries.start',{taskId:String(id),source:'local'},'mutation').catch(()=>{});
+  }
 }
 function stopTaskTimer(){
   if(!_timerTaskId)return;
+  const stoppedId=_timerTaskId;
   const elapsed=Math.round((Date.now()-_timerStart)/60000); // minutes
-  const t=D.tasks.find(x=>x.id===_timerTaskId);
+  const t=D.tasks.find(x=>x.id===stoppedId);
   if(t&&elapsed>0){
     t.timeSpent=(t.timeSpent||0)+elapsed;
     save('tasks');
@@ -3493,6 +3568,32 @@ function stopTaskTimer(){
   clearInterval(_timerInterval);
   _timerTaskId=null;_timerStart=null;_timerInterval=null;
   renderCurrentTaskView();
+  if(typeof _trpc==='function'){
+    _trpc('timeEntries.stop',{taskId:String(stoppedId)},'mutation').catch(()=>{});
+  }
+}
+// Recover from a page reload mid-timer: ask the server whether a timer is
+// running for the current user and resume the in-page counter from its start.
+// Idempotent — safe to call on every boot.
+async function _restoreRunningTimer(){
+  try{
+    const running=await _trpc('timeEntries.running',undefined,'query');
+    if(!running)return;
+    const numericId=Number(running.taskId);
+    if(!Number.isFinite(numericId))return; // external-task timer, no local row to attach to
+    if(_timerTaskId)return; // already running locally
+    const startMs=new Date(running.startedAt).getTime();
+    _timerTaskId=numericId;
+    _timerStart=startMs;
+    _timerInterval=setInterval(()=>{
+      const el=document.getElementById('timer-display-'+numericId);
+      if(el){
+        const secs=Math.floor((Date.now()-_timerStart)/1000);
+        const h=Math.floor(secs/3600),m=Math.floor((secs%3600)/60),s=secs%60;
+        el.textContent=(h?h+'h ':'')+m+'m '+s+'s';
+      }
+    },1000);
+  }catch{ /* offline / not signed in — fine */ }
 }
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
@@ -5573,6 +5674,17 @@ function renderTaskFocus(){
   html+=`</div>`;
   list.innerHTML=html;
 }
+// Map an external task's free-form status string to one of the Board columns.
+// Outline-style Smartsheet rows often have "Month 1" / "Phase 2" / blank
+// values — those fall through to Not Started.
+function _extStatusToBoardCol(status){
+  const s=(status||'').toLowerCase().trim();
+  if(!s)return 'Not Started';
+  if(/(^|\s)(done|complete|completed|closed|cancell?ed|resolved|shipped)/i.test(s))return 'Done';
+  if(/(in\s*progress|doing|active|started|working|wip|ongoing)/i.test(s))return 'In Progress';
+  if(/(someday|backlog|later|deferred|on hold|paused)/i.test(s))return 'Someday';
+  return 'Not Started';
+}
 function renderTaskBoard(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -5586,8 +5698,13 @@ function renderTaskBoard(){
   let tasks=D.tasks;
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
+  // External tasks → stay on the rail/Today rollups when this view is "My
+  // tasks only" (they aren't yours by createdBy). Otherwise inject as
+  // read-only cards into the column matching their status.
+  const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)):[];
   const colHtml=cols.map(col=>{
     const colTasks=tasks.filter(t=>t.status===col.status);
+    const extInCol=extTasks.filter(et=>_extStatusToBoardCol(et.status)===col.status);
     const cards=colTasks.map(t=>{
       const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
       return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
@@ -5604,12 +5721,38 @@ function renderTaskBoard(){
         </div>
       </div>`;
     }).join('');
+    // External-task cards — read-only, click opens the source URL, not the
+    // task drawer (since drawer is for local tasks). Dotted border + badge
+    // so they're visually distinct from native cards.
+    const extCards=extInCol.map(et=>{
+      const due=(et.override&&et.override.localDue)||et.due;
+      const url=et.externalUrl||'#';
+      const myDay=et.override&&et.override.myDay;
+      return `<div style="background:var(--s2);border:1px dashed var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''">
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+          ${_extSourceBadge(et.source)}
+          <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${et.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:11px;font-weight:500;line-height:1.3;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(et.title)}</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:9px;color:var(--t3)">
+          ${et.status?`<span>${esc(et.status)}</span>`:''}
+          ${due?`<span>📅 ${fmtDate(due)}</span>`:''}
+          ${et.projectLabel?`<span>📁 ${esc(et.projectLabel)}</span>`:''}
+        </div>
+        <div style="display:flex;gap:4px;margin-top:5px">
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${et.source}','${esc(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
+          <a href="${esc(url)}" target="_blank" rel="noopener" class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
+        </div>
+      </div>`;
+    }).join('');
+    const totalInCol=colTasks.length+extInCol.length;
+    const extCount=extInCol.length?`<span style="font-size:9px;color:var(--t3);margin-left:4px" title="${extInCol.length} from Smartsheet/Nifty">+${extInCol.length} ext</span>`:'';
     return `<div style="flex:1;min-width:160px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${col.color}">
         <span style="font-size:11px;font-weight:700;color:${col.color}">${col.label}</span>
-        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${colTasks.length}</span>
+        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${totalInCol}</span>
+        ${extCount}
       </div>
-      ${cards}
+      ${cards}${extCards}
       <div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);cursor:pointer;border:1px dashed var(--bd2);border-radius:5px" onclick="openFA('task')">+ Add</div>
     </div>`;
   }).join('');

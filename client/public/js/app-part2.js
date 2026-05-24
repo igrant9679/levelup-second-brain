@@ -3309,6 +3309,8 @@ function doLoginSuccess(member){
   // Independent of loadServerData — its own table, its own endpoint, its
   // own failure mode (no token / no watches = empty array, never throws).
   setTimeout(()=>{ if(typeof loadExternalTasks==='function') loadExternalTasks().then(()=>{ if(typeof renderScreen==='function') renderScreen(curScreen); }); },800);
+  // Reattach to a running timer if the user reloaded mid-session.
+  setTimeout(()=>{ if(typeof _restoreRunningTimer==='function') _restoreRunningTimer(); },1200);
   // Show onboarding splash on first-ever login
   const _splashKey='lu_splash_shown_v1';
   if(!localStorage.getItem(_splashKey)){
