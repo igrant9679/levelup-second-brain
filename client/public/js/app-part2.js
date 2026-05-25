@@ -1015,16 +1015,30 @@ function _renderWatchList(source,watches){
   if(!watches.length){
     return `<div style="font-size:10px;color:var(--t3);padding:6px 0">No ${source==='smartsheet'?'sheets':'projects'} watched yet.</div>`;
   }
+  // Surface error vs healthy with a coloured left-stripe; show how stale the
+  // last pull is so users notice when the cron has stopped firing for a row.
+  const now=Date.now();
+  const fmtAge=ms=>{const m=Math.floor(ms/60000);if(m<2)return 'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';};
   return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">${watches.map(w=>{
-    const lastPull=w.lastPulledAt?new Date(w.lastPulledAt).toLocaleString():'never';
-    const errBadge=w.lastError?`<span title="${esc(w.lastError)}" style="color:var(--red);font-size:9px">⚠ error</span>`:'';
+    const hasErr=!!w.lastError;
+    const stripe=hasErr?'var(--red)':(w.lastPulledAt?'var(--ok)':'var(--warn)');
+    const lastPullAge=w.lastPulledAt?fmtAge(now-new Date(w.lastPulledAt).getTime()):'never pulled';
+    const lastPullAbs=w.lastPulledAt?new Date(w.lastPulledAt).toLocaleString():'never';
+    const pill=hasErr
+      ?`<span title="${esc(w.lastError).slice(0,400)}" style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(239,68,68,.18);color:var(--red);font-weight:600;flex-shrink:0;cursor:help">⚠ error · hover for details</span>`
+      :(w.lastPulledAt
+        ?`<span title="Last pull: ${lastPullAbs}" style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(34,197,94,.18);color:var(--ok);font-weight:600;flex-shrink:0">✓ ${lastPullAge}</span>`
+        :`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.18);color:var(--warn);font-weight:600;flex-shrink:0">pending first pull</span>`);
     const label=w.label||(source==='smartsheet'?w.sheetId:w.projectId);
     const matchSummary=source==='smartsheet'?`${esc(w.ownerColumn)} ${w.matchMode} "${esc(w.ownerMatchValue)}"`:`${w.filterByAssignee?'My tasks only':'All tasks'}`;
     const removeFn=source==='smartsheet'?'_extRemoveSmartsheetWatch':'_extRemoveNiftyWatch';
-    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-radius:4px;font-size:10px">
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-left:3px solid ${stripe};border-radius:4px;font-size:10px">
       <div style="flex:1;overflow:hidden">
-        <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div>
-        <div style="color:var(--t3);font-size:9px">${matchSummary} · last pull: ${lastPull} ${errBadge}</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:1px">
+          <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>
+          ${pill}
+        </div>
+        <div style="color:var(--t3);font-size:9px">${matchSummary}</div>
       </div>
       <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="${removeFn}(${w.id})" title="Remove">✕</button>
     </div>`;

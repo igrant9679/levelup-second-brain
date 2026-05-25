@@ -5772,9 +5772,11 @@ function renderTaskBoard(){
           ${et.status?`<span>${esc(et.status)}</span>`:''}
           ${due?`<span>📅 ${fmtDate(due)}</span>`:''}
           ${et.projectLabel?`<span>📁 ${esc(et.projectLabel)}</span>`:''}
+          ${_extAnnotationChips(et.override)}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${et.source}','${esc(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎ Annotate</button>
           <a href="${esc(url)}" target="_blank" rel="noopener" class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
         </div>
       </div>`;
@@ -5847,7 +5849,9 @@ function renderTaskMatrix(){
             <span class="pill ${pillClass(pri)}" style="font-size:8px">${pri}</span>
             ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
             ${t.projectLabel?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.projectLabel)}</span>`:''}
-            <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px;margin-left:auto" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+            ${_extAnnotationChips(t.override)}
+            <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px;margin-left:auto" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
+            <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
           </div>
         </div>`;
       }
@@ -6398,7 +6402,9 @@ function _renderExternalClusterCards(){
       return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
         <span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
         <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:500;color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
+        ${_extAnnotationChips(t.override)}
         ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0">${esc(t.status)}</span>`:''}
+        <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         <span style="font-size:11px;${overdueRow?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
       </div>`;
@@ -6722,7 +6728,9 @@ function _renderExternalTasksRailWidget(){
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:10px">
       ${_extSourceBadge(t.source)}
       <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      ${_extAnnotationChips(t.override)}
       <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:9px">${dueLabel}</span>
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
     </div>`;
   }).join('');
@@ -6734,11 +6742,52 @@ function _renderExternalTasksRailWidget(){
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div style="font-size:11px;font-weight:600">🔗 External · Next 7 days</div>
-      <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
+      <div style="display:flex;gap:3px">
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="_extBulkMyDay(true)" title="Add visible items to My Day">+☀ All</button>
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="_extBulkMyDay(false)" title="Clear My Day flag on visible items">✕☀</button>
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
+      </div>
     </div>
     <div style="font-size:9px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
     ${rows}
   </div>`;
+}
+
+// Bulk My-Day flag for all external tasks currently in the rail window.
+// "All" = set to true; "Clear" = set to false. Sequential mutations so we
+// surface partial failures cleanly. Toast summarises the actual count changed.
+async function _extBulkMyDay(setOn){
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
+  if(!ext.length){toast({type:'info',title:'No external tasks loaded'});return;}
+  // Same filter as the rail's "Next 7 days" view so the user's intent matches
+  // what's visible.
+  const today=new Date().toISOString().slice(0,10);
+  const horizon=new Date();horizon.setDate(horizon.getDate()+7);
+  const horizonKey=horizon.toISOString().slice(0,10);
+  const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const targets=ext.filter(t=>{
+    if(t.override&&t.override.tombstoned)return false;
+    if(isDone(t))return false;
+    const isFlagged=!!(t.override&&t.override.myDay);
+    if(setOn&&isFlagged)return false; // nothing to do
+    if(!setOn&&!isFlagged)return false;
+    const due=(t.override&&t.override.localDue)||t.due;
+    if(!due)return true;
+    return due<=horizonKey;
+  });
+  if(!targets.length){toast({type:'info',title:setOn?'All visible already flagged':'No flags to clear in visible items'});return;}
+  if(targets.length>5&&!confirm(`${setOn?'Add':'Clear'} My Day on ${targets.length} ${setOn?'tasks':'flagged tasks'}?`))return;
+  toast({type:'info',title:`${setOn?'Adding':'Clearing'} ${targets.length}…`,duration:1500});
+  let ok=0,failed=0;
+  for(const t of targets){
+    try{
+      await _trpc('externalSources.upsertOverride',{source:t.source,externalId:t.externalId,myDay:setOn},'mutation');
+      ok++;
+    }catch{failed++;}
+  }
+  await loadExternalTasks();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  toast({type:failed?'warn':'success',title:`${ok} updated${failed?` · ${failed} failed`:''}`});
 }
 // Daily command-center card — single-glance rollup of what's on the user's
 // plate TODAY across CF (Smartsheet), LSI (Nifty), and personal (D.tasks).
@@ -6793,6 +6842,106 @@ async function _toggleExternalMyDay(source,externalId,myDay){
   }catch(e){
     toast({type:'warn',title:'My Day toggle failed',msg:e.message||String(e)});
   }
+}
+
+// ─── External-task local annotations modal ─────────────────────────────────
+// External tasks are read-only against the source (Smartsheet/Nifty), but we
+// keep a server-side per-user overlay for: My Day flag, local priority,
+// personal note, local tags (comma-separated), local due-date override.
+// This modal edits everything except myDay (which has its own one-click toggle).
+function _openExternalAnnotateModal(source,externalId){
+  const et=(D.externalTasks||[]).find(t=>t.source===source&&t.externalId===externalId);
+  if(!et){toast({type:'warn',title:'Task not found locally — try refresh'});return;}
+  const ov=et.override||{};
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
+  const badge=_extSourceBadge(source);
+  const sourceLabel=source==='smartsheet'?'Smartsheet':'NiftyPM';
+  modal.innerHTML=`<div style="padding:14px;max-width:520px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel} · read-only</span></div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local priority</div>
+        <select id="ext-ann-priority" class="inp" style="width:100%;font-size:11px">
+          <option value="">(use source)</option>
+          ${['High','Medium','Low'].map(p=>`<option value="${p}" ${ov.localPriority===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local due date <span style="color:var(--t3);font-size:9px">(overrides ${et.due?esc(et.due):'(none)'})</span></div>
+        <input id="ext-ann-due" type="date" class="inp" style="width:100%;font-size:11px" value="${esc(ov.localDue||'')}">
+      </div>
+    </div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local tags (comma-separated)</div>
+      <input id="ext-ann-tags" class="inp" style="width:100%;font-size:11px" placeholder="follow-up, blocker, this-week" value="${esc(ov.localTags||'')}">
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Personal note</div>
+      <textarea id="ext-ann-note" class="inp" style="width:100%;font-size:11px;min-height:80px;resize:vertical;font-family:inherit" placeholder="Why this matters, what you're waiting on, who you talked to…">${esc(ov.localNote||'')}</textarea>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:space-between;align-items:center">
+      <button class="btn" style="font-size:10px" onclick="_clearExternalAnnotations('${source}','${esc(externalId)}')" title="Clear all overrides (keeps My Day flag)">Clear overrides</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-p" onclick="_saveExternalAnnotations('${source}','${esc(externalId)}')">Save</button>
+      </div>
+    </div>
+  </div>`;
+  modalBg.classList.add('show');
+  setTimeout(()=>{const n=document.getElementById('ext-ann-note');if(n)n.focus();},50);
+}
+
+async function _saveExternalAnnotations(source,externalId){
+  try{
+    const priority=document.getElementById('ext-ann-priority').value;
+    const due=document.getElementById('ext-ann-due').value;
+    const tags=document.getElementById('ext-ann-tags').value;
+    const note=document.getElementById('ext-ann-note').value;
+    await _trpc('externalSources.upsertOverride',{
+      source,externalId,
+      localPriority:priority||null,
+      localDue:due||null,
+      localTags:tags||null,
+      localNote:note||null,
+    },'mutation');
+    closeModal();
+    toast({type:'success',title:'Annotations saved'});
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+
+async function _clearExternalAnnotations(source,externalId){
+  if(!confirm('Clear local note, tags, priority, and due-date overrides for this task? (Your My Day flag is preserved.)'))return;
+  try{
+    await _trpc('externalSources.upsertOverride',{
+      source,externalId,
+      localPriority:null,localDue:null,localTags:null,localNote:null,
+    },'mutation');
+    closeModal();
+    toast({type:'success',title:'Overrides cleared'});
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){toast({type:'warn',title:'Clear failed',msg:e.message||String(e)});}
+}
+
+// Helper: build the small inline indicators shown on rendered external task
+// rows so users can see at a glance if a task has been annotated.
+function _extAnnotationChips(ov){
+  if(!ov)return '';
+  const bits=[];
+  if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:9px;color:var(--ac);cursor:help">📝</span>`);
+  if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:8px" title="Local priority override">${ov.localPriority}</span>`);
+  if(ov.localTags){
+    const tags=String(ov.localTags).split(',').map(t=>t.trim()).filter(Boolean).slice(0,3);
+    tags.forEach(t=>bits.push(`<span style="font-size:8px;padding:1px 4px;background:var(--s3);color:var(--ac);border-radius:3px">#${esc(t)}</span>`));
+  }
+  return bits.length?`<span style="display:inline-flex;gap:3px;align-items:center;flex-wrap:wrap">${bits.join('')}</span>`:'';
 }
 
 function renderTasks(){
