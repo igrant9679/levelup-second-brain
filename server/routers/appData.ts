@@ -5,7 +5,7 @@ import { userAppData, tasksTable, notesTable, ideasTable } from "../../drizzle/s
 import { protectedProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters'] as const;
+const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -266,6 +266,7 @@ export const appDataRouter = router({
         prefs:     z.string().optional(),
         calEvents: z.string().optional(),
         clusters:  z.string().optional(),
+        programs:  z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

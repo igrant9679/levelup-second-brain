@@ -573,6 +573,7 @@ export const userAppData = mysqlTable('user_app_data', {
   prefs: text('prefs'),               // JSON object
   calEvents: mediumtext('calEvents'), // JSON array
   clusters: mediumtext('clusters'),   // JSON array of cluster objects
+  programs: mediumtext('programs'),   // JSON array — portfolio layer above projects (migration 0035)
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),

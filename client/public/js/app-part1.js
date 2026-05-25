@@ -588,6 +588,14 @@ var D = {
     {id:2,name:'Physical Transformation',icon:'💪',color:'#10B981',owner:'Idris Grant',collaborators:[],projectIds:[],pct:0,createdAt:'2026-01-01'},
     {id:3,name:'House Remodel',icon:'🏠',color:'#F59E0B',owner:'Idris Grant',collaborators:[],projectIds:[],pct:0,createdAt:'2026-02-01'},
   ],
+  // Portfolio layer above projects. Each program groups multiple projects so
+  // company / business-line rollups become a first-class view. Seeded with
+  // CommunityForce + LSI Media for the COO/CEO use case; user can add more.
+  programs: JSON.parse(localStorage.getItem('lu_programs') || 'null') || [
+    {id:1,name:'CommunityForce',icon:'📊',color:'#1f6feb',owner:'Idris Grant',status:'Active',description:'COO scope: all CF workstreams (federal services + awards platform + Salesforce practice).',projectIds:[],createdAt:'2026-01-01'},
+    {id:2,name:'LSI Media',icon:'💜',color:'#9333ea',owner:'Idris Grant',status:'Active',description:'CEO scope: oversight only — day-to-day handled by team.',projectIds:[],createdAt:'2026-01-01'},
+    {id:3,name:'Personal',icon:'🏠',color:'#10b981',owner:'Idris Grant',status:'Active',description:'Personal projects, home, learning.',projectIds:[],createdAt:'2026-01-01'},
+  ],
   creds: JSON.parse(localStorage.getItem('lu_creds') || '{}'),
   prefs: JSON.parse(localStorage.getItem('lu_prefs') || '{"darkMode":true,"compact":false,"accent":"#3B82F6"}'),
   // External tasks pulled from Smartsheet / NiftyPM by the server cron. Read-only
@@ -1345,7 +1353,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -2836,6 +2844,29 @@ function renderDrawer(type,item){
     <button class="btn btn-d" onclick="deleteItem('note',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
+  if(type==='program'){
+    return `<h2>${item.icon?esc(item.icon)+' ':'📊 '}Edit Program ${cb}</h2>
+    <div class="field-row" style="align-items:flex-end">
+      <div class="field" style="flex:0 0 auto"><label>Icon</label>${_iconPickBtn('dr-prog-icon',item.icon||'📊','Pick…')}</div>
+      <div class="field" style="flex:1"><label>Name</label><input class="inp" value="${esc(item.name||'')}" id="dr-title"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Color</label><input type="color" value="${esc(item.color||'#1f6feb')}" id="dr-color" style="height:32px;width:60px;border:none;background:none;cursor:pointer"></div>
+      <div class="field"><label>Status</label><select class="inp" id="dr-status"><option ${(item.status||'Active')==='Active'?'selected':''}>Active</option><option ${item.status==='Paused'?'selected':''}>Paused</option><option ${item.status==='Completed'?'selected':''}>Completed</option></select></div>
+      <div class="field"><label>Owner</label><input class="inp" value="${esc(item.owner||'')}" id="dr-owner"></div>
+    </div>
+    <div class="field"><label>Description</label><textarea class="inp" id="dr-body" style="min-height:60px">${esc(item.description||'')}</textarea></div>
+    <div class="field"><label>Projects in this program (${(D.projects||[]).length} available)</label>
+      <div style="max-height:220px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px;background:var(--s2)">
+        ${(D.projects||[]).map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.projectIds||[]).includes(p.id)?'checked':''} data-prog-pid="${p.id}" class="prog-proj-cb"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block"></span> ${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</label>`).join('')}
+      </div>
+    </div>
+    <div class="dr-actions">
+      <button class="btn btn-p" onclick="saveItem('program',${item.id})">Save</button>
+      <button class="btn btn-d" onclick="deleteItem('program',${item.id})">Delete</button>
+      <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
+    </div>`;
+  }
   if(type==='project'){
     return `<h2>${item.icon?esc(item.icon)+' ':'📁 '}Edit Project ${cb}</h2>
     <div class="field-row" style="align-items:flex-end"><div class="field" style="flex:0 0 auto"><label>Icon</label>${_iconPickBtn('dr-proj-icon',item.icon||'','Pick…')}</div>
@@ -3276,6 +3307,23 @@ function saveItem(type,id){
     const folderSel=document.getElementById('dr-folder');
     if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
     n.updated='Just now';save('notes')}}
+  if(type==='program'){
+    const prog=(D.programs||[]).find(x=>x.id===id);
+    if(prog){
+      prog.name=$('#dr-title').value;
+      prog.icon=document.getElementById('dr-prog-icon')?.value||prog.icon||'📊';
+      prog.color=$('#dr-color').value;
+      prog.status=$('#dr-status').value;
+      prog.owner=$('#dr-owner').value;
+      prog.description=$('#dr-body').value;
+      prog.projectIds=Array.from(document.querySelectorAll('.prog-proj-cb:checked')).map(cb=>parseInt(cb.getAttribute('data-prog-pid'),10)).filter(Number.isFinite);
+      save('programs');
+      closeDrawer();
+      if(typeof renderPrograms==='function'&&curScreen==='programs')renderPrograms();
+      toast({type:'success',title:'Program saved',duration:1500});
+    }
+    return;
+  }
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;const newPct=parseInt($('#dr-pct').value)||0;// Setting pct explicitly via the drawer locks it (pctManual=true). If user wants auto, they can clear via the value 0 + the auto-pct will resume showing computed value on cards.
     if(newPct!==(p.pct||0))p.pctManual=true;
     p.pct=newPct;p.desc=$('#dr-body').value;save('projects')}}
@@ -3312,6 +3360,7 @@ function deleteItem(type,id){
   if(type==='task')D.tasks=D.tasks.filter(x=>x.id!==id);
   if(type==='note')D.notes=D.notes.filter(x=>x.id!==id);
   if(type==='project')D.projects=D.projects.filter(x=>x.id!==id);
+  if(type==='program'){D.programs=(D.programs||[]).filter(x=>x.id!==id);save('programs');closeDrawer();if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();toast({type:'info',title:'Program deleted',duration:1500});return;}
   if(type==='goal')D.goals=D.goals.filter(x=>x.id!==id);
   if(type==='journal')D.journal=D.journal.filter(x=>x.id!==id);
   save(type==='task'?'tasks':type+'s');
@@ -3532,7 +3581,7 @@ function updateSidebarBadges(){
 }
 function renderScreen(s){
   if(s==='home')renderHome();if(s==='tasks')renderTasks();if(s==='notes')renderNotes();
-  if(s==='mail')renderMail();if(s==='calendar')renderCal();if(s==='projects')renderProjects();
+  if(s==='mail')renderMail();if(s==='calendar')renderCal();if(s==='projects')renderProjects();if(s==='programs')renderPrograms();
   if(s==='goals')renderGoals();if(s==='journal')renderJournal();if(s==='archive')renderArchive();if(s==='reports')renderReports();
   if(s==='myday')renderMyDay();if(s==='myweek')renderMyWeek();if(s==='myyear')renderMyYear();
   if(s==='process')renderProcess();if(s==='habits')renderHabits();if(s==='coach')renderCoach();
@@ -9853,6 +9902,137 @@ function _renderProjRail(){
   ${due30.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span><span style="font-size:9px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
   ${onDeck.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
   ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:10px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
+}
+
+// ─── Programs / Portfolio ───────────────────────────────────────────────────
+// A program is a portfolio entity above projects: groups N projects together
+// so a COO/CEO can see all CommunityForce work in one place separately from
+// all LSI Media work. Stored in D.programs (migration 0035 added the column).
+// Tasks and external linked tasks roll up through programs → projects → tasks.
+
+function renderPrograms(){
+  const m=document.getElementById('prog-main');
+  const r=document.getElementById('prog-rail');
+  if(!m)return;
+  const programs=D.programs||[];
+  const cards=programs.map(prog=>{
+    const projs=(D.projects||[]).filter(p=>(prog.projectIds||[]).includes(p.id));
+    const allTasks=[];
+    projs.forEach(p=>{
+      _topLevelTasks(D.tasks).forEach(t=>{if(t.projectId===p.id)allTasks.push(t);});
+    });
+    // External tasks: those linked to one of this program's projects.
+    const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(et=>{
+      const ov=et.override;if(!ov||!ov.localProjectId||ov.tombstoned)return false;
+      return projs.some(p=>String(p.id)===String(ov.localProjectId));
+    });
+    const totalTasks=allTasks.length+extLinked.length;
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const doneN=allTasks.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
+    const overdueN=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
+    const pct=totalTasks?Math.round(doneN/totalTasks*100):0;
+    return `<div class="pc" style="border-left:5px solid ${prog.color||'#1f6feb'};cursor:pointer" onclick="openProgramDetail(${prog.id})">
+      <div class="pc-head">
+        <span style="font-size:20px;flex-shrink:0">${esc(prog.icon||'📊')}</span>
+        <span class="pc-name">${esc(prog.name||'Untitled program')}</span>
+      </div>
+      ${prog.description?`<div class="pc-desc" title="${esc(prog.description)}">${esc(prog.description)}</div>`:''}
+      <div class="pc-mid">
+        <div class="pc-ring" style="background:conic-gradient(${prog.color||'#1f6feb'} ${pct}%, var(--s3) ${pct}% 100%)"><div class="pc-ring-in">${pct}%</div></div>
+        <div class="pc-stats">
+          <div><b>${projs.length}</b> project${projs.length===1?'':'s'}</div>
+          <div><b>${doneN}</b>/${totalTasks} task${totalTasks===1?'':'s'} done</div>
+          ${overdueN?`<div style="color:var(--red)"><b>${overdueN}</b> overdue</div>`:'<div style="color:var(--t3)">on track</div>'}
+        </div>
+      </div>
+      <div class="pc-foot">
+        <span>${prog.owner?'👤 '+esc(prog.owner.split(' ')[0]):''}</span>
+        <span class="pc-acts">
+          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('program',D.programs.find(x=>x.id===${prog.id}))" title="Edit">✏</button>
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+  const empty=programs.length?'':renderEmptyState({icon:'📊',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700">📊 Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
+    ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}`;
+  if(r){
+    const totalProjects=(D.projects||[]).length;
+    const assignedProjects=new Set();
+    programs.forEach(p=>(p.projectIds||[]).forEach(id=>assignedProjects.add(id)));
+    const orphans=(D.projects||[]).filter(p=>!assignedProjects.has(p.id));
+    r.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px">Portfolio summary</div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.8">
+        Programs: <strong>${programs.length}</strong><br>
+        Projects (assigned): <strong>${assignedProjects.size}/${totalProjects}</strong><br>
+        Tasks: <strong>${_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday').length}</strong> open
+      </div>
+    </div>
+    ${orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🗂 Unassigned projects (${orphans.length})</div><div style="font-size:9px;color:var(--t3);margin-bottom:8px">Edit a program to link them.</div>${orphans.slice(0,15).map(p=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span></div>`).join('')}</div>`:''}`;
+  }
+}
+
+function _newProgram(){
+  const newId=Date.now();
+  D.programs=D.programs||[];
+  D.programs.push({id:newId,name:'New Program',icon:'📊',color:'#1f6feb',owner:(D.creds&&D.creds.userName)||'Idris Grant',status:'Active',description:'',projectIds:[],createdAt:new Date().toISOString()});
+  save('programs');
+  openDrawer('program',D.programs.find(p=>p.id===newId));
+  setTimeout(renderPrograms,0);
+}
+
+function openProgramDetail(pid){
+  const prog=(D.programs||[]).find(p=>p.id===pid);
+  if(!prog)return;
+  const projs=(D.projects||[]).filter(p=>(prog.projectIds||[]).includes(p.id));
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  // Roll up tasks across all child projects.
+  const nativeTasks=[];projs.forEach(p=>_topLevelTasks(D.tasks).forEach(t=>{if(t.projectId===p.id)nativeTasks.push(t);}));
+  const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(et=>{
+    const o=et.override;if(!o||!o.localProjectId||o.tombstoned)return false;
+    return projs.some(p=>String(p.id)===String(o.localProjectId));
+  });
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const doneN=nativeTasks.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
+  const totalN=nativeTasks.length+extLinked.length;
+  const pct=totalN?Math.round(doneN/totalN*100):0;
+  const overdueN=nativeTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const projRows=projs.length?projs.map(p=>{
+    const pt=_topLevelTasks(D.tasks).filter(t=>t.projectId===p.id);
+    const pdone=pt.filter(t=>t.status==='Done').length;
+    const ptotal=pt.length;
+    const ppct=ptotal?Math.round(pdone/ptotal*100):p.pct||0;
+    return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openProjectDetail(${p.id}),120)">
+      <span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span>
+      <span class="rt" style="font-size:12px;font-weight:500">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span>
+      <span style="font-size:10px;color:var(--t3)">${pdone}/${ptotal}</span>
+      <div style="width:60px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${ppct}%;background:${p.color};border-radius:3px"></div></div>
+      <span style="font-size:11px;color:var(--t3)">›</span>
+    </div>`;
+  }).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0">No projects linked. ✏ Edit Program to assign projects.</p>';
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="font-size:22px;flex-shrink:0">${esc(prog.icon||'📊')}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(prog.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+    ${prog.description?`<p style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.6">${esc(prog.description)}</p>`:''}
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="background:conic-gradient(${prog.color||'#1f6feb'} ${pct}%, var(--s3) ${pct}%);width:52px;height:52px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center"><div style="width:40px;height:40px;border-radius:50%;background:var(--s1);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:750">${pct}%</div></div>
+      <div style="display:flex;gap:6px;flex:1;flex-wrap:wrap">
+        ${statChip(projs.length,'Projects')}
+        ${statChip(nativeTasks.length+'/'+(nativeTasks.length+extLinked.length),'Tasks')}
+        ${statChip(doneN,'Done','var(--ok)')}
+        ${statChip(overdueN,'Overdue',overdueN?'var(--red)':'var(--t2)')}
+        ${statChip(extLinked.length,'External')}
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Projects (${projs.length})</div>
+    ${projRows}
+    <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0">
+      <button class="btn btn-p" onclick="closeDrawer();openDrawer('program',D.programs.find(x=>x.id===${pid}))">✏ Edit Program</button>
+      <button class="btn btn-s" onclick="closeDrawer();nav('reports')">📊 Reports</button>
+      <button class="btn btn-s" onclick="closeDrawer()">Close</button>
+    </div>`;
+  ov.classList.add('show');
 }
 function renderProjects(){
   // Header — filter row + view tabs + AI menu + New Project

@@ -252,6 +252,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="process"] svg{stroke:#8b5cf6}     /* violet */
 .si[data-n="tasks"] svg{stroke:#22c55e}       /* green */
 .si[data-n="notes"] svg{stroke:#f97316}       /* orange */
+.si[data-n="programs"] svg{stroke:#1f6feb}    /* blue — portfolio */
 .si[data-n="projects"] svg{stroke:#a855f7}    /* purple */
 .si[data-n="clusters"] svg{stroke:#06b6d4}    /* cyan */
 .si[data-n="calendar"] svg{stroke:#0284c7}    /* sky */
@@ -2004,6 +2005,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="si" data-n="tasks" data-tour-id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
 <div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
 <div class="si" data-n="graph" title="Knowledge Graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="11" x2="6.5" y2="7"/><line x1="14" y1="11" x2="17.5" y2="7"/><line x1="10" y1="13" x2="6.5" y2="17"/><line x1="14" y1="13" x2="17.5" y2="17"/></svg><span class="l">Knowledge Graph</span></div>
+<div class="si" data-n="programs" title="Programs / Portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="l">Programs</span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
 <div class="si" data-n="clusters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg><span class="l">Clusters</span></div>
 <div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
@@ -2087,6 +2089,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 
 <!-- ===== S-05 PROJECTS ===== -->
 <div class="scr" id="s-projects"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="proj-main"></main><aside class="rr" id="proj-rail"></aside></div></div>
+<div class="scr" id="s-programs"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="prog-main"></main><aside class="rr" id="prog-rail"></aside></div></div>
 <div class="scr" id="s-clusters"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="clusters-main"></main><aside class="rr" id="clusters-rail"></aside></div></div>
 
 <!-- ===== S-06 GOALS ===== -->
@@ -2418,7 +2421,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-24-19';
+  var APP_BUILD='2026-05-24-20';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
