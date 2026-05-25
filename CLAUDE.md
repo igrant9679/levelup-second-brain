@@ -276,6 +276,120 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — Smartsheet hierarchical sync)
+
+The user's CF (CommunityForce) Smartsheet uses Project / Task / Sub Task
+columns to organise work hierarchically. The sync now detects that
+layout, auto-creates a LevelUp project per Project-cell value, and
+re-links every pulled row to its proper sub-project. **Build `2026-05-25-17`.**
+
+### Adapter — hierarchy detection
+
+`server/_core/smartsheetAdapter.ts`:
+
+- `detectHierarchyColumns()` scans for case-insensitive matches of
+  `^projects?(\s+name)?$` / `^(tasks?(\s+name)?|activity)$` /
+  `^sub[-_\s]?tasks?$`. If any of the three is present, the adapter
+  switches to hierarchical mode.
+- `classifyRow()` labels each row `'project' | 'task' | 'subtask' | null`
+  by which of the three cells has content. SubTask wins over Task wins
+  over Project.
+- Project-header rows are **never** emitted as external tasks — they only
+  contribute their name to `projectLabels`. Task / SubTask rows use the
+  matching column for their title.
+- **Two project-ancestry paths**:
+  1. `inheritProjectFromAncestors()` walks `row.parentId` up to 8 levels
+     (handles sheets that DO use Smartsheet's outline / indent).
+  2. `buildPositionalContext()` pre-scans `sheet.rows` in display order
+     and records the most-recent Project-cell value as a "current
+     project" — handles sheets that encode hierarchy by row order only
+     (which is the case for the CF 120-Day Plan; `parentId` is null for
+     every row there).
+  Resolution order: outline walk → positional → `cfg.label` / sheet name.
+- Same dual approach for SubTask parent linking: `row.parentId` first,
+  then the most-recent Task row above this subtask in display order.
+- Sheets without any of the three columns fall back to the legacy flat
+  behaviour (primary column drives the title, projectLabel = sheet name).
+- Return shape changed: `pullSmartsheet` returns `SmartsheetPullResult =
+  { rows, projectLabels, hierarchical }`. `ExternalTaskInput` gains a
+  `hierarchyLevel` field for diagnostics.
+
+### Cron — auto-create projects + overwrite links
+
+`server/_core/externalTasksCron.ts`:
+
+- `ensureLevelUpProjectsForLabels(userId, labels, defaults)` reads
+  `user_app_data.projects` JSON, appends any label not already present
+  (case-insensitive name match), and writes back. Tags new records with
+  `autoCreatedBy:'smartsheet-sync'` so they're distinguishable from
+  hand-built projects. Returns `{ map: label→projectId, appended: N }`.
+- `overwriteProjectLinks(userId, source, rows, labelToId)` force-writes
+  `external_task_overrides.localProjectId` for every pulled row. Differs
+  from the legacy `ensureDefaultProjectLinks` (which preserved user picks
+  via COALESCE) — this honours the user's "overwrite existing CF/LSI
+  synced data" requirement.
+- `pullOneSmartsheet` branches on `result.hierarchical`:
+  - Hierarchical sheet: ensure projects → overwrite per-row links.
+  - Flat sheet: legacy `defaultProjectId`-based linking (preserves
+    user picks).
+- `processExternalTaskPull` return shape extended with `projectsCreated`.
+
+### Client — reload projects after sync
+
+`client/public/js/app-part1.js`:
+
+- `refreshExternalTasksNow` checks `stats.projectsCreated`; when > 0
+  calls `loadServerData()` to refresh `D.projects` so the auto-created
+  projects appear in the Projects page, drawer pickers, and Command
+  Center By-Project tiles immediately. Toast message includes
+  "+N projects auto-created" when applicable.
+
+### Verified on production
+
+First run (`-16`): created 9 projects but only 8/108 rows linked
+correctly (because the sheet uses positional, not outline, hierarchy).
+Second run (`-17` with positional walk): all 108 CF rows distributed
+across the 8 sub-programs:
+```
+1. Recruiting & Staffing Program     22 open
+2. Onboarding Program                14 open
+3. Training & Certification Program  16 open
+4. Operating Model                   20 open
+5. Certification & Learning Program   5 open
+6. Rev 5 ATO Update (FAMS)           11 open
+7. ATO-as-a-Service (New Offering)    9 open
+8. Software Sales, Marketing/SupAI   10 open
+                                    ──────
+total                               107 open + 1 done = 108
+```
+Command Center "By Project" tile shows all 8 cards with the CF badge and
+correct counts. The empty 9th project ("CommunityForce_120Day_Plan",
+which used to catch the fallback rows) has 0 tasks now — user can delete
+manually if desired.
+
+### Open follow-ups
+
+- Empty auto-created projects (the sheet-name fallback project, or
+  project headers that captured a name but had no descendant rows
+  match the owner filter) aren't auto-pruned. A "Delete empty
+  auto-created projects" maintenance button would close that loop.
+- The cron still preserves user manual picks on flat sheets via the
+  legacy path. If the user converts a flat sheet to hierarchical (adds
+  Project columns), their manual picks WILL be overwritten on the next
+  pull. Documented behaviour per their request.
+- Nifty doesn't have a comparable hierarchy concept — Nifty workspaces
+  are already project-scoped, so a single Nifty project maps to one
+  LevelUp project via `cfg.defaultProjectId`. No adapter change.
+- A future enhancement: also auto-link Task rows to a "Task" container
+  inside their LevelUp project (currently SubTask parent-child only
+  exists at the external_tasks level via `parentExternalId`, not as
+  separate native LevelUp task records).
+
+### Session commits
+
+- `6da3ce8` Smartsheet hierarchical sync — adapter + cron + client (-16)
+- `c41c9c8` Positional ancestry for flat sheets (-17)
+
 ## Most recently shipped (May 25 2026 batch 3 — time entries + Help + mobile)
 
 Built on batches 1 and 2 from earlier today. **Build `2026-05-25-15`.**
