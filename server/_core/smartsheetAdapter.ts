@@ -578,22 +578,24 @@ export async function pullSmartsheet(
       let name: string | null = null;
       if (pipeCfg.oppNameColId) name = cellText(cellByColumn(row, pipeCfg.oppNameColId));
       if (!name || !name.trim()) name = resolveRowTitle(row, sheet.columns, primaryColId);
-      // Stage resolution depends on layout.
+      // Stage resolution: try single-stage column first, then fall back to
+      // multi-stage progression. This handles the common "user added a
+      // Status column but hasn't filled cells yet, while the older
+      // Lead Gen/Presales/Sales/Delivery columns still have data" case.
       let stage: string | null = null;
-      if (pipeCfg.layout === 'single' && pipeCfg.stageColId) {
+      if (pipeCfg.stageColId) {
         stage = cellText(cellByColumn(row, pipeCfg.stageColId));
-      } else if (pipeCfg.layout === 'multi' && pipeCfg.stageColIds && pipeCfg.stageStandards) {
-        // Rightmost occupied stage column wins. The standard stage name is
-        // what the client knows about; the raw column title is recorded in
-        // `notes` for traceability.
+      }
+      if (!stage && pipeCfg.stageColIds && pipeCfg.stageColIds.length && pipeCfg.stageStandards) {
+        // Rightmost occupied stage column wins.
         let lastIdx = -1;
         for (let i = 0; i < pipeCfg.stageColIds.length; i++) {
           if (_stageCellOccupied(cellByColumn(row, pipeCfg.stageColIds[i]))) lastIdx = i;
         }
-        // If nothing occupied, default to the first stage in the progression.
-        const idx = lastIdx >= 0 ? lastIdx : 0;
-        stage = pipeCfg.stageStandards[idx];
+        if (lastIdx >= 0) stage = pipeCfg.stageStandards[lastIdx];
       }
+      // Value: read the single-stage Value/Amount cell. No fallback —
+      // multi-stage layouts traditionally don't have a value column.
       const value = pipeCfg.valueColId ? parseMoney(cellText(cellByColumn(row, pipeCfg.valueColId))) : null;
       const closeDate = pipeCfg.closeColId ? parseDate(cellText(cellByColumn(row, pipeCfg.closeColId))) : null;
       const accountName = pipeCfg.accountColId ? cellText(cellByColumn(row, pipeCfg.accountColId)) : null;
