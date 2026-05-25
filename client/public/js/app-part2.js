@@ -3914,6 +3914,9 @@ function doLoginSuccess(member){
   // Independent of loadServerData — its own table, its own endpoint, its
   // own failure mode (no token / no watches = empty array, never throws).
   setTimeout(()=>{ if(typeof loadExternalTasks==='function') loadExternalTasks().then(()=>{ if(typeof renderScreen==='function') renderScreen(curScreen); }); },800);
+  // Pull recent time entries into D.timeEntries. Powers the Command Center
+  // time tile + Reports `time` source. Same independent-failure pattern.
+  setTimeout(()=>{ if(typeof loadTimeEntries==='function') loadTimeEntries().catch(()=>{}); },1500);
   // Hydrate the topbar Push button count on boot.
   setTimeout(()=>{ if(typeof _refreshPendingCount==='function') _refreshPendingCount(); },1000);
   // Reattach to a running timer if the user reloaded mid-session.

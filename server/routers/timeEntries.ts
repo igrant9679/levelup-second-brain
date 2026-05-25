@@ -161,4 +161,24 @@ export const timeEntriesRouter = router({
         .groupBy(timeEntries.taskId, timeEntries.source);
       return rows;
     }),
+
+  /**
+   * Recent completed entries (excluding any still-running). Returned newest
+   * first. Used by the Command Center time tile + Reports widgets so each
+   * entry can be grouped by day / week / project on the client.
+   */
+  listRecent: protectedProcedure
+    .input(z.object({ sinceDays: z.number().int().min(1).max(365).default(30) }).optional())
+    .query(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const days = input?.sinceDays ?? 30;
+      const since = new Date(Date.now() - days * 86_400_000);
+      const rows = await db.select().from(timeEntries)
+        .where(and(eq(timeEntries.userId, ctx.user.id), gte(timeEntries.startedAt, since)))
+        .orderBy(sql`${timeEntries.startedAt} DESC`)
+        .limit(2000);
+      // Filter out still-running entries (durationMins null) so client sums
+      // are stable. The drawer / running endpoint cover those separately.
+      return rows.filter(r => r.endedAt != null && r.durationMins != null);
+    }),
 });

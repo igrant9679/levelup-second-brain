@@ -603,6 +603,9 @@ var D = {
   // on app boot + after manual refresh. Each row carries `_source` and `_url`
   // for the [CF]/[LSI] badge + deep-link.
   externalTasks: [],
+  // Recent time entries (90d window). Populated by loadTimeEntries() on boot.
+  // Shape: [{id, userId, taskId, source, startedAt, endedAt, durationMins, note, createdAt}].
+  timeEntries: [],
 };
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
 
@@ -610,6 +613,22 @@ function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
 // Loaded from /api/trpc/externalSources.listExternalTasks. Source-owned fields
 // (title, due, status, assignee, url) are read-only here; local overlay
 // (myDay flag, localPriority, localNote) lives in row.override.
+// Recent time-entry rows from the server. Same independent-failure pattern
+// as loadExternalTasks. Cached on D.timeEntries — used by Command Center
+// time tile, the WIDGET_SOURCES.time reports source, and the per-project
+// time rollup. 90d window keeps the cache compact while still covering
+// month-over-month widgets.
+async function loadTimeEntries(){
+  try{
+    const rows=await _trpc('timeEntries.listRecent',{sinceDays:90},'query');
+    D.timeEntries=Array.isArray(rows)?rows:[];
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined'&&curScreen==='command')renderScreen('command');
+    return D.timeEntries.length;
+  }catch(e){
+    if(window.__DEV__)console.warn('[timeEntries] load failed:',e.message||e);
+    return 0;
+  }
+}
 async function loadExternalTasks(){
   try{
     const rows=await _trpc('externalSources.listExternalTasks',{includeRemoved:false},'query');
@@ -10471,6 +10490,19 @@ function renderCommandCenter(){
   const pendingRows=(Array.isArray(D.externalTasks)?D.externalTasks:[])
     .filter(et=>!(et.override&&et.override.tombstoned)&&et.override&&et.override.pendingStatus)
     .filter(et=>hat==='all'||(hat==='cf'&&et.source==='smartsheet')||(hat==='lsi'&&et.source==='nifty'));
+  // Time tracked in the rolling 7d window, filtered by the active hat. Sums
+  // minutes from D.timeEntries (populated by loadTimeEntries at boot).
+  const weekStart=new Date(tMs-7*86400000);
+  const timeRows=(Array.isArray(D.timeEntries)?D.timeEntries:[]).filter(r=>{
+    if(!r.startedAt)return false;
+    if(new Date(r.startedAt)<weekStart)return false;
+    if(hat==='cf')return r.source==='smartsheet';
+    if(hat==='lsi')return r.source==='nifty';
+    if(hat==='personal')return r.source==='local';
+    return true;
+  });
+  const timeMins=timeRows.reduce((a,r)=>a+(Number(r.durationMins)||0),0);
+  const timeLabel=timeMins<60?`${timeMins}m`:`${Math.floor(timeMins/60)}h ${timeMins%60}m`;
 
   // Group open work by project label.
   const byProj={};
@@ -10599,6 +10631,7 @@ function renderCommandCenter(){
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
     ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
   </div>
 
@@ -14100,6 +14133,11 @@ const WIDGET_TEMPLATES=[
   {id:'t-ext-overdue',label:'⚠ External overdue',w:{title:'External Overdue',source:'external',filter:[{op:'overdue'}],groupBy:'_total',metric:'count',viz:'kpi',color:'#ef4444',sizeW:3}},
   {id:'t-ext-assignee',label:'👤 External: by assignee',w:{title:'External Open — by Assignee',source:'external',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'assignee',metric:'count',viz:'bar',color:'#a855f7',sizeW:6}},
   {id:'t-ext-pending',label:'⬆ External pending push',w:{title:'Pending Push to Source',source:'external',filter:[{field:'hasPendingPush',op:'eq',value:true}],groupBy:'_total',metric:'count',viz:'kpi',color:'#f59e0b',sizeW:3}},
+  // ── Time-entry widgets ─────────────────────────────────────────────────────
+  {id:'t-time-day',label:'⏱ Time tracked by day',w:{title:'Time Tracked (by day)',source:'time',filter:[],groupBy:'day(date)',metric:'sum(mins)',viz:'bar',color:'#0ea5e9',sizeW:6,range:'30d'}},
+  {id:'t-time-proj',label:'⏱ Time by project',w:{title:'Time by Project',source:'time',filter:[],groupBy:'project',metric:'sum(mins)',viz:'bar',color:'#06b6d4',sizeW:6,range:'30d'}},
+  {id:'t-time-week-kpi',label:'⏱ Time this week (KPI)',w:{title:'Time This Week',source:'time',filter:[],groupBy:'_total',metric:'sum(mins)',viz:'kpi',color:'#06b6d4',sizeW:3,range:'7d'}},
+  {id:'t-time-source',label:'⏱ Time by hat (Personal/CF/LSI)',w:{title:'Time by Hat',source:'time',filter:[],groupBy:'sourceLabel',metric:'sum(mins)',viz:'donut',color:'#0ea5e9',sizeW:6,range:'30d'}},
 ];
 
 // Sensible default groupBy/metric/viz suggestions per source. Used by the
@@ -14116,6 +14154,7 @@ const SOURCE_DEFAULTS={
   focus:    {groupBy:'day(date)',metric:'sum(mins)',viz:'line'},
   allTasks: {groupBy:'_sourceLabel',metric:'count',viz:'bar'},
   external: {groupBy:'sourceLabel',metric:'count',viz:'donut'},
+  time:     {groupBy:'day(date)',metric:'sum(mins)',viz:'bar'},
 };
 // Filter-builder field options per source.
 const FILTER_FIELDS={
@@ -14129,6 +14168,7 @@ const FILTER_FIELDS={
   focus:['date'],
   allTasks:['status','priority','project','_sourceLabel','assignee','myDay'],
   external:['status','priority','project','sourceLabel','source','assignee','myDay','hasPendingPush'],
+  time:['project','source','sourceLabel'],
 };
 const FILTER_OPS=[
   {v:'eq',label:'is'},
@@ -14203,6 +14243,51 @@ const WIDGET_SOURCES={
     });
     return local.concat(ext);
   },dateField:'completedAt',label:'All tasks (Personal + CF + LSI)'},
+  // Time entries source — every completed timer in the last 90d. Normalised
+  // so a widget can groupBy day/week/project/source and metric=sum(mins).
+  // Joins to D.tasks for project + title; falls back to externalTasks for
+  // CF/LSI entries.
+  time: {arr:()=>{
+    const rows=Array.isArray(D.timeEntries)?D.timeEntries:[];
+    const projById=new Map((D.projects||[]).map(p=>[String(p.id),p]));
+    const taskById=new Map((D.tasks||[]).map(t=>[String(t.id),t]));
+    const extById=new Map();
+    (D.externalTasks||[]).forEach(et=>{extById.set(et.externalId,et);});
+    return rows.map(r=>{
+      let project='';
+      let title='';
+      if(r.source==='local'){
+        const t=taskById.get(String(r.taskId));
+        if(t){
+          title=t.title||'';
+          const p=projById.get(String(t.projectId||''));
+          project=p?p.name:(t.project||'');
+        }
+      }else{
+        const et=extById.get(r.taskId);
+        if(et){
+          title=et.title||'';
+          project=et.projectLabel||(r.source==='smartsheet'?'CF':'LSI');
+        }
+      }
+      const startedAt=r.startedAt||r.createdAt||null;
+      const date=startedAt?String(startedAt).slice(0,10):'';
+      return {
+        id:r.id,
+        taskId:r.taskId,
+        title,
+        project:project||'(no project)',
+        source:r.source||'local',
+        sourceLabel:r.source==='smartsheet'?'CF':r.source==='nifty'?'LSI':'Personal',
+        mins:Number(r.durationMins)||0,
+        note:r.note||'',
+        date,                 // YYYY-MM-DD for groupBy day()
+        startedAt,
+        endedAt:r.endedAt||null,
+      };
+    });
+  },dateField:'date',label:'Time entries (90d)'},
+
   // External-only source — Smartsheet + Nifty pulled tasks, normalised to the
   // same task-ish shape. Skips tombstoned rows. Use this when you want a
   // widget scoped purely to CF/LSI without native tasks diluting the bucket.
@@ -14701,6 +14786,7 @@ function _groupByOptions(src){
     ...(src==='ideas'?[['day(createdAt)','Day (created)']]:[]),
     ...(src==='focus'?[['day(date)','Day'],['week(date)','Week'],['month(date)','Month']]:[]),
     ...(src==='allTasks'||src==='external'?[['day(completedAt)','Day (completed)'],['week(completedAt)','Week (completed)'],['month(completedAt)','Month (completed)']]:[]),
+    ...(src==='time'?[['day(date)','Day'],['week(date)','Week'],['month(date)','Month']]:[]),
   ];
   const fields={
     tasks:[['status','Status'],['priority','Priority'],['project','Project'],['context','Context'],['assignedTo','Assignee'],['title','Title']],
@@ -14720,6 +14806,11 @@ function _groupByOptions(src){
       ['source','Source key'],
       ['status','Status'],['priority','Priority'],['project','Project'],['assignee','Assignee'],
     ],
+    time:[
+      ['project','Project'],
+      ['sourceLabel','Source (Personal/CF/LSI)'],
+      ['source','Source key'],
+    ],
   }[src]||[];
   return [...common,...date,...fields];
 }
@@ -14733,6 +14824,7 @@ function _metricOptions(src){
     projects:[['avg(pct)','Avg pct']],
     ideas:[['avg(ice_impact)','Avg ICE impact'],['avg(ice_confidence)','Avg ICE confidence'],['avg(ice_ease)','Avg ICE ease']],
     focus:[['sum(mins)','Sum of minutes'],['avg(mins)','Avg minutes/day']],
+    time:[['sum(mins)','Sum of minutes'],['avg(mins)','Avg minutes/entry']],
   }[src]||[];
   return [...base,...extras];
 }
@@ -19075,6 +19167,7 @@ var HC_CATS=[
   {id:7,icon:'✨',name:'AI & Automation',desc:'AI keys, chat assistant, AI-powered features'},
   {id:8,icon:'🎨',name:'Appearance & Themes',desc:'Theme presets, custom colours, scheduled profiles'},
   {id:9,icon:'📊',name:'Reports & Widgets',desc:'Build custom dashboards and schedule emails'},
+  {id:10,icon:'🎯',name:'Command Center',desc:'Cross-tool PM dashboard, Standup, Programs, briefings'},
 ];
 var HC_ARTICLES=[
   {id:1,slug:'welcome',catId:1,title:'Welcome to LevelUp',summary:'A quick overview of every module and how they connect.',tags:['intro','overview'],tourId:1,body:`## Welcome to LevelUp\n\nLevelUp is your all-in-one **Second Brain Hub** — a single workspace for tasks, notes, calendar, mail, habits, goals, journal, and contacts.\n\n### Core Modules\n\n| Module | Purpose |\n|---|---|\n| **My Day** | Daily focus view with top tasks and schedule |\n| **Tasks** | Full task manager with AI decomposition |\n| **Notes** | Rich-text knowledge base with AI Q&A |\n| **Calendar** | Week/Day/Month views with drag-to-reschedule |\n| **Mail** | Unified inbox with AI smart replies |\n| **Habits** | Streak tracking with heatmap and coaching |\n| **Goals** | OKR-style goal tracking with AI alignment |\n| **Contacts** | CRM with Clodura enrichment |\n\n### Quick Start\n1. Open **My Day** to see today's focus\n2. Press **C** to quick-capture any thought\n3. Use **Cmd+K** to search across everything\n4. Press **?** to open this Help Center anytime`},
@@ -19095,6 +19188,12 @@ var HC_ARTICLES=[
   {id:16,slug:'image-insert',catId:4,title:'Inserting Images & URLs',summary:'Embed images and links in notes, journal, ideas, and goals.',tags:['images','notes','rte'],body:`## Inserting Images & URLs\n\nEvery rich-text editor (notes, journal entries, idea bodies, goal descriptions) has these toolbar buttons:\n\n- **🔗 Link** — prompts for a URL\n- **🖼 Insert Image (file or URL)** — paste an image URL, or leave blank to pick a file from your computer\n\n### Image limits\nUpload size capped at **5 MB**. Supported formats: JPEG, PNG, WebP, GIF, AVIF. Files are embedded inline as base64, so they travel with the note and work offline.\n\n### Lightbox\nClick any inline image in a note / journal / idea / goal / report to open a full-screen viewer. Use **← / →** to navigate between images in the same body, **Esc** to close.`},
   {id:17,slug:'bulk-import',catId:4,title:'Bulk Document Import & Bulk Actions',summary:'Import many PDFs/Word docs as notes at once + bulk-tag, star, delete.',tags:['import','bulk','notes'],body:`## Bulk Document Import\n\nOn the Notes page, click **📥 Import Docs** to select **multiple** PDF/Word/RTF/TXT files. They import sequentially with a single summary toast at the end.\n\n## Bulk Select Mode\n\nClick **☑ Select** in the Notes page header. Every note card grows a checkbox. Selected notes get an accent-tinted background.\n\n### Available bulk actions\n- **🏷 AI Auto-tag** — runs keyword + related-tag extraction on every selected note (no modal, no confirmation per note)\n- **+ Add Tag** — apply one tag to all selected\n- **⭐ Star** / **📌 Pin** — smart toggles\n- **⬇ Export** — concatenate selected notes into one Markdown download\n- **🗑 Delete** — single confirm\n- **✕ Done** — exit bulk mode`},
   {id:18,slug:'notification-sender',catId:6,title:'Secondary Email & Notification Sender',summary:'Configure SMTP/IMAP and pick which account sends notifications.',tags:['email','smtp','notifications'],body:`## Secondary Email Account & Notification Sender\n\n### Admin-managed\nIn LevelUp, the **admin** configures a secondary email account that handles outbound notifications for the entire team. Team members can't change this setting — they just receive notifications from whatever the admin sets.\n\n### Setup (admin only)\n1. Go to **Settings → Accounts → Secondary Email Account**\n2. Fill in SMTP host/port/credentials and IMAP host/port/credentials\n3. Test the connection\n4. Save\n5. Open **System Notification Sender** below and select this account\n\n### Per-user Microsoft 365\nEvery team member (admin and non-admin) can connect **their own** Microsoft 365 account for Calendar/Mail sync from Settings → Accounts → Microsoft 365 → Connect.`},
+  {id:19,slug:'command-center',catId:10,title:'Command Center — your cross-tool PM cockpit',summary:'One screen for what is at risk, what shipped, and what to do next across CF + LSI + Personal.',tags:['command-center','pm','dashboard'],body:`## Command Center\n\nThe **Command Center** screen (left sidebar, amber bolt icon) is your cross-tool PM cockpit. It rolls native LevelUp tasks together with Smartsheet (CommunityForce) and NiftyPM (LSI Media) into one view.\n\n### The hat switcher\n\nThe four chips at the top right control scope:\n- **All hats** — everything in one view\n- **CF · 108** — Smartsheet-pulled tasks only\n- **LSI · 50** — Nifty-pulled tasks only\n- **Personal** — native LevelUp tasks only\n\nThe selection persists in \`D.prefs.ccContext\` across reloads. Every section below re-renders against the current hat.\n\n### What each section means\n\n- **KPI strip** — overdue / due today / stalled (no update in 7d+) / shipped (7d) / open total / time tracked (7d) / pending push. Click **Pending Push** to preview the queue.\n- **At Risk** — overdue → due-today → stalled, ordered worst first. Click an external row → opens the annotate modal; click a native row → opens the task drawer.\n- **By Stakeholder** — open work grouped by assignee. **Click a row** to jump to Tasks filtered by that assignee.\n- **By Project** — one tile per project label, color-coded by source. **Click a tile** to jump to Tasks filtered to that project + source.\n- **Recently Shipped (7d)** — every task with a \`completedAt\` stamp in the last week.\n- **Weekly Portfolio Briefing** (when generated) — see the separate "AI Portfolio Briefing" article.\n\n### Quick Actions (right rail)\n\n- **📝 Generate weekly briefing** — see "AI Portfolio Briefing"\n- **↻ Force sync now** — pull from Smartsheet + Nifty immediately\n- **⬆ Preview push queue** — only when there are queued status changes\n- **📋 Open Standup view** — see the "Daily Standup" article\n- **📊 Portfolio view** — opens the Programs page with the timeline\n- **📈 Build a widget** — Reports page (External and Time sources are PM-specific)\n- **⭐ Saved views** — see the "Saved Command Center Views" article\n\n### Sync status panel\n\nShows last pull time, CF / LSI row counts, and push queue status. Topbar carries the same info as a "synced Xm ago · 2 src" label next to the ↻ button.`},
+  {id:20,slug:'standup-view',catId:10,title:'Daily Standup view',summary:'Yesterday / Today / Blockers — auto-generated, with a copy-to-clipboard markdown summary.',tags:['standup','daily','pm'],body:`## Daily Standup\n\nThe **Standup** screen (left sidebar, teal bar-chart icon) gives you a three-column standup view ready to paste into Slack / Teams / email.\n\n### What populates each column\n- **Yesterday** — tasks with \`completedAt\` whose date matches yesterday\n- **Today** — open tasks with due === today OR \`myDay\` flag set\n- **Blockers** — open tasks with a tag containing "block", status containing "block", or that are overdue\n\n### Hat-aware\n\nThe standup respects the **Command Center hat** — pick CF / LSI / Personal at the top and the columns scope instantly. The subtitle shows "Filtered to CF" when the hat isn't All.\n\n### Copy summary\n\nThe **📋 Copy** button copies a clean markdown block:\n\n\`\`\`\n*Standup — 2026-05-25*\n\n**Yesterday:**\n- [CF] Draft JDs for Salesforce/Tableau practice\n\n**Today:**\n- [LSI] Block IPs: LSI-Media\n- Setup Claude Code Skill: NotebookLM Skill\n\n**Blockers:**\n- [CF] Setup ClickUp For COE Implementation\n\`\`\`\n\nPaste into any chat channel. Falls back to \`document.execCommand('copy')\` if the Clipboard API is blocked.\n\n### Tips\n- Tag tasks with **#blocked** to surface them in the Blockers column even if their status doesn't contain "block"\n- Add a task to **My Day** to make it show up under Today even without a due date\n- The button **→ Command Center** in the header takes you back to the cockpit`},
+  {id:21,slug:'portfolio-timeline',catId:10,title:'Portfolio Timeline (Programs page)',summary:'Swimlane gantt across every project that has dated tasks. Color-coded by source.',tags:['portfolio','gantt','timeline','programs'],body:`## Portfolio Timeline\n\nOn the **Programs** page, scroll past the program cards to see the **📅 Portfolio Timeline** — a swimlane gantt across every project that has at least one dated task.\n\n### Reading the chart\n- **Lanes** — one row per project. The leftmost column has the project name + open task count.\n- **Bars** — each dated task (native or external-linked) is a bar with start → due. Smartsheet bars are blue, Nifty bars purple, native bars use the project's color.\n- **Red border** — task is overdue\n- **Faded bars** — task is Done\n- **Vertical red line** — today\n- **Sticky month axis** — scrolls horizontally with the chart\n\n### Date window\n\nDefaults to **today − 14 days … today + 60 days**, but expands automatically if data goes further. The footer shows "N projects on chart · X hidden (no dates)".\n\n### What's hidden\n\nTasks without **both** a start date AND a due date can't be plotted. The footer counter shows how many were dropped. To fix: open the task drawer and add a due date.\n\n### Click a project label\n\nThe project name on the left of each lane is clickable — opens the project detail drawer, which includes the Project Health strip (velocity / burn / risk / ETA).`},
+  {id:22,slug:'ai-briefing',catId:10,title:'AI Portfolio Briefing — weekly chief-of-staff summary',summary:'One-click AI summary of wins, risks, blockers, and the next 3 actions. Persisted + emailable.',tags:['ai','briefing','executive','weekly'],body:`## AI Portfolio Briefing\n\nClick **📝 Generate weekly briefing** in the Command Center right rail. The AI reads a snapshot of your current portfolio (counts + shipped 7d + overdue + stalled + hottest open) and returns a structured executive briefing:\n\n- **Headline** — one-sentence summary of the week\n- **🚀 Wins this week** — 3–5 shipped items with the "why" behind each\n- **⚠ Risks** — 3–5 items with a concrete suggested action for each\n- **🚧 Blockers** — what's stuck\n- **🎯 Next 3 actions** — what to do this week, in order\n\n### Hat-scoped\n\nThe briefing uses the current Command Center hat. Run it three times (CF, LSI, Personal) to get three focused briefings, or run "All hats" for an executive overview.\n\n### History\n\nEvery briefing is saved to \`D.prefs.briefings[]\` (last 24). Open **📚 History** in the card header to scroll past briefings; click any to load it back as the latest.\n\n### Email it\n\nThe **✉ Email** button ships an HTML version to your inbox via the existing self-delivery path. Use this to forward to a chief of staff, post into a Slack DM with yourself, or archive in email for week-over-week review.\n\n### What it costs\n\nOne AI call per generate (uses the admin's workspace AI key). The briefing card renders without consuming AI quota — only ↻ Refresh re-runs the model.`},
+  {id:23,slug:'saved-cc-views',catId:10,title:'Saved Command Center views',summary:'Pin a hat as a one-click named view, with rename / delete management.',tags:['command-center','saved','views'],body:`## Saved Command Center Views\n\nClick **⭐ Save view** next to the hat chips to capture the current hat under a custom name. Saved views show up as a chip strip below the page title — up to 8 visible, the rest via **Manage**.\n\n### Workflow\n1. Pick a hat (e.g. CF)\n2. Click **⭐ Save view** and name it ("CF risks")\n3. The chip appears below the title\n4. One-click to apply later\n\n### Manage drawer\n\nFrom the chip row or the rail **⭐ Saved views** button, open the manager:\n- ✏ Rename\n- ✕ Delete\n- **+ Save current**\n\n### What it captures today\n\nThe hat only. Future iterations will add filter state (project / assignee) so a saved view restores a fully-configured drill-through.\n\n### Storage\n\n\`D.prefs.savedCCViews[]\` — synced across devices via the prefs blob. Capped at 12 entries.`},
+  {id:24,slug:'time-tracking',catId:10,title:'Time tracking — Command Center tile + Reports',summary:'Sum of timer minutes (7d) on Command Center; full Time source in the Reports widget builder.',tags:['time','tracking','reports'],body:`## Time tracking\n\nEvery task drawer has a **▶/⏹** timer button. Each completed timer logs a row to the server \`time_entries\` table (per-user, audit-grade). LevelUp surfaces them in three places:\n\n### Command Center KPI\n\nThe **Time Tracked (7d)** tile in the KPI strip sums every entry started in the last 7 days, scoped to the current hat (CF / LSI / Personal / All). Hover the tile for the breakdown.\n\n### Reports source\n\nOpen **Reports → + Add Widget**. The Source dropdown now includes **Time entries (90d)**. Templates:\n- **⏱ Time tracked by day** (bar)\n- **⏱ Time by project** (bar)\n- **⏱ Time this week (KPI)** — single number, sum of minutes in last 7d\n- **⏱ Time by hat** (donut) — Personal / CF / LSI split\n\nGroupBy options: \`day(date)\` / \`week(date)\` / \`month(date)\` / \`project\` / \`sourceLabel\` / \`source\`. Metrics: \`sum(mins)\` / \`avg(mins)\` / count.\n\n### Drawer Actual line\n\nThe per-task drawer reads \`timeEntries.totalsByTask\` so the **Est 90m / Actual 67m (–26%)** line is always accurate, even after a device wipe.\n\n### How a timer works\n\n- One running timer per user, enforced server-side\n- Auto-stops the previous one if you start another\n- Survives a page reload via \`_restoreRunningTimer()\` on boot\n- The local counter (\`t.timeSpent\`) is the offline fallback — server is authoritative once you're online\n\n### Caps\n\nThe client cache (\`D.timeEntries\`) holds the last 90 days, capped at 2000 entries. Reports widgets within the 90d window are accurate; older data lives only in the server.`},
 ];
 var HC_TOURS=[
   {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[

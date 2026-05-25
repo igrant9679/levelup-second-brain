@@ -1103,6 +1103,29 @@ body.sb-open .lu-pill-pop{display:none!important}
   [data-custom-field-row]{flex-direction:column!important;align-items:stretch!important;gap:4px!important}
   [data-custom-field-row]>label{font-size:10px!important}
   [data-custom-field-row]>input,[data-custom-field-row]>select,[data-custom-field-row]>textarea{width:100%!important}
+  /* Command Center: chip switcher wraps naturally — tighten gaps so it doesn't double-wrap. */
+  #s-command .ph-r{flex-direction:column!important;align-items:stretch!important}
+  #s-command .ph-r>div:last-child{flex-wrap:wrap}
+  /* KPI strip → 3 columns then 2 then 1 instead of auto-fit at minmax 140 (which forces 4 wide tiles). */
+  #s-command .mn>div[style*="repeat(auto-fit,minmax(140px"]{grid-template-columns:repeat(3,1fr)!important;gap:6px!important}
+  #s-command .mn>div[style*="repeat(auto-fit,minmax(140px"] .cd{padding:8px 6px!important}
+  #s-command .mn>div[style*="repeat(auto-fit,minmax(140px"] .cd>div:first-child{font-size:18px!important}
+  /* Briefing card section grid → stack at narrow widths. */
+  #s-command .cd>div[style*="repeat(auto-fit,minmax(240px"]{grid-template-columns:1fr!important}
+  /* Saved-views chip row + buttons — smaller pill. */
+  #s-command .ph-r>div:first-child>div[style*="margin-top:6px"] button{height:20px!important;font-size:9px!important;padding:0 7px!important}
+  /* Standup: 3-col grid is already overridden at 900px; tighten markdown pre. */
+  #s-standup pre{font-size:10px!important;padding:8px!important}
+  /* Portfolio Timeline: keep label column readable but tighter. */
+  #prog-main .cd[style*="overflow:hidden"] div[style*="width:180px"]{width:120px!important;font-size:10px!important}
+}
+/* Very narrow phones (≤480px) — extra trim for the new PM screens. */
+@media (max-width:480px){
+  #s-command .mn>div[style*="repeat(auto-fit,minmax(140px"]{grid-template-columns:repeat(2,1fr)!important}
+  /* Pending push button label on Command Center quick-actions truncates if long */
+  #s-command .rr button{font-size:10px!important}
+  /* Briefing card headline tighter */
+  #s-command blockquote, #s-command .cd>div[style*="font-style:italic"]{font-size:12px!important;padding:7px 9px!important}
 }
 
 /* Tap-delay removal — global. */
@@ -2465,7 +2488,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-25-14';
+  var APP_BUILD='2026-05-25-15';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
