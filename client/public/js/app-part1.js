@@ -2741,6 +2741,7 @@ function renderDrawer(type,item){
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
+    ${_renderRealSubtasksSection(item)}
     </div>
     <!-- Linked Items — chip-based picker so it's obvious what's actually
          linked vs. just visible in a multi-select. Initialized below via
@@ -5467,6 +5468,107 @@ function setTaskView(v){
 // Wrapper helpers so the inline tab/scope/priority handlers can persist too.
 function setTaskScope(my){_taskMyOnly=!!my;_persistPageState('tasks',{myOnly:_taskMyOnly});if(typeof renderTasks==='function')renderTasks();}
 
+// ─── Nested-subtask helpers ────────────────────────────────────────────────
+// A task is a "subtask" if its parentTaskId points at another task. The
+// flat-JSON t.subtasks array is the legacy storage; child task rows are
+// the new shape. Both coexist during a soak period — drawer renders both,
+// main views hide child rows so backfilled subtasks don't double-appear
+// as standalone tasks in List/Board/Matrix/etc.
+function _isSubtaskRow(t){ return !!(t&&t.parentTaskId); }
+function _topLevelTasks(arr){ return (arr||[]).filter(t=>!_isSubtaskRow(t)); }
+function _childTasksOf(parentTaskId){
+  if(parentTaskId==null)return [];
+  return (D.tasks||[]).filter(t=>t.parentTaskId!=null&&String(t.parentTaskId)===String(parentTaskId));
+}
+
+// ─── Real subtask child rows (drawer rendering + add/promote) ──────────────
+// Renders a "Subtasks (rich)" section inside the task drawer showing child
+// task rows (parentTaskId === item.taskId). Each row carries the full
+// status/priority/due and a click-through to open its own drawer. New
+// subtasks created here are real task rows from the start.
+function _renderRealSubtasksSection(parent){
+  const parentTaskId=parent.taskId!=null?String(parent.taskId):String(parent.id||'');
+  const children=_childTasksOf(parentTaskId);
+  // Detect whether the legacy JSON subtasks have already been promoted —
+  // backfillNestedSubtasks stamps _subtasksPromotedAt on the parent's raw.
+  let legacyPromoted=false;
+  try{
+    if(parent.raw){const r=JSON.parse(parent.raw);legacyPromoted=!!r._subtasksPromotedAt;}
+  }catch{ /* fall through */ }
+  const legacyCount=(parent.subtasks||[]).length;
+  const childRows=children.map(c=>{
+    const done=c.status==='Done';
+    const od=!done&&c.due&&c.due<_todayStr;
+    return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(c.taskId||c.id)}))),120)">
+      <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${esc(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(parent.taskId||parent.id)}))),120)"></div>
+      <span class="rt" style="font-size:12px;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(c.title||'(untitled)')}</span>
+      ${c.priority?`<span class="pill ${pillClass(c.priority)}" style="font-size:9px">${c.priority}</span>`:''}
+      ${c.due?`<span style="font-size:10px;color:${od?'var(--red)':'var(--t3)'}">${esc(c.due)}</span>`:''}
+      <span style="font-size:11px;color:var(--t3)">›</span>
+    </div>`;
+  }).join('');
+  const promoteBtn=(!legacyPromoted&&legacyCount>0)
+    ?`<button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" title="Convert the ${legacyCount} legacy subtask${legacyCount===1?'':'s'} above into real task rows with full fields (assignee, due date, priority, etc.)" onclick="_promoteLegacySubtasks()">↑ Promote ${legacyCount} legacy</button>`
+    :'';
+  const childCount=children.length;
+  const childDone=children.filter(c=>c.status==='Done').length;
+  const heading=childCount
+    ?`Subtasks (rich) <span style="font-size:10px;color:var(--t3);font-weight:400">(${childDone}/${childCount} done)</span>`
+    :`Subtasks (rich) <span style="font-size:10px;color:var(--t3);font-weight:400">— full task fields per subtask</span>`;
+  return `<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--bd1)">
+    <label style="display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">
+      <span>${heading}</span>
+      ${promoteBtn}
+    </label>
+    ${childRows}
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <input class="inp" id="new-real-subtask" placeholder="+ Add subtask as full task (Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})}">
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})">+ Add</button>
+    </div>
+  </div>`;
+}
+
+// Create a real child task row whose parentTaskId points at the parent.
+// Inherits projectId so the subtask rolls up into the same project.
+function _addRealSubtask(parentTaskId){
+  const inp=document.getElementById('new-real-subtask');
+  if(!inp)return;
+  const title=inp.value.trim();
+  if(!title){inp.focus();return;}
+  const pidStr=String(parentTaskId);
+  const parent=D.tasks.find(t=>String(t.taskId||t.id)===pidStr);
+  const newId=Date.now();
+  D.tasks.push({
+    id:newId,
+    taskId:String(newId),
+    title,
+    status:'Not Started',
+    priority:parent?parent.priority||'Medium':'Medium',
+    parentTaskId:pidStr,
+    projectId:parent?parent.projectId:null,
+    project:parent?parent.project:'',
+    createdBy:(D.creds&&D.creds.userName)||'Idris Grant',
+    createdAt:new Date().toISOString(),
+  });
+  save('tasks');
+  inp.value='';
+  // Re-open the parent drawer so the new child row appears.
+  if(parent)openDrawer('task',parent);
+  toast({type:'success',title:'Subtask added',duration:1200});
+}
+
+async function _promoteLegacySubtasks(){
+  try{
+    toast({type:'info',title:'Promoting legacy subtasks…',duration:1500});
+    const r=await _trpc('taskMigrations.backfillNestedSubtasks',{dryRun:false},'mutation');
+    toast({type:'success',title:`Promoted ${r.subtasksPromoted} subtask${r.subtasksPromoted===1?'':'s'} across ${r.parentsScanned} parent${r.parentsScanned===1?'':'s'}`});
+    // Reload server data to pick up the new child rows + the parent
+    // _subtasksPromotedAt stamp.
+    if(typeof loadServerData==='function')await loadServerData();
+    closeDrawer();
+  }catch(e){toast({type:'warn',title:'Promote failed',msg:e.message||String(e)});}
+}
+
 // ─── Per-source visibility filter (Personal / CF / LSI) ────────────────────
 // Three toggle chips on the Tasks page header. Default: all visible.
 // Persisted in D.prefs.taskSourceFilter. Helper exported as
@@ -5604,7 +5706,7 @@ function _tlResizeEnd(){
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let filtered=_sourceOn('personal')?D.tasks.filter(_taskFilter):[];
+  let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
@@ -5989,7 +6091,7 @@ function renderTaskBoard(){
     {id:'dn',label:'Done',status:'Done',color:'var(--ok)'},
     {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
   ];
-  let tasks=_sourceOn('personal')?D.tasks:[];
+  let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks):[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // External tasks → stay on the rail/Today rollups when this view is "My
@@ -6058,7 +6160,7 @@ function renderTaskBoard(){
 function renderTaskMatrix(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=_sourceOn('personal')?D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday'):[];
+  let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday'):[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // Effort: 1=Low(estimatedMins<=30), 2=Med(<=90), 3=High(>90) | Impact: High=3, Medium=2, Low=1
@@ -6169,7 +6271,7 @@ function _mtxDrop(e,targetPriority,targetMins){
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=_sourceOn('personal')?D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'})):[];
+  let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'})):[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // Overlay external tasks with dates (localDue overrides, or source-provided
@@ -6376,7 +6478,7 @@ function _taskCalToday(){_taskCalCursor=_todayStr.slice(0,7);renderCurrentTaskVi
 function renderTaskCalendar(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let filtered=_sourceOn('personal')?D.tasks.filter(_taskFilter):[];
+  let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   const cur=_taskCalCursor||_todayStr.slice(0,7);
@@ -6508,7 +6610,7 @@ function renderTaskClusters(){
   // When Personal source filter is off, the native cluster cards collapse to
   // empty groups (the external pseudo-clusters still show below per their
   // own filter).
-  const universe=_sourceOn('personal')?(_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks):[];
+  const universe=_sourceOn('personal')?_topLevelTasks(_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks):[];
   // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) and priority filter.
   let visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   visible=_applyPriorityFilter(visible);
