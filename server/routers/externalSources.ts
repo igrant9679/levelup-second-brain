@@ -492,6 +492,77 @@ export const externalSourcesRouter = router({
   }),
 
   /**
+   * Diagnostic: search every enabled Nifty watched project for tasks matching
+   * a title substring (case-insensitive). Returns the raw Nifty payload for
+   * each match so we can see exactly what the API thinks the status is,
+   * regardless of how LevelUp has it stored. Also reports the in-DB row so
+   * we can see if it's stale / removedAt-stamped.
+   */
+  niftyDebugFindTask: protectedProcedure
+    .input(z.object({ titleContains: z.string().min(2) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
+      const watches = await db.select().from(niftyWatchedProjects)
+        .where(and(eq(niftyWatchedProjects.userId, ctx.user.id), eq(niftyWatchedProjects.enabled, 1)));
+      const needle = input.titleContains.toLowerCase();
+      const out: Array<Record<string, unknown>> = [];
+      for (const w of watches) {
+        // Try both filter combos. Report whichever finds the match.
+        const variants = [
+          { label: 'default', params: { include_archived: 'true' } },
+          { label: 'completed=true', params: { completed: 'true', include_archived: 'true' } },
+          { label: 'completed=false', params: { completed: 'false', include_archived: 'true' } },
+        ];
+        for (const v of variants) {
+          const qs = new URLSearchParams({
+            project_id: w.projectId,
+            limit: '100',
+            offset: '0',
+            include_subtasks: 'true',
+            ...v.params,
+          });
+          const resp = await fetch(`${NIFTY_API}/tasks?${qs.toString()}`, {
+            headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+          });
+          if (!resp.ok) {
+            out.push({ watchLabel: w.label, projectId: w.projectId, filter: v.label, error: `${resp.status} ${(await resp.text()).slice(0, 200)}` });
+            continue;
+          }
+          const data = await resp.json() as unknown;
+          const arr = Array.isArray(data) ? data as Record<string, unknown>[] : ((data as { tasks?: unknown[]; data?: unknown[] }).tasks ?? (data as { data?: unknown[] }).data ?? []) as Record<string, unknown>[];
+          const matches = arr.filter(t => String((t as { name?: string }).name ?? '').toLowerCase().includes(needle));
+          for (const m of matches) {
+            // Look up the LevelUp DB row.
+            const [dbRow] = await db.select().from(externalTasks)
+              .where(and(
+                eq(externalTasks.userId, ctx.user.id),
+                eq(externalTasks.source, 'nifty'),
+                eq(externalTasks.externalId, String((m as { id?: string | number }).id ?? '')),
+              )).limit(1);
+            out.push({
+              watchLabel: w.label,
+              projectId: w.projectId,
+              filter: v.label,
+              taskId: (m as { id?: unknown }).id,
+              name: (m as { name?: unknown }).name,
+              statusObj: (m as { status?: unknown }).status,
+              statusName: (m as { status_name?: unknown }).status_name,
+              completed: (m as { completed?: unknown }).completed,
+              completedAt: (m as { completed_at?: unknown }).completed_at,
+              archived: (m as { archived?: unknown }).archived,
+              levelup: dbRow ? { status: dbRow.status, removedAt: dbRow.removedAt, completedAt: dbRow.completedAt } : 'NOT IN LEVELUP DB',
+            });
+          }
+        }
+      }
+      return { matches: out, watchCount: watches.length };
+    }),
+
+  /**
    * Write-back: change a Smartsheet row's status column value.
    * Caller passes the externalId (= row id) and the new status string —
    * e.g. "Not Started" / "In-Progress" / "Closed" / "Delayed" / "On-Hold".
