@@ -597,6 +597,17 @@ function renderSettingsHTML(){
       <div class="tog ${(D.prefs&&D.prefs.externalQueueMode)?'on':''}" id="tog-ext-queue" onclick="_toggleExternalQueueMode()"></div>
     </div>
   </div>
+  <!-- Tombstoned-external archive — annotations preserved after source-side delete -->
+  <div id="ext-archive-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗄 Archived external tasks (tombstoned)</div>
+        <p style="font-size:10px;color:var(--t3);margin-bottom:8px">External rows whose source row was deleted but local annotations (notes, tags, project links) are preserved. Revive to surface them again, or leave hidden.</p>
+      </div>
+      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_hydrateTombstoneArchive()">Reload</button>
+    </div>
+    <div id="ext-archive-body" style="font-size:11px;color:var(--t2);margin-top:6px">Click reload to load…</div>
+  </div>
   <!-- Automation Rules — hydrated by _hydrateAutomationsPanel() -->
   <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">⚙ Automation Rules</div>
@@ -925,7 +936,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
-  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();}
+  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();}
   if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -1280,6 +1291,52 @@ async function _hydrateExternalSourcesPanel(){
   }catch(e){
     body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
   }
+}
+
+// Tombstoned archive — pulls externalTasks with `includeRemoved:true` and lists
+// the rows whose override has tombstoned=true. Revive uses upsertOverride to
+// clear the tombstone flag; the next puller cycle will refresh status/text.
+async function _hydrateTombstoneArchive(){
+  const body=document.getElementById('ext-archive-body');
+  if(!body)return;
+  body.innerHTML='Loading…';
+  try{
+    const all=await _trpc('externalSources.listExternalTasks',{includeRemoved:true},'query');
+    const dead=(Array.isArray(all)?all:[]).filter(r=>r.override&&r.override.tombstoned);
+    if(!dead.length){
+      body.innerHTML='<div style="color:var(--t3);font-size:11px;padding:8px 0">✅ No archived rows — every external task in the index is live.</div>';
+      return;
+    }
+    body.innerHTML=dead.map(et=>{
+      const ovr=et.override||{};
+      const srcLabel=et.source==='smartsheet'?'CF':'LSI';
+      const srcColor=et.source==='smartsheet'?'#1f6feb':'#9333ea';
+      const annot=[];
+      if(ovr.localTags)annot.push('🏷 '+esc(ovr.localTags));
+      if(ovr.localPriority)annot.push('★ '+esc(ovr.localPriority));
+      if(ovr.localNote)annot.push('📝 note');
+      if(ovr.localProjectId){const pj=(D.projects||[]).find(p=>String(p.id)===String(ovr.localProjectId));if(pj)annot.push('📁 '+esc(pj.name));}
+      return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+        <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'(no title)')}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(et.removedAt.slice(0,10)):''}</div>
+        </div>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_reviveTombstoned(${JSON.stringify(et.source)},${JSON.stringify(et.externalId)})" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
+      </div>`;
+    }).join('');
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
+  }
+}
+async function _reviveTombstoned(source,externalId){
+  if(!confirm('Revive this row? The next external sync will refresh its source-side status; if the row is still gone in the source, it will be re-tombstoned within 72h.'))return;
+  try{
+    await _trpc('externalSources.upsertOverride',{source,externalId,patch:{tombstoned:false}},'mutation');
+    toast({type:'success',title:'Revived — next sync will refresh it.',duration:2400});
+    await loadExternalTasks();
+    _hydrateTombstoneArchive();
+  }catch(e){toast({type:'warn',title:'Revive failed',msg:e.message||String(e)});}
 }
 
 function _renderExternalSourcesPanelHTML(status,ssWatches,nfWatches){

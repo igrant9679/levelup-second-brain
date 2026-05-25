@@ -662,12 +662,20 @@ function _topbarSyncTooltipUpdate(){
   const btn=document.getElementById('topbar-sync-btn');
   if(!btn)return;
   const last=D.prefs&&D.prefs.lastExternalSyncAt;
+  const cfN=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
+  const lsiN=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
+  const sources=(cfN?1:0)+(lsiN?1:0);
   if(last){
     const ago=(Date.now()-new Date(last).getTime())/60000;
     const label=ago<2?'just now':ago<60?`${Math.floor(ago)}m ago`:ago<1440?`${Math.floor(ago/60)}h ago`:`${Math.floor(ago/1440)}d ago`;
-    btn.title=`Sync Smartsheet + NiftyPM · last pulled ${label}`;
+    btn.title=`Sync Smartsheet + NiftyPM · last pulled ${label} · ${cfN} CF + ${lsiN} LSI rows`;
+    // Compact label visible beside the button on desktop.
+    const lbl=document.getElementById('topbar-sync-label');
+    if(lbl){lbl.style.display='';lbl.textContent=`synced ${label}${sources?' · '+sources+' src':''}`;}
   }else{
     btn.title='Sync external sources (Smartsheet + NiftyPM) — click to pull now';
+    const lbl=document.getElementById('topbar-sync-label');
+    if(lbl)lbl.style.display='none';
   }
   // Show the green dot only when at least one successful pull has happened.
   const dot=document.getElementById('topbar-sync-dot');
@@ -1401,7 +1409,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -3653,6 +3661,8 @@ function renderScreen(s){
   if(s==='bookmarks')renderBookmarks();
   if(s==='clusters')renderClustersDashboard();
   if(s==='graph')renderKnowledgeGraph();
+  if(s==='command')renderCommandCenter();
+  if(s==='standup')renderStandup();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -10219,11 +10229,507 @@ function _renderProjRail(){
   ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:10px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
 }
 
-// ─── Programs / Portfolio ───────────────────────────────────────────────────
-// A program is a portfolio entity above projects: groups N projects together
-// so a COO/CEO can see all CommunityForce work in one place separately from
-// all LSI Media work. Stored in D.programs (migration 0035 added the column).
-// Tasks and external linked tasks roll up through programs → projects → tasks.
+// ─── Project Health helper ──────────────────────────────────────────────────
+// Compute project-level KPIs from native + linked-external tasks. Used by the
+// Command Center, Programs page, and project drawer health strip.
+//   velocity : completions per week (avg across last 4 weeks).
+//   burn     : open tasks now vs 14 days ago (positive = work piling up).
+//   risk     : % of open tasks that are overdue or stalled (>7d no update).
+//   etaWeeks : open ÷ velocity (Infinity if velocity is 0).
+//   trend    : 'up' (velocity rising), 'flat', 'down'.
+// Pass `null` projectId to roll up across ALL projects (Command Center "All").
+function _projectHealth(projectId){
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+  const today=_todayStr;
+  const tMs=Date.now();
+  // Collect rows.
+  const native=(D.tasks||[]).filter(t=>!t.parentTaskId&&(projectId==null||String(t.projectId)===String(projectId)));
+  const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(et=>{
+    const ov=et.override||{};
+    if(ov.tombstoned)return false;
+    if(projectId==null)return true;
+    return String(ov.localProjectId||'')===String(projectId);
+  });
+  const rows=native.map(t=>({
+    done:t.status==='Done',
+    completedAt:t.completedAt||null,
+    due:t.due||'',
+    updatedAt:t.updatedAt||t.completedAt||t.createdAt||'',
+    status:t.status||'',
+  })).concat(ext.map(et=>{
+    const done=isExtDone(et);
+    return {
+      done,
+      completedAt:done?(et.completedAt||et.fetchedAt||null):null,
+      due:(et.override&&et.override.localDue)||et.due||'',
+      updatedAt:et.updatedAt||et.fetchedAt||'',
+      status:et.status||'',
+    };
+  }));
+  const open=rows.filter(r=>!r.done);
+  const done=rows.filter(r=>r.done);
+  // Velocity: completions in last 28d, divided by 4.
+  const cutoff28=new Date(tMs-28*86400000).toISOString();
+  const recentDone=done.filter(r=>r.completedAt&&r.completedAt>=cutoff28);
+  const velocity=recentDone.length/4;          // /wk
+  // Trend: compare last 2 weeks vs prior 2 weeks.
+  const cutoff14=new Date(tMs-14*86400000).toISOString();
+  const last2w=done.filter(r=>r.completedAt&&r.completedAt>=cutoff14).length;
+  const prior2w=recentDone.length-last2w;
+  const trend=last2w>prior2w*1.15?'up':last2w<prior2w*0.85?'down':'flat';
+  // Burn: open count now vs 14d ago. Approximation: openNow + doneInLast14d − (assumed) openThen.
+  // We don't have a snapshot; cheaper proxy: doneInLast14d − createdInLast14d.
+  const createdRecent=(D.tasks||[]).filter(t=>!t.parentTaskId&&(projectId==null||String(t.projectId)===String(projectId))).filter(t=>(t.createdAt||'')>=cutoff14).length
+                    +(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(et=>{
+                       const ov=et.override||{};if(ov.tombstoned)return false;
+                       if(projectId!=null&&String(ov.localProjectId||'')!==String(projectId))return false;
+                       return (et.fetchedAt||'')>=cutoff14;
+                     }).length;
+  const burn=createdRecent-last2w; // positive → backlog growing
+  // Risk: overdue + stalled (>7d no update) as fraction of open.
+  const overdue=open.filter(r=>r.due&&r.due<today).length;
+  const stallCut=new Date(tMs-7*86400000).toISOString();
+  const stalled=open.filter(r=>r.updatedAt&&r.updatedAt<stallCut).length;
+  const risk=open.length?Math.round(((overdue+stalled)/open.length)*100):0;
+  const etaWeeks=velocity>0?(open.length/velocity):Infinity;
+  return {
+    open:open.length,done:done.length,total:rows.length,
+    velocity:Math.round(velocity*10)/10,
+    burn, trend,
+    overdue,stalled,risk,
+    etaWeeks:isFinite(etaWeeks)?Math.round(etaWeeks*10)/10:null,
+    pct:rows.length?Math.round(done.length/rows.length*100):0,
+  };
+}
+// Compact health strip used in drawers + cards.
+function _renderHealthStrip(h){
+  const trendArrow=h.trend==='up'?'<span style="color:var(--ok)">▲</span>':h.trend==='down'?'<span style="color:var(--red)">▼</span>':'<span style="color:var(--t3)">▬</span>';
+  const burnColor=h.burn>0?'var(--warn)':'var(--ok)';
+  const burnLabel=h.burn>0?'+'+h.burn:String(h.burn);
+  const riskColor=h.risk>=50?'var(--red)':h.risk>=25?'var(--warn)':'var(--ok)';
+  const eta=h.etaWeeks==null?'—':h.etaWeeks>52?'>1y':h.etaWeeks+'w';
+  const stat=(v,l,c)=>`<div style="flex:1;min-width:0;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${v}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">${l}</div></div>`;
+  return `<div style="display:flex;gap:6px;margin:8px 0">
+    ${stat(h.velocity+'/wk '+trendArrow,'Velocity','var(--ac)')}
+    ${stat(burnLabel,'Burn (14d)',burnColor)}
+    ${stat(h.risk+'%','Risk',riskColor)}
+    ${stat(eta,'ETA',h.etaWeeks==null||h.etaWeeks>52?'var(--t3)':'var(--t1)')}
+  </div>`;
+}
+
+// ─── Command Center (cross-tool PM dashboard) ──────────────────────────────
+// Hat: 'all' | 'cf' (CommunityForce/Smartsheet) | 'lsi' (LSI Media/Nifty)
+//      | 'personal' (native only). Persisted in D.prefs.ccContext.
+// Module-scope so the chip toggle survives re-renders (filter-state rule).
+let _ccContext=null;
+function _ccHat(){
+  if(_ccContext)return _ccContext;
+  _ccContext=(D.prefs&&D.prefs.ccContext)||'all';
+  return _ccContext;
+}
+function setCcContext(h){
+  _ccContext=h;
+  D.prefs=D.prefs||{};D.prefs.ccContext=h;save('prefs');
+  renderCommandCenter();
+}
+// Return a unified, normalised array filtered by current hat.
+function _ccTasks(){
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+  const hat=_ccHat();
+  const out=[];
+  if(hat==='all'||hat==='personal'){
+    _topLevelTasks(D.tasks||[]).forEach(t=>{
+      out.push({
+        id:t.id,title:t.title||'',
+        status:t.status==='Done'?'Done':(t.status||'Not Started'),
+        priority:t.priority||'Medium',
+        due:t.due||'',
+        completedAt:t.completedAt||null,
+        updatedAt:t.updatedAt||t.completedAt||t.createdAt||'',
+        projectId:t.projectId||null,
+        project:(t.projectId&&(D.projects||[]).find(p=>p.id===t.projectId)||{}).name||'',
+        assignee:t.assignedTo||'',
+        source:'personal',sourceLabel:'Personal',
+        hasPendingPush:false,
+        _raw:t,
+      });
+    });
+  }
+  if(hat==='all'||hat==='cf'||hat==='lsi'){
+    (Array.isArray(D.externalTasks)?D.externalTasks:[]).forEach(et=>{
+      const ov=et.override||{};
+      if(ov.tombstoned)return;
+      if(hat==='cf'&&et.source!=='smartsheet')return;
+      if(hat==='lsi'&&et.source!=='nifty')return;
+      const done=isExtDone(et);
+      out.push({
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title||'',
+        status:done?'Done':(et.status||'Not Started'),
+        rawStatus:et.status||'',
+        priority:(ov.localPriority||et.priority||'Medium'),
+        due:(ov.localDue||et.due||''),
+        completedAt:done?(et.completedAt||et.fetchedAt||null):null,
+        updatedAt:et.updatedAt||et.fetchedAt||'',
+        projectId:ov.localProjectId||null,
+        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        assignee:et.assignee||'',
+        source:et.source,
+        sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+        hasPendingPush:!!ov.pendingStatus,
+        externalUrl:et.externalUrl||'',
+        _ext:et,
+      });
+    });
+  }
+  return out;
+}
+function renderCommandCenter(){
+  const m=document.getElementById('command-main');
+  const r=document.getElementById('command-rail');
+  if(!m)return;
+  const hat=_ccHat();
+  const tasks=_ccTasks();
+  const open=tasks.filter(t=>t.status!=='Done');
+  const today=_todayStr;
+  const tMs=Date.now();
+  const overdue=open.filter(t=>t.due&&t.due<today);
+  const dueToday=open.filter(t=>t.due===today);
+  const stallCut=new Date(tMs-7*86400000).toISOString();
+  const stalled=open.filter(t=>t.updatedAt&&t.updatedAt<stallCut&&t.due!==today&&!(t.due&&t.due<today));
+  const week=new Date(tMs-7*86400000).toISOString();
+  const shipped=tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt>=week)
+                     .sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
+  const pendingPush=tasks.filter(t=>t.hasPendingPush);
+  // Pending push count from server reality (overrides).
+  const pendingRows=(Array.isArray(D.externalTasks)?D.externalTasks:[])
+    .filter(et=>!(et.override&&et.override.tombstoned)&&et.override&&et.override.pendingStatus)
+    .filter(et=>hat==='all'||(hat==='cf'&&et.source==='smartsheet')||(hat==='lsi'&&et.source==='nifty'));
+
+  // Group open work by project label.
+  const byProj={};
+  open.forEach(t=>{const k=t.project||'(no project)';(byProj[k]=byProj[k]||[]).push(t);});
+  const projCards=Object.entries(byProj).sort((a,b)=>b[1].length-a[1].length).slice(0,12).map(([name,rows])=>{
+    // health metrics for this label.
+    const allInLabel=tasks.filter(t=>(t.project||'(no project)')===name);
+    const doneN=allInLabel.filter(t=>t.status==='Done').length;
+    const totalN=allInLabel.length;
+    const pct=totalN?Math.round(doneN/totalN*100):0;
+    const overdueN=rows.filter(t=>t.due&&t.due<today).length;
+    const accent=rows[0]?(rows[0].source==='smartsheet'?'#1f6feb':rows[0].source==='nifty'?'#9333ea':'#10b981'):'#64748b';
+    return `<div class="cd" style="padding:11px 13px;border-left:3px solid ${accent}">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:600;color:var(--t1);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
+        <span style="font-size:9px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
+      </div>
+      <div style="display:flex;gap:10px;font-size:11px;color:var(--t2);margin-bottom:6px">
+        <span><strong style="color:var(--t1)">${rows.length}</strong> open</span>
+        ${overdueN?`<span style="color:var(--red)"><strong>${overdueN}</strong> overdue</span>`:''}
+        <span style="color:var(--t3)">${doneN}/${totalN} done</span>
+      </div>
+      <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${accent};border-radius:3px"></div></div>
+    </div>`;
+  }).join('');
+
+  const atRiskRow=(t,kind)=>{
+    const pcolor=t.priority==='High'?'#ef4444':t.priority==='Medium'?'#f59e0b':'#64748b';
+    const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+    const kindBadge=kind==='overdue'?'<span style="color:var(--red);font-size:10px;font-weight:600">⚠ '+(t.due?'overdue':'')+'</span>':kind==='today'?'<span style="color:var(--warn);font-size:10px;font-weight:600">📅 today</span>':'<span style="color:var(--t3);font-size:10px">💤 stalled</span>';
+    const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
+    const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
+    const extId=t._ext?t._ext.externalId:'';
+    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>x.id===${JSON.stringify(t.id)}))`:`_openExternalAnnotateModal(${JSON.stringify(t.source)},${JSON.stringify(extId)})`;
+    return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;display:flex;align-items:center;gap:8px" onclick="${clickAction}">
+      <span style="width:6px;height:6px;border-radius:50%;background:${pcolor};flex-shrink:0"></span>
+      ${srcBadge}
+      <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(t.project||'')}</span>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0;min-width:48px;text-align:right">${dueLabel}</span>
+      ${kindBadge}
+    </div>`;
+  };
+  const atRiskBody = (()=>{
+    const sections=[];
+    if(overdue.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Overdue (${overdue.length})</div>`+overdue.slice(0,8).map(t=>atRiskRow(t,'overdue')).join(''));
+    if(dueToday.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Due today (${dueToday.length})</div>`+dueToday.slice(0,8).map(t=>atRiskRow(t,'today')).join(''));
+    if(stalled.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Stalled (${stalled.length})</div>`+stalled.slice(0,6).map(t=>atRiskRow(t,'stalled')).join(''));
+    return sections.length?sections.join(''):renderEmptyState({icon:'✅',title:'Nothing at risk',hint:'No overdue, due-today, or stalled tasks in this context.'});
+  })();
+
+  // Stakeholder column (group by assignee, top 8)
+  const byAssignee={};
+  open.forEach(t=>{const k=t.assignee||'(unassigned)';(byAssignee[k]=byAssignee[k]||[]).push(t);});
+  const assigneeRows=Object.entries(byAssignee).sort((a,b)=>b[1].length-a[1].length).slice(0,8);
+  const stakeholderBody=assigneeRows.length?assigneeRows.map(([name,rows])=>{
+    const overdueN=rows.filter(t=>t.due&&t.due<today).length;
+    const initials=(name||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).join('').slice(0,2).toUpperCase()||'?';
+    return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+      <span style="width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</span>
+      <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
+      <span style="font-size:11px;color:var(--t2)"><strong>${rows.length}</strong> open</span>
+      ${overdueN?`<span style="font-size:10px;color:var(--red)">${overdueN} late</span>`:''}
+    </div>`;
+  }).join(''):'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No assignees in scope.</div>';
+
+  // Recently shipped (last 7d).
+  const shippedBody=shipped.length?shipped.slice(0,10).map(t=>{
+    const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">LSI</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#10b981;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">YOU</span>';
+    const when=t.completedAt?_relTime(t.completedAt):'';
+    return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
+      <span style="font-size:13px;color:var(--ok);flex-shrink:0">✓</span>
+      ${srcBadge}
+      <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${when}</span>
+    </div>`;
+  }).join(''):renderEmptyState({icon:'🚀',title:'Nothing shipped yet this week',hint:'Tasks marked Done in the last 7 days will appear here — push some over the line.'});
+
+  const pendingPushBody=pendingRows.length?pendingRows.slice(0,12).map(et=>{
+    const ov=et.override||{};
+    const badge=et.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600">CF</span>':'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600">LSI</span>';
+    return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
+      ${badge}
+      <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title)}</span>
+      <span style="font-size:10px;color:var(--warn)">${esc(ov.pendingStatus||'')}</span>
+    </div>`;
+  }).join(''):'';
+
+  // Chip switcher
+  const chip=(key,label,color)=>{
+    const on=hat===key;
+    return `<button class="btn btn-s" onclick="setCcContext('${key}')" style="height:26px;padding:0 12px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:13px;font-weight:${on?600:500}">${label}</button>`;
+  };
+
+  const cfCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
+  const lsiCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
+
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <h1 style="font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px">🎯 Command Center</h1>
+      <p style="font-size:12px;color:var(--t2)">Cross-tool dashboard — what's at risk, what's shipping, what's queued. ${open.length} open · ${shipped.length} shipped this week · ${overdue.length} overdue.</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      ${chip('all','All hats','#f59e0b')}
+      ${chip('cf','CF · '+cfCount,'#1f6feb')}
+      ${chip('lsi','LSI · '+lsiCount,'#9333ea')}
+      ${chip('personal','Personal','#10b981')}
+      <button class="btn btn-s" style="height:26px;padding:0 10px;font-size:11px" onclick="refreshExternalTasksNow()" title="Force fresh pull">↻ Sync</button>
+    </div>
+  </div>
+
+  <!-- KPI strip -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
+    ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
+  </div>
+
+  <!-- Two-column main body -->
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start" id="cc-grid">
+    <!-- At-risk -->
+    <div class="cd" style="padding:0;overflow:hidden">
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">⚠ At Risk</div><div style="font-size:10px;color:var(--t3)">${overdue.length+dueToday.length+stalled.length} items</div></div>
+      <div style="max-height:520px;overflow-y:auto">${atRiskBody}</div>
+    </div>
+    <!-- Stakeholders -->
+    <div class="cd" style="padding:0;overflow:hidden">
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">👥 By Stakeholder</div><div style="font-size:10px;color:var(--t3)">${Object.keys(byAssignee).length} owners</div></div>
+      <div style="max-height:280px;overflow-y:auto">${stakeholderBody}</div>
+    </div>
+    <!-- Projects -->
+    <div class="cd" style="padding:11px 13px;grid-column:1/-1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;font-weight:600">📁 By Project (open work)</div><div style="font-size:10px;color:var(--t3)">top ${Object.keys(byProj).length>12?12:Object.keys(byProj).length} of ${Object.keys(byProj).length}</div></div>
+      ${projCards?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${projCards}</div>`:renderEmptyState({icon:'📁',title:'No open work',hint:'No active projects in this context.'})}
+    </div>
+    <!-- Shipped -->
+    <div class="cd" style="padding:0;overflow:hidden">
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">🚀 Recently Shipped (7d)</div><div style="font-size:10px;color:var(--t3)">${shipped.length}</div></div>
+      <div style="max-height:380px;overflow-y:auto">${shippedBody}</div>
+    </div>
+    <!-- Pending push -->
+    ${pendingRows.length?`<div class="cd" style="padding:0;overflow:hidden;border-left:3px solid #f97316">
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;font-weight:600">⬆ Pending Push to Source</div>
+        <button class="btn btn-s" style="height:22px;font-size:10px;background:#f97316;color:#fff;border:none" onclick="openPushQueueDrawer()">Preview</button>
+      </div>
+      <div style="max-height:380px;overflow-y:auto">${pendingPushBody}</div>
+    </div>`:`<div class="cd" style="padding:14px;text-align:center;color:var(--t3);font-size:11px"><div style="font-size:18px;margin-bottom:6px">📥</div>Push queue clear — every status change is live on the source.</div>`}
+  </div>`;
+
+  // Responsive: collapse to single col under 900px
+  if(!document.getElementById('cc-resp-css')){
+    const s=document.createElement('style');s.id='cc-resp-css';
+    s.textContent='@media(max-width:900px){#cc-grid{grid-template-columns:1fr!important}}';
+    document.head.appendChild(s);
+  }
+
+  if(r){
+    const last=D.prefs&&D.prefs.lastExternalSyncAt;
+    const lastLabel=last?_relTime(last):'never';
+    r.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="refreshExternalTasksNow()">↻ Force sync now</button>
+        ${pendingRows.length?`<button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:#f97316;border-color:#f97316" onclick="openPushQueueDrawer()">⬆ Preview push queue (${pendingRows.length})</button>`:''}
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('standup')">📋 Open Standup view</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('programs')">📊 Portfolio view</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('reports')">📈 Build a widget</button>
+      </div>
+    </div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:6px">📡 Sync status</div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.7">
+        Last pull: <strong>${lastLabel}</strong><br>
+        CF rows: <strong>${cfCount}</strong> · LSI rows: <strong>${lsiCount}</strong><br>
+        ${pendingRows.length?`<span style="color:var(--warn)">⏳ ${pendingRows.length} pending push</span>`:'<span style="color:var(--ok)">✓ Push queue clear</span>'}
+      </div>
+    </div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:6px">💡 Tip</div>
+      <div style="font-size:10px;color:var(--t3);line-height:1.6">Pin a project here by linking its <em>defaultProjectId</em> in <a href="#" onclick="nav('settings');return false" style="color:var(--ac)">Settings → Integrations</a>. Pending pushes show up automatically when queue mode is on.</div>
+    </div>`;
+  }
+}
+// Standup view — three columns: Yesterday / Today / Blockers + copy.
+let _standupMode='copy';
+function renderStandup(){
+  const m=document.getElementById('standup-main');
+  if(!m)return;
+  const tasks=_ccTasks();
+  const today=_todayStr;
+  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return _ymd?_ymd(d):d.toISOString().slice(0,10);})();
+  const yest=tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt.slice(0,10)===yesterday);
+  const todayItems=tasks.filter(t=>t.status!=='Done'&&(t.due===today||(t._raw&&t._raw.myDay)||(t._ext&&t._ext.override&&t._ext.override.myDay)));
+  const blockers=tasks.filter(t=>{
+    if(t.status==='Done')return false;
+    const tags=(t._raw&&t._raw.tags)||((t._ext&&t._ext.override&&t._ext.override.localTags)||'').split(',');
+    return tags.some(tag=>/block/i.test(String(tag||'')))||/block/i.test(t.status||'')||(t.due&&t.due<today);
+  });
+
+  const renderColumn=(title,emoji,rows,empty,color)=>{
+    const body=rows.length?rows.map(t=>{
+      const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 4px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
+      return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
+        ${srcBadge}
+        <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+        ${t.project?`<span style="font-size:9px;color:var(--t3);flex-shrink:0">${esc(t.project)}</span>`:''}
+      </div>`;
+    }).join(''):`<div style="padding:18px;text-align:center;color:var(--t3);font-size:11px">${empty}</div>`;
+    return `<div class="cd" style="padding:0;overflow:hidden;border-top:3px solid ${color}">
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">${emoji} ${title}</div><div style="font-size:10px;color:var(--t3)">${rows.length}</div></div>
+      <div style="max-height:520px;overflow-y:auto">${body}</div>
+    </div>`;
+  };
+
+  const summary=()=>{
+    const lines=[];
+    lines.push(`*Standup — ${new Date().toISOString().slice(0,10)}*`);
+    lines.push('');
+    lines.push('**Yesterday:**');
+    yest.length?yest.forEach(t=>lines.push(`- ${t.sourceLabel?'['+t.sourceLabel+'] ':''}${t.title}`)):lines.push('- (nothing logged)');
+    lines.push('');
+    lines.push('**Today:**');
+    todayItems.length?todayItems.forEach(t=>lines.push(`- ${t.sourceLabel?'['+t.sourceLabel+'] ':''}${t.title}`)):lines.push('- (no tasks set)');
+    lines.push('');
+    lines.push('**Blockers:**');
+    blockers.length?blockers.forEach(t=>lines.push(`- ${t.sourceLabel?'['+t.sourceLabel+'] ':''}${t.title}`)):lines.push('- None');
+    return lines.join('\n');
+  };
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">📋 Daily Standup</h1>
+      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.</p>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy summary</button>
+      <button class="btn btn-s" onclick="nav('command')">→ Command Center</button>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px" id="standup-grid">
+    ${renderColumn('Yesterday','✅',yest,'Nothing closed yesterday.','#10b981')}
+    ${renderColumn('Today','🎯',todayItems,'No tasks marked for today / My Day.','#3b82f6')}
+    ${renderColumn('Blockers','🚧',blockers,'No blockers — clear runway.','#ef4444')}
+  </div>
+  <div class="cd" style="padding:11px 13px;border-left:3px solid var(--page-accent)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:12px;font-weight:600">📝 Standup summary (markdown)</div><span style="font-size:10px;color:var(--t3)">Click "Copy summary" to copy this</span></div>
+    <pre id="standup-md" style="font-size:11px;color:var(--t2);background:var(--s3);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;font-family:'SF Mono',Menlo,monospace;line-height:1.55">${esc(summary())}</pre>
+  </div>`;
+  if(!document.getElementById('standup-resp-css')){
+    const s=document.createElement('style');s.id='standup-resp-css';
+    s.textContent='@media(max-width:900px){#standup-grid{grid-template-columns:1fr!important}}';
+    document.head.appendChild(s);
+  }
+}
+function _copyStandup(){
+  const pre=document.getElementById('standup-md');if(!pre)return;
+  const txt=pre.textContent;
+  try{navigator.clipboard.writeText(txt).then(()=>toast({type:'success',title:'Standup copied','msg':'Paste into Slack / Teams / email.',duration:2500}),()=>fallback());}catch(_){fallback();}
+  function fallback(){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast({type:'success',title:'Standup copied',duration:1800});}catch{}ta.remove();}
+}
+
+// ─── Push-queue preview drawer ──────────────────────────────────────────────
+function openPushQueueDrawer(){
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  if(!d||!ov)return;
+  const rows=(Array.isArray(D.externalTasks)?D.externalTasks:[])
+    .filter(et=>!(et.override&&et.override.tombstoned)&&et.override&&et.override.pendingStatus);
+  const body=rows.length?rows.map(et=>{
+    const ovr=et.override||{};
+    const srcLabel=et.source==='smartsheet'?'CF':'LSI';
+    const srcColor=et.source==='smartsheet'?'#1f6feb':'#9333ea';
+    return `<div class="lr" style="padding:9px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+      <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
+      <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'')}</span>
+      <span style="font-size:11px;color:var(--t3)">${esc(et.status||'')}</span>
+      <span style="font-size:11px;color:var(--ac);font-weight:600">→ ${esc(ovr.pendingStatus||'')}</span>
+      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_dropPushItem(${JSON.stringify(et.source)},${JSON.stringify(et.externalId)})" title="Drop from queue">✕</button>
+    </div>`;
+  }).join(''):`<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No pending pushes — every status change has been delivered.</div>`;
+  d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">⬆ Push Queue (${rows.length})</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div>
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">Status changes saved locally, waiting to be written back to the source. Click ✕ to drop one without pushing.</p>
+  </div>
+  <div style="overflow-y:auto;max-height:60vh">${body}</div>
+  ${rows.length?`<div style="padding:12px 16px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
+    <button class="btn btn-p" style="background:#f97316;border-color:#f97316" onclick="_flushPushQueue()">⬆ Push all ${rows.length}</button>
+  </div>`:''}`;
+  ov.classList.add('show');
+  d.classList.add('show');
+}
+async function _flushPushQueue(){
+  try{
+    toast({type:'info',title:'Pushing queue…',duration:1500});
+    const res=await _trpc('externalSources.pushPendingChanges',undefined,'mutation');
+    await loadExternalTasks();
+    closeDrawer();
+    toast({type:'success',title:`✓ Pushed ${res&&res.pushed||0} change(s)`,duration:2400});
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){
+    toast({type:'warn',title:'Push failed',msg:e.message||String(e),duration:4000});
+  }
+}
+async function _dropPushItem(source,externalId){
+  try{
+    await _trpc('externalSources.upsertOverride',{source,externalId,patch:{pendingStatus:null}},'mutation');
+    await loadExternalTasks();
+    openPushQueueDrawer();
+  }catch(e){toast({type:'warn',title:'Drop failed',msg:e.message||String(e)});}
+}
+
+// Tiny "X ago" formatter used by Command Center.
+function _relTime(iso){
+  if(!iso)return '';
+  const t=new Date(iso).getTime();if(isNaN(t))return '';
+  const ago=(Date.now()-t)/60000;
+  if(ago<1)return 'just now';
+  if(ago<60)return Math.floor(ago)+'m ago';
+  if(ago<1440)return Math.floor(ago/60)+'h ago';
+  return Math.floor(ago/1440)+'d ago';
+}
 
 function renderPrograms(){
   const m=document.getElementById('prog-main');
@@ -10269,8 +10775,9 @@ function renderPrograms(){
     </div>`;
   }).join('');
   const empty=programs.length?'':renderEmptyState({icon:'📊',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
-  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700">📊 Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
-    ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}`;
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700">📊 Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-s" onclick="nav('command')" title="Open the Command Center">🎯 Command Center</button><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
+    ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}
+    ${(D.projects||[]).length?_renderPortfolioTimeline():''}`;
   if(r){
     const totalProjects=(D.projects||[]).length;
     const assignedProjects=new Set();
@@ -10295,6 +10802,118 @@ function _newProgram(){
   save('programs');
   openDrawer('program',D.programs.find(p=>p.id===newId));
   setTimeout(renderPrograms,0);
+}
+
+// ─── Portfolio Timeline (swimlane gantt across all projects) ────────────────
+// One row per project that has dated tasks. Bars: native task (project color)
+// + external task linked to the project (source color). Date axis spans the
+// rolling window: max(today-14d, earliest start) … max(today+60d, latest due).
+function _renderPortfolioTimeline(){
+  const projects=(D.projects||[]).filter(p=>!p.archived);
+  // Build per-project task rows with start/end dates.
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const rowsByProj={};
+  let minD=null,maxD=null;
+  const consider=(date)=>{if(!date)return;const d=date.slice(0,10);if(d.length!==10)return;if(!minD||d<minD)minD=d;if(!maxD||d>maxD)maxD=d;};
+  projects.forEach(p=>{
+    const arr=[];
+    _topLevelTasks(D.tasks).forEach(t=>{
+      if(t.projectId!==p.id)return;
+      const s=t.startDate||t.due||'';const e=t.due||t.startDate||'';
+      if(!s&&!e)return;
+      consider(s);consider(e);
+      arr.push({title:t.title,start:s||e,end:e||s,color:p.color||'#3b82f6',done:t.status==='Done',src:'personal',raw:t});
+    });
+    (Array.isArray(D.externalTasks)?D.externalTasks:[]).forEach(et=>{
+      const ov=et.override;if(!ov||String(ov.localProjectId||'')!==String(p.id)||ov.tombstoned)return;
+      const s=et.startDate||ov.localDue||et.due||'';const e=ov.localDue||et.due||et.startDate||'';
+      if(!s&&!e)return;
+      consider(s);consider(e);
+      arr.push({title:et.title,start:s||e,end:e||s,color:et.source==='smartsheet'?'#1f6feb':'#9333ea',done:isExtDone(et),src:et.source,raw:et});
+    });
+    if(arr.length)rowsByProj[p.id]={project:p,tasks:arr};
+  });
+  const projIds=Object.keys(rowsByProj);
+  if(!projIds.length)return '';
+  // Clamp the window: 14d back to 60d forward, but expand if data goes further.
+  const today=new Date();const todayStr=_ymd(today);
+  const back=new Date(today);back.setDate(today.getDate()-14);
+  const fwd=new Date(today);fwd.setDate(today.getDate()+60);
+  const winStart=(minD&&minD<_ymd(back))?minD:_ymd(back);
+  const winEnd=(maxD&&maxD>_ymd(fwd))?maxD:_ymd(fwd);
+  const winStartMs=Date.parse(winStart);
+  const winEndMs=Date.parse(winEnd);
+  const winDays=Math.max(1,Math.round((winEndMs-winStartMs)/86400000));
+  const dayPx=Math.max(8,Math.min(24,Math.round(1100/winDays)));
+  const totalW=winDays*dayPx;
+  // Axis: month headers across.
+  const axisCells=[];
+  let cur=new Date(winStartMs);cur.setHours(0,0,0,0);
+  let monthStartIdx=0;let curMonth=cur.getMonth();let curYear=cur.getFullYear();
+  for(let i=0;i<=winDays;i++){
+    const d=new Date(winStartMs+i*86400000);
+    if(d.getMonth()!==curMonth||i===winDays){
+      const span=i-monthStartIdx;
+      axisCells.push(`<div style="position:absolute;left:${monthStartIdx*dayPx}px;width:${span*dayPx}px;font-size:10px;color:var(--t3);text-align:left;padding-left:5px;border-left:1px solid var(--bd1);box-sizing:border-box;height:18px;line-height:18px">${new Date(curYear,curMonth,1).toLocaleString('en-US',{month:'short',year:'2-digit'})}</div>`);
+      curMonth=d.getMonth();curYear=d.getFullYear();monthStartIdx=i;
+    }
+  }
+  // Today line position.
+  const todayMs=Date.parse(todayStr);
+  const todayX=Math.max(0,Math.round((todayMs-winStartMs)/86400000)*dayPx);
+  // Swimlanes.
+  const lanes=projIds.map(pid=>{
+    const {project,tasks}=rowsByProj[pid];
+    const bars=tasks.map(t=>{
+      const s=Date.parse((t.start||'').slice(0,10));
+      const e=Date.parse((t.end||'').slice(0,10));
+      if(isNaN(s)||isNaN(e))return '';
+      const x=Math.round((s-winStartMs)/86400000)*dayPx;
+      const w=Math.max(dayPx,Math.round((e-s)/86400000+1)*dayPx);
+      const overdue=!t.done&&e<todayMs;
+      const bg=t.done?'color-mix(in srgb, '+t.color+' 35%, transparent)':t.color;
+      const border=overdue?'2px solid #ef4444':'1px solid color-mix(in srgb,'+t.color+' 60%, #000)';
+      return `<div title="${esc(t.title)} (${esc(t.start)} → ${esc(t.end)})" style="position:absolute;left:${x}px;width:${w}px;top:4px;bottom:4px;background:${bg};border:${border};border-radius:4px;padding:0 6px;font-size:10px;color:#fff;line-height:18px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;${t.done?'opacity:.7':''}">${esc(t.title)}</div>`;
+    }).join('');
+    return `<div style="display:flex;border-bottom:1px solid var(--bd1);min-height:30px">
+      <div style="width:180px;padding:6px 9px;font-size:11px;color:var(--t1);flex-shrink:0;border-right:1px solid var(--bd1);background:var(--s2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${project.id})">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${project.color};margin-right:6px;vertical-align:middle"></span>
+        ${esc(project.name)}
+        <span style="font-size:9px;color:var(--t3);margin-left:4px">${tasks.length}</span>
+      </div>
+      <div style="position:relative;flex:1;min-height:30px;background:repeating-linear-gradient(90deg,transparent,transparent ${dayPx-1}px,var(--bd1) ${dayPx-1}px,var(--bd1) ${dayPx}px);width:${totalW}px">
+        ${bars}
+      </div>
+    </div>`;
+  }).join('');
+  const hiddenN=(()=>{
+    let n=0;
+    (D.tasks||[]).forEach(t=>{if(t.projectId&&!t.due&&!t.startDate)n++;});
+    (D.externalTasks||[]).forEach(et=>{const ov=et.override;if(ov&&ov.localProjectId&&!et.due&&!et.startDate&&!ov.tombstoned)n++;});
+    return n;
+  })();
+  return `<div class="cd" style="padding:11px 13px;margin-top:18px;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:12px;font-weight:600">📅 Portfolio Timeline</div>
+      <div style="font-size:10px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?' · '+hiddenN+' hidden (no dates)':''}</div>
+    </div>
+    <div style="display:flex;gap:10px;font-size:10px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#1f6feb;border-radius:2px;vertical-align:middle"></span> Smartsheet</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#9333ea;border-radius:2px;vertical-align:middle"></span> NiftyPM</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#10b981;border-radius:2px;vertical-align:middle"></span> Native</span>
+      <span style="border-left:2px solid #ef4444;padding-left:4px">overdue</span>
+    </div>
+    <div style="overflow:auto;max-height:calc(100vh - 460px);border:1px solid var(--bd1);border-radius:6px;background:var(--s1);position:relative">
+      <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--s2);border-bottom:1px solid var(--bd1)">
+        <div style="width:180px;font-size:10px;padding:6px 9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;flex-shrink:0;border-right:1px solid var(--bd1)">Project</div>
+        <div style="position:relative;flex:1;width:${totalW}px;height:18px">${axisCells.join('')}</div>
+      </div>
+      <div style="position:relative">
+        <div style="position:absolute;left:${180+todayX}px;top:0;bottom:0;width:2px;background:#ef4444;opacity:.7;z-index:2;pointer-events:none" title="Today"></div>
+        ${lanes}
+      </div>
+    </div>
+  </div>`;
 }
 
 function openProgramDetail(pid){
@@ -10340,7 +10959,22 @@ function openProgramDetail(pid){
         ${statChip(extLinked.length,'External')}
       </div>
     </div>
-    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Projects (${projs.length})</div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Health (rolled up across projects)</div>
+    ${_renderHealthStrip((function(){
+      // Aggregate health across child projects.
+      const h={open:0,done:0,total:0,velocity:0,burn:0,risk:0,overdue:0,stalled:0,etaWeeks:null,trend:'flat',pct:0};
+      projs.forEach(p=>{
+        const ph=_projectHealth(p.id);
+        h.open+=ph.open;h.done+=ph.done;h.total+=ph.total;
+        h.velocity+=ph.velocity;h.burn+=ph.burn;h.overdue+=ph.overdue;h.stalled+=ph.stalled;
+      });
+      h.velocity=Math.round(h.velocity*10)/10;
+      h.risk=h.open?Math.round(((h.overdue+h.stalled)/h.open)*100):0;
+      h.etaWeeks=h.velocity>0?Math.round((h.open/h.velocity)*10)/10:null;
+      h.pct=h.total?Math.round(h.done/h.total*100):0;
+      return h;
+    })())}
+    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px">Projects (${projs.length})</div>
     ${projRows}
     <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0">
       <button class="btn btn-p" onclick="closeDrawer();openDrawer('program',D.programs.find(x=>x.id===${pid}))">✏ Edit Program</button>
@@ -10610,9 +11244,11 @@ function openProjectDetail(pid){
       ${statChip(msDone+'/'+ms.length,'Milestones')}
     </div>
   </div>
-  ${p.desc?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Overview</div>
+  <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Project Health (velocity, burn, risk, ETA)</div>
+  ${_renderHealthStrip(_projectHealth(pid))}
+  ${p.desc?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px">Overview</div>
   <div class="md-body" style="font-size:13px;color:var(--t2);margin-bottom:16px;line-height:1.65;max-width:62ch">${renderMd(p.desc||'')}</div>`:''}
-  <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Milestones (${msDone}/${ms.length})</div>
+  <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px">Milestones (${msDone}/${ms.length})</div>
   ${ms.length?`<div class="pb" style="margin-bottom:8px"><div class="f" style="width:${ms.length?Math.round(msDone/ms.length*100):0}%;background:${p.color}"></div></div>`:''}
   ${msRows}
   ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
@@ -13109,6 +13745,14 @@ const WIDGET_TEMPLATES=[
   {id:'t-all-by-pri',label:'🎯 All open work by priority',w:{title:'All Open Work — by Priority',source:'allTasks',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'priority',metric:'count',viz:'donut',color:'#3b82f6',sizeW:6}},
   {id:'t-all-overdue',label:'⚠ Overdue across all sources',w:{title:'Overdue — All Sources',source:'allTasks',filter:[{op:'overdue'}],groupBy:'_total',metric:'count',viz:'kpi',color:'#ef4444',sizeW:3}},
   {id:'t-all-table',label:'📋 All open work (table)',w:{title:'All Open Work',source:'allTasks',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'_rows',metric:'list',viz:'table',color:'#3b82f6',sizeW:12}},
+  // ── External-only command-center widgets (Smartsheet + Nifty) ──────────────
+  {id:'t-ext-by-source',label:'📊 External: CF vs LSI split',w:{title:'External Work — CF vs LSI',source:'external',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'sourceLabel',metric:'count',viz:'donut',color:'#1f6feb',sizeW:6}},
+  {id:'t-ext-by-project',label:'📁 External: open by project',w:{title:'External Open — by Project',source:'external',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'project',metric:'count',viz:'bar',color:'#9333ea',sizeW:6}},
+  {id:'t-ext-by-status',label:'🥯 External: by status',w:{title:'External — by Status',source:'external',filter:[],groupBy:'status',metric:'count',viz:'donut',color:'#06b6d4',sizeW:6}},
+  {id:'t-ext-shipped-week',label:'🚀 External shipped (week)',w:{title:'External Shipped — by Week',source:'external',filter:[{field:'status',op:'eq',value:'Done'}],groupBy:'week(completedAt)',metric:'count',viz:'line',color:'#22c55e',sizeW:6,range:'90d'}},
+  {id:'t-ext-overdue',label:'⚠ External overdue',w:{title:'External Overdue',source:'external',filter:[{op:'overdue'}],groupBy:'_total',metric:'count',viz:'kpi',color:'#ef4444',sizeW:3}},
+  {id:'t-ext-assignee',label:'👤 External: by assignee',w:{title:'External Open — by Assignee',source:'external',filter:[{field:'status',op:'ne',value:'Done'}],groupBy:'assignee',metric:'count',viz:'bar',color:'#a855f7',sizeW:6}},
+  {id:'t-ext-pending',label:'⬆ External pending push',w:{title:'Pending Push to Source',source:'external',filter:[{field:'hasPendingPush',op:'eq',value:true}],groupBy:'_total',metric:'count',viz:'kpi',color:'#f59e0b',sizeW:3}},
 ];
 
 // Sensible default groupBy/metric/viz suggestions per source. Used by the
@@ -13123,6 +13767,8 @@ const SOURCE_DEFAULTS={
   ideas:    {groupBy:'stage',metric:'count',viz:'donut'},
   bookmarks:{groupBy:'_total',metric:'count',viz:'kpi'},
   focus:    {groupBy:'day(date)',metric:'sum(mins)',viz:'line'},
+  allTasks: {groupBy:'_sourceLabel',metric:'count',viz:'bar'},
+  external: {groupBy:'sourceLabel',metric:'count',viz:'donut'},
 };
 // Filter-builder field options per source.
 const FILTER_FIELDS={
@@ -13134,6 +13780,8 @@ const FILTER_FIELDS={
   ideas:['stage','idea_type'],
   bookmarks:['isFavorite','isRead'],
   focus:['date'],
+  allTasks:['status','priority','project','_sourceLabel','assignee','myDay'],
+  external:['status','priority','project','sourceLabel','source','assignee','myDay','hasPendingPush'],
 };
 const FILTER_OPS=[
   {v:'eq',label:'is'},
@@ -13208,6 +13856,32 @@ const WIDGET_SOURCES={
     });
     return local.concat(ext);
   },dateField:'completedAt',label:'All tasks (Personal + CF + LSI)'},
+  // External-only source — Smartsheet + Nifty pulled tasks, normalised to the
+  // same task-ish shape. Skips tombstoned rows. Use this when you want a
+  // widget scoped purely to CF/LSI without native tasks diluting the bucket.
+  external: {arr:()=>{
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    return (Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned)).map(et=>{
+      const ov=et.override||{};
+      const done=isExtDone(et);
+      return {
+        id:'ext:'+et.source+':'+et.externalId,
+        title:et.title,
+        status:done?'Done':(et.status||'Not Started'),
+        rawStatus:et.status||'',
+        priority:ov.localPriority||et.priority||'Medium',
+        due:ov.localDue||et.due,
+        startDate:et.startDate,
+        completedAt:done?(et.completedAt||et.fetchedAt||null):null,
+        project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
+        assignee:et.assignee||'(unassigned)',
+        myDay:!!ov.myDay,
+        source:et.source,                                          // 'smartsheet' | 'nifty'
+        sourceLabel:et.source==='smartsheet'?'CF':'LSI',
+        hasPendingPush:!!(ov.pendingStatus),
+      };
+    });
+  },dateField:'completedAt',label:'External tasks (CF + LSI)'},
 };
 
 // Mood map (same as legacy reports)
@@ -13679,6 +14353,7 @@ function _groupByOptions(src){
     ...(src==='goals'?[['day(createdAt)','Day (created)']]:[]),
     ...(src==='ideas'?[['day(createdAt)','Day (created)']]:[]),
     ...(src==='focus'?[['day(date)','Day'],['week(date)','Week'],['month(date)','Month']]:[]),
+    ...(src==='allTasks'||src==='external'?[['day(completedAt)','Day (completed)'],['week(completedAt)','Week (completed)'],['month(completedAt)','Month (completed)']]:[]),
   ];
   const fields={
     tasks:[['status','Status'],['priority','Priority'],['project','Project'],['context','Context'],['assignedTo','Assignee'],['title','Title']],
@@ -13689,6 +14364,15 @@ function _groupByOptions(src){
     ideas:[['stage','Stage'],['idea_type','Type']],
     bookmarks:[['source','Source']],
     focus:[],
+    allTasks:[
+      ['_sourceLabel','Source (Personal/CF/LSI)'],
+      ['status','Status'],['priority','Priority'],['project','Project'],['assignee','Assignee'],
+    ],
+    external:[
+      ['sourceLabel','Source (CF/LSI)'],
+      ['source','Source key'],
+      ['status','Status'],['priority','Priority'],['project','Project'],['assignee','Assignee'],
+    ],
   }[src]||[];
   return [...common,...date,...fields];
 }
