@@ -34,14 +34,22 @@ async function ensureFreshNiftyToken(cred: ExternalSourceCredential): Promise<Ex
   if (!resp.ok) {
     throw new Error(`Nifty token refresh failed: ${resp.status} ${await resp.text()}`);
   }
-  const data = await resp.json() as { access_token: string; refresh_token?: string; expires_in?: number; scope?: string };
+  const data = await resp.json() as { access_token: unknown; refresh_token?: unknown; expires_in?: number; scope?: unknown };
+  // Same array→CSV coercion as the OAuth callback. Nifty returns scope as an
+  // array (despite spec saying string) and mysql2 would emit `(a,b,c)` SQL.
+  const toStr = (v: unknown): string | null => {
+    if (v == null) return null;
+    if (Array.isArray(v)) return v.map(x => String(x)).join(',');
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  };
   await upsertExternalSourceCredential({
     userId: cred.userId,
     source: 'nifty',
-    apiToken: data.access_token,
-    refreshToken: data.refresh_token ?? cred.refreshToken,
+    apiToken: toStr(data.access_token) ?? '',
+    refreshToken: toStr(data.refresh_token) ?? cred.refreshToken,
     expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null,
-    scope: data.scope ?? cred.scope ?? null,
+    scope: toStr(data.scope) ?? cred.scope ?? null,
     clientId: cred.clientId,
     clientSecret: cred.clientSecret,
   });
