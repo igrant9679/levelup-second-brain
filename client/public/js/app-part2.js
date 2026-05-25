@@ -1322,7 +1322,7 @@ async function _hydrateTombstoneArchive(){
           <div style="font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'(no title)')}</div>
           <div style="font-size:10px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(et.removedAt.slice(0,10)):''}</div>
         </div>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_reviveTombstoned(${JSON.stringify(et.source)},${JSON.stringify(et.externalId)})" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_reviveTombstoned('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
       </div>`;
     }).join('');
   }catch(e){

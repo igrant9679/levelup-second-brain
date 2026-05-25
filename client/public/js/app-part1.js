@@ -3044,6 +3044,9 @@ function renderDrawer(type,item){
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+// Safe to drop inside a single-quoted JS string literal inside an HTML
+// attribute. Escapes backslash, single quote, and HTML-escapes the rest.
+function _jsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // ── CSV / HTML EXPORT HELPERS ────────────────────────────────────────────────
 // Convert a JS value into a CSV-safe cell. Quotes if needed; escapes embedded quotes.
 function _csvCell(v){
@@ -10481,7 +10484,7 @@ function renderCommandCenter(){
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
     const accent=rows[0]?(rows[0].source==='smartsheet'?'#1f6feb':rows[0].source==='nifty'?'#9333ea':'#10b981'):'#64748b';
     const src=rows[0]?rows[0].source:'personal';
-    return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject(${JSON.stringify(name)},${JSON.stringify(src)})" title="Click to open these tasks in the Tasks view">
+    return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject('${_jsAttr(name)}','${_jsAttr(src)}')" title="Click to open these tasks in the Tasks view">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
         <div style="font-size:12px;font-weight:600;color:var(--t1);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
         <span style="font-size:9px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
@@ -10502,7 +10505,7 @@ function renderCommandCenter(){
     const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
-    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>x.id===${JSON.stringify(t.id)}))`:`_openExternalAnnotateModal(${JSON.stringify(t.source)},${JSON.stringify(extId)})`;
+    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)===${JSON.stringify(String(t.id))}))`:`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
     return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;display:flex;align-items:center;gap:8px" onclick="${clickAction}">
       <span style="width:6px;height:6px;border-radius:50%;background:${pcolor};flex-shrink:0"></span>
       ${srcBadge}
@@ -10527,7 +10530,7 @@ function renderCommandCenter(){
   const stakeholderBody=assigneeRows.length?assigneeRows.map(([name,rows])=>{
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
     const initials=(name||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).join('').slice(0,2).toUpperCase()||'?';
-    return `<div class="lr cc-assignee-row" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_ccDrillIntoAssignee(${JSON.stringify(name)})" title="Click to filter Tasks to this assignee">
+    return `<div class="lr cc-assignee-row" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_ccDrillIntoAssignee('${_jsAttr(name)}')" title="Click to filter Tasks to this assignee">
       <span style="width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
       <span style="font-size:11px;color:var(--t2)"><strong>${rows.length}</strong> open</span>
@@ -10768,7 +10771,7 @@ function openPushQueueDrawer(){
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'')}</span>
       <span style="font-size:11px;color:var(--t3)">${esc(et.status||'')}</span>
       <span style="font-size:11px;color:var(--ac);font-weight:600">→ ${esc(ovr.pendingStatus||'')}</span>
-      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_dropPushItem(${JSON.stringify(et.source)},${JSON.stringify(et.externalId)})" title="Drop from queue">✕</button>
+      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_dropPushItem('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Drop from queue">✕</button>
     </div>`;
   }).join(''):`<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No pending pushes — every status change has been delivered.</div>`;
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
