@@ -222,10 +222,16 @@ async function upsertOpportunitiesForUser(
     const existingIdx = idxByExt.get(String(p.externalId));
     if (existingIdx != null) {
       const ex = opps[existingIdx];
-      // Only re-derive status when the incoming stage actually changed; this
-      // preserves a user who manually flipped status without changing stage.
-      const stageChanged = p.stage && p.stage !== ex.stage;
-      const status = stageChanged ? deriveStatus(p.stage) : { status: ex.status, wonAt: ex.wonAt, lostAt: ex.lostAt };
+      // Re-derive status from the incoming stage every sync — the source
+      // is authoritative for terminal vs open. Preserve existing wonAt /
+      // lostAt timestamps when the status didn't change, so we don't
+      // overwrite the original close timestamp on every re-pull.
+      const nextStatus = deriveStatus(p.stage ?? ex.stage);
+      const status = {
+        status: nextStatus.status,
+        wonAt: nextStatus.status === 'won' ? (ex.wonAt || nextStatus.wonAt) : undefined,
+        lostAt: nextStatus.status === 'lost' ? (ex.lostAt || nextStatus.lostAt) : undefined,
+      };
       opps[existingIdx] = {
         ...ex,
         name: p.name || ex.name,
