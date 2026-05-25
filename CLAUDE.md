@@ -276,6 +276,142 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — Sales Pipeline, build `-23`)
+
+New first-class **Opportunities** entity + `s-pipeline` screen + Smartsheet
+pipeline-shape sync.
+
+### Schema (migration 0041)
+
+`ALTER TABLE user_app_data ADD opportunities mediumtext`. Drizzle schema +
+`DATA_KEYS` in `appData.ts` + save zod input all extended. New journal entry.
+
+### Data model (client)
+
+`D.opportunities[]`. Each:
+```
+{ id, name, accountName, stage, value, probability, closeDate, owner,
+  contact, notes, status:'open'|'won'|'lost',
+  linkedTaskIds:[], source:'manual'|'smartsheet', sourceConfigId,
+  externalId, externalUrl, createdAt, updatedAt }
+```
+
+Native tasks gain `linkedOpportunityId` (optional). When set the opp drawer
+shows that task under "Tasks to win this opportunity".
+
+`_PIPELINE_STAGES` defines: Lead (10%) · Qualified (25%) · Proposal (50%) ·
+Negotiation (75%) · Closed Won (100%, won) · Closed Lost (0%, lost).
+Probability % is per-opp override; null = use stage default.
+
+`save('opportunities')` flows through the existing `_syncKeys` debounce
+path. Added `'opportunities'` AND `'programs'` to that Set (programs was
+previously missing from the writable-keys list — fixed in passing).
+
+### Screen (`s-pipeline`, green accent)
+
+Three views toggled via header buttons:
+
+- **Kanban** — one column per non-terminal stage, opp cards sorted by value
+  desc with account subtitle + money + close-days meta + "📋 N active tasks"
+  hint when linked. "Hide Closed Won/Lost" checkbox (default on).
+- **Table** — all opps, sorted by value, with columns: Name / Account /
+  Stage pill / Value / Weighted / Close / Owner / Task count.
+- **Forecast** — weighted-value-by-close-month horizontal bars + by-stage
+  weighted donut + legend.
+
+Header KPI strip: Pipeline Value · Weighted Forecast · Open Opps · Win Rate.
+Right rail: Quick Actions + "Past close date" warnings + Recent wins.
+
+### Opportunity drawer
+
+`openOpportunityDetail(oppId)`:
+- Stage progression button row (one button per stage) + Mark Won / Mark Lost.
+- Inline editable fields (name, account, value, probability override, close
+  date, owner, contact, notes). 💾 Save changes commits + re-renders.
+- "Tasks to win this opportunity" section reading
+  `D.tasks` where `linkedOpportunityId === opp.id`. Click row → opens task
+  drawer. Open / Done grouped separately.
+- **"+ New task for this opportunity"** stashes
+  `window._faPrefill = {linkedOpportunityId, title, notes}` then calls
+  `openFA('task')` so the standard task-add modal carries the link through.
+  Fallback path direct-creates if `openFA` is unavailable.
+- **"✨ AI: Next steps"** calls `ai.assist` with the opp snapshot + existing
+  task titles. Returns `{headline, actions[3]}`. Each action has a "+ Add
+  task" button that creates a native task pre-linked to the opp.
+
+### Smartsheet sync (pipeline detection)
+
+`smartsheetAdapter.detectPipelineColumns()` recognises:
+- **Stage**: Stage / Pipeline Stage / Deal Stage / Opportunity Stage
+- **Value** (required): Value / Amount / Deal Value / Estimated Value /
+  Contract Value / ACV / TCV / ARR / MRR
+- **Close**: Close / Expected Close / Target Close / Close Date
+- **Account**: Account / Customer / Company / Client / Account Name
+- **Owner**: Owner / Sales Owner / AE / Account Executive / Rep
+- **Contact**: Contact / Primary Contact / Lead / POC
+- **Probability**: Probability / Win % / Confidence / Prob
+
+Minimum signal: Stage column AND Value column. Pipeline mode wins over
+hierarchical (Project/Task/SubTask) when both signals coexist.
+
+`pullSmartsheet` returns `{ rows, projectLabels, hierarchical, pipeline,
+opportunities }`. When `pipeline:true`, `rows` is empty and `opportunities`
+carries the parsed `OpportunityInput[]`.
+
+`upsertOpportunitiesForUser` in the cron:
+- Reads `user_app_data.opportunities` JSON
+- Matches existing entries by `(source='smartsheet', sourceConfigId,
+  externalId)` so re-syncs update in place rather than duplicate
+- Overwrites source-owned fields (name, stage, value, closeDate, account,
+  owner, contact, externalUrl) but **preserves** user-owned fields (notes,
+  linkedTaskIds, status overrides, manually-edited probability)
+- Creates new opps for unseen externalIds
+- Returns `{created, updated}` for logging
+
+### Wiring
+
+- SM map adds `pipeline:'s-pipeline'`
+- `renderScreen` dispatcher routes `pipeline → renderPipeline()`
+- Sidebar entry between Dependencies and Standup (💼 icon, green stroke)
+- Page-accent CSS `body[data-screen="pipeline"]{--page-accent:#16a34a}`
+- Screen container with right rail (`.bg.wr`)
+- `loadServerData` merge-keys array extended
+
+### Verified live
+
+Empty Pipeline screen rendered cleanly on production: 4 active stages
+visible (Lead · Qualified · Proposal · Negotiation), KPI strip showing $0
+across the board, view switcher functional. Sidebar entry highlighted
+green when active. Build `2026-05-25-23` confirmed.
+
+### Open follow-ups
+
+- **Settings UI for the Pipeline** — currently no way to customise stage
+  list / probabilities. They're baked into `_PIPELINE_STAGES`. If a user
+  wants different stages (e.g. CommunityForce uses MEDDIC), would need
+  `D.prefs.pipelineStages` override + a Settings panel.
+- **Pipeline source-config UI** — currently the only way to register a
+  pipeline-shape Smartsheet is to add it as a regular watched sheet. The
+  adapter auto-detects pipeline-shape vs project-shape, so no extra config
+  needed, but the user might want a visible "Pipeline sheet" badge in
+  Settings → Integrations watched-sheets list.
+- **Push opp changes back to Smartsheet** — currently the sync is pull-only
+  for opps. Editing stage / value in LevelUp doesn't write back. Would need
+  a `smartsheetSetRowField` analogue to the existing `smartsheetSetRowStatus`.
+- **Forecast view doesn't span multiple sources yet** — when LSI gets a
+  pipeline sheet too, the forecast will mix CF + LSI weighted values. Would
+  need a source-filter chip row like the Tasks page has.
+- **Won/Lost analysis** — no view yet for "average days in each stage" /
+  "win-rate by source" / "lost-deal autopsy". Could be a 4th view tab.
+- **Quotes / proposals / contacts** — opportunities don't yet link to
+  Notes (proposal docs), Bookmarks (quote URLs), or Contacts (decision
+  makers). All have stable IDs, so linkage is just a field + drawer
+  section away.
+
+### Session commits
+
+- `6fd20e6` Sales Pipeline — entity + screen + Smartsheet sync (build `-23`)
+
 ## Most recently shipped (May 25 2026 — A+D+C+B mega-batch, build `-22`)
 
 Four parallel arcs in one commit (`52e6778`):
