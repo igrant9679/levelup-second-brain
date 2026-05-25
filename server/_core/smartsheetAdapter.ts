@@ -209,7 +209,13 @@ export async function pullSmartsheet(
   const rowsById = new Map<number, SsRow>();
   for (const r of sheet.rows) rowsById.set(r.id, r);
 
-  const excludeStatuses = (cfg.excludeDoneStatuses ?? 'Done,Complete,Closed,Cancelled')
+  // Default: pull EVERY status (including done) so completions sync into
+  // LevelUp. The render layer hides Done rows from active views the same way
+  // it does for native Done tasks, and the cron stamps external_tasks.
+  // completedAt so "shipped this week" rollups can attribute them. Users
+  // can opt back into a hard filter by setting cfg.excludeDoneStatuses to a
+  // non-empty value (e.g. "Cancelled" to drop only cancelled rows).
+  const excludeStatuses = (cfg.excludeDoneStatuses ?? '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   const out: ExternalTaskInput[] = [];

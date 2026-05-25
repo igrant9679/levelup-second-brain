@@ -5763,19 +5763,30 @@ function renderTaskList(){
   // Skipped under "My Items" scope (external rows don't carry createdBy).
   if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
     const today=_todayStr;
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    // Pull ALL external rows including done ones — done rows flow into the
+    // Done tab + Reports just like native completions. Status normalised to
+    // 'Done' for done synonyms so the existing _taskFilter('Done') matches.
     const extShaped=D.externalTasks
-      .filter(t=>!(t.override&&t.override.tombstoned)&&!isExtDone(t)&&_sourceOn(t.source))
+      .filter(t=>!(t.override&&t.override.tombstoned)&&_sourceOn(t.source))
       .map(et=>{
         const ov=et.override||{};
         const due=ov.localDue||et.due||'';
+        const done=isExtDone(et);
         return {
           id:'ext:'+et.source+':'+et.externalId,
           title:et.title,
-          status:et.status||'Not Started',
+          // Normalise done-synonyms to "Done" so _taskFilter and group-by
+          // bucket the row consistently. Keep the source label visible via
+          // _rawStatus for the row renderer.
+          status:done?'Done':(et.status||'Not Started'),
+          _rawStatus:et.status||'',
           priority:ov.localPriority||et.priority||'Medium',
           due,
           startDate:et.startDate||'',
+          // Map completedAt timestamp into the same ISO shape native tasks use
+          // so "Tasks Completed (by day)" reports work.
+          completedAt:done?(et.completedAt||et.fetchedAt||''):null,
           project:et.projectLabel||(et.source==='smartsheet'?'CommunityForce':'LSI Media'),
           projectId:null,
           assignedTo:et.assignee||'',
@@ -5789,18 +5800,20 @@ function renderTaskList(){
           _readOnly:true,
         };
       });
-    // Honour the active tab filter as best as we can: only apply the date-
-    // based filters (Today / This Week / Inbox); skip rest since external
-    // rows don't fit GTD buckets cleanly.
     const tabLabel=_taskTabDefs&&_taskTabDefs[_taskFilterTabIdx]?_taskTabDefs[_taskFilterTabIdx].label:'';
     let extFiltered=extShaped;
-    if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.due===today||(t._override&&t._override.myDay));
+    if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.status!=='Done'&&(t.due===today||(t._override&&t._override.myDay)));
     else if(tabLabel==='This Week'){
       const wkEnd=new Date();wkEnd.setDate(wkEnd.getDate()+7);
       const wkEndStr=wkEnd.toISOString().slice(0,10);
-      extFiltered=extShaped.filter(t=>!t.due||t.due<=wkEndStr);
-    }else if(tabLabel==='Done'||tabLabel==='Someday'||tabLabel==='Recurring'){
-      extFiltered=[]; // external rows don't belong in these buckets
+      extFiltered=extShaped.filter(t=>t.status!=='Done'&&(!t.due||t.due<=wkEndStr));
+    }else if(tabLabel==='Done'){
+      extFiltered=extShaped.filter(t=>t.status==='Done');
+    }else if(tabLabel==='Someday'||tabLabel==='Recurring'){
+      extFiltered=[]; // not applicable to external rows
+    }else{
+      // All Active / Inbox: open rows only (drop Done).
+      extFiltered=extShaped.filter(t=>t.status!=='Done');
     }
     filtered=filtered.concat(extFiltered);
   }
@@ -5921,19 +5934,24 @@ function renderTaskList(){
     // visual rhythm but route clicks to the source URL + the annotate modal.
     if(t._source&&t._source!=='local'){
       const due=t.due||'';
-      const isOverdueE=due&&due<today;
+      const doneExt=t.status==='Done';
+      const isOverdueE=!doneExt&&due&&due<today;
       const url=t._url||'#';
       const ov=t._override||{};
       const myDay=!!ov.myDay;
-      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2)" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}">
-        <div style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${_extSourceBadge(t._source)}</div>
+      // Use the original/raw status label for display when status was
+      // normalised to 'Done' (e.g. show "Closed" if the source said so).
+      const statusLabel=t._rawStatus||t.status||'';
+      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}">
+        <div style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${doneExt?'<span style="color:var(--ok);font-size:14px">✓</span>':_extSourceBadge(t._source)}</div>
         <div class="tlc-body">
-          <div class="tlc-t"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
+          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
-            <span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>
-            ${t.status?`<span class="lu-pill-clickable" style="background:var(--s3);color:var(--t2)">${esc(t.status)}</span>`:''}
+            ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
+            ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'}">${esc(statusLabel)}</span>`:''}
             ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
+            ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(String(t.completedAt).slice(0,10))}</span>`:''}
             ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
             ${_extAnnotationChips(t._override)}
           </div>
@@ -12652,16 +12670,22 @@ const WIDGET_SOURCES={
   // them. Tombstoned externals are skipped.
   allTasks: {arr:()=>{
     const local=(D.tasks||[]).map(t=>Object.assign({},t,{_source:'local',_sourceLabel:'Personal'}));
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
     const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned)).map(et=>{
       const ov=et.override||{};
+      const done=isExtDone(et);
       return {
         id:'ext:'+et.source+':'+et.externalId,
         title:et.title,
-        status:et.status||'Not Started',
+        // Normalised to 'Done' so existing widgets with filter:{status:'Done'}
+        // also count external completions.
+        status:done?'Done':(et.status||'Not Started'),
         priority:ov.localPriority||et.priority||'Medium',
         due:ov.localDue||et.due,
         startDate:et.startDate,
-        completedAt:null,
+        // completedAt = LevelUp-side first-seen-as-done timestamp (or null
+        // when still open). Drives "Tasks Completed (by day)" rollups.
+        completedAt:done?(et.completedAt||et.fetchedAt||null):null,
         project:et.projectLabel||(et.source==='smartsheet'?'CF':'LSI'),
         assignee:et.assignee,
         myDay:!!ov.myDay,

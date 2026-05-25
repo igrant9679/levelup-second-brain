@@ -794,10 +794,16 @@ export const externalTasks = mysqlTable('external_tasks', {
   raw: mediumtext('raw'),
   fetchedAt: timestamp('fetchedAt').defaultNow().onUpdateNow().notNull(),
   removedAt: timestamp('removedAt'),
+  // Migration 0036: stamped the first time the cron sees this row with a
+  // done-like status (Done / Complete / Closed / Cancelled / source-specific
+  // synonyms). Preserved across subsequent polls; reset to NULL only if the
+  // status flips back to open (rare but possible).
+  completedAt: timestamp('completedAt'),
 }, (t) => ({
   idxUser: index('idx_ext_task_user').on(t.userId),
   idxSourceCfg: index('idx_ext_task_source_cfg').on(t.sourceConfigId),
   idxDue: index('idx_ext_task_due').on(t.userId, t.due),
+  idxCompleted: index('idx_ext_task_completed').on(t.userId, t.completedAt),
   uqUserSourceId: unique('uq_ext_task_user_source_id').on(t.userId, t.source, t.externalId),
 }));
 export type ExternalTask = typeof externalTasks.$inferSelect;

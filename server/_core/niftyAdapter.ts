@@ -154,7 +154,9 @@ export async function pullNiftyProject(
     if (cfg.filterByAssignee && myId) {
       if (!Array.isArray(t.assigned_to) || !t.assigned_to.includes(myId)) continue;
     }
-    if (isDoneStatus(t)) continue;
+    // No longer drop done rows at pull time — render + cron handle completion
+    // semantics (stamp completedAt, hide from active views, surface in Done
+    // tab and weekly review's shipped section).
 
     out.push({
       source: 'nifty',

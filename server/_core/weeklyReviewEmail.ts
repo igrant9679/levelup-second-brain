@@ -130,13 +130,11 @@ async function buildRowsForUser(
     }
   }
 
-  // External tasks. Smartsheet / Nifty rarely surface completedAt on rows
-  // (the source might not track it), so "shipped" is approximated as any
-  // external whose status flipped to a done synonym this week — we don't
-  // have history so they only show in shipped if they're Done now AND we
-  // include them as "completed at some point this week" only with caveats.
-  // Cleaner approach: only count externals in overdue + nextWeek buckets,
-  // and add a footer note that "shipped" reflects native completions only.
+  // External tasks. Done rows are NOT filtered at pull time anymore
+  // (migration 0036) — the cron stamps external_tasks.completedAt when
+  // LevelUp first sees a row become done, preserving it across subsequent
+  // polls. We treat completedAt within the past week as "shipped" — same
+  // semantics as native tasks.
   const ext = await db.select().from(externalTasks).where(eq(externalTasks.userId, userId));
   const overrides = await db.select().from(externalTaskOverrides).where(eq(externalTaskOverrides.userId, userId));
   const ovMap = new Map<string, typeof overrides[number]>();
@@ -146,10 +144,21 @@ async function buildRowsForUser(
     if (e.removedAt) continue;
     const ov = ovMap.get(`${e.source}:${e.externalId}`);
     if (ov?.tombstoned) continue;
-    if (isExtDone(e.status)) continue;
-    totalOpen++;
-    const due = (ov?.localDue) || e.due;
     const src: WeeklyRow['source'] = e.source === 'smartsheet' ? 'CF' : (e.source === 'nifty' ? 'LSI' : 'personal');
+    const due = (ov?.localDue) || e.due;
+    if (isExtDone(e.status)) {
+      // Shipped this week if completedAt falls in window. completedAt could
+      // also be older — if the row stayed Done for weeks, don't surface it
+      // every week.
+      if (e.completedAt) {
+        const cYmd = ymd(new Date(e.completedAt));
+        if (cYmd >= weekStartStr && cYmd <= todayStr) {
+          shipped.push({ source: src, title: e.title, status: e.status, priority: (ov?.localPriority) || e.priority, completedAt: cYmd, url: e.externalUrl, project: e.projectLabel });
+        }
+      }
+      continue; // done rows never go into overdue / nextWeek
+    }
+    totalOpen++;
     const row: WeeklyRow = { source: src, title: e.title, status: e.status, priority: (ov?.localPriority) || e.priority, due, url: e.externalUrl, project: e.projectLabel };
     if (due && due < todayStr) overdue.push(row);
     else if (due && due <= horizonStr) nextWeek.push(row);
@@ -264,7 +273,7 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock): string {
   <h2 style="font-size:15px;color:#1f6feb;border-bottom:2px solid #1f6feb;padding-bottom:4px;margin:20px 0 6px">📅 Next 7 days <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.nextWeek.length})</span></h2>
   ${rowsHtml(rows.nextWeek, 'Nothing scheduled in the next 7 days.')}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
-    Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this review in Settings → Notifications · <em>Shipped count is native-task only — external sources don't reliably surface completedAt history.</em>
+    Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this review in Settings → Notifications · <em>"Shipped" timestamps for CF/LSI rows reflect when LevelUp first observed completion (not the source's actual completion time).</em>
   </p>
 </div></body></html>`;
 }

@@ -55,8 +55,43 @@ async function upsertResults(
 ): Promise<{ upserted: number; vanished: number }> {
   const seenIds = new Set(rows.map(r => r.externalId));
 
+  // Status → done classifier (mirrors the client-side _extStatusToBoardCol
+  // logic but server-side). Tolerates Smartsheet ("Done"), Nifty ("Closed"),
+  // and synonyms.
+  const isDoneStatus = (s: string | null | undefined) => {
+    const x = (s || '').toLowerCase().trim();
+    if (!x) return false;
+    return /(^|\s)(done|complete|completed|closed|cancell?ed|resolved|shipped)/i.test(x);
+  };
+
+  // Pre-fetch existing rows for this source+config so we can detect a status
+  // transition (open → done stamps completedAt; done → open clears it).
+  const existingRows = await db.select({
+    externalId: externalTasks.externalId,
+    status: externalTasks.status,
+    completedAt: externalTasks.completedAt,
+  })
+    .from(externalTasks)
+    .where(and(
+      eq(externalTasks.userId, userId),
+      eq(externalTasks.source, source),
+      eq(externalTasks.sourceConfigId, sourceConfigId),
+    ));
+  const existingByExtId = new Map<string, { status: string | null; completedAt: Date | null }>();
+  for (const e of existingRows) existingByExtId.set(e.externalId, { status: e.status, completedAt: e.completedAt as Date | null });
+
   for (const r of rows) {
-    // MySQL ON DUPLICATE KEY UPDATE via Drizzle's onDuplicateKeyUpdate
+    const wasDone = isDoneStatus(existingByExtId.get(r.externalId)?.status ?? null);
+    const isNowDone = isDoneStatus(r.status);
+    const priorCompletedAt = existingByExtId.get(r.externalId)?.completedAt ?? null;
+    // First-seen-as-done OR transition from open → done: stamp now.
+    // Stay-done: preserve prior completedAt (don't reset on every poll).
+    // Done → open: clear (rare but possible if a user reverts a status).
+    let nextCompletedAt: Date | null;
+    if (isNowDone && !wasDone) nextCompletedAt = new Date();
+    else if (isNowDone && wasDone) nextCompletedAt = priorCompletedAt ?? new Date();
+    else nextCompletedAt = null;
+
     await db.insert(externalTasks).values({
       userId,
       source: r.source,
@@ -74,6 +109,7 @@ async function upsertResults(
       parentExternalId: r.parentExternalId,
       raw: r.raw,
       removedAt: null,
+      completedAt: nextCompletedAt,
     }).onDuplicateKeyUpdate({
       set: {
         sourceConfigId: r.sourceConfigId,
@@ -89,6 +125,7 @@ async function upsertResults(
         parentExternalId: r.parentExternalId,
         raw: r.raw,
         removedAt: null,
+        completedAt: nextCompletedAt,
       },
     });
   }
