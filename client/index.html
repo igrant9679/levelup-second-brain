@@ -270,6 +270,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="command"] svg{stroke:#f59e0b}     /* amber — command center */
 .si[data-n="standup"] svg{stroke:#14b8a6}     /* teal — standup */
 .si[data-n="deps"] svg{stroke:#dc2626}        /* red — dependencies / blockers */
+.si[data-n="pipeline"] svg{stroke:#16a34a}    /* green — sales pipeline / money in */
 
 /* ─── Per-page accent theming ─────────────────────────────────────────────
    body[data-screen="<route>"] sets --page-accent. The page header strip
@@ -303,6 +304,7 @@ body[data-screen="graph"]{--page-accent:#a855f7}
 body[data-screen="command"]{--page-accent:#f59e0b}
 body[data-screen="standup"]{--page-accent:#14b8a6}
 body[data-screen="deps"]{--page-accent:#dc2626}
+body[data-screen="pipeline"]{--page-accent:#16a34a}
 body[data-screen="programs"]{--page-accent:#1f6feb}
 
 /* Subtle gradient strip behind the first page header (.ph-r OR .pg-h) on
@@ -2086,6 +2088,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="si" data-n="graph" title="Knowledge Graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="11" x2="6.5" y2="7"/><line x1="14" y1="11" x2="17.5" y2="7"/><line x1="10" y1="13" x2="6.5" y2="17"/><line x1="14" y1="13" x2="17.5" y2="17"/></svg><span class="l">Knowledge Graph</span></div>
 <div class="si" data-n="command" title="Command Center — cross-tool PM dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg><span class="l">Command Center</span></div>
 <div class="si" data-n="deps" title="Dependencies — DAG of blocking tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/><line x1="6" y1="8.5" x2="6" y2="15.5"/><line x1="18" y1="8.5" x2="18" y2="15.5"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg><span class="l">Dependencies</span></div>
+<div class="si" data-n="pipeline" title="Sales Pipeline — track opportunities and create tasks to win them"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="l">Pipeline</span></div>
 <div class="si" data-n="standup" title="Daily Standup view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="6" y="11" width="3" height="7"/><rect x="11" y="6" width="3" height="12"/><rect x="16" y="9" width="3" height="9"/></svg><span class="l">Standup</span></div>
 <div class="si" data-n="programs" title="Programs / Portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="l">Programs</span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
@@ -2176,6 +2179,8 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="scr" id="s-command"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="command-main"></main><aside class="rr" id="command-rail"></aside></div></div>
 <!-- ===== S-DEPS (Cross-project dependency view) ===== -->
 <div class="scr" id="s-deps"><div class="bg" style="grid-template-columns:var(--side) 1fr"><nav class="sb" data-sb></nav><main class="mn" id="deps-main" style="max-width:none;width:100%;padding:0;overflow:hidden;position:relative"></main></div></div>
+<!-- ===== S-PIPELINE (Sales pipeline / opportunities) ===== -->
+<div class="scr" id="s-pipeline"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="pipeline-main"></main><aside class="rr" id="pipeline-rail"></aside></div></div>
 <!-- ===== S-STANDUP ===== -->
 <div class="scr" id="s-standup"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="standup-main"></main></div></div>
 <div class="scr" id="s-clusters"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="clusters-main"></main><aside class="rr" id="clusters-rail"></aside></div></div>
@@ -2509,7 +2514,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-25-22';
+  var APP_BUILD='2026-05-25-23';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

@@ -24,7 +24,7 @@ import {
   type NiftyWatchedProject,
   type ExternalSourceCredential,
 } from "../../drizzle/schema";
-import { pullSmartsheet, type ExternalTaskInput } from "./smartsheetAdapter";
+import { pullSmartsheet, type ExternalTaskInput, type OpportunityInput } from "./smartsheetAdapter";
 import { pullNiftyProject, type NiftyExternalTaskInput } from "./niftyAdapter";
 import { insertScheduledTaskLog } from "../db";
 
@@ -178,6 +178,90 @@ async function upsertResults(
  * Safe to call repeatedly — only persists when at least one new project was
  * appended.
  */
+/**
+ * Merge a pull's Opportunities into user_app_data.opportunities. Matches
+ * existing rows by (source='smartsheet', sourceConfigId, externalId) so
+ * re-syncs update rather than duplicate. Preserves user-set fields like
+ * notes + linkedTaskIds when the source row doesn't carry them.
+ */
+async function upsertOpportunitiesForUser(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  sourceConfigId: number,
+  pulled: OpportunityInput[],
+): Promise<{ created: number; updated: number }> {
+  const row = await db.select({ opportunities: userAppData.opportunities }).from(userAppData)
+    .where(eq(userAppData.userId, userId)).limit(1);
+  let opps: Array<Record<string, unknown>> = [];
+  if (row[0]?.opportunities) {
+    try { opps = JSON.parse(row[0].opportunities) || []; } catch { opps = []; }
+    if (!Array.isArray(opps)) opps = [];
+  }
+  // Index existing by externalId (for this source config) so we can update in place.
+  const idxByExt = new Map<string, number>();
+  opps.forEach((o, i) => {
+    if (o && o.source === 'smartsheet' && String(o.sourceConfigId) === String(sourceConfigId) && o.externalId) {
+      idxByExt.set(String(o.externalId), i);
+    }
+  });
+
+  let created = 0, updated = 0;
+  const nowISO = new Date().toISOString();
+  for (const p of pulled) {
+    const existingIdx = idxByExt.get(String(p.externalId));
+    if (existingIdx != null) {
+      const ex = opps[existingIdx];
+      // Update source-owned fields, preserve user-owned (notes, linkedTaskIds, status overrides).
+      opps[existingIdx] = {
+        ...ex,
+        name: p.name || ex.name,
+        accountName: p.accountName ?? ex.accountName ?? '',
+        stage: p.stage ?? ex.stage ?? 'Lead',
+        value: p.value ?? ex.value ?? 0,
+        probability: p.probability ?? ex.probability ?? null,
+        closeDate: p.closeDate ?? ex.closeDate ?? '',
+        owner: p.owner ?? ex.owner ?? '',
+        contact: p.contact ?? ex.contact ?? '',
+        externalUrl: p.externalUrl ?? ex.externalUrl ?? null,
+        updatedAt: nowISO,
+      };
+      updated++;
+    } else {
+      // New: pick an id that doesn't collide with existing.
+      const newId = Date.now() * 1000 + Math.floor(Math.random() * 1000) + created;
+      opps.push({
+        id: newId,
+        name: p.name,
+        accountName: p.accountName || '',
+        stage: p.stage || 'Lead',
+        value: p.value || 0,
+        probability: p.probability,
+        closeDate: p.closeDate || '',
+        owner: p.owner || '',
+        contact: p.contact || '',
+        notes: '',
+        status: 'open',
+        linkedTaskIds: [],
+        source: 'smartsheet',
+        sourceConfigId,
+        externalId: p.externalId,
+        externalUrl: p.externalUrl,
+        createdAt: nowISO,
+        updatedAt: nowISO,
+      });
+      created++;
+    }
+  }
+
+  if (created || updated) {
+    await db.insert(userAppData).values({
+      userId,
+      opportunities: JSON.stringify(opps),
+    }).onDuplicateKeyUpdate({ set: { opportunities: JSON.stringify(opps) } });
+  }
+  return { created, updated };
+}
+
 async function ensureLevelUpProjectsForLabels(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   userId: number,
@@ -416,11 +500,18 @@ async function pullOneSmartsheet(
   }
   try {
     const result = await pullSmartsheet(cfg, cred);
-    // Probe the sheet's display name from the credential cache or — simplest —
-    // reuse the cfg.label which is the user-facing watch label. Falls back to
-    // the sheetId string. We don't make a second API call to /sheets/:id/info
-    // since the adapter already returned what it knows.
     const sheetName = cfg.label || cfg.sheetId;
+
+    // ─── Pipeline shape: write to D.opportunities, skip external_tasks ─────
+    if (result.pipeline) {
+      const upserted = await upsertOpportunitiesForUser(db, cfg.userId, cfg.id, result.opportunities);
+      console.log(`[ext-cron] sheet ${cfg.sheetId}: pipeline mode — ${result.opportunities.length} row(s), ${upserted.created} new opps, ${upserted.updated} updated`);
+      await db.update(smartsheetWatchedSheets)
+        .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })
+        .where(eq(smartsheetWatchedSheets.id, cfg.id));
+      return { projectsCreated: 0 };
+    }
+
     await upsertResults(db, cfg.userId, 'smartsheet', cfg.id, result.rows);
 
     let projectsCreated = 0;

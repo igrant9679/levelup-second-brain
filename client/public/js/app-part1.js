@@ -606,7 +606,27 @@ var D = {
   // Recent time entries (90d window). Populated by loadTimeEntries() on boot.
   // Shape: [{id, userId, taskId, source, startedAt, endedAt, durationMins, note, createdAt}].
   timeEntries: [],
+  // Sales pipeline opportunities. Stored in user_app_data.opportunities as
+  // JSON. Each row: {id, name, accountName, stage, value, probability,
+  // closeDate, owner, contact, notes, status:'open'|'won'|'lost',
+  // linkedTaskIds:[], source:'manual'|'smartsheet', sourceConfigId,
+  // externalId, createdAt, updatedAt}. Linked tasks reference back via
+  // task.linkedOpportunityId. Pulled from Smartsheet pipeline-shaped sheets
+  // (Stage + Value columns) by the same cron path that auto-creates projects.
+  opportunities: JSON.parse(localStorage.getItem('lu_opportunities')||'[]'),
 };
+// Pipeline stage definitions. Order matters — used for Kanban column order
+// and stage progression. Probability is the default win-rate for a deal at
+// this stage (drives the weighted-forecast number).
+const _PIPELINE_STAGES=[
+  {key:'Lead',         label:'Lead',         color:'#94a3b8', probability:10},
+  {key:'Qualified',    label:'Qualified',    color:'#3b82f6', probability:25},
+  {key:'Proposal',     label:'Proposal',     color:'#a855f7', probability:50},
+  {key:'Negotiation',  label:'Negotiation',  color:'#f59e0b', probability:75},
+  {key:'Closed Won',   label:'Closed Won',   color:'#10b981', probability:100, terminal:true, outcome:'won'},
+  {key:'Closed Lost',  label:'Closed Lost',  color:'#ef4444', probability:0,   terminal:true, outcome:'lost'},
+];
+function _stageDef(key){return _PIPELINE_STAGES.find(s=>s.key===key||s.label===key)||_PIPELINE_STAGES[0];}
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
 
 // ─── External tasks (Smartsheet + NiftyPM) ──────────────────────────────────
@@ -848,7 +868,7 @@ function _resetTaskContexts(){
   const ta=document.getElementById('ctx-mgr-list');
   if(ta)ta.value=_DEFAULT_TASK_CONTEXTS.join('\n');
 }
-function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
+function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs','opportunities'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
@@ -1473,7 +1493,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',deps:'s-deps'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',deps:'s-deps',pipeline:'s-pipeline'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -3731,6 +3751,7 @@ function renderScreen(s){
   if(s==='command')renderCommandCenter();
   if(s==='standup')renderStandup();
   if(s==='deps')renderDeps();
+  if(s==='pipeline')renderPipeline();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -11727,6 +11748,408 @@ function renderDeps(){
       });
     });
   },0);
+}
+
+// ─── Sales Pipeline (s-pipeline) ────────────────────────────────────────────
+// Opportunities live on D.opportunities. A native task can link to an
+// opportunity via task.linkedOpportunityId; we surface those in the opp
+// drawer + show an Opp badge on the task row.
+let _pipelineView='kanban'; // 'kanban' | 'table' | 'forecast'
+let _pipelineHideClosed=true; // Closed Won/Lost hidden from kanban by default
+function _opps(){return Array.isArray(D.opportunities)?D.opportunities:(D.opportunities=[]);}
+function _fmtMoney(v){
+  const n=Number(v)||0;
+  if(Math.abs(n)>=1e6)return '$'+(n/1e6).toFixed(1)+'M';
+  if(Math.abs(n)>=1e3)return '$'+(n/1e3).toFixed(1)+'K';
+  return '$'+n.toFixed(0);
+}
+function _weightedValue(o){
+  const stage=_stageDef(o.stage);
+  const prob=o.probability!=null?Number(o.probability):stage.probability;
+  return (Number(o.value)||0)*(prob/100);
+}
+function _opportunityTaskCount(oppId){
+  let n=0;
+  for(const t of (D.tasks||[])){
+    if(t.status==='Done')continue;
+    if(String(t.linkedOpportunityId||'')===String(oppId))n++;
+  }
+  return n;
+}
+function renderPipeline(){
+  const m=document.getElementById('pipeline-main');
+  const r=document.getElementById('pipeline-rail');
+  if(!m)return;
+  const opps=_opps();
+  // Header KPIs.
+  const open=opps.filter(o=>o.status!=='won'&&o.status!=='lost');
+  const won=opps.filter(o=>o.status==='won');
+  const lost=opps.filter(o=>o.status==='lost');
+  const totalPipelineValue=open.reduce((s,o)=>s+(Number(o.value)||0),0);
+  const weighted=open.reduce((s,o)=>s+_weightedValue(o),0);
+  const wonValue=won.reduce((s,o)=>s+(Number(o.value)||0),0);
+  const winRate=(won.length+lost.length)?Math.round(won.length/(won.length+lost.length)*100):0;
+  // View switcher
+  const viewBtn=(key,label)=>`<button class="btn btn-s" onclick="_pipelineView='${key}';renderPipeline()" style="${_pipelineView===key?'background:var(--ac);color:#fff;border-color:var(--ac)':''}">${label}</button>`;
+  const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">💼 Sales Pipeline</h1>
+      <p style="font-size:12px;color:var(--t2)">${open.length} open · ${_fmtMoney(totalPipelineValue)} total · <strong style="color:var(--ok)">${_fmtMoney(weighted)} weighted</strong> · ${won.length} won (${_fmtMoney(wonValue)}) · ${winRate}% win rate</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      ${viewBtn('kanban','📋 Kanban')}
+      ${viewBtn('table','📊 Table')}
+      ${viewBtn('forecast','📈 Forecast')}
+      <button class="btn btn-p" onclick="_newOpportunity()">+ New opportunity</button>
+    </div>
+  </div>`;
+  // KPI strip.
+  const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_fmtMoney(totalPipelineValue)}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${_fmtMoney(weighted)}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Weighted Forecast</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+  </div>`;
+  let body='';
+  if(_pipelineView==='kanban'){
+    // Group opps by stage. Show non-terminal stages by default.
+    const visibleStages=_PIPELINE_STAGES.filter(s=>!s.terminal||!_pipelineHideClosed);
+    const byStage={};
+    visibleStages.forEach(s=>byStage[s.key]=[]);
+    for(const o of opps){
+      if(o.status==='lost'&&_pipelineHideClosed)continue;
+      if(byStage[o.stage])byStage[o.stage].push(o);
+      else if(!_pipelineHideClosed&&byStage['Lead'])byStage['Lead'].push(o);
+    }
+    body=`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_pipelineHideClosed?'checked':''} onchange="_pipelineHideClosed=this.checked;renderPipeline()"> Hide Closed Won/Lost</label></div>
+    <div style="display:grid;grid-template-columns:repeat(${visibleStages.length},minmax(220px,1fr));gap:10px;align-items:flex-start;overflow-x:auto">
+    ${visibleStages.map(s=>{
+      const stageOpps=byStage[s.key]||[];
+      const stageValue=stageOpps.reduce((sum,o)=>sum+(Number(o.value)||0),0);
+      const cards=stageOpps.sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)).map(o=>{
+        const closeDays=o.closeDate?Math.ceil((Date.parse(o.closeDate)-Date.now())/86400000):null;
+        const closeLabel=closeDays==null?'':closeDays<0?`<span style="color:var(--red)">${-closeDays}d late</span>`:closeDays===0?'<span style="color:var(--warn)">today</span>':closeDays<=14?`<span style="color:var(--warn)">${closeDays}d</span>`:`${closeDays}d`;
+        const taskN=_opportunityTaskCount(o.id);
+        return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;border-left:3px solid ${s.color};cursor:pointer" onclick="openOpportunityDetail(${o.id})">
+          <div style="font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</div>
+          ${o.accountName?`<div style="font-size:10px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.accountName)}</div>`:''}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px">
+            <span style="color:var(--t2);font-weight:600">${_fmtMoney(o.value||0)}</span>
+            <span style="color:var(--t3)">${closeLabel}</span>
+          </div>
+          ${taskN?`<div style="font-size:9px;color:var(--ac);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
+        </div>`;
+      }).join('')||'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:8px 0;text-align:center">empty</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;min-height:300px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${s.color}"></span><span style="font-size:11px;font-weight:700;color:var(--t1)">${esc(s.label)}</span></div>
+          <div style="font-size:9px;color:var(--t3)">${stageOpps.length} · ${_fmtMoney(stageValue)}</div>
+        </div>
+        ${cards}
+      </div>`;
+    }).join('')}</div>`;
+  } else if(_pipelineView==='table'){
+    const rows=opps.slice().sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)).map(o=>{
+      const s=_stageDef(o.stage);
+      const taskN=_opportunityTaskCount(o.id);
+      const closeDays=o.closeDate?Math.ceil((Date.parse(o.closeDate)-Date.now())/86400000):null;
+      const closeLabel=closeDays==null?'—':closeDays<0?`<span style="color:var(--red)">${o.closeDate} (${-closeDays}d late)</span>`:`${o.closeDate}`;
+      return `<tr style="cursor:pointer;border-bottom:1px solid var(--bd1)" onclick="openOpportunityDetail(${o.id})">
+        <td style="padding:8px 10px;font-size:12px;color:var(--t1);font-weight:600">${esc(o.name||'(unnamed)')}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${esc(o.accountName||'')}</td>
+        <td style="padding:8px 10px;font-size:11px"><span style="padding:2px 7px;border-radius:3px;background:color-mix(in srgb,${s.color} 18%,transparent);color:${s.color};font-weight:600">${esc(o.stage||'Lead')}</span></td>
+        <td style="padding:8px 10px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">${_fmtMoney(o.value||0)}</td>
+        <td style="padding:8px 10px;font-size:11px;text-align:right;color:var(--ok)">${_fmtMoney(_weightedValue(o))}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${closeLabel}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${esc(o.owner||'')}</td>
+        <td style="padding:8px 10px;font-size:11px;color:var(--t2)">${taskN?taskN+' tasks':''}</td>
+      </tr>`;
+    }).join('');
+    body=`<div class="cd" style="padding:0;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--s2);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+          <th style="padding:8px 10px;text-align:left">Opportunity</th>
+          <th style="padding:8px 10px;text-align:left">Account</th>
+          <th style="padding:8px 10px;text-align:left">Stage</th>
+          <th style="padding:8px 10px;text-align:right">Value</th>
+          <th style="padding:8px 10px;text-align:right">Weighted</th>
+          <th style="padding:8px 10px;text-align:left">Close</th>
+          <th style="padding:8px 10px;text-align:left">Owner</th>
+          <th style="padding:8px 10px;text-align:left">Tasks</th>
+        </tr></thead>
+        <tbody>${rows||'<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No opportunities yet. Click <strong>+ New opportunity</strong> to add one.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  } else { // forecast
+    // Group by close month → sum weighted value.
+    const months={};
+    open.forEach(o=>{
+      const m=(o.closeDate||'').slice(0,7);
+      if(!m)return;
+      months[m]=(months[m]||0)+_weightedValue(o);
+    });
+    const monthKeys=Object.keys(months).sort();
+    const maxMo=Math.max(1,...monthKeys.map(k=>months[k]));
+    const bars=monthKeys.length?monthKeys.map(k=>{
+      const v=months[k];const pct=Math.round(v/maxMo*100);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;font-size:11px"><span style="min-width:80px;color:var(--t2)">${esc(k)}</span><div style="flex:1;height:14px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#16a34a;border-radius:3px"></div></div><span style="min-width:80px;text-align:right;font-weight:600">${_fmtMoney(v)}</span></div>`;
+    }).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;text-align:center;padding:20px">Add close dates to your open opportunities to see a monthly forecast.</div>';
+    // Stage donut (weighted by stage).
+    const byStageW={};
+    open.forEach(o=>{byStageW[o.stage||'Lead']=(byStageW[o.stage||'Lead']||0)+_weightedValue(o);});
+    const stageEntries=Object.entries(byStageW).sort((a,b)=>b[1]-a[1]);
+    const stageTotal=stageEntries.reduce((s,[,v])=>s+v,0)||1;
+    let acc=0;
+    const stops=stageEntries.map(([k,v])=>{const stageCol=_stageDef(k).color;const start=acc/stageTotal*100;acc+=v;const end=acc/stageTotal*100;return `${stageCol} ${start}% ${end}%`;}).join(',');
+    const legend=stageEntries.map(([k,v])=>`<div style="display:flex;align-items:center;gap:7px;font-size:11px;padding:4px 0"><span style="width:9px;height:9px;background:${_stageDef(k).color};border-radius:2px"></span><span style="flex:1">${esc(k)}</span><span style="font-weight:600">${_fmtMoney(v)}</span></div>`).join('');
+    body=`<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px">
+      <div class="cd" style="padding:13px 15px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px">📅 Weighted Forecast by Close Month</div>
+        ${bars}
+      </div>
+      <div class="cd" style="padding:13px 15px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:10px">🎯 Pipeline by Stage (weighted)</div>
+        ${stageEntries.length?`<div style="display:flex;gap:14px;align-items:center"><div style="background:conic-gradient(${stops});width:120px;height:120px;border-radius:50%;flex-shrink:0;mask:radial-gradient(circle,transparent 40%,#000 42%);-webkit-mask:radial-gradient(circle,transparent 40%,#000 42%)"></div><div style="flex:1">${legend}</div></div>`:'<div style="font-size:11px;color:var(--t3);font-style:italic;text-align:center;padding:20px">No open opportunities to forecast.</div>'}
+      </div>
+    </div>`;
+  }
+  m.innerHTML=header+kpis+body;
+  if(r){
+    // Right rail: quick add + recent activity.
+    const recentWon=won.slice().sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'')).slice(0,5);
+    const overdue=open.filter(o=>o.closeDate&&o.closeDate<_todayStr);
+    r.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Quick Actions</div>
+      <button class="btn btn-p" style="width:100%;margin-bottom:6px;font-size:11px" onclick="_newOpportunity()">+ New opportunity</button>
+      <button class="btn btn-s" style="width:100%;margin-bottom:6px;font-size:11px;justify-content:flex-start;text-align:left" onclick="_pipelineView='kanban';renderPipeline()">📋 Kanban view</button>
+      <button class="btn btn-s" style="width:100%;font-size:11px;justify-content:flex-start;text-align:left" onclick="_pipelineView='forecast';renderPipeline()">📈 Forecast</button>
+    </div>
+    ${overdue.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid var(--red)">
+      <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--red)">⚠ ${overdue.length} past close date</div>
+      ${overdue.slice(0,5).map(o=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:10px">${esc(o.name)}</span><span style="color:var(--t3);font-size:9px">${esc(o.closeDate)}</span></div>`).join('')}
+    </div>`:''}
+    ${recentWon.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px">
+      <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--ok)">🎉 Recent wins</div>
+      ${recentWon.map(o=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:10px">${esc(o.name)}</span><span style="color:var(--ok);font-size:10px;font-weight:600">${_fmtMoney(o.value||0)}</span></div>`).join('')}
+    </div>`:''}`;
+  }
+}
+
+function _newOpportunity(){
+  const id=Date.now();
+  const opp={
+    id,
+    name:'New Opportunity',
+    accountName:'',
+    stage:'Lead',
+    value:0,
+    probability:null, // null = use stage default
+    closeDate:'',
+    owner:(D.creds&&D.creds.userName)||'',
+    contact:'',
+    notes:'',
+    status:'open',
+    linkedTaskIds:[],
+    source:'manual',
+    createdAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString(),
+  };
+  _opps().unshift(opp);
+  save('opportunities');
+  openOpportunityDetail(id,{editMode:true});
+  if(curScreen==='pipeline')renderPipeline();
+}
+
+function openOpportunityDetail(oppId,opts){
+  const o=_opps().find(x=>String(x.id)===String(oppId));
+  if(!o){toast({type:'warn',title:'Opportunity not found'});return;}
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  if(!d||!ov)return;
+  const editMode=opts&&opts.editMode;
+  const stage=_stageDef(o.stage);
+  const linkedTasks=(D.tasks||[]).filter(t=>String(t.linkedOpportunityId||'')===String(o.id));
+  const linkedOpen=linkedTasks.filter(t=>t.status!=='Done');
+  const linkedDone=linkedTasks.filter(t=>t.status==='Done');
+  const taskRow=t=>`<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===${t.id})),120)">
+    <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'Not Started':'Done';if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(D.tasks.find(x=>x.id===${t.id}));save('tasks');openOpportunityDetail(${o.id})"></div>
+    <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+    <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:9px">${esc(t.priority||'')}</span>
+    <span style="font-size:9px;color:var(--t3)">${esc(t.due||'')}</span>
+  </div>`;
+  // Stage progression buttons — quick-advance through non-terminal stages.
+  const stageButtons=_PIPELINE_STAGES.map(s=>{
+    const active=s.key===o.stage;
+    return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${s.key}')">${esc(s.label)}</button>`;
+  }).join('');
+  // Form fields — always editable inline.
+  const field=(label,id,type,value,extra)=>{
+    if(type==='textarea')return `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><textarea class="inp" id="${id}" style="min-height:60px;font-size:12px" ${extra||''}>${esc(value||'')}</textarea></div>`;
+    return `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><input class="inp" id="${id}" type="${type}" style="font-size:12px" value="${esc(value??'')}" ${extra||''}></div>`;
+  };
+  d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px"><span style="width:11px;height:11px;border-radius:3px;background:${stage.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="pill" style="background:color-mix(in srgb,${stage.color} 18%,transparent);color:${stage.color};font-weight:700">${esc(stage.label)}</span>
+      <span style="font-size:11px;color:var(--t2);align-self:center;font-weight:600">💰 ${_fmtMoney(o.value||0)}</span>
+      <span style="font-size:11px;color:var(--ok);align-self:center">⚖ ${_fmtMoney(_weightedValue(o))} weighted</span>
+      ${o.closeDate?`<span style="font-size:11px;color:var(--t3);align-self:center">📅 ${esc(o.closeDate)}</span>`:''}
+      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:10px" title="Auto-synced from Smartsheet">📊 Synced</span>`:''}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Stage</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px">${stageButtons}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${field('Name','opp-name','text',o.name)}
+      ${field('Account / Customer','opp-account','text',o.accountName)}
+      ${field('Value ($)','opp-value','number',o.value,'min="0" step="100"')}
+      ${field('Probability % (blank = stage default)','opp-prob','number',o.probability,'min="0" max="100"')}
+      ${field('Close Date','opp-close','date',o.closeDate)}
+      ${field('Owner','opp-owner','text',o.owner)}
+      ${field('Primary Contact','opp-contact','text',o.contact)}
+      <div></div>
+    </div>
+    ${field('Notes','opp-notes','textarea',o.notes)}
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="btn btn-p" onclick="_saveOpportunityFields(${o.id})">💾 Save changes</button>
+      <button class="btn btn-s" style="color:var(--ok);border-color:var(--ok)" onclick="_setOpportunityStage(${o.id},'Closed Won')">🎉 Mark Won</button>
+      <button class="btn btn-s" style="color:var(--red);border-color:var(--red)" onclick="_setOpportunityStage(${o.id},'Closed Lost')">✕ Mark Lost</button>
+      <button class="btn btn-d" style="margin-left:auto" onclick="_deleteOpportunity(${o.id})">🗑 Delete</button>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tasks to win this opportunity (${linkedOpen.length})</div>
+    ${linkedOpen.length?linkedOpen.map(taskRow).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0;font-style:italic">No active tasks linked yet — click below to add one.</p>'}
+    ${linkedDone.length?`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px">Done (${linkedDone.length})</div>${linkedDone.map(taskRow).join('')}`:''}
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_newTaskForOpportunity(${o.id})">+ New task for this opportunity</button>
+      <button class="btn btn-s" onclick="_aiOpportunityNextSteps(${o.id})" style="color:var(--purp)" title="AI-suggested next 3 actions for advancing this deal">✨ AI: Next steps</button>
+    </div>`;
+  ov.classList.add('show');
+}
+function _saveOpportunityFields(oppId){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  const g=id=>(document.getElementById(id)||{}).value;
+  o.name=g('opp-name').trim()||'(unnamed)';
+  o.accountName=g('opp-account').trim();
+  o.value=Number(g('opp-value'))||0;
+  const prob=g('opp-prob');o.probability=prob===''?null:Math.max(0,Math.min(100,Number(prob)||0));
+  o.closeDate=g('opp-close')||'';
+  o.owner=g('opp-owner').trim();
+  o.contact=g('opp-contact').trim();
+  o.notes=g('opp-notes')||'';
+  o.updatedAt=new Date().toISOString();
+  save('opportunities');
+  toast({type:'success',title:'✓ Saved',duration:1500});
+  openOpportunityDetail(oppId);
+  if(curScreen==='pipeline')renderPipeline();
+}
+function _setOpportunityStage(oppId,stage){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  o.stage=stage;
+  const def=_stageDef(stage);
+  if(def.outcome==='won'){o.status='won';o.wonAt=new Date().toISOString();}
+  else if(def.outcome==='lost'){o.status='lost';o.lostAt=new Date().toISOString();}
+  else {o.status='open';delete o.wonAt;delete o.lostAt;}
+  o.updatedAt=new Date().toISOString();
+  save('opportunities');
+  openOpportunityDetail(oppId);
+  if(curScreen==='pipeline')renderPipeline();
+  toast({type:def.outcome==='won'?'success':'info',title:`Stage → ${stage}`,duration:1800});
+}
+function _deleteOpportunity(oppId){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  if(!confirm(`Delete "${o.name}"? Linked tasks will keep their linkedOpportunityId but won't render under any opportunity.`))return;
+  D.opportunities=_opps().filter(x=>String(x.id)!==String(oppId));
+  save('opportunities');
+  closeDrawer();
+  if(curScreen==='pipeline')renderPipeline();
+  toast({type:'info',title:'Opportunity deleted',duration:1500});
+}
+// Open the Full-Add task modal pre-filled with linkedOpportunityId so the
+// resulting task automatically surfaces under the opp drawer.
+function _newTaskForOpportunity(oppId){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  // Use openFA('task') if present, otherwise quick-create.
+  if(typeof openFA==='function'){
+    // openFA pre-fills via window._faPrefill so we can stash the opp id.
+    window._faPrefill={linkedOpportunityId:String(o.id),title:'',notes:`Linked to opportunity: ${o.name}`};
+    openFA('task');
+    return;
+  }
+  // Fallback: quick create directly.
+  const id=Date.now();
+  D.tasks.unshift({id,title:`Task for: ${o.name}`,status:'Not Started',priority:'Medium',linkedOpportunityId:String(o.id),createdAt:new Date().toISOString(),createdBy:(D.creds&&D.creds.userName)||''});
+  save('tasks');
+  closeDrawer();
+  setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===id)),120);
+}
+async function _aiOpportunityNextSteps(oppId){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
+  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing'});return;}
+  const m=document.getElementById('modal-content');
+  if(!m){toast({type:'warn',title:'Modal not available'});return;}
+  m.innerHTML=`<div style="padding:14px 16px;max-width:520px"><div style="font-size:14px;font-weight:650;margin-bottom:6px">✨ Next steps for "${esc(o.name)}"</div><div style="font-size:11px;color:var(--t3)">Reading your pipeline + stage history — usually takes ~8s.</div></div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  try{
+    const linkedTitles=(D.tasks||[]).filter(t=>String(t.linkedOpportunityId||'')===String(o.id)).map(t=>`${t.status==='Done'?'[done] ':''}${t.title}`).slice(0,15);
+    const stage=_stageDef(o.stage);
+    const snapshot={
+      name:o.name,
+      account:o.accountName,
+      stage:o.stage,
+      stageDefaultProbability:stage.probability,
+      value:o.value,
+      closeDate:o.closeDate||null,
+      owner:o.owner,
+      contact:o.contact,
+      notes:(o.notes||'').slice(0,400),
+      existingTasks:linkedTitles,
+    };
+    const sys=`You are a sales coach helping a COO advance a B2B opportunity. Read the deal snapshot and recommend the next 3 actions to move it to the next stage. Output STRICTLY one JSON object, no markdown:
+{
+  "headline": "<one sentence assessment of the deal's state, 15-25 words>",
+  "actions": [ {"title":"<concrete action, ~10-15 words>", "owner":"<who does it>", "why":"<one short sentence on why this advances the deal>"} ]
+}
+Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (mention the actual account name where possible).`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(snapshot),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const raw=String(res?.result||res?.text||'').trim();
+    const mm=raw.match(/\{[\s\S]*\}/);if(!mm)throw new Error('AI returned no JSON');
+    const out=JSON.parse(mm[0]);
+    const actionRows=(out.actions||[]).slice(0,3).map((a,i)=>`<div style="padding:9px 11px;background:var(--s3);border-radius:6px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
+      ${a.owner?`<div style="font-size:10px;color:var(--t3);margin-top:2px">👤 ${esc(a.owner)}</div>`:''}
+      ${a.why?`<div style="font-size:10px;color:var(--t2);margin-top:3px">${esc(a.why)}</div>`:''}
+    </div>`).join('');
+    m.innerHTML=`<div style="padding:16px;max-width:560px">
+      <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">✨ Next steps · ${esc(o.name)}</h2>
+      ${out.headline?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--purp) 10%,transparent);border-left:3px solid var(--purp);border-radius:4px;margin-bottom:10px">"${esc(out.headline)}"</div>`:''}
+      ${actionRows}
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd1)">
+        <button class="btn btn-s" onclick="_aiOpportunityNextSteps(${oppId})">↻ Refresh</button>
+        <button class="btn btn-p" onclick="closeModal()">Done</button>
+      </div>
+    </div>`;
+  }catch(e){
+    m.innerHTML=`<div style="padding:14px 16px;max-width:480px"><div style="font-size:13px;font-weight:600;color:var(--red)">AI failed</div><div style="font-size:11px;color:var(--t2);margin-top:6px">${esc(e.message||String(e))}</div><div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div></div>`;
+  }
+}
+function _addAiActionToOpp(oppId,actionJson){
+  const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
+  const a=typeof actionJson==='string'?JSON.parse(actionJson):actionJson;
+  const id=Date.now()+Math.floor(Math.random()*1000);
+  D.tasks.unshift({
+    id,
+    title:a.title||'(unnamed)',
+    status:'Not Started',
+    priority:'Medium',
+    notes:a.why||'',
+    assignedTo:a.owner||'',
+    linkedOpportunityId:String(o.id),
+    createdAt:new Date().toISOString(),
+    createdBy:(D.creds&&D.creds.userName)||'',
+  });
+  save('tasks');
+  toast({type:'success',title:`✓ Added "${(a.title||'').slice(0,40)}"`,duration:1800});
+  // Re-render the opp drawer so the new task appears.
+  setTimeout(()=>openOpportunityDetail(oppId),120);
 }
 
 // ─── Push-queue preview drawer ──────────────────────────────────────────────

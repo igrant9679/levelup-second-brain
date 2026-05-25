@@ -53,6 +53,29 @@ export interface SmartsheetPullResult {
    *  Drives the "overwrite localProjectId" behaviour — flat sheets keep the
    *  cfg.defaultProjectId mapping; hierarchical sheets force the per-row label. */
   hierarchical: boolean;
+  /** Pipeline-shape detection. When true, the sheet has Stage + Value
+   *  columns and the cron should populate D.opportunities, not external_tasks.
+   *  In that case `rows` will be empty and `opportunities` carries the
+   *  detected opps. */
+  pipeline: boolean;
+  /** Detected opportunities when `pipeline` is true. */
+  opportunities: OpportunityInput[];
+}
+
+export interface OpportunityInput {
+  externalId: string;       // sheet row id as string
+  externalUrl: string | null;
+  name: string;
+  accountName: string | null;
+  stage: string | null;
+  value: number | null;     // dollars
+  probability: number | null; // 0-100, null = use stage default
+  closeDate: string | null; // YYYY-MM-DD
+  owner: string | null;
+  contact: string | null;
+  notes: string | null;
+  sourceConfigId: number;
+  raw: string;
 }
 
 interface SsColumn {
@@ -186,6 +209,58 @@ function inferTitleColumn(columns: SsColumn[]): number | undefined {
  * Returns undefined for any column not present so callers can branch on
  * presence (sheets with just one column fall back to flat mode).
  */
+/**
+ * Detect Sales Pipeline shape: any column titled Stage AND any column
+ * representing a monetary Value/Amount. Allows variants:
+ *   Stage     : Stage, Status, Pipeline Stage
+ *   Value     : Value, Amount, Deal Value, Estimated Value, Contract Value, ACV, TCV
+ *   Close     : Close Date, Expected Close, Close, Target Close
+ *   Account   : Account, Customer, Company, Client
+ *   Owner     : Owner, Sales Owner, AE, Rep
+ *   Contact   : Contact, Lead, Primary Contact
+ *   Probability: Probability, Win %, Confidence
+ * Pipeline mode is independent of hierarchy mode; if both are detected the
+ * pipeline mode wins (a sheet typically can't be both at once).
+ */
+function detectPipelineColumns(columns: SsColumn[]): {
+  isPipeline: boolean;
+  stageColId?: number;
+  valueColId?: number;
+  closeColId?: number;
+  accountColId?: number;
+  ownerColId?: number;
+  contactColId?: number;
+  probabilityColId?: number;
+} {
+  const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage)$/i;
+  const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?)\s+)?(value|amount)$|^(acv|tcv|arr|mrr)$/i;
+  const closeRe = /^(expected\s+|target\s+)?close(\s+date)?$/i;
+  const accountRe = /^(account|account\s+name|customer|company|client)(\s+name)?$/i;
+  const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep)$/i;
+  const contactRe = /^(contact|primary\s+contact|lead|poc)$/i;
+  const probRe = /^(probability|win\s*%|confidence|prob)$/i;
+  let stageColId: number | undefined;
+  let valueColId: number | undefined;
+  let closeColId: number | undefined;
+  let accountColId: number | undefined;
+  let ownerColId: number | undefined;
+  let contactColId: number | undefined;
+  let probabilityColId: number | undefined;
+  for (const c of columns) {
+    const t = (c.title || '').trim();
+    if (!stageColId && stageRe.test(t)) stageColId = c.id;
+    else if (!valueColId && valueRe.test(t)) valueColId = c.id;
+    else if (!closeColId && closeRe.test(t)) closeColId = c.id;
+    else if (!accountColId && accountRe.test(t)) accountColId = c.id;
+    else if (!ownerColId && ownerRe.test(t)) ownerColId = c.id;
+    else if (!contactColId && contactRe.test(t)) contactColId = c.id;
+    else if (!probabilityColId && probRe.test(t)) probabilityColId = c.id;
+  }
+  // Minimum signal: a Stage column AND a Value column.
+  const isPipeline = !!(stageColId && valueColId);
+  return { isPipeline, stageColId, valueColId, closeColId, accountColId, ownerColId, contactColId, probabilityColId };
+}
+
 function detectHierarchyColumns(columns: SsColumn[]): {
   projectColId: number | undefined;
   taskColId: number | undefined;
@@ -371,8 +446,13 @@ export async function pullSmartsheet(
   const primaryColId = inferTitleColumn(sheet.columns);
   const statusColId = findColumnIdByTitle(sheet.columns, cfg.statusColumn ?? null);
   const dueColId = findColumnIdByTitle(sheet.columns, cfg.dueColumn ?? null);
+  const pipeCfg = detectPipelineColumns(sheet.columns);
   const { projectColId, taskColId, subtaskColId } = detectHierarchyColumns(sheet.columns);
-  const hierarchical = !!(projectColId || taskColId || subtaskColId);
+  // Pipeline wins over hierarchy — same sheet can't be both, but if Stage +
+  // Value happen to coexist with a stray "Task" column we still treat it
+  // as a pipeline sheet.
+  const isPipeline = pipeCfg.isPipeline;
+  const hierarchical = !isPipeline && !!(projectColId || taskColId || subtaskColId);
 
   // Index rows by id so we can resolve parent externalIds + inherit project
   // labels up the outline tree even if children appear before parents in
@@ -394,6 +474,62 @@ export async function pullSmartsheet(
 
   const out: ExternalTaskInput[] = [];
   const projectLabels = new Set<string>();
+  const opportunities: OpportunityInput[] = [];
+
+  // ── Pipeline branch ───────────────────────────────────────────────────────
+  // When the sheet is pipeline-shaped, every owner-matched row becomes an
+  // Opportunity. We don't emit external_tasks for pipeline sheets — the cron
+  // pushes opportunities into D.opportunities instead.
+  if (isPipeline) {
+    const parseMoney = (s: string | null): number | null => {
+      if (!s) return null;
+      const cleaned = String(s).replace(/[\s,$]/g, '').replace(/[A-Za-z]/g, '');
+      const n = parseFloat(cleaned);
+      return Number.isFinite(n) ? n : null;
+    };
+    const parseDate = (s: string | null): string | null => {
+      if (!s) return null;
+      const trimmed = String(s).trim();
+      // Already YYYY-MM-DD?
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+      const d = new Date(trimmed);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().slice(0, 10);
+    };
+    for (const row of sheet.rows) {
+      const ownerCell = cellByColumn(row, ownerColId);
+      if (!rowMatchesOwner(ownerCell, cfg, cred)) continue;
+      const name = resolveRowTitle(row, sheet.columns, primaryColId);
+      const stage = cellText(cellByColumn(row, pipeCfg.stageColId));
+      const value = parseMoney(cellText(cellByColumn(row, pipeCfg.valueColId)));
+      const closeDate = parseDate(cellText(cellByColumn(row, pipeCfg.closeColId)));
+      const accountName = cellText(cellByColumn(row, pipeCfg.accountColId));
+      const opOwner = cellText(cellByColumn(row, pipeCfg.ownerColId)) || cellText(ownerCell);
+      const contact = cellText(cellByColumn(row, pipeCfg.contactColId));
+      const probRaw = cellText(cellByColumn(row, pipeCfg.probabilityColId));
+      let probability: number | null = null;
+      if (probRaw) {
+        const m = String(probRaw).match(/[\d.]+/);
+        if (m) probability = Math.max(0, Math.min(100, parseFloat(m[0])));
+      }
+      opportunities.push({
+        externalId: String(row.id),
+        externalUrl: row.permalink ?? sheet.permalink,
+        name: name || `(row ${row.rowNumber})`,
+        accountName,
+        stage,
+        value,
+        probability,
+        closeDate,
+        owner: opOwner,
+        contact,
+        notes: null,
+        sourceConfigId: cfg.id,
+        raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells }),
+      });
+    }
+    return { rows: [], projectLabels: [], hierarchical: false, pipeline: true, opportunities };
+  }
 
   for (const row of sheet.rows) {
     const status = cellText(cellByColumn(row, statusColId));
@@ -488,5 +624,5 @@ export async function pullSmartsheet(
     });
   }
 
-  return { rows: out, projectLabels: Array.from(projectLabels), hierarchical };
+  return { rows: out, projectLabels: Array.from(projectLabels), hierarchical, pipeline: false, opportunities: [] };
 }
