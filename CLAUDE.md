@@ -276,6 +276,151 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — Pipeline sync debugging arc, build `-27`)
+
+After Sales Pipeline shipped at `-23` the user's actual CF Smartsheet failed
+to populate. Live diagnosis surfaced four real bugs, all now fixed across
+5 commits.
+
+### The actual sheet schema (vs. what I assumed)
+
+User's `CF_Pipeline_Project 2026_2027` columns:
+```
+Customer (TEXT, primary)         <- account
+Program  (TEXT)                  <- opp name (NOT customer!)
+Lead Gen (PICKLIST)              <- stage progression col 1
+Presales (PICKLIST)              <- stage progression col 2
+Sales    (PICKLIST)              <- stage progression col 3
+Delivery (PICKLIST)              <- stage progression col 4
+OPR / Team / Comment / Change Requested
+PM (PICKLIST)                    <- owner
+Exp Close Date (DATE)            <- close
+Potential $ (TEXT)               <- value (user added mid-arc)
+Status (PICKLIST)                <- stage (user added mid-arc)
+   options: Lead, Qualified, Proposal, Negotiation, Closed/Won, Closed/Lost, On-Hold
+```
+
+So this sheet hits *both* layouts: single-stage (Status + Potential $) AND
+multi-stage progression (the four PICKLIST columns). Single wins. The
+user's Status picklist uses slash separators ("Closed/Won") which the
+client's exact-key `_stageDef` lookup couldn't match.
+
+### Diagnostic endpoint
+
+`externalSources.smartsheetInspectSheet({sheetConfigId})` returns the full
+column schema + per-column `matchedAs` verdict + the detected
+`stageProgression` array + `layout` and `wouldBePipeline` booleans. Use
+when "I added a sheet but no opps appeared" to see exactly which column
+the adapter is looking for vs what the sheet actually has. **Key
+diagnostic tool — keep using it for future pipeline sync issues.**
+
+### Two pipeline layouts supported
+
+`detectPipelineColumns` in the adapter now returns
+`{ isPipeline, layout: 'single' | 'multi' | null, … }`:
+
+- **single**: explicit Stage/Status column + Value/Amount column (winning
+  shape). Per-row stage = cell value, normalised via
+  `canonicalise()` (handles slashes/hyphens/underscores).
+- **multi**: 2+ PICKLIST columns whose titles match `_STAGE_NAME_DICT`
+  (Lead Gen, Presales, Discovery, Sales, Proposal, Negotiation,
+  Delivery, etc.). Per-row stage = rightmost occupied column's standard
+  name. Value column optional. The full per-column snapshot is written
+  into `opportunity.notes` ("Lead Gen: Done · Presales: In Progress").
+  `_stageCellOccupied()` treats empty / "Not Started" / "N/A" / "No"
+  as unoccupied.
+
+### Regex broadening (multi-arc)
+
+- **Stage**: `Status` added. Pipeline mode still requires Value column, so
+  a regular task sheet with a Status column doesn't flip. Also matches
+  Phase / Pursuit Stage / Capture Stage / Funnel Stage / Sales Stage.
+- **Value**: loosened to `^([\w-]+\s+)?(value|amount|\$)$` so any word
+  prefix matches (Potential, Estimated, Projected, Contract, Deal, Award,
+  Total, Opportunity, …). Plus literal `acv|tcv|arr|mrr|award|dollar
+  amount|potential $|projected $|$ amount`.
+- **Close**: `expected|target|exp|projected` prefixes.
+- **Account**: `agency|prime` added (federal contracting).
+- **Owner**: `pm|capture manager` added.
+- **Opportunity name column**: new `_OPP_NAME_RE` matches Program /
+  Project / Opportunity / Title / Deal / Name / Product. When present,
+  used in place of the primary column for opp display name (fixes "Air
+  Force" being pulled as opp name when Customer was primary).
+
+### On-Hold stage + slash-variant tolerance
+
+- New `_PIPELINE_STAGES` entry between Negotiation and Closed Won: color
+  slate (#64748b), probability 0, non-terminal.
+- Client `_normStage(s)` strips `/_-` and collapses whitespace + lowercases.
+- Client `_stageDef()` does normalised match — "Closed/Won" finds
+  "Closed Won", "On Hold" finds "On-Hold".
+- Server cron `canonicalise()` rewrites every incoming stage to the
+  canonical form on each sync. Dictionary maps lead gen / discovery →
+  Lead / Qualified, etc. Falls back to raw value if unknown.
+- Server cron `deriveStatus()` also normalises before checking
+  terminal-ness. Always re-derives status on every sync (preserving the
+  original wonAt/lostAt timestamp when status didn't change).
+
+### Orphan cleanup
+
+When a sheet flips to pipeline mode but previously got pulled as
+external_tasks (the case for watch #3 today — 19 "Air Force" / Marines
+rows became task titles), the pipeline branch now DELETES those orphaned
+external_tasks rows before upserting opps. Override rows kept; standard
+72h tombstone reaper handles them.
+
+### Verified live
+
+`smartsheetInspectSheet` confirms detection:
+```
+layout: 'single'
+matches: {
+  stage: 'Status', value: 'Potential $', close: 'Exp Close Date',
+  account: 'Customer', oppName: 'Program', owner: 'PM'
+}
+```
+
+After re-sync: **19 opportunities** populated:
+- byStage: Closed Won 15 · Proposal 3 · Qualified 1
+- byStatus: won 15 · open 4
+- 100% win rate (no Closed Lost yet)
+- Kanban renders: C1FAMS FY27 in Qualified, DD577/IDOS ICBM/AFOSI in
+  Proposal, "Recent wins" rail shows FAMS / C1FAMS FY26 / SAF/IA / BCLM /
+  Tableau/Slack
+- All values $0 because user just added Potential $ column — fills in
+  on next sync once they populate dollar amounts
+
+### Session commits (newest first)
+
+- `58774e5` Status / Potential $ / On-Hold + slash variants (build `-27`)
+- `da0401d` Always re-derive status from incoming stage
+- `b12392e` Derive won/lost status from terminal stage at upsert
+- `14bd5ce` Multi-stage progression + opp-name column + orphan cleanup
+- `44d0b74` Inspect endpoint + broader detection regex (build `-24`)
+
+### Open follow-ups
+
+- **Manual stage override survival** — when a user clicks "Mark Won" /
+  "Mark Lost" on a LevelUp opp drawer but the Smartsheet stage is
+  something else, the next sync overwrites the manual flip with the
+  source value. The user may want either direction to win — currently
+  source wins always. If they want manual to stick, add a
+  `manualStageOverride` flag that the cron respects.
+- **Value-column heuristic** — `^([\w-]+\s+)?(value|amount|\$)$` matches
+  any single-word prefix. Could occasionally false-positive on columns
+  like "Comment Value" or "Risk Amount" but the sheet would also need a
+  Status column to flip pipeline-mode, so probably fine.
+- **Multi-source forecast** — when LSI also gets a pipeline sheet (Nifty
+  doesn't have a native opp concept), the forecast view will mix CF +
+  LSI without a source filter. Add a hat chip row analogous to the
+  Tasks-page source filter.
+- **Push-back to Smartsheet** — stage changes in LevelUp drawer don't
+  write back to the source sheet. Would need a `smartsheetSetRowStage`
+  analogue to the existing `setRowStatus`.
+- **Inspect endpoint UI** — currently the diagnostic is JS-console-only.
+  A "Why isn't my pipeline syncing?" button in Settings → Integrations
+  would surface the `wouldBePipeline` + matched columns visually.
+
 ## Most recently shipped (May 25 2026 — Sales Pipeline, build `-23`)
 
 New first-class **Opportunities** entity + `s-pipeline` screen + Smartsheet
