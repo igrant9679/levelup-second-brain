@@ -168,7 +168,12 @@ async function buildRowsForUser(
  * (system_settings.aiKey_*). Returns empty string on any failure so the
  * email still sends.
  */
-async function generateAIReflection(rows: BuiltRows): Promise<string> {
+interface AIBlock {
+  reflection: string;
+  picks: Array<{ title: string; reason: string; source: string }>;
+}
+
+async function generateAIBlock(rows: BuiltRows): Promise<AIBlock> {
   try {
     const { callAIProvider } = await import("./aiProviders");
     const compact = {
@@ -176,12 +181,32 @@ async function generateAIReflection(rows: BuiltRows): Promise<string> {
       overdue: rows.overdue.slice(0, 20).map(r => ({ s: r.source, t: r.title, due: r.due })),
       nextWeek: rows.nextWeek.slice(0, 20).map(r => ({ s: r.source, t: r.title, due: r.due, pri: r.priority })),
     };
-    const sys = `You are a productivity coach writing a brief weekly reflection for a COO/CEO running two companies (CommunityForce + LSI Media). Read the week's shipped / overdue / next-week task lists and write 3-4 sentences (plaintext, no markdown) that: 1) acknowledge the most meaningful wins, 2) flag the single biggest carryover risk, 3) suggest the one highest-leverage thing to start next week. Be specific — name actual tasks and themes. Keep total under 80 words.`;
-    const res = await callAIProvider({ provider: 'manus', systemPrompt: sys, userContent: JSON.stringify(compact), maxTokens: 280 });
-    return String((res as { result?: string; text?: string }).result || (res as { text?: string }).text || '').trim();
+    const sys = `You are a productivity coach writing a brief weekly reflection for a COO/CEO running two companies (CommunityForce + LSI Media).
+
+Read the week's shipped / overdue / next-week task lists and return STRICTLY a JSON object (no markdown, no prose) with two keys:
+1. "reflection": 3-4 sentences (under 80 words) that acknowledge the most meaningful wins, flag the single biggest carryover risk, and name the one highest-leverage thing to start next week.
+2. "picks": an array of exactly 3 objects, each {"title":"<exact task title from input>","source":"<personal|CF|LSI>","reason":"<one short sentence why this matters next week>"}. Choose from the overdue + nextWeek arrays. Pick high-leverage items, not busy work. Use exact titles as they appear in the input.`;
+    const res = await callAIProvider({ provider: 'manus', systemPrompt: sys, userContent: JSON.stringify(compact), maxTokens: 600, jsonMode: true });
+    const raw = String((res as { result?: string; text?: string }).result || (res as { text?: string }).text || '').trim();
+    // Tolerate fenced code blocks + leading prose
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return { reflection: raw.slice(0, 800), picks: [] };
+    try {
+      const parsed = JSON.parse(m[0]) as { reflection?: string; picks?: AIBlock['picks'] };
+      return {
+        reflection: String(parsed.reflection || '').trim().slice(0, 800),
+        picks: Array.isArray(parsed.picks) ? parsed.picks.slice(0, 4).map(p => ({
+          title: String(p.title || '').slice(0, 200),
+          source: String(p.source || ''),
+          reason: String(p.reason || '').slice(0, 200),
+        })) : [],
+      };
+    } catch {
+      return { reflection: raw.slice(0, 800), picks: [] };
+    }
   } catch (err) {
-    console.warn('[weekly-review] AI reflection skipped:', (err as Error).message);
-    return '';
+    console.warn('[weekly-review] AI block skipped:', (err as Error).message);
+    return { reflection: '', picks: [] };
   }
 }
 
@@ -208,9 +233,18 @@ function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
   }).join('')}${rows.length > 40 ? `<tr><td style="padding:6px;font-size:10px;color:#9ca3af;text-align:center">… and ${rows.length - 40} more</td></tr>` : ''}</table>`;
 }
 
-function renderWeeklyHtml(name: string, rows: BuiltRows, reflection: string): string {
+function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock): string {
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
   const weekRange = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  const picksHtml = ai.picks.length ? `
+  <div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:12px 16px;border-radius:0 6px 6px 0;margin:8px 0 16px;font-size:13px;color:#451a03">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:6px">✨ Suggested focus for next week</div>
+    <ol style="margin:0;padding-left:20px;line-height:1.6">${ai.picks.map(p => {
+      const badge = p.source === 'CF' ? '<span style="padding:1px 5px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">CF</span>' :
+                    p.source === 'LSI' ? '<span style="padding:1px 5px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;border-radius:3px;margin-right:4px">LSI</span>' : '';
+      return `<li><strong>${badge}${escHtml(p.title)}</strong><br><span style="font-size:12px;color:#78350f;font-style:italic">${escHtml(p.reason)}</span></li>`;
+    }).join('')}</ol>
+  </div>` : '';
   return `<!DOCTYPE html>
 <html><body style="font-family:-apple-system,'Segoe UI',Inter,Arial,sans-serif;margin:0;padding:24px;background:#f3f4f6;color:#111827">
 <div style="max-width:720px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
@@ -221,7 +255,8 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, reflection: string): st
     <strong style="color:#dc2626">${rows.overdue.length}</strong> overdue ·
     <strong style="color:#1f6feb">${rows.nextWeek.length}</strong> due in next 7 days
   </div>
-  ${reflection ? `<div style="background:#eef2ff;border-left:3px solid #6366f1;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;color:#1e1b4b;line-height:1.55">${escHtml(reflection)}</div>` : ''}
+  ${ai.reflection ? `<div style="background:#eef2ff;border-left:3px solid #6366f1;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0 8px;font-size:13px;color:#1e1b4b;line-height:1.55">${escHtml(ai.reflection)}</div>` : ''}
+  ${picksHtml}
   <h2 style="font-size:15px;color:#10b981;border-bottom:2px solid #10b981;padding-bottom:4px;margin:20px 0 6px">✅ Shipped this week <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.shipped.length})</span></h2>
   ${rowsHtml(rows.shipped, "Nothing marked done this week — make sure you're stamping completedAt as you ship.")}
   <h2 style="font-size:15px;color:#dc2626;border-bottom:2px solid #dc2626;padding-bottom:4px;margin:20px 0 6px">⚠ Overdue / carryover <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.overdue.length})</span></h2>
@@ -286,9 +321,9 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
         await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, row.userId));
         continue;
       }
-      const reflection = await generateAIReflection(built);
+      const aiBlock = await generateAIBlock(built);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
-      const html = renderWeeklyHtml(name, built, reflection);
+      const html = renderWeeklyHtml(name, built, aiBlock);
       const ok = await sendEmail({
         to: recipient,
         subject: `📊 Weekly review — ${built.shipped.length} shipped, ${built.overdue.length} overdue, ${built.nextWeek.length} ahead`,

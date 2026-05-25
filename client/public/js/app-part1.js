@@ -5466,6 +5466,55 @@ function setTaskView(v){
 }
 // Wrapper helpers so the inline tab/scope/priority handlers can persist too.
 function setTaskScope(my){_taskMyOnly=!!my;_persistPageState('tasks',{myOnly:_taskMyOnly});if(typeof renderTasks==='function')renderTasks();}
+
+// ─── Per-source visibility filter (Personal / CF / LSI) ────────────────────
+// Three toggle chips on the Tasks page header. Default: all visible.
+// Persisted in D.prefs.taskSourceFilter. Helper exported as
+// _sourceOn(source) returning bool; consumed by every render path that
+// emits external rows + the native pipeline (when personal is off, native
+// tasks are excluded so the user can zoom into one company at a time).
+function _getSourceFilter(){
+  const f=(D.prefs&&D.prefs.taskSourceFilter)||{};
+  return {
+    personal:f.personal!==false,
+    smartsheet:f.smartsheet!==false,
+    nifty:f.nifty!==false,
+  };
+}
+function _sourceOn(source){
+  const f=_getSourceFilter();
+  if(source==='local'||source==='personal'||source==='native'||!source)return f.personal;
+  if(source==='smartsheet')return f.smartsheet;
+  if(source==='nifty')return f.nifty;
+  return true;
+}
+function toggleSourceFilter(source){
+  D.prefs=D.prefs||{};
+  const cur=_getSourceFilter();
+  const key=source==='personal'?'personal':source;
+  cur[key]=!cur[key];
+  // Don't allow all three off — would be a confusing empty state.
+  if(!cur.personal&&!cur.smartsheet&&!cur.nifty){toast({type:'warn',title:'At least one source must stay on',duration:2000});return;}
+  D.prefs.taskSourceFilter=cur;
+  save('prefs');
+  if(typeof renderTasks==='function')renderTasks();
+}
+function _renderSourceFilterChips(){
+  const f=_getSourceFilter();
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
+  const cfCount=ext.filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
+  const lsiCount=ext.filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
+  // Hide CF/LSI chips when those sources have no data — keeps the UI clean
+  // for users who haven't connected them.
+  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${key}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
+  const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
+  return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0">
+    <span style="font-size:9px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
+    ${chip(true,f.personal,'var(--ac)','Personal',personalCount,'personal')}
+    ${cfCount?chip(true,f.smartsheet,'#1f6feb','CF',cfCount,'smartsheet'):''}
+    ${lsiCount?chip(true,f.nifty,'#9333ea','LSI',lsiCount,'nifty'):''}
+  </div>`;
+}
 function setTaskTabIdx(idx){_taskFilterTabIdx=idx;if(_taskTabDefs[idx])_taskFilter=_taskTabDefs[idx].filter;_persistPageState('tasks',{tabIdx:idx});renderCurrentTaskView();}
 function setTaskPriorityFilter(v){_taskPriorityFilter=v||'All';_persistPageState('tasks',{priority:_taskPriorityFilter});renderCurrentTaskView();}
 // J: persistent group-by selection for the List view.
@@ -5555,7 +5604,7 @@ function _tlResizeEnd(){
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let filtered=D.tasks.filter(_taskFilter);
+  let filtered=_sourceOn('personal')?D.tasks.filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
@@ -5565,7 +5614,7 @@ function renderTaskList(){
     const today=_todayStr;
     const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
     const extShaped=D.externalTasks
-      .filter(t=>!(t.override&&t.override.tombstoned)&&!isExtDone(t))
+      .filter(t=>!(t.override&&t.override.tombstoned)&&!isExtDone(t)&&_sourceOn(t.source))
       .map(et=>{
         const ov=et.override||{};
         const due=ov.localDue||et.due||'';
@@ -5940,13 +5989,13 @@ function renderTaskBoard(){
     {id:'dn',label:'Done',status:'Done',color:'var(--ok)'},
     {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
   ];
-  let tasks=D.tasks;
+  let tasks=_sourceOn('personal')?D.tasks:[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // External tasks → stay on the rail/Today rollups when this view is "My
   // tasks only" (they aren't yours by createdBy). Otherwise inject as
   // read-only cards into the column matching their status.
-  const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)):[];
+  const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&_sourceOn(t.source)):[];
   const colHtml=cols.map(col=>{
     const colTasks=tasks.filter(t=>t.status===col.status);
     const extInCol=extTasks.filter(et=>_extStatusToBoardCol(et.status)===col.status);
@@ -6009,7 +6058,7 @@ function renderTaskBoard(){
 function renderTaskMatrix(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
+  let tasks=_sourceOn('personal')?D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday'):[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // Effort: 1=Low(estimatedMins<=30), 2=Med(<=90), 3=High(>90) | Impact: High=3, Medium=2, Low=1
@@ -6034,7 +6083,7 @@ function renderTaskMatrix(){
   // them separately by their override.localPriority if set, otherwise drop
   // them into q2 ("Plan") — outline-style work usually isn't quick.
   const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))
-    ?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&!/(^|\s)(done|complete|closed|cancell?ed)/i.test(t.status||'')):[];
+    ?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&!/(^|\s)(done|complete|closed|cancell?ed)/i.test(t.status||'')&&_sourceOn(t.source)):[];
   extTasks.forEach(et=>{
     const ov=et.override||{};
     const pri=ov.localPriority||et.priority||'Medium';
@@ -6120,7 +6169,7 @@ function _mtxDrop(e,targetPriority,targetMins){
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'}));
+  let tasks=_sourceOn('personal')?D.tasks.filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'})):[];
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // Overlay external tasks with dates (localDue overrides, or source-provided
@@ -6131,6 +6180,7 @@ function renderTaskGantt(){
     D.externalTasks.forEach(et=>{
       if(et.override&&et.override.tombstoned)return;
       if(isDone(et))return;
+      if(!_sourceOn(et.source))return;
       const due=(et.override&&et.override.localDue)||et.due;
       const start=et.startDate||due;
       if(!due&&!start)return;
@@ -6326,7 +6376,7 @@ function _taskCalToday(){_taskCalCursor=_todayStr.slice(0,7);renderCurrentTaskVi
 function renderTaskCalendar(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let filtered=D.tasks.filter(_taskFilter);
+  let filtered=_sourceOn('personal')?D.tasks.filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   const cur=_taskCalCursor||_todayStr.slice(0,7);
@@ -6366,6 +6416,7 @@ function renderTaskCalendar(){
     D.externalTasks.forEach(et=>{
       if(et.override&&et.override.tombstoned)return;
       if(isDone(et))return;
+      if(!_sourceOn(et.source))return;
       const k=(et.override&&et.override.localDue)||et.due||et.startDate;
       if(!k)return;
       (byDay[k]=byDay[k]||[]).push({
@@ -6454,7 +6505,10 @@ function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
   // Apply scope (My Items / All Items) to the entire universe of tasks first.
-  const universe=_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks;
+  // When Personal source filter is off, the native cluster cards collapse to
+  // empty groups (the external pseudo-clusters still show below per their
+  // own filter).
+  const universe=_sourceOn('personal')?(_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks):[];
   // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) and priority filter.
   let visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   visible=_applyPriorityFilter(visible);
@@ -6592,6 +6646,7 @@ function _renderExternalClusterCards(){
     {key:'nifty',     label:'LSI Media · NiftyPM',       accent:'#9333ea',icon:'💜'},
   ];
   return sources.map(src=>{
+    if(!_sourceOn(src.key))return '';
     const rows=ext.filter(t=>t.source===src.key);
     if(!rows.length)return '';
     const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
@@ -6922,6 +6977,7 @@ function _renderExternalTasksRailWidget(){
   const relevant=ext.filter(t=>{
     if(t.override&&t.override.tombstoned)return false;
     if(isDone(t))return false;
+    if(!_sourceOn(t.source))return false;
     const due=(t.override&&t.override.localDue)||t.due;
     if(!due)return true;
     return due<=horizonKey;
@@ -7282,6 +7338,7 @@ function renderTasks(){
     if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
     return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
   })()}</div>
+  ${_renderSourceFilterChips()}
   ${(()=>{
     // N: AI Today's Plan banner — only shown when the active filter is the Today tab
     const isToday=_taskTabDefs[1]&&_taskFilter===_taskTabDefs[1].filter;
@@ -10273,9 +10330,18 @@ function renderProjectsGantt(header){
     const ms=Array.isArray(p.milestones)?p.milestones:[];
     const msMarks=ms.map(m=>{const d=parseDate(m.date||m.due);if(!d)return '';const mp=pct(d);const od=!m.done&&(m.date||m.due)&&(m.date||m.due)<_todayStr;return `<div title="${esc(m.title||m.name||'milestone')} · ${m.date||m.due||''}${od?' · overdue':''}" style="position:absolute;left:${mp}%;top:50%;transform:translate(-50%,-50%) rotate(45deg);width:9px;height:9px;background:${m.done?'var(--ok)':od?'var(--red)':'var(--s1)'};border:2px solid ${m.done?'var(--ok)':od?'var(--red)':p.color};border-radius:2px;z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`;}).join('');
     const hp=projectHealth(p);
+    // External-tasks count for this project (linked via override.localProjectId).
+    const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
+      const ov2=t.override;return ov2&&String(ov2.localProjectId||'')===String(p.id)&&!ov2.tombstoned;
+    });
+    const cfN=extLinked.filter(t=>t.source==='smartsheet').length;
+    const lsiN=extLinked.filter(t=>t.source==='nifty').length;
+    const extBadge=extLinked.length
+      ?`<span title="${cfN?cfN+' CF':''}${cfN&&lsiN?' · ':''}${lsiN?lsiN+' LSI':''} external task${extLinked.length===1?'':'s'} linked" style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--s3);color:var(--t2);margin-left:4px">${cfN?`<span style="color:#1f6feb">${cfN}CF</span>`:''}${cfN&&lsiN?'·':''}${lsiN?`<span style="color:#9333ea">${lsiN}LSI</span>`:''}</span>`
+      :'';
     return`<div class="gantt-row" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--bd1);border-radius:7px">
       <div style="width:170px;flex-shrink:0;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${p.id})" title="${esc(p.name)} · ${hp.label}">
-        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:5px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}
+        <span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block;margin-right:5px"></span>${p.pinned?'<span style="color:var(--warn);margin-right:3px">★</span>':''}${esc(p.name)}${extBadge}
       </div>
       <div style="flex:1;position:relative;height:22px;background:var(--s3);border-radius:6px;overflow:hidden">
         ${markerHtml}
