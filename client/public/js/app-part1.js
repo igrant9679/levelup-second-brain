@@ -6877,15 +6877,36 @@ function _renderExternalClusterCards(){
     let subtitle=`${doneN} of ${total} task${total!==1?'s':''} · from source`;
     if(overdue>0)subtitle+=` · <span style="color:var(--red);font-weight:600">${overdue} overdue</span>`;
     const pct=total?Math.round((doneN/total)*100):0;
-    const taskRows=open.slice(0,40).map(t=>{
+    // Build a depth map for Smartsheet sub-row hierarchy: walk up
+    // parentExternalId chain to count ancestors in the open set. Indent
+    // visually so sheet hierarchy mirrors the source's row indenting.
+    const byExtId=new Map(open.map(t=>[String(t.externalId),t]));
+    const depthOf=(t,seen)=>{
+      const pid=t.parentExternalId;if(!pid)return 0;
+      if(seen&&seen.has(String(pid)))return 0;
+      const parent=byExtId.get(String(pid));if(!parent)return 0;
+      const s=seen||new Set();s.add(String(t.externalId));
+      return 1+depthOf(parent,s);
+    };
+    // Sort by Smartsheet rowNumber so parents appear before children.
+    const sorted=open.slice().sort((a,b)=>{
+      let ra=0,rb=0;
+      try{ra=(JSON.parse(a.raw||'{}').rowNumber)||0;}catch{}
+      try{rb=(JSON.parse(b.raw||'{}').rowNumber)||0;}catch{}
+      return ra-rb;
+    });
+    const taskRows=sorted.slice(0,40).map(t=>{
       const due=(t.override&&t.override.localDue)||t.due;
       const overdueRow=due&&due<today;
       const myDay=t.override&&t.override.myDay;
       const url=t.externalUrl||'#';
       const dueLabel=due?_relDue(due):'';
-      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
-        <span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
-        <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:500;color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
+      const depth=Math.min(depthOf(t,null),4);
+      const indent=56+depth*16;
+      const hierBadge=depth>0?`<span title="Subtask depth ${depth}" style="font-size:10px;color:var(--t3);margin-right:2px">↳</span>`:'';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px ${indent}px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},${(0.04+depth*0.02).toFixed(2)})">
+        ${hierBadge}<span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
+        <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:${depth?400:500};color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
         ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
@@ -7233,12 +7254,90 @@ function _renderExternalTasksRailWidget(){
       <div style="display:flex;gap:3px">
         <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="_extBulkMyDay(true)" title="Add visible items to My Day">+☀ All</button>
         <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="_extBulkMyDay(false)" title="Clear My Day flag on visible items">✕☀</button>
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="_extBulkStatusMenu(event)" title="Set status on visible items">⚙</button>
         <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
       </div>
     </div>
     <div style="font-size:9px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
     ${rows}
   </div>`;
+}
+
+// Bulk status change for all visible rail items. Opens a popover with the
+// union of valid status options across all watches in the visible set;
+// applies to every visible task (uses queue mode if enabled, otherwise
+// fires each push back-to-back). Same horizon filter as the rail.
+function _extBulkStatusMenu(event){
+  if(event){event.stopPropagation();event.preventDefault();}
+  document.querySelectorAll('[data-ext-bulk-status-pop]').forEach(el=>el.remove());
+  const btn=event&&event.currentTarget;if(!btn)return;
+  const rect=btn.getBoundingClientRect();
+  const pop=document.createElement('div');
+  pop.setAttribute('data-ext-bulk-status-pop','1');
+  pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-260)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:240px`;
+  pop.innerHTML='<div style="font-size:10px;color:var(--t3);padding:2px 6px 6px">Loading…</div>';
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
+  (async()=>{
+    // Find visible items + which watches they belong to.
+    const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
+    const today=new Date().toISOString().slice(0,10);
+    const horizon=new Date();horizon.setDate(horizon.getDate()+7);
+    const horizonKey=horizon.toISOString().slice(0,10);
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const visible=ext.filter(t=>{
+      if(t.override&&t.override.tombstoned)return false;
+      if(isDone(t))return false;
+      const due=(t.override&&t.override.localDue)||t.due;
+      if(!due)return true;
+      return due<=horizonKey;
+    });
+    if(!visible.length){pop.innerHTML='<div style="padding:6px;font-size:11px;color:var(--t3)">Nothing visible to act on.</div>';return;}
+    // Collect unique watch IDs grouped by source.
+    const ssWatchIds=Array.from(new Set(visible.filter(t=>t.source==='smartsheet').map(t=>t.sourceConfigId)));
+    const nfWatchIds=Array.from(new Set(visible.filter(t=>t.source==='nifty').map(t=>t.sourceConfigId)));
+    // Fetch status options from each watch and INTERSECT to find common
+    // values. If there's no intersection, fall back to UNION + show source
+    // labels next to each option.
+    const ssOpts=[];for(const id of ssWatchIds){try{const r=await _trpc('externalSources.smartsheetStatusOptions',{watchId:id},'query');ssOpts.push(r.options||[]);}catch{ssOpts.push([]);}}
+    const nfOpts=[];for(const id of nfWatchIds){try{const r=await _trpc('externalSources.niftyStatusOptions',{watchId:id},'query');nfOpts.push(r.options||[]);}catch{nfOpts.push([]);}}
+    const ssCommon=ssOpts.length?ssOpts.reduce((a,b)=>a.filter(v=>b.includes(v))):[];
+    const nfCommon=nfOpts.length?nfOpts.reduce((a,b)=>a.filter(v=>b.includes(v))):[];
+    // Build menu sections per source.
+    const sections=[];
+    if(ssCommon.length){sections.push(`<div style="font-size:9px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">CF · Set ${visible.filter(t=>t.source==='smartsheet').length} Smartsheet row${visible.filter(t=>t.source==='smartsheet').length===1?'':'s'} to:</div>`+ssCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="smartsheet" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(nfCommon.length){sections.push(`<div style="font-size:9px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">LSI · Set ${visible.filter(t=>t.source==='nifty').length} Nifty task${visible.filter(t=>t.source==='nifty').length===1?'':'s'} to:</div>`+nfCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="nifty" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(!sections.length){pop.innerHTML='<div style="padding:8px;font-size:11px;color:var(--warn)">No common status options found across the visible items\' source watches. Configure the statusColumn on each watch first.</div>';return;}
+    pop.innerHTML=sections.join('');
+    pop.querySelectorAll('button[data-status]').forEach(b=>{
+      b.onclick=async(e)=>{
+        e.stopPropagation();
+        const src=b.getAttribute('data-source');
+        const val=b.getAttribute('data-status');
+        pop.remove();
+        const targets=visible.filter(t=>t.source===src);
+        if(!confirm(`Set ${targets.length} ${src==='smartsheet'?'Smartsheet':'Nifty'} row${targets.length===1?'':'s'} to "${val}"?\n\n(${_isQueueMode()?'Will queue — click Push in topbar to flush.':'Will push to source immediately.'})`))return;
+        toast({type:'info',title:`${_isQueueMode()?'Queuing':'Pushing'} ${targets.length}…`,duration:1500});
+        let ok=0,failed=0;
+        for(const t of targets){
+          try{
+            if(_isQueueMode()){
+              await _trpc('externalSources.upsertOverride',{source:src,externalId:t.externalId,pendingStatus:val},'mutation');
+            }else{
+              const proc=src==='smartsheet'?'externalSources.smartsheetSetRowStatus':'externalSources.niftySetTaskStatus';
+              const payload=src==='smartsheet'?{externalId:t.externalId,status:val}:{externalId:t.externalId,statusName:val};
+              await _trpc(proc,payload,'mutation');
+            }
+            ok++;
+          }catch{failed++;}
+        }
+        await loadExternalTasks();
+        await _refreshPendingCount();
+        if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+        toast({type:failed?'warn':'success',title:_isQueueMode()?`Queued ${ok}${failed?` · ${failed} failed`:''}`:`Pushed ${ok}${failed?` · ${failed} failed`:''}`});
+      };
+    });
+  })();
 }
 
 // Bulk My-Day flag for all external tasks currently in the rail window.
@@ -10490,9 +10589,92 @@ function openProjectDetail(pid){
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
+    <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
   </div>`;
   ov.classList.add('show');
+}
+
+// ─── AI Project Status Update Generator ─────────────────────────────────────
+// Reads the project's tasks (native + linked external), recent completions,
+// upcoming work, then asks the AI for a stakeholder-ready summary in 4
+// sections: Shipped / In Progress / Blocked or At Risk / Coming Next.
+// Modal shows the result with copy-to-clipboard.
+async function _aiProjectStatusUpdate(pid){
+  const p=(D.projects||[]).find(x=>x.id===pid);
+  if(!p)return;
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
+  modal.innerHTML=`<div style="padding:14px;max-width:640px"><div style="font-size:13px;font-weight:600;margin-bottom:6px">✨ Generating status update for "${esc(p.name)}"…</div><div style="font-size:11px;color:var(--t3)">Reading tasks, recent completions, and upcoming work — usually takes ~10s.</div></div>`;
+  modalBg.classList.add('show');
+  try{
+    const today=_todayStr;
+    const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkStartStr=wkStart.toISOString().slice(0,10);
+    const horizon=new Date();horizon.setDate(horizon.getDate()+14);const horizonStr=horizon.toISOString().slice(0,10);
+    // Native tasks scoped to this project
+    const nativePts=_topLevelTasks(D.tasks).filter(t=>t.projectId===pid);
+    // External tasks linked to this project
+    const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
+      const ov=t.override;return ov&&String(ov.localProjectId||'')===String(pid)&&!ov.tombstoned;
+    });
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const shipped=[
+      ...nativePts.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=wkStartStr).map(t=>({src:'P',t:t.title,when:(t.completedAt||'').slice(0,10)})),
+      ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(new Date(t.completedAt).toISOString().slice(0,10))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,when:new Date(t.completedAt).toISOString().slice(0,10)})),
+    ];
+    const inProg=[
+      ...nativePts.filter(t=>t.status==='In Progress').map(t=>({src:'P',t:t.title,due:t.due||null,priority:t.priority||null})),
+      ...extLinked.filter(t=>!isExtDone(t)&&/(in.?progress|doing|active|working)/i.test(t.status||'')).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due||null,priority:(t.override&&t.override.localPriority)||t.priority||null})),
+    ];
+    const blocked=nativePts.filter(t=>t.status!=='Done'&&(t.blockedBy||t.status==='On Hold'||/blocked|on.?hold|delayed/i.test(t.notes||''))).map(t=>({src:'P',t:t.title,why:t.blockedBy?'predecessor incomplete':t.status||'flagged'}));
+    const overdue=[
+      ...nativePts.filter(t=>t.status!=='Done'&&t.due&&t.due<today).map(t=>({src:'P',t:t.title,due:t.due})),
+      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)<today)).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due})),
+    ];
+    const upcoming=[
+      ...nativePts.filter(t=>t.status!=='Done'&&t.due&&t.due>=today&&t.due<=horizonStr).map(t=>({src:'P',t:t.title,due:t.due})),
+      ...extLinked.filter(t=>!isExtDone(t)&&((t.override&&t.override.localDue)||t.due)&&(((t.override&&t.override.localDue)||t.due)>=today)&&(((t.override&&t.override.localDue)||t.due)<=horizonStr)).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,due:(t.override&&t.override.localDue)||t.due})),
+    ];
+    const totalDone=nativePts.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
+    const totalAll=nativePts.length+extLinked.length;
+    const pctNow=totalAll?Math.round(totalDone/totalAll*100):0;
+    const compact={project:p.name,owner:p.owner,due:p.due,description:p.desc||'',pct:pctNow,totalTasks:totalAll,doneTasks:totalDone,shipped:shipped.slice(0,25),inProgress:inProg.slice(0,25),blockedOrAtRisk:blocked.concat(overdue).slice(0,15),upcoming:upcoming.slice(0,20)};
+    const sys=`You are writing a project status update for a COO/CEO to share with executive stakeholders. Read the project data and produce a concise, professional status update with exactly these sections (use ## headings, plain markdown):
+
+## Headline
+One short sentence ($pct% complete framing) capturing overall health and momentum.
+
+## Shipped this week
+Bulleted list of the most meaningful completions (3-6 items max). Group [CF]/[LSI] tags when relevant.
+
+## In progress
+Bulleted list of active work (3-6 items). Note urgency.
+
+## Risks & blockers
+Bulleted list of overdue items, on-hold work, dependencies. If none: write "None flagged this week — green health."
+
+## Coming next (2 weeks)
+Bulleted list of the most important upcoming items (3-6 max).
+
+Tone: factual, exec-ready, no fluff. Reference real task titles. No more than 250 words total. No greeting, no signoff.`;
+    const {provider,apiKey}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',apiKey:''};
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(compact),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim()||'(AI returned empty — check your AI key in Settings → AI Features.)';
+    modal.innerHTML=`<div style="padding:14px;max-width:680px;max-height:80vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:600">✨ Status Update — ${esc(p.name)}</div>
+        <button class="btn btn-s" style="font-size:10px" onclick="navigator.clipboard.writeText(document.getElementById('ai-status-text').innerText);toast({type:'success',title:'Copied to clipboard'})">📋 Copy</button>
+      </div>
+      <div id="ai-status-text" style="flex:1;overflow-y:auto;padding:12px;background:var(--s2);border-radius:6px;font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(text)}</div>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px">
+        <button class="btn btn-s" onclick="_aiProjectStatusUpdate(${pid})">↻ Regenerate</button>
+        <button class="btn btn-p" onclick="closeModal()">Done</button>
+      </div>
+    </div>`;
+  }catch(e){
+    modal.innerHTML=`<div style="padding:14px;max-width:480px"><div style="color:var(--red);font-size:11px;margin-bottom:10px">Generation failed: ${esc(e.message||String(e))}</div><button class="btn" onclick="closeModal()">Close</button></div>`;
+  }
 }
 
 // ─── Project Edit Drawer: Tasks section ────────────────────────────────────
