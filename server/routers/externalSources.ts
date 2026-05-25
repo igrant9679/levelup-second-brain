@@ -423,6 +423,7 @@ export const externalSourcesRouter = router({
       localNote: z.string().nullable().optional(),
       localTags: z.string().max(512).nullable().optional(),
       localDue: z.string().max(32).nullable().optional(),
+      localProjectId: z.string().max(40).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
@@ -432,6 +433,7 @@ export const externalSourcesRouter = router({
       if (input.localNote !== undefined) set.localNote = input.localNote;
       if (input.localTags !== undefined) set.localTags = input.localTags;
       if (input.localDue !== undefined) set.localDue = input.localDue;
+      if (input.localProjectId !== undefined) set.localProjectId = input.localProjectId;
 
       await db.insert(externalTaskOverrides).values({
         userId: ctx.user.id,
@@ -442,7 +444,32 @@ export const externalSourcesRouter = router({
         localNote: input.localNote ?? null,
         localTags: input.localTags ?? null,
         localDue: input.localDue ?? null,
+        localProjectId: input.localProjectId ?? null,
       }).onDuplicateKeyUpdate({ set });
       return { success: true };
+    }),
+
+  /**
+   * Bulk-link external tasks to a LevelUp project. Accepts an array of
+   * {source, externalId} pairs so a multi-select picker can save in one call.
+   * Pass projectId=null to unlink.
+   */
+  setProjectLinks: protectedProcedure
+    .input(z.object({
+      projectId: z.string().max(40).nullable(),
+      tasks: z.array(z.object({ source: sourceEnum, externalId: z.string() })).max(500),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      for (const t of input.tasks) {
+        await db.insert(externalTaskOverrides).values({
+          userId: ctx.user.id,
+          source: t.source,
+          externalId: t.externalId,
+          myDay: 0,
+          localProjectId: input.projectId,
+        }).onDuplicateKeyUpdate({ set: { localProjectId: input.projectId } });
+      }
+      return { success: true, count: input.tasks.length };
     }),
 });

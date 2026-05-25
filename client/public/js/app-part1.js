@@ -6877,6 +6877,13 @@ function _openExternalAnnotateModal(source,externalId){
       </div>
     </div>
     <div style="margin-bottom:8px">
+      <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Link to LevelUp project</div>
+      <select id="ext-ann-project" class="inp" style="width:100%;font-size:11px">
+        <option value="">(not linked)</option>
+        ${(D.projects||[]).map(p=>`<option value="${p.id}" ${String(ov.localProjectId||'')===String(p.id)?'selected':''}>${esc(p.name||'(untitled project)')}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:8px">
       <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local tags (comma-separated)</div>
       <input id="ext-ann-tags" class="inp" style="width:100%;font-size:11px" placeholder="follow-up, blocker, this-week" value="${esc(ov.localTags||'')}">
     </div>
@@ -6902,12 +6909,14 @@ async function _saveExternalAnnotations(source,externalId){
     const due=document.getElementById('ext-ann-due').value;
     const tags=document.getElementById('ext-ann-tags').value;
     const note=document.getElementById('ext-ann-note').value;
+    const projectId=document.getElementById('ext-ann-project').value;
     await _trpc('externalSources.upsertOverride',{
       source,externalId,
       localPriority:priority||null,
       localDue:due||null,
       localTags:tags||null,
       localNote:note||null,
+      localProjectId:projectId||null,
     },'mutation');
     closeModal();
     toast({type:'success',title:'Annotations saved'});
@@ -6917,11 +6926,11 @@ async function _saveExternalAnnotations(source,externalId){
 }
 
 async function _clearExternalAnnotations(source,externalId){
-  if(!confirm('Clear local note, tags, priority, and due-date overrides for this task? (Your My Day flag is preserved.)'))return;
+  if(!confirm('Clear local note, tags, priority, due, and project link for this task? (Your My Day flag is preserved.)'))return;
   try{
     await _trpc('externalSources.upsertOverride',{
       source,externalId,
-      localPriority:null,localDue:null,localTags:null,localNote:null,
+      localPriority:null,localDue:null,localTags:null,localNote:null,localProjectId:null,
     },'mutation');
     closeModal();
     toast({type:'success',title:'Overrides cleared'});
@@ -9529,8 +9538,15 @@ function renderProjectsList(header){
   </div>`;
   function projCard(p){
     const pts=D.tasks.filter(t=>t.projectId===p.id);
-    const done=pts.filter(t=>t.status==='Done').length;
+    // Roll external linked tasks into the project totals so cards reflect the
+    // actual work scoped to this project, not just native-task count.
+    const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
+      const ov=t.override;return ov&&String(ov.localProjectId||'')===String(p.id)&&!ov.tombstoned;
+    });
+    const extDone=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';}).length;
+    const done=pts.filter(t=>t.status==='Done').length+extDone;
     const subs=pts.flatMap(t=>t.subtasks||[]);
+    const totalTasks=pts.length+extLinked.length;
     const health=projectHealth(p);
     const pct=Math.max(0,Math.min(100,p.pct||0));
     const ms=Array.isArray(p.milestones)?p.milestones:[];
@@ -9554,7 +9570,7 @@ function renderProjectsList(header){
       <div class="pc-mid">
         <div class="pc-ring" style="${ring}"><div class="pc-ring-in">${pct}%</div></div>
         <div class="pc-stats">
-          <div>${pts.length?`<b>${done}</b>/${pts.length} tasks done`:'<span style="color:var(--t3)">No linked tasks</span>'}</div>
+          <div>${totalTasks?`<b>${done}</b>/${totalTasks} tasks done${extLinked.length?` <span style="font-size:9px;color:var(--t3)" title="${extLinked.length} from external sources">(+${extLinked.length} ext)</span>`:''}`:'<span style="color:var(--t3)">No linked tasks</span>'}</div>
           <div><b>${subs.filter(s=>s.done).length}</b>/${subs.length} subtasks</div>
           ${ms.length?`<div><b>${msDone}</b>/${ms.length} milestones</div>`:'<div style="color:var(--t3)">No milestones</div>'}
         </div>
@@ -9669,12 +9685,156 @@ function openProjectDetail(pid){
   ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
   <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Tasks (${pts.length}) · ${subs.filter(s=>s.done).length}/${subs.length} subtasks</div>
   ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
-  <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0">
+  ${_renderLinkedExternalTasksSection(pid)}
+  <div style="display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;background:var(--s1);padding:10px 0;flex-wrap:wrap">
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
+    <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
   </div>`;
   ov.classList.add('show');
+}
+
+// External-task section on the project detail drawer. Renders rows for any
+// external task whose override.localProjectId matches this project, with
+// source badge + deep-link + unlink button. Empty when no links.
+function _renderLinkedExternalTasksSection(pid){
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks.filter(t=>{
+    const ov=t.override;
+    return ov && String(ov.localProjectId||'')===String(pid) && !ov.tombstoned;
+  }):[];
+  if(!ext.length)return '';
+  const rows=ext.map(t=>{
+    const url=t.externalUrl||'#';
+    const ov=t.override||{};
+    const due=ov.localDue||t.due;
+    return `<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
+      ${_extSourceBadge(t.source)}
+      <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in source" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${due?`<span style="font-size:10px;color:var(--t3);flex-shrink:0">${due}</span>`:''}
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" onclick="_unlinkExternalFromProject('${t.source}','${esc(t.externalId)}',${pid})" title="Unlink from this project">✕</button>
+    </div>`;
+  }).join('');
+  return `<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">🔗 External tasks (${ext.length})</div>${rows}`;
+}
+
+async function _unlinkExternalFromProject(source,externalId,pid){
+  try{
+    await _trpc('externalSources.upsertOverride',{source,externalId,localProjectId:null},'mutation');
+    await loadExternalTasks();
+    openProjectDetail(pid);
+    toast({type:'success',title:'Unlinked'});
+  }catch(e){toast({type:'warn',title:'Unlink failed',msg:e.message||String(e)});}
+}
+
+// ─── External-task picker modal ─────────────────────────────────────────────
+// Multi-select picker for "+ Link external task" on a project. Lists every
+// non-tombstoned external task with a checkbox preselected for ones already
+// linked to THIS project. Filterable by source + search-by-title.
+let _extPickerProjectId=null;
+let _extPickerSourceFilter='all'; // 'all' | 'smartsheet' | 'nifty'
+let _extPickerSearch='';
+function _openExternalTaskPicker(pid){
+  _extPickerProjectId=pid;
+  _extPickerSourceFilter='all';
+  _extPickerSearch='';
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
+  modal.innerHTML=_renderExtPickerHTML();
+  modalBg.classList.add('show');
+}
+function _renderExtPickerHTML(){
+  const pid=_extPickerProjectId;
+  const p=(D.projects||[]).find(x=>String(x.id)===String(pid));
+  const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned));
+  const q=_extPickerSearch.toLowerCase();
+  const filtered=ext.filter(t=>{
+    if(_extPickerSourceFilter!=='all'&&t.source!==_extPickerSourceFilter)return false;
+    if(q&&!(t.title||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+  const linkedSet=new Set(ext.filter(t=>t.override&&String(t.override.localProjectId||'')===String(pid)).map(t=>t.source+':'+t.externalId));
+  const rows=filtered.slice(0,300).map(t=>{
+    const key=t.source+':'+t.externalId;
+    const linked=linkedSet.has(key);
+    const otherProj=t.override&&t.override.localProjectId&&String(t.override.localProjectId)!==String(pid);
+    const otherProjName=otherProj?((D.projects||[]).find(p=>String(p.id)===String(t.override.localProjectId))?.name||'another project'):'';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid var(--bd1);font-size:11px;cursor:pointer">
+      <input type="checkbox" data-ext-pick-key="${esc(key)}" data-source="${t.source}" data-external-id="${esc(t.externalId)}" ${linked?'checked':''}>
+      ${_extSourceBadge(t.source)}
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
+      ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:9px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
+    </label>`;
+  }).join('');
+  const tooMany=filtered.length>300?`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">… showing first 300 of ${filtered.length}. Use search to narrow.</div>`:'';
+  return `<div style="padding:14px;max-width:680px;max-height:80vh;display:flex;flex-direction:column">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Link external tasks to <em>${esc(p?p.name:'project')}</em></div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Check tasks to include them on this project's page. Unchecking removes the link (the task itself stays in its source).</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:10px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${s}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
+      <input id="ext-pick-search" class="inp" placeholder="Search title…" style="flex:1;font-size:11px;height:26px" value="${esc(_extPickerSearch)}" oninput="_extPickerSearch=this.value;document.getElementById('ext-pick-results').innerHTML=_renderExtPickerRows();setTimeout(()=>document.getElementById('ext-pick-search').focus(),0)">
+    </div>
+    <div id="ext-pick-results" style="flex:1;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px">${rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>'}${tooMany}</div>
+    <div style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_saveExternalTaskPicker()">Save links</button>
+    </div>
+  </div>`;
+}
+// Lighter re-render for the search input (preserves focus + scroll)
+function _renderExtPickerRows(){
+  const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned));
+  const q=_extPickerSearch.toLowerCase();
+  const pid=_extPickerProjectId;
+  const filtered=ext.filter(t=>{
+    if(_extPickerSourceFilter!=='all'&&t.source!==_extPickerSourceFilter)return false;
+    if(q&&!(t.title||'').toLowerCase().includes(q))return false;
+    return true;
+  });
+  const linkedSet=new Set(ext.filter(t=>t.override&&String(t.override.localProjectId||'')===String(pid)).map(t=>t.source+':'+t.externalId));
+  const rows=filtered.slice(0,300).map(t=>{
+    const key=t.source+':'+t.externalId;
+    const linked=linkedSet.has(key);
+    const otherProj=t.override&&t.override.localProjectId&&String(t.override.localProjectId)!==String(pid);
+    const otherProjName=otherProj?((D.projects||[]).find(p=>String(p.id)===String(t.override.localProjectId))?.name||'another project'):'';
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px;border-bottom:1px solid var(--bd1);font-size:11px;cursor:pointer">
+      <input type="checkbox" data-ext-pick-key="${esc(key)}" data-source="${t.source}" data-external-id="${esc(t.externalId)}" ${linked?'checked':''}>
+      ${_extSourceBadge(t.source)}
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
+      ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:9px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
+    </label>`;
+  }).join('');
+  return rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>';
+}
+
+async function _saveExternalTaskPicker(){
+  const pid=_extPickerProjectId;
+  // Compute desired diff: what's checked now vs the user's current localProjectId state.
+  const allCheckboxes=document.querySelectorAll('[data-ext-pick-key]');
+  const toLink=[];
+  const toUnlink=[];
+  const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
+  const currentlyLinked=new Set(ext.filter(t=>t.override&&String(t.override.localProjectId||'')===String(pid)).map(t=>t.source+':'+t.externalId));
+  allCheckboxes.forEach(cb=>{
+    const key=cb.getAttribute('data-ext-pick-key');
+    const source=cb.getAttribute('data-source');
+    const externalId=cb.getAttribute('data-external-id');
+    if(cb.checked&&!currentlyLinked.has(key))toLink.push({source,externalId});
+    else if(!cb.checked&&currentlyLinked.has(key))toUnlink.push({source,externalId});
+  });
+  if(!toLink.length&&!toUnlink.length){closeModal();toast({type:'info',title:'No changes'});return;}
+  try{
+    if(toLink.length)await _trpc('externalSources.setProjectLinks',{projectId:String(pid),tasks:toLink},'mutation');
+    if(toUnlink.length)await _trpc('externalSources.setProjectLinks',{projectId:null,tasks:toUnlink},'mutation');
+    closeModal();
+    toast({type:'success',title:`Updated ${toLink.length+toUnlink.length} link${toLink.length+toUnlink.length===1?'':'s'}`});
+    await loadExternalTasks();
+    openProjectDetail(pid);
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 function renderProjectsKanban(header){
   const cols=['Not Started','In Progress','On Hold','Completed'];

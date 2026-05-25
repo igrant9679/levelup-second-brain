@@ -818,12 +818,19 @@ export const externalTaskOverrides = mysqlTable('external_task_overrides', {
   localNote: mediumtext('localNote'),
   localTags: varchar('localTags', { length: 512 }),
   localDue: varchar('localDue', { length: 32 }),
+  // Migration 0034: pin an external task to a LevelUp Project so it appears
+  // on that project's view alongside native tasks. String to match
+  // projects.id (which lives inside the projects JSON blob and uses numeric
+  // ids — stored as string here to tolerate both legacy numeric and any
+  // future string ids).
+  localProjectId: varchar('localProjectId', { length: 40 }),
   tombstoned: tinyint('tombstoned').default(0).notNull(),
   tombstonedAt: timestamp('tombstonedAt'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUser: index('idx_ext_override_user').on(t.userId),
+  idxProj: index('idx_ext_override_proj').on(t.userId, t.localProjectId),
   uqUserSourceId: unique('uq_ext_override_user_source_id').on(t.userId, t.source, t.externalId),
 }));
 export type ExternalTaskOverride = typeof externalTaskOverrides.$inferSelect;

@@ -239,6 +239,13 @@
       "when": 1780020000000,
       "tag": "0033_nifty_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1780100000000,
+      "tag": "0034_external_task_project_link",
+      "breakpoints": true
     }
   ]
 }
