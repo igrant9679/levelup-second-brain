@@ -232,13 +232,16 @@ function detectPipelineColumns(columns: SsColumn[]): {
   contactColId?: number;
   probabilityColId?: number;
 } {
-  const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage)$/i;
-  const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?)\s+)?(value|amount)$|^(acv|tcv|arr|mrr)$/i;
-  const closeRe = /^(expected\s+|target\s+)?close(\s+date)?$/i;
-  const accountRe = /^(account|account\s+name|customer|company|client)(\s+name)?$/i;
-  const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep)$/i;
+  // Broader regex set — accommodates federal-contracting style sheets
+  // ("Phase" / "Pursuit Stage" / "Award Value") in addition to typical
+  // SaaS CRM column names.
+  const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
+  const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i;
+  const closeRe = /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
+  const accountRe = /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i;
+  const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i;
   const contactRe = /^(contact|primary\s+contact|lead|poc)$/i;
-  const probRe = /^(probability|win\s*%|confidence|prob)$/i;
+  const probRe = /^(probability|win\s*%|confidence|prob|p\s*win)$/i;
   let stageColId: number | undefined;
   let valueColId: number | undefined;
   let closeColId: number | undefined;

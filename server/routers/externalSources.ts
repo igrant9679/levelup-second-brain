@@ -554,6 +554,60 @@ export const externalSourcesRouter = router({
    * regardless of how LevelUp has it stored. Also reports the in-DB row so
    * we can see if it's stale / removedAt-stamped.
    */
+  /**
+   * Inspect a Smartsheet's column schema + show whether each column would
+   * match the pipeline detector. Use when "I added the sheet but no opps
+   * appeared" to see exactly which column the adapter is looking for.
+   */
+  smartsheetInspectSheet: protectedProcedure
+    .input(z.object({ sheetConfigId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cfg] = await db.select().from(smartsheetWatchedSheets)
+        .where(and(eq(smartsheetWatchedSheets.userId, ctx.user.id), eq(smartsheetWatchedSheets.id, input.sheetConfigId)))
+        .limit(1);
+      if (!cfg) throw new TRPCError({ code: 'NOT_FOUND', message: 'Watched sheet not found' });
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'smartsheet')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Smartsheet token' });
+      const { fetchSheet } = await import("../_core/smartsheetAdapter");
+      const sheet = await fetchSheet(cred.apiToken, cfg.sheetId);
+      // Reuse the adapter's regex by re-implementing here (avoid exporting).
+      const tests = [
+        { kind: 'stage', re: /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i },
+        { kind: 'value', re: /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i },
+        { kind: 'close', re: /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i },
+        { kind: 'account', re: /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i },
+        { kind: 'owner', re: /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i },
+        { kind: 'contact', re: /^(contact|primary\s+contact|lead|poc)$/i },
+        { kind: 'probability', re: /^(probability|win\s*%|confidence|prob|p\s*win)$/i },
+      ];
+      const matches: Record<string, string | null> = { stage: null, value: null, close: null, account: null, owner: null, contact: null, probability: null };
+      const allColumns = sheet.columns.map(c => ({
+        id: c.id,
+        title: c.title,
+        type: c.type,
+        matchedAs: tests.find(t => t.re.test(c.title)) ?.kind ?? null,
+      }));
+      for (const c of sheet.columns) {
+        for (const t of tests) {
+          if (!matches[t.kind] && t.re.test(c.title)) {
+            matches[t.kind] = c.title;
+          }
+        }
+      }
+      return {
+        sheetId: cfg.sheetId,
+        sheetName: sheet.name,
+        rowCount: sheet.rows.length,
+        sampleRow: sheet.rows[0] ? { rowNumber: sheet.rows[0].rowNumber, cellTitles: sheet.columns.slice(0, 8).map(c => c.title) } : null,
+        columns: allColumns,
+        pipelineMatches: matches,
+        wouldBePipeline: !!(matches.stage && matches.value),
+      };
+    }),
+
   niftyDebugFindTask: protectedProcedure
     .input(z.object({ titleContains: z.string().min(2) }))
     .mutation(async ({ input, ctx }) => {
