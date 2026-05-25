@@ -815,6 +815,13 @@ body.sb-open .lu-pill-pop{display:none!important}
   .tb-s input{font-size:11px}
   .tb-a{gap:4px}
   .tb-a .bn{padding:0 10px;font-size:11px;height:30px}
+  /* External-sources Sync/Push buttons in the topbar: keep tappable but tight. */
+  #topbar-sync-btn{width:32px;height:32px}
+  #topbar-push-btn{padding:0 8px!important;font-size:10px!important;height:28px!important}
+  /* Settings → Integrations → Automation Rules: rule cards on mobile —
+     the +Edit/✕ buttons crowd the title row. Let them wrap. */
+  #automations-body>div>div{flex-wrap:wrap}
+  #automations-body>div>div>div[style*="flex:1"]{flex-basis:100%}
   /* Page headers reflow tighter */
   .ph-r,.pg-h{padding:0!important}
   .ph-r{flex-direction:column;align-items:stretch!important;gap:8px!important}
@@ -1068,6 +1075,27 @@ body.sb-open .lu-pill-pop{display:none!important}
   #lu-report-print-target>div[style*="repeat(auto-fit,minmax(180px"]{grid-template-columns:1fr!important}
   /* Custom widget grid stacks fully */
   #lu-report-print-target>div[style*="grid-template-columns:repeat(12"]{grid-template-columns:1fr!important}
+  /* Push button: drop the word "Push", keep just the arrow + pending count. */
+  #topbar-push-btn{padding:0 6px!important;font-size:10px!important}
+  /* Status popovers + cluster cards: kept usable on narrow viewports.
+     The popovers used inline left/right positioning that could overflow
+     past the viewport edge — pin them inside. */
+  .ext-status-pop,.task-status-pop{max-width:calc(100vw - 24px)!important;left:12px!important;right:12px!important;width:auto!important}
+  /* Automation editor modal — its inner card is max-width:520px with
+     width:100%, which already fits, but reduce the padding so the form
+     fields don't squeeze on a 360px iPhone SE. */
+  #auto-editor-modal>div{padding:12px!important}
+  #auto-editor-modal h3{font-size:12px!important}
+  /* Automation rule cards: action buttons get their own row below the title
+     row when stacked, so the +Edit/✕ targets are full-width tappable. */
+  #automations-body>div>div>button{flex:1 1 auto;height:30px!important;font-size:10px!important}
+  /* Custom field inputs in task drawer (Phase D): make label + input stack
+     so 2-column rows don't truncate the value. Falls under the existing
+     drawer .field-row rule above, but be explicit for any custom-field
+     blocks that don't use .field-row. */
+  [data-custom-field-row]{flex-direction:column!important;align-items:stretch!important;gap:4px!important}
+  [data-custom-field-row]>label{font-size:10px!important}
+  [data-custom-field-row]>input,[data-custom-field-row]>select,[data-custom-field-row]>textarea{width:100%!important}
 }
 
 /* Tap-delay removal — global. */
@@ -2423,7 +2451,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-25-06';
+  var APP_BUILD='2026-05-25-07';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
