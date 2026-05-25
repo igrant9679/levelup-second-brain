@@ -575,9 +575,9 @@ export const externalSourcesRouter = router({
       const sheet = await fetchSheet(cred.apiToken, cfg.sheetId);
       // Mirrors the adapter's logic — single-stage detection + multi-stage
       // progression detection + opp-name column lookup.
-      const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
-      const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i;
-      const closeRe = /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
+      const stageRe = /^(status|stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
+      const valueRe = /^([\w-]+\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$|potential\s+\$|projected\s+\$|\$\s*amount)$/i;
+      const closeRe = /^(expected\s+|target\s+|exp\s+|projected\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
       const accountRe = /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i;
       const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i;
       const contactRe = /^(contact|primary\s+contact|lead|poc)$/i;

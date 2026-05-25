@@ -273,10 +273,16 @@ function detectPipelineColumns(columns: SsColumn[]): {
 } {
   // Broader regex set — accommodates federal-contracting style sheets
   // ("Phase" / "Pursuit Stage" / "Award Value") in addition to typical
-  // SaaS CRM column names.
-  const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
-  const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i;
-  const closeRe = /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
+  // SaaS CRM column names. "Status" is matched but only triggers pipeline
+  // mode when paired with a Value/Amount column (handled by the singleStage
+  // check below), so a regular task sheet with a Status column won't be
+  // misclassified.
+  const stageRe = /^(status|stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
+  // Value regex now allows ANY word as a prefix (Potential, Estimated,
+  // Contract, Deal, Award, Total, Opportunity, Projected, etc.) plus the
+  // bare forms.
+  const valueRe = /^([\w-]+\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$|potential\s+\$|projected\s+\$|\$\s*amount)$/i;
+  const closeRe = /^(expected\s+|target\s+|exp\s+|projected\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
   const accountRe = /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i;
   const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i;
   const contactRe = /^(contact|primary\s+contact|lead|poc)$/i;

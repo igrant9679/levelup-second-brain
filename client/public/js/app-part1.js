@@ -623,10 +623,21 @@ const _PIPELINE_STAGES=[
   {key:'Qualified',    label:'Qualified',    color:'#3b82f6', probability:25},
   {key:'Proposal',     label:'Proposal',     color:'#a855f7', probability:50},
   {key:'Negotiation',  label:'Negotiation',  color:'#f59e0b', probability:75},
+  {key:'On-Hold',      label:'On-Hold',      color:'#64748b', probability:0},
   {key:'Closed Won',   label:'Closed Won',   color:'#10b981', probability:100, terminal:true, outcome:'won'},
   {key:'Closed Lost',  label:'Closed Lost',  color:'#ef4444', probability:0,   terminal:true, outcome:'lost'},
 ];
-function _stageDef(key){return _PIPELINE_STAGES.find(s=>s.key===key||s.label===key)||_PIPELINE_STAGES[0];}
+// Tolerate slash / hyphen / case variants from Smartsheet picklists.
+//   "Closed/Won"  → matches "Closed Won"
+//   "On Hold"     → matches "On-Hold"
+//   "closed lost" → matches "Closed Lost"
+function _normStage(s){return String(s||'').replace(/[\/_]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
+function _stageDef(key){
+  if(!key)return _PIPELINE_STAGES[0];
+  const norm=_normStage(key);
+  const hit=_PIPELINE_STAGES.find(s=>_normStage(s.key)===norm||_normStage(s.label)===norm);
+  return hit||_PIPELINE_STAGES[0];
+}
 function save(k){localStorage.setItem('lu_'+k,JSON.stringify(D[k]))}
 
 // ─── External tasks (Smartsheet + NiftyPM) ──────────────────────────────────

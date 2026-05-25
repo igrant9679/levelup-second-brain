@@ -209,16 +209,39 @@ async function upsertOpportunitiesForUser(
   // stage rows correctly count as won/lost rather than open. The client's
   // stage button does the same flip — keeping these in sync means a row
   // synced as "Closed Won" lands as status='won' on the first pull.
+  // Normalise stage value so "Closed/Won" / "Closed - Won" / "closed_won"
+  // all collapse to "closed won" for terminal detection.
+  const normStage = (s: string | null | undefined) => String(s || '').replace(/[\/_-]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
   const deriveStatus = (stage: string | null | undefined) => {
-    const s = (stage || '').toLowerCase();
-    if (s === 'closed won') return { status: 'won' as const, wonAt: new Date().toISOString(), lostAt: undefined };
-    if (s === 'closed lost') return { status: 'lost' as const, wonAt: undefined, lostAt: new Date().toISOString() };
+    const s = normStage(stage);
+    if (s === 'closed won' || s === 'won') return { status: 'won' as const, wonAt: new Date().toISOString(), lostAt: undefined };
+    if (s === 'closed lost' || s === 'lost') return { status: 'lost' as const, wonAt: undefined, lostAt: new Date().toISOString() };
     return { status: 'open' as const, wonAt: undefined, lostAt: undefined };
+  };
+
+  // Map any stage value to the canonical client-side stage key so the
+  // Kanban groups consistently (e.g. "Closed/Won" → "Closed Won").
+  const canonicalise = (stage: string | null | undefined): string | null => {
+    if (!stage) return null;
+    const n = normStage(stage);
+    const map: Record<string, string> = {
+      'lead': 'Lead', 'lead gen': 'Lead', 'lead generation': 'Lead', 'prospect': 'Lead', 'prospecting': 'Lead', 'outreach': 'Lead',
+      'qualified': 'Qualified', 'qualification': 'Qualified', 'discovery': 'Qualified', 'presales': 'Qualified', 'pre sales': 'Qualified',
+      'proposal': 'Proposal', 'sales': 'Proposal', 'quote': 'Proposal', 'pricing': 'Proposal',
+      'negotiation': 'Negotiation', 'negotiating': 'Negotiation', 'negotiate': 'Negotiation', 'contract': 'Negotiation', 'redlines': 'Negotiation', 'red lines': 'Negotiation',
+      'on hold': 'On-Hold', 'hold': 'On-Hold', 'paused': 'On-Hold',
+      'closed won': 'Closed Won', 'won': 'Closed Won', 'delivery': 'Closed Won', 'delivered': 'Closed Won', 'launched': 'Closed Won', 'signed': 'Closed Won',
+      'closed lost': 'Closed Lost', 'lost': 'Closed Lost', 'dead': 'Closed Lost', 'disqualified': 'Closed Lost',
+    };
+    return map[n] || stage; // fall back to the raw value if no mapping known
   };
 
   let created = 0, updated = 0;
   const nowISO = new Date().toISOString();
   for (const p of pulled) {
+    // Normalise incoming stage in place so both insert + update use the
+    // canonical form.
+    p.stage = canonicalise(p.stage);
     const existingIdx = idxByExt.get(String(p.externalId));
     if (existingIdx != null) {
       const ex = opps[existingIdx];
