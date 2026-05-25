@@ -37,7 +37,7 @@ import {
 } from "../../drizzle/schema";
 import { fetchSmartsheetMe } from "../_core/smartsheetAdapter";
 import { fetchNiftyMe } from "../_core/niftyAdapter";
-import { processExternalTaskPull } from "../_core/externalTasksCron";
+import { processExternalTaskPull, pullOneSource } from "../_core/externalTasksCron";
 
 const SS_API = "https://api.smartsheet.com/2.0";
 const NIFTY_API = "https://openapi.niftypm.com/api/v1.0";
@@ -490,6 +490,20 @@ export const externalSourcesRouter = router({
   refreshNow: protectedProcedure.mutation(async ({ ctx }) => {
     return processExternalTaskPull({ userId: ctx.user.id });
   }),
+
+  /**
+   * Pull one specific watched sheet/project, not every source. Powers the
+   * project detail drawer's "↻ Resync source" button so a single project's
+   * data can be refreshed in ~1 sec instead of waiting for every sheet.
+   */
+  refreshOneSource: protectedProcedure
+    .input(z.object({
+      source: z.enum(['smartsheet', 'nifty']),
+      sourceConfigId: z.number().int().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return pullOneSource({ userId: ctx.user.id, source: input.source, sourceConfigId: input.sourceConfigId });
+    }),
 
   /**
    * One-shot cleanup: delete every Nifty external_tasks row currently in the

@@ -504,6 +504,60 @@ async function pullOneNifty(
  * One full pass. Called by the hourly tick and exposed for manual runs
  * (e.g. POST /api/scheduled/run-external-tasks or "Refresh now" buttons).
  */
+/**
+ * Pull one specific source-config (one Smartsheet sheet OR one Nifty project)
+ * for one user. Exposed for the project drawer's "↻ Resync source" button so
+ * a single sheet can be refreshed without traversing every watched config.
+ * Returns the same stats shape as processExternalTaskPull for client parity.
+ */
+export async function pullOneSource(opts: {
+  userId: number;
+  source: 'smartsheet' | 'nifty';
+  sourceConfigId: number;
+}): Promise<{
+  sheetsProcessed: number;
+  projectsProcessed: number;
+  tombstoned: number;
+  projectsCreated: number;
+}> {
+  const db = await getDb();
+  if (!db) return { sheetsProcessed: 0, projectsProcessed: 0, tombstoned: 0, projectsCreated: 0 };
+
+  let projectsCreated = 0;
+  let sheetsProcessed = 0;
+  let projectsProcessed = 0;
+
+  if (opts.source === 'smartsheet') {
+    const rows = await db.select().from(smartsheetWatchedSheets)
+      .where(and(
+        eq(smartsheetWatchedSheets.userId, opts.userId),
+        eq(smartsheetWatchedSheets.id, opts.sourceConfigId),
+        eq(smartsheetWatchedSheets.enabled, 1),
+      ))
+      .limit(1);
+    if (rows[0]) {
+      const r = await pullOneSmartsheet(db, rows[0]);
+      projectsCreated += r.projectsCreated;
+      sheetsProcessed = 1;
+    }
+  } else {
+    const rows = await db.select().from(niftyWatchedProjects)
+      .where(and(
+        eq(niftyWatchedProjects.userId, opts.userId),
+        eq(niftyWatchedProjects.id, opts.sourceConfigId),
+        eq(niftyWatchedProjects.enabled, 1),
+      ))
+      .limit(1);
+    if (rows[0]) {
+      await pullOneNifty(db, rows[0]);
+      projectsProcessed = 1;
+    }
+  }
+
+  const tombstoned = await reapTombstones(db);
+  return { sheetsProcessed, projectsProcessed, tombstoned, projectsCreated };
+}
+
 export async function processExternalTaskPull(opts?: { userId?: number }): Promise<{
   sheetsProcessed: number;
   projectsProcessed: number;

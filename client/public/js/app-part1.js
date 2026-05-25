@@ -671,20 +671,41 @@ async function refreshExternalTasksNow(){
   }finally{_topbarSyncSpin(false);}
 }
 
-// Targeted resync for one auto-synced project. Today this just kicks the
-// full refreshNow (the cron pulls every watched sheet for the user, the
-// per-sheet path is server-internal). Cheap enough — the user clicks the
-// button to see "did the source change?" and the cron returns in seconds.
-// Future: a real per-sheet endpoint that only pulls cfg.sourceConfigId.
+// Targeted resync for one auto-synced project. Uses the per-sheet endpoint
+// (refreshOneSource) when the project carries a sourceConfigId, so a single
+// sheet refreshes in ~1s instead of waiting for every watched sheet. Falls
+// back to refreshExternalTasksNow when the provenance is incomplete.
 async function _resyncProjectSource(pid){
   const p=(D.projects||[]).find(x=>String(x.id)===String(pid));
   if(!p){toast({type:'warn',title:'Project not found'});return;}
-  const label=(p.autoSyncSource&&p.autoSyncSource.sheetName)||p.name;
-  toast({type:'info',title:`↻ Resyncing "${label}"…`,duration:1800});
-  await refreshExternalTasksNow();
+  const src=p.autoSyncSource||{};
+  const label=src.sheetName||p.name;
+  _topbarSyncSpin(true);
+  try{
+    if(src.source&&src.sourceConfigId){
+      toast({type:'info',title:`↻ Resyncing "${label}"…`,duration:1800});
+      const stats=await _trpc('externalSources.refreshOneSource',{source:src.source,sourceConfigId:src.sourceConfigId},'mutation');
+      await loadExternalTasks();
+      // If any new projects were created (unlikely for a single sheet) reload appData.
+      if(Number(stats&&stats.projectsCreated)>0&&typeof loadServerData==='function'){
+        try{await loadServerData();}catch(_){}
+      }
+      D.prefs=D.prefs||{};D.prefs.lastExternalSyncAt=new Date().toISOString();save('prefs');
+      _topbarSyncTooltipUpdate();
+      toast({type:'success',title:`✓ "${label}" resynced`,duration:2200});
+    }else{
+      // No sourceConfigId on the project (older auto-created records, or
+      // hand-built projects) — fall back to the full refresh.
+      await refreshExternalTasksNow();
+    }
+  }catch(e){
+    toast({type:'warn',title:'Resync failed',msg:e.message||String(e),duration:4000});
+  }finally{
+    _topbarSyncSpin(false);
+  }
   // Re-open the drawer so the new task counts + health strip reflect the
-  // fresh pull. closeDrawer was implicitly fine — just reopen.
-  setTimeout(()=>{ if(typeof openProjectDetail==='function')openProjectDetail(pid); },400);
+  // fresh pull.
+  setTimeout(()=>{ if(typeof openProjectDetail==='function')openProjectDetail(pid); },300);
 }
 // ─── Top-header Sync button — global accessor + spinner + tooltip ─────────
 function _topbarSyncNow(){
@@ -5595,6 +5616,9 @@ let _taskMyOnly=_tasksRestored.myOnly===true;
 // Drill-through filter set by Command Center → Tasks. Project label (matches
 // row.project on both native and external rows). Cleared via the chip ✕.
 let _taskProjectFilter=null;
+// Drill-through kind filter set by Command Center At-Risk badge clicks.
+// One of 'overdue' | 'today' | 'stalled' | null. Cleared via the chip ✕.
+let _taskKindFilter=null;
 let _taskView=_tasksRestored.view||'clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
 let _taskCalCursor=null; // YYYY-MM string for calendar nav
 function renderCurrentTaskView(){
@@ -7145,7 +7169,43 @@ function _applyPriorityFilter(tasks){
       return a===_taskAssigneeFilter;
     });
   }
+  if(_taskKindFilter){
+    const today=_todayStr;
+    const stallCut=new Date(Date.now()-7*86400000).toISOString();
+    if(_taskKindFilter==='overdue'){
+      out=out.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
+    }else if(_taskKindFilter==='today'){
+      out=out.filter(t=>t.due===today);
+    }else if(_taskKindFilter==='stalled'){
+      out=out.filter(t=>t.status!=='Done'&&(t.updatedAt||t.completedAt||t.createdAt||'')<stallCut&&t.due!==today&&!(t.due&&t.due<today));
+    }
+  }
   return out;
+}
+function setTaskKindFilter(kind){
+  _taskKindFilter=kind||null;
+  if(typeof renderTasks==='function')renderTasks();
+}
+function clearTaskKindFilter(){setTaskKindFilter(null);}
+// Drill from Command Center at-risk badges. Sets the kind + jumps to Tasks
+// preserving the active source filter (hat scoping). Wired via inline onclick
+// on the kindBadge spans.
+function _ccDrillIntoKind(kind){
+  const hat=_ccHat();
+  D.prefs=D.prefs||{};
+  if(hat==='cf')D.prefs.taskSourceFilter={personal:false,smartsheet:true,nifty:false};
+  else if(hat==='lsi')D.prefs.taskSourceFilter={personal:false,smartsheet:false,nifty:true};
+  else if(hat==='personal')D.prefs.taskSourceFilter={personal:true,smartsheet:false,nifty:false};
+  else D.prefs.taskSourceFilter={personal:true,smartsheet:true,nifty:true};
+  save('prefs');
+  _taskFilterTabIdx=0;
+  _taskFilter=t=>true;
+  _taskMyOnly=false;
+  _taskPriorityFilter='All';
+  _taskProjectFilter=null;
+  _taskAssigneeFilter=null;
+  _taskKindFilter=kind;
+  nav('tasks');
 }
 function setTaskProjectFilter(name){
   _taskProjectFilter=name||null;
@@ -7920,9 +7980,14 @@ function renderTasks(){
     return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
   })()}</div>
   ${_renderSourceFilterChips()}
-  ${(_taskProjectFilter||_taskAssigneeFilter)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+  ${(_taskProjectFilter||_taskAssigneeFilter||_taskKindFilter)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
     ${_taskProjectFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">📁 Project: ${esc(_taskProjectFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskProjectFilter()" title="Clear project filter">✕</span></div>`:''}
     ${_taskAssigneeFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">👤 Assignee: ${esc(_taskAssigneeFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskAssigneeFilter()" title="Clear assignee filter">✕</span></div>`:''}
+    ${_taskKindFilter?(function(){
+      const labels={overdue:{e:'⚠',l:'Overdue',c:'#ef4444'},today:{e:'📅',l:'Due today',c:'#f59e0b'},stalled:{e:'💤',l:'Stalled (7d+)',c:'#64748b'}};
+      const k=labels[_taskKindFilter]||{e:'•',l:_taskKindFilter,c:'var(--t2)'};
+      return `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,${k.c} 18%,transparent);border:1px solid ${k.c};border-radius:13px;font-size:11px;color:${k.c};font-weight:600">${k.e} ${esc(k.l)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskKindFilter()" title="Clear status filter">✕</span></div>`;
+    })():''}
   </div>`:''}
   ${(()=>{
     // N: AI Today's Plan banner — only shown when the active filter is the Today tab
@@ -10557,7 +10622,9 @@ function renderCommandCenter(){
   const atRiskRow=(t,kind)=>{
     const pcolor=t.priority==='High'?'#ef4444':t.priority==='Medium'?'#f59e0b':'#64748b';
     const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
-    const kindBadge=kind==='overdue'?'<span style="color:var(--red);font-size:10px;font-weight:600">⚠ '+(t.due?'overdue':'')+'</span>':kind==='today'?'<span style="color:var(--warn);font-size:10px;font-weight:600">📅 today</span>':'<span style="color:var(--t3);font-size:10px">💤 stalled</span>';
+    // Badge is clickable — drills into Tasks filtered to that kind + current hat.
+    const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
+    const kindBadge=`<span style="color:${kindMeta.c};font-size:10px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${kind}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
     const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
@@ -10650,9 +10717,9 @@ function renderCommandCenter(){
 
   <!-- KPI strip -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444;cursor:pointer" onclick="_ccDrillIntoKind('overdue')" title="Click to see all overdue tasks in this hat"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b;cursor:pointer" onclick="_ccDrillIntoKind('today')" title="Click to see all due-today tasks in this hat"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b;cursor:pointer" onclick="_ccDrillIntoKind('stalled')" title="Click to see all stalled tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
@@ -10870,11 +10937,21 @@ async function _dropPushItem(source,externalId){
 // list onto the Home dashboard, but is deferred — for now the views just one-
 // click restore the hat.
 function _saveCurrentCCView(){
-  const name=prompt('Name this view (e.g. "CF risks", "LSI shipping"):',(_ccHat()==='all'?'All hats':_ccHat().toUpperCase())+' view');
+  const name=prompt('Name this view (e.g. "CF Recruiting overdue", "LSI shipping"):',(_ccHat()==='all'?'All hats':_ccHat().toUpperCase())+' view');
   if(!name||!name.trim())return;
   D.prefs=D.prefs||{};
   D.prefs.savedCCViews=Array.isArray(D.prefs.savedCCViews)?D.prefs.savedCCViews:[];
-  D.prefs.savedCCViews.unshift({id:Date.now(),name:name.trim(),hat:_ccHat()});
+  // Capture the full filter state, not just the hat. _taskProjectFilter,
+  // _taskAssigneeFilter, _taskPriorityFilter are module-scope on Tasks; they
+  // persist across navigations so we can grab them right here.
+  D.prefs.savedCCViews.unshift({
+    id:Date.now(),
+    name:name.trim(),
+    hat:_ccHat(),
+    projectFilter:_taskProjectFilter||null,
+    assigneeFilter:_taskAssigneeFilter||null,
+    priorityFilter:(_taskPriorityFilter&&_taskPriorityFilter!=='All')?_taskPriorityFilter:null,
+  });
   // Cap at 12.
   if(D.prefs.savedCCViews.length>12)D.prefs.savedCCViews.length=12;
   save('prefs');
@@ -10884,7 +10961,18 @@ function _saveCurrentCCView(){
 function _applySavedCCView(id){
   const v=((D.prefs&&D.prefs.savedCCViews)||[]).find(x=>x.id===id);
   if(!v)return;
-  setCcContext(v.hat||'all');
+  // Restore Tasks-page filters first so when the hat-change re-renders
+  // anything that reads them (drill-through chips), they're already correct.
+  _taskProjectFilter=v.projectFilter||null;
+  _taskAssigneeFilter=v.assigneeFilter||null;
+  _taskPriorityFilter=v.priorityFilter||'All';
+  setCcContext(v.hat||'all'); // re-renders Command Center
+  // If the view captured a Tasks-only filter (project or assignee), jumping
+  // straight to Tasks is more useful than landing on Command Center where
+  // those filters don't visibly apply.
+  if(v.projectFilter||v.assigneeFilter){
+    setTimeout(()=>{ if(typeof nav==='function')nav('tasks'); },50);
+  }
 }
 function _deleteSavedCCView(id){
   if(!confirm('Delete this saved view?'))return;
@@ -10910,16 +10998,22 @@ function _openSavedCCViews(){
   const rows=list.length?list.map(v=>{
     const hatLabel=v.hat==='all'?'All hats':v.hat.toUpperCase();
     const color=v.hat==='cf'?'#1f6feb':v.hat==='lsi'?'#9333ea':v.hat==='personal'?'#10b981':'#f59e0b';
+    // Build extra-filter chips so the user can see what each view captures.
+    const extras=[];
+    if(v.projectFilter)extras.push('📁 '+v.projectFilter);
+    if(v.assigneeFilter)extras.push('👤 '+v.assigneeFilter);
+    if(v.priorityFilter)extras.push('★ '+v.priorityFilter);
+    const detail=`Hat: ${esc(hatLabel)}${extras.length?' · '+extras.map(esc).join(' · '):''}`;
     return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_applySavedCCView(${v.id});closeDrawer()">
       <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600">${esc(v.name)}</div>
-        <div style="font-size:9px;color:var(--t3)">Hat: ${esc(hatLabel)}</div>
+        <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${detail}</div>
       </div>
       <button class="btn btn-s" style="height:22px;font-size:10px" onclick="event.stopPropagation();_renameSavedCCView(${v.id})" title="Rename">✏</button>
       <button class="btn btn-d" style="height:22px;font-size:10px" onclick="event.stopPropagation();_deleteSavedCCView(${v.id})" title="Delete">✕</button>
     </div>`;
-  }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No saved views yet. Pick a hat on the Command Center, then click ⭐ Save view to capture it.</div>';
+  }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No saved views yet. Pick a hat + drill into a project / assignee, then click ⭐ Save view to capture it.</div>';
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">⭐ Saved Command Center Views</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div>
     <p style="font-size:11px;color:var(--t2);margin-top:4px">${list.length} saved view${list.length===1?'':'s'} · click any row to apply it.</p>
@@ -11671,6 +11765,7 @@ function openProjectDetail(pid){
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
     ${p.autoCreatedBy?`<button class="btn btn-s" style="color:#1f6feb;border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
+    <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectCoach(${pid})" title="AI health summary + blockers + suggested next milestone for this project">🩺 AI Coach</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
   </div>`;
@@ -11682,6 +11777,126 @@ function openProjectDetail(pid){
 // upcoming work, then asks the AI for a stakeholder-ready summary in 4
 // sections: Shipped / In Progress / Blocked or At Risk / Coming Next.
 // Modal shows the result with copy-to-clipboard.
+// AI Coach — health summary + blockers + suggested next milestone for one
+// project. Reads native (D.tasks where projectId===pid) + linked external
+// (override.localProjectId===pid), feeds the AI a compact snapshot, parses
+// the JSON response into a structured modal card. Persists the latest
+// coaching result under p.aiCoach so re-opening shows the most recent
+// without spending another AI call.
+async function _aiProjectCoach(pid){
+  const p=(D.projects||[]).find(x=>String(x.id)===String(pid));
+  if(!p)return;
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
+  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
+  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  // Build snapshot.
+  const today=_todayStr;
+  const tMs=Date.now();
+  const native=(D.tasks||[]).filter(t=>!t.parentTaskId&&String(t.projectId)===String(pid));
+  const ext=(D.externalTasks||[]).filter(et=>{
+    const ov=et.override;return ov&&String(ov.localProjectId||'')===String(pid)&&!ov.tombstoned;
+  });
+  const isExtDone=s=>{const x=(s||'').toLowerCase();return /(done|complete|completed|closed|cancell?ed|resolved|shipped)/.test(x);};
+  const rows=native.map(t=>({
+    title:(t.title||'').slice(0,180),
+    status:t.status||'',
+    priority:t.priority||'',
+    due:t.due||null,
+    assignee:t.assignedTo||null,
+    source:'native',
+  })).concat(ext.map(et=>({
+    title:(et.title||'').slice(0,180),
+    status:isExtDone(et.status)?'Done':(et.status||'Open'),
+    priority:(et.override&&et.override.localPriority)||et.priority||null,
+    due:(et.override&&et.override.localDue)||et.due||null,
+    assignee:et.assignee||null,
+    source:et.source==='smartsheet'?'CF':'LSI',
+  })));
+  // Cap snapshot — 50 rows is enough signal without bloating the prompt.
+  const snapshot={
+    project:{name:p.name||'',description:(p.desc||'').slice(0,500)},
+    counts:{
+      total:rows.length,
+      done:rows.filter(r=>r.status==='Done').length,
+      overdue:rows.filter(r=>r.status!=='Done'&&r.due&&r.due<today).length,
+      open:rows.filter(r=>r.status!=='Done').length,
+    },
+    sample:rows.slice(0,50),
+  };
+  // Render the loading state.
+  modal.innerHTML=`<div style="padding:14px;max-width:640px"><div style="font-size:14px;font-weight:600;margin-bottom:6px">🩺 AI Coach is reading "${esc(p.name||'')}"…</div><div style="font-size:11px;color:var(--t3);line-height:1.55">Reading ${rows.length} task${rows.length===1?'':'s'} (${snapshot.counts.open} open · ${snapshot.counts.overdue} overdue · ${snapshot.counts.done} done). Usually takes ~10s.</div></div>`;
+  modalBg.classList.add('show');
+  try{
+    const sys=`You are a senior project coach reviewing a specific project. Read the snapshot and output STRICTLY one JSON object, no prose or markdown:
+{
+  "headline": "<one sentence on the project's state, 15-25 words>",
+  "health": "<one of: on-track | at-risk | blocked | stalled>",
+  "summary": "<2-3 sentences on progress, momentum, and notable items, 50-80 words>",
+  "blockers": [ {"title":"<task title>", "why":"<one sentence on what's stuck, ~15 words>"} ],
+  "nextMilestone": "<concrete next milestone or deliverable, ~15-20 words>",
+  "recommendedFocus": [ "<concrete action 1, ~12 words>", "<action 2>", "<action 3>" ]
+}
+Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in blockers MUST come from the sample. Be specific and use real task titles.`;
+    const userContent=`Project snapshot:\n${JSON.stringify(snapshot)}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const raw=String(res?.result||res?.text||'').trim();
+    const m=raw.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('AI returned no JSON');
+    const coach=JSON.parse(m[0]);
+    // Persist.
+    p.aiCoach={dateISO:new Date().toISOString(),coach};
+    save('projects');
+    // Render the structured card.
+    const healthColors={'on-track':'#10b981','at-risk':'#f59e0b','blocked':'#ef4444','stalled':'#64748b'};
+    const hc=healthColors[coach.health]||'var(--t3)';
+    const sec=(emoji,title,items)=>{
+      if(!items||!items.length)return '';
+      return `<div style="margin-top:12px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,4).map(it=>{
+        if(typeof it==='string')return `<li style="font-size:12px;color:var(--t1);padding:5px 9px;background:var(--s3);border-radius:5px">${esc(it)}</li>`;
+        return `<li style="font-size:12px;color:var(--t1);padding:6px 9px;background:var(--s3);border-radius:5px"><div style="font-weight:600">${esc(it.title||'')}</div>${it.why?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}</li>`;
+      }).join('')}</ul></div>`;
+    };
+    modal.innerHTML=`<div style="padding:16px;max-width:640px;max-height:80vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <h2 style="font-size:15px;font-weight:650;margin:0">🩺 AI Coach · ${esc(p.name||'')}</h2>
+        <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${hc};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
+      </div>
+      <div style="font-size:13px;color:var(--t1);font-style:italic;padding:10px 12px;background:color-mix(in srgb,${hc} 10%,transparent);border-left:3px solid ${hc};border-radius:4px;margin-bottom:10px">"${esc(coach.headline||'')}"</div>
+      <div style="font-size:12px;color:var(--t2);line-height:1.6">${esc(coach.summary||'')}</div>
+      ${sec('🚧','Blockers',coach.blockers||[])}
+      ${coach.nextMilestone?`<div style="margin-top:12px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🎯 Suggested next milestone</div><div style="font-size:12px;color:var(--t1);padding:7px 10px;background:color-mix(in srgb,var(--ac) 12%,transparent);border-radius:5px;font-weight:500">${esc(coach.nextMilestone)}</div></div>`:''}
+      ${sec('⚡','Recommended focus this week',coach.recommendedFocus||[])}
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1)">
+        <button class="btn btn-s" onclick="_copyCoachToClipboard(${pid})" title="Copy as markdown">📋 Copy</button>
+        <button class="btn btn-s" onclick="_aiProjectCoach(${pid})" title="Regenerate">↻ Refresh</button>
+        <button class="btn btn-p" onclick="closeModal()">Done</button>
+      </div>
+    </div>`;
+  }catch(e){
+    modal.innerHTML=`<div style="padding:14px;max-width:480px"><div style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--red)">⚠ Coach failed</div><div style="font-size:11px;color:var(--t2);line-height:1.55">${esc(e.message||String(e))}</div><div style="margin-top:10px;display:flex;gap:6px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Close</button></div></div>`;
+  }
+}
+function _copyCoachToClipboard(pid){
+  const p=(D.projects||[]).find(x=>String(x.id)===String(pid));
+  if(!p||!p.aiCoach||!p.aiCoach.coach){toast({type:'warn',title:'No coach result to copy'});return;}
+  const c=p.aiCoach.coach;
+  const lines=[];
+  lines.push(`# ${p.name||''} — AI Coach`);
+  lines.push(`*Health: ${c.health||'unknown'}*`);
+  lines.push('');
+  if(c.headline)lines.push(`> ${c.headline}`);
+  lines.push('');
+  if(c.summary)lines.push(c.summary);
+  if(c.blockers&&c.blockers.length){lines.push('');lines.push('**Blockers**');c.blockers.forEach(b=>lines.push(`- **${b.title||''}** — ${b.why||''}`));}
+  if(c.nextMilestone){lines.push('');lines.push('**Next milestone**');lines.push(`- ${c.nextMilestone}`);}
+  if(c.recommendedFocus&&c.recommendedFocus.length){lines.push('');lines.push('**Recommended focus**');c.recommendedFocus.forEach(a=>lines.push(`- ${a}`));}
+  const md=lines.join('\n');
+  try{navigator.clipboard.writeText(md).then(()=>toast({type:'success',title:'Coach summary copied',duration:1800}),fallback);}catch(_){fallback();}
+  function fallback(){const ta=document.createElement('textarea');ta.value=md;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast({type:'success',title:'Copied',duration:1600});}catch{}ta.remove();}
+}
+
 async function _aiProjectStatusUpdate(pid){
   const p=(D.projects||[]).find(x=>x.id===pid);
   if(!p)return;
