@@ -1384,14 +1384,52 @@ function _renderAutoProjectsMaint(){
       ${tag}
     </div>`;
   }).join('');
+  // Detect orphaned auto-synced projects — those not in any program's
+  // projectIds[]. Backfill button appears below when present.
+  const linkedSet=new Set();
+  for(const prog of (D.programs||[])){
+    (prog.projectIds||[]).forEach(id=>linkedSet.add(String(id)));
+  }
+  const orphans=all.filter(p=>!linkedSet.has(String(p.id)));
+
   body.innerHTML=`
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
-      <span style="font-size:10px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong></span>
+      <span style="font-size:10px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong>${orphans.length?` · <strong style="color:var(--ac)">${orphans.length} not in a program</strong>`:''}</span>
       <div style="flex:1"></div>
+      ${orphans.length?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac);border-color:var(--ac)" onclick="_linkAutoProjectsToPrograms()" title="Push CF auto-synced projects into the CommunityForce program, LSI ones into LSI Media. Runs only on projects not already in a program.">🔗 Link ${orphans.length} to program</button>`:''}
       ${empties.length?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_cleanupEmptyAutoProjects()" title="Delete every auto-synced project with zero linked tasks">🗑 Delete ${empties.length} empty</button>`:''}
       ${missingDesc.length?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp);border-color:var(--purp)" onclick="_aiFillAutoProjectDescriptions()" title="AI-generate 2-sentence descriptions for projects that don't have one">✨ AI fill ${missingDesc.length} description${missingDesc.length===1?'':'s'}</button>`:''}
     </div>
     <div style="max-height:280px;overflow-y:auto">${list}</div>`;
+}
+// Backfill program links for already-created auto-synced projects.
+// Smartsheet-sync → CommunityForce program, nifty-sync → LSI Media.
+// Case-insensitive program name match. Idempotent: only adds projects not
+// already in the target program's projectIds[].
+function _linkAutoProjectsToPrograms(){
+  const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy);
+  if(!all.length){toast({type:'info',title:'Nothing to link.'});return;}
+  const findProg=name=>(D.programs||[]).find(p=>(p.name||'').toLowerCase()===name.toLowerCase());
+  const cf=findProg('CommunityForce');
+  const lsi=findProg('LSI Media');
+  if(!cf&&!lsi){toast({type:'warn',title:'No CommunityForce / LSI Media program found.',msg:'Create the programs first, then run this.',duration:4000});return;}
+  let added=0;
+  for(const p of all){
+    const targetProg=p.autoCreatedBy==='nifty-sync'?lsi:cf;
+    if(!targetProg)continue;
+    const ids=(targetProg.projectIds=targetProg.projectIds||[]);
+    if(ids.some(x=>String(x)===String(p.id)))continue;
+    ids.push(p.id);
+    added++;
+  }
+  if(added>0){
+    save('programs');
+    toast({type:'success',title:`✓ Linked ${added} project${added===1?'':'s'} to their program`,duration:2400});
+  }else{
+    toast({type:'info',title:'All auto-synced projects are already in a program.'});
+  }
+  _renderAutoProjectsMaint();
+  if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
 }
 function _cleanupEmptyAutoProjects(){
   const counts=_autoProjectTaskCounts();
