@@ -27,6 +27,7 @@ import { externalSourcesRouter } from "./routers/externalSources";
 import { timeEntriesRouter } from "./routers/timeEntries";
 import { taskMigrationsRouter } from "./routers/taskMigrations";
 import { dailyDigestRouter } from "./routers/dailyDigest";
+import { weeklyReviewRouter } from "./routers/weeklyReview";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -93,6 +94,7 @@ export const appRouter = router({
   timeEntries: timeEntriesRouter,
   taskMigrations: taskMigrationsRouter,
   dailyDigest: dailyDigestRouter,
+  weeklyReview: weeklyReviewRouter,
 });
 
 export type AppRouter = typeof appRouter;

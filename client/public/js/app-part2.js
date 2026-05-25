@@ -331,6 +331,13 @@ function renderSettingsHTML(){
     <div id="daily-digest-body" style="font-size:11px;color:var(--t2)">Loading…</div>
   </div>
 
+  <!-- Weekly Review (server-side) -->
+  <div id="weekly-review-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Weekly Review Email</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across CF + LSI + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
+    <div id="weekly-review-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+  </div>
+
   <!-- Email Notifications -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">Email Notifications</div>
@@ -901,7 +908,7 @@ function showSetTab(el,id){
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
   if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();}
-  if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();}
+  if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
@@ -983,6 +990,89 @@ async function _digestSendNow(){
     const r=await _trpc('dailyDigest.sendNow',undefined,'mutation');
     if(r.sent>0)toast({type:'success',title:`✓ Digest sent (${r.sent})`});
     else if(r.skipped>0)toast({type:'info',title:'Nothing on today\'s plate — nothing to send'});
+    else toast({type:'warn',title:`No send — errors:${r.errors}`});
+  }catch(e){toast({type:'warn',title:'Send failed',msg:e.message||String(e)});}
+}
+
+// ─── Weekly Review panel (parallel to daily digest) ─────────────────────────
+async function _hydrateWeeklyReviewPanel(){
+  const body=document.getElementById('weekly-review-body');
+  if(!body)return;
+  body.innerHTML='Loading…';
+  try{
+    const p=await _trpc('weeklyReview.getPrefs',undefined,'query');
+    body.innerHTML=_renderWeeklyReviewPanelHTML(p);
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
+  }
+}
+function _renderWeeklyReviewPanelHTML(p){
+  const userEmail=(D.creds&&D.creds.email)||'(no email on file)';
+  const recipient=p.recipientEmail||userEmail;
+  const lastSent=p.lastSentDate?`Last sent: ${esc(p.lastSentDate)}`:'Not yet sent';
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return `
+    <div class="lr" style="padding:6px 0;align-items:center">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:500">Send the weekly review</div>
+        <div style="font-size:10px;color:var(--t3)">${lastSent}</div>
+      </div>
+      <div class="tog ${p.enabled?'on':''}" id="tog-weekly-enabled" onclick="_toggleWeeklyEnabled()"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;margin-top:8px">
+      <div>
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Day</div>
+        <select id="weekly-dow" class="inp" style="width:100%;font-size:11px" onchange="_saveWeeklyDow()">
+          ${days.map((d,i)=>`<option value="${i}" ${p.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Time</div>
+        <input id="weekly-time" type="time" class="inp" style="width:100%;font-size:11px" value="${esc(p.time||'16:30')}" onchange="_saveWeeklyTime()">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
+        <input id="weekly-recipient" class="inp" placeholder="${esc(userEmail)}" style="width:100%;font-size:11px" value="${esc(p.recipientEmail||'')}" onblur="_saveWeeklyRecipient()">
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_weeklySendNow()">📧 Send now (test)</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateWeeklyReviewPanel()">Reload</button>
+    </div>
+  `;
+}
+async function _toggleWeeklyEnabled(){
+  const tog=document.getElementById('tog-weekly-enabled');
+  const willBeOn=!tog.classList.contains('on');
+  try{
+    await _trpc('weeklyReview.savePrefs',{enabled:willBeOn},'mutation');
+    tog.classList.toggle('on');
+    toast({type:'success',title:willBeOn?'📊 Weekly review on':'Weekly review off'});
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _saveWeeklyDow(){
+  const v=parseInt(document.getElementById('weekly-dow').value,10);
+  try{await _trpc('weeklyReview.savePrefs',{dayOfWeek:v},'mutation');toast({type:'success',title:'Day saved',duration:1200});}
+  catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _saveWeeklyTime(){
+  const v=document.getElementById('weekly-time').value;
+  if(!v)return;
+  try{await _trpc('weeklyReview.savePrefs',{time:v},'mutation');toast({type:'success',title:`Time set to ${v}`,duration:1500});}
+  catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _saveWeeklyRecipient(){
+  const v=document.getElementById('weekly-recipient').value.trim();
+  try{await _trpc('weeklyReview.savePrefs',{recipientEmail:v||null},'mutation');await _hydrateWeeklyReviewPanel();}
+  catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _weeklySendNow(){
+  try{
+    toast({type:'info',title:'Sending test review…',duration:1500});
+    const r=await _trpc('weeklyReview.sendNow',undefined,'mutation');
+    if(r.sent>0)toast({type:'success',title:`✓ Review sent (${r.sent})`});
+    else if(r.skipped>0)toast({type:'info',title:'Nothing to send (empty week)'});
     else toast({type:'warn',title:`No send — errors:${r.errors}`});
   }catch(e){toast({type:'warn',title:'Send failed',msg:e.message||String(e)});}
 }
