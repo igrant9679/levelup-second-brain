@@ -36,7 +36,7 @@ package.json          ← `start` runs `drizzle-kit migrate || echo … && node 
 
 ## Schema architecture (important)
 
-34 tables. Hybrid:
+~45 tables after the May 23–25 Command Center arc (was 34). Hybrid:
 - **Properly relational**: bookmarks, calendar events, oauth tokens, team invites, help articles, etc.
 - **JSON blobs**: `userAppData` stores tasks, notes, projects, goals, journal, habits, contacts, ideas, teams, prefs, calEvents per user as **stringified JSON columns**. This is legacy from the original single-HTML/localStorage version. No DB-level querying within those blobs; whole row is read/written.
 
@@ -275,6 +275,192 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - AI Summary modal parse bug fix (over-quoted JSON.stringify in onclick attribute).
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
+
+## Most recently shipped (May 23–25 2026 session arc — Command Center)
+
+This arc turned LevelUp into a cross-tool command center for the user's two
+hats: **CommunityForce** (COO, Smartsheet for project mgmt) and **LSI Media**
+(CEO, NiftyPM for project mgmt). Plus a bunch of PM polish + Phase E
+automations + Phase F mobile pass.
+
+### External-sources infrastructure
+
+- **Schema** (migrations 0032–0040): `external_source_credentials` (Smartsheet
+  PAT + Nifty OAuth fields), `smartsheet_watched_sheets`,
+  `nifty_watched_projects` (each with `defaultProjectId` for project
+  mirroring), `external_tasks` (pulled task mirror with `completedAt`),
+  `external_task_overrides` (myDay / localTags / localPriority /
+  localProjectId / pendingStatus / tombstoned), plus `time_entries`,
+  `tasks.parentTaskId`, `tasks.recurrenceRule`, `programs` (JSON in
+  user_app_data), `project_custom_field_defs` + `task_custom_field_values`,
+  `automation_rules`.
+- **Adapters** (`server/_core/smartsheetAdapter.ts`,
+  `server/_core/niftyAdapter.ts`): pull tasks owned by/assigned to the user
+  per watched config, normalize to `ExternalTaskInput`.
+- **Cron** (`server/_core/externalTasksCron.ts`): hourly puller +
+  `processExternalTaskPull({userId?})` exposed for manual runs. Vanished-row
+  detection → stamps `removedAt`; 72h tombstone grace for matching overrides.
+  First-seen-as-done / open→done transition stamps `completedAt`.
+- **Router** (`server/routers/externalSources.ts`): CRUD for watches,
+  `refreshNow`, `upsertOverride`, `setProjectLinks`, status options fetchers,
+  internal status push helpers, `pushPendingChanges`, `pendingPushCount`,
+  `niftyPurgeCompleted` (one-shot historical-completed cleanup), and a
+  diagnostic `niftyDebugFindTask` for poking at the raw Nifty payload.
+
+### Two-way sync architecture
+
+- **Pull** every hour (Smartsheet/Nifty → LevelUp).
+- **Push** on demand: `niftySetTaskStatus` / `smartsheetSetRowStatus` write
+  the chosen status back to source; the source's own status options are
+  fetched per-watch so the picker only offers values that source accepts.
+- **Bulk push queue** mode: when `D.prefs.externalQueueMode` is on, status
+  changes save as `external_task_overrides.pendingStatus` and surface as
+  orange `→ pending` pills. The topbar `⬆ Push` button (visible only when
+  the count > 0) flushes the queue in one batch.
+- **Override-layer pattern**: external_task_overrides survive source
+  deletion via tombstoning, so personal notes/tags/project links never
+  disappear silently.
+
+### Command-center UX in the app
+
+- **Topbar**: ↻ Sync button (icon, 32×32) + ⬆ Push (orange, conditional)
+  added to `client/index.html` alongside the existing + New / AI / Notif.
+- **Settings → Integrations** (sp-5): Smartsheet + NiftyPM connect flows,
+  watch picker, per-watch defaultProjectId for project mirroring, queue-mode
+  toggle, Automations panel (rule list + editor modal).
+- **Daily Morning Digest + Weekly Review emails** (server-side, 15-min &
+  30-min crons): per-user prefs panel in Settings → Notifications (sp-3).
+  Weekly review uses `callAIProvider` with `jsonMode:true` for structured
+  `{reflection, picks[3]}` output and includes a "shipped this past week"
+  section sourced from `completedAt` stamps.
+- **Programs/Portfolio** sidebar entry: CF + LSI roll-up view of projects
+  across both tools.
+
+### Phase E — Automation rules (`server/_core/automationEngine.ts`)
+
+- Cron every 15 min, plus `runNow` from Settings.
+- Triggers: `task_overdue_today`, `task_status_done`, `external_status`.
+- Actions: `set_my_day`, `add_tag`, `set_priority`.
+- External actions write to `external_task_overrides` (myDay, localTags,
+  localPriority) so they survive the next pull.
+- Settings → Integrations → ⚙ Automation Rules panel with a full editor
+  modal (`_openAutomationEditor`).
+
+### Phase F — Mobile/iOS polish
+
+CSS @media additions in `client/index.html`:
+- Topbar Sync 32×32; Push shrinks to icon + count on tiny screens.
+- Automation rule cards wrap so Edit/✕ get a full row.
+- Automation editor modal tightens padding for iPhone SE (360px).
+- Status popovers (`.ext-status-pop` / `.task-status-pop`) pinned inside
+  viewport — were overflowing right.
+- Custom-field rows (`[data-custom-field-row]`) stack label-over-input.
+
+### Nifty puller fixes (the long debug arc)
+
+A single LSI task — "Add LJ's portfolio to LSI Portfolio (screenshots of
+sites)" — was marked Closed in NiftyPM but stayed "Not Started" in LevelUp
+even after clicking ↻ Sync. Diagnosing it surfaced four real bugs in the
+puller, all now fixed:
+
+1. **Wrong pagination params.** Adapter was sending `page` + `per_page`;
+   Nifty's `/tasks` endpoint expects `limit` + `offset`. Nifty silently
+   fell back to its 25-default, so any project with >25 tasks only had
+   its top 25 ever refreshed.
+2. **Closed tasks excluded by default.** Nifty's default `/tasks` response
+   omits completed tasks. Closing one in Nifty made it vanish from our
+   seen-set → `removedAt` stamped → frozen at last-open status for the
+   72h tombstone grace. Fix: pull twice (open + completed), merge by id.
+   Also pass `include_archived=true`.
+3. **Nifty workspace had no named status columns.** API returned
+   `status: null` and `status_name: null` for every task. Adapter was
+   only reading the status object, so no task ever registered as done.
+   Fix: layered resolver — `status.name` → `status_name` →
+   `task_group.name` → fall back to `"Completed"` if top-level
+   `completed === true`, else `"Open"`. "Completed" matches the existing
+   done-classifier regex in the cron upsert.
+4. **Pulling everything dragged in years of historical completions** (593
+   in the LSI project). Added `skipNewCompletions` option to
+   `upsertResults` — when true, any pulled row arriving done-status AND
+   not already in DB gets skipped. `pullOneNifty` passes it. New
+   `niftyPurgeCompleted` mutation deletes every currently-done Nifty row
+   + matching overrides for the calling user. Run once from the console:
+   `await _trpc('externalSources.niftyPurgeCompleted', undefined, 'mutation')`.
+   Returns `{deletedTasks, deletedOverrides, scanned}`.
+
+### Two other bugs surfaced + fixed in the same arc
+
+- **Topbar search click did nothing for external tasks** because Nifty
+  `externalUrl` is null (Nifty's `/tasks` response has no `url` field).
+  Replaced the open-new-tab action with `_openAfterNav` that polls for
+  the screen container, scrolls the matching `[data-ext-id][data-source]`
+  row into view, and flash-highlights it for ~2s. Still opens the source
+  URL when one exists. Native task results got the same treatment —
+  drawer opens after the screen is actually mounted, then scrolls the row
+  into view. (Old 120ms setTimeout fired before the clusters view was
+  mounted.)
+- **Done filter tab stayed visually highlighted** after switching to
+  another tab. `setTaskTabIdx` was calling `renderCurrentTaskView()` which
+  only re-paints the view body, not the parent tab strip. Fix: also flip
+  the `.on` class on `#tasks-tabs > .tab` elements manually.
+
+### Useful console snippets from this arc
+
+```js
+// Force a fresh pull of Smartsheet + Nifty for the current user.
+await _trpc('externalSources.refreshNow', undefined, 'mutation')
+
+// One-shot purge of historical Nifty completions (idempotent).
+await _trpc('externalSources.niftyPurgeCompleted', undefined, 'mutation')
+
+// Diagnose a single Nifty task by title substring — shows raw Nifty
+// payload, which filter returns it, and the LevelUp DB state.
+await _trpc('externalSources.niftyDebugFindTask',
+            {titleContains: 'portfolio'}, 'mutation')
+
+// Manually run all automation rules now (don't wait for 15-min cron).
+await _trpc('automations.runNow', undefined, 'mutation')
+
+// Run the daily digest immediately (test).
+await _trpc('dailyDigest.sendNow', undefined, 'mutation')
+```
+
+### APP_BUILD at end of arc
+
+`2026-05-25-09`. Bump on every change to `client/public/js/app-part*.js`
+or any client-visible logic.
+
+### Open items / known gaps
+
+- Nifty workspaces that DO use named status columns will show those names;
+  the LJ workspace doesn't, so it shows "Open" / "Completed" only. Adding
+  a second API call per pull (fetch `/task_groups`, map by id) would
+  surface real intermediate statuses but isn't shipped.
+- `external_task_overrides.tombstoned` is set but nothing in the client
+  surfaces tombstoned rows in an "archive" — they're just hidden. If the
+  user wants to revive one, they'd need to do it via DB.
+- `Programs/Portfolio` is a single roll-up view; per-program AI summary +
+  drilldown isn't built yet.
+- The Settings → Automation Rules UI only edits the default Triggers and
+  Actions enums — extending requires a server-side enum bump plus matching
+  client editor fields. (Pattern's set in `_openAutomationEditor`.)
+
+### Session commits (newest first)
+
+- `f30ace4` Fix sticky task-filter tab highlight (.on class never moved)
+- `de6e3b4` Fix search-result click — wait for screen, scroll-into-view,
+  ext fallback
+- `bc1dff1` Nifty: skip historical completions + one-shot purge endpoint
+- `6fa1b77` Add Nifty diagnostic `niftyDebugFindTask`
+- `f0c4ffe` Fix Nifty status resolution — trust top-level `completed`
+- `ff0cb4f` Fix Nifty puller: correct pagination params + pull completed
+- `4b0b0bb` Batch 4/4 (F): Mobile/iOS polish
+- `3084f3b` Batch 3/4 (E): Automation rules — engine + cron + Settings UI
+- `97cbb0c` Batch 2: Custom fields
+- (earlier batches) Smartsheet + Nifty 2-way sync, Programs, Bulk push,
+  Top-header Sync, External projects, Completed-task sync, Project Edit
+  drawer linking, External tasks in every Tasks view, Daily digest +
+  Weekly review emails, OAuth scope array fix, Nested subtasks.
 
 ## Most recently shipped (May 20–22 2026 session arc)
 
