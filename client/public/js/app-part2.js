@@ -2891,11 +2891,32 @@ function openJournalPrompt(title, promptText){
 
 // ====== GLOBAL SEARCH & SEMANTIC SEARCH ======
 let searchIdx=0;
+// Open a drawer once the target screen has actually rendered. The old
+// 120ms setTimeout fired before clusters/list views finished mounting, so
+// openDrawer hit a missing target and silently no-op'd. Polls for the
+// container, then opens the drawer + scrolls the matching row into view.
+function _openAfterNav(screen, kind, id, find){
+  nav(screen);
+  let tries=0;
+  const tick=()=>{
+    tries++;
+    const ready=document.querySelector(`#s-${screen}, .lr[data-task-id], #tasks-list, #notes-list, #projects-grid, #journal-list, .ph-r`);
+    if(!ready && tries<20){setTimeout(tick,80);return;}
+    const obj=find();
+    if(obj && typeof openDrawer==='function'){
+      try{openDrawer(kind,obj);}catch(e){console.warn('[search] openDrawer failed:',e);}
+    }
+    // Scroll the matching row into view if it's in the current screen.
+    const row=document.querySelector(`[data-task-id="${id}"], [data-note-id="${id}"], [data-project-id="${id}"], [data-journal-id="${id}"]`);
+    if(row && row.scrollIntoView)row.scrollIntoView({block:'center',behavior:'smooth'});
+  };
+  setTimeout(tick,80);
+}
 function buildSearchIndex(){
   const items=[];
-  D.tasks.forEach(t=>items.push({type:'Task',icon:'☑',label:t.title,meta:t.due+' · '+t.priority,tags:(t.tags||[]).join(' '),body:t.notes||'',action:()=>{nav('tasks');setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===t.id)),120)}}));
-  D.notes.forEach(n=>items.push({type:'Note',icon:'📝',label:n.title,meta:(n.tags||[]).map(t=>'#'+t).join(' ')||n.source,tags:(n.tags||[]).join(' '),body:n.body||'',action:()=>{nav('notes');setTimeout(()=>openDrawer('note',D.notes.find(x=>x.id===n.id)),120)}}));
-  D.projects.forEach(p=>items.push({type:'Project',icon:'📁',label:p.name,meta:p.status+' · '+p.pct+'%',tags:'',body:p.desc||'',action:()=>{nav('projects');setTimeout(()=>openDrawer('project',D.projects.find(x=>x.id===p.id)),120)}}));
+  D.tasks.forEach(t=>items.push({type:'Task',icon:'☑',label:t.title,meta:t.due+' · '+t.priority,tags:(t.tags||[]).join(' '),body:t.notes||'',action:()=>_openAfterNav('tasks','task',t.id,()=>D.tasks.find(x=>x.id===t.id))}));
+  D.notes.forEach(n=>items.push({type:'Note',icon:'📝',label:n.title,meta:(n.tags||[]).map(t=>'#'+t).join(' ')||n.source,tags:(n.tags||[]).join(' '),body:n.body||'',action:()=>_openAfterNav('notes','note',n.id,()=>D.notes.find(x=>x.id===n.id))}));
+  D.projects.forEach(p=>items.push({type:'Project',icon:'📁',label:p.name,meta:p.status+' · '+p.pct+'%',tags:'',body:p.desc||'',action:()=>_openAfterNav('projects','project',p.id,()=>D.projects.find(x=>x.id===p.id))}));
   D.goals.forEach(g=>items.push({type:'Goal',icon:g.icon||'🎯',label:g.title,meta:g.pct+'%',tags:'',body:g.desc||'',action:()=>nav('goals')}));
   D.journal.forEach(j=>items.push({type:'Journal',icon:'✏️',label:j.title,meta:j.date,tags:'',body:j.body||'',action:()=>{nav('journal');setTimeout(()=>openDrawer('journal',D.journal.find(x=>x.id===j.id)),120)}}));
   D.habits.forEach(h=>items.push({type:'Habit',icon:h.icon||'✅',label:h.name||h.title,meta:(h.cadence||h.frequency||'')+' · '+(h.streak||0)+'d streak',tags:'',body:'',action:()=>nav('habits')}));
@@ -2916,7 +2937,30 @@ function buildSearchIndex(){
       meta:[et.status||'',due||'',et.projectLabel||''].filter(Boolean).join(' · '),
       tags:(et.override&&et.override.localTags)||'',
       body:et.description||(et.override&&et.override.localNote)||'',
-      action:()=>{if(et.externalUrl)window.open(et.externalUrl,'_blank','noopener');}
+      // Nav to Tasks view, scroll the matching external-task row into view,
+      // and flash-highlight it. Open the source URL in a new tab too when
+      // present (Smartsheet usually has one; Nifty often doesn't).
+      action:()=>{
+        const url=et.externalUrl||'';
+        if(url)window.open(url,'_blank','noopener');
+        nav('tasks');
+        let tries=0;
+        const find=()=>{
+          tries++;
+          const row=document.querySelector(`[data-ext-id="${CSS.escape(et.externalId)}"][data-source="${et.source}"]`);
+          if(row){
+            row.scrollIntoView({block:'center',behavior:'smooth'});
+            row.style.transition='outline .25s,background .25s';
+            row.style.outline='2px solid var(--ac)';
+            row.style.background='rgba(124,58,237,.08)';
+            setTimeout(()=>{row.style.outline='';row.style.background='';},2200);
+            return;
+          }
+          if(tries<25)setTimeout(find,100);
+          else if(!url)toast({type:'warn',title:'Couldn\'t locate the task on Tasks view',msg:'Try the External Tasks rail directly.'});
+        };
+        setTimeout(find,120);
+      }
     });
   });
   [['Home','🏠','home'],['My Day','☀️','myday'],['My Week','📅','myweek'],['Tasks','☑','tasks'],['Notes','📝','notes'],['Projects','📁','projects'],['Goals','🎯','goals'],['Journal','✏️','journal'],['Habits','✅','habits'],['Contacts','👤','contacts'],['Mail','✉️','mail'],['Calendar','📅','calendar'],['Coach','⚡','coach'],['Settings','⚙️','settings'],['Archive','🗄','archive']].forEach(([label,icon,screen])=>items.push({type:'Nav',icon,label:'Go to '+label,meta:'',tags:'',body:'',action:()=>nav(screen)}));
