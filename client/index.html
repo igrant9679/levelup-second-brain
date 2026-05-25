@@ -1983,6 +1983,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      wouldn't break anything either, but this is belt-and-suspenders). -->
 <button id="topbar-token-refresh" style="display:none!important" aria-hidden="true" tabindex="-1"></button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
+<button class="tbtn" id="topbar-sync-btn" onclick="_topbarSyncNow()" title="Sync external sources (Smartsheet + NiftyPM)" style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span id="topbar-sync-dot" style="display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--ok)"></span></button>
 <button class="tbtn" onclick="toggleAIPanel()" title="AI Assistant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" onclick="nav('settings')">IG</div>
@@ -2421,7 +2422,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-25-01';
+  var APP_BUILD='2026-05-25-02';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

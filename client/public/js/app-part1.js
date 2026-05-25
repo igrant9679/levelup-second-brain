@@ -617,6 +617,7 @@ async function loadExternalTasks(){
     // Invalidate the Cmd+K search index so the next palette open includes
     // the updated external rows.
     if(typeof invalidateSearchIndex==='function')invalidateSearchIndex();
+    if(typeof _topbarSyncTooltipUpdate==='function')_topbarSyncTooltipUpdate();
     return D.externalTasks.length;
   }catch(e){
     // No network / no tables / user not signed in — fine, just leave empty.
@@ -625,16 +626,63 @@ async function loadExternalTasks(){
   }
 }
 async function refreshExternalTasksNow(){
+  _topbarSyncSpin(true);
   try{
-    toast({type:'info',title:'Refreshing external sources…',duration:2000});
+    toast({type:'info',title:'Syncing Smartsheet + NiftyPM…',duration:2000});
     const stats=await _trpc('externalSources.refreshNow',undefined,'mutation');
     await loadExternalTasks();
-    toast({type:'success',title:`Refreshed ${stats.sheetsProcessed} sheet(s), ${stats.projectsProcessed} project(s)`,duration:3000});
+    const noneConfigured=stats.sheetsProcessed===0&&stats.projectsProcessed===0;
+    toast({type:noneConfigured?'info':'success',title:noneConfigured?'No sources configured — Settings → Integrations to set up':`✓ Synced ${stats.sheetsProcessed} sheet(s), ${stats.projectsProcessed} project(s)`,duration:3000});
     if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+    D.prefs=D.prefs||{};
+    D.prefs.lastExternalSyncAt=new Date().toISOString();
+    save('prefs');
+    _topbarSyncTooltipUpdate();
   }catch(e){
-    toast({type:'warn',title:'Refresh failed',msg:e.message||String(e),duration:4500});
-  }
+    toast({type:'warn',title:'Sync failed',msg:e.message||String(e),duration:4500});
+  }finally{_topbarSyncSpin(false);}
 }
+
+// ─── Top-header Sync button — global accessor + spinner + tooltip ─────────
+function _topbarSyncNow(){
+  if(typeof refreshExternalTasksNow==='function')refreshExternalTasksNow();
+}
+function _topbarSyncSpin(on){
+  const btn=document.getElementById('topbar-sync-btn');
+  if(!btn)return;
+  const svg=btn.querySelector('svg');
+  if(svg){
+    if(on){svg.style.animation='lu-spin 1s linear infinite';btn.style.color='var(--ac)';}
+    else  {svg.style.animation='';btn.style.color='';}
+  }
+  const dot=document.getElementById('topbar-sync-dot');
+  if(dot)dot.style.display=on?'none':((D.prefs&&D.prefs.lastExternalSyncAt)?'':'none');
+}
+function _topbarSyncTooltipUpdate(){
+  const btn=document.getElementById('topbar-sync-btn');
+  if(!btn)return;
+  const last=D.prefs&&D.prefs.lastExternalSyncAt;
+  if(last){
+    const ago=(Date.now()-new Date(last).getTime())/60000;
+    const label=ago<2?'just now':ago<60?`${Math.floor(ago)}m ago`:ago<1440?`${Math.floor(ago/60)}h ago`:`${Math.floor(ago/1440)}d ago`;
+    btn.title=`Sync Smartsheet + NiftyPM · last pulled ${label}`;
+  }else{
+    btn.title='Sync external sources (Smartsheet + NiftyPM) — click to pull now';
+  }
+  // Show the green dot only when at least one successful pull has happened.
+  const dot=document.getElementById('topbar-sync-dot');
+  if(dot)dot.style.display=last?'':'none';
+}
+// Inject spinner keyframes once.
+(function(){
+  if(typeof document==='undefined')return;
+  if(document.getElementById('lu-spin-kf'))return;
+  const s=document.createElement('style');s.id='lu-spin-kf';
+  s.textContent='@keyframes lu-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+  document.head.appendChild(s);
+})();
+// Refresh tooltip periodically so "5m ago" stays accurate.
+setInterval(()=>{try{_topbarSyncTooltipUpdate();}catch{}}, 60000);
 function _extSourceBadge(src){
   if(src==='smartsheet')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From CommunityForce Smartsheet">CF</span>';
   if(src==='nifty')return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:8px;font-weight:600;letter-spacing:.4px;margin-right:4px" title="From LSI Media NiftyPM">LSI</span>';
