@@ -16,6 +16,7 @@ import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduled
 import { processScheduledReports, startScheduledReportsCron } from "./scheduledReports";
 import { startExternalTasksCron } from "./externalTasksCron";
 import { startRecurrenceCron } from "./recurrenceEngine";
+import { startDailyDigestCron } from "./dailyDigestEmail";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -355,6 +356,8 @@ async function startServer() {
     try { startExternalTasksCron(); } catch (e) { console.error('[startup] external-tasks cron failed:', e); }
     // Kick off the daily recurrence-engine tick (materialize next instances).
     try { startRecurrenceCron(); } catch (e) { console.error('[startup] recurrence cron failed:', e); }
+    // Kick off the daily morning-digest email cron (15-min granularity).
+    try { startDailyDigestCron(); } catch (e) { console.error('[startup] daily-digest cron failed:', e); }
   });
 }
 

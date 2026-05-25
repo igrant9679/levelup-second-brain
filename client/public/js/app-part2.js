@@ -324,6 +324,13 @@ function renderSettingsHTML(){
     </div>
   </div>
 
+  <!-- Daily Morning Digest (server-side) -->
+  <div id="daily-digest-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">☀ Daily Morning Digest Email</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across CommunityForce (Smartsheet), LSI Media (NiftyPM), and your personal LevelUp tasks. Sent only when there's something to surface.</p>
+    <div id="daily-digest-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+  </div>
+
   <!-- Email Notifications -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">Email Notifications</div>
@@ -894,7 +901,7 @@ function showSetTab(el,id){
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
   if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();}
-  if(id==='sp-3')loadEmailNotifPrefs();
+  if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
@@ -904,6 +911,81 @@ function showSetTab(el,id){
 // All async helpers for the sp-5 Integrations panel. Builds the connection
 // status / watch lists / add-modal flow against the externalSources.* tRPC
 // procedures. Kept in one block for grep-ability.
+
+// ─── Daily Digest Email Settings Panel ──────────────────────────────────────
+async function _hydrateDailyDigestPanel(){
+  const body=document.getElementById('daily-digest-body');
+  if(!body)return;
+  body.innerHTML='Loading…';
+  try{
+    const p=await _trpc('dailyDigest.getPrefs',undefined,'query');
+    body.innerHTML=_renderDailyDigestPanelHTML(p);
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
+  }
+}
+function _renderDailyDigestPanelHTML(p){
+  const userEmail=(D.creds&&D.creds.email)||'(no email on file)';
+  const recipient=p.recipientEmail||userEmail;
+  const lastSent=p.lastSentDate?`Last sent: ${esc(p.lastSentDate)}`:'Not yet sent';
+  return `
+    <div class="lr" style="padding:6px 0;align-items:center">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:500">Send the morning digest</div>
+        <div style="font-size:10px;color:var(--t3)">${lastSent}</div>
+      </div>
+      <div class="tog ${p.enabled?'on':''}" id="tog-digest-enabled" onclick="_toggleDigestEnabled()"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+      <div>
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Send around</div>
+        <input id="digest-time" type="time" class="inp" style="width:100%;font-size:11px" value="${esc(p.time||'07:00')}" onchange="_saveDigestTime()">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
+        <input id="digest-recipient" class="inp" placeholder="${esc(userEmail)}" style="width:100%;font-size:11px" value="${esc(p.recipientEmail||'')}" onblur="_saveDigestRecipient()">
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_digestSendNow()">📧 Send now (test)</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateDailyDigestPanel()">Reload</button>
+    </div>
+  `;
+}
+async function _toggleDigestEnabled(){
+  const tog=document.getElementById('tog-digest-enabled');
+  const willBeOn=!tog.classList.contains('on');
+  try{
+    await _trpc('dailyDigest.savePrefs',{enabled:willBeOn},'mutation');
+    tog.classList.toggle('on');
+    toast({type:'success',title:willBeOn?'☀ Daily digest on':'Daily digest off'});
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _saveDigestTime(){
+  const v=document.getElementById('digest-time').value;
+  if(!v)return;
+  try{
+    await _trpc('dailyDigest.savePrefs',{time:v},'mutation');
+    toast({type:'success',title:`Send time set to ${v}`,duration:1500});
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _saveDigestRecipient(){
+  const v=document.getElementById('digest-recipient').value.trim();
+  try{
+    await _trpc('dailyDigest.savePrefs',{recipientEmail:v||null},'mutation');
+    await _hydrateDailyDigestPanel();
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+async function _digestSendNow(){
+  try{
+    toast({type:'info',title:'Sending test digest…',duration:1500});
+    const r=await _trpc('dailyDigest.sendNow',undefined,'mutation');
+    if(r.sent>0)toast({type:'success',title:`✓ Digest sent (${r.sent})`});
+    else if(r.skipped>0)toast({type:'info',title:'Nothing on today\'s plate — nothing to send'});
+    else toast({type:'warn',title:`No send — errors:${r.errors}`});
+  }catch(e){toast({type:'warn',title:'Send failed',msg:e.message||String(e)});}
+}
 
 async function _hydrateExternalSourcesPanel(){
   const body=document.getElementById('ext-sources-body');

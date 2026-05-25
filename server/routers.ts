@@ -26,6 +26,7 @@ import { imageMigrationRouter } from "./routers/imageMigration";
 import { externalSourcesRouter } from "./routers/externalSources";
 import { timeEntriesRouter } from "./routers/timeEntries";
 import { taskMigrationsRouter } from "./routers/taskMigrations";
+import { dailyDigestRouter } from "./routers/dailyDigest";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -91,6 +92,7 @@ export const appRouter = router({
   externalSources: externalSourcesRouter,
   timeEntries: timeEntriesRouter,
   taskMigrations: taskMigrationsRouter,
+  dailyDigest: dailyDigestRouter,
 });
 
 export type AppRouter = typeof appRouter;
