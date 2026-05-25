@@ -52,7 +52,8 @@ async function upsertResults(
   source: 'smartsheet' | 'nifty',
   sourceConfigId: number,
   rows: AnyExtTask[],
-): Promise<{ upserted: number; vanished: number }> {
+  opts: { skipNewCompletions?: boolean } = {},
+): Promise<{ upserted: number; vanished: number; skipped: number }> {
   const seenIds = new Set(rows.map(r => r.externalId));
 
   // Status → done classifier (mirrors the client-side _extStatusToBoardCol
@@ -80,9 +81,18 @@ async function upsertResults(
   const existingByExtId = new Map<string, { status: string | null; completedAt: Date | null }>();
   for (const e of existingRows) existingByExtId.set(e.externalId, { status: e.status, completedAt: e.completedAt as Date | null });
 
+  let skipped = 0;
   for (const r of rows) {
     const wasDone = isDoneStatus(existingByExtId.get(r.externalId)?.status ?? null);
     const isNowDone = isDoneStatus(r.status);
+    // Skip historical completions: when a Nifty (or any source with this flag
+    // on) task arrives done and we've never tracked it, treat it as noise.
+    // Tasks we already track keep syncing their status normally.
+    if (opts.skipNewCompletions && isNowDone && !existingByExtId.has(r.externalId)) {
+      seenIds.delete(r.externalId);
+      skipped++;
+      continue;
+    }
     const priorCompletedAt = existingByExtId.get(r.externalId)?.completedAt ?? null;
     // First-seen-as-done OR transition from open → done: stamp now.
     // Stay-done: preserve prior completedAt (don't reset on every poll).
@@ -151,7 +161,7 @@ async function upsertResults(
     vanished++;
   }
 
-  return { upserted: rows.length, vanished };
+  return { upserted: rows.length - skipped, vanished, skipped };
 }
 
 /**
@@ -258,7 +268,10 @@ async function pullOneNifty(
   }
   try {
     const rows = await pullNiftyProject(cfg, cred);
-    await upsertResults(db, cfg.userId, 'nifty', cfg.id, rows);
+    // Skip historical Nifty completions — Nifty returns thousands of
+    // long-closed tasks via completed=true and they clutter LevelUp. Only
+    // tasks we already track keep getting status updates.
+    await upsertResults(db, cfg.userId, 'nifty', cfg.id, rows, { skipNewCompletions: true });
     if (cfg.defaultProjectId) await ensureDefaultProjectLinks(db, cfg.userId, 'nifty', rows.map(r => r.externalId), cfg.defaultProjectId);
     await db.update(niftyWatchedProjects)
       .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })

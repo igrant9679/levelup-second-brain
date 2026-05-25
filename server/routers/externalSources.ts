@@ -492,6 +492,48 @@ export const externalSourcesRouter = router({
   }),
 
   /**
+   * One-shot cleanup: delete every Nifty external_tasks row currently in the
+   * "done" status bucket for this user, plus their override rows. Use when a
+   * fresh Nifty pull dragged in years of historical completions you don't
+   * actually want surfaced. After running this, the puller's
+   * skipNewCompletions rule keeps them from coming back.
+   *
+   * Returns counts of what was deleted. Idempotent — safe to re-run.
+   */
+  niftyPurgeCompleted: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await requireDb();
+    // Pull every Nifty row for this user; filter to done in JS so the
+    // status regex matches what the cron uses (avoids SQL LIKE drift).
+    const allNifty = await db.select().from(externalTasks)
+      .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'nifty')));
+    const isDone = (s: string | null) => {
+      const x = (s || '').toLowerCase().trim();
+      if (!x) return false;
+      return /(^|\s)(done|complete|completed|closed|cancell?ed|resolved|shipped)/i.test(x);
+    };
+    const doneRows = allNifty.filter(r => isDone(r.status));
+    let deletedTasks = 0;
+    let deletedOverrides = 0;
+    for (const row of doneRows) {
+      // Delete the override first (no FK in the schema, but order keeps the
+      // semantics clean).
+      const ovRes = await db.delete(externalTaskOverrides)
+        .where(and(
+          eq(externalTaskOverrides.userId, ctx.user.id),
+          eq(externalTaskOverrides.source, 'nifty'),
+          eq(externalTaskOverrides.externalId, row.externalId),
+        ));
+      // mysql2 returns affectedRows in the result header — Drizzle wraps it
+      // but the count isn't reliably exposed across drivers; just count rows.
+      deletedOverrides++;
+      await db.delete(externalTasks).where(eq(externalTasks.id, row.id));
+      deletedTasks++;
+      void ovRes;
+    }
+    return { deletedTasks, deletedOverrides, scanned: allNifty.length };
+  }),
+
+  /**
    * Diagnostic: search every enabled Nifty watched project for tasks matching
    * a title substring (case-insensitive). Returns the raw Nifty payload for
    * each match so we can see exactly what the API thinks the status is,
