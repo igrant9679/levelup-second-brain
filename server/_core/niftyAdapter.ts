@@ -102,28 +102,61 @@ export async function fetchNiftyMe(apiToken: string): Promise<{
 }
 
 /**
- * Fetch all tasks in a project. Nifty paginates with `?page` + `?per_page`
- * (default 50). We walk pages until empty; cap at 50 pages as a safety
- * ceiling (matches the existing M365 contacts importer ceiling).
+ * Fetch one page of /tasks with the given filter overlay. Nifty's GET /tasks
+ * paginates via `limit` (max 100) + `offset` (NOT `page` + `per_page` — those
+ * are silently ignored and Nifty falls back to its 25-default which is why
+ * earlier versions of this puller only ever saw the first 25 tasks per
+ * project). We walk offsets until a short page comes back.
  */
-async function fetchAllProjectTasks(apiToken: string, projectId: string): Promise<NiftyTask[]> {
+async function fetchTaskPage(
+  apiToken: string,
+  projectId: string,
+  extraParams: Record<string, string>,
+): Promise<NiftyTask[]> {
   const out: NiftyTask[] = [];
-  const PER_PAGE = 100;
-  for (let page = 1; page <= 50; page++) {
-    const url = `${NIFTY_API}/tasks?project_id=${encodeURIComponent(projectId)}&page=${page}&per_page=${PER_PAGE}`;
+  const LIMIT = 100;
+  for (let offset = 0; offset < 5000; offset += LIMIT) {
+    const params = new URLSearchParams({
+      project_id: projectId,
+      limit: String(LIMIT),
+      offset: String(offset),
+      include_subtasks: 'true',
+      ...extraParams,
+    });
+    const url = `${NIFTY_API}/tasks?${params.toString()}`;
     const resp = await fetch(url, {
       headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
     });
     if (!resp.ok) {
-      throw new Error(`Nifty /tasks page ${page} failed: ${resp.status} ${await resp.text()}`);
+      throw new Error(`Nifty /tasks offset ${offset} failed: ${resp.status} ${await resp.text()}`);
     }
     const data = await resp.json() as NiftyTask[] | { tasks?: NiftyTask[]; data?: NiftyTask[] };
     const tasks = Array.isArray(data) ? data : (data.tasks ?? data.data ?? []);
     if (tasks.length === 0) break;
     out.push(...tasks);
-    if (tasks.length < PER_PAGE) break;
+    if (tasks.length < LIMIT) break;
   }
   return out;
+}
+
+/**
+ * Fetch all tasks in a project across every completion state. Nifty's default
+ * /tasks response excludes completed tasks — which used to make completed
+ * tasks "vanish" from our puller (stamped removedAt and frozen at last-seen
+ * status). Fix: pull the open set, then explicitly pull the completed set,
+ * then merge by id. include_archived=true also pulls archived rows so a
+ * project the user archived doesn't drop everything overnight.
+ */
+async function fetchAllProjectTasks(apiToken: string, projectId: string): Promise<NiftyTask[]> {
+  const seen = new Map<string, NiftyTask>();
+  // Bare call — whatever Nifty's default is (typically incomplete tasks).
+  const open = await fetchTaskPage(apiToken, projectId, { include_archived: 'true' });
+  for (const t of open) seen.set(String(t.id), t);
+  // Explicit completed pull so closed tasks update their status in LevelUp
+  // instead of vanishing → tombstoning after 72h.
+  const closed = await fetchTaskPage(apiToken, projectId, { completed: 'true', include_archived: 'true' });
+  for (const t of closed) seen.set(String(t.id), t);
+  return Array.from(seen.values());
 }
 
 /**
