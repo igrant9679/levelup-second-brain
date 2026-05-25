@@ -12,9 +12,16 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="icon" type="image/png" sizes="192x192" href="/manus-storage/favicon-192_0a5868b9.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/manus-storage/favicon-512_f76dd5b1.png">
-<link rel="apple-touch-icon" href="/manus-storage/favicon-192_0a5868b9.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png">
+<!-- iOS home-screen icon — points at the local 192px PNG (180x180 is the
+     iOS sweet spot; the 192 is close enough and Safari scales). Without
+     this iOS uses a thumbnail screenshot of the page as the icon, which
+     looks bad. Two sizes declared so older iOS picks the right one. -->
+<link rel="apple-touch-icon" href="/favicon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon-192.png">
+<link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="/favicon-512.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -2514,7 +2521,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-25-30';
+  var APP_BUILD='2026-05-25-31';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
