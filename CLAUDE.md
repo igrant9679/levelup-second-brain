@@ -276,6 +276,115 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 session arc — PM UX upgrade)
+
+Cross-tool PM dashboard built on the Command Center infrastructure shipped
+two days ago. **Build `2026-05-25-12`.**
+
+### New screens
+
+- **Command Center (`s-command`, sidebar "Command Center", amber accent)** —
+  `renderCommandCenter()` in app-part1.js. Context chip switcher (`_ccContext`
+  + persisted in `D.prefs.ccContext`): All / CF / LSI / Personal. KPI strip
+  (Overdue / Due Today / Stalled 7d+ / Shipped 7d / Open Total / Pending
+  Push). At-Risk feed (overdue → today → stalled), grouped + sectioned, click
+  through to drawer or `_openExternalAnnotateModal`. By-Stakeholder grouped
+  by `assignee`. By-Project tiles colored by source. Recently Shipped (7d
+  via `completedAt`). Pending Push preview card (only when count>0).
+  Quick-actions rail with live sync status panel.
+- **Standup (`s-standup`, sidebar "Standup", teal accent)** —
+  `renderStandup()` reuses `_ccTasks()` so the Command Center hat carries
+  over. Three columns: Yesterday (done with `completedAt` slice matching
+  yesterday) / Today (due===today OR myDay) / Blockers (overdue OR tagged
+  block / status containing "block"). Header has its own chip switcher +
+  "Filtered to X" badge when not All. Markdown summary block (Standup —
+  date / Yesterday / Today / Blockers) + Copy button (clipboard + execCommand
+  fallback).
+
+### Project-health helper
+
+- **`_projectHealth(projectId)`** (pass `null` for portfolio-wide) returns
+  `{open,done,total,velocity (per wk, 28d/4),burn (created14d − done14d),
+  risk (overdue+stalled% of open), etaWeeks (open/velocity), trend (up/flat/
+  down via last2w vs prior2w), pct}`. Stalled = `updatedAt < now-7d`.
+- **`_renderHealthStrip(h)`** renders the 4-stat strip (Velocity / Burn /
+  Risk / ETA). Wired into the Project Detail drawer (above Milestones) and
+  the Program Detail drawer (aggregated across child projects).
+
+### Portfolio Timeline (Programs page)
+
+- **`_renderPortfolioTimeline()`** appended to `renderPrograms()` output.
+  Swimlanes per project that has at least one dated task (native or
+  external-linked). Date axis is dynamic: clamps to `today-14d … today+60d`
+  but expands if data goes further. Bars colored by source (Smartsheet blue,
+  Nifty purple, native = project color), overdue gets a red border, done
+  gets opacity .7. Sticky month axis header. Today line (vertical red).
+  Footer counter: "N projects on chart · X hidden (no dates)".
+
+### Reports engine — external as a source
+
+- New `WIDGET_SOURCES.external` (Smartsheet+Nifty only, tombstoned filtered)
+  alongside the existing `allTasks` cross-source. Exposes: status, priority,
+  due, completedAt, project, assignee, source, sourceLabel, myDay,
+  hasPendingPush.
+- `SOURCE_DEFAULTS` + `FILTER_FIELDS` + `_groupByOptions` + date keys all
+  populated for both `allTasks` and `external` (the former was missing
+  defaults pre-this arc, so changing source to it broke the editor).
+- 7 new templates under "Start from a template": External CF vs LSI split,
+  open by project, by status, shipped/week (line, 90d range), overdue KPI,
+  by assignee, pending-push KPI.
+
+### Integration polish
+
+- **Topbar "synced Xm ago · 2 src" label** beside the ↻ button — `id=topbar-
+  sync-label`. Click navigates to Command Center. Hides under 900px (the
+  tooltip on the button carries the same info).
+- **Push-queue preview drawer** — `openPushQueueDrawer()`. Lists every row
+  with `override.pendingStatus`, shows `current status → pending`, per-row
+  ✕ to drop (`_dropPushItem` — sets `pendingStatus:null`), "Push all"
+  button (`_flushPushQueue` → `externalSources.pushPendingChanges`).
+  Wired from Command Center's Pending Push KPI tile + rail Quick Action +
+  preview-card "Preview" button.
+- **Settings → Integrations → 🗄 Archived external tasks** —
+  `_hydrateTombstoneArchive()` lists rows with `override.tombstoned=true`
+  pulled via `listExternalTasks({includeRemoved:true})`. Shows preserved
+  annotations (tags, priority, note flag, linked project). **Revive**
+  button → `upsertOverride({tombstoned:false})`. Auto-hydrated when sp-5
+  panel opens.
+
+### Wiring
+
+- `SM` map extended: `command:'s-command'`, `standup:'s-standup'`.
+- `renderScreen()` switch routes both.
+- Sidebar entries inserted between Knowledge Graph and Programs with
+  color-coded SVG strokes (Command Center #f59e0b amber, Standup #14b8a6
+  teal) and matching `body[data-screen=…]{--page-accent:…}` blocks.
+- Programs page header gets a "🎯 Command Center" shortcut next to
+  "+ New program".
+- Mobile @media: `#topbar-sync-label{display:none!important}` under 900px.
+
+### Session commits (newest first)
+
+- `750af2b` Standup chip switcher + filtered-to badge (build `-12`)
+- `08482f7` Command Center + Standup + Portfolio Timeline + push queue
+  preview + tombstone archive + external reports source (build `-11`)
+
+### Open follow-ups
+
+- **By Project tile click → drill into that project's filtered task list.**
+  Currently the tile is informational only.
+- **Standup Yesterday column is empty when all completions stamped today —
+  expected, but a "Pulled in last 24h" toggle would soften the edge.**
+- **Portfolio Timeline shows "108 hidden (no dates)"** because most
+  external tasks don't carry start/due. Could add an inline link to filter
+  the Tasks view to those rows so the user can add dates.
+- **Push queue preview drawer's "Push all" calls `pushPendingChanges` —
+  no per-row select.** A checkbox column would let the user push a subset
+  (current implementation: flush everything queued).
+- **`_ccTasks()` is recomputed every render.** Fine for current data size
+  (~250 tasks). Memoise behind a dirty flag tied to `loadExternalTasks` /
+  `save('tasks')` if it ever shows up in profiles.
+
 ## Most recently shipped (May 23–25 2026 session arc — Command Center)
 
 This arc turned LevelUp into a cross-tool command center for the user's two
