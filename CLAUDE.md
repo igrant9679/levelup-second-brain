@@ -276,6 +276,128 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — A+D+C+B mega-batch, build `-22`)
+
+Four parallel arcs in one commit (`52e6778`):
+
+### Option A — AI Productivity Engine hardening
+
+- **A1 Overlap fix**: AI prompt switched from `startHour` (hour integer)
+  to `startMins` (minutes 0-1440), with explicit "NO TWO BLOCKS MAY
+  OVERLAP" rule + a worked example. Added client-side dedup pass that
+  sorts blocks by `startMins` and drops any overlapping an earlier
+  accepted block, a calendar event, or falling outside working hours.
+  Dropped blocks land in `unscheduled` with a per-block reason so the
+  user sees them. Renderer + apply path + copy-to-markdown all updated
+  to read `startMins` with legacy `startHour` fallback.
+- **A2 Settings UI**: Settings → General → ⏰ Working Hours card with
+  default start/end pickers + `_saveWorkingHoursDefault()`. Replaces
+  console editing.
+- **A3 Per-day overrides**: `D.prefs.workingHoursByDow` map (0=Sun … 6=
+  Sat). `_workingHours(dateObj)` resolves per DOW. Settings UI shows a
+  7-day chip grid with "default / HH:MM-HH:MM / OFF" labels. Two
+  presets: **Weekdays only** (Sat+Sun → nonWorking) and **Clear**.
+  Per-day modal lets you set hours OR mark non-working OR ✕ Clear
+  override. `_dayCapacityCheck` threads the date through so weekends
+  show 0h free.
+- **A4 OAuth calendar push**: new `oauthSync.createCalendarEvents`
+  mutation POSTs each block to Microsoft Graph `/me/events` or Google
+  `/events` with `start/end dateTime + timeZone`. Returns per-block
+  status with error strings. Client **📤 Push to Outlook** button
+  auto-detects connected provider, builds ISO datetimes in browser
+  time zone, marks the schedule record as `pushedAt`/`pushedProvider`.
+
+### Option D — Polish round (6 items)
+
+- **D1 Standup 24h toggle**: "⏳ Yesterday/24h" button widens the
+  Yesterday column to trailing 24h when same-date completions are
+  thin. Module-scope `_standupWindow24h`.
+- **D2 Dateless deep-link**: Portfolio Timeline "X hidden (no dates)"
+  is now an underlined dotted link. `_drillIntoDatelessTasks()` opens
+  Tasks with `_taskKindFilter='dateless'` (new value in the omnibus
+  filter) + all sources enabled. Chip label = "📭 No date set".
+- **D3 Push queue per-row select**: drawer rows get checkboxes
+  (`_pushQueueSel` Set keyed `source:externalId`). Footer shows
+  "Push selected (N)" + "Push all" + Select-all / Clear-selection
+  buttons. Server `externalSources.pushPendingChanges` accepts an
+  optional `only: [{source, externalId}]` whitelist.
+- **D4 AI Coach freshness**: subtitle "Generated Xm ago" under the
+  modal title, sourced from `p.aiCoach.dateISO` via `_relTime`.
+- **D5 Saved-view icons**: 🎯 prefix when view captures filters
+  (project / assignee / priority), 🪪 when hat-only. Tooltip explains.
+- **D6 Phablet pass**: new rules inside `@media (max-width:900px)` for
+  the new PM screens — KPI strip → 4 cols, briefing 4-col grid → 2,
+  Standup 3-col → 2, timeline label column 180→140px.
+
+### Option C — Weekly Review email enhancement
+
+`buildRowsForUser` now reads `userAppData.programs` JSON and the full
+prefs object. Builds:
+- **`programs: ProgramRow[]`** — for each program with non-zero
+  shipped/open, counts {shipped, open, overdue, total} by walking
+  native tasks + external overrides and matching `projectId` to the
+  program's `projectIds[]`.
+- **`briefingHeadline` + `briefingDateISO`** — from `prefs.briefings[0]`.
+
+`renderWeeklyHtml` gains two new sections:
+1. Yellow pull-quote with the latest AI Portfolio Briefing headline,
+   visible only when one exists.
+2. **📊 By Program** table with color-dot + counts per program,
+   sorted by shipped desc / open desc.
+
+### Option B — Cross-project dependency view (`s-deps`)
+
+New screen registered in SM + sidebar (red dependency icon) + page
+accent. `renderDeps()`:
+- Walks native `D.tasks` filtering to rows with non-empty
+  `predecessorIds[]` OR rows referenced as someone's predecessor.
+- Computes depth via memoised DFS (cycle-safe — visiting Set guards
+  against accidental loops). Tasks grouped into columns by depth.
+- Within each column, sorted Done-last then by title for stable layout.
+- Layout: 240px column width, 64px row height, columns and rows
+  centred vertically. SVG viewBox sized to fit.
+- Status-colored nodes:
+    green   = Done
+    red     = Blocked (any pred not Done) OR explicit `Blocked` status
+    amber   = Overdue
+    blue    = Active
+- Edges: cubic Béziers from predecessor right side → successor left
+  side, with `<marker>` arrowhead. Color `var(--bd2)` at 55% opacity
+  normally; red 100% when on the critical path.
+- **⛓ Show critical path** button toggles `_depsHighlightCritical`.
+  Critical path computed greedily: `pathTo(id)` memoises the longest
+  predecessor chain ending at each node; overall critical path =
+  longest result. Nodes + edges on the path drawn in red.
+- Click any node → opens the task drawer.
+- Empty state CTA points to Tasks → drawer → Predecessors picker.
+
+### Verified live
+
+- Dependencies view loaded on a real account showing the
+  "Configure Basic Visualizations in Tableau Cloud" (orange — overdue,
+  In Progress) → "Try Tableau XML Visualization Create" (red — Not
+  Started, overdue) chain. 2 tasks · 2 layers · 1 edge · critical
+  path = 2 steps. Status colors + arrow direction correct.
+
+### Open follow-ups
+
+- Dependency view is native-only. External tasks don't carry
+  `predecessorIds` in this codebase. If the user adopts that on the
+  external side (via `external_task_overrides.localPredecessorIds`),
+  the renderDeps walk would need to merge external nodes.
+- Per-day working hours have no Settings UI for the "hours" inside
+  the modal — only start/end + non-working checkbox. Could add a
+  "lunch break" sub-range later.
+- OAuth calendar push doesn't yet check for duplicates — pushing the
+  same plan twice creates two sets of events. Would need to read back
+  `D.prefs.todaySchedule.pushedAt` and refuse if already pushed.
+- AI Coach freshness only shows on modal open; if the user keeps the
+  modal open across midnight the timestamp goes stale. Minor.
+
+### Session commits
+
+- `52e6778` Options A+D+C+B in one shot (build `-22`)
+
 ## Most recently shipped (May 25 2026 — AI Productivity Engine, build `-21`)
 
 Turns LevelUp from a cockpit (showing reality) into an active scheduling
