@@ -79,6 +79,15 @@ interface NiftyTask {
   // Nifty's response shape varies by endpoint; we tolerate a few aliases:
   status_name?: string;
   dueDate?: string;
+  // Authoritative completion flag (true/false) — Nifty returns this even
+  // when the named status object is null (some workspaces don't use named
+  // task-group statuses). We trust this over status.name when present.
+  completed?: boolean;
+  completed_at?: string | null;
+  archived?: boolean;
+  // Some Nifty payloads carry a task_group object instead of status.
+  task_group?: { name?: string; id?: string };
+  task_group_id?: string;
 }
 
 /**
@@ -191,6 +200,16 @@ export async function pullNiftyProject(
     // semantics (stamp completedAt, hide from active views, surface in Done
     // tab and weekly review's shipped section).
 
+    // Status resolution. Some workspaces leave the named status object null
+    // (no task-group naming configured) — fall back to the top-level
+    // `completed` boolean which Nifty returns reliably. If neither is
+    // present, leave null (UI shows a "Not Started" fallback).
+    let status: string | null = t.status?.name ?? t.status_name ?? t.task_group?.name ?? null;
+    if (t.completed === true && (!status || !/done|complete|completed|closed|cancell?ed|resolved|shipped/i.test(status))) {
+      status = 'Completed';
+    } else if (t.completed === false && !status) {
+      status = 'Open';
+    }
     out.push({
       source: 'nifty',
       sourceConfigId: cfg.id,
@@ -198,7 +217,7 @@ export async function pullNiftyProject(
       externalUrl: t.url ?? null,
       title: t.name,
       description: t.description ?? null,
-      status: t.status?.name ?? t.status_name ?? null,
+      status,
       priority: null,
       due: t.due_date ?? t.dueDate ?? null,
       startDate: t.start_date ?? null,
