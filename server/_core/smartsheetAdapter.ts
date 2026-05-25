@@ -211,6 +211,11 @@ function detectHierarchyColumns(columns: SsColumn[]): {
  * Project cell is non-empty. Used so a Task row indented under a Project
  * row inherits that project label without the Task row needing its own
  * Project cell. Walks at most 8 levels to guard against pathological data.
+ *
+ * Only works when the sheet uses Smartsheet's outline (indent) feature.
+ * Sheets that encode hierarchy by row order alone (Project header rows
+ * followed by their tasks, no actual indent) need the positional fallback
+ * below.
  */
 function inheritProjectFromAncestors(
   row: SsRow,
@@ -225,6 +230,53 @@ function inheritProjectFromAncestors(
     cur = rowsById.get(cur.parentId);
   }
   return null;
+}
+
+/**
+ * Build a row.id → projectLabel map by scanning sheet.rows in display order
+ * and remembering the most-recent non-empty Project cell. Used as the
+ * fallback when parentId-based ancestry returns nothing — which is the
+ * case for sheets that encode hierarchy by row position only (Project
+ * header rows followed by their task rows, no actual indent).
+ *
+ * The map covers every row including project headers themselves (so a
+ * project header's own row maps to its own label). Empty until the first
+ * Project cell is seen.
+ *
+ * Similarly builds a task-context map: row.id → parent Task row.id, so
+ * SubTask rows can link to the most-recent Task row above them when
+ * Smartsheet's parentId isn't set.
+ */
+function buildPositionalContext(
+  rows: SsRow[],
+  projectColId: number | undefined,
+  taskColId: number | undefined,
+  subtaskColId: number | undefined,
+): { projectByRow: Map<number, string>; taskParentByRow: Map<number, number> } {
+  const projectByRow = new Map<number, string>();
+  const taskParentByRow = new Map<number, number>();
+  let currentProject: string | null = null;
+  let currentTaskRowId: number | null = null;
+  for (const row of rows) {
+    const projectText = projectColId ? (cellText(cellByColumn(row, projectColId)) || '').trim() : '';
+    const taskText = taskColId ? (cellText(cellByColumn(row, taskColId)) || '').trim() : '';
+    const subtaskText = subtaskColId ? (cellText(cellByColumn(row, subtaskColId)) || '').trim() : '';
+
+    // A row updates currentProject when it has a Project cell value.
+    if (projectText) {
+      currentProject = projectText;
+      // Reset task context — a new project starts a new task scope.
+      currentTaskRowId = null;
+    }
+    // A row updates currentTask when it has a Task cell value but NO SubTask
+    // (subtask rows shouldn't become parents of other subtasks via this path).
+    if (taskText && !subtaskText) {
+      currentTaskRowId = row.id;
+    }
+    if (currentProject) projectByRow.set(row.id, currentProject);
+    if (subtaskText && currentTaskRowId) taskParentByRow.set(row.id, currentTaskRowId);
+  }
+  return { projectByRow, taskParentByRow };
 }
 
 /**
@@ -328,6 +380,13 @@ export async function pullSmartsheet(
   const rowsById = new Map<number, SsRow>();
   for (const r of sheet.rows) rowsById.set(r.id, r);
 
+  // Pre-pass: positional project + task ancestry. Used when row.parentId is
+  // null (sheet doesn't use Smartsheet's outline; hierarchy is encoded by
+  // row order — e.g. a Project header row followed by its task rows).
+  const positional = hierarchical
+    ? buildPositionalContext(sheet.rows, projectColId, taskColId, subtaskColId)
+    : { projectByRow: new Map<number, string>(), taskParentByRow: new Map<number, number>() };
+
   // Default: pull EVERY status (including done) so completions sync into
   // LevelUp. Users can opt into a hard filter via cfg.excludeDoneStatuses.
   const excludeStatuses = (cfg.excludeDoneStatuses ?? '')
@@ -361,13 +420,24 @@ export async function pullSmartsheet(
       if (!title && taskColId) title = cellText(cellByColumn(row, taskColId));
       if (!title) title = resolveRowTitle(row, sheet.columns, primaryColId);
 
-      // Project label = own Project cell ∪ ancestor walk ∪ sheet fallback.
+      // Project label resolution order:
+      //   1. Smartsheet outline walk via parentId (only when sheet uses indent).
+      //   2. Positional ancestry — most-recent Project header row above this
+      //      one in display order (covers flat sheets like the CF 120-Day Plan).
+      //   3. cfg.label / sheet.name as last resort.
       let projectLabel: string | null = null;
       if (projectColId) {
         projectLabel = inheritProjectFromAncestors(row, rowsById, projectColId);
       }
+      if (!projectLabel) projectLabel = positional.projectByRow.get(row.id) ?? null;
       if (!projectLabel) projectLabel = cfg.label ?? sheet.name;
       if (projectLabel) projectLabels.add(projectLabel);
+
+      // SubTask parent: Smartsheet parentId first, then positional task
+      // context (most-recent Task row above this one).
+      const parentExternalId = row.parentId
+        ? String(row.parentId)
+        : (kind === 'subtask' ? (positional.taskParentByRow.get(row.id)?.toString() ?? null) : null);
 
       out.push({
         source: 'smartsheet',
@@ -382,7 +452,7 @@ export async function pullSmartsheet(
         startDate: null,
         assignee: cellText(ownerCell),
         projectLabel,
-        parentExternalId: row.parentId ? String(row.parentId) : null,
+        parentExternalId,
         raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells, kind }),
         hierarchyLevel: kind ?? 'task',
       });
