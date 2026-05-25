@@ -388,7 +388,7 @@ puller, all now fixed:
    `await _trpc('externalSources.niftyPurgeCompleted', undefined, 'mutation')`.
    Returns `{deletedTasks, deletedOverrides, scanned}`.
 
-### Two other bugs surfaced + fixed in the same arc
+### Other bugs surfaced + fixed in the same arc
 
 - **Topbar search click did nothing for external tasks** because Nifty
   `externalUrl` is null (Nifty's `/tasks` response has no `url` field).
@@ -403,6 +403,22 @@ puller, all now fixed:
   another tab. `setTaskTabIdx` was calling `renderCurrentTaskView()` which
   only re-paints the view body, not the parent tab strip. Fix: also flip
   the `.on` class on `#tasks-tabs > .tab` elements manually.
+- **Quick-add task field auto-filled with the user's email** on every
+  render. Root cause: the input had no `name` / `autocomplete` attrs, so
+  Chromium's address-bar autofill grabbed it. Fix: added `name`,
+  `autocomplete="off"`, and the `data-1p-ignore` / `data-lpignore` /
+  `data-form-type="other"` opt-out hints for 1Password + LastPass.
+  General rule: any free-form input inside an app screen that the user
+  might type a non-form value into needs these attrs or browser
+  autofill will eat it.
+- **Gantt view looked truncated** — only one row visible even with 50+
+  dated tasks. Two issues: (a) the scroll wrapper had `overflow-x:auto`
+  with no height cap, so rows extended past the viewport bottom and
+  looked clipped; (b) tasks without a start/due date were silently
+  dropped (Gantt requires one). Fix: wrap in `overflow:auto;
+  max-height:calc(100vh - 360px)` with a sticky date header, and add a
+  footer counter showing "N tasks on chart" + "X hidden — no date
+  (incl. Y external)" so the silent drop is visible.
 
 ### Useful console snippets from this arc
 
@@ -427,7 +443,7 @@ await _trpc('dailyDigest.sendNow', undefined, 'mutation')
 
 ### APP_BUILD at end of arc
 
-`2026-05-25-09`. Bump on every change to `client/public/js/app-part*.js`
+`2026-05-25-10`. Bump on every change to `client/public/js/app-part*.js`
 or any client-visible logic.
 
 ### Open items / known gaps
@@ -447,6 +463,8 @@ or any client-visible logic.
 
 ### Session commits (newest first)
 
+- `ae1c880` Fix quick-add autofill + Gantt vertical scroll & skip counter
+- `952b817` CLAUDE.md handoff for the Command Center arc
 - `f30ace4` Fix sticky task-filter tab highlight (.on class never moved)
 - `de6e3b4` Fix search-result click — wait for screen, scroll-into-view,
   ext fallback
