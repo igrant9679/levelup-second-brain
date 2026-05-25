@@ -276,6 +276,98 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 batch 2 — drill-through + AI briefing + saved views)
+
+Built on top of the PM UX batch shipped earlier today. **Build `2026-05-25-14`.**
+
+### Drill-through from Command Center
+
+- New module-scope filters in `app-part1.js`: `_taskProjectFilter` and
+  `_taskAssigneeFilter`. Applied inside `_applyPriorityFilter()` so every
+  Task view dispatcher (list/board/matrix/gantt/clusters/calendar) picks
+  them up without per-view changes.
+- Tasks header renders chips for both when set; ✕ clears via
+  `clearTaskProjectFilter()` / `clearTaskAssigneeFilter()`.
+- Command Center By-Project tiles call `_ccDrillIntoProject(name, source)`
+  which flips `D.prefs.taskSourceFilter` to ONLY the relevant source, resets
+  the priority/myOnly filters, sets `_taskProjectFilter`, and `nav('tasks')`.
+- By-Stakeholder rows call `_ccDrillIntoAssignee(name)`. The sentinel
+  `"(unassigned)"` matches `assignedTo`/`assignee` empty.
+
+### Inline-onclick string-escape gotcha (fixed)
+
+The first version of the drill-through used `JSON.stringify(name)` inside
+`onclick="..."`. JSON-string output is `"foo"` — literal double quotes —
+which terminates the attribute prematurely and silently breaks the click
+handler. The function called fine via `_trpc`/console; only inline binding
+was broken.
+
+Fixed by adding a small `_jsAttr(s)` helper next to `esc()`:
+
+```js
+function _jsAttr(s){return String(s==null?'':s)
+  .replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n')
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+```
+
+Use `onclick="fn('${_jsAttr(name)}','${_jsAttr(src)}')"` (note single
+quotes around the args). Already applied to the project tile, the
+stakeholder row, the at-risk row (external branch), the push-queue drop
+button, and the tombstone revive button.
+
+There are still legacy spots in this codebase using `JSON.stringify(str)`
+in `onclick="..."`. They only work if the value is a number or contains
+no special chars. Watch for it when refactoring.
+
+### AI Portfolio Briefing
+
+- `aiPortfolioBriefing()` builds a snapshot from `_ccTasks()` (counts,
+  shipped 7d, overdue, stalled, hottest open) and calls `ai.assist` with a
+  chief-of-staff system prompt that returns
+  `{headline, wins[], risks[], blockers[], next_three[]}` JSON.
+- Persists to `D.prefs.briefings[]` (last 24). Each record carries
+  `{id, dateISO, hat, snapshot.counts, briefing, emailed}`.
+- `_renderBriefingCard()` renders the latest as a full-width Command
+  Center card above the main grid: italic headline blockquote in a
+  page-accent tint, then a 4-column grid (Wins / Risks / Blockers / Next
+  3) with `→ action` lines on Risks.
+- Header buttons: **↻ Refresh** (re-runs the AI), **✉ Email** (calls
+  `_emailLatestBriefing` → `oauthSync.sendCustom` with a clean inline-CSS
+  HTML body), **📚 History (N)** (drawer listing past briefings with
+  apply / ✕).
+- "📝 Generate weekly briefing" button added at the top of the right-rail
+  Quick Actions in purple.
+
+### Saved Command Center views
+
+- `D.prefs.savedCCViews[] = [{id, name, hat}]`. Cap 12.
+- "⭐ Save view" button next to the chip switcher prompts for a name.
+- Inline chip row below the page title shows up to 8 saved views with
+  one-click apply + a "Manage" button.
+- `_openSavedCCViews()` drawer: list with apply / ✏ rename / ✕ delete +
+  "+ Save current" footer.
+- Today the saved view captures the hat only; the data structure is ready
+  for a future `extra` field (priority / project / assignee filters).
+
+### Session commits (newest first)
+
+- `75b2823` Fix inline-onclick JSON.stringify escaping (build `-14`)
+- `3c4bcce` Drill-through + AI Briefing + Saved Views (build `-13`)
+
+### Open follow-ups
+
+- Saved views capture hat only — extend with `extra.{project,assignee}` if
+  drill-through state should be saveable.
+- The AI briefing prompt uses the same `_getAIConfig()` shared workspace
+  keys; no per-user config. If a user pins a briefing to Home it currently
+  shows the latest, not the pinned one — a separate `D.prefs.pinnedBriefingId`
+  would close that loop.
+- The at-risk row drill-into (overdue/today badges → filtered Tasks view)
+  is not wired — only the project tile + stakeholder row are. The row
+  itself opens the task drawer or annotate modal (good default).
+- `_emailLatestBriefing` uses `oauthSync.sendCustom` (self-delivery only).
+  Sending to a distribution list would need a new server endpoint.
+
 ## Most recently shipped (May 25 2026 session arc — PM UX upgrade)
 
 Cross-tool PM dashboard built on the Command Center infrastructure shipped
