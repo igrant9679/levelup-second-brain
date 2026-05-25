@@ -2242,6 +2242,123 @@ async function _refreshAIInsight(){
     save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
   }
 }
+// AI Daily Focus: cross-source recommendation of the top 3-5 items to tackle
+// today. Reads native + external tasks via _unifiedTasks(), asks ai.assist for
+// structured picks with reasoning, caches per-day in D.prefs.dailyFocusAI.
+// Manual refresh forces a re-fetch regardless of cache.
+async function _refreshDailyFocusAI(opts){
+  const force=opts&&opts.force;
+  const today=new Date().toISOString().slice(0,10);
+  const cache=(D.prefs&&D.prefs.dailyFocusAI)||null;
+  if(!force&&cache&&cache.date===today&&Array.isArray(cache.picks)&&cache.picks.length)return;
+  // Mark pending so the UI can show a spinner without re-firing the request.
+  D.prefs.dailyFocusAI={date:today,picks:cache?cache.picks:[],pending:true};
+  if(typeof renderScreen==='function'&&curScreen==='home')renderScreen('home');
+  try{
+    const {provider,apiKey}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',apiKey:''};
+    // Build a compact task summary the model can reason over. Strip junk and
+    // cap the list to keep tokens reasonable. Each item includes a stable id
+    // shape so the response can reference items unambiguously.
+    const all=typeof _unifiedTasks==='function'?_unifiedTasks():[];
+    const todayKey=today;
+    const open=all.filter(t=>{
+      const s=(t.status||'').toLowerCase();
+      if(s==='done'||s==='complete'||s==='closed')return false;
+      return true;
+    });
+    // Prioritise the candidate pool: overdue → today → my-day → next 14 days → rest. Cap 60.
+    const score=t=>{
+      const due=t.due;
+      if(due&&due<todayKey)return 0;       // overdue
+      if(due===todayKey)return 1;          // due today
+      if(t.myDay)return 2;                  // my day
+      if(due&&due<=new Date(Date.now()+14*86400000).toISOString().slice(0,10))return 3; // next 2 weeks
+      return 4;                              // rest
+    };
+    const candidates=open.slice().sort((a,b)=>score(a)-score(b)||(a.due||'9999').localeCompare(b.due||'9999')).slice(0,60);
+    const compact=candidates.map(t=>({
+      id:String(t.id),
+      title:(t.title||'').slice(0,200),
+      source:t._source||'local',
+      due:t.due||null,
+      priority:t.priority||null,
+      status:t.status||null,
+      project:t.project||t.projectLabel||null,
+      myDay:!!t.myDay,
+    }));
+    const sys=`You are a productivity coach for a COO/CEO running two companies. Read the open task list (mix of personal items, CF = CommunityForce Smartsheet items, LSI = LSI Media Nifty items) and pick the TOP 3 to 5 items that the user should focus on TODAY, in order. Bias toward: overdue items, items due today, items flagged "myDay", and high-leverage strategic work over busy work. When two items would compete, prefer the one that unblocks others. Output STRICTLY a JSON array — no prose, no markdown — each element shaped {"id":"<id from input>","reason":"<one short sentence, ~12 words, why this item matters today>"}. Do NOT include items not in the input. Do NOT invent ids.`;
+    const userContent=`Today: ${todayKey}\nOpen tasks (${compact.length}):\n${JSON.stringify(compact)}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const raw=String(res?.result||res?.text||'').trim();
+    // Tolerate the model wrapping the JSON in ```json fences or padding.
+    const m=raw.match(/\[[\s\S]*\]/);
+    let picks=[];
+    if(m){
+      try{
+        const parsed=JSON.parse(m[0]);
+        if(Array.isArray(parsed)){
+          // Resolve each pick back to the source row so the renderer has the
+          // title, source, url, etc. without re-querying.
+          picks=parsed.map(p=>{
+            const c=candidates.find(x=>String(x.id)===String(p.id));
+            if(!c)return null;
+            return {id:String(c.id),title:c.title,source:c._source||'local',url:c._url||null,due:c.due||null,reason:String(p.reason||'').slice(0,300)};
+          }).filter(Boolean).slice(0,5);
+        }
+      }catch{ /* parse error — leave picks empty */ }
+    }
+    D.prefs.dailyFocusAI={date:today,picks,pending:false,generatedAt:new Date().toISOString()};
+    save('prefs');
+    if(typeof renderScreen==='function'&&curScreen==='home')renderScreen('home');
+  }catch(e){
+    D.prefs.dailyFocusAI={date:today,picks:[],pending:false,error:e.message||String(e)};
+    save('prefs');
+    if(typeof renderScreen==='function'&&curScreen==='home')renderScreen('home');
+  }
+}
+
+// Render the AI Focus section as part of the Command Center card. Renders
+// inline (no separate card) so it's right next to the rollup counts.
+function _renderDailyFocusAISection(){
+  const cache=(D.prefs&&D.prefs.dailyFocusAI)||{};
+  const picks=Array.isArray(cache.picks)?cache.picks:[];
+  const hasAIConfig=(()=>{try{const {apiKey,provider}=_getAIConfig();return !!apiKey||provider==='manus';}catch{return false;}})();
+  if(!hasAIConfig){
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:9px;color:var(--t3);text-align:center">Add an AI key in Settings → AI Features to see Daily Focus picks.</div>`;
+  }
+  const today=new Date().toISOString().slice(0,10);
+  const stale=!cache.date||cache.date!==today;
+  if(cache.pending){
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3);text-align:center">✨ Thinking about today's focus…</div>`;
+  }
+  if(!picks.length||stale){
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="font-size:10px;color:var(--t3)">✨ ${stale?'Refresh':'Generate'} AI Daily Focus picks${cache.error?` <span style="color:var(--red)" title="${esc(cache.error)}">(error — click to retry)</span>`:''}</div>
+      <button class="btn btn-s" style="font-size:9px;padding:0 8px;height:20px" onclick="_refreshDailyFocusAI({force:true})">${stale&&picks.length?'↻':'✨ Pick'}</button>
+    </div>`;
+  }
+  const rows=picks.map((p,i)=>{
+    const badge=p.source==='smartsheet'?_extSourceBadge('smartsheet'):(p.source==='nifty'?_extSourceBadge('nifty'):'');
+    const clickHandler=p.source==='local'
+      ?`(()=>{const t=D.tasks.find(x=>String(x.id)===${JSON.stringify(p.id)});if(t)openDrawer('task',t);})()`
+      :(p.url?`window.open('${esc(p.url)}','_blank','noopener')`:'void 0');
+    return `<div style="display:flex;align-items:flex-start;gap:6px;padding:6px 0;${i<picks.length-1?'border-bottom:1px solid var(--bd1);':''}cursor:pointer" onclick="${clickHandler}">
+      <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:14px;flex-shrink:0">${i+1}.</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:500;line-height:1.35;display:flex;align-items:center;gap:4px;flex-wrap:wrap">${badge}<span style="overflow:hidden;text-overflow:ellipsis">${esc(p.title)}</span></div>
+        ${p.reason?`<div style="font-size:9px;color:var(--t3);line-height:1.4;margin-top:2px;font-style:italic">${esc(p.reason)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:10px;font-weight:600;color:var(--t2)">✨ AI Daily Focus</span>
+      <button class="btn btn-s" style="font-size:9px;padding:0 5px;height:18px" title="Regenerate" onclick="_refreshDailyFocusAI({force:true})">↻</button>
+    </div>
+    ${rows}
+  </div>`;
+}
+
 // AI-generated hero subtitle (#8). Cached per day in D.prefs.aiHeroBrief.
 // Toggled on via D.prefs.heroAIBrief checkbox in the Customize Dashboard modal.
 async function _refreshHeroBrief(){
@@ -5279,6 +5396,18 @@ function renderHome(){
     if(!rows)return '';
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">📌 Pinned</span></div>${rows}</div>`;
   })()}`;
+  // Kick AI Daily Focus generation if cache is stale and not already in
+  // flight. Fire-and-forget — the render call inside _refreshDailyFocusAI
+  // will re-render Home when results land.
+  try{
+    const todayKey=new Date().toISOString().slice(0,10);
+    const cache=(D.prefs&&D.prefs.dailyFocusAI)||null;
+    const stale=!cache||cache.date!==todayKey;
+    if(stale&&!(cache&&cache.pending)&&typeof _refreshDailyFocusAI==='function'){
+      // Defer slightly so the Home render isn't blocked by the AI call setup.
+      setTimeout(()=>_refreshDailyFocusAI(),700);
+    }
+  }catch{ /* never break Home */ }
 }
 function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
@@ -6831,6 +6960,7 @@ function _renderDailyCommandCenterCard(){
       ${cell('LSI',(noExternal?'var(--t3)':'#9333ea'),nf)}
     </div>
     ${noExternal?`<div style="font-size:9px;color:var(--t3);margin-top:8px;text-align:center">Connect Smartsheet + NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
+    ${_renderDailyFocusAISection()}
   </div>`;
 }
 
