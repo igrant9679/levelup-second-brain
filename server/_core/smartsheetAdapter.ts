@@ -210,24 +210,63 @@ function inferTitleColumn(columns: SsColumn[]): number | undefined {
  * presence (sheets with just one column fall back to flat mode).
  */
 /**
- * Detect Sales Pipeline shape: any column titled Stage AND any column
- * representing a monetary Value/Amount. Allows variants:
- *   Stage     : Stage, Status, Pipeline Stage
- *   Value     : Value, Amount, Deal Value, Estimated Value, Contract Value, ACV, TCV
- *   Close     : Close Date, Expected Close, Close, Target Close
- *   Account   : Account, Customer, Company, Client
- *   Owner     : Owner, Sales Owner, AE, Rep
- *   Contact   : Contact, Lead, Primary Contact
- *   Probability: Probability, Win %, Confidence
- * Pipeline mode is independent of hierarchy mode; if both are detected the
- * pipeline mode wins (a sheet typically can't be both at once).
+ * Stage-name dictionary used by the multi-stage pipeline detector below.
+ * If a PICKLIST column's title matches one of these, it counts as a
+ * progression column. Order also defines a default progression when the
+ * sheet's column order isn't strictly funnel order.
+ */
+const _STAGE_NAME_DICT: Array<{ re: RegExp; standard: string }> = [
+  { re: /^(lead\s+gen(eration)?|lead|prospect|prospecting|outreach)$/i, standard: 'Lead' },
+  { re: /^(qualif(ied|ication)|discovery|presales|pre[-\s]?sales)$/i, standard: 'Qualified' },
+  { re: /^(proposal|sales|quote|pricing)$/i, standard: 'Proposal' },
+  { re: /^(negotiation|negotiat(ing|e)|contract|red[-\s]?lines?)$/i, standard: 'Negotiation' },
+  { re: /^(closed[-\s]?won|won|delivery|delivered|launch(ed)?|implement(ed|ation)?|deploy(ed|ment)?|signed)$/i, standard: 'Closed Won' },
+  { re: /^(closed[-\s]?lost|lost|dead|disqualif(ied|y))$/i, standard: 'Closed Lost' },
+];
+function _matchStageColumn(title: string): string | null {
+  const t = (title || '').trim();
+  for (const e of _STAGE_NAME_DICT) if (e.re.test(t)) return e.standard;
+  return null;
+}
+const _OPP_NAME_RE = /^(opportunit(y|ies)|program|project(\s+name)?|title|deal|name|product)$/i;
+/**
+ * Detect "is this PICKLIST cell occupied" — handles both empty cells and
+ * the "Not Started" sentinel that Smartsheet picklists tend to use.
+ */
+function _stageCellOccupied(cell: SsCell | undefined): boolean {
+  if (!cell) return false;
+  const text = (cell.displayValue ?? (cell.value == null ? '' : String(cell.value))).trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  if (lower === 'not started' || lower === 'n/a' || lower === 'no') return false;
+  return true;
+}
+
+/**
+ * Detect Sales Pipeline shape. Two layouts supported:
+ *
+ *   A. SINGLE-STAGE: one column titled Stage/Phase AND one Value/Amount
+ *      column. Each row's current stage comes from the Stage cell.
+ *
+ *   B. MULTI-STAGE PROGRESSION: 2+ PICKLIST columns whose titles match
+ *      the stage dictionary above (Lead Gen / Presales / Sales / Delivery
+ *      etc.). Each row's current stage = the RIGHTMOST stage column with
+ *      a non-empty/non-"Not Started" cell. Value column is optional in
+ *      this layout (federal contracting often doesn't track $ on the
+ *      pipeline sheet).
+ *
+ * Either layout triggers pipeline mode. Pipeline mode wins over hierarchy.
  */
 function detectPipelineColumns(columns: SsColumn[]): {
   isPipeline: boolean;
-  stageColId?: number;
+  layout: 'single' | 'multi' | null;
+  stageColId?: number;            // single-stage layout
+  stageColIds?: number[];         // multi-stage layout (ordered left→right)
+  stageStandards?: string[];      // matching standard stage names parallel to stageColIds
   valueColId?: number;
   closeColId?: number;
   accountColId?: number;
+  oppNameColId?: number;          // explicit opp-name column (Program / Opportunity)
   ownerColId?: number;
   contactColId?: number;
   probabilityColId?: number;
@@ -246,22 +285,46 @@ function detectPipelineColumns(columns: SsColumn[]): {
   let valueColId: number | undefined;
   let closeColId: number | undefined;
   let accountColId: number | undefined;
+  let oppNameColId: number | undefined;
   let ownerColId: number | undefined;
   let contactColId: number | undefined;
   let probabilityColId: number | undefined;
+  // Track all stage-named PICKLIST columns in display order for the
+  // multi-stage layout. A column counts only if it's a PICKLIST (or
+  // CHECKBOX-equivalent) — TEXT_NUMBER columns whose titles happen to
+  // match a stage name are usually metadata, not progression cells.
+  const stageColIds: number[] = [];
+  const stageStandards: string[] = [];
   for (const c of columns) {
     const t = (c.title || '').trim();
     if (!stageColId && stageRe.test(t)) stageColId = c.id;
     else if (!valueColId && valueRe.test(t)) valueColId = c.id;
     else if (!closeColId && closeRe.test(t)) closeColId = c.id;
     else if (!accountColId && accountRe.test(t)) accountColId = c.id;
+    else if (!oppNameColId && _OPP_NAME_RE.test(t)) oppNameColId = c.id;
     else if (!ownerColId && ownerRe.test(t)) ownerColId = c.id;
     else if (!contactColId && contactRe.test(t)) contactColId = c.id;
     else if (!probabilityColId && probRe.test(t)) probabilityColId = c.id;
+    // Multi-stage tracking — PICKLIST + matches stage dictionary.
+    if (c.type === 'PICKLIST' || c.type === 'CHECKBOX') {
+      const std = _matchStageColumn(t);
+      if (std) { stageColIds.push(c.id); stageStandards.push(std); }
+    }
   }
-  // Minimum signal: a Stage column AND a Value column.
-  const isPipeline = !!(stageColId && valueColId);
-  return { isPipeline, stageColId, valueColId, closeColId, accountColId, ownerColId, contactColId, probabilityColId };
+  // Single-stage layout: explicit Stage column + a value column.
+  const singleStage = !!(stageColId && valueColId);
+  // Multi-stage layout: 2+ stage-named PICKLIST columns. Value optional.
+  const multiStage = stageColIds.length >= 2;
+  const isPipeline = singleStage || multiStage;
+  const layout: 'single' | 'multi' | null = singleStage ? 'single' : (multiStage ? 'multi' : null);
+  return {
+    isPipeline,
+    layout,
+    stageColId, stageColIds, stageStandards,
+    valueColId, closeColId, accountColId,
+    oppNameColId,
+    ownerColId, contactColId, probabilityColId,
+  };
 }
 
 function detectHierarchyColumns(columns: SsColumn[]): {
@@ -502,18 +565,52 @@ export async function pullSmartsheet(
     for (const row of sheet.rows) {
       const ownerCell = cellByColumn(row, ownerColId);
       if (!rowMatchesOwner(ownerCell, cfg, cred)) continue;
-      const name = resolveRowTitle(row, sheet.columns, primaryColId);
-      const stage = cellText(cellByColumn(row, pipeCfg.stageColId));
-      const value = parseMoney(cellText(cellByColumn(row, pipeCfg.valueColId)));
-      const closeDate = parseDate(cellText(cellByColumn(row, pipeCfg.closeColId)));
-      const accountName = cellText(cellByColumn(row, pipeCfg.accountColId));
-      const opOwner = cellText(cellByColumn(row, pipeCfg.ownerColId)) || cellText(ownerCell);
-      const contact = cellText(cellByColumn(row, pipeCfg.contactColId));
-      const probRaw = cellText(cellByColumn(row, pipeCfg.probabilityColId));
+      // Opp name resolution: dedicated opp-name column (Program / Opportunity)
+      // wins over primary column. For a sheet where Customer is primary,
+      // this prevents the row title becoming "Air Force" instead of the
+      // actual deal name in Program.
+      let name: string | null = null;
+      if (pipeCfg.oppNameColId) name = cellText(cellByColumn(row, pipeCfg.oppNameColId));
+      if (!name || !name.trim()) name = resolveRowTitle(row, sheet.columns, primaryColId);
+      // Stage resolution depends on layout.
+      let stage: string | null = null;
+      if (pipeCfg.layout === 'single' && pipeCfg.stageColId) {
+        stage = cellText(cellByColumn(row, pipeCfg.stageColId));
+      } else if (pipeCfg.layout === 'multi' && pipeCfg.stageColIds && pipeCfg.stageStandards) {
+        // Rightmost occupied stage column wins. The standard stage name is
+        // what the client knows about; the raw column title is recorded in
+        // `notes` for traceability.
+        let lastIdx = -1;
+        for (let i = 0; i < pipeCfg.stageColIds.length; i++) {
+          if (_stageCellOccupied(cellByColumn(row, pipeCfg.stageColIds[i]))) lastIdx = i;
+        }
+        // If nothing occupied, default to the first stage in the progression.
+        const idx = lastIdx >= 0 ? lastIdx : 0;
+        stage = pipeCfg.stageStandards[idx];
+      }
+      const value = pipeCfg.valueColId ? parseMoney(cellText(cellByColumn(row, pipeCfg.valueColId))) : null;
+      const closeDate = pipeCfg.closeColId ? parseDate(cellText(cellByColumn(row, pipeCfg.closeColId))) : null;
+      const accountName = pipeCfg.accountColId ? cellText(cellByColumn(row, pipeCfg.accountColId)) : null;
+      const opOwner = (pipeCfg.ownerColId && cellText(cellByColumn(row, pipeCfg.ownerColId))) || cellText(ownerCell);
+      const contact = pipeCfg.contactColId ? cellText(cellByColumn(row, pipeCfg.contactColId)) : null;
+      const probRaw = pipeCfg.probabilityColId ? cellText(cellByColumn(row, pipeCfg.probabilityColId)) : null;
       let probability: number | null = null;
       if (probRaw) {
         const m = String(probRaw).match(/[\d.]+/);
         if (m) probability = Math.max(0, Math.min(100, parseFloat(m[0])));
+      }
+      // For multi-stage layout, also surface the per-stage cell snapshot in
+      // notes so the user can see "Lead Gen: Done · Presales: In Progress"
+      // in the opp drawer without re-syncing.
+      let notes: string | null = null;
+      if (pipeCfg.layout === 'multi' && pipeCfg.stageColIds && pipeCfg.stageColIds.length) {
+        const lines: string[] = [];
+        for (let i = 0; i < pipeCfg.stageColIds.length; i++) {
+          const col = sheet.columns.find(cc => cc.id === pipeCfg.stageColIds![i]);
+          const v = cellText(cellByColumn(row, pipeCfg.stageColIds[i]));
+          if (col && v) lines.push(`${col.title}: ${v}`);
+        }
+        if (lines.length) notes = lines.join('\n');
       }
       opportunities.push({
         externalId: String(row.id),
@@ -526,9 +623,9 @@ export async function pullSmartsheet(
         closeDate,
         owner: opOwner,
         contact,
-        notes: null,
+        notes,
         sourceConfigId: cfg.id,
-        raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells }),
+        raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells, layout: pipeCfg.layout }),
       });
     }
     return { rows: [], projectLabels: [], hierarchical: false, pipeline: true, opportunities };

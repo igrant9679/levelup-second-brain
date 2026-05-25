@@ -573,30 +573,62 @@ export const externalSourcesRouter = router({
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Smartsheet token' });
       const { fetchSheet } = await import("../_core/smartsheetAdapter");
       const sheet = await fetchSheet(cred.apiToken, cfg.sheetId);
-      // Reuse the adapter's regex by re-implementing here (avoid exporting).
-      const tests = [
-        { kind: 'stage', re: /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i },
-        { kind: 'value', re: /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i },
-        { kind: 'close', re: /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i },
-        { kind: 'account', re: /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i },
-        { kind: 'owner', re: /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i },
-        { kind: 'contact', re: /^(contact|primary\s+contact|lead|poc)$/i },
-        { kind: 'probability', re: /^(probability|win\s*%|confidence|prob|p\s*win)$/i },
+      // Mirrors the adapter's logic — single-stage detection + multi-stage
+      // progression detection + opp-name column lookup.
+      const stageRe = /^(stage|pipeline\s+stage|deal\s+stage|opp(?:ortunity)?\s+stage|phase|pursuit\s+stage|capture\s+stage|sales\s+stage|funnel\s+stage)$/i;
+      const valueRe = /^((deal|estimated|contract|opp(?:ortunity)?|award|total)\s+)?(value|amount|\$)$|^(acv|tcv|arr|mrr|award|estimated\s+\$|dollar\s+amount|total\s+\$)$|^\$\s*amount$/i;
+      const closeRe = /^(expected\s+|target\s+|exp\s+)?close(\s+date)?$|^exp\s+close(\s+date)?$/i;
+      const accountRe = /^(account|account\s+name|customer|company|client|agency|prime)(\s+name)?$/i;
+      const ownerRe = /^(owner|sales\s+owner|ae|account\s+executive|rep|sales\s+rep|pm|capture\s+manager)$/i;
+      const contactRe = /^(contact|primary\s+contact|lead|poc)$/i;
+      const probRe = /^(probability|win\s*%|confidence|prob|p\s*win)$/i;
+      const oppNameRe = /^(opportunit(y|ies)|program|project(\s+name)?|title|deal|name|product)$/i;
+      const stageDict: Array<{ re: RegExp; standard: string }> = [
+        { re: /^(lead\s+gen(eration)?|lead|prospect|prospecting|outreach)$/i, standard: 'Lead' },
+        { re: /^(qualif(ied|ication)|discovery|presales|pre[-\s]?sales)$/i, standard: 'Qualified' },
+        { re: /^(proposal|sales|quote|pricing)$/i, standard: 'Proposal' },
+        { re: /^(negotiation|negotiat(ing|e)|contract|red[-\s]?lines?)$/i, standard: 'Negotiation' },
+        { re: /^(closed[-\s]?won|won|delivery|delivered|launch(ed)?|implement(ed|ation)?|deploy(ed|ment)?|signed)$/i, standard: 'Closed Won' },
+        { re: /^(closed[-\s]?lost|lost|dead|disqualif(ied|y))$/i, standard: 'Closed Lost' },
       ];
-      const matches: Record<string, string | null> = { stage: null, value: null, close: null, account: null, owner: null, contact: null, probability: null };
-      const allColumns = sheet.columns.map(c => ({
-        id: c.id,
-        title: c.title,
-        type: c.type,
-        matchedAs: tests.find(t => t.re.test(c.title)) ?.kind ?? null,
-      }));
+      const matches: Record<string, string | null> = { stage: null, value: null, close: null, account: null, owner: null, contact: null, probability: null, oppName: null };
+      const stageProgression: Array<{ column: string; standard: string }> = [];
       for (const c of sheet.columns) {
-        for (const t of tests) {
-          if (!matches[t.kind] && t.re.test(c.title)) {
-            matches[t.kind] = c.title;
+        const t = c.title || '';
+        if (!matches.stage && stageRe.test(t)) matches.stage = t;
+        if (!matches.value && valueRe.test(t)) matches.value = t;
+        if (!matches.close && closeRe.test(t)) matches.close = t;
+        if (!matches.account && accountRe.test(t)) matches.account = t;
+        if (!matches.owner && ownerRe.test(t)) matches.owner = t;
+        if (!matches.contact && contactRe.test(t)) matches.contact = t;
+        if (!matches.probability && probRe.test(t)) matches.probability = t;
+        if (!matches.oppName && oppNameRe.test(t)) matches.oppName = t;
+        if (c.type === 'PICKLIST' || c.type === 'CHECKBOX') {
+          for (const e of stageDict) {
+            if (e.re.test(t)) { stageProgression.push({ column: t, standard: e.standard }); break; }
           }
         }
       }
+      const allColumns = sheet.columns.map(c => {
+        let matchedAs: string | null = null;
+        const t = c.title || '';
+        if (stageRe.test(t)) matchedAs = 'stage';
+        else if (valueRe.test(t)) matchedAs = 'value';
+        else if (closeRe.test(t)) matchedAs = 'close';
+        else if (accountRe.test(t)) matchedAs = 'account';
+        else if (oppNameRe.test(t)) matchedAs = 'oppName';
+        else if (ownerRe.test(t)) matchedAs = 'owner';
+        else if (contactRe.test(t)) matchedAs = 'contact';
+        else if (probRe.test(t)) matchedAs = 'probability';
+        const stageMatch = (c.type === 'PICKLIST' || c.type === 'CHECKBOX')
+          ? stageDict.find(e => e.re.test(t))?.standard ?? null
+          : null;
+        return { id: c.id, title: c.title, type: c.type, matchedAs, stageProgressionMatch: stageMatch };
+      });
+      const singleStage = !!(matches.stage && matches.value);
+      const multiStage = stageProgression.length >= 2;
+      const wouldBePipeline = singleStage || multiStage;
+      const layout = singleStage ? 'single' : (multiStage ? 'multi' : null);
       return {
         sheetId: cfg.sheetId,
         sheetName: sheet.name,
@@ -604,7 +636,9 @@ export const externalSourcesRouter = router({
         sampleRow: sheet.rows[0] ? { rowNumber: sheet.rows[0].rowNumber, cellTitles: sheet.columns.slice(0, 8).map(c => c.title) } : null,
         columns: allColumns,
         pipelineMatches: matches,
-        wouldBePipeline: !!(matches.stage && matches.value),
+        stageProgression,
+        layout,
+        wouldBePipeline,
       };
     }),
 

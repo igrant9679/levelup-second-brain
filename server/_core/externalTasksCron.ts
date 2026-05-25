@@ -504,8 +504,17 @@ async function pullOneSmartsheet(
 
     // ─── Pipeline shape: write to D.opportunities, skip external_tasks ─────
     if (result.pipeline) {
+      // If this sheet was previously mis-pulled as external tasks (the
+      // detection logic missed it on first sync), clean those rows up here
+      // — they're not real tasks. Override rows are kept; they'll naturally
+      // tombstone on the standard reaper schedule.
+      const orphans = await db.delete(externalTasks).where(and(
+        eq(externalTasks.userId, cfg.userId),
+        eq(externalTasks.source, 'smartsheet'),
+        eq(externalTasks.sourceConfigId, cfg.id),
+      ));
       const upserted = await upsertOpportunitiesForUser(db, cfg.userId, cfg.id, result.opportunities);
-      console.log(`[ext-cron] sheet ${cfg.sheetId}: pipeline mode — ${result.opportunities.length} row(s), ${upserted.created} new opps, ${upserted.updated} updated`);
+      console.log(`[ext-cron] sheet ${cfg.sheetId}: pipeline mode — ${result.opportunities.length} row(s), ${upserted.created} new opps, ${upserted.updated} updated${orphans ? ' · cleaned up stale external_tasks' : ''}`);
       await db.update(smartsheetWatchedSheets)
         .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })
         .where(eq(smartsheetWatchedSheets.id, cfg.id));
