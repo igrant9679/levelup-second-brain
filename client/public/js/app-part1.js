@@ -5949,7 +5949,7 @@ function renderTaskList(){
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
-            ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'}">${esc(statusLabel)}</span>`:''}
+            ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'};cursor:pointer" title="Click to change status in source" onclick="event.stopPropagation();_externalSetStatus('${t._source}','${esc(t._externalId)}',event)">${esc(statusLabel)}</span>`:''}
             ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
             ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(String(t.completedAt).slice(0,10))}</span>`:''}
             ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
@@ -6204,6 +6204,7 @@ function renderTaskBoard(){
         </div>
         <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${et.source}','${esc(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${et.source}','${esc(et.externalId)}',event)">⚙ Status</button>
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${et.source}','${esc(et.externalId)}',event)">⏰</button>
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎</button>
           <a href="${esc(url)}" target="_blank" rel="noopener" class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
@@ -6838,7 +6839,7 @@ function _renderExternalClusterCards(){
         <span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
         <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:500;color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
-        ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0">${esc(t.status)}</span>`:''}
+        ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
@@ -7167,6 +7168,7 @@ function _renderExternalTasksRailWidget(){
       <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${_extAnnotationChips(t.override)}
       <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:9px">${dueLabel}</span>
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
@@ -7287,6 +7289,55 @@ async function _toggleExternalMyDay(source,externalId,myDay){
 // Days=-1 (special) clears the snooze (removes localDue override; source due
 // becomes effective again). Also clears the My Day flag if days>1 so a
 // "snooze for a week" actually pushes the task off today's plate.
+// Write-back: change external task status in the source (Smartsheet/Nifty).
+// Opens a popover with the source's valid status values (PICKLIST for
+// Smartsheet, project-scoped status names for Nifty) so the user picks
+// from real options. Successful PUT triggers a server-side re-pull so the
+// new status reflects in LevelUp immediately.
+async function _externalSetStatus(source,externalId,event){
+  if(event){event.stopPropagation();event.preventDefault();}
+  document.querySelectorAll('[data-ext-status-pop]').forEach(el=>el.remove());
+  const btn=event&&event.currentTarget;if(!btn)return;
+  const rect=btn.getBoundingClientRect();
+  const pop=document.createElement('div');
+  pop.setAttribute('data-ext-status-pop','1');
+  pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-220)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:200px`;
+  pop.innerHTML='<div style="font-size:10px;color:var(--t3);padding:2px 6px 6px">Loading statuses…</div>';
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
+  // Find which watch this task belongs to so we can fetch its allowed statuses.
+  const et=(D.externalTasks||[]).find(t=>t.source===source&&t.externalId===externalId);
+  if(!et){pop.innerHTML='<div style="color:var(--red);font-size:11px;padding:4px">Task not loaded locally — refresh first.</div>';return;}
+  const watchId=et.sourceConfigId;
+  try{
+    const fetcher=source==='smartsheet'?'externalSources.smartsheetStatusOptions':'externalSources.niftyStatusOptions';
+    const result=await _trpc(fetcher,{watchId},'query');
+    const opts=Array.isArray(result.options)?result.options:[];
+    if(!opts.length){
+      pop.innerHTML=`<div style="color:var(--warn);font-size:11px;padding:4px">No status options${source==='smartsheet'?' — set the watch\'s statusColumn in Settings → Integrations':''}.</div>`;
+      return;
+    }
+    const isDoneVal=v=>{const x=(v||'').toLowerCase();return /(done|complete|closed|cancell?ed|resolved|shipped)/i.test(x);};
+    pop.innerHTML=`<div style="font-size:9px;color:var(--t3);padding:2px 6px 4px;text-transform:uppercase;letter-spacing:.4px">Set ${source==='smartsheet'?'Smartsheet':'NiftyPM'} status</div>${opts.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:26px;font-size:11px;padding:0 8px;background:transparent;border:none;color:${isDoneVal(v)?'var(--ok)':'var(--t1)'};border-radius:3px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-status="${esc(v)}">${isDoneVal(v)?'✓ ':''}${esc(v)}</button>`).join('')}`;
+    pop.querySelectorAll('button[data-status]').forEach(b=>{
+      b.onclick=async(e)=>{
+        e.stopPropagation();
+        const val=b.getAttribute('data-status');
+        pop.remove();
+        try{
+          toast({type:'info',title:`Setting status to "${val}"…`,duration:1200});
+          const proc=source==='smartsheet'?'externalSources.smartsheetSetRowStatus':'externalSources.niftySetTaskStatus';
+          const payload=source==='smartsheet'?{externalId,status:val}:{externalId,statusName:val};
+          await _trpc(proc,payload,'mutation');
+          toast({type:'success',title:`✓ Set to ${val}`});
+          await loadExternalTasks();
+          if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+        }catch(err){toast({type:'warn',title:'Status change failed',msg:err.message||String(err)});}
+      };
+    });
+  }catch(e){pop.innerHTML=`<div style="color:var(--red);font-size:11px;padding:4px">${esc(e.message||String(e))}</div>`;}
+}
+
 async function _snoozeExternal(source,externalId,days){
   try{
     let localDue=null;

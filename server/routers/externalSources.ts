@@ -237,10 +237,16 @@ export const externalSourcesRouter = router({
       statusColumn: z.string().max(64).optional(),
       dueColumn: z.string().max(64).optional(),
       excludeDoneStatuses: z.string().max(256).optional(),
+      defaultProjectId: z.string().max(40).nullable().optional(),
+      // When true and no defaultProjectId supplied, auto-create a LevelUp
+      // project named after the sheet (label || sheet name) and link this
+      // watch to it. The auto-created project's id is appended to the
+      // user_app_data.projects blob client-side on next load.
+      mirrorAsProject: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      await db.insert(smartsheetWatchedSheets).values({
+      const row = {
         userId: ctx.user.id,
         sheetId: input.sheetId,
         label: input.label ?? null,
@@ -250,20 +256,25 @@ export const externalSourcesRouter = router({
         statusColumn: input.statusColumn ?? null,
         dueColumn: input.dueColumn ?? null,
         excludeDoneStatuses: input.excludeDoneStatuses ?? null,
+        defaultProjectId: input.defaultProjectId ?? null,
         enabled: 1,
-      }).onDuplicateKeyUpdate({
+      };
+      await db.insert(smartsheetWatchedSheets).values(row).onDuplicateKeyUpdate({
         set: {
-          label: input.label ?? null,
-          ownerColumn: input.ownerColumn,
-          ownerMatchValue: input.ownerMatchValue,
-          matchMode: input.matchMode,
-          statusColumn: input.statusColumn ?? null,
-          dueColumn: input.dueColumn ?? null,
-          excludeDoneStatuses: input.excludeDoneStatuses ?? null,
+          label: row.label,
+          ownerColumn: row.ownerColumn,
+          ownerMatchValue: row.ownerMatchValue,
+          matchMode: row.matchMode,
+          statusColumn: row.statusColumn,
+          dueColumn: row.dueColumn,
+          excludeDoneStatuses: row.excludeDoneStatuses,
+          defaultProjectId: row.defaultProjectId,
           enabled: 1,
         },
       });
-      return { success: true };
+      // mirrorAsProject is honoured client-side (the projects array lives in
+      // a JSON blob the client owns); return a hint so the client can act.
+      return { success: true, mirrorAsProject: !!input.mirrorAsProject && !input.defaultProjectId, suggestedName: input.label || null };
     }),
 
   updateSmartsheetWatch: protectedProcedure
@@ -276,6 +287,7 @@ export const externalSourcesRouter = router({
       statusColumn: z.string().max(64).nullable().optional(),
       dueColumn: z.string().max(64).nullable().optional(),
       excludeDoneStatuses: z.string().max(256).nullable().optional(),
+      defaultProjectId: z.string().max(40).nullable().optional(),
       enabled: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -288,6 +300,7 @@ export const externalSourcesRouter = router({
       if (input.statusColumn !== undefined) set.statusColumn = input.statusColumn;
       if (input.dueColumn !== undefined) set.dueColumn = input.dueColumn;
       if (input.excludeDoneStatuses !== undefined) set.excludeDoneStatuses = input.excludeDoneStatuses;
+      if (input.defaultProjectId !== undefined) set.defaultProjectId = input.defaultProjectId;
       if (input.enabled !== undefined) set.enabled = input.enabled ? 1 : 0;
       await db.update(smartsheetWatchedSheets).set(set)
         .where(and(eq(smartsheetWatchedSheets.id, input.id), eq(smartsheetWatchedSheets.userId, ctx.user.id)));
@@ -338,6 +351,8 @@ export const externalSourcesRouter = router({
       projectId: z.string(),
       label: z.string().max(128).optional(),
       filterByAssignee: z.boolean().default(true),
+      defaultProjectId: z.string().max(40).nullable().optional(),
+      mirrorAsProject: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
@@ -346,14 +361,36 @@ export const externalSourcesRouter = router({
         projectId: input.projectId,
         label: input.label ?? null,
         filterByAssignee: input.filterByAssignee ? 1 : 0,
+        defaultProjectId: input.defaultProjectId ?? null,
         enabled: 1,
       }).onDuplicateKeyUpdate({
         set: {
           label: input.label ?? null,
           filterByAssignee: input.filterByAssignee ? 1 : 0,
+          defaultProjectId: input.defaultProjectId ?? null,
           enabled: 1,
         },
       });
+      return { success: true, mirrorAsProject: !!input.mirrorAsProject && !input.defaultProjectId, suggestedName: input.label || null };
+    }),
+
+  updateNiftyWatch: protectedProcedure
+    .input(z.object({
+      id: z.number().int(),
+      label: z.string().max(128).optional(),
+      filterByAssignee: z.boolean().optional(),
+      defaultProjectId: z.string().max(40).nullable().optional(),
+      enabled: z.boolean().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const set: Record<string, unknown> = {};
+      if (input.label !== undefined) set.label = input.label;
+      if (input.filterByAssignee !== undefined) set.filterByAssignee = input.filterByAssignee ? 1 : 0;
+      if (input.defaultProjectId !== undefined) set.defaultProjectId = input.defaultProjectId;
+      if (input.enabled !== undefined) set.enabled = input.enabled ? 1 : 0;
+      await db.update(niftyWatchedProjects).set(set)
+        .where(and(eq(niftyWatchedProjects.id, input.id), eq(niftyWatchedProjects.userId, ctx.user.id)));
       return { success: true };
     }),
 
@@ -381,6 +418,156 @@ export const externalSourcesRouter = router({
   refreshNow: protectedProcedure.mutation(async ({ ctx }) => {
     return processExternalTaskPull({ userId: ctx.user.id });
   }),
+
+  /**
+   * Write-back: change a Smartsheet row's status column value.
+   * Caller passes the externalId (= row id) and the new status string —
+   * e.g. "Not Started" / "In-Progress" / "Closed" / "Delayed" / "On-Hold".
+   * Resolves the status column id from the watch config, PUTs the cell
+   * update, and triggers an immediate re-pull so the new status surfaces in
+   * LevelUp views without waiting for the next cron tick.
+   */
+  smartsheetSetRowStatus: protectedProcedure
+    .input(z.object({
+      externalId: z.string(),
+      status: z.string().max(128),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'smartsheet')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Smartsheet token configured' });
+      // Find the external_tasks row to get sheetId via sourceConfigId.
+      const [taskRow] = await db.select().from(externalTasks)
+        .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'smartsheet'), eq(externalTasks.externalId, input.externalId)))
+        .limit(1);
+      if (!taskRow) throw new TRPCError({ code: 'NOT_FOUND', message: 'External task not found locally' });
+      const [watch] = await db.select().from(smartsheetWatchedSheets)
+        .where(eq(smartsheetWatchedSheets.id, taskRow.sourceConfigId)).limit(1);
+      if (!watch) throw new TRPCError({ code: 'NOT_FOUND', message: 'Source watch config missing' });
+      if (!watch.statusColumn) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'This watch has no statusColumn configured — edit the watch in Settings → Integrations and set the status column name first.' });
+      // Resolve the status column ID by fetching the sheet's columns.
+      const colsResp = await fetch(`https://api.smartsheet.com/2.0/sheets/${watch.sheetId}/columns?includeAll=true`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}` },
+      });
+      if (!colsResp.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Smartsheet columns fetch failed: ${colsResp.status}` });
+      const colsData = await colsResp.json() as { data?: Array<{ id: number; title: string }> };
+      const col = (colsData.data || []).find(c => c.title.toLowerCase() === String(watch.statusColumn).toLowerCase());
+      if (!col) throw new TRPCError({ code: 'NOT_FOUND', message: `Status column "${watch.statusColumn}" not found on sheet` });
+      // PUT the row update. Smartsheet accepts an array of {id, cells:[{columnId, value}]}.
+      const putResp = await fetch(`https://api.smartsheet.com/2.0/sheets/${watch.sheetId}/rows`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ id: Number(input.externalId), cells: [{ columnId: col.id, value: input.status }] }]),
+      });
+      if (!putResp.ok) {
+        const body = await putResp.text();
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Smartsheet update failed: ${putResp.status} ${body.slice(0, 200)}` });
+      }
+      // Re-pull just this watch so LevelUp views update immediately.
+      try { await processExternalTaskPull({ userId: ctx.user.id }); } catch { /* best effort */ }
+      return { success: true, status: input.status };
+    }),
+
+  /**
+   * Helper: returns the Smartsheet column choices (PICKLIST values) for the
+   * status column on a watched sheet. Used by the client to render a
+   * dropdown of valid status values (e.g. "Not Started / In-Progress /
+   * Closed / Delayed / On-Hold") rather than a free-form text input.
+   */
+  smartsheetStatusOptions: protectedProcedure
+    .input(z.object({ watchId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'smartsheet')))
+        .limit(1);
+      if (!cred?.apiToken) return { options: [] };
+      const [watch] = await db.select().from(smartsheetWatchedSheets)
+        .where(and(eq(smartsheetWatchedSheets.id, input.watchId), eq(smartsheetWatchedSheets.userId, ctx.user.id))).limit(1);
+      if (!watch?.statusColumn) return { options: [] };
+      const resp = await fetch(`https://api.smartsheet.com/2.0/sheets/${watch.sheetId}/columns?includeAll=true`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}` },
+      });
+      if (!resp.ok) return { options: [] };
+      const data = await resp.json() as { data?: Array<{ title: string; type: string; options?: string[] }> };
+      const col = (data.data || []).find(c => c.title.toLowerCase() === String(watch.statusColumn).toLowerCase());
+      return { options: col?.options || [] };
+    }),
+
+  /**
+   * Write-back: change a NiftyPM task's status. NiftyPM tracks statuses as
+   * objects with IDs per project, so the caller passes the status NAME (e.g.
+   * "Closed", "In Progress") and we look up the matching status id on the
+   * task's project.
+   */
+  niftySetTaskStatus: protectedProcedure
+    .input(z.object({
+      externalId: z.string(),
+      statusName: z.string().max(128),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
+      // Fetch the task to learn its project_id (needed to query project statuses).
+      const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+      });
+      if (!taskResp.ok) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Nifty task fetch failed: ${taskResp.status}` });
+      const task = await taskResp.json() as { id: string; project_id?: string; status?: { id?: string } };
+      // Fetch the project's statuses + find the one matching by name.
+      const projectId = task.project_id;
+      let statusId: string | null = null;
+      if (projectId) {
+        const stResp = await fetch(`https://openapi.niftypm.com/api/v1.0/projects/${projectId}/statuses`, {
+          headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+        });
+        if (stResp.ok) {
+          const stData = await stResp.json() as Array<{ id: string; name: string }> | { statuses?: Array<{ id: string; name: string }> };
+          const statuses = Array.isArray(stData) ? stData : (stData.statuses || []);
+          const match = statuses.find(s => (s.name || '').toLowerCase() === input.statusName.toLowerCase());
+          if (match) statusId = match.id;
+        }
+      }
+      if (!statusId) throw new TRPCError({ code: 'NOT_FOUND', message: `Nifty status "${input.statusName}" not found on this task's project` });
+      // PUT the update.
+      const putResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: statusId }),
+      });
+      if (!putResp.ok) {
+        const body = await putResp.text();
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Nifty update failed: ${putResp.status} ${body.slice(0, 200)}` });
+      }
+      try { await processExternalTaskPull({ userId: ctx.user.id }); } catch { /* best effort */ }
+      return { success: true, statusName: input.statusName, statusId };
+    }),
+
+  /** Helper: list available Nifty status names for a watched project. */
+  niftyStatusOptions: protectedProcedure
+    .input(z.object({ watchId: z.number().int() }))
+    .query(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) return { options: [] };
+      const [watch] = await db.select().from(niftyWatchedProjects)
+        .where(and(eq(niftyWatchedProjects.id, input.watchId), eq(niftyWatchedProjects.userId, ctx.user.id))).limit(1);
+      if (!watch) return { options: [] };
+      const resp = await fetch(`https://openapi.niftypm.com/api/v1.0/projects/${watch.projectId}/statuses`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+      });
+      if (!resp.ok) return { options: [] };
+      const data = await resp.json() as Array<{ id: string; name: string }> | { statuses?: Array<{ id: string; name: string }> };
+      const statuses = Array.isArray(data) ? data : (data.statuses || []);
+      return { options: statuses.map(s => s.name).filter(Boolean) };
+    }),
 
   /**
    * Read external tasks for the client. Omits removed rows by default;

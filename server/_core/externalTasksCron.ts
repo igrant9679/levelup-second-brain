@@ -155,6 +155,39 @@ async function upsertResults(
 }
 
 /**
+ * For a watch with defaultProjectId set, ensure every pulled task's override
+ * row has localProjectId set to that project. Skips rows where the user has
+ * already manually picked a different project (preserves explicit choices).
+ * Rows with no override at all get one created.
+ */
+async function ensureDefaultProjectLinks(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  source: 'smartsheet' | 'nifty',
+  externalIds: string[],
+  projectId: string,
+): Promise<void> {
+  if (!externalIds.length || !projectId) return;
+  for (const externalId of externalIds) {
+    // Upsert: if override exists and already has a localProjectId, leave it.
+    // The ON DUPLICATE KEY UPDATE only writes when localProjectId is NULL —
+    // mysql's COALESCE handles that cleanly.
+    await db.insert(externalTaskOverrides).values({
+      userId,
+      source,
+      externalId,
+      myDay: 0,
+      localProjectId: projectId,
+    }).onDuplicateKeyUpdate({
+      set: {
+        // Preserve user's explicit pick; only fill when empty.
+        localProjectId: sql`COALESCE(${externalTaskOverrides.localProjectId}, ${projectId})`,
+      },
+    });
+  }
+}
+
+/**
  * Tombstone reaper. Any override whose underlying external_task has been
  * removedAt for more than TOMBSTONE_GRACE_HOURS gets tombstoned (kept,
  * flagged) so the user's personal note never disappears silently.
@@ -199,6 +232,7 @@ async function pullOneSmartsheet(
   try {
     const rows = await pullSmartsheet(cfg, cred);
     await upsertResults(db, cfg.userId, 'smartsheet', cfg.id, rows);
+    if (cfg.defaultProjectId) await ensureDefaultProjectLinks(db, cfg.userId, 'smartsheet', rows.map(r => r.externalId), cfg.defaultProjectId);
     await db.update(smartsheetWatchedSheets)
       .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })
       .where(eq(smartsheetWatchedSheets.id, cfg.id));
@@ -225,6 +259,7 @@ async function pullOneNifty(
   try {
     const rows = await pullNiftyProject(cfg, cred);
     await upsertResults(db, cfg.userId, 'nifty', cfg.id, rows);
+    if (cfg.defaultProjectId) await ensureDefaultProjectLinks(db, cfg.userId, 'nifty', rows.map(r => r.externalId), cfg.defaultProjectId);
     await db.update(niftyWatchedProjects)
       .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })
       .where(eq(niftyWatchedProjects.id, cfg.id));

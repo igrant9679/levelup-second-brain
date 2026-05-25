@@ -732,6 +732,10 @@ export const smartsheetWatchedSheets = mysqlTable('smartsheet_watched_sheets', {
   dueColumn: varchar('dueColumn', { length: 64 }),
   // Comma-separated list of statuses to exclude (default: "Done,Complete,Closed").
   excludeDoneStatuses: varchar('excludeDoneStatuses', { length: 256 }),
+  // Migration 0037: if set, every pulled task auto-links to this LevelUp
+  // project (override.localProjectId = defaultProjectId). Lets the sheet
+  // function as the source-of-truth task list for a LevelUp project.
+  defaultProjectId: varchar('defaultProjectId', { length: 40 }),
   enabled: tinyint('enabled').default(1).notNull(),
   lastPulledAt: timestamp('lastPulledAt'),
   lastError: mediumtext('lastError'),
@@ -753,6 +757,8 @@ export const niftyWatchedProjects = mysqlTable('nifty_watched_projects', {
   projectId: varchar('projectId', { length: 64 }).notNull(),
   label: varchar('label', { length: 128 }),
   filterByAssignee: tinyint('filterByAssignee').default(1).notNull(),
+  // Migration 0037: mirrors smartsheet_watched_sheets.defaultProjectId.
+  defaultProjectId: varchar('defaultProjectId', { length: 40 }),
   enabled: tinyint('enabled').default(1).notNull(),
   lastPulledAt: timestamp('lastPulledAt'),
   lastError: mediumtext('lastError'),

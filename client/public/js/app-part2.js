@@ -1317,8 +1317,17 @@ function _renderAddSmartsheetWatchModal(sheets){
         <input id="ext-ss-label" class="inp" style="width:100%;font-size:11px" placeholder="CF: 120-Day Plan">
       </div>
       <div style="margin-top:8px">
-        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Exclude these statuses (comma-separated)</div>
-        <input id="ext-ss-exclude" class="inp" style="width:100%;font-size:11px" placeholder="Done,Complete,Closed,Cancelled" value="Done,Complete,Closed,Cancelled">
+        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Exclude these statuses (comma-separated, leave blank to pull everything including Closed)</div>
+        <input id="ext-ss-exclude" class="inp" style="width:100%;font-size:11px" placeholder="(blank — pull all, completion syncs via completedAt)">
+      </div>
+      <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">📁 Mirror as LevelUp project</div>
+        <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every row pulled from this sheet to a LevelUp project so it appears on the Projects page + roll-ups.</div>
+        <select id="ext-ss-project" class="inp" style="width:100%;font-size:11px">
+          <option value="__new__">+ Create new project from this sheet</option>
+          <option value="">(don't mirror — pull tasks only)</option>
+          ${(D.projects||[]).map(p=>`<option value="${p.id}">→ Link to existing: ${esc(p.name)}</option>`).join('')}
+        </select>
       </div>
     </div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px">
@@ -1353,19 +1362,35 @@ async function _extSubmitSmartsheetWatch(){
   const ownerColumn=document.getElementById('ext-ss-owner-col').value;
   const ownerMatchValue=document.getElementById('ext-ss-match-value').value.trim();
   if(!ownerColumn||!ownerMatchValue){toast({type:'warn',title:'Owner column + match value are required'});return;}
+  const label=document.getElementById('ext-ss-label').value.trim()||undefined;
+  // Resolve "Mirror as project" choice. "__new__" creates a fresh LevelUp
+  // project from the sheet's friendly label. Other values: empty (skip
+  // mirroring) or an existing project id.
+  let defaultProjectId=null;
+  const projChoice=document.getElementById('ext-ss-project').value;
+  if(projChoice==='__new__'){
+    const newId=Date.now();
+    D.projects=D.projects||[];
+    D.projects.push({id:newId,name:label||'(unnamed sheet)',icon:'📊',color:'#1f6feb',status:'Active',owner:(D.creds&&D.creds.userName)||'Idris Grant',desc:'Mirrored from Smartsheet · '+(label||''),createdAt:new Date().toISOString()});
+    save('projects');
+    defaultProjectId=String(newId);
+  } else if(projChoice){
+    defaultProjectId=String(projChoice);
+  }
   try{
     await _trpc('externalSources.addSmartsheetWatch',{
       sheetId,
-      label:document.getElementById('ext-ss-label').value.trim()||undefined,
+      label,
       ownerColumn,
       ownerMatchValue,
       matchMode:document.getElementById('ext-ss-match-mode').value,
       statusColumn:document.getElementById('ext-ss-status-col').value||undefined,
       dueColumn:document.getElementById('ext-ss-due-col').value||undefined,
       excludeDoneStatuses:document.getElementById('ext-ss-exclude').value||undefined,
+      defaultProjectId:defaultProjectId||undefined,
     },'mutation');
     closeModal();
-    toast({type:'success',title:'Sheet added — pulling now…'});
+    toast({type:'success',title:defaultProjectId?'Sheet added + mirrored as project · pulling now…':'Sheet added — pulling now…'});
     await refreshExternalTasksNow();
     await _hydrateExternalSourcesPanel();
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
@@ -1381,7 +1406,16 @@ function _renderAddNiftyWatchModal(projects){
     </select>
     <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Friendly label</div>
     <input id="ext-nf-label" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" placeholder="LSI: Q3 Launch">
-    <label style="display:flex;align-items:center;gap:8px;font-size:11px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:8px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
+    <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px">📁 Mirror as LevelUp project</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every Nifty task pulled to a LevelUp project.</div>
+      <select id="ext-nf-project-map" class="inp" style="width:100%;font-size:11px">
+        <option value="__new__">+ Create new project from this Nifty project</option>
+        <option value="">(don't mirror — pull tasks only)</option>
+        ${(D.projects||[]).map(p=>`<option value="${p.id}">→ Link to existing: ${esc(p.name)}</option>`).join('')}
+      </select>
+    </div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px">
       <button class="btn" onclick="closeModal()">Cancel</button>
       <button class="btn btn-p" onclick="_extSubmitNiftyWatch()">Save & Refresh</button>
@@ -1395,8 +1429,20 @@ async function _extSubmitNiftyWatch(){
   if(!projectId){toast({type:'warn',title:'Pick a project first'});return;}
   const label=document.getElementById('ext-nf-label').value.trim()||sel.options[sel.selectedIndex].dataset.name||undefined;
   const filterByAssignee=document.getElementById('ext-nf-mine-only').checked;
+  // Mirror choice
+  let defaultProjectId=null;
+  const projChoice=document.getElementById('ext-nf-project-map').value;
+  if(projChoice==='__new__'){
+    const newId=Date.now();
+    D.projects=D.projects||[];
+    D.projects.push({id:newId,name:label||'(unnamed Nifty project)',icon:'💜',color:'#9333ea',status:'Active',owner:(D.creds&&D.creds.userName)||'Idris Grant',desc:'Mirrored from NiftyPM · '+(label||''),createdAt:new Date().toISOString()});
+    save('projects');
+    defaultProjectId=String(newId);
+  } else if(projChoice){
+    defaultProjectId=String(projChoice);
+  }
   try{
-    await _trpc('externalSources.addNiftyWatch',{projectId,label,filterByAssignee},'mutation');
+    await _trpc('externalSources.addNiftyWatch',{projectId,label,filterByAssignee,defaultProjectId:defaultProjectId||undefined},'mutation');
     closeModal();
     toast({type:'success',title:'Project added — pulling now…'});
     await refreshExternalTasksNow();
