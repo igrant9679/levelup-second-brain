@@ -6408,7 +6408,12 @@ function _mtxDrop(e,targetPriority,targetMins){
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let tasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&(t.due||t.startDate)).map(t=>Object.assign({},t,{_source:'local'})):[];
+  // Track skipped (no-date) counts so we can surface "why isn't task X here"
+  // in the footer — Gantt requires a due or start date and silently dropped
+  // everything else, which read as "the view is truncated".
+  let skippedLocal=0,skippedExt=0;
+  const localUniverse=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'):[];
+  let tasks=localUniverse.filter(t=>{const ok=!!(t.due||t.startDate);if(!ok)skippedLocal++;return ok;}).map(t=>Object.assign({},t,{_source:'local'}));
   if(_taskMyOnly)tasks=tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   tasks=_applyPriorityFilter(tasks);
   // Overlay external tasks with dates (localDue overrides, or source-provided
@@ -6422,7 +6427,7 @@ function renderTaskGantt(){
       if(!_sourceOn(et.source))return;
       const due=(et.override&&et.override.localDue)||et.due;
       const start=et.startDate||due;
-      if(!due&&!start)return;
+      if(!due&&!start){skippedExt++;return;}
       tasks.push({
         id:'ext:'+et.source+':'+et.externalId,
         title:et.title,
@@ -6499,23 +6504,31 @@ function renderTaskGantt(){
   }).join('');
   // Today marker column header
   const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
+  const skipTotal=skippedLocal+skippedExt;
+  const skipNote=skipTotal>0?`<span style="margin-left:auto;color:var(--warn)" title="Gantt only shows tasks with a start or due date. Add dates to surface the rest.">${skipTotal} task${skipTotal===1?'':'s'} hidden — no date${skippedExt?` (incl. ${skippedExt} external)`:''}</span>`:'';
+  // The scroll wrapper now caps vertical height + opens overflow-y:auto. With
+  // both axes set to auto the rows scroll inside the panel instead of pushing
+  // the page footer off-screen and looking truncated. The horizontal date
+  // strip continues to scroll inside the same container.
   list.innerHTML=`
-  <div style="overflow-x:auto">
+  <div style="overflow:auto;max-height:calc(100vh - 360px);border:1px solid var(--bd1);border-radius:6px">
     <div style="min-width:${200+totalW}px">
-      <!-- Header -->
-      <div style="display:flex;border-bottom:2px solid var(--bd2);background:var(--s2)">
-        <div style="width:200px;min-width:200px;padding:4px 8px;font-size:10px;font-weight:600;color:var(--t2)">Task</div>
+      <!-- Header (sticky so it stays visible while scrolling rows) -->
+      <div style="display:flex;border-bottom:2px solid var(--bd2);background:var(--s2);position:sticky;top:0;z-index:3">
+        <div style="width:200px;min-width:200px;padding:4px 8px;font-size:10px;font-weight:600;color:var(--t2);background:var(--s2);position:sticky;left:0;z-index:4">Task</div>
         <div style="display:flex;flex:1">${headerCells}</div>
       </div>
       <!-- Rows -->
       ${rows}
     </div>
   </div>
-  <div style="margin-top:10px;display:flex;gap:12px;font-size:10px;color:var(--t3)">
+  <div style="margin-top:10px;display:flex;gap:12px;font-size:10px;color:var(--t3);align-items:center;flex-wrap:wrap">
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--err);border-radius:2px;margin-right:3px"></span>Overdue / High</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ac);border-radius:2px;margin-right:3px"></span>Medium</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ok);border-radius:2px;margin-right:3px"></span>Low</span>
     <span><span style="display:inline-block;width:2px;height:10px;background:var(--ac);margin-right:3px"></span>Today</span>
+    <span style="color:var(--t2)">${tasks.length} task${tasks.length===1?'':'s'} on chart</span>
+    ${skipNote}
   </div>`;
 }
 function quickAddTask(){
@@ -7802,7 +7815,7 @@ function renderTasks(){
   })()}
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
-    <input id="task-quick-input" class="inp" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
+    <input id="task-quick-input" class="inp" name="lu-quick-task" type="text" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
     <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="setTaskPriorityFilter(this.value)">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
