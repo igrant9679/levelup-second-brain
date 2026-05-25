@@ -276,6 +276,91 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — hierarchical sync follow-ups)
+
+Completes the hierarchical Smartsheet sync arc with four follow-ups:
+auto-link to program, cleanup orphans, drawer provenance, AI-fill
+descriptions. **Build `2026-05-25-19`.**
+
+### Server: auto-link to parent Program
+
+`ensureLevelUpProjectsForLabels` now reads both `projects` AND `programs`
+from `user_app_data` in one query, takes a `programName` arg, and pushes
+newly-appended project ids into the matching program's `projectIds[]`
+(case-insensitive name match). Skips silently if no matching program
+exists. Provenance (`{source, sheetId, sheetName, sourceConfigId}`) is
+recorded on each new project record under `autoSyncSource` so the
+drawer can show a "↻ Resync source" button. Tag uses
+`smartsheet-sync` / `nifty-sync` depending on the source.
+
+`pullOneSmartsheet` passes `'CommunityForce'` as the program name.
+
+Return shape: `{ map, appended, linkedToProgram }`.
+
+### Client: maintenance panel (Settings → Integrations)
+
+New "📁 Auto-synced project maintenance" card. Header shows counts:
+- Total auto-synced
+- Empty (no linked tasks)
+- Without description
+- Not in a program
+
+Three action buttons:
+- **🔗 Link N to program** — runs `_linkAutoProjectsToPrograms()`, a
+  one-time backfill that walks every auto-created project and pushes
+  it into CommunityForce (smartsheet-sync) or LSI Media (nifty-sync).
+  Idempotent. Needed because server-side auto-link only fires at
+  creation time — projects created before this feature were orphaned.
+- **🗑 Delete N empty** — confirms + deletes every auto-synced project
+  with zero linked tasks (`_cleanupEmptyAutoProjects`), AND prunes the
+  deleted ids from every program's `projectIds[]`. Modal preview lists
+  up to 8 names.
+- **✨ AI fill N descriptions** — one `ai.assist` call per project
+  without `desc`. Feeds the project name + up to 20 linked task titles
+  (native first, then external), prompts for ~30-50 word plain text.
+  Writes back to `p.desc` and clears any stale `p.descriptionHtml`.
+
+Hydrated on `sp-5` panel open + via the panel's Reload button.
+
+### Client: drawer provenance + resync
+
+Project detail drawer pill row gains a "📊 Auto-synced · <sheet name>"
+pill (CF blue / LSI purple) when `p.autoCreatedBy` is set, sourced from
+`p.autoSyncSource.sheetName`.
+
+Sticky action row gains a "↻ Resync source" button (blue) that calls
+`_resyncProjectSource(pid)` — today that kicks the full `refreshNow`
+mutation, then reopens the drawer 400ms later so the health strip /
+task counts update. Future: a per-sheet endpoint that only pulls the
+project's source config.
+
+### Verified live
+
+- Before: 0/3 programs had projectIds linked
+- After "🔗 Link 9 to program": CommunityForce gained 9 projectIds
+- After "🗑 Delete 1 empty": CommunityForce_120Day_Plan removed; CF
+  card now shows 8 projects · 0/108 tasks done
+- Programs page header: "3 programs · 16 projects total" (down from 17)
+- Provenance pill + Resync button visible on every CF project drawer
+
+### Session commits
+
+- `c0643e9` Server auto-link + maintenance panel + drawer provenance +
+  AI fill (build `-18`)
+- `29e3e7d` One-time backfill button for orphaned projects (build `-19`)
+
+### Open follow-ups
+
+- The AI-fill button hits one ai.assist call per project. For 50+
+  auto-created projects that's expensive — a batched-prompt variant
+  would compress it.
+- `_resyncProjectSource` calls the full `refreshNow`. A real per-sheet
+  endpoint (`externalSources.refreshOneSheet({sourceConfigId})`) would
+  be cheaper and more focused.
+- Programs auto-link is hardcoded `'CommunityForce'` / `'LSI Media'`.
+  If the user renames their programs, the auto-link silently stops
+  working. Could be exposed as a watch-row config.
+
 ## Most recently shipped (May 25 2026 — Smartsheet hierarchical sync)
 
 The user's CF (CommunityForce) Smartsheet uses Project / Task / Sub Task
