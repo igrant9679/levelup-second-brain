@@ -276,6 +276,99 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — AI Productivity Engine, build `-21`)
+
+Turns LevelUp from a cockpit (showing reality) into an active scheduling
+assistant. Three features:
+
+### #1 Capacity check helper + indicator
+
+- `_workingHours()` reads `D.prefs.workingHours.{start,end}` (default
+  9-17 = 8h). Exposed as a Settings entry later.
+- `_dayCapacityCheck(dateObj)` returns
+  `{plannedMins, bookedMins, freeMins, deltaMins, taskCount, eventCount,
+   focusMins, tasks, events}`. Today's tasks = myDay OR due===today OR
+  startDate===today (excluding Done + subtasks). Events restricted to
+  working-hours overlap.
+- `_renderCapacityIndicator(check, {compact})` renders a colour-coded
+  card (green = >15m buffer, amber = ±15m, red = over capacity). Hatched
+  overflow bar when over.
+- `_openCapacityDetail()` modal lists both tasks + events.
+- Wired into My Day → Plan section header AND the Command Center KPI
+  strip (only when hat is All / Personal — CF/LSI hats don't have native
+  today-tasks).
+
+### #2 AI Smart Scheduler
+
+- `aiSmartSchedule({force})` snapshots `{tasks, events, peakHours,
+  workingHours}` → strict JSON
+  `{blocks[{taskId, startHour, durationMins, reason}], unscheduled[],
+   summary}`.
+- Caches per-day on `D.prefs.todaySchedule` so re-opening shows the
+  prior plan without spending another AI call. `{force:true}` regenerates.
+- Modal renders italic summary blockquote, timeline of blocks
+  (start→end, duration, reason), overflow list, action row with
+  Refresh / Copy (markdown) / Apply to Calendar / Close.
+- `_applyScheduleToCalendar()` creates `_calEvents` entries (one per
+  block, linked to source `taskId`, `_planned:true` flag) AND stamps
+  each task's `startTime`/`endTime`. Confirms before writing.
+- Peak hours derived from `D.prefs.focusByHour` (top 3 by mins, within
+  working hours). System prompt tells the AI to schedule high-priority /
+  high-energy work in those slots.
+
+### #3 Manual time-block picker
+
+- `openTimeBlockPicker(taskId)` scans working hours in 30-min increments,
+  excludes any window overlapping a calendar event, and lists every
+  start position where the task's `estimatedMins` fits. Capped at 24
+  buttons in a 2-col grid.
+- `_blockTaskAt(taskId, startMins, endMins)` creates one `_calEvents`
+  entry + stamps the task's start/end times + flips `myDay`.
+- The existing 📅 button on task rows (was `blockTaskTime` → blank
+  calendar event modal) now delegates to `openTimeBlockPicker`. Old
+  behaviour preserved as `_legacyBlockTaskTime` for any direct callers.
+
+### Verified live
+
+- My Day → Plan shows "📊 Today's Capacity · over by 2h · 5h planned
+  (5 tasks) · 5h booked (4 events) · 3h free of 8h working hours" with
+  red bar + hatched overflow indicator. Clickable to detail modal.
+- AI Smart Plan returned for an actual day: italic summary "Scheduled
+  high-priority and urgent tasks around immovable calendar events;
+  Tableau visualization partially accommodated", 5 time-blocks with
+  reasons ("Due 2026-05-17; urgent setup task scheduled immediately",
+  "Medium priority; scheduled after Client Call ends at 14:00"), and an
+  overflow note ("180-min task exceeds available time; 120 mins
+  scheduled, 60 mins overflow").
+
+### Session commits
+
+- `b8f2e88` Capacity check + smart scheduler + manual block (build `-21`)
+
+### Open follow-ups
+
+- **AI output occasionally returns overlapping blocks** — saw two pairs
+  of 12:00 and 14:00 slots in the live test. The system prompt asks for
+  "5-minute buffer between blocks" but doesn't explicitly forbid
+  overlap. Tightening the prompt + a client-side sanity pass that drops
+  overlapping blocks would harden this. Cosmetic for now since the user
+  reviews before applying.
+- **Capacity tile on Command Center is hat-gated** to All Hats / Personal
+  because today's tasks are personal in nature. If the user wants to see
+  "CF working hours capacity" specifically (e.g. how much CF work is on
+  their plate this week), would need a separate per-hat working-hours
+  prefs and a hat-aware filter.
+- **Time blocks created via Apply / manual picker land in the local
+  `_calEvents` store**, not the OAuth-synced `D.calEvents`. So they
+  don't show up in O365/Google calendars. Pushing them to the connected
+  calendar requires a server-side createEvent endpoint (per-user OAuth
+  refresh).
+- **Working hours are global** (`D.prefs.workingHours`); no per-day
+  override (Mon vs Sat). Add `D.prefs.workingHoursByDow` if the user
+  wants weekend exceptions.
+- **No Settings UI yet** to set working hours — must edit prefs in the
+  console (`D.prefs.workingHours={start:8,end:18};save('prefs')`).
+
 ## Most recently shipped (May 25 2026 — PM arc polish, build `-20`)
 
 Four targeted improvements completing the PM arc:
