@@ -276,6 +276,99 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 — PM arc polish, build `-20`)
+
+Four targeted improvements completing the PM arc:
+
+### #1 Per-sheet refresh endpoint
+
+`pullOneSource({userId, source, sourceConfigId})` exported from
+`externalTasksCron.ts`. Resolves the single watched config matching
+those keys and pulls just that one (still runs the tombstone reaper so
+vanished rows clean up). New `externalSources.refreshOneSource` tRPC
+mutation exposes it. Client `_resyncProjectSource` now calls the
+targeted endpoint when the project carries `autoSyncSource.sourceConfigId`
+(provenance from creation), falling back to full `refreshExternalTasksNow`
+for older records without provenance. ~10x faster than the old
+all-sources refresh.
+
+### #2 Saved CC views capture filter state
+
+`savedCCViews[]` records extended from `{id, name, hat}` to
+`{id, name, hat, projectFilter, assigneeFilter, priorityFilter}`.
+`_saveCurrentCCView` grabs the live module-scope filter values
+(`_taskProjectFilter`, `_taskAssigneeFilter`, `_taskPriorityFilter`).
+`_applySavedCCView` restores all four and — when a project or assignee
+filter is captured — jumps to Tasks (which is where those filters
+visibly apply) instead of staying on Command Center. The manage drawer's
+"Hat: X" sub-label is now "Hat: X · 📁 Project · 👤 Assignee · ★ Pri"
+so the user can preview what each view restores at a glance.
+
+### #3 At-risk badge + KPI tile drill-through
+
+New module-scope `_taskKindFilter` (`'overdue' | 'today' | 'stalled' |
+null`) applied inside `_applyPriorityFilter` alongside priority/
+project/assignee. Tasks header surfaces a colored chip with ✕ when set
+(red for overdue, amber for today, slate for stalled).
+
+`_ccDrillIntoKind(kind)` sets the kind filter, scopes the source filter
+to the current hat, clears project/assignee/priority filters, and navs
+to Tasks. Wired onto:
+- The three Command Center KPI tiles (Overdue / Due Today / Stalled)
+  — entire tile clickable.
+- The per-row kind badges in the At-Risk feed — `event.stopPropagation`
+  so the row click still opens the task drawer.
+
+### #6 Per-project AI Coach
+
+🩺 AI Coach button on the project detail drawer (between Resync and
+Status update). `_aiProjectCoach(pid)`:
+1. Builds a compact snapshot — `{project:{name,desc}, counts:{total,
+   done,overdue,open}, sample[]}` with up to 50 task rows (native +
+   linked external, status normalised, source labeled CF/LSI/native).
+2. Calls `ai.assist` with a chief-of-staff system prompt asking for
+   STRICT JSON: `{headline, health, summary, blockers, nextMilestone,
+   recommendedFocus[]}`.
+3. Parses + renders a modal: color-coded health pill (on-track /
+   at-risk / blocked / stalled), italic headline blockquote, paragraph
+   summary, blocker list (real task titles + "why"), next-milestone
+   box, 3-action recommended-focus list.
+4. Persists to `p.aiCoach = {dateISO, coach}` so re-opening shows the
+   cached result without spending another AI call. **↻ Refresh** button
+   regenerates.
+5. **📋 Copy** button emits a clean markdown version
+   (`# Project — AI Coach / *Health: …* / > headline / summary /
+   **Blockers** / **Next milestone** / **Recommended focus**`) for
+   pasting into Slack or email.
+
+### Verified live
+
+- Drill-through: clicking the "Overdue 7" KPI tile from Command Center
+  → Tasks view with red "⚠ Overdue" chip + 7 native overdue tasks
+  filtered correctly.
+- AI Coach on "1. Recruiting & Staffing Program" returned a "BLOCKED"
+  health pill with: headline ("Recruiting program is severely
+  underpowered with only one task completed and twenty-two not
+  started"), 3 real blockers each with concrete "why", a specific next
+  milestone, and 3 actionable focus items. Genuine COO-quality output.
+
+### Session commits
+
+- `ce10840` PM arc polish: per-sheet refresh + saved-view filters +
+  at-risk drill + AI Coach (build `-20`)
+
+### Open follow-ups
+
+- AI Coach modal could surface `p.aiCoach.dateISO` so the user knows
+  whether they're reading a fresh or stale result.
+- Saved views drawer doesn't visually distinguish a view that captures
+  filters from one that's hat-only. Could add a 🎯 / 🪪 icon prefix.
+- `_taskKindFilter` doesn't combine with priority/project/assignee
+  filters cleanly when chained — e.g. drilling into "overdue" from CF
+  hat keeps the source filter but the kind chip + project chip both
+  show. Works but might confuse users. Could collapse to a single
+  "filter strip" UI later.
+
 ## Most recently shipped (May 25 2026 — hierarchical sync follow-ups)
 
 Completes the hierarchical Smartsheet sync arc with four follow-ups:
