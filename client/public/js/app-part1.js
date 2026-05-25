@@ -10637,13 +10637,19 @@ function renderStandup(){
     blockers.length?blockers.forEach(t=>lines.push(`- ${t.sourceLabel?'['+t.sourceLabel+'] ':''}${t.title}`)):lines.push('- None');
     return lines.join('\n');
   };
+  const hat=_ccHat();
+  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${key}');renderStandup()" style="height:24px;padding:0 10px;font-size:10px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700">📋 Daily Standup</h1>
-      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.</p>
+      <p style="font-size:12px;color:var(--t2)">What you closed yesterday, what's on today, and what's blocked across CF + LSI + Personal.${hat!=='all'?` <strong style="color:var(--page-accent)">Filtered to ${hat.toUpperCase()}</strong>`:''}</p>
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy summary</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${chip('all','All','#14b8a6')}
+      ${chip('cf','CF','#1f6feb')}
+      ${chip('lsi','LSI','#9333ea')}
+      ${chip('personal','Personal','#10b981')}
+      <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy</button>
       <button class="btn btn-s" onclick="nav('command')">→ Command Center</button>
     </div>
   </div>
