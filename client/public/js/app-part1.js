@@ -1473,7 +1473,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',deps:'s-deps'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -3730,6 +3730,7 @@ function renderScreen(s){
   if(s==='graph')renderKnowledgeGraph();
   if(s==='command')renderCommandCenter();
   if(s==='standup')renderStandup();
+  if(s==='deps')renderDeps();
   if(s==='help')renderHelp();
   updateSidebarBadges();
 }
@@ -4583,13 +4584,128 @@ function deleteSavedTaskView(id,e){
 // Capacity check + smart scheduler + manual time blocker. Turns LevelUp from
 // a cockpit (showing reality) into an active scheduling assistant.
 
-// Working hours (24h). Stored in D.prefs so the user can customise later via
-// a Settings entry; defaults to 9-17 (8 hours of nominal focus time).
-function _workingHours(){
-  const p=(D.prefs&&D.prefs.workingHours)||{};
-  const start=Number.isFinite(p.start)?p.start:9;
-  const end=Number.isFinite(p.end)?p.end:17;
+// Working hours (24h). Configurable via Settings → General → Working Hours.
+//   D.prefs.workingHours       = {start, end}                — default window
+//   D.prefs.workingHoursByDow  = {0:{start,end}, 1:{…}, …}   — per-day overrides
+// _workingHours(dateObj?) resolves the right window for the given date:
+//   1. Per-day override for that DOW (0=Sun … 6=Sat) when present
+//   2. Default workingHours
+//   3. Hard-coded 9-17 (8h) when neither is set
+// A per-day entry of {start:N,end:N} or {nonWorking:true} means "no working
+// hours on this day" — capacity check returns 0 free mins and the scheduler
+// treats it as fully booked.
+function _workingHours(dateObj){
+  const def=(D.prefs&&D.prefs.workingHours)||{};
+  const byDow=(D.prefs&&D.prefs.workingHoursByDow)||{};
+  let cfg=def;
+  if(dateObj){
+    const dow=dateObj.getDay(); // 0=Sun..6=Sat
+    if(byDow[dow])cfg=byDow[dow];
+  }
+  if(cfg&&cfg.nonWorking)return {start:0,end:0,nonWorking:true};
+  const start=Number.isFinite(cfg&&cfg.start)?cfg.start:(Number.isFinite(def.start)?def.start:9);
+  const end=Number.isFinite(cfg&&cfg.end)?cfg.end:(Number.isFinite(def.end)?def.end:17);
   return {start,end};
+}
+// Save handlers for the Settings → Working Hours panel.
+function _saveWorkingHoursDefault(){
+  const startEl=document.getElementById('gen-wh-start');
+  const endEl=document.getElementById('gen-wh-end');
+  if(!startEl||!endEl)return;
+  let s=parseInt(startEl.value,10),e=parseInt(endEl.value,10);
+  if(!Number.isFinite(s))s=9;if(!Number.isFinite(e))e=17;
+  if(e<=s)e=s+1; // guard against inverted range
+  D.prefs=D.prefs||{};
+  D.prefs.workingHours={start:s,end:e};
+  saveAll();
+  // Re-render the override grid (default-day chips reflect the new default).
+  const grid=document.getElementById('gen-wh-dow');
+  if(grid)grid.innerHTML=_renderDowOverrideGrid();
+  toast({type:'success',title:`⏰ Working hours: ${String(s).padStart(2,'0')}:00 – ${String(e).padStart(2,'0')}:00`,duration:1800});
+}
+function _renderDowOverrideGrid(){
+  const byDow=(D.prefs&&D.prefs.workingHoursByDow)||{};
+  const dowNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return dowNames.map((nm,dow)=>{
+    const o=byDow[dow];
+    const isOverride=!!o;
+    const isOff=o&&o.nonWorking;
+    const label=isOff?'OFF':isOverride?`${String(o.start).padStart(2,'0')}–${String(o.end).padStart(2,'0')}`:'default';
+    const color=isOff?'#ef4444':isOverride?'#3b82f6':'var(--t3)';
+    return `<button class="btn btn-s" style="height:auto;padding:6px 4px;font-size:10px;display:flex;flex-direction:column;align-items:center;gap:2px;border-color:${isOverride?color:'var(--bd2)'};color:${color}" onclick="_openDowOverride(${dow})" title="Click to set working hours for ${nm}"><span style="font-weight:600">${nm}</span><span style="font-size:9px">${label}</span></button>`;
+  }).join('');
+}
+function _openDowOverride(dow){
+  const byDow=(D.prefs&&D.prefs.workingHoursByDow)||{};
+  const cur=byDow[dow]||{};
+  const startNow=Number.isFinite(cur.start)?cur.start:'';
+  const endNow=Number.isFinite(cur.end)?cur.end:'';
+  const isOff=!!cur.nonWorking;
+  const m=document.getElementById('modal-content');
+  if(!m){toast({type:'warn',title:'Modal not available'});return;}
+  const dowName=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow];
+  m.innerHTML=`<div style="padding:16px;max-width:380px">
+    <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">⏰ ${esc(dowName)} working hours</h2>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 12px">Override the default window for this day, or mark it non-working (no capacity, no AI-scheduled blocks).</p>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <select class="inp" id="wh-dow-start" style="width:90px;font-size:12px" ${isOff?'disabled':''}>
+        ${Array.from({length:24},(_,h)=>`<option value="${h}" ${startNow===h?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+      </select>
+      <span style="color:var(--t3)">→</span>
+      <select class="inp" id="wh-dow-end" style="width:90px;font-size:12px" ${isOff?'disabled':''}>
+        ${Array.from({length:24},(_,h)=>{const v=h+1;return `<option value="${v}" ${endNow===v?'selected':''}>${String(v).padStart(2,'0')}:00</option>`;}).join('')}
+      </select>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t2);cursor:pointer;margin-bottom:14px">
+      <input type="checkbox" id="wh-dow-off" ${isOff?'checked':''} onchange="document.getElementById('wh-dow-start').disabled=this.checked;document.getElementById('wh-dow-end').disabled=this.checked">
+      Non-working day (e.g. weekend)
+    </label>
+    <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd1)">
+      <button class="btn btn-d" onclick="_saveDowOverride(${dow},'clear')" title="Drop the override — fall back to default hours">✕ Clear override</button>
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_saveDowOverride(${dow},'save')">Save</button>
+    </div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _saveDowOverride(dow,action){
+  D.prefs=D.prefs||{};
+  D.prefs.workingHoursByDow=D.prefs.workingHoursByDow||{};
+  if(action==='clear'){
+    delete D.prefs.workingHoursByDow[dow];
+  } else {
+    const off=document.getElementById('wh-dow-off')&&document.getElementById('wh-dow-off').checked;
+    if(off){
+      D.prefs.workingHoursByDow[dow]={nonWorking:true};
+    } else {
+      let s=parseInt(document.getElementById('wh-dow-start').value,10);
+      let e=parseInt(document.getElementById('wh-dow-end').value,10);
+      if(!Number.isFinite(s))s=9;if(!Number.isFinite(e))e=17;
+      if(e<=s)e=s+1;
+      D.prefs.workingHoursByDow[dow]={start:s,end:e};
+    }
+  }
+  saveAll();
+  closeModal();
+  const grid=document.getElementById('gen-wh-dow');
+  if(grid)grid.innerHTML=_renderDowOverrideGrid();
+}
+function _applyWorkingHoursPreset(name){
+  D.prefs=D.prefs||{};
+  if(name==='clear-overrides'){
+    D.prefs.workingHoursByDow={};
+  } else if(name==='weekdays-only'){
+    D.prefs.workingHoursByDow=D.prefs.workingHoursByDow||{};
+    D.prefs.workingHoursByDow[0]={nonWorking:true}; // Sun
+    D.prefs.workingHoursByDow[6]={nonWorking:true}; // Sat
+    delete D.prefs.workingHoursByDow[1];delete D.prefs.workingHoursByDow[2];
+    delete D.prefs.workingHoursByDow[3];delete D.prefs.workingHoursByDow[4];
+    delete D.prefs.workingHoursByDow[5];
+  }
+  saveAll();
+  const grid=document.getElementById('gen-wh-dow');
+  if(grid)grid.innerHTML=_renderDowOverrideGrid();
+  toast({type:'success',title:name==='weekdays-only'?'⏰ Weekends marked non-working':'⏰ Per-day overrides cleared',duration:1800});
 }
 
 /**
@@ -4605,8 +4721,11 @@ function _workingHours(){
 function _dayCapacityCheck(dateObj){
   const d=dateObj||new Date();
   const ds=_ymd(d);
-  const {start:wsH,end:weH}=_workingHours();
-  const workingMins=Math.max(0,(weH-wsH))*60;
+  // Resolve hours per the date's day-of-week — honours per-day overrides
+  // (weekends, shortened Fridays, etc.).
+  const wh=_workingHours(d);
+  const wsH=wh.start,weH=wh.end;
+  const workingMins=wh.nonWorking?0:Math.max(0,(weH-wsH))*60;
   const isToday=ds===_todayStr;
   // Tasks targeted at the day. For "today" we include myDay; for other days
   // we restrict to explicit due/startDate hits.
@@ -4770,18 +4889,19 @@ async function aiSmartSchedule(opts){
       .sort((a,b)=>b.mins-a.mins).slice(0,3).map(x=>x.hour);
     const sys=`You are a focus-scheduling coach. Build a time-blocked schedule for the user's day. Output STRICTLY one JSON object, no prose, no markdown:
 {
-  "blocks": [ {"taskId":"<must be from input>", "startHour": <integer 0-23>, "durationMins": <integer>, "reason":"<one short sentence, ~12 words>"} ],
+  "blocks": [ {"taskId":"<must be from input>", "startMins": <integer 0-1440>, "durationMins": <integer>, "reason":"<one short sentence, ~12 words>"} ],
   "unscheduled": [ {"taskId":"<from input>", "reason":"<one short sentence on why it didn't fit>"} ],
   "summary": "<one sentence on the overall plan, 15-25 words>"
 }
 RULES:
-- Working hours: ${c.workingHoursStart}:00 to ${c.workingHoursEnd}:00 ONLY. Never schedule outside.
-- Calendar events are IMMOVABLE obstacles — schedule around them.
+- Working hours: ${c.workingHoursStart}:00 to ${c.workingHoursEnd}:00 (minutes ${c.workingHoursStart*60} to ${c.workingHoursEnd*60}). Never schedule outside.
+- Calendar events are IMMOVABLE obstacles — schedule AROUND them, not on top of them.
+- **NO TWO BLOCKS MAY OVERLAP IN TIME.** A block at startMins=600 dur=30 ends at 630; the next block must start at 635 or later (5-min buffer). This is the most important rule — verify each block's [startMins, startMins+durationMins] does not intersect any other block OR any calendar event before emitting.
 - Prefer the user's peak focus hours (${peakHours.length?peakHours.join(', ')+':00':'unknown'}) for high-priority or high-energy tasks.
 - Batch shallow/admin work (low energy or low priority).
-- Leave a 5-minute buffer between blocks.
-- Items that don't fit go to "unscheduled" with a reason — don't squeeze.
-- startHour is the hour to begin (integer); durationMins respects each task's estimatedMins.
+- Leave a 5-minute buffer between consecutive blocks.
+- Items that don't fit go to "unscheduled" with a reason — don't squeeze, don't overlap.
+- startMins is minutes from midnight (e.g. 9:00 AM = 540, 14:30 = 870); durationMins respects each task's estimatedMins.
 - Items in "blocks" MUST reference task IDs from the input; do not invent.`;
     const userContent=`Working hours: ${c.workingHoursStart}-${c.workingHoursEnd}. Peak hours: ${JSON.stringify(peakHours)}. Calendar events (immovable): ${JSON.stringify(snapshotEvents)}. Tasks to schedule: ${JSON.stringify(snapshotTasks)}.`;
     const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
@@ -4789,13 +4909,53 @@ RULES:
     const m2=raw.match(/\{[\s\S]*\}/);
     if(!m2)throw new Error('AI returned no JSON');
     const plan=JSON.parse(m2[0]);
+    // Normalise block times. AI may return either startMins (preferred, new
+    // schema) or startHour (legacy). Convert legacy → startMins so the rest
+    // of the pipeline only sees one shape.
+    const normBlocks=(Array.isArray(plan.blocks)?plan.blocks:[]).map(b=>{
+      let startMins=Number(b.startMins);
+      if(!Number.isFinite(startMins)){
+        const sh=Number(b.startHour);
+        if(Number.isFinite(sh))startMins=sh*60;
+      }
+      const dur=Math.max(5,Number(b.durationMins)||30);
+      return {taskId:String(b.taskId||''),startMins:Math.max(0,Math.min(1440,startMins||0)),durationMins:dur,reason:String(b.reason||'')};
+    }).filter(b=>b.taskId);
+    // Dedup overlap: sort by startMins, drop any block whose range overlaps
+    // an already-accepted block OR a calendar event. Pushed-aside blocks are
+    // appended to unscheduled with an explanation so the user sees them.
+    normBlocks.sort((a,b)=>a.startMins-b.startMins);
+    const accepted=[];
+    const dropped=[];
+    const eventRanges=c.events.map(e=>{
+      const h=typeof e.hour==='number'?e.hour:0;
+      const eh=typeof e.endHour==='number'?e.endHour:h+1;
+      return [h*60,eh*60];
+    });
+    const overlaps=(s,e,ranges)=>ranges.some(([rs,re])=>s<re&&e>rs);
+    for(const b of normBlocks){
+      const s=b.startMins,e=b.startMins+b.durationMins;
+      // Reject if outside working hours, overlaps an existing event, or
+      // overlaps any already-accepted block.
+      if(s<c.workingHoursStart*60||e>c.workingHoursEnd*60){
+        dropped.push({taskId:b.taskId,reason:'Block fell outside working hours; dropped.'});continue;
+      }
+      if(overlaps(s,e,eventRanges)){
+        dropped.push({taskId:b.taskId,reason:'AI scheduled this on top of a calendar event; dropped.'});continue;
+      }
+      if(overlaps(s,e,accepted.map(a=>[a.startMins,a.startMins+a.durationMins]))){
+        dropped.push({taskId:b.taskId,reason:'AI returned an overlapping slot; dropped to keep schedule clean.'});continue;
+      }
+      accepted.push(b);
+    }
+    const mergedUnsched=(Array.isArray(plan.unscheduled)?plan.unscheduled:[]).concat(dropped);
     const record={
       date:_todayStr,
       generatedAt:new Date().toISOString(),
       workingHoursStart:c.workingHoursStart,
       workingHoursEnd:c.workingHoursEnd,
-      blocks:Array.isArray(plan.blocks)?plan.blocks:[],
-      unscheduled:Array.isArray(plan.unscheduled)?plan.unscheduled:[],
+      blocks:accepted,
+      unscheduled:mergedUnsched,
       summary:String(plan.summary||'').trim(),
       // Snapshot of task titles so the renderer can show them without
       // re-looking-up in case a task changes.
@@ -4812,16 +4972,17 @@ RULES:
 function _renderSmartScheduleModal(record){
   const m=document.getElementById('modal-content');
   if(!m||!record)return;
-  const fmt=h=>String(h).padStart(2,'0')+':00';
-  const fmtMin=(h,mm)=>String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');
-  const blocks=(record.blocks||[]).slice().sort((a,b)=>(a.startHour||0)-(b.startHour||0));
+  const fmtMins=mins=>{const h=Math.floor(mins/60),mm=mins%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');};
+  // Tolerate legacy {startHour} records by upgrading them to {startMins} on the fly.
+  const blocks=(record.blocks||[]).map(b=>{
+    const startMins=Number.isFinite(b.startMins)?b.startMins:(Number(b.startHour)||0)*60;
+    return Object.assign({},b,{startMins});
+  }).sort((a,b)=>a.startMins-b.startMins);
   const blockRows=blocks.map(b=>{
     const title=(record.taskTitles&&record.taskTitles[String(b.taskId)])||'(task)';
     const dur=Number(b.durationMins)||30;
-    const endH=b.startHour+Math.floor(dur/60);
-    const endM=dur%60;
     return `<div class="lr" style="padding:8px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
-      <span style="font-size:11px;color:var(--ac);font-weight:600;min-width:96px">${fmt(b.startHour)} → ${fmtMin(endH,endM)}</span>
+      <span style="font-size:11px;color:var(--ac);font-weight:600;min-width:96px">${fmtMins(b.startMins)} → ${fmtMins(b.startMins+dur)}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</div>
         ${b.reason?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(b.reason)}</div>`:''}
@@ -4846,11 +5007,65 @@ function _renderSmartScheduleModal(record){
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1);flex-wrap:wrap">
       <button class="btn btn-s" onclick="aiSmartSchedule({force:true})" title="Regenerate with current data">↻ Refresh</button>
       <button class="btn btn-s" onclick="_copyScheduleToClipboard()" title="Copy as markdown">📋 Copy</button>
-      <button class="btn btn-p" style="background:var(--ac)" onclick="_applyScheduleToCalendar()">📅 Apply to Calendar</button>
+      <button class="btn btn-p" style="background:var(--ac)" onclick="_applyScheduleToCalendar()" title="Add blocks to LevelUp's local calendar">📅 Apply to Calendar</button>
+      <button class="btn btn-s" style="color:#9333ea;border-color:#9333ea" onclick="_pushScheduleToOAuthCalendar()" title="Create matching events in your connected Outlook / Google calendar">📤 Push to Outlook</button>
       <button class="btn btn-s" onclick="closeModal()">Close</button>
     </div>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+}
+async function _pushScheduleToOAuthCalendar(){
+  const rec=D.prefs&&D.prefs.todaySchedule;
+  if(!rec||!(rec.blocks||[]).length){toast({type:'warn',title:'No blocks to push'});return;}
+  // Probe which provider the user is connected to. The OAuth status query
+  // returns {microsoftConnected, googleConnected, …}; pick whichever is on.
+  let provider=null;
+  try{
+    const status=await _trpc('oauthSync.status',undefined,'query');
+    if(status&&status.microsoftConnected)provider='microsoft';
+    else if(status&&status.googleConnected)provider='google';
+  }catch(_){/* fall through */}
+  if(!provider){
+    toast({type:'warn',title:'No OAuth calendar connected',msg:'Settings → Accounts → connect Microsoft 365 or Google.',duration:4500});
+    return;
+  }
+  if(!confirm(`Create ${rec.blocks.length} event(s) on your ${provider==='microsoft'?'Outlook':'Google'} calendar? Each block becomes a separate event titled "▶ <task>".`))return;
+  // Build ISO strings for each block. Date is from the schedule record;
+  // browser local time zone is used so the user sees the right hour in
+  // their OWA / Google Calendar UI.
+  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';
+  const payload=rec.blocks.map(b=>{
+    const dur=Number(b.durationMins)||30;
+    const startMins=Number.isFinite(b.startMins)?b.startMins:(Number(b.startHour)||0)*60;
+    const endMins=startMins+dur;
+    const [y,mo,da]=(rec.date||_todayStr).split('-').map(Number);
+    // Build local-tz date strings without UTC conversion (Graph + Google
+    // accept dateTime + timeZone separately, no Z suffix).
+    const pad=n=>String(n).padStart(2,'0');
+    const startISO=`${y}-${pad(mo)}-${pad(da)}T${pad(Math.floor(startMins/60))}:${pad(startMins%60)}:00`;
+    const endISO=`${y}-${pad(mo)}-${pad(da)}T${pad(Math.floor(endMins/60))}:${pad(endMins%60)}:00`;
+    return {
+      title:`▶ ${(rec.taskTitles&&rec.taskTitles[String(b.taskId)])||'Focus block'}`,
+      startISO,endISO,
+      linkedTaskId:String(b.taskId||''),
+      body:b.reason?`${b.reason} · Scheduled by LevelUp AI`:undefined,
+    };
+  });
+  toast({type:'info',title:`📤 Pushing ${payload.length} event${payload.length===1?'':'s'}…`,duration:2000});
+  try{
+    const res=await _trpc('oauthSync.createCalendarEvents',{provider,timeZone:tz,blocks:payload},'mutation');
+    const ok=res&&res.okCount||0,total=res&&res.totalCount||payload.length;
+    if(ok===total){
+      toast({type:'success',title:`✓ ${ok} event${ok===1?'':'s'} created on ${provider==='microsoft'?'Outlook':'Google'}`,duration:3000});
+    } else {
+      const errs=(res&&res.created||[]).filter(c=>c.error).slice(0,3).map(c=>`• ${c.blockTitle}: ${c.error}`).join('\n');
+      toast({type:'warn',title:`Pushed ${ok}/${total}`,msg:errs||'Some events failed',duration:5000});
+    }
+    // Mark the local schedule record so the modal can show "✉ Pushed Xm ago".
+    if(rec){rec.pushedAt=new Date().toISOString();rec.pushedProvider=provider;save('prefs');}
+  }catch(e){
+    toast({type:'warn',title:'Push failed',msg:e.message||String(e),duration:5000});
+  }
 }
 function _copyScheduleToClipboard(){
   const rec=D.prefs&&D.prefs.todaySchedule;
@@ -4860,9 +5075,10 @@ function _copyScheduleToClipboard(){
   lines.push(`# Today's Plan — ${rec.date}`);
   if(rec.summary){lines.push('');lines.push(`> ${rec.summary}`);}
   lines.push('');
-  for(const b of (rec.blocks||[]).slice().sort((a,b)=>(a.startHour||0)-(b.startHour||0))){
+  const fmtMins=mins=>{const h=Math.floor(mins/60),mm=mins%60;return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');};
+  for(const b of (rec.blocks||[]).slice().map(b=>Object.assign({},b,{startMins:Number.isFinite(b.startMins)?b.startMins:(Number(b.startHour)||0)*60})).sort((a,b)=>a.startMins-b.startMins)){
     const title=(rec.taskTitles&&rec.taskTitles[String(b.taskId)])||'(task)';
-    lines.push(`- **${fmt(b.startHour)}** (${_fmtHm(b.durationMins||30)}) — ${title}${b.reason?` _(${b.reason})_`:''}`);
+    lines.push(`- **${fmtMins(b.startMins)}** (${_fmtHm(b.durationMins||30)}) — ${title}${b.reason?` _(${b.reason})_`:''}`);
   }
   if((rec.unscheduled||[]).length){
     lines.push('');
@@ -4885,16 +5101,18 @@ function _applyScheduleToCalendar(){
   for(const b of rec.blocks){
     const title=(rec.taskTitles&&rec.taskTitles[String(b.taskId)])||'Focus block';
     const dur=Number(b.durationMins)||30;
-    const startMins=(b.startHour||0)*60;
+    // Accept either schema (post-A1 startMins / legacy startHour).
+    const startMins=Number.isFinite(b.startMins)?b.startMins:(Number(b.startHour)||0)*60;
     const endMins=startMins+dur;
-    const endH=Math.floor(endMins/60);
+    const startH=Math.floor(startMins/60),startM=startMins%60;
+    const endH=Math.floor(endMins/60),endM=endMins%60;
     // _calEvents shape: {id,title,hour,endHour,color,dateStr,linkedTaskId?}
     _calEvents=Array.isArray(_calEvents)?_calEvents:[];
     _calEvents.push({
       id:Date.now()+Math.floor(Math.random()*1000)+created,
       title:`▶ ${title}`,
-      hour:b.startHour||0,
-      endHour:endH+(endMins%60?1:0), // round up to next full hour for the bar
+      hour:startH,
+      endHour:endH+(endM?1:0), // round up to next full hour for the bar
       color:'var(--ac)',
       dateStr:ds,
       linkedTaskId:b.taskId,
@@ -4904,9 +5122,8 @@ function _applyScheduleToCalendar(){
     // the block in-place.
     const t=D.tasks.find(x=>String(x.id)===String(b.taskId));
     if(t){
-      t.startTime=String(b.startHour||0).padStart(2,'0')+':00';
-      const eh=Math.floor(endMins/60),em=endMins%60;
-      t.endTime=String(eh).padStart(2,'0')+':'+String(em).padStart(2,'0');
+      t.startTime=String(startH).padStart(2,'0')+':'+String(startM).padStart(2,'0');
+      t.endTime=String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0');
     }
     created++;
   }
@@ -7596,6 +7813,9 @@ function _applyPriorityFilter(tasks){
       out=out.filter(t=>t.due===today);
     }else if(_taskKindFilter==='stalled'){
       out=out.filter(t=>t.status!=='Done'&&(t.updatedAt||t.completedAt||t.createdAt||'')<stallCut&&t.due!==today&&!(t.due&&t.due<today));
+    }else if(_taskKindFilter==='dateless'){
+      // Tasks without start OR due date — the ones the Portfolio Timeline hides.
+      out=out.filter(t=>t.status!=='Done'&&!t.due&&!t.startDate);
     }
   }
   return out;
@@ -7605,6 +7825,22 @@ function setTaskKindFilter(kind){
   if(typeof renderTasks==='function')renderTasks();
 }
 function clearTaskKindFilter(){setTaskKindFilter(null);}
+// Drill into dateless tasks across all sources — used by the Portfolio
+// Timeline "X hidden (no dates)" deep link. Source filter stays on all so
+// the user can fix dates on every project's hidden rows in one place.
+function _drillIntoDatelessTasks(){
+  D.prefs=D.prefs||{};
+  D.prefs.taskSourceFilter={personal:true,smartsheet:true,nifty:true};
+  save('prefs');
+  _taskFilterTabIdx=0;
+  _taskFilter=t=>true;
+  _taskMyOnly=false;
+  _taskPriorityFilter='All';
+  _taskProjectFilter=null;
+  _taskAssigneeFilter=null;
+  _taskKindFilter='dateless';
+  nav('tasks');
+}
 // Drill from Command Center at-risk badges. Sets the kind + jumps to Tasks
 // preserving the active source filter (hat scoping). Wired via inline onclick
 // on the kindBadge spans.
@@ -8402,7 +8638,7 @@ function renderTasks(){
     ${_taskProjectFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">📁 Project: ${esc(_taskProjectFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskProjectFilter()" title="Clear project filter">✕</span></div>`:''}
     ${_taskAssigneeFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">👤 Assignee: ${esc(_taskAssigneeFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskAssigneeFilter()" title="Clear assignee filter">✕</span></div>`:''}
     ${_taskKindFilter?(function(){
-      const labels={overdue:{e:'⚠',l:'Overdue',c:'#ef4444'},today:{e:'📅',l:'Due today',c:'#f59e0b'},stalled:{e:'💤',l:'Stalled (7d+)',c:'#64748b'}};
+      const labels={overdue:{e:'⚠',l:'Overdue',c:'#ef4444'},today:{e:'📅',l:'Due today',c:'#f59e0b'},stalled:{e:'💤',l:'Stalled (7d+)',c:'#64748b'},dateless:{e:'📭',l:'No date set',c:'#a855f7'}};
       const k=labels[_taskKindFilter]||{e:'•',l:_taskKindFilter,c:'var(--t2)'};
       return `<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,${k.c} 18%,transparent);border:1px solid ${k.c};border-radius:13px;font-size:11px;color:${k.c};font-weight:600">${k.e} ${esc(k.l)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskKindFilter()" title="Clear status filter">✕</span></div>`;
     })():''}
@@ -11225,13 +11461,23 @@ function renderCommandCenter(){
 }
 // Standup view — three columns: Yesterday / Today / Blockers + copy.
 let _standupMode='copy';
+let _standupWindow24h=false; // Toggle: when true, "Yesterday" widens to the trailing 24h instead of strict yesterday's-date
 function renderStandup(){
   const m=document.getElementById('standup-main');
   if(!m)return;
   const tasks=_ccTasks();
   const today=_todayStr;
   const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return _ymd?_ymd(d):d.toISOString().slice(0,10);})();
-  const yest=tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt.slice(0,10)===yesterday);
+  // "Yesterday" column has two modes:
+  //   strict (default) — completedAt date === yesterday's date
+  //   24h window       — completedAt within last 24h (handy when you stamp
+  //                      tasks done late at night or first thing in the
+  //                      morning; otherwise the column reads empty until
+  //                      midnight rollover the next day).
+  const window24hStart=new Date(Date.now()-24*60*60*1000).toISOString();
+  const yest=_standupWindow24h
+    ?tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt>=window24hStart&&t.completedAt.slice(0,10)!==today)
+    :tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt.slice(0,10)===yesterday);
   const todayItems=tasks.filter(t=>t.status!=='Done'&&(t.due===today||(t._raw&&t._raw.myDay)||(t._ext&&t._ext.override&&t._ext.override.myDay)));
   const blockers=tasks.filter(t=>{
     if(t.status==='Done')return false;
@@ -11280,6 +11526,7 @@ function renderStandup(){
       ${chip('cf','CF','#1f6feb')}
       ${chip('lsi','LSI','#9333ea')}
       ${chip('personal','Personal','#10b981')}
+      <button class="btn btn-s" onclick="_standupWindow24h=!_standupWindow24h;renderStandup()" title="${_standupWindow24h?'Currently showing the last 24 hours of completions. Click to switch back to yesterday\'s date only.':'Currently showing yesterday\'s date only. Click to widen the window to the last 24 hours (catches late-night completions).'}" style="${_standupWindow24h?'background:color-mix(in srgb,var(--ac) 22%,transparent);color:var(--ac);border-color:var(--ac)':''}">⏳ ${_standupWindow24h?'24h':'Yesterday'}</button>
       <button class="btn btn-s" onclick="_copyStandup()" title="Copy markdown to clipboard">📋 Copy</button>
       <button class="btn btn-s" onclick="nav('command')">→ Command Center</button>
     </div>
@@ -11306,18 +11553,231 @@ function _copyStandup(){
   function fallback(){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast({type:'success',title:'Standup copied',duration:1800});}catch{}ta.remove();}
 }
 
+// ─── Cross-project Dependency view (s-deps) ─────────────────────────────────
+// Renders a layered DAG of native tasks with predecessorIds. Tasks without
+// predecessors AND not referenced as a predecessor are skipped — they're
+// just normal tasks, not part of any chain. Layout is column-based by
+// topological depth (column = max(depth(predecessors)) + 1), then sorted
+// within each column by status (active first, then blocked, then done).
+let _depsHighlightCritical=false;
+let _depsHat='all'; // reuses _ccHat semantics so user can scope to CF/LSI/Personal
+function renderDeps(){
+  const m=document.getElementById('deps-main');
+  if(!m)return;
+  // Build the dependency graph from native tasks. External tasks don't carry
+  // predecessorIds in this codebase yet, so the graph is native-only.
+  const tasks=(D.tasks||[]).filter(t=>!t.parentTaskId);
+  const byId=new Map(tasks.map(t=>[String(t.id),t]));
+  // Nodes are tasks that EITHER have predecessors OR are someone's predecessor.
+  const inSet=new Set();
+  for(const t of tasks){
+    const preds=(t.predecessorIds||[]).map(String);
+    if(preds.length)inSet.add(String(t.id));
+    for(const p of preds)if(byId.has(p))inSet.add(p);
+  }
+  const nodes=Array.from(inSet).map(id=>byId.get(id)).filter(Boolean);
+  if(!nodes.length){
+    m.innerHTML=`<div style="padding:24px;max-width:760px">${(()=>{
+      // Use the existing empty-state helper.
+      if(typeof renderEmptyState==='function')return renderEmptyState({
+        icon:'🔗',
+        title:'No task dependencies yet',
+        hint:'Open any task drawer → Predecessors → pick the tasks that must finish first. This view will then surface every blocking chain across your CF, LSI, and Personal work.',
+        ctaLabel:'Open Tasks',
+        ctaFn:"nav('tasks')",
+      });
+      return '<div style="padding:24px;text-align:center;color:var(--t3)">No task dependencies set.</div>';
+    })()}</div>`;
+    document.body.setAttribute('data-screen','deps');
+    return;
+  }
+  // Compute depth via memoised DFS (guards against accidental cycles).
+  const depth=new Map();const visiting=new Set();
+  function computeDepth(id){
+    const s=String(id);
+    if(depth.has(s))return depth.get(s);
+    if(visiting.has(s)){depth.set(s,0);return 0;} // cycle — bail
+    visiting.add(s);
+    const t=byId.get(s);if(!t){visiting.delete(s);return 0;}
+    const preds=(t.predecessorIds||[]).map(String).filter(p=>byId.has(p));
+    let d=0;
+    for(const p of preds){const pd=computeDepth(p);if(pd+1>d)d=pd+1;}
+    visiting.delete(s);
+    depth.set(s,d);
+    return d;
+  }
+  nodes.forEach(n=>computeDepth(n.id));
+  const maxDepth=Math.max(0,...Array.from(depth.values()));
+  // Column-bucket by depth.
+  const columns=Array.from({length:maxDepth+1},()=>[]);
+  nodes.forEach(n=>{
+    const d=depth.get(String(n.id))||0;
+    columns[d].push(n);
+  });
+  // Within each column, sort by status: not-done first, then done; tie-break
+  // by title for stable layout.
+  for(const col of columns){
+    col.sort((a,b)=>{
+      const ad=a.status==='Done'?1:0,bd=b.status==='Done'?1:0;
+      if(ad!==bd)return ad-bd;
+      return (a.title||'').localeCompare(b.title||'');
+    });
+  }
+  // Critical path: longest chain from any source (no preds) to any sink.
+  // We compute it greedily — each sink's path = its predecessors' best path.
+  const bestPath=new Map();
+  function pathTo(id){
+    const s=String(id);
+    if(bestPath.has(s))return bestPath.get(s);
+    const t=byId.get(s);if(!t){bestPath.set(s,[s]);return [s];}
+    const preds=(t.predecessorIds||[]).map(String).filter(p=>byId.has(p));
+    if(!preds.length){bestPath.set(s,[s]);return [s];}
+    let best=[];
+    for(const p of preds){const path=pathTo(p);if(path.length>best.length)best=path;}
+    const out=best.concat([s]);
+    bestPath.set(s,out);
+    return out;
+  }
+  nodes.forEach(n=>pathTo(n.id));
+  // Longest chain overall.
+  let critical=[];
+  for(const n of nodes){const p=bestPath.get(String(n.id))||[];if(p.length>critical.length)critical=p;}
+  const criticalSet=new Set(critical);
+
+  // Layout dimensions.
+  const COL_W=240,ROW_H=64,PAD_X=40,PAD_Y=80;
+  const maxRows=Math.max(1,...columns.map(c=>c.length));
+  const W=PAD_X*2+columns.length*COL_W;
+  const H=PAD_Y*2+maxRows*ROW_H;
+  // Node positions.
+  const pos=new Map();
+  columns.forEach((col,ci)=>{
+    const colH=col.length*ROW_H;
+    const startY=PAD_Y+(maxRows*ROW_H-colH)/2;
+    col.forEach((n,ri)=>{
+      pos.set(String(n.id),{x:PAD_X+ci*COL_W+COL_W/2,y:startY+ri*ROW_H+ROW_H/2});
+    });
+  });
+  // Edges: predecessor → successor.
+  const edges=[];
+  for(const n of nodes){
+    for(const p of (n.predecessorIds||[]).map(String)){
+      if(!byId.has(p))continue;
+      edges.push({from:p,to:String(n.id)});
+    }
+  }
+  const statusColor=t=>{
+    if(t.status==='Done')return '#10b981';
+    if(t.status==='Blocked'||(t.predecessorIds||[]).some(pid=>{const pp=byId.get(String(pid));return pp&&pp.status!=='Done';}))return '#ef4444';
+    if(t.due&&t.due<_todayStr)return '#f59e0b';
+    return '#3b82f6';
+  };
+  const today=_todayStr;
+  const nodeSvg=nodes.map(n=>{
+    const p=pos.get(String(n.id));if(!p)return '';
+    const color=statusColor(n);
+    const onCrit=_depsHighlightCritical&&criticalSet.has(String(n.id));
+    const stroke=onCrit?'#ef4444':color;
+    const sw=onCrit?3:2;
+    const title=esc((n.title||'').slice(0,32));
+    const overdue=n.status!=='Done'&&n.due&&n.due<today;
+    return `<g class="dep-node" data-task-id="${n.id}" style="cursor:pointer" transform="translate(${p.x-100},${p.y-20})">
+      <rect width="200" height="40" rx="6" fill="${color}" fill-opacity="${n.status==='Done'?0.35:0.9}" stroke="${stroke}" stroke-width="${sw}"/>
+      <text x="100" y="17" text-anchor="middle" font-size="11" font-weight="600" fill="#fff" style="pointer-events:none">${title}</text>
+      <text x="100" y="32" text-anchor="middle" font-size="9" fill="#fff" fill-opacity=".85" style="pointer-events:none">${esc(n.status||'')}${overdue?' · overdue':''}</text>
+    </g>`;
+  }).join('');
+  const edgeSvg=edges.map(e=>{
+    const a=pos.get(e.from),b=pos.get(e.to);if(!a||!b)return '';
+    const onCrit=_depsHighlightCritical&&criticalSet.has(e.from)&&criticalSet.has(e.to)&&Math.abs(critical.indexOf(e.from)-critical.indexOf(e.to))===1;
+    // Curve via cubic Bezier between right side of `a` and left side of `b`.
+    const x1=a.x+100,y1=a.y;const x2=b.x-100,y2=b.y;
+    const mx=(x1+x2)/2;
+    const stroke=onCrit?'#ef4444':'var(--bd2)';
+    const sw=onCrit?2.5:1.5;
+    return `<path d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" fill="none" stroke="${stroke}" stroke-width="${sw}" marker-end="url(#dep-arrow)" opacity="${onCrit?1:0.55}"/>`;
+  }).join('');
+  m.innerHTML=`<div class="ph-r" style="margin:0;padding:18px 24px 12px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;background:var(--s1);position:relative;z-index:2">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">🔗 Dependencies</h1>
+      <p style="font-size:12px;color:var(--t2)">DAG of task predecessors across native LevelUp tasks. ${nodes.length} task${nodes.length===1?'':'s'} in ${columns.length} layer${columns.length===1?'':'s'} · ${edges.length} edge${edges.length===1?'':'s'}${critical.length>1?` · critical path = ${critical.length} step${critical.length===1?'':'s'}`:''}.</p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-s" onclick="_depsHighlightCritical=!_depsHighlightCritical;renderDeps()" style="${_depsHighlightCritical?'background:#ef4444;color:#fff;border-color:#ef4444':''}" title="Highlight the longest chain of dependencies (the critical path)">⛓ ${_depsHighlightCritical?'Hide':'Show'} critical path</button>
+      <button class="btn btn-s" onclick="nav('tasks')" title="Back to Tasks">→ Tasks</button>
+    </div>
+  </div>
+  <div style="position:absolute;top:80px;left:0;right:0;bottom:0;overflow:auto;background:var(--s1)">
+    <svg viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;min-height:${H}px">
+      <defs>
+        <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--bd2)"/></marker>
+      </defs>
+      ${edgeSvg}
+      ${nodeSvg}
+    </svg>
+  </div>`;
+  document.body.setAttribute('data-screen','deps');
+  // Wire node clicks → open task drawer.
+  setTimeout(()=>{
+    m.querySelectorAll('.dep-node').forEach(g=>{
+      g.addEventListener('click',()=>{
+        const id=Number(g.getAttribute('data-task-id'));
+        const t=D.tasks.find(x=>x.id===id);
+        if(t&&typeof openDrawer==='function')openDrawer('task',t);
+      });
+    });
+  },0);
+}
+
 // ─── Push-queue preview drawer ──────────────────────────────────────────────
+// Module-scope selection set, keyed "source:externalId". Persists across
+// re-renders of the drawer (toggling one row shouldn't drop the others).
+let _pushQueueSel=new Set();
+function _pushQueueKey(et){return et.source+':'+et.externalId;}
+function _togglePushQueueRow(key){
+  if(_pushQueueSel.has(key))_pushQueueSel.delete(key);else _pushQueueSel.add(key);
+  _refreshPushQueueFooter();
+}
+function _refreshPushQueueFooter(){
+  const f=document.getElementById('push-queue-footer');
+  if(!f)return;
+  const sel=_pushQueueSel.size;
+  f.querySelectorAll('[data-push-sel-count]').forEach(el=>{el.textContent=sel;});
+  const selBtn=f.querySelector('[data-push-sel-btn]');
+  if(selBtn){
+    selBtn.style.display=sel?'':'none';
+    selBtn.textContent=`⬆ Push selected (${sel})`;
+  }
+}
+function _pushQueueSelectAll(){
+  _pushQueueSel.clear();
+  (Array.isArray(D.externalTasks)?D.externalTasks:[])
+    .filter(et=>!(et.override&&et.override.tombstoned)&&et.override&&et.override.pendingStatus)
+    .forEach(et=>_pushQueueSel.add(_pushQueueKey(et)));
+  openPushQueueDrawer();
+}
+function _pushQueueSelectClear(){
+  _pushQueueSel.clear();
+  openPushQueueDrawer();
+}
 function openPushQueueDrawer(){
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
   if(!d||!ov)return;
   const rows=(Array.isArray(D.externalTasks)?D.externalTasks:[])
     .filter(et=>!(et.override&&et.override.tombstoned)&&et.override&&et.override.pendingStatus);
+  // Drop selections that no longer correspond to a pending row (e.g. dropped
+  // since the drawer was last opened).
+  const validKeys=new Set(rows.map(_pushQueueKey));
+  for(const k of Array.from(_pushQueueSel))if(!validKeys.has(k))_pushQueueSel.delete(k);
   const body=rows.length?rows.map(et=>{
     const ovr=et.override||{};
     const srcLabel=et.source==='smartsheet'?'CF':'LSI';
     const srcColor=et.source==='smartsheet'?'#1f6feb':'#9333ea';
-    return `<div class="lr" style="padding:9px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+    const key=_pushQueueKey(et);
+    const checked=_pushQueueSel.has(key);
+    return `<div class="lr" style="padding:9px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;${checked?'background:color-mix(in srgb,var(--ac) 8%,transparent)':''}">
+      <div class="chk ${checked?'on':''}" style="flex-shrink:0" onclick="_togglePushQueueRow('${_jsAttr(key)}');this.classList.toggle('on');this.parentElement.style.background=this.classList.contains('on')?'color-mix(in srgb,var(--ac) 8%,transparent)':''"></div>
       <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'')}</span>
       <span style="font-size:11px;color:var(--t3)">${esc(et.status||'')}</span>
@@ -11327,15 +11787,32 @@ function openPushQueueDrawer(){
   }).join(''):`<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No pending pushes — every status change has been delivered.</div>`;
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">⬆ Push Queue (${rows.length})</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div>
-    <p style="font-size:11px;color:var(--t2);margin-top:4px">Status changes saved locally, waiting to be written back to the source. Click ✕ to drop one without pushing.</p>
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">Status changes saved locally, waiting to be written back to the source. Tick rows to push a subset, or use "Push all" to flush everything. Click ✕ to drop a row without pushing.</p>
+    ${rows.length?`<div style="display:flex;gap:6px;margin-top:6px;font-size:10px"><button class="btn btn-s" style="height:22px;font-size:10px" onclick="_pushQueueSelectAll()">☑ Select all</button><button class="btn btn-s" style="height:22px;font-size:10px" onclick="_pushQueueSelectClear()">☐ Clear selection</button></div>`:''}
   </div>
   <div style="overflow-y:auto;max-height:60vh">${body}</div>
-  ${rows.length?`<div style="padding:12px 16px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end">
+  ${rows.length?`<div id="push-queue-footer" style="padding:12px 16px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
+    <button class="btn btn-p" data-push-sel-btn style="background:#f97316;border-color:#f97316;display:${_pushQueueSel.size?'':'none'}" onclick="_flushPushQueueSelected()">⬆ Push selected (<span data-push-sel-count>${_pushQueueSel.size}</span>)</button>
     <button class="btn btn-p" style="background:#f97316;border-color:#f97316" onclick="_flushPushQueue()">⬆ Push all ${rows.length}</button>
   </div>`:''}`;
   ov.classList.add('show');
   d.classList.add('show');
+}
+async function _flushPushQueueSelected(){
+  if(!_pushQueueSel.size)return;
+  const only=Array.from(_pushQueueSel).map(k=>{const i=k.indexOf(':');return {source:k.slice(0,i),externalId:k.slice(i+1)};});
+  try{
+    toast({type:'info',title:`Pushing ${only.length} change(s)…`,duration:1500});
+    const res=await _trpc('externalSources.pushPendingChanges',{only},'mutation');
+    await loadExternalTasks();
+    _pushQueueSel.clear();
+    closeDrawer();
+    toast({type:'success',title:`✓ Pushed ${res&&res.pushed||0} change(s)`,duration:2400});
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(e){
+    toast({type:'warn',title:'Push failed',msg:e.message||String(e),duration:4000});
+  }
 }
 async function _flushPushQueue(){
   try{
@@ -11431,8 +11908,15 @@ function _openSavedCCViews(){
     if(v.assigneeFilter)extras.push('👤 '+v.assigneeFilter);
     if(v.priorityFilter)extras.push('★ '+v.priorityFilter);
     const detail=`Hat: ${esc(hatLabel)}${extras.length?' · '+extras.map(esc).join(' · '):''}`;
+    // Icon prefix: 🎯 when view captures drill-through filters (project /
+    // assignee / priority), 🪪 when it's hat-only. Helps the user pick
+    // between "open my CF cockpit" and "open my CF Recruiting filter" at a
+    // glance from a long list.
+    const hasFilters=v.projectFilter||v.assigneeFilter||v.priorityFilter;
+    const icon=hasFilters?'🎯':'🪪';
     return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_applySavedCCView(${v.id});closeDrawer()">
       <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <span style="font-size:14px;flex-shrink:0" title="${hasFilters?'View captures drill-through filters':'View captures the hat only'}">${icon}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600">${esc(v.name)}</div>
         <div style="font-size:9px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${detail}</div>
@@ -11820,7 +12304,7 @@ function _renderPortfolioTimeline(){
   return `<div class="cd" style="padding:11px 13px;margin-top:18px;overflow:hidden">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">📅 Portfolio Timeline</div>
-      <div style="font-size:10px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?' · '+hiddenN+' hidden (no dates)':''}</div>
+      <div style="font-size:10px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ac)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
     </div>
     <div style="display:flex;gap:10px;font-size:10px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:10px;height:10px;background:#1f6feb;border-radius:2px;vertical-align:middle"></span> Smartsheet</span>
@@ -12285,9 +12769,13 @@ Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in b
         return `<li style="font-size:12px;color:var(--t1);padding:6px 9px;background:var(--s3);border-radius:5px"><div style="font-weight:600">${esc(it.title||'')}</div>${it.why?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}</li>`;
       }).join('')}</ul></div>`;
     };
+    const freshness=_relTime(p.aiCoach&&p.aiCoach.dateISO);
     modal.innerHTML=`<div style="padding:16px;max-width:640px;max-height:80vh;overflow-y:auto">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-        <h2 style="font-size:15px;font-weight:650;margin:0">🩺 AI Coach · ${esc(p.name||'')}</h2>
+        <div>
+          <h2 style="font-size:15px;font-weight:650;margin:0">🩺 AI Coach · ${esc(p.name||'')}</h2>
+          ${freshness?`<div style="font-size:10px;color:var(--t3);margin-top:2px">Generated ${esc(freshness)}</div>`:''}
+        </div>
         <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${hc};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
       </div>
       <div style="font-size:13px;color:var(--t1);font-style:italic;padding:10px 12px;background:color-mix(in srgb,${hc} 10%,transparent);border-left:3px solid ${hc};border-radius:4px;margin-bottom:10px">"${esc(coach.headline||'')}"</div>

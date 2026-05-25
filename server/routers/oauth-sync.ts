@@ -360,6 +360,90 @@ export const oauthSyncRouter = router({
       return { provider: "google", events: googleEvents, eventsUpserted: googleEvents.length };
     }),
 
+  /**
+   * Create one or more calendar events on the user's connected provider —
+   * powers the "📤 Push to Outlook" button on the AI Smart Scheduler. Each
+   * block becomes a calendar event with start/end timestamps. Returns
+   * created event ids so the client can mark them as pushed (avoids
+   * double-pushing the same plan).
+   *
+   * Time zone handling: caller passes startISO + endISO as full ISO strings.
+   * For Microsoft we forward to /me/events with the user's local time zone
+   * (defaults to UTC if not provided). For Google we pass dateTime + an
+   * explicit timeZone field.
+   */
+  createCalendarEvents: protectedProcedure
+    .input(z.object({
+      provider: z.enum(["microsoft", "google"]),
+      timeZone: z.string().default("UTC"),
+      blocks: z.array(z.object({
+        title: z.string().min(1).max(200),
+        startISO: z.string(),
+        endISO: z.string(),
+        body: z.string().max(2000).optional(),
+        linkedTaskId: z.string().optional(),
+      })).min(1).max(20),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const accessToken = await getValidAccessToken(ctx.user.id, input.provider);
+      if (!accessToken) throw new Error("Not connected to " + input.provider);
+
+      const created: Array<{ blockTitle: string; eventId: string | null; error?: string }> = [];
+
+      for (const b of input.blocks) {
+        try {
+          if (input.provider === "microsoft") {
+            const body = {
+              subject: b.title,
+              body: { contentType: "Text", content: b.body || (b.linkedTaskId ? `Linked to LevelUp task ${b.linkedTaskId}` : "Scheduled by LevelUp AI Smart Plan") },
+              start: { dateTime: b.startISO, timeZone: input.timeZone },
+              end: { dateTime: b.endISO, timeZone: input.timeZone },
+              showAs: "busy",
+              categories: ["LevelUp"],
+            };
+            const resp = await fetch("https://graph.microsoft.com/v1.0/me/events", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+              const txt = await resp.text();
+              created.push({ blockTitle: b.title, eventId: null, error: `${resp.status} ${txt.slice(0, 200)}` });
+              continue;
+            }
+            const data = await resp.json() as { id: string };
+            created.push({ blockTitle: b.title, eventId: data.id });
+          } else {
+            // Google Calendar
+            const body = {
+              summary: b.title,
+              description: b.body || (b.linkedTaskId ? `Linked to LevelUp task ${b.linkedTaskId}` : "Scheduled by LevelUp AI Smart Plan"),
+              start: { dateTime: b.startISO, timeZone: input.timeZone },
+              end: { dateTime: b.endISO, timeZone: input.timeZone },
+            };
+            const resp = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+              const txt = await resp.text();
+              created.push({ blockTitle: b.title, eventId: null, error: `${resp.status} ${txt.slice(0, 200)}` });
+              continue;
+            }
+            const data = await resp.json() as { id: string };
+            created.push({ blockTitle: b.title, eventId: data.id });
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          created.push({ blockTitle: b.title, eventId: null, error: msg });
+        }
+      }
+
+      const okCount = created.filter(c => c.eventId).length;
+      return { provider: input.provider, created, okCount, totalCount: created.length };
+    }),
+
   syncMail: protectedProcedure
     .input(z.object({ provider: z.enum(["microsoft"]).default("microsoft"), limit: z.number().default(20) }))
     .mutation(async ({ input, ctx }) => {

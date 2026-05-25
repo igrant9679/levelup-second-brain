@@ -118,6 +118,34 @@ function renderSettingsHTML(){
     </div>
   </div>
 
+  <!-- Working Hours — drives the AI Capacity Check + Smart Scheduler -->
+  <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">⏰ Working Hours</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Used by the Capacity check on My Day and the AI Smart Scheduler. Per-day overrides (e.g. shorter Fridays, no weekends) take precedence when set.</div>
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Hours</div><div style="font-size:10px;color:var(--t3)">Applies on any day without a per-day override.</div></div>
+      <div style="display:flex;gap:6px;align-items:center;font-size:12px">
+        <select class="inp" id="gen-wh-start" style="width:78px;font-size:12px" onchange="_saveWorkingHoursDefault()">
+          ${Array.from({length:24},(_,h)=>`<option value="${h}" ${(D.prefs&&D.prefs.workingHours&&D.prefs.workingHours.start)===h||(!(D.prefs&&D.prefs.workingHours&&Number.isFinite(D.prefs.workingHours.start))&&h===9)?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
+        </select>
+        <span style="color:var(--t3)">→</span>
+        <select class="inp" id="gen-wh-end" style="width:78px;font-size:12px" onchange="_saveWorkingHoursDefault()">
+          ${Array.from({length:24},(_,h)=>{const v=h+1;return `<option value="${v}" ${(D.prefs&&D.prefs.workingHours&&D.prefs.workingHours.end)===v||(!(D.prefs&&D.prefs.workingHours&&Number.isFinite(D.prefs.workingHours.end))&&v===17)?'selected':''}>${String(v).padStart(2,'0')}:00</option>`;}).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="gen-wh-dow-block" style="padding:6px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div style="font-size:11px;font-weight:500;color:var(--t2)">Per-day overrides</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_applyWorkingHoursPreset('weekdays-only')" title="Mon–Fri use the default; Sat/Sun are non-working (no capacity)">Weekdays only</button>
+          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_applyWorkingHoursPreset('clear-overrides')" title="Drop every per-day override">Clear</button>
+        </div>
+      </div>
+      <div id="gen-wh-dow" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${_renderDowOverrideGrid()}</div>
+    </div>
+  </div>
+
   <!-- Language -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Language &amp; Region</div>

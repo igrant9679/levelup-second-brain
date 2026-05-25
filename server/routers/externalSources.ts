@@ -849,10 +849,26 @@ export const externalSourcesRouter = router({
    * entry with pendingError populated so the user can retry. Returns
    * counts so the UI can summarise in a toast.
    */
-  pushPendingChanges: protectedProcedure.mutation(async ({ ctx }) => {
+  pushPendingChanges: protectedProcedure
+    .input(z.object({
+      // Optional whitelist — when provided, only push these (source, externalId)
+      // pairs. Lets the UI offer a per-row select instead of all-or-nothing.
+      only: z.array(z.object({
+        source: z.enum(['smartsheet', 'nifty']),
+        externalId: z.string(),
+      })).optional(),
+    }).optional())
+    .mutation(async ({ ctx, input }) => {
     const db = await requireDb();
-    const pending = await db.select().from(externalTaskOverrides)
+    const allPending = await db.select().from(externalTaskOverrides)
       .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus)));
+    // Apply the optional whitelist filter on the server so a stale client
+    // can't ask us to push something it doesn't have.
+    let pending = allPending;
+    if (input?.only && input.only.length) {
+      const wanted = new Set(input.only.map(o => `${o.source}:${o.externalId}`));
+      pending = allPending.filter(p => wanted.has(`${p.source}:${p.externalId}`));
+    }
     let pushed = 0, failed = 0;
     const errors: string[] = [];
     for (const p of pending) {

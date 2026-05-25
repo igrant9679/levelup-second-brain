@@ -84,18 +84,35 @@ function priColor(pri: string | null | undefined): string {
   return '#6b7280';
 }
 
+interface ProgramRow {
+  name: string;
+  color: string;
+  shipped: number;
+  open: number;
+  overdue: number;
+  total: number; // shipped + open
+}
+
 interface BuiltRows {
   shipped: WeeklyRow[];        // Done this past week
   overdue: WeeklyRow[];        // Open and past due
   nextWeek: WeeklyRow[];       // Open, due in next 7 days
   totalOpen: number;
+  // PM augmentations (May 25 follow-up):
+  programs: ProgramRow[];      // Per-program rollup for portfolio recap
+  briefingHeadline: string | null; // Latest AI Portfolio Briefing headline (if any)
+  briefingDateISO: string | null;  // …and its generation date
 }
 
-/** Build the four week-scoped buckets for one user. */
+/** Build the four week-scoped buckets for one user. Also rolls up
+ *  per-program counts (using D.programs JSON) and the latest AI
+ *  Portfolio Briefing headline (D.prefs.briefings[0]). */
 async function buildRowsForUser(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   userId: number,
   tasksBlob: string | null,
+  programsBlob: string | null,
+  prefsObj: Record<string, unknown>,
 ): Promise<BuiltRows> {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayStr = ymd(today);
@@ -168,7 +185,71 @@ async function buildRowsForUser(
   shipped.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
   overdue.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
   nextWeek.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
-  return { shipped, overdue, nextWeek, totalOpen };
+
+  // ── Per-program rollup ───────────────────────────────────────────────────
+  // Group shipped + open + overdue counts by program. A program owns a list
+  // of project ids; a task belongs to a program if its projectId (native) or
+  // override.localProjectId (external) is in that list. We rebuild the
+  // project→program lookup once and walk every row.
+  type Program = { id: string|number; name: string; color?: string; projectIds?: Array<string|number> };
+  let programs: Program[] = [];
+  try { programs = JSON.parse(programsBlob ?? '[]') as Program[]; } catch { programs = []; }
+  if (!Array.isArray(programs)) programs = [];
+  const programByProjectId = new Map<string, Program>();
+  for (const p of programs) for (const pid of (p.projectIds || [])) programByProjectId.set(String(pid), p);
+
+  // Re-walk native + external to count per program. Cheap because we already
+  // hold the parsed arrays — just iterate again and bucket.
+  const progStats = new Map<string, ProgramRow>();
+  for (const p of programs) progStats.set(String(p.id), { name: p.name, color: p.color || '#64748b', shipped: 0, open: 0, overdue: 0, total: 0 });
+  const bumpProg = (projectId: string | null | undefined, kind: 'shipped'|'open'|'overdue') => {
+    if (!projectId) return;
+    const prog = programByProjectId.get(String(projectId));
+    if (!prog) return;
+    const row = progStats.get(String(prog.id));
+    if (!row) return;
+    row[kind]++;
+    if (kind !== 'overdue') row.total++;
+  };
+  for (const t of nativeTasks) {
+    const pid = t.projectId != null ? String(t.projectId) : null;
+    if (t.status === 'Done') {
+      const c = (t.completedAt || '').slice(0, 10);
+      if (c >= weekStartStr && c <= todayStr) bumpProg(pid, 'shipped');
+    } else if (t.status !== 'Someday') {
+      bumpProg(pid, 'open');
+      if (t.due && t.due < todayStr) bumpProg(pid, 'overdue');
+    }
+  }
+  for (const e of ext) {
+    if (e.removedAt) continue;
+    const ov = ovMap.get(`${e.source}:${e.externalId}`);
+    if (ov?.tombstoned) continue;
+    const pid = ov?.localProjectId ? String(ov.localProjectId) : null;
+    if (!pid) continue;
+    if (isExtDone(e.status)) {
+      if (e.completedAt) {
+        const cYmd = ymd(new Date(e.completedAt));
+        if (cYmd >= weekStartStr && cYmd <= todayStr) bumpProg(pid, 'shipped');
+      }
+    } else {
+      bumpProg(pid, 'open');
+      const due = (ov?.localDue) || e.due;
+      if (due && due < todayStr) bumpProg(pid, 'overdue');
+    }
+  }
+  // Only surface programs with any activity this week (open or shipped).
+  const programRows = Array.from(progStats.values())
+    .filter(p => p.open > 0 || p.shipped > 0)
+    .sort((a, b) => (b.shipped - a.shipped) || (b.open - a.open));
+
+  // ── Latest AI Portfolio Briefing ────────────────────────────────────────
+  const briefings = Array.isArray((prefsObj as { briefings?: unknown[] }).briefings) ? (prefsObj as { briefings?: Array<{ briefing?: { headline?: string }; dateISO?: string }> }).briefings || [] : [];
+  const latest = briefings[0] || null;
+  const briefingHeadline = latest?.briefing?.headline ? String(latest.briefing.headline).slice(0, 400) : null;
+  const briefingDateISO = latest?.dateISO || null;
+
+  return { shipped, overdue, nextWeek, totalOpen, programs: programRows, briefingHeadline, briefingDateISO };
 }
 
 /**
@@ -265,6 +346,13 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock): string {
     <strong style="color:#1f6feb">${rows.nextWeek.length}</strong> due in next 7 days
   </div>
   ${ai.reflection ? `<div style="background:#eef2ff;border-left:3px solid #6366f1;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0 8px;font-size:13px;color:#1e1b4b;line-height:1.55">${escHtml(ai.reflection)}</div>` : ''}
+  ${rows.briefingHeadline ? `<div style="background:#fef9c3;border-left:3px solid #ca8a04;padding:12px 16px;border-radius:0 6px 6px 0;margin:8px 0;font-size:13px;color:#422006;line-height:1.55"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#854d0e;margin-bottom:4px">📊 Latest Portfolio Briefing${rows.briefingDateISO ? ` · ${escHtml(new Date(rows.briefingDateISO).toLocaleDateString())}` : ''}</div><em>"${escHtml(rows.briefingHeadline)}"</em></div>` : ''}
+  ${rows.programs.length ? `<h2 style="font-size:15px;color:#6366f1;border-bottom:2px solid #6366f1;padding-bottom:4px;margin:20px 0 6px">📊 By Program <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.programs.length})</span></h2>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">${rows.programs.slice(0, 10).map(p => `<tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">
+    <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${escHtml(p.color)};vertical-align:middle;margin-right:6px"></span>
+    <strong>${escHtml(p.name)}</strong>
+    <span style="font-size:11px;color:#6b7280;margin-left:10px"><strong style="color:#10b981">${p.shipped}</strong> shipped · <strong style="color:${p.overdue ? '#dc2626' : '#9ca3af'}">${p.overdue}</strong> overdue · <strong style="color:#1f6feb">${p.open}</strong> open</span>
+  </td></tr>`).join('')}</table>` : ''}
   ${picksHtml}
   <h2 style="font-size:15px;color:#10b981;border-bottom:2px solid #10b981;padding-bottom:4px;margin:20px 0 6px">✅ Shipped this week <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.shipped.length})</span></h2>
   ${rowsHtml(rows.shipped, "Nothing marked done this week — make sure you're stamping completedAt as you ship.")}
@@ -319,7 +407,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       const recipient = wp.recipientEmail || userRow.email;
       if (!recipient) { skipped++; continue; }
 
-      const built = await buildRowsForUser(db, row.userId, row.tasks);
+      const built = await buildRowsForUser(db, row.userId, row.tasks, row.programs, prefs);
       // Send the review even on a quiet week — knowing "nothing happened" is
       // also a signal. Only skip if the user has literally no open tasks AND
       // shipped nothing AND has nothing upcoming.
