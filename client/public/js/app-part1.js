@@ -606,6 +606,9 @@ async function loadExternalTasks(){
   try{
     const rows=await _trpc('externalSources.listExternalTasks',{includeRemoved:false},'query');
     D.externalTasks=Array.isArray(rows)?rows:[];
+    // Invalidate the Cmd+K search index so the next palette open includes
+    // the updated external rows.
+    if(typeof invalidateSearchIndex==='function')invalidateSearchIndex();
     return D.externalTasks.length;
   }catch(e){
     // No network / no tables / user not signed in — fine, just leave empty.
@@ -3272,7 +3275,9 @@ function saveItem(type,id){
     const folderSel=document.getElementById('dr-folder');
     if(folderSel){const fv=parseInt(folderSel.value);if(!isNaN(fv))n.folderId=fv;else delete n.folderId;}
     n.updated='Just now';save('notes')}}
-  if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;p.pct=parseInt($('#dr-pct').value)||0;p.desc=$('#dr-body').value;save('projects')}}
+  if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;const newPct=parseInt($('#dr-pct').value)||0;// Setting pct explicitly via the drawer locks it (pctManual=true). If user wants auto, they can clear via the value 0 + the auto-pct will resume showing computed value on cards.
+    if(newPct!==(p.pct||0))p.pctManual=true;
+    p.pct=newPct;p.desc=$('#dr-body').value;save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
     g.icon=$('#dr-icon').value;
@@ -5734,6 +5739,7 @@ function renderTaskList(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_externalSnoozeMenu('${t._source}','${esc(t._externalId)}',event)">⏰</button>
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Annotate" onclick="event.stopPropagation();_openExternalAnnotateModal('${t._source}','${esc(t._externalId)}')">✎</button>
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="event.stopPropagation();_toggleExternalMyDay('${t._source}','${esc(t._externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         </div>
@@ -5978,9 +5984,10 @@ function renderTaskBoard(){
           ${et.projectLabel?`<span>📁 ${esc(et.projectLabel)}</span>`:''}
           ${_extAnnotationChips(et.override)}
         </div>
-        <div style="display:flex;gap:4px;margin-top:5px">
+        <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${et.source}','${esc(et.externalId)}',${myDay?0:1})">${myDay?'☀ Remove':'+☀ My Day'}</button>
-          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎ Annotate</button>
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${et.source}','${esc(et.externalId)}',event)">⏰</button>
+          <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎</button>
           <a href="${esc(url)}" target="_blank" rel="noopener" class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
         </div>
       </div>`;
@@ -6608,6 +6615,7 @@ function _renderExternalClusterCards(){
         <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:500;color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
         ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0">${esc(t.status)}</span>`:''}
+        <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         <span style="font-size:11px;${overdueRow?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
@@ -6934,6 +6942,7 @@ function _renderExternalTasksRailWidget(){
       <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${_extAnnotationChips(t.override)}
       <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:9px">${dueLabel}</span>
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
     </div>`;
@@ -7047,6 +7056,60 @@ async function _toggleExternalMyDay(source,externalId,myDay){
   }catch(e){
     toast({type:'warn',title:'My Day toggle failed',msg:e.message||String(e)});
   }
+}
+
+// Snooze an external task by writing a localDue override N days from today.
+// Days=-1 (special) clears the snooze (removes localDue override; source due
+// becomes effective again). Also clears the My Day flag if days>1 so a
+// "snooze for a week" actually pushes the task off today's plate.
+async function _snoozeExternal(source,externalId,days){
+  try{
+    let localDue=null;
+    if(days>=0){
+      const d=new Date();d.setDate(d.getDate()+days);
+      localDue=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+    const payload={source,externalId,localDue};
+    if(days>1)payload.myDay=false;
+    await _trpc('externalSources.upsertOverride',payload,'mutation');
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+    const label=days<0?'snooze cleared':days===0?'snoozed to today':days===1?'snoozed to tomorrow':`snoozed ${days}d`;
+    toast({type:'success',title:'⏰ '+label,duration:1500});
+  }catch(e){toast({type:'warn',title:'Snooze failed',msg:e.message||String(e)});}
+}
+
+// Snooze popover — small menu so the snooze button can offer +1d / +3d / +7d
+// without opening the full annotate modal.
+function _externalSnoozeMenu(source,externalId,event){
+  if(event){event.stopPropagation();event.preventDefault();}
+  // Close any existing snooze popover
+  document.querySelectorAll('[data-ext-snooze-pop]').forEach(el=>el.remove());
+  const btn=event&&event.currentTarget;
+  if(!btn)return;
+  const rect=btn.getBoundingClientRect();
+  const pop=document.createElement('div');
+  pop.setAttribute('data-ext-snooze-pop','1');
+  pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-180)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:4px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:160px;display:flex;flex-direction:column;gap:2px`;
+  const items=[
+    {label:'⏰ Tomorrow',days:1},
+    {label:'⏰ In 3 days',days:3},
+    {label:'⏰ Next week',days:7},
+    {label:'⏰ In 2 weeks',days:14},
+    {label:'↺ Clear snooze',days:-1},
+  ];
+  items.forEach(it=>{
+    const b=document.createElement('button');
+    b.className='btn btn-s';
+    b.style.cssText='justify-content:flex-start;height:26px;font-size:11px;padding:0 8px;text-align:left;background:transparent;border:none;color:var(--t1);cursor:pointer';
+    b.textContent=it.label;
+    b.onmouseover=()=>{b.style.background='var(--s3)';};
+    b.onmouseout=()=>{b.style.background='transparent';};
+    b.onclick=(e)=>{e.stopPropagation();pop.remove();_snoozeExternal(source,externalId,it.days);};
+    pop.appendChild(b);
+  });
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
 }
 
 // ─── External-task local annotations modal ─────────────────────────────────
@@ -9753,7 +9816,11 @@ function renderProjectsList(header){
     const subs=pts.flatMap(t=>t.subtasks||[]);
     const totalTasks=pts.length+extLinked.length;
     const health=projectHealth(p);
-    const pct=Math.max(0,Math.min(100,p.pct||0));
+    // Auto-pct: when there's no manual override and there are tasks, show the
+    // actual done/total ratio. Manual override (p.pctManual===true) is rare
+    // but preserved — set it via the drawer if you want to lock a value.
+    const autoPct=totalTasks?Math.round(done/totalTasks*100):null;
+    const pct=p.pctManual?Math.max(0,Math.min(100,p.pct||0)):(autoPct!==null?autoPct:Math.max(0,Math.min(100,p.pct||0)));
     const ms=Array.isArray(p.milestones)?p.milestones:[];
     const msDone=ms.filter(m=>m.done).length;
     const overdue=pts.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
@@ -9832,17 +9899,24 @@ function openProjectDetail(pid){
   const p=D.projects.find(x=>x.id===pid);
   if(!p)return;
   const pts=D.tasks.filter(t=>t.projectId===pid);
+  // Include linked external tasks in the rollup just like the card view does.
+  const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
+    const ov2=t.override;return ov2&&String(ov2.localProjectId||'')===String(pid)&&!ov2.tombstoned;
+  });
+  const extDoneN=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';}).length;
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
   const health=projectHealth(p);
-  const doneN=pts.filter(t=>t.status==='Done').length;
+  const doneN=pts.filter(t=>t.status==='Done').length+extDoneN;
   const ipN=pts.filter(t=>t.status==='In Progress').length;
-  const nsN=pts.filter(t=>t.status==='Not Started').length;
+  const nsN=pts.filter(t=>t.status==='Not Started').length+(extLinked.length-extDoneN);
   const odN=pts.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
   const subs=pts.flatMap(t=>t.subtasks||[]);
   const ms=Array.isArray(p.milestones)?p.milestones:[];
   const msDone=ms.filter(m=>m.done).length;
-  const pct=Math.max(0,Math.min(100,p.pct||0));
+  const totalAll=pts.length+extLinked.length;
+  const autoPct=totalAll?Math.round(doneN/totalAll*100):null;
+  const pct=p.pctManual?Math.max(0,Math.min(100,p.pct||0)):(autoPct!==null?autoPct:Math.max(0,Math.min(100,p.pct||0)));
   const goalIds=[...new Set(pts.map(t=>t.linkedGoalId).filter(Boolean))];
   const goals=(D.goals||[]).filter(g=>goalIds.includes(g.id)||g.projectId===pid);
   const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;

@@ -2666,6 +2666,22 @@ function buildSearchIndex(){
   (D.mail||[]).forEach(m=>items.push({type:'Mail',icon:'✉️',label:m.subject||'(no subject)',meta:m.from+' · '+m.date,tags:'',body:m.body||'',action:()=>{nav('mail');setTimeout(()=>openMailItem&&openMailItem(m.id),120)}}));
   (_calEvents||[]).forEach(ev=>items.push({type:'Event',icon:'📅',label:ev.title,meta:ev.dateStr+' '+ev.start,tags:'',body:ev.location||ev.desc||'',action:()=>{nav('calendar');}}));
   (D.ideas||[]).forEach(i=>items.push({type:'Idea',icon:'💡',label:i.title,meta:i.status||'',tags:(i.tags||[]).join(' '),body:i.body||'',action:()=>{nav('ideas');setTimeout(()=>openIdeaDetail&&openIdeaDetail(i.id),120)}}));
+  // External tasks from Smartsheet (CF) + NiftyPM (LSI). Cmd+K opens the
+  // source URL in a new tab since we can't open a drawer for read-only rows.
+  (D.externalTasks||[]).forEach(et=>{
+    if(et.override&&et.override.tombstoned)return;
+    const label=(et.source==='smartsheet'?'[CF] ':et.source==='nifty'?'[LSI] ':'')+et.title;
+    const due=(et.override&&et.override.localDue)||et.due||'';
+    items.push({
+      type:et.source==='smartsheet'?'Smartsheet':'NiftyPM',
+      icon:et.source==='smartsheet'?'📊':'💜',
+      label,
+      meta:[et.status||'',due||'',et.projectLabel||''].filter(Boolean).join(' · '),
+      tags:(et.override&&et.override.localTags)||'',
+      body:et.description||(et.override&&et.override.localNote)||'',
+      action:()=>{if(et.externalUrl)window.open(et.externalUrl,'_blank','noopener');}
+    });
+  });
   [['Home','🏠','home'],['My Day','☀️','myday'],['My Week','📅','myweek'],['Tasks','☑','tasks'],['Notes','📝','notes'],['Projects','📁','projects'],['Goals','🎯','goals'],['Journal','✏️','journal'],['Habits','✅','habits'],['Contacts','👤','contacts'],['Mail','✉️','mail'],['Calendar','📅','calendar'],['Coach','⚡','coach'],['Settings','⚙️','settings'],['Archive','🗄','archive']].forEach(([label,icon,screen])=>items.push({type:'Nav',icon,label:'Go to '+label,meta:'',tags:'',body:'',action:()=>nav(screen)}));
   return items;
 }
