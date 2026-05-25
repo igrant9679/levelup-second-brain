@@ -5725,7 +5725,17 @@ function _renderSourceFilterChips(){
     ${lsiCount?chip(true,f.nifty,'#9333ea','LSI',lsiCount,'nifty'):''}
   </div>`;
 }
-function setTaskTabIdx(idx){_taskFilterTabIdx=idx;if(_taskTabDefs[idx])_taskFilter=_taskTabDefs[idx].filter;_persistPageState('tasks',{tabIdx:idx});renderCurrentTaskView();}
+function setTaskTabIdx(idx){
+  _taskFilterTabIdx=idx;
+  if(_taskTabDefs[idx])_taskFilter=_taskTabDefs[idx].filter;
+  _persistPageState('tasks',{tabIdx:idx});
+  // Flip the .on class on the tab strip — renderCurrentTaskView() only
+  // re-paints the view body, not the parent tabs row, so the previous tab
+  // would stay highlighted forever otherwise.
+  const tabsRow=document.getElementById('tasks-tabs');
+  if(tabsRow){tabsRow.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('on',i===idx));}
+  renderCurrentTaskView();
+}
 function setTaskPriorityFilter(v){_taskPriorityFilter=v||'All';_persistPageState('tasks',{priority:_taskPriorityFilter});renderCurrentTaskView();}
 // J: persistent group-by selection for the List view.
 if(typeof _taskListGroupBy==='undefined')var _taskListGroupBy=_tasksRestored.listGroupBy||'none';
