@@ -5546,6 +5546,9 @@ const _tasksRestored=_restorePageState('tasks');
 let _taskFilter=t=>t.status!=='Done'&&t.status!=='Someday'; // resolved against _taskTabDefs at first render via _taskFilterTabIdx
 let _taskFilterTabIdx=typeof _tasksRestored.tabIdx==='number'?_tasksRestored.tabIdx:0;
 let _taskMyOnly=_tasksRestored.myOnly===true;
+// Drill-through filter set by Command Center → Tasks. Project label (matches
+// row.project on both native and external rows). Cleared via the chip ✕.
+let _taskProjectFilter=null;
 let _taskView=_tasksRestored.view||'clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
 let _taskCalCursor=null; // YYYY-MM string for calendar nav
 function renderCurrentTaskView(){
@@ -7075,8 +7078,64 @@ function handleQuickAdd(e){
 // Priority filter — global so it persists across re-renders.
 if(typeof _taskPriorityFilter==='undefined')var _taskPriorityFilter=(_tasksRestored.priority)||'All';
 function _applyPriorityFilter(tasks){
-  if(!_taskPriorityFilter||_taskPriorityFilter==='All')return tasks;
-  return tasks.filter(t=>t.priority===_taskPriorityFilter);
+  let out=tasks;
+  if(_taskPriorityFilter&&_taskPriorityFilter!=='All')out=out.filter(t=>t.priority===_taskPriorityFilter);
+  // Project drill-through: matches the same column shown in Command Center
+  // tiles. For native rows the project label is `t.project`, for external
+  // rows it's `t.project` too (set during the inject in renderTaskList).
+  // For native rows where `project` isn't denormalised, derive from
+  // projectId so the filter still matches.
+  if(_taskProjectFilter){
+    out=out.filter(t=>{
+      const label=t.project||((t.projectId&&(D.projects||[]).find(p=>p.id===t.projectId)||{}).name)||'';
+      return label===_taskProjectFilter;
+    });
+  }
+  if(_taskAssigneeFilter){
+    out=out.filter(t=>{
+      const a=t.assignedTo||t.assignee||'';
+      // Treat both empty string and "(unassigned)" sentinel as a match for unassigned.
+      if(_taskAssigneeFilter==='(unassigned)')return !a;
+      return a===_taskAssigneeFilter;
+    });
+  }
+  return out;
+}
+function setTaskProjectFilter(name){
+  _taskProjectFilter=name||null;
+  if(typeof renderTasks==='function')renderTasks();
+}
+function clearTaskProjectFilter(){setTaskProjectFilter(null);}
+// Drill-through helper called from Command Center By-Project tiles.
+// Sets the source filter to match the project's source so external-only
+// tiles don't pollute the view, clears my-items / priority, jumps to All
+// tab, and navigates to Tasks.
+// Assignee drill — set _taskAssigneeFilter, keep sources as-is (assignee is
+// orthogonal to source), jump to Tasks.
+let _taskAssigneeFilter=null;
+function _ccDrillIntoAssignee(name){
+  _taskAssigneeFilter=name||null;
+  _taskFilterTabIdx=0;
+  _taskFilter=t=>true;
+  _taskMyOnly=false;
+  _taskPriorityFilter='All';
+  _taskProjectFilter=null;
+  nav('tasks');
+}
+function clearTaskAssigneeFilter(){_taskAssigneeFilter=null;if(typeof renderTasks==='function')renderTasks();}
+function _ccDrillIntoProject(name, source){
+  D.prefs=D.prefs||{};
+  // Source filter: turn off the irrelevant sources for clarity.
+  if(source==='smartsheet')D.prefs.taskSourceFilter={personal:false,smartsheet:true,nifty:false};
+  else if(source==='nifty')D.prefs.taskSourceFilter={personal:false,smartsheet:false,nifty:true};
+  else D.prefs.taskSourceFilter={personal:true,smartsheet:false,nifty:false};
+  save('prefs');
+  _taskFilterTabIdx=0; // All
+  _taskFilter=t=>true;
+  _taskMyOnly=false;
+  _taskPriorityFilter='All';
+  _taskProjectFilter=name||null;
+  nav('tasks');
 }
 // ════════════════════════════════════════════════════════════════════════════
 // TASKS RAIL WIDGETS — customizable right-pane widgets on the Tasks page
@@ -7815,6 +7874,10 @@ function renderTasks(){
     return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
   })()}</div>
   ${_renderSourceFilterChips()}
+  ${(_taskProjectFilter||_taskAssigneeFilter)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+    ${_taskProjectFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">📁 Project: ${esc(_taskProjectFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskProjectFilter()" title="Clear project filter">✕</span></div>`:''}
+    ${_taskAssigneeFilter?`<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:color-mix(in srgb,var(--page-accent) 18%,transparent);border:1px solid var(--page-accent);border-radius:13px;font-size:11px;color:var(--page-accent);font-weight:600">👤 Assignee: ${esc(_taskAssigneeFilter)}<span style="cursor:pointer;font-weight:400" onclick="clearTaskAssigneeFilter()" title="Clear assignee filter">✕</span></div>`:''}
+  </div>`:''}
   ${(()=>{
     // N: AI Today's Plan banner — only shown when the active filter is the Today tab
     const isToday=_taskTabDefs[1]&&_taskFilter===_taskTabDefs[1].filter;
@@ -10417,7 +10480,8 @@ function renderCommandCenter(){
     const pct=totalN?Math.round(doneN/totalN*100):0;
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
     const accent=rows[0]?(rows[0].source==='smartsheet'?'#1f6feb':rows[0].source==='nifty'?'#9333ea':'#10b981'):'#64748b';
-    return `<div class="cd" style="padding:11px 13px;border-left:3px solid ${accent}">
+    const src=rows[0]?rows[0].source:'personal';
+    return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject(${JSON.stringify(name)},${JSON.stringify(src)})" title="Click to open these tasks in the Tasks view">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
         <div style="font-size:12px;font-weight:600;color:var(--t1);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
         <span style="font-size:9px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
@@ -10463,7 +10527,7 @@ function renderCommandCenter(){
   const stakeholderBody=assigneeRows.length?assigneeRows.map(([name,rows])=>{
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
     const initials=(name||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).join('').slice(0,2).toUpperCase()||'?';
-    return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+    return `<div class="lr cc-assignee-row" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_ccDrillIntoAssignee(${JSON.stringify(name)})" title="Click to filter Tasks to this assignee">
       <span style="width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
       <span style="font-size:11px;color:var(--t2)"><strong>${rows.length}</strong> open</span>
@@ -10502,16 +10566,25 @@ function renderCommandCenter(){
   const cfCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='smartsheet'&&!(t.override&&t.override.tombstoned)).length;
   const lsiCount=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
 
+  // Saved views row (only when at least one)
+  const savedViews=(D.prefs&&D.prefs.savedCCViews)||[];
+  const savedRow=savedViews.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:10px;color:var(--t3)">
+    <span style="text-transform:uppercase;letter-spacing:.05em">Saved views:</span>
+    ${savedViews.slice(0,8).map(v=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 9px;border-radius:11px" onclick="_applySavedCCView(${v.id})" title="Apply view (${esc(v.hat||'all').toUpperCase()})">⭐ ${esc(v.name)}</button>`).join('')}
+    <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openSavedCCViews()">Manage</button>
+  </div>`:'';
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
-    <div>
+    <div style="flex:1;min-width:0">
       <h1 style="font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px">🎯 Command Center</h1>
       <p style="font-size:12px;color:var(--t2)">Cross-tool dashboard — what's at risk, what's shipping, what's queued. ${open.length} open · ${shipped.length} shipped this week · ${overdue.length} overdue.</p>
+      ${savedRow}
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${chip('all','All hats','#f59e0b')}
       ${chip('cf','CF · '+cfCount,'#1f6feb')}
       ${chip('lsi','LSI · '+lsiCount,'#9333ea')}
       ${chip('personal','Personal','#10b981')}
+      <button class="btn btn-s" style="height:26px;padding:0 10px;font-size:11px" onclick="_saveCurrentCCView()" title="Save the current hat as a view">⭐ Save view</button>
       <button class="btn btn-s" style="height:26px;padding:0 10px;font-size:11px" onclick="refreshExternalTasksNow()" title="Force fresh pull">↻ Sync</button>
     </div>
   </div>
@@ -10526,8 +10599,10 @@ function renderCommandCenter(){
     ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
   </div>
 
+  ${_renderBriefingCard()}
+
   <!-- Two-column main body -->
-  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start" id="cc-grid">
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start;margin-top:${(D.prefs&&D.prefs.briefings&&D.prefs.briefings.length)?'14px':'0'}" id="cc-grid">
     <!-- At-risk -->
     <div class="cd" style="padding:0;overflow:hidden">
       <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">⚠ At Risk</div><div style="font-size:10px;color:var(--t3)">${overdue.length+dueToday.length+stalled.length} items</div></div>
@@ -10571,11 +10646,13 @@ function renderCommandCenter(){
     r.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
       <div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Quick Actions</div>
       <div style="display:flex;flex-direction:column;gap:6px">
+        <button id="cc-briefing-btn" class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:var(--purp);border-color:var(--purp)" onclick="aiPortfolioBriefing()" title="Generate an AI weekly portfolio briefing for the current hat">📝 Generate weekly briefing</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="refreshExternalTasksNow()">↻ Force sync now</button>
         ${pendingRows.length?`<button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:#f97316;border-color:#f97316" onclick="openPushQueueDrawer()">⬆ Preview push queue (${pendingRows.length})</button>`:''}
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('standup')">📋 Open Standup view</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('programs')">📊 Portfolio view</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('reports')">📈 Build a widget</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="_openSavedCCViews()" title="Save the current hat + filter set">⭐ Saved views</button>
       </div>
     </div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px">
@@ -10724,6 +10801,267 @@ async function _dropPushItem(source,externalId){
     await loadExternalTasks();
     openPushQueueDrawer();
   }catch(e){toast({type:'warn',title:'Drop failed',msg:e.message||String(e)});}
+}
+
+// ─── Saved Command Center views ─────────────────────────────────────────────
+// A saved view captures the active hat (and, when present, a future filter set
+// stored under `extra`). Persisted in D.prefs.savedCCViews so they sync across
+// devices. Pin-to-Home would clone the latest briefing or the current at-risk
+// list onto the Home dashboard, but is deferred — for now the views just one-
+// click restore the hat.
+function _saveCurrentCCView(){
+  const name=prompt('Name this view (e.g. "CF risks", "LSI shipping"):',(_ccHat()==='all'?'All hats':_ccHat().toUpperCase())+' view');
+  if(!name||!name.trim())return;
+  D.prefs=D.prefs||{};
+  D.prefs.savedCCViews=Array.isArray(D.prefs.savedCCViews)?D.prefs.savedCCViews:[];
+  D.prefs.savedCCViews.unshift({id:Date.now(),name:name.trim(),hat:_ccHat()});
+  // Cap at 12.
+  if(D.prefs.savedCCViews.length>12)D.prefs.savedCCViews.length=12;
+  save('prefs');
+  toast({type:'success',title:`⭐ Saved "${name.trim()}"`,duration:1800});
+  renderCommandCenter();
+}
+function _applySavedCCView(id){
+  const v=((D.prefs&&D.prefs.savedCCViews)||[]).find(x=>x.id===id);
+  if(!v)return;
+  setCcContext(v.hat||'all');
+}
+function _deleteSavedCCView(id){
+  if(!confirm('Delete this saved view?'))return;
+  D.prefs.savedCCViews=(D.prefs.savedCCViews||[]).filter(v=>v.id!==id);
+  save('prefs');
+  if(curScreen==='command')renderCommandCenter();
+  _openSavedCCViews();
+}
+function _renameSavedCCView(id){
+  const v=((D.prefs&&D.prefs.savedCCViews)||[]).find(x=>x.id===id);
+  if(!v)return;
+  const next=prompt('New name:',v.name);
+  if(!next||!next.trim())return;
+  v.name=next.trim();save('prefs');
+  if(curScreen==='command')renderCommandCenter();
+  _openSavedCCViews();
+}
+function _openSavedCCViews(){
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  if(!d||!ov)return;
+  const list=(D.prefs&&D.prefs.savedCCViews)||[];
+  const rows=list.length?list.map(v=>{
+    const hatLabel=v.hat==='all'?'All hats':v.hat.toUpperCase();
+    const color=v.hat==='cf'?'#1f6feb':v.hat==='lsi'?'#9333ea':v.hat==='personal'?'#10b981':'#f59e0b';
+    return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_applySavedCCView(${v.id});closeDrawer()">
+      <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--t1);font-weight:600">${esc(v.name)}</div>
+        <div style="font-size:9px;color:var(--t3)">Hat: ${esc(hatLabel)}</div>
+      </div>
+      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="event.stopPropagation();_renameSavedCCView(${v.id})" title="Rename">✏</button>
+      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="event.stopPropagation();_deleteSavedCCView(${v.id})" title="Delete">✕</button>
+    </div>`;
+  }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No saved views yet. Pick a hat on the Command Center, then click ⭐ Save view to capture it.</div>';
+  d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">⭐ Saved Command Center Views</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div>
+    <p style="font-size:11px;color:var(--t2);margin-top:4px">${list.length} saved view${list.length===1?'':'s'} · click any row to apply it.</p>
+  </div>
+  <div style="overflow-y:auto;max-height:60vh">${rows}</div>
+  <div style="padding:12px 16px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn-s" onclick="closeDrawer()">Close</button>
+    <button class="btn btn-p" onclick="closeDrawer();_saveCurrentCCView()">+ Save current</button>
+  </div>`;
+  ov.classList.add('show');
+}
+
+// ─── AI Portfolio Briefing ──────────────────────────────────────────────────
+// Generates a weekly portfolio briefing for the current Command Center hat
+// from a snapshot of _ccTasks(): wins, risks, blockers, recommendations.
+// Persists to D.prefs.briefings[] so the user can read week-over-week.
+async function aiPortfolioBriefing(){
+  const btn=document.getElementById('cc-briefing-btn');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
+  try{
+    const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
+    if(!apiKey&&provider!=='manus'){
+      toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.',duration:3000});
+      if(btn){btn.disabled=false;btn.textContent='📝 Generate weekly briefing';}
+      return;
+    }
+    const hat=_ccHat();
+    const tasks=_ccTasks();
+    const today=_todayStr;
+    const tMs=Date.now();
+    const week=new Date(tMs-7*86400000).toISOString();
+    const open=tasks.filter(t=>t.status!=='Done');
+    const shipped=tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt>=week);
+    const overdue=open.filter(t=>t.due&&t.due<today);
+    const stallCut=new Date(tMs-7*86400000).toISOString();
+    const stalled=open.filter(t=>t.updatedAt&&t.updatedAt<stallCut);
+    // Sample down to keep the prompt compact.
+    const summarise=arr=>arr.slice(0,40).map(t=>({
+      title:(t.title||'').slice(0,180),
+      project:t.project||'',
+      due:t.due||'',
+      priority:t.priority||'',
+      assignee:t.assignee||'',
+      source:t.sourceLabel||t.source||'',
+    }));
+    const snapshot={
+      asOf:new Date().toISOString().slice(0,10),
+      hat,
+      counts:{open:open.length,shipped7d:shipped.length,overdue:overdue.length,stalled:stalled.length},
+      shippedThisWeek:summarise(shipped),
+      overdueOpen:summarise(overdue),
+      stalledOpen:summarise(stalled.slice(0,20)),
+      hottestOpen:summarise(open.filter(t=>t.priority==='High'||t.priority==='Critical')),
+    };
+    const sys=`You are the chief of staff to a COO/CEO running two companies (CommunityForce = CF, LSI Media = LSI). Read the portfolio snapshot and produce a one-page executive briefing for the week. Be specific — reference real task titles. Be decisive — pick the actual 3 things to focus on next. Output STRICTLY valid JSON, no markdown:
+{
+  "headline": "<one sentence summary of the week, 15-25 words>",
+  "wins": [ {"title":"<task title>", "source":"<CF/LSI/Personal>", "why":"<one short sentence, ~12 words, why this matters>"} ],
+  "risks": [ {"title":"<task title or theme>", "why":"<why it's a risk, ~15 words>", "action":"<concrete next step, ~10 words>"} ],
+  "blockers": [ {"title":"<task title>", "why":"<what's blocking, ~12 words>"} ],
+  "next_three": [ "<concrete action 1, ~10 words>", "<action 2>", "<action 3>" ]
+}
+Pick 3-5 wins, 3-5 risks, 0-4 blockers, exactly 3 next_three. Items not in the snapshot must NOT appear.`;
+    const userContent=`Portfolio snapshot:\n${JSON.stringify(snapshot)}`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const raw=String(res?.result||res?.text||'').trim();
+    const m=raw.match(/\{[\s\S]*\}/);
+    if(!m)throw new Error('AI returned no JSON');
+    const briefing=JSON.parse(m[0]);
+    D.prefs=D.prefs||{};
+    D.prefs.briefings=Array.isArray(D.prefs.briefings)?D.prefs.briefings:[];
+    const record={
+      id:Date.now(),
+      dateISO:new Date().toISOString(),
+      hat,
+      snapshot:{counts:snapshot.counts},
+      briefing,
+      emailed:false,
+    };
+    D.prefs.briefings.unshift(record);
+    // Keep last 24 briefings.
+    if(D.prefs.briefings.length>24)D.prefs.briefings.length=24;
+    save('prefs');
+    if(typeof renderCommandCenter==='function'&&curScreen==='command')renderCommandCenter();
+    toast({type:'success',title:'✓ Briefing ready',duration:2400});
+  }catch(e){
+    toast({type:'warn',title:'Briefing failed',msg:e.message||String(e),duration:4500});
+    if(btn){btn.disabled=false;btn.textContent='📝 Generate weekly briefing';}
+  }
+}
+function _renderBriefingCard(){
+  const list=(D.prefs&&D.prefs.briefings)||[];
+  if(!list.length)return '';
+  const latest=list[0];
+  const b=latest.briefing||{};
+  const ago=_relTime(latest.dateISO);
+  const hatBadge=latest.hat==='all'?'All hats':latest.hat==='cf'?'CF':latest.hat==='lsi'?'LSI':'Personal';
+  const sec=(emoji,title,items,opts)=>{
+    if(!items||!items.length)return '';
+    return `<div style="margin-top:10px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,5).map(it=>{
+      if(typeof it==='string')return `<li style="font-size:12px;color:var(--t1);padding:4px 8px;background:var(--s3);border-radius:4px">${esc(it)}</li>`;
+      const sub=opts==='risk'?(it.action?`<div style="font-size:10px;color:var(--ac);margin-top:2px">→ ${esc(it.action)}</div>`:''):'';
+      const srcBadge=it.source?` <span style="font-size:9px;color:var(--t3)">[${esc(it.source)}]</span>`:'';
+      return `<li style="font-size:12px;color:var(--t1);padding:5px 8px;background:var(--s3);border-radius:4px"><div style="font-weight:600">${esc(it.title||'')}${srcBadge}</div>${it.why?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}${sub}</li>`;
+    }).join('')}</ul></div>`;
+  };
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid var(--page-accent);grid-column:1/-1">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px">✨ Weekly Portfolio Briefing <span style="font-size:9px;color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${esc(hatBadge)}</span></div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">Generated ${ago}${latest.emailed?' · ✉ emailed':''}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="aiPortfolioBriefing()" title="Regenerate from current data">↻ Refresh</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_emailLatestBriefing()" title="Email this briefing to yourself">✉ Email</button>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_openBriefingHistory()" title="See past briefings">📚 History (${list.length})</button>
+      </div>
+    </div>
+    ${b.headline?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--page-accent) 12%,transparent);border-radius:6px;line-height:1.55">"${esc(b.headline)}"</div>`:''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:4px">
+      <div>${sec('🚀','Wins this week',b.wins||[])}</div>
+      <div>${sec('⚠','Risks',b.risks||[],'risk')}</div>
+      <div>${sec('🚧','Blockers',b.blockers||[])}</div>
+      <div>${sec('🎯','Next 3 actions',b.next_three||[])}</div>
+    </div>
+  </div>`;
+}
+async function _emailLatestBriefing(){
+  const list=(D.prefs&&D.prefs.briefings)||[];
+  if(!list.length){toast({type:'warn',title:'No briefing to email'});return;}
+  const latest=list[0];
+  const b=latest.briefing||{};
+  const dateLine=new Date(latest.dateISO).toLocaleString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const hatLabel=latest.hat==='all'?'All hats':latest.hat.toUpperCase();
+  const renderList=(arr,opts)=>arr&&arr.length?arr.slice(0,6).map(it=>{
+    if(typeof it==='string')return `<li style="margin-bottom:4px">${esc(it)}</li>`;
+    const action=opts==='risk'&&it.action?` <em style="color:#2563eb">→ ${esc(it.action)}</em>`:'';
+    const src=it.source?` <small style="color:#64748b">[${esc(it.source)}]</small>`:'';
+    return `<li style="margin-bottom:4px"><strong>${esc(it.title||'')}</strong>${src}${it.why?` — ${esc(it.why)}`:''}${action}</li>`;
+  }).join(''):'<li><em>none</em></li>';
+  const html=`<div style="font-family:-apple-system,Segoe UI,sans-serif;max-width:640px;margin:0 auto;padding:20px;color:#0f172a">
+    <h1 style="font-size:20px;color:#0f172a;margin:0 0 4px">📊 Weekly Portfolio Briefing</h1>
+    <div style="font-size:12px;color:#64748b;margin-bottom:14px">${esc(dateLine)} · ${esc(hatLabel)}</div>
+    ${b.headline?`<blockquote style="border-left:3px solid #f59e0b;margin:14px 0;padding:6px 14px;background:#fffbeb;font-style:italic;color:#0f172a">${esc(b.headline)}</blockquote>`:''}
+    <h2 style="font-size:14px;color:#10b981;margin:18px 0 6px">🚀 Wins</h2>
+    <ul style="font-size:13px;line-height:1.55;color:#0f172a;padding-left:18px;margin:0">${renderList(b.wins)}</ul>
+    <h2 style="font-size:14px;color:#ef4444;margin:18px 0 6px">⚠ Risks</h2>
+    <ul style="font-size:13px;line-height:1.55;color:#0f172a;padding-left:18px;margin:0">${renderList(b.risks,'risk')}</ul>
+    <h2 style="font-size:14px;color:#a855f7;margin:18px 0 6px">🚧 Blockers</h2>
+    <ul style="font-size:13px;line-height:1.55;color:#0f172a;padding-left:18px;margin:0">${renderList(b.blockers)}</ul>
+    <h2 style="font-size:14px;color:#3b82f6;margin:18px 0 6px">🎯 Next 3 Actions</h2>
+    <ul style="font-size:13px;line-height:1.55;color:#0f172a;padding-left:18px;margin:0">${renderList(b.next_three)}</ul>
+    <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb">
+    <div style="font-size:11px;color:#94a3b8;text-align:center">Generated by LevelUp · open Command Center for live data.</div>
+  </div>`;
+  try{
+    toast({type:'info',title:'Sending…',duration:1500});
+    await _trpc('oauthSync.sendCustom',{subject:`Weekly Briefing — ${dateLine} (${hatLabel})`,html},'mutation');
+    latest.emailed=true;save('prefs');
+    if(typeof renderCommandCenter==='function'&&curScreen==='command')renderCommandCenter();
+    toast({type:'success',title:'✓ Briefing emailed',duration:2400});
+  }catch(e){
+    toast({type:'warn',title:'Email failed',msg:e.message||String(e),duration:4500});
+  }
+}
+function _openBriefingHistory(){
+  const list=(D.prefs&&D.prefs.briefings)||[];
+  const d=document.getElementById('drawer-content');
+  const ov=document.getElementById('drawer-ov');
+  if(!d||!ov)return;
+  const rows=list.length?list.map((rec,i)=>{
+    const dt=new Date(rec.dateISO);
+    const hatLabel=rec.hat==='all'?'All':rec.hat.toUpperCase();
+    const head=(rec.briefing&&rec.briefing.headline)||'(no headline)';
+    return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:flex-start;gap:9px;cursor:pointer" onclick="_loadBriefing(${rec.id})">
+      <span style="font-size:9px;color:var(--t3);min-width:80px">${dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+      <span style="font-size:9px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:3px;font-weight:600">${esc(hatLabel)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--t1);line-height:1.45">${esc(head)}</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">${rec.emailed?'✉ emailed · ':''}${(rec.snapshot&&rec.snapshot.counts)?`${rec.snapshot.counts.open} open · ${rec.snapshot.counts.shipped7d} shipped`:''}</div>
+      </div>
+      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="event.stopPropagation();_deleteBriefing(${rec.id})">✕</button>
+    </div>`;
+  }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No briefings yet — generate one from Command Center.</div>';
+  d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">📚 Briefing History</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div><p style="font-size:11px;color:var(--t2);margin-top:4px">Last ${list.length} briefings · click one to load it back into Command Center.</p></div><div style="overflow-y:auto;max-height:70vh">${rows}</div>`;
+  ov.classList.add('show');
+}
+function _loadBriefing(id){
+  const list=(D.prefs&&D.prefs.briefings)||[];
+  const idx=list.findIndex(r=>r.id===id);
+  if(idx<=0)return; // already latest or not found
+  const rec=list.splice(idx,1)[0];
+  list.unshift(rec);
+  save('prefs');
+  closeDrawer();
+  if(typeof renderCommandCenter==='function'&&curScreen==='command')renderCommandCenter();
+}
+function _deleteBriefing(id){
+  if(!confirm('Delete this briefing? This cannot be undone.'))return;
+  D.prefs.briefings=(D.prefs.briefings||[]).filter(r=>r.id!==id);
+  save('prefs');
+  _openBriefingHistory();
 }
 
 // Tiny "X ago" formatter used by Command Center.
