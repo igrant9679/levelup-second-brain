@@ -671,6 +671,21 @@ async function refreshExternalTasksNow(){
   }finally{_topbarSyncSpin(false);}
 }
 
+// Targeted resync for one auto-synced project. Today this just kicks the
+// full refreshNow (the cron pulls every watched sheet for the user, the
+// per-sheet path is server-internal). Cheap enough — the user clicks the
+// button to see "did the source change?" and the cron returns in seconds.
+// Future: a real per-sheet endpoint that only pulls cfg.sourceConfigId.
+async function _resyncProjectSource(pid){
+  const p=(D.projects||[]).find(x=>String(x.id)===String(pid));
+  if(!p){toast({type:'warn',title:'Project not found'});return;}
+  const label=(p.autoSyncSource&&p.autoSyncSource.sheetName)||p.name;
+  toast({type:'info',title:`↻ Resyncing "${label}"…`,duration:1800});
+  await refreshExternalTasksNow();
+  // Re-open the drawer so the new task counts + health strip reflect the
+  // fresh pull. closeDrawer was implicitly fine — just reopen.
+  setTimeout(()=>{ if(typeof openProjectDetail==='function')openProjectDetail(pid); },400);
+}
 // ─── Top-header Sync button — global accessor + spinner + tooltip ─────────
 function _topbarSyncNow(){
   if(typeof refreshExternalTasksNow==='function')refreshExternalTasksNow();
@@ -11620,6 +11635,13 @@ function openProjectDetail(pid){
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
     <span class="pill" style="background:color-mix(in srgb,${health.color} 16%,transparent);color:${health.color};font-weight:700">${health.icon} ${health.label}</span>
     <span class="pill ${statusPill(p.status)}">${p.status||'—'}</span>
+    ${p.autoCreatedBy?(function(){
+      const src=(p.autoSyncSource&&p.autoSyncSource.source)||(p.autoCreatedBy==='nifty-sync'?'nifty':'smartsheet');
+      const label=src==='nifty'?'LSI · NiftyPM':'CF · Smartsheet';
+      const color=src==='nifty'?'#9333ea':'#1f6feb';
+      const sheetName=(p.autoSyncSource&&p.autoSyncSource.sheetName)?` · ${esc(p.autoSyncSource.sheetName)}`:'';
+      return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color};font-weight:600;font-size:10px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
+    })():''}
     ${p.owner?`<span style="font-size:11px;color:var(--t3);align-self:center">👤 ${esc(p.owner)}</span>`:''}
     <span style="font-size:11px;color:${p.due&&p.due!=='TBD'&&p.due<_todayStr?'var(--red)':'var(--t3)'};align-self:center">📅 ${esc(p.due||'No due date')}</span>
   </div>
@@ -11648,6 +11670,7 @@ function openProjectDetail(pid){
     <button class="btn btn-p" onclick="closeDrawer();openDrawer('project',D.projects.find(x=>x.id===${pid}))">✏ Edit Project</button>
     <button class="btn btn-s" onclick="closeDrawer();openFA('task')">+ Add task</button>
     <button class="btn btn-s" onclick="_openExternalTaskPicker(${pid})" title="Pick CF/LSI tasks to include in this project">🔗 Link external task</button>
+    ${p.autoCreatedBy?`<button class="btn btn-s" style="color:#1f6feb;border-color:#1f6feb" onclick="_resyncProjectSource(${pid})" title="Pull fresh data from the originating Smartsheet/Nifty source">↻ Resync source</button>`:''}
     <button class="btn btn-s" style="color:var(--purp)" onclick="_aiProjectStatusUpdate(${pid})" title="AI-generated stakeholder summary you can paste into an email">✨ Status update</button>
     <button class="btn btn-s" onclick="closeDrawer()">Close</button>
   </div>`;

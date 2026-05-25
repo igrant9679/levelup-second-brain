@@ -608,6 +608,17 @@ function renderSettingsHTML(){
     </div>
     <div id="ext-archive-body" style="font-size:11px;color:var(--t2);margin-top:6px">Click reload to load…</div>
   </div>
+  <!-- Auto-synced project maintenance — cleanup orphans + AI fill descriptions -->
+  <div id="ext-projects-maint-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">📁 Auto-synced project maintenance</div>
+        <p style="font-size:10px;color:var(--t3);margin-bottom:0">Projects created by the Smartsheet hierarchical sync. Cleanup removes the empty ones (no linked tasks); AI fill writes 2-sentence descriptions for any without one.</p>
+      </div>
+      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_renderAutoProjectsMaint()">Reload</button>
+    </div>
+    <div id="ext-projects-maint-body" style="font-size:11px;color:var(--t2);margin-top:6px"></div>
+  </div>
   <!-- Automation Rules — hydrated by _hydrateAutomationsPanel() -->
   <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">⚙ Automation Rules</div>
@@ -936,7 +947,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
-  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();}
+  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();if(typeof _renderAutoProjectsMaint==='function')_renderAutoProjectsMaint();}
   if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -1329,6 +1340,117 @@ async function _hydrateTombstoneArchive(){
     body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
   }
 }
+// Build the per-project task-count map: id → {native, external}. Reads
+// client caches D.tasks + D.externalTasks (the latter already excludes
+// tombstoned via the override flag).
+function _autoProjectTaskCounts(){
+  const counts={};
+  for(const t of (D.tasks||[])){
+    if(t.projectId==null)continue;
+    const k=String(t.projectId);
+    (counts[k]=counts[k]||{native:0,external:0}).native++;
+  }
+  for(const t of (D.externalTasks||[])){
+    const ov=t.override;if(ov&&ov.tombstoned)continue;
+    const pid=ov&&ov.localProjectId;
+    if(pid==null)continue;
+    const k=String(pid);
+    (counts[k]=counts[k]||{native:0,external:0}).external++;
+  }
+  return counts;
+}
+// Render the auto-synced-projects maintenance panel body. Lists empties +
+// no-description rows; offers bulk delete + bulk AI fill.
+function _renderAutoProjectsMaint(){
+  const body=document.getElementById('ext-projects-maint-body');
+  if(!body)return;
+  const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy);
+  if(!all.length){
+    body.innerHTML='<div style="color:var(--t3);font-size:11px;padding:6px 0">No auto-synced projects yet. Run a Smartsheet sync from the panel above to create some.</div>';
+    return;
+  }
+  const counts=_autoProjectTaskCounts();
+  const empties=all.filter(p=>{const c=counts[String(p.id)];return !c||(c.native===0&&c.external===0);});
+  const missingDesc=all.filter(p=>!(p.desc||'').trim());
+  const list=all.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(p=>{
+    const c=counts[String(p.id)]||{native:0,external:0};
+    const total=c.native+c.external;
+    const tag=total===0?'<span style="color:var(--red);font-weight:600">empty</span>':'<span style="color:var(--t3)">'+total+' task'+(total===1?'':'s')+'</span>';
+    const descTag=(p.desc||'').trim()?'<span style="color:var(--ok);font-size:9px">📝 has description</span>':'<span style="color:var(--warn);font-size:9px">📝 no description</span>';
+    return `<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;font-size:11px">
+      <span style="width:6px;height:6px;border-radius:2px;background:${p.color||'#1f6feb'};flex-shrink:0"></span>
+      <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name||'(no name)')}</span>
+      ${descTag}
+      ${tag}
+    </div>`;
+  }).join('');
+  body.innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+      <span style="font-size:10px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong></span>
+      <div style="flex:1"></div>
+      ${empties.length?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_cleanupEmptyAutoProjects()" title="Delete every auto-synced project with zero linked tasks">🗑 Delete ${empties.length} empty</button>`:''}
+      ${missingDesc.length?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp);border-color:var(--purp)" onclick="_aiFillAutoProjectDescriptions()" title="AI-generate 2-sentence descriptions for projects that don't have one">✨ AI fill ${missingDesc.length} description${missingDesc.length===1?'':'s'}</button>`:''}
+    </div>
+    <div style="max-height:280px;overflow-y:auto">${list}</div>`;
+}
+function _cleanupEmptyAutoProjects(){
+  const counts=_autoProjectTaskCounts();
+  const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy);
+  const toDelete=all.filter(p=>{const c=counts[String(p.id)];return !c||(c.native===0&&c.external===0);});
+  if(!toDelete.length){toast({type:'info',title:'No empty auto-synced projects to delete.'});return;}
+  if(!confirm(`Delete ${toDelete.length} empty auto-synced project${toDelete.length===1?'':'s'}? This cannot be undone.\n\n${toDelete.slice(0,8).map(p=>'• '+(p.name||'(no name)')).join('\n')}${toDelete.length>8?`\n…and ${toDelete.length-8} more`:''}`))return;
+  const delIds=new Set(toDelete.map(p=>String(p.id)));
+  D.projects=(D.projects||[]).filter(p=>!delIds.has(String(p.id)));
+  // Also remove the deleted ids from any program's projectIds[].
+  for(const prog of (D.programs||[])){
+    if(Array.isArray(prog.projectIds))prog.projectIds=prog.projectIds.filter(id=>!delIds.has(String(id)));
+  }
+  save('projects');save('programs');
+  toast({type:'success',title:`✓ Deleted ${toDelete.length} empty project${toDelete.length===1?'':'s'}`,duration:2400});
+  _renderAutoProjectsMaint();
+  if(curScreen==='projects'&&typeof renderProjects==='function')renderProjects();
+  if(curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
+}
+async function _aiFillAutoProjectDescriptions(){
+  const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy&&!(p.desc||'').trim());
+  if(!all.length){toast({type:'info',title:'No descriptions to fill.'});return;}
+  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
+  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  if(!confirm(`Generate AI descriptions for ${all.length} project${all.length===1?'':'s'}? Costs one AI call per project.`))return;
+  toast({type:'info',title:`Generating ${all.length} description${all.length===1?'':'s'}…`,duration:2500});
+  const ext=(D.externalTasks||[]).filter(t=>!(t.override&&t.override.tombstoned));
+  const sys=`You are writing a concise project description for a project-management dashboard. Read the project name and its task titles. Output EXACTLY one or two sentences (~30-50 words total) that describe what this project is about. Plain text only. No markdown, no quotes, no headers.`;
+  let filled=0,failed=0;
+  for(const p of all){
+    // Gather linked task titles. Native first (D.tasks where projectId===p.id),
+    // then external (override.localProjectId===p.id). Cap at 20 titles to keep
+    // the prompt small.
+    const taskTitles=[];
+    for(const t of (D.tasks||[])){if(String(t.projectId)===String(p.id)&&t.title)taskTitles.push(t.title);if(taskTitles.length>=20)break;}
+    for(const t of ext){if(taskTitles.length>=20)break;const pid=t.override&&t.override.localProjectId;if(String(pid)===String(p.id)&&t.title)taskTitles.push(t.title);}
+    if(!taskTitles.length){failed++;continue;}
+    const userContent=`Project name: ${p.name}\n\nTask titles in this project:\n${taskTitles.map(t=>'- '+t).join('\n')}`;
+    try{
+      const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      const text=String(res?.result||res?.text||'').trim().replace(/^["']|["']$/g,'').replace(/\n+/g,' ').slice(0,400);
+      if(text){
+        p.desc=text;
+        // descriptionHtml is the field the read-only renderer prefers; clear it
+        // so the markdown text we just wrote is used instead of any stale html.
+        if(p.descriptionHtml)p.descriptionHtml='';
+        filled++;
+      }else failed++;
+    }catch(e){
+      console.warn('[ai-fill] project',p.id,'failed:',e&&e.message);
+      failed++;
+    }
+  }
+  save('projects');
+  toast({type:filled>0?'success':'warn',title:`✓ ${filled} description${filled===1?'':'s'} written${failed?` · ${failed} skipped`:''}`,duration:3500});
+  _renderAutoProjectsMaint();
+  if(curScreen==='projects'&&typeof renderProjects==='function')renderProjects();
+}
+
 async function _reviveTombstoned(source,externalId){
   if(!confirm('Revive this row? The next external sync will refresh its source-side status; if the row is still gone in the source, it will be re-tombstoned within 72h.'))return;
   try{

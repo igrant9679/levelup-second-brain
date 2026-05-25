@@ -183,17 +183,32 @@ async function ensureLevelUpProjectsForLabels(
   userId: number,
   labels: string[],
   defaults: { color: string; icon: string },
-): Promise<{ map: Map<string, string>; appended: number }> {
+  /** Provenance recorded on the project record so the UI can show a
+   *  "↻ Resync this sheet" button. */
+  provenance: { source: 'smartsheet' | 'nifty'; sheetId?: string; sheetName?: string; sourceConfigId?: number },
+  /** Program-name match (case-insensitive). When set, newly-appended projects
+   *  also get their id pushed into that program's projectIds[]. */
+  programName: string | null,
+): Promise<{ map: Map<string, string>; appended: number; linkedToProgram: number }> {
   const cleanLabels = Array.from(new Set(labels.map(s => (s || '').trim()).filter(Boolean)));
-  if (!cleanLabels.length) return { map: new Map(), appended: 0 };
+  if (!cleanLabels.length) return { map: new Map(), appended: 0, linkedToProgram: 0 };
 
-  // Read the user's prefs blob.
-  const rows = await db.select({ projects: userAppData.projects }).from(userAppData)
-    .where(eq(userAppData.userId, userId)).limit(1);
+  // Read both blobs in one query — we need projects (always) and programs
+  // (only when programName is set, but it's cheap to read either way).
+  const rows = await db.select({
+    projects: userAppData.projects,
+    programs: userAppData.programs,
+  }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+
   let projects: Array<{ id: number | string; name: string; [k: string]: unknown }> = [];
   if (rows[0]?.projects) {
     try { projects = JSON.parse(rows[0].projects) || []; } catch { projects = []; }
     if (!Array.isArray(projects)) projects = [];
+  }
+  let programs: Array<{ id: number | string; name: string; projectIds?: Array<number | string>; [k: string]: unknown }> = [];
+  if (rows[0]?.programs) {
+    try { programs = JSON.parse(rows[0].programs) || []; } catch { programs = []; }
+    if (!Array.isArray(programs)) programs = [];
   }
 
   const byNameLower = new Map<string, { id: number | string; name: string }>();
@@ -202,6 +217,7 @@ async function ensureLevelUpProjectsForLabels(
   }
 
   const labelToId = new Map<string, string>();
+  const newlyAppendedIds: Array<number | string> = [];
   let appended = 0;
   let nextSort = projects.reduce((max, p) => {
     const n = Number((p as { sortOrder?: unknown }).sortOrder);
@@ -229,29 +245,61 @@ async function ensureLevelUpProjectsForLabels(
       milestones: [],
       sortOrder: nextSort++,
       createdAt: new Date().toISOString(),
-      // Tag so the user can tell auto-created from hand-built ones.
-      autoCreatedBy: 'smartsheet-sync',
+      // Tag + provenance — so the UI can show "Pulled from <sheet>" and
+      // offer a targeted resync button.
+      autoCreatedBy: provenance.source === 'smartsheet' ? 'smartsheet-sync' : 'nifty-sync',
+      autoSyncSource: {
+        source: provenance.source,
+        sheetId: provenance.sheetId ?? null,
+        sheetName: provenance.sheetName ?? null,
+        sourceConfigId: provenance.sourceConfigId ?? null,
+      },
     };
     projects.push(newProj);
     byNameLower.set(label.toLowerCase(), newProj);
     labelToId.set(label, String(newId));
+    newlyAppendedIds.push(newId);
     appended++;
   }
 
+  // Auto-link newly-appended projects to a parent program (by case-insensitive
+  // name match). Existing projects already in the program aren't re-added.
+  // Skips silently if no matching program is found — the user might not have
+  // created a CommunityForce / LSI Media program yet.
+  let linkedToProgram = 0;
+  if (programName && newlyAppendedIds.length) {
+    const wantedLower = programName.trim().toLowerCase();
+    const prog = programs.find(p => typeof p.name === 'string' && p.name.toLowerCase() === wantedLower);
+    if (prog) {
+      const have = new Set((prog.projectIds || []).map(x => String(x)));
+      const before = have.size;
+      for (const id of newlyAppendedIds) {
+        if (!have.has(String(id))) {
+          (prog.projectIds = prog.projectIds || []).push(id);
+          have.add(String(id));
+        }
+      }
+      linkedToProgram = have.size - before;
+    }
+  }
+
   if (appended > 0) {
-    // user_app_data is per-user via the userId unique index. The row should
-    // always exist after first login but use INSERT … ON DUPLICATE in case
-    // a brand-new account triggers a sync before its row is created.
     await db.insert(userAppData).values({
       userId,
       projects: JSON.stringify(projects),
+      programs: JSON.stringify(programs),
     }).onDuplicateKeyUpdate({
-      set: { projects: JSON.stringify(projects) },
+      set: {
+        projects: JSON.stringify(projects),
+        // Only write programs back when we touched it — saves an unnecessary
+        // round-trip otherwise (programs blob can be sizeable).
+        ...(linkedToProgram > 0 ? { programs: JSON.stringify(programs) } : {}),
+      },
     });
-    console.log(`[ext-cron] auto-created ${appended} LevelUp project(s) for user ${userId}`);
+    console.log(`[ext-cron] auto-created ${appended} LevelUp project(s) for user ${userId}${linkedToProgram ? ` (linked ${linkedToProgram} to "${programName}" program)` : ''}`);
   }
 
-  return { map: labelToId, appended };
+  return { map: labelToId, appended, linkedToProgram };
 }
 
 /**
@@ -368,6 +416,11 @@ async function pullOneSmartsheet(
   }
   try {
     const result = await pullSmartsheet(cfg, cred);
+    // Probe the sheet's display name from the credential cache or — simplest —
+    // reuse the cfg.label which is the user-facing watch label. Falls back to
+    // the sheetId string. We don't make a second API call to /sheets/:id/info
+    // since the adapter already returned what it knows.
+    const sheetName = cfg.label || cfg.sheetId;
     await upsertResults(db, cfg.userId, 'smartsheet', cfg.id, result.rows);
 
     let projectsCreated = 0;
@@ -383,6 +436,11 @@ async function pullOneSmartsheet(
         result.projectLabels,
         // Blue accent + folder icon for CF (Smartsheet/CommunityForce).
         { color: '#1f6feb', icon: '📊' },
+        // Provenance — surfaces in the project drawer as "↻ Resync this sheet".
+        { source: 'smartsheet', sheetId: cfg.sheetId, sheetName, sourceConfigId: cfg.id },
+        // Auto-link newly-created projects under the CommunityForce program
+        // so the Portfolio view groups them correctly.
+        'CommunityForce',
       );
       projectsCreated = appended;
       const touched = await overwriteProjectLinks(
