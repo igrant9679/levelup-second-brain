@@ -629,16 +629,39 @@ export const externalSourcesRouter = router({
       const multiStage = stageProgression.length >= 2;
       const wouldBePipeline = singleStage || multiStage;
       const layout = singleStage ? 'single' : (multiStage ? 'multi' : null);
+      // Sample the actual cell values for the pipeline-relevant columns
+      // across the first 8 rows. Lets us see "what does Status actually
+      // contain?" without leaving LevelUp.
+      const interestingColIds: Record<string, number | null> = {
+        oppName: sheet.columns.find(c => c.title === matches.oppName)?.id ?? null,
+        account: sheet.columns.find(c => c.title === matches.account)?.id ?? null,
+        stage: sheet.columns.find(c => c.title === matches.stage)?.id ?? null,
+        value: sheet.columns.find(c => c.title === matches.value)?.id ?? null,
+        close: sheet.columns.find(c => c.title === matches.close)?.id ?? null,
+      };
+      const sampleRows = sheet.rows.slice(0, 8).map(r => {
+        const out: Record<string, unknown> = { rowNumber: r.rowNumber };
+        for (const [key, colId] of Object.entries(interestingColIds)) {
+          if (colId == null) { out[key] = null; continue; }
+          const cell = r.cells.find(c => c.columnId === colId);
+          if (!cell) { out[key] = null; continue; }
+          out[key] = {
+            value: cell.value ?? null,
+            displayValue: cell.displayValue ?? null,
+          };
+        }
+        return out;
+      });
       return {
         sheetId: cfg.sheetId,
         sheetName: sheet.name,
         rowCount: sheet.rows.length,
-        sampleRow: sheet.rows[0] ? { rowNumber: sheet.rows[0].rowNumber, cellTitles: sheet.columns.slice(0, 8).map(c => c.title) } : null,
         columns: allColumns,
         pipelineMatches: matches,
         stageProgression,
         layout,
         wouldBePipeline,
+        sampleRows,
       };
     }),
 
