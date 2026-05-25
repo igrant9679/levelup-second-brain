@@ -650,8 +650,17 @@ async function refreshExternalTasksNow(){
     toast({type:'info',title:'Syncing Smartsheet + NiftyPM…',duration:2000});
     const stats=await _trpc('externalSources.refreshNow',undefined,'mutation');
     await loadExternalTasks();
+    // Hierarchical Smartsheet sync may have auto-created LevelUp projects on
+    // the server side (writes to user_app_data.projects). Reload that blob
+    // so D.projects matches what's in the DB and the new projects show up
+    // in the Projects page + drawer pickers + Command Center tiles.
+    const projectsCreated=Number(stats&&stats.projectsCreated)||0;
+    if(projectsCreated>0&&typeof loadServerData==='function'){
+      try{await loadServerData();}catch(_){/* fine */}
+    }
     const noneConfigured=stats.sheetsProcessed===0&&stats.projectsProcessed===0;
-    toast({type:noneConfigured?'info':'success',title:noneConfigured?'No sources configured — Settings → Integrations to set up':`✓ Synced ${stats.sheetsProcessed} sheet(s), ${stats.projectsProcessed} project(s)`,duration:3000});
+    const extra=projectsCreated>0?` · +${projectsCreated} project${projectsCreated===1?'':'s'} auto-created`:'';
+    toast({type:noneConfigured?'info':'success',title:noneConfigured?'No sources configured — Settings → Integrations to set up':`✓ Synced ${stats.sheetsProcessed} sheet(s), ${stats.projectsProcessed} project(s)${extra}`,duration:projectsCreated>0?4500:3000});
     if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
     D.prefs=D.prefs||{};
     D.prefs.lastExternalSyncAt=new Date().toISOString();

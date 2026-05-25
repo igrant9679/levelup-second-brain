@@ -19,6 +19,7 @@ import {
   externalTaskOverrides,
   smartsheetWatchedSheets,
   niftyWatchedProjects,
+  userAppData,
   type SmartsheetWatchedSheet,
   type NiftyWatchedProject,
   type ExternalSourceCredential,
@@ -165,6 +166,132 @@ async function upsertResults(
 }
 
 /**
+ * Auto-create LevelUp projects from a list of project labels seen in a
+ * hierarchical Smartsheet pull. Reads the user_app_data.projects JSON blob,
+ * appends any missing projects (case-insensitive name match), and writes
+ * back. Returns a Map of label → projectId so the caller can link each
+ * external task to its newly-created (or existing) project.
+ *
+ * Project defaults match what the client uses for new projects: blue accent,
+ * folder icon, Active status, 0% complete, sortOrder appended at the end.
+ *
+ * Safe to call repeatedly — only persists when at least one new project was
+ * appended.
+ */
+async function ensureLevelUpProjectsForLabels(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  labels: string[],
+  defaults: { color: string; icon: string },
+): Promise<{ map: Map<string, string>; appended: number }> {
+  const cleanLabels = Array.from(new Set(labels.map(s => (s || '').trim()).filter(Boolean)));
+  if (!cleanLabels.length) return { map: new Map(), appended: 0 };
+
+  // Read the user's prefs blob.
+  const rows = await db.select({ projects: userAppData.projects }).from(userAppData)
+    .where(eq(userAppData.userId, userId)).limit(1);
+  let projects: Array<{ id: number | string; name: string; [k: string]: unknown }> = [];
+  if (rows[0]?.projects) {
+    try { projects = JSON.parse(rows[0].projects) || []; } catch { projects = []; }
+    if (!Array.isArray(projects)) projects = [];
+  }
+
+  const byNameLower = new Map<string, { id: number | string; name: string }>();
+  for (const p of projects) {
+    if (p && typeof p.name === 'string') byNameLower.set(p.name.toLowerCase(), p);
+  }
+
+  const labelToId = new Map<string, string>();
+  let appended = 0;
+  let nextSort = projects.reduce((max, p) => {
+    const n = Number((p as { sortOrder?: unknown }).sortOrder);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0) + 1;
+
+  for (const label of cleanLabels) {
+    const existing = byNameLower.get(label.toLowerCase());
+    if (existing) {
+      labelToId.set(label, String(existing.id));
+      continue;
+    }
+    const newId = Date.now() * 1000 + Math.floor(Math.random() * 1000) + appended;
+    const newProj = {
+      id: newId,
+      name: label,
+      color: defaults.color,
+      icon: defaults.icon,
+      status: 'Active',
+      pct: 0,
+      pctManual: false,
+      due: null,
+      owner: '',
+      desc: '',
+      milestones: [],
+      sortOrder: nextSort++,
+      createdAt: new Date().toISOString(),
+      // Tag so the user can tell auto-created from hand-built ones.
+      autoCreatedBy: 'smartsheet-sync',
+    };
+    projects.push(newProj);
+    byNameLower.set(label.toLowerCase(), newProj);
+    labelToId.set(label, String(newId));
+    appended++;
+  }
+
+  if (appended > 0) {
+    // user_app_data is per-user via the userId unique index. The row should
+    // always exist after first login but use INSERT … ON DUPLICATE in case
+    // a brand-new account triggers a sync before its row is created.
+    await db.insert(userAppData).values({
+      userId,
+      projects: JSON.stringify(projects),
+    }).onDuplicateKeyUpdate({
+      set: { projects: JSON.stringify(projects) },
+    });
+    console.log(`[ext-cron] auto-created ${appended} LevelUp project(s) for user ${userId}`);
+  }
+
+  return { map: labelToId, appended };
+}
+
+/**
+ * Force-overwrite override.localProjectId for every row in `rows` based on
+ * the label → projectId map (from ensureLevelUpProjectsForLabels). Used when
+ * the sheet is hierarchical and the user wants every row re-classified per
+ * the new Project column.
+ *
+ * Differs from ensureDefaultProjectLinks below: that helper preserves a
+ * user's existing pick via COALESCE; this helper overwrites it. The user
+ * explicitly requested overwrite behaviour for the hierarchical-sync feature.
+ */
+async function overwriteProjectLinks(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  source: 'smartsheet' | 'nifty',
+  rows: Array<{ externalId: string; projectLabel: string | null }>,
+  labelToId: Map<string, string>,
+): Promise<number> {
+  let touched = 0;
+  for (const r of rows) {
+    const label = (r.projectLabel || '').trim();
+    if (!label) continue;
+    const pid = labelToId.get(label);
+    if (!pid) continue;
+    await db.insert(externalTaskOverrides).values({
+      userId,
+      source,
+      externalId: r.externalId,
+      myDay: 0,
+      localProjectId: pid,
+    }).onDuplicateKeyUpdate({
+      set: { localProjectId: pid },
+    });
+    touched++;
+  }
+  return touched;
+}
+
+/**
  * For a watch with defaultProjectId set, ensure every pulled task's override
  * row has localProjectId set to that project. Skips rows where the user has
  * already manually picked a different project (preserves explicit choices).
@@ -231,27 +358,57 @@ async function reapTombstones(db: NonNullable<Awaited<ReturnType<typeof getDb>>>
 async function pullOneSmartsheet(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   cfg: SmartsheetWatchedSheet,
-): Promise<void> {
+): Promise<{ projectsCreated: number }> {
   const cred = await getCredFor(db, cfg.userId, 'smartsheet');
   if (!cred) {
     await db.update(smartsheetWatchedSheets)
       .set({ lastError: 'No Smartsheet API token configured for this user', lastPulledAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(smartsheetWatchedSheets.id, cfg.id));
-    return;
+    return { projectsCreated: 0 };
   }
   try {
-    const rows = await pullSmartsheet(cfg, cred);
-    await upsertResults(db, cfg.userId, 'smartsheet', cfg.id, rows);
-    if (cfg.defaultProjectId) await ensureDefaultProjectLinks(db, cfg.userId, 'smartsheet', rows.map(r => r.externalId), cfg.defaultProjectId);
+    const result = await pullSmartsheet(cfg, cred);
+    await upsertResults(db, cfg.userId, 'smartsheet', cfg.id, result.rows);
+
+    let projectsCreated = 0;
+    if (result.hierarchical) {
+      // Hierarchical sheet: auto-create a LevelUp project for each project
+      // label seen, then overwrite override.localProjectId for every row to
+      // match. This honours the "overwrite existing CF/LSI synced data"
+      // requirement — even rows that previously linked to cfg.defaultProjectId
+      // get re-pointed to their proper Project-column project.
+      const { map: labelToId, appended } = await ensureLevelUpProjectsForLabels(
+        db,
+        cfg.userId,
+        result.projectLabels,
+        // Blue accent + folder icon for CF (Smartsheet/CommunityForce).
+        { color: '#1f6feb', icon: '📊' },
+      );
+      projectsCreated = appended;
+      const touched = await overwriteProjectLinks(
+        db,
+        cfg.userId,
+        'smartsheet',
+        result.rows.map(r => ({ externalId: r.externalId, projectLabel: r.projectLabel })),
+        labelToId,
+      );
+      console.log(`[ext-cron] sheet ${cfg.sheetId}: hierarchical mode — ${result.projectLabels.length} project label(s), ${appended} new, ${touched} row(s) re-linked`);
+    } else if (cfg.defaultProjectId) {
+      // Flat sheet: legacy behaviour — link rows to the watch's default
+      // project, but only when no explicit pick exists.
+      await ensureDefaultProjectLinks(db, cfg.userId, 'smartsheet', result.rows.map(r => r.externalId), cfg.defaultProjectId);
+    }
     await db.update(smartsheetWatchedSheets)
       .set({ lastPulledAt: sql`CURRENT_TIMESTAMP`, lastError: null })
       .where(eq(smartsheetWatchedSheets.id, cfg.id));
+    return { projectsCreated };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[ext-cron] smartsheet sheet ${cfg.sheetId} (user ${cfg.userId}) failed:`, msg);
     await db.update(smartsheetWatchedSheets)
       .set({ lastError: msg.slice(0, 4000), lastPulledAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(smartsheetWatchedSheets.id, cfg.id));
+    return { projectsCreated: 0 };
   }
 }
 
@@ -293,9 +450,12 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
   sheetsProcessed: number;
   projectsProcessed: number;
   tombstoned: number;
+  /** Total LevelUp projects auto-created from Smartsheet Project columns. Used
+   *  by the client to know it needs to reload D.projects after the sync. */
+  projectsCreated: number;
 }> {
   const db = await getDb();
-  if (!db) return { sheetsProcessed: 0, projectsProcessed: 0, tombstoned: 0 };
+  if (!db) return { sheetsProcessed: 0, projectsProcessed: 0, tombstoned: 0, projectsCreated: 0 };
 
   const sheetWhere = opts?.userId
     ? and(eq(smartsheetWatchedSheets.enabled, 1), eq(smartsheetWatchedSheets.userId, opts.userId))
@@ -307,7 +467,11 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
     : eq(niftyWatchedProjects.enabled, 1);
   const projects = await db.select().from(niftyWatchedProjects).where(projectWhere);
 
-  for (const s of sheets) await pullOneSmartsheet(db, s);
+  let projectsCreated = 0;
+  for (const s of sheets) {
+    const r = await pullOneSmartsheet(db, s);
+    projectsCreated += r.projectsCreated;
+  }
   for (const p of projects) await pullOneNifty(db, p);
 
   const tombstoned = await reapTombstones(db);
@@ -316,6 +480,7 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
     sheetsProcessed: sheets.length,
     projectsProcessed: projects.length,
     tombstoned,
+    projectsCreated,
   };
 
   try {

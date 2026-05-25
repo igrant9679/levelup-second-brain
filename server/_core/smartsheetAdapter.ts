@@ -32,6 +32,27 @@ export interface ExternalTaskInput {
   projectLabel: string | null;
   parentExternalId: string | null;
   raw: string;
+  // Hierarchy level when the sheet exposes Project / Task / Sub Task columns.
+  // 'task' or 'subtask' for rows that emit external_tasks; 'project' rows are
+  // captured as LevelUp projects but are filtered OUT before upsert (they
+  // represent project headers, not work items). 'flat' = no hierarchy
+  // detected, behaves like the legacy single-column mode.
+  hierarchyLevel?: 'project' | 'task' | 'subtask' | 'flat';
+}
+
+/** Project labels emitted by a sheet pull, so the cron can auto-create matching
+ *  LevelUp projects even when no individual project-header row matched the
+ *  owner filter. Returned alongside ExternalTaskInput[] from pullSmartsheet. */
+export interface SmartsheetPullResult {
+  rows: ExternalTaskInput[];
+  /** Distinct, non-empty project labels seen anywhere in the sheet for rows
+   *  that survived the owner filter. The cron deduplicates against existing
+   *  LevelUp projects so it only creates new ones. */
+  projectLabels: string[];
+  /** Whether the sheet has at least one of Project / Task / Sub Task columns.
+   *  Drives the "overwrite localProjectId" behaviour — flat sheets keep the
+   *  cfg.defaultProjectId mapping; hierarchical sheets force the per-row label. */
+  hierarchical: boolean;
 }
 
 interface SsColumn {
@@ -157,6 +178,81 @@ function inferTitleColumn(columns: SsColumn[]): number | undefined {
 }
 
 /**
+ * Detect the Project / Task / Sub Task hierarchy columns. Matches case-
+ * insensitively and tolerates common spelling variants:
+ *   - Project:   "Project", "Projects", "Project Name"
+ *   - Task:      "Task", "Tasks", "Task Name", "Activity"
+ *   - Sub Task:  "Sub Task", "SubTask", "Sub-Task", "Subtask", "Sub Tasks"
+ * Returns undefined for any column not present so callers can branch on
+ * presence (sheets with just one column fall back to flat mode).
+ */
+function detectHierarchyColumns(columns: SsColumn[]): {
+  projectColId: number | undefined;
+  taskColId: number | undefined;
+  subtaskColId: number | undefined;
+} {
+  const projectRe = /^projects?(\s+name)?$/i;
+  const taskRe = /^(tasks?(\s+name)?|activity)$/i;
+  const subtaskRe = /^sub[-_\s]?tasks?$/i;
+  let projectColId: number | undefined;
+  let taskColId: number | undefined;
+  let subtaskColId: number | undefined;
+  for (const c of columns) {
+    const t = (c.title || '').trim();
+    if (!projectColId && projectRe.test(t)) projectColId = c.id;
+    else if (!taskColId && taskRe.test(t)) taskColId = c.id;
+    else if (!subtaskColId && subtaskRe.test(t)) subtaskColId = c.id;
+  }
+  return { projectColId, taskColId, subtaskColId };
+}
+
+/**
+ * Walk up the parent chain (via row.parentId) until we hit a row whose
+ * Project cell is non-empty. Used so a Task row indented under a Project
+ * row inherits that project label without the Task row needing its own
+ * Project cell. Walks at most 8 levels to guard against pathological data.
+ */
+function inheritProjectFromAncestors(
+  row: SsRow,
+  rowsById: Map<number, SsRow>,
+  projectColId: number,
+): string | null {
+  let cur: SsRow | undefined = row;
+  for (let i = 0; i < 8 && cur; i++) {
+    const t = cellText(cellByColumn(cur, projectColId));
+    if (t && t.trim()) return t.trim();
+    if (!cur.parentId) break;
+    cur = rowsById.get(cur.parentId);
+  }
+  return null;
+}
+
+/**
+ * Classify a row given the detected hierarchy columns:
+ *   - 'project' = row has a Project cell value, NO Task / SubTask values (it
+ *                 is a header row; emit only as a LevelUp project).
+ *   - 'subtask' = row has a SubTask cell value (regardless of Task cell).
+ *   - 'task'    = row has a Task cell value but no SubTask cell.
+ *   - null      = row matches none of the above (likely an empty separator
+ *                 or a row that lives entirely in the primary column —
+ *                 fall back to flat title resolution).
+ */
+function classifyRow(
+  row: SsRow,
+  projectColId: number | undefined,
+  taskColId: number | undefined,
+  subtaskColId: number | undefined,
+): 'project' | 'task' | 'subtask' | null {
+  const projectText = projectColId ? (cellText(cellByColumn(row, projectColId)) || '').trim() : '';
+  const taskText = taskColId ? (cellText(cellByColumn(row, taskColId)) || '').trim() : '';
+  const subtaskText = subtaskColId ? (cellText(cellByColumn(row, subtaskColId)) || '').trim() : '';
+  if (subtaskText) return 'subtask';
+  if (taskText) return 'task';
+  if (projectText) return 'project';
+  return null;
+}
+
+/**
  * For outline-style sheets where the primary column is empty on most rows
  * (e.g. the 120-Day Plan sheet has Project / Task / SubTask / Outline cols;
  * only top-level rows fill Project), resolve a per-row title by walking
@@ -186,49 +282,122 @@ function findColumnIdByTitle(columns: SsColumn[], title: string | null | undefin
 }
 
 /**
- * Fetch + filter one watched sheet. Returns normalized rows ready for upsert.
+ * Fetch + filter one watched sheet. Returns normalized rows ready for upsert
+ * plus the distinct project labels found, so the cron can auto-create
+ * LevelUp projects.
+ *
+ * Sheet layout detection
+ * ----------------------
+ * If the sheet has any of "Project" / "Task" / "Sub Task" columns the
+ * adapter switches to hierarchical mode:
+ *   - Project-header rows (Project cell only) are NOT emitted as tasks; their
+ *     name is captured in projectLabels so the cron can ensure a matching
+ *     LevelUp project exists.
+ *   - Task / SubTask rows use the matching column for their title and
+ *     inherit projectLabel by walking up the parent chain to the nearest
+ *     Project-cell ancestor.
+ *   - SubTask rows additionally set parentExternalId so the client renders
+ *     them under their parent Task.
+ *
+ * Sheets without those columns fall back to the legacy flat behaviour — the
+ * primary column drives the title and projectLabel = sheet name (or
+ * cfg.label).
+ *
  * On error throws — caller logs to lastError on the watch row and continues
  * with the next sheet.
  */
 export async function pullSmartsheet(
   cfg: SmartsheetWatchedSheet,
   cred: ExternalSourceCredential,
-): Promise<ExternalTaskInput[]> {
+): Promise<SmartsheetPullResult> {
   const sheet = await fetchSheet(cred.apiToken, cfg.sheetId);
 
   const ownerColId = findColumnIdByTitle(sheet.columns, cfg.ownerColumn);
   if (ownerColId === undefined) {
     throw new Error(`Owner column "${cfg.ownerColumn}" not found in sheet "${sheet.name}"`);
   }
-  const titleColId = inferTitleColumn(sheet.columns);
+  const primaryColId = inferTitleColumn(sheet.columns);
   const statusColId = findColumnIdByTitle(sheet.columns, cfg.statusColumn ?? null);
   const dueColId = findColumnIdByTitle(sheet.columns, cfg.dueColumn ?? null);
+  const { projectColId, taskColId, subtaskColId } = detectHierarchyColumns(sheet.columns);
+  const hierarchical = !!(projectColId || taskColId || subtaskColId);
 
-  // Index rows by id so we can resolve parent externalIds even if they
-  // appear after their children in the sheet response.
+  // Index rows by id so we can resolve parent externalIds + inherit project
+  // labels up the outline tree even if children appear before parents in
+  // the response.
   const rowsById = new Map<number, SsRow>();
   for (const r of sheet.rows) rowsById.set(r.id, r);
 
   // Default: pull EVERY status (including done) so completions sync into
-  // LevelUp. The render layer hides Done rows from active views the same way
-  // it does for native Done tasks, and the cron stamps external_tasks.
-  // completedAt so "shipped this week" rollups can attribute them. Users
-  // can opt back into a hard filter by setting cfg.excludeDoneStatuses to a
-  // non-empty value (e.g. "Cancelled" to drop only cancelled rows).
+  // LevelUp. Users can opt into a hard filter via cfg.excludeDoneStatuses.
   const excludeStatuses = (cfg.excludeDoneStatuses ?? '')
     .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   const out: ExternalTaskInput[] = [];
+  const projectLabels = new Set<string>();
+
   for (const row of sheet.rows) {
+    const status = cellText(cellByColumn(row, statusColId));
+
+    // Hierarchical path: classify the row first; project-header rows always
+    // contribute their name to projectLabels (even if the owner doesn't
+    // match — the project should exist so future tasks under it can link).
+    if (hierarchical) {
+      const kind = classifyRow(row, projectColId, taskColId, subtaskColId);
+      if (kind === 'project') {
+        const name = cellText(cellByColumn(row, projectColId!))?.trim();
+        if (name) projectLabels.add(name);
+        continue; // Never emit project-header rows as external tasks.
+      }
+
+      // Owner filter for actual work rows only.
+      const ownerCell = cellByColumn(row, ownerColId);
+      if (!rowMatchesOwner(ownerCell, cfg, cred)) continue;
+      if (status && excludeStatuses.includes(status.toLowerCase())) continue;
+
+      // Title resolution preference: SubTask col > Task col > primary > flat.
+      let title: string | null = null;
+      if (kind === 'subtask' && subtaskColId) title = cellText(cellByColumn(row, subtaskColId));
+      if (!title && taskColId) title = cellText(cellByColumn(row, taskColId));
+      if (!title) title = resolveRowTitle(row, sheet.columns, primaryColId);
+
+      // Project label = own Project cell ∪ ancestor walk ∪ sheet fallback.
+      let projectLabel: string | null = null;
+      if (projectColId) {
+        projectLabel = inheritProjectFromAncestors(row, rowsById, projectColId);
+      }
+      if (!projectLabel) projectLabel = cfg.label ?? sheet.name;
+      if (projectLabel) projectLabels.add(projectLabel);
+
+      out.push({
+        source: 'smartsheet',
+        sourceConfigId: cfg.id,
+        externalId: String(row.id),
+        externalUrl: row.permalink ?? sheet.permalink,
+        title: title || `(row ${row.rowNumber})`,
+        description: null,
+        status: status ?? null,
+        priority: null,
+        due: cellText(cellByColumn(row, dueColId)),
+        startDate: null,
+        assignee: cellText(ownerCell),
+        projectLabel,
+        parentExternalId: row.parentId ? String(row.parentId) : null,
+        raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells, kind }),
+        hierarchyLevel: kind ?? 'task',
+      });
+      continue;
+    }
+
+    // ───── Flat fallback (legacy single-task-column sheets) ─────
     const ownerCell = cellByColumn(row, ownerColId);
     if (!rowMatchesOwner(ownerCell, cfg, cred)) continue;
-
-    const status = cellText(cellByColumn(row, statusColId));
     if (status && excludeStatuses.includes(status.toLowerCase())) continue;
 
-    const title = resolveRowTitle(row, sheet.columns, titleColId);
+    const title = resolveRowTitle(row, sheet.columns, primaryColId);
     const due = cellText(cellByColumn(row, dueColId));
     const assignee = cellText(ownerCell);
+    const projectLabel = cfg.label ?? sheet.name;
 
     out.push({
       source: 'smartsheet',
@@ -242,10 +411,12 @@ export async function pullSmartsheet(
       due,
       startDate: null,
       assignee,
-      projectLabel: cfg.label ?? sheet.name,
+      projectLabel,
       parentExternalId: row.parentId ? String(row.parentId) : null,
       raw: JSON.stringify({ rowNumber: row.rowNumber, cells: row.cells }),
+      hierarchyLevel: 'flat',
     });
   }
-  return out;
+
+  return { rows: out, projectLabels: Array.from(projectLabels), hierarchical };
 }
