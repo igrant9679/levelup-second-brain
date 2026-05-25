@@ -2841,6 +2841,7 @@ function renderDrawer(type,item){
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
+    ${_renderProjectEditTasksSection(item.id)}
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('project',${item.id})">Save</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${item.id})">🧩 AI Suggest Tasks</button>
@@ -5552,6 +5553,52 @@ function renderTaskList(){
   let filtered=D.tasks.filter(_taskFilter);
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
+  // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
+  // task-shape so the existing sort + group-by + cardRow pipeline works.
+  // Skipped under "My Items" scope (external rows don't carry createdBy).
+  if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
+    const today=_todayStr;
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const extShaped=D.externalTasks
+      .filter(t=>!(t.override&&t.override.tombstoned)&&!isExtDone(t))
+      .map(et=>{
+        const ov=et.override||{};
+        const due=ov.localDue||et.due||'';
+        return {
+          id:'ext:'+et.source+':'+et.externalId,
+          title:et.title,
+          status:et.status||'Not Started',
+          priority:ov.localPriority||et.priority||'Medium',
+          due,
+          startDate:et.startDate||'',
+          project:et.projectLabel||(et.source==='smartsheet'?'CommunityForce':'LSI Media'),
+          projectId:null,
+          assignedTo:et.assignee||'',
+          createdBy:'',
+          createdAt:et.fetchedAt||'',
+          tags:(ov.localTags||'').split(',').map(s=>s.trim()).filter(Boolean),
+          _source:et.source,
+          _url:et.externalUrl,
+          _externalId:et.externalId,
+          _override:ov,
+          _readOnly:true,
+        };
+      });
+    // Honour the active tab filter as best as we can: only apply the date-
+    // based filters (Today / This Week / Inbox); skip rest since external
+    // rows don't fit GTD buckets cleanly.
+    const tabLabel=_taskTabDefs&&_taskTabDefs[_taskFilterTabIdx]?_taskTabDefs[_taskFilterTabIdx].label:'';
+    let extFiltered=extShaped;
+    if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.due===today||(t._override&&t._override.myDay));
+    else if(tabLabel==='This Week'){
+      const wkEnd=new Date();wkEnd.setDate(wkEnd.getDate()+7);
+      const wkEndStr=wkEnd.toISOString().slice(0,10);
+      extFiltered=extShaped.filter(t=>!t.due||t.due<=wkEndStr);
+    }else if(tabLabel==='Done'||tabLabel==='Someday'||tabLabel==='Recurring'){
+      extFiltered=[]; // external rows don't belong in these buckets
+    }
+    filtered=filtered.concat(extFiltered);
+  }
   // Apply column sort if active, else fall back to drag-reorder sortOrder.
   if(_taskListSortBy){
     const projects=D.projects||[];
@@ -5665,6 +5712,34 @@ function renderTaskList(){
   // width (no more 11-column grid). Sort/drag/bulk all preserved.
   const cardMode=true;
   function cardRow(t){
+    // External tasks render as a read-only sibling card so they fit the same
+    // visual rhythm but route clicks to the source URL + the annotate modal.
+    if(t._source&&t._source!=='local'){
+      const due=t.due||'';
+      const isOverdueE=due&&due<today;
+      const url=t._url||'#';
+      const ov=t._override||{};
+      const myDay=!!ov.myDay;
+      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2)" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}">
+        <div style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${_extSourceBadge(t._source)}</div>
+        <div class="tlc-body">
+          <div class="tlc-t"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
+          ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
+          <div class="tlc-m">
+            <span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>
+            ${t.status?`<span class="lu-pill-clickable" style="background:var(--s3);color:var(--t2)">${esc(t.status)}</span>`:''}
+            ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
+            ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
+            ${_extAnnotationChips(t._override)}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Annotate" onclick="event.stopPropagation();_openExternalAnnotateModal('${t._source}','${esc(t._externalId)}')">✎</button>
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="event.stopPropagation();_toggleExternalMyDay('${t._source}','${esc(t._externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
+        </div>
+        <a href="${esc(url)}" target="_blank" rel="noopener" class="tlc-go" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none" title="Open in source">↗</a>
+      </div>`;
+    }
     const proj=findProject(t);
     const projColor=proj?proj.color:null;
     const projName=proj?proj.name:(t.project||'');
@@ -9825,6 +9900,106 @@ function openProjectDetail(pid){
   ov.classList.add('show');
 }
 
+// ─── Project Edit Drawer: Tasks section ────────────────────────────────────
+// Embedded in the Edit Project drawer so the user can manage what work is
+// scoped to a project without leaving the edit modal. Shows native tasks
+// (assign / unassign via projectId) AND external tasks (link / unlink via
+// override.localProjectId), and has an inline add-task input.
+function _renderProjectEditTasksSection(pid){
+  const native=(D.tasks||[]).filter(t=>t.projectId===pid);
+  const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
+    const ov=t.override;return ov&&String(ov.localProjectId||'')===String(pid)&&!ov.tombstoned;
+  });
+  const nativeRows=native.map(t=>{
+    const done=t.status==='Done';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px">
+      <span style="flex:1;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
+      ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>`:''}
+      ${t.due?`<span style="font-size:9px;color:var(--t3)">${esc(t.due)}</span>`:''}
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Unassign from project" onclick="_unassignNativeFromProject(${t.id},${pid})">✕</button>
+    </div>`;
+  }).join('');
+  const extRows=ext.map(t=>{
+    const url=t.externalUrl||'#';
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px;background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
+      ${_extSourceBadge(t.source)}
+      <a href="${esc(url)}" target="_blank" rel="noopener" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Unlink from project" onclick="_unlinkExternalFromProjectFromEdit('${t.source}','${esc(t.externalId)}',${pid})">✕</button>
+    </div>`;
+  }).join('');
+  const total=native.length+ext.length;
+  return `<div class="field" style="margin-top:14px">
+    <label style="display:flex;align-items:center;justify-content:space-between">
+      <span>Tasks (${total})</span>
+      <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openExternalTaskPicker(${pid})" title="Link external tasks from Smartsheet / NiftyPM">🔗 Link external</button>
+    </label>
+    <div style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="proj-edit-newtask" class="inp" placeholder="+ Add a new task to this project (press Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addNativeTaskToProjectFromEdit(${pid})}">
+        <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_addNativeTaskToProjectFromEdit(${pid})">+ Add</button>
+      </div>
+      <div style="max-height:220px;overflow-y:auto">
+        ${nativeRows}${extRows}
+        ${total===0?'<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">No tasks yet. Add one above or link an external task.</div>':''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function _addNativeTaskToProjectFromEdit(pid){
+  const inp=document.getElementById('proj-edit-newtask');
+  if(!inp)return;
+  const title=inp.value.trim();
+  if(!title){inp.focus();return;}
+  const p=D.projects.find(x=>x.id===pid);
+  const newId=Date.now();
+  D.tasks.push({
+    id:newId,
+    title,
+    status:'Not Started',
+    priority:'Medium',
+    projectId:pid,
+    project:p?p.name:'',
+    createdBy:(D.creds&&D.creds.userName)||'Idris Grant',
+    createdAt:new Date().toISOString(),
+  });
+  save('tasks');
+  inp.value='';
+  // Re-render the drawer in place so the new row appears without losing edits.
+  const cur=D.projects.find(x=>x.id===pid);
+  if(cur){
+    const d=document.getElementById('drawer-content');
+    if(d){d.innerHTML=renderDrawer('project',cur);}
+    setTimeout(()=>{const i=document.getElementById('proj-edit-newtask');if(i)i.focus();},0);
+  }
+  toast({type:'success',title:'Task added to project',duration:1500});
+}
+
+function _unassignNativeFromProject(taskId,pid){
+  const t=D.tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  if(!confirm(`Unassign "${(t.title||'').slice(0,60)}" from this project? The task itself stays — only the project link is removed.`))return;
+  t.projectId=null;
+  t.project='';
+  save('tasks');
+  const cur=D.projects.find(x=>x.id===pid);
+  const d=document.getElementById('drawer-content');
+  if(cur&&d){d.innerHTML=renderDrawer('project',cur);}
+  toast({type:'info',title:'Unassigned',duration:1500});
+}
+
+async function _unlinkExternalFromProjectFromEdit(source,externalId,pid){
+  try{
+    await _trpc('externalSources.upsertOverride',{source,externalId,localProjectId:null},'mutation');
+    await loadExternalTasks();
+    const cur=D.projects.find(x=>x.id===pid);
+    const d=document.getElementById('drawer-content');
+    if(cur&&d){d.innerHTML=renderDrawer('project',cur);}
+    toast({type:'success',title:'Unlinked',duration:1500});
+  }catch(e){toast({type:'warn',title:'Unlink failed',msg:e.message||String(e)});}
+}
+
 // External-task section on the project detail drawer. Renders rows for any
 // external task whose override.localProjectId matches this project, with
 // source badge + deep-link + unlink button. Empty when no links.
@@ -9963,7 +10138,16 @@ async function _saveExternalTaskPicker(){
     closeModal();
     toast({type:'success',title:`Updated ${toLink.length+toUnlink.length} link${toLink.length+toUnlink.length===1?'':'s'}`});
     await loadExternalTasks();
-    openProjectDetail(pid);
+    // Re-render whichever surface launched the picker: Edit drawer (shows
+    // "Edit Project" h2) or the Detail drawer (shows project name in h2).
+    const d=document.getElementById('drawer-content');
+    const isEditDrawer=d && /Edit Project/.test(d.innerHTML.slice(0,400));
+    if(isEditDrawer){
+      const cur=D.projects.find(x=>x.id===pid);
+      if(cur)d.innerHTML=renderDrawer('project',cur);
+    }else{
+      openProjectDetail(pid);
+    }
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 function renderProjectsKanban(header){
