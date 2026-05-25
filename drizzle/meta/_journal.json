@@ -281,6 +281,13 @@
       "when": 1780350000000,
       "tag": "0039_custom_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1780400000000,
+      "tag": "0040_automations",
+      "breakpoints": true
     }
   ]
 }

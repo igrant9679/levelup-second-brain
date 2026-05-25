@@ -18,6 +18,7 @@ import { startExternalTasksCron } from "./externalTasksCron";
 import { startRecurrenceCron } from "./recurrenceEngine";
 import { startDailyDigestCron } from "./dailyDigestEmail";
 import { startWeeklyReviewCron } from "./weeklyReviewEmail";
+import { startAutomationCron } from "./automationEngine";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -361,6 +362,8 @@ async function startServer() {
     try { startDailyDigestCron(); } catch (e) { console.error('[startup] daily-digest cron failed:', e); }
     // Kick off the weekly-review email cron (30-min granularity, Fri default).
     try { startWeeklyReviewCron(); } catch (e) { console.error('[startup] weekly-review cron failed:', e); }
+    // Kick off the automation rules cron (15-min granularity).
+    try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
   });
 }
 

@@ -597,6 +597,17 @@ function renderSettingsHTML(){
       <div class="tog ${(D.prefs&&D.prefs.externalQueueMode)?'on':''}" id="tog-ext-queue" onclick="_toggleExternalQueueMode()"></div>
     </div>
   </div>
+  <!-- Automation Rules — hydrated by _hydrateAutomationsPanel() -->
+  <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">⚙ Automation Rules</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">When a task matches a trigger, run an action automatically. Runs every 15 min on the server. Works on native + external (Smartsheet/Nifty) tasks.</p>
+    <div id="automations-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_openAutomationEditor()">+ New rule</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_automationsRunNow()">▶ Run all now</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateAutomationsPanel()">Reload</button>
+    </div>
+  </div>
   <!-- External Task Sync / Webhooks -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 External Task Sync — Webhook</div>
@@ -914,7 +925,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
-  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();}
+  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();}
   if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -1091,6 +1102,170 @@ async function _weeklySendNow(){
     else if(r.skipped>0)toast({type:'info',title:'Nothing to send (empty week)'});
     else toast({type:'warn',title:`No send — errors:${r.errors}`});
   }catch(e){toast({type:'warn',title:'Send failed',msg:e.message||String(e)});}
+}
+
+// ─── Automation Rules panel ─────────────────────────────────────────────────
+// Hydrates sp-5's #automations-body with the user's rules + add/edit modal
+// flow against the automations.* tRPC procedures.
+window._automationRules = [];
+async function _hydrateAutomationsPanel(){
+  const body=document.getElementById('automations-body');
+  if(!body)return;
+  body.innerHTML='Loading…';
+  try{
+    const rules=await _trpc('automations.list',undefined,'query');
+    window._automationRules=rules||[];
+    body.innerHTML=_renderAutomationsPanelHTML(rules||[]);
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);font-size:11px">Failed to load: ${esc(e.message||String(e))}</div>`;
+  }
+}
+function _autoTriggerLabel(t){
+  return ({task_overdue_today:'Task is overdue',task_status_done:'Task marked Done',external_status:'External status matches'})[t]||t;
+}
+function _autoActionLabel(a){
+  return ({set_my_day:'Add to My Day',add_tag:'Add tag',set_priority:'Set priority'})[a]||a;
+}
+function _renderAutomationsPanelHTML(rules){
+  if(!rules.length)return '<div style="font-size:11px;color:var(--t3);padding:8px 0">No rules yet. Click <strong>+ New rule</strong> to create your first automation.</div>';
+  return `<div style="display:flex;flex-direction:column;gap:6px">${rules.map(r=>{
+    const tc=r.triggerConfig?(()=>{try{return JSON.parse(r.triggerConfig);}catch{return{};}})():{};
+    const ac=r.actionConfig?(()=>{try{return JSON.parse(r.actionConfig);}catch{return{};}})():{};
+    const trigDetail=r.trigger==='external_status'&&tc.statusEquals?` = "${esc(String(tc.statusEquals))}"`:'';
+    const actDetail=r.action==='add_tag'&&ac.tag?` "${esc(String(ac.tag))}"`:r.action==='set_priority'&&ac.priority?` → ${esc(String(ac.priority))}`:r.action==='set_my_day'?(ac.on===false?' (remove)':''):'';
+    const lastFired=r.lastFiredAt?new Date(r.lastFiredAt).toLocaleString():'Never';
+    const errBadge=r.lastError?` <span style="color:var(--red);font-size:9px" title="${esc(r.lastError)}">⚠ error</span>`:'';
+    return `<div style="padding:8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;display:flex;align-items:center;gap:8px">
+      <div class="tog ${r.enabled?'on':''}" onclick="_toggleAutomation(${r.id})" style="flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:600">${esc(r.name)}${errBadge}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">When <strong>${esc(_autoTriggerLabel(r.trigger))}</strong>${esc(trigDetail)} → <strong>${esc(_autoActionLabel(r.action))}</strong>${esc(actDetail)}</div>
+        <div style="font-size:9px;color:var(--t3);margin-top:2px">Fired ${r.fireCount||0}× · Last: ${esc(lastFired)}</div>
+      </div>
+      <button class="btn btn-s" style="height:24px;font-size:9px" onclick="_openAutomationEditor(${r.id})">Edit</button>
+      <button class="btn btn-d" style="height:24px;font-size:9px" onclick="_deleteAutomation(${r.id})">✕</button>
+    </div>`;
+  }).join('')}</div>`;
+}
+async function _toggleAutomation(id){
+  const rule=(window._automationRules||[]).find(r=>r.id===id);if(!rule)return;
+  const willBeOn=!rule.enabled;
+  try{
+    await _trpc('automations.update',{id,enabled:willBeOn},'mutation');
+    await _hydrateAutomationsPanel();
+    toast({type:'success',title:willBeOn?'Rule enabled':'Rule disabled',duration:1500});
+  }catch(e){toast({type:'warn',title:'Toggle failed',msg:e.message||String(e)});}
+}
+async function _deleteAutomation(id){
+  if(!confirm('Delete this rule?'))return;
+  try{
+    await _trpc('automations.delete',{id},'mutation');
+    await _hydrateAutomationsPanel();
+    toast({type:'success',title:'Rule deleted',duration:1500});
+  }catch(e){toast({type:'warn',title:'Delete failed',msg:e.message||String(e)});}
+}
+async function _automationsRunNow(){
+  try{
+    toast({type:'info',title:'Running rules…',duration:1500});
+    const r=await _trpc('automations.runNow',undefined,'mutation');
+    toast({type:'success',title:`Ran ${r.rulesEvaluated} rule(s) — ${r.matched} matched, ${r.modified} modified`});
+    await _hydrateAutomationsPanel();
+  }catch(e){toast({type:'warn',title:'Run failed',msg:e.message||String(e)});}
+}
+function _openAutomationEditor(id){
+  const existing=id?(window._automationRules||[]).find(r=>r.id===id):null;
+  const tc=existing&&existing.triggerConfig?(()=>{try{return JSON.parse(existing.triggerConfig);}catch{return{};}})():{};
+  const ac=existing&&existing.actionConfig?(()=>{try{return JSON.parse(existing.actionConfig);}catch{return{};}})():{};
+  const trigger=existing?existing.trigger:'task_overdue_today';
+  const action=existing?existing.action:'set_my_day';
+  const html=`<div id="auto-editor-modal" class="modal" style="display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)_closeAutomationEditor()">
+    <div style="background:var(--s1);border:1px solid var(--brd);border-radius:10px;padding:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;align-items:center;margin-bottom:12px">
+        <h3 style="font-size:13px;font-weight:600;flex:1;margin:0">${existing?'Edit':'New'} Automation Rule</h3>
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_closeAutomationEditor()">✕</button>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Name</div>
+        <input id="auto-name" class="inp" style="width:100%;font-size:11px" value="${esc(existing?existing.name:'')}" placeholder="e.g. Overdue → My Day">
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">When (trigger)</div>
+        <select id="auto-trigger" class="inp" style="width:100%;font-size:11px" onchange="_autoToggleTriggerFields()">
+          <option value="task_overdue_today" ${trigger==='task_overdue_today'?'selected':''}>Native task is overdue</option>
+          <option value="task_status_done" ${trigger==='task_status_done'?'selected':''}>Native task just marked Done</option>
+          <option value="external_status" ${trigger==='external_status'?'selected':''}>External task status matches…</option>
+        </select>
+      </div>
+      <div id="auto-trigger-fields" style="margin-bottom:10px;display:${trigger==='external_status'?'block':'none'}">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Status equals (case-insensitive)</div>
+        <input id="auto-trig-status" class="inp" style="width:100%;font-size:11px" value="${esc(tc.statusEquals||'')}" placeholder="e.g. In-Progress">
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Then (action)</div>
+        <select id="auto-action" class="inp" style="width:100%;font-size:11px" onchange="_autoToggleActionFields()">
+          <option value="set_my_day" ${action==='set_my_day'?'selected':''}>Add to My Day</option>
+          <option value="add_tag" ${action==='add_tag'?'selected':''}>Add tag</option>
+          <option value="set_priority" ${action==='set_priority'?'selected':''}>Set priority</option>
+        </select>
+      </div>
+      <div id="auto-action-fields" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_closeAutomationEditor()">Cancel</button>
+        <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_saveAutomation(${existing?existing.id:'null'})">${existing?'Save':'Create'}</button>
+      </div>
+    </div>
+  </div>`;
+  const host=document.createElement('div');host.id='auto-editor-host';host.innerHTML=html;document.body.appendChild(host);
+  _autoRenderActionFields(action,ac);
+}
+function _autoToggleTriggerFields(){
+  const t=document.getElementById('auto-trigger').value;
+  document.getElementById('auto-trigger-fields').style.display=(t==='external_status'?'block':'none');
+}
+function _autoToggleActionFields(){
+  _autoRenderActionFields(document.getElementById('auto-action').value,{});
+}
+function _autoRenderActionFields(action,ac){
+  const box=document.getElementById('auto-action-fields');if(!box)return;
+  if(action==='set_my_day'){
+    box.innerHTML=`<label style="font-size:11px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="auto-act-on" ${ac.on!==false?'checked':''}> Add to My Day (uncheck to remove from My Day)</label>`;
+  }else if(action==='add_tag'){
+    box.innerHTML=`<div style="font-size:10px;color:var(--t2);margin-bottom:3px">Tag</div><input id="auto-act-tag" class="inp" style="width:100%;font-size:11px" value="${esc(ac.tag||'')}" placeholder="e.g. urgent">`;
+  }else if(action==='set_priority'){
+    box.innerHTML=`<div style="font-size:10px;color:var(--t2);margin-bottom:3px">Priority</div><select id="auto-act-priority" class="inp" style="width:100%;font-size:11px"><option value="High" ${ac.priority==='High'?'selected':''}>High</option><option value="Medium" ${ac.priority==='Medium'||!ac.priority?'selected':''}>Medium</option><option value="Low" ${ac.priority==='Low'?'selected':''}>Low</option></select>`;
+  }
+}
+function _closeAutomationEditor(){
+  const h=document.getElementById('auto-editor-host');if(h)h.remove();
+}
+async function _saveAutomation(id){
+  const name=document.getElementById('auto-name').value.trim();
+  if(!name){toast({type:'warn',title:'Name required'});return;}
+  const trigger=document.getElementById('auto-trigger').value;
+  const action=document.getElementById('auto-action').value;
+  const triggerConfig={};
+  if(trigger==='external_status'){
+    const s=document.getElementById('auto-trig-status').value.trim();
+    if(!s){toast({type:'warn',title:'Status value required'});return;}
+    triggerConfig.statusEquals=s;
+  }
+  const actionConfig={};
+  if(action==='set_my_day'){actionConfig.on=document.getElementById('auto-act-on').checked;}
+  else if(action==='add_tag'){
+    const t=document.getElementById('auto-act-tag').value.trim();
+    if(!t){toast({type:'warn',title:'Tag required'});return;}
+    actionConfig.tag=t;
+  }else if(action==='set_priority'){actionConfig.priority=document.getElementById('auto-act-priority').value;}
+  try{
+    if(id){
+      await _trpc('automations.update',{id,name,trigger,triggerConfig,action,actionConfig},'mutation');
+    }else{
+      await _trpc('automations.create',{name,trigger,triggerConfig,action,actionConfig,enabled:true},'mutation');
+    }
+    _closeAutomationEditor();
+    await _hydrateAutomationsPanel();
+    toast({type:'success',title:id?'Rule saved':'Rule created'});
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 
 async function _hydrateExternalSourcesPanel(){

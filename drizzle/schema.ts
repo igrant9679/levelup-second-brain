@@ -914,3 +914,29 @@ export const taskCustomFieldValues = mysqlTable('task_custom_field_values', {
   uqTaskField: unique('uq_tcfv_task_field').on(t.userId, t.taskId, t.fieldId),
 }));
 export type TaskCustomFieldValue = typeof taskCustomFieldValues.$inferSelect;
+
+// ─── Automation rules (migration 0040) ────────────────────────────────────
+// Phase-1 rule engine. Trigger values: 'task_status_done' (fires when a task
+// flips to Done), 'task_overdue_today' (daily cron, matches tasks past due),
+// 'external_task_status' (fires when an external task's status matches a
+// configured value). Action values: 'set_my_day', 'add_tag', 'set_priority'.
+// triggerConfig / actionConfig hold per-trigger/per-action JSON shape
+// (e.g. {tag: 'overdue'} for add_tag; {priority: 'High'} for set_priority).
+export const automationRules = mysqlTable('automation_rules', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  trigger: varchar('trigger', { length: 64 }).notNull(),
+  triggerConfig: mediumtext('triggerConfig'),
+  action: varchar('action', { length: 64 }).notNull(),
+  actionConfig: mediumtext('actionConfig'),
+  enabled: tinyint('enabled').default(1).notNull(),
+  lastFiredAt: timestamp('lastFiredAt'),
+  fireCount: int('fireCount').default(0).notNull(),
+  lastError: mediumtext('lastError'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_auto_user').on(t.userId),
+}));
+export type AutomationRule = typeof automationRules.$inferSelect;
+export type InsertAutomationRule = typeof automationRules.$inferInsert;
