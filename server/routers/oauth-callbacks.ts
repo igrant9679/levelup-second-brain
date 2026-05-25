@@ -233,11 +233,19 @@ export function registerProviderOAuthCallbacks(app: Express) {
           clientSecret: cred.clientSecret,
         });
       } catch (dbErr) {
-        // Expose MySQL error code + message so the toast tells us if the
-        // problem is a NOT NULL violation, missing column, etc.
-        const e = dbErr as { code?: string; errno?: number; sqlMessage?: string; sqlState?: string; message?: string };
-        const detail = `db:${e.code || 'unknown'} ${e.sqlMessage || e.message || ''}`.slice(0, 250);
-        console.error("[Nifty OAuth] upsert failed:", e.code, e.errno, e.sqlState, e.sqlMessage, e.message);
+        // Drizzle wraps the mysql2 error; the real one is on .cause. Walk the
+        // chain to find the first object with a MySQL .code or .sqlMessage.
+        type SqlErr = { code?: string; errno?: number; sqlMessage?: string; sqlState?: string; message?: string; cause?: unknown };
+        const chain: SqlErr[] = [];
+        let cur: unknown = dbErr;
+        for (let i = 0; i < 5 && cur; i++) {
+          chain.push(cur as SqlErr);
+          cur = (cur as SqlErr).cause;
+        }
+        const mysqlErr = chain.find(e => e.code || e.sqlMessage || e.errno) ?? chain[0];
+        const detail = `${mysqlErr.code || 'err'}:${mysqlErr.errno || '?'} ${mysqlErr.sqlMessage || mysqlErr.message || ''}`.slice(0, 300);
+        console.error("[Nifty OAuth] upsert failed. Chain:");
+        chain.forEach((e, i) => console.error(`  [${i}]`, { code: e.code, errno: e.errno, sqlState: e.sqlState, sqlMessage: e.sqlMessage, message: e.message?.slice(0, 200) }));
         res.redirect(`/?oauth_error=nifty_db&detail=${encodeURIComponent(detail)}`);
         return;
       }
