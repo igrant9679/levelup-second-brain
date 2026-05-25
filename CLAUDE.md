@@ -276,6 +276,82 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Most recently shipped (May 25 2026 batch 3 — time entries + Help + mobile)
+
+Built on batches 1 and 2 from earlier today. **Build `2026-05-25-15`.**
+
+### Time-entries integration
+
+- **Server**: new `timeEntries.listRecent({sinceDays=30, default 30, max 365})`
+  endpoint in `server/routers/timeEntries.ts`. Returns completed entries
+  newest-first, excludes still-running rows, cap 2000. Mirrors the existing
+  `totalsByTask` pattern.
+- **Client**: `loadTimeEntries()` in `app-part1.js` calls `listRecent` with
+  `sinceDays:90` and caches on `D.timeEntries`. Boot trigger added to
+  `doLoginSuccess` (1500ms after login, parallel to `loadExternalTasks`).
+  Initial state added to D defaults.
+- **Reports source**: new `WIDGET_SOURCES.time` joins each entry to
+  `D.tasks` (for native rows) or `D.externalTasks` (for CF/LSI rows) to
+  surface project + title + sourceLabel. Returns
+  `{id, taskId, title, project, source, sourceLabel, mins, date,
+   startedAt, endedAt}`. `dateField:'date'` so day/week/month groupBy work.
+- **Source registration**: `SOURCE_DEFAULTS.time` →
+  `{groupBy:'day(date)', metric:'sum(mins)', viz:'bar'}`. `FILTER_FIELDS.time`
+  → `['project','source','sourceLabel']`. `_groupByOptions` and
+  `_metricOptions` extended with `day(date)/week(date)/month(date)` and
+  `sum(mins)/avg(mins)`.
+- **4 new templates**: "Time tracked by day", "Time by project", "Time
+  this week (KPI, 7d)", "Time by hat (donut)".
+- **Command Center KPI tile**: "Time Tracked (7d)" cyan tile in the KPI
+  strip, hat-aware — sums `D.timeEntries` filtered by source matching the
+  active hat. Shows `Nm` or `Hh Mm`.
+
+### Help articles (new category #10 Command Center)
+
+`HC_CATS` gets `{id:10, icon:'🎯', name:'Command Center', desc:'Cross-tool
+PM dashboard, Standup, Programs, briefings'}`. `HC_ARTICLES` gets 6 new
+entries (ids 19–24): Command Center overview, Standup view, Portfolio
+Timeline, AI Portfolio Briefing, Saved CC Views, Time tracking. Each
+follows the existing markdown body conventions and the search index picks
+them up automatically.
+
+### Mobile pass
+
+The existing `@media (max-width:560px)` block at line 1038 of
+`client/index.html` got a new chunk for the PM screens (slightly mis-
+described in the commit as "900px" — it landed in the 560px block, which
+is the canonical "true phone" breakpoint in this codebase). Also added a
+new `@media (max-width:480px)` block:
+
+- KPI strip — auto-fit minmax(140px) shifts to `repeat(3,1fr)` at 560px and
+  `repeat(2,1fr)` at 480px so 6+ tiles don't wrap awkwardly.
+- Briefing card 4-column section grid → 1 column on phones.
+- Saved-view chips shrink to height 20px / font 9px so they don't blow up
+  the page header.
+- Standup `pre` (markdown summary block) tightens to font 10px / 8px
+  padding so the copy-block stays compact.
+- Portfolio Timeline label column shrinks from 180px to 120px on phones.
+
+Verified via `document.styleSheets` walk in the browser: 7 references to
+`#s-command` inside `@media (max-width:560px)` and 4 inside `(max-width:
+480px)`, all present in the loaded build.
+
+### Session commits (newest first)
+
+- `e7f7c9f` Time entries + Help articles + mobile pass (build `-15`)
+
+### Open follow-ups
+
+- The 560px breakpoint catches phones but not phablets / small tablets
+  (561–900px). If those want the tighter layout too, move the rules up
+  into the existing 900px block at line 1001.
+- The KPI strip on Command Center now shows 6 tiles plus the new Time tile
+  = 7 total in All-hats mode. At ~1240px main column width, the 7th wraps
+  to a second row of its own. Acceptable; can be tightened by reducing
+  `minmax(140px,1fr)` to `minmax(120px,1fr)` if it bothers the user.
+- Time entries cache is 90d; older rollups need a separate
+  `totalsByTask({sinceDays:>90})` call. Not exposed yet.
+
 ## Most recently shipped (May 25 2026 batch 2 — drill-through + AI briefing + saved views)
 
 Built on top of the PM UX batch shipped earlier today. **Build `2026-05-25-14`.**
