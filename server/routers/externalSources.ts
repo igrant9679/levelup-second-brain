@@ -25,7 +25,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -48,6 +48,78 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
   return db;
+}
+
+// ─── Write-back internals (shared by setRowStatus mutations + pushPendingChanges)
+async function pushSmartsheetStatusInternal(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  externalId: string,
+  newStatus: string,
+): Promise<void> {
+  const [cred] = await db.select().from(externalSourceCredentials)
+    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, 'smartsheet')))
+    .limit(1);
+  if (!cred?.apiToken) throw new Error('No Smartsheet token configured');
+  const [taskRow] = await db.select().from(externalTasks)
+    .where(and(eq(externalTasks.userId, userId), eq(externalTasks.source, 'smartsheet'), eq(externalTasks.externalId, externalId)))
+    .limit(1);
+  if (!taskRow) throw new Error(`External task ${externalId} not found locally`);
+  const [watch] = await db.select().from(smartsheetWatchedSheets)
+    .where(eq(smartsheetWatchedSheets.id, taskRow.sourceConfigId)).limit(1);
+  if (!watch) throw new Error('Source watch config missing');
+  if (!watch.statusColumn) throw new Error('Watch has no statusColumn configured — set it in Settings → Integrations');
+  const colsResp = await fetch(`https://api.smartsheet.com/2.0/sheets/${watch.sheetId}/columns?includeAll=true`, {
+    headers: { Authorization: `Bearer ${cred.apiToken}` },
+  });
+  if (!colsResp.ok) throw new Error(`Smartsheet columns fetch failed: ${colsResp.status}`);
+  const colsData = await colsResp.json() as { data?: Array<{ id: number; title: string }> };
+  const col = (colsData.data || []).find(c => c.title.toLowerCase() === String(watch.statusColumn).toLowerCase());
+  if (!col) throw new Error(`Status column "${watch.statusColumn}" not found on sheet`);
+  const putResp = await fetch(`https://api.smartsheet.com/2.0/sheets/${watch.sheetId}/rows`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify([{ id: Number(externalId), cells: [{ columnId: col.id, value: newStatus }] }]),
+  });
+  if (!putResp.ok) {
+    const body = await putResp.text();
+    throw new Error(`Smartsheet update failed: ${putResp.status} ${body.slice(0, 200)}`);
+  }
+}
+
+async function pushNiftyStatusInternal(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number,
+  externalId: string,
+  statusName: string,
+): Promise<void> {
+  const [cred] = await db.select().from(externalSourceCredentials)
+    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, 'nifty')))
+    .limit(1);
+  if (!cred?.apiToken) throw new Error('No Nifty token configured');
+  const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${externalId}`, {
+    headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+  });
+  if (!taskResp.ok) throw new Error(`Nifty task fetch failed: ${taskResp.status}`);
+  const task = await taskResp.json() as { id: string; project_id?: string };
+  if (!task.project_id) throw new Error('Nifty task has no project_id');
+  const stResp = await fetch(`https://openapi.niftypm.com/api/v1.0/projects/${task.project_id}/statuses`, {
+    headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+  });
+  if (!stResp.ok) throw new Error(`Nifty statuses fetch failed: ${stResp.status}`);
+  const stData = await stResp.json() as Array<{ id: string; name: string }> | { statuses?: Array<{ id: string; name: string }> };
+  const statuses = Array.isArray(stData) ? stData : (stData.statuses || []);
+  const match = statuses.find(s => (s.name || '').toLowerCase() === statusName.toLowerCase());
+  if (!match) throw new Error(`Status "${statusName}" not found on Nifty project`);
+  const putResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${externalId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: match.id }),
+  });
+  if (!putResp.ok) {
+    const body = await putResp.text();
+    throw new Error(`Nifty update failed: ${putResp.status} ${body.slice(0, 200)}`);
+  }
 }
 
 export const externalSourcesRouter = router({
@@ -611,6 +683,7 @@ export const externalSourcesRouter = router({
       localTags: z.string().max(512).nullable().optional(),
       localDue: z.string().max(32).nullable().optional(),
       localProjectId: z.string().max(40).nullable().optional(),
+      pendingStatus: z.string().max(128).nullable().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
@@ -621,6 +694,11 @@ export const externalSourcesRouter = router({
       if (input.localTags !== undefined) set.localTags = input.localTags;
       if (input.localDue !== undefined) set.localDue = input.localDue;
       if (input.localProjectId !== undefined) set.localProjectId = input.localProjectId;
+      if (input.pendingStatus !== undefined) {
+        set.pendingStatus = input.pendingStatus;
+        set.pendingStatusAt = input.pendingStatus ? sql`CURRENT_TIMESTAMP` : null;
+        set.pendingError = null;
+      }
 
       await db.insert(externalTaskOverrides).values({
         userId: ctx.user.id,
@@ -632,9 +710,55 @@ export const externalSourcesRouter = router({
         localTags: input.localTags ?? null,
         localDue: input.localDue ?? null,
         localProjectId: input.localProjectId ?? null,
+        pendingStatus: input.pendingStatus ?? null,
+        pendingStatusAt: input.pendingStatus ? new Date() : null,
       }).onDuplicateKeyUpdate({ set });
       return { success: true };
     }),
+
+  /**
+   * Push every override row with a non-null pendingStatus to its source.
+   * Successes clear pendingStatus + pendingError; failures keep the queue
+   * entry with pendingError populated so the user can retry. Returns
+   * counts so the UI can summarise in a toast.
+   */
+  pushPendingChanges: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await requireDb();
+    const pending = await db.select().from(externalTaskOverrides)
+      .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus)));
+    let pushed = 0, failed = 0;
+    const errors: string[] = [];
+    for (const p of pending) {
+      try {
+        if (p.source === 'smartsheet') {
+          await pushSmartsheetStatusInternal(db, ctx.user.id, p.externalId, p.pendingStatus!);
+        } else if (p.source === 'nifty') {
+          await pushNiftyStatusInternal(db, ctx.user.id, p.externalId, p.pendingStatus!);
+        }
+        await db.update(externalTaskOverrides)
+          .set({ pendingStatus: null, pendingStatusAt: null, pendingError: null })
+          .where(eq(externalTaskOverrides.id, p.id));
+        pushed++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await db.update(externalTaskOverrides)
+          .set({ pendingError: msg.slice(0, 4000) })
+          .where(eq(externalTaskOverrides.id, p.id));
+        failed++;
+        errors.push(`${p.source}:${p.externalId}: ${msg.slice(0, 100)}`);
+      }
+    }
+    // Trigger an immediate re-pull so the pushed statuses surface in LevelUp.
+    try { await processExternalTaskPull({ userId: ctx.user.id }); } catch { /* best-effort */ }
+    return { pushed, failed, errors };
+  }),
+
+  pendingPushCount: protectedProcedure.query(async ({ ctx }) => {
+    const db = await requireDb();
+    const rows = await db.select().from(externalTaskOverrides)
+      .where(and(eq(externalTaskOverrides.userId, ctx.user.id), isNotNull(externalTaskOverrides.pendingStatus)));
+    return { count: rows.length, items: rows.map(r => ({ source: r.source, externalId: r.externalId, pendingStatus: r.pendingStatus, pendingError: r.pendingError })) };
+  }),
 
   /**
    * Bulk-link external tasks to a LevelUp project. Accepts an array of

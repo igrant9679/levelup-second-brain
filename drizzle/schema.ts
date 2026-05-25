@@ -837,6 +837,15 @@ export const externalTaskOverrides = mysqlTable('external_task_overrides', {
   // ids — stored as string here to tolerate both legacy numeric and any
   // future string ids).
   localProjectId: varchar('localProjectId', { length: 40 }),
+  // Migration 0038: queued status push. When set, the user has chosen a new
+  // status for the source row but hasn't pushed it yet. UI surfaces this as
+  // a yellow "pending → X" pill; a topbar "Push N pending" button flushes
+  // every queued row via the existing write-back endpoints. Cleared when
+  // the next pull observes the source status matching the pending value
+  // (or when pushPendingChanges succeeds).
+  pendingStatus: varchar('pendingStatus', { length: 128 }),
+  pendingStatusAt: timestamp('pendingStatusAt'),
+  pendingError: mediumtext('pendingError'),
   tombstoned: tinyint('tombstoned').default(0).notNull(),
   tombstonedAt: timestamp('tombstonedAt'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),

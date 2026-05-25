@@ -7337,6 +7337,59 @@ async function _toggleExternalMyDay(source,externalId,myDay){
 // Days=-1 (special) clears the snooze (removes localDue override; source due
 // becomes effective again). Also clears the My Day flag if days>1 so a
 // "snooze for a week" actually pushes the task off today's plate.
+// Queue-mode helper. When D.prefs.externalQueueMode is true, status changes
+// don't push immediately — they're saved as override.pendingStatus and a
+// topbar "Push N pending" button shows up. User clicks Push to flush all.
+function _isQueueMode(){ return !!(D.prefs && D.prefs.externalQueueMode); }
+
+// Pending push state (cached count for the topbar button). Populated by
+// _refreshPendingCount on app boot + after any queue/push action.
+window._extPendingCount = 0;
+async function _refreshPendingCount(){
+  try{
+    const r=await _trpc('externalSources.pendingPushCount',undefined,'query');
+    window._extPendingCount=r&&typeof r.count==='number'?r.count:0;
+  }catch{window._extPendingCount=0;}
+  _topbarPushBtnUpdate();
+}
+function _topbarPushBtnUpdate(){
+  const btn=document.getElementById('topbar-push-btn');
+  if(!btn)return;
+  const n=window._extPendingCount||0;
+  if(n>0){
+    btn.style.display='';
+    const lbl=btn.querySelector('[data-pcount]');
+    if(lbl)lbl.textContent=String(n);
+    btn.title=`Push ${n} pending status change${n===1?'':'s'} to Smartsheet + NiftyPM`;
+  }else{
+    btn.style.display='none';
+  }
+}
+async function _pushPendingNow(){
+  if(!(window._extPendingCount>0)){toast({type:'info',title:'No pending changes to push'});return;}
+  if(!confirm(`Push ${window._extPendingCount} queued status change${window._extPendingCount===1?'':'s'} to Smartsheet + NiftyPM?`))return;
+  _topbarSyncSpin(true);
+  try{
+    toast({type:'info',title:'Pushing queued changes…',duration:2000});
+    const r=await _trpc('externalSources.pushPendingChanges',undefined,'mutation');
+    await loadExternalTasks();
+    await _refreshPendingCount();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+    if(r.failed===0)toast({type:'success',title:`✓ Pushed ${r.pushed}`});
+    else toast({type:'warn',title:`${r.pushed} pushed · ${r.failed} failed`,msg:(r.errors||[]).slice(0,2).join(' · '),duration:6000});
+  }catch(e){toast({type:'warn',title:'Push failed',msg:e.message||String(e)});}
+  finally{_topbarSyncSpin(false);}
+}
+
+// Pending pill — shows on rendered external task rows when a status change
+// is queued. Yellow tint + arrow indicating direction.
+function _extPendingPill(ov){
+  if(!ov||!ov.pendingStatus)return '';
+  const err=ov.pendingError;
+  const color=err?'#dc2626':'#f59e0b';
+  return `<span title="${err?'Push failed: '+esc(err).slice(0,200):'Queued — will push to source on next Push'}" style="font-size:9px;padding:1px 5px;border-radius:3px;background:${err?'rgba(220,38,38,.15)':'rgba(245,158,11,.18)'};color:${color};font-weight:600;cursor:help">${err?'⚠ ':''}→ ${esc(ov.pendingStatus)}</span>`;
+}
+
 // Write-back: change external task status in the source (Smartsheet/Nifty).
 // Opens a popover with the source's valid status values (PICKLIST for
 // Smartsheet, project-scoped status names for Nifty) so the user picks
@@ -7372,6 +7425,17 @@ async function _externalSetStatus(source,externalId,event){
         e.stopPropagation();
         const val=b.getAttribute('data-status');
         pop.remove();
+        if(_isQueueMode()){
+          // Queue, don't push. Topbar button flushes all queued.
+          try{
+            await _trpc('externalSources.upsertOverride',{source,externalId,pendingStatus:val},'mutation');
+            await loadExternalTasks();
+            await _refreshPendingCount();
+            if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+            toast({type:'success',title:`Queued: ${val} (click Push in topbar to apply)`,duration:2500});
+          }catch(err){toast({type:'warn',title:'Queue failed',msg:err.message||String(err)});}
+          return;
+        }
         try{
           toast({type:'info',title:`Setting status to "${val}"…`,duration:1200});
           const proc=source==='smartsheet'?'externalSources.smartsheetSetRowStatus':'externalSources.niftySetTaskStatus';
@@ -7536,6 +7600,7 @@ async function _clearExternalAnnotations(source,externalId){
 function _extAnnotationChips(ov){
   if(!ov)return '';
   const bits=[];
+  if(ov.pendingStatus)bits.push(_extPendingPill(ov));
   if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:9px;color:var(--ac);cursor:help">📝</span>`);
   if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:8px" title="Local priority override">${ov.localPriority}</span>`);
   if(ov.localTags){

@@ -585,9 +585,16 @@ function renderSettingsHTML(){
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 Command Center — Smartsheet + NiftyPM</div>
     <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Pull tasks owned by you from Smartsheet (CF) and NiftyPM (LSI) into LevelUp's rails and reports. Source tools stay authoritative; LevelUp is read-only with local annotations.</p>
     <div id="ext-sources-body" style="font-size:11px;color:var(--t2)">Loading…</div>
-    <div style="display:flex;gap:6px;margin-top:8px">
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-p" style="height:28px;font-size:10px" onclick="refreshExternalTasksNow()">↻ Refresh now</button>
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
+    </div>
+    <div class="lr" style="padding:8px 0;margin-top:8px;border-top:1px solid var(--bd1);align-items:center">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600">⬆ Queue status changes (don't auto-push)</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">When ON, status changes you make in LevelUp are queued and shown as <span style="color:#f59e0b;font-weight:600">→ pending</span> pills. Click the orange <strong>⬆ Push</strong> button in the top header to flush them to Smartsheet + NiftyPM in one batch. When OFF (default), each change writes back immediately.</div>
+      </div>
+      <div class="tog ${(D.prefs&&D.prefs.externalQueueMode)?'on':''}" id="tog-ext-queue" onclick="_toggleExternalQueueMode()"></div>
     </div>
   </div>
   <!-- External Task Sync / Webhooks -->
@@ -984,6 +991,15 @@ async function _saveDigestRecipient(){
     await _hydrateDailyDigestPanel();
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
+function _toggleExternalQueueMode(){
+  const tog=document.getElementById('tog-ext-queue');
+  D.prefs=D.prefs||{};
+  D.prefs.externalQueueMode=!D.prefs.externalQueueMode;
+  if(tog)tog.classList.toggle('on',D.prefs.externalQueueMode);
+  save('prefs');
+  toast({type:'success',title:D.prefs.externalQueueMode?'⬆ Queue mode ON — status changes will be batched':'Auto-push ON — each change writes back immediately',duration:2500});
+}
+
 async function _digestSendNow(){
   try{
     toast({type:'info',title:'Sending test digest…',duration:1500});
@@ -3622,6 +3638,8 @@ function doLoginSuccess(member){
   // Independent of loadServerData — its own table, its own endpoint, its
   // own failure mode (no token / no watches = empty array, never throws).
   setTimeout(()=>{ if(typeof loadExternalTasks==='function') loadExternalTasks().then(()=>{ if(typeof renderScreen==='function') renderScreen(curScreen); }); },800);
+  // Hydrate the topbar Push button count on boot.
+  setTimeout(()=>{ if(typeof _refreshPendingCount==='function') _refreshPendingCount(); },1000);
   // Reattach to a running timer if the user reloaded mid-session.
   setTimeout(()=>{ if(typeof _restoreRunningTimer==='function') _restoreRunningTimer(); },1200);
   // Show onboarding splash on first-ever login
