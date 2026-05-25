@@ -11802,6 +11802,7 @@ function renderPipeline(){
   const winRate=(won.length+lost.length)?Math.round(won.length/(won.length+lost.length)*100):0;
   // View switcher
   const viewBtn=(key,label)=>`<button class="btn btn-s" onclick="_pipelineView='${key}';renderPipeline()" style="${_pipelineView===key?'background:var(--ac);color:#fff;border-color:var(--ac)':''}">${label}</button>`;
+  const reportBtn=viewBtn('reports','📊 Reports');
   const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700">💼 Sales Pipeline</h1>
@@ -11809,8 +11810,9 @@ function renderPipeline(){
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${viewBtn('kanban','📋 Kanban')}
-      ${viewBtn('table','📊 Table')}
+      ${viewBtn('table','📋 Table')}
       ${viewBtn('forecast','📈 Forecast')}
+      ${reportBtn}
       <button class="btn btn-p" onclick="_newOpportunity()">+ New opportunity</button>
     </div>
   </div>`;
@@ -11924,6 +11926,10 @@ function renderPipeline(){
       </div>
     </div>`;
   }
+  // ── Reports view: 4 cards in a 2×2 grid ─────────────────────────────────
+  if(_pipelineView==='reports'){
+    body=_renderPipelineReports(opps,open,won,lost);
+  }
   m.innerHTML=header+kpis+body;
   if(r){
     // Right rail: quick add + recent activity.
@@ -11944,6 +11950,229 @@ function renderPipeline(){
       ${recentWon.map(o=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:10px">${esc(o.name)}</span><span style="color:var(--ok);font-size:10px;font-weight:600">${_fmtMoney(o.value||0)}</span></div>`).join('')}
     </div>`:''}`;
   }
+}
+
+// ─── Pipeline Reports view (4 cards) ────────────────────────────────────────
+function _pipelineQuota(){
+  // Total annual / quarterly target. Configurable via Settings → General.
+  // Shape: D.prefs.pipelineQuota = {amount: number, periodLabel: string,
+  // coverageTarget: number (typically 3 for 3x)}.
+  const q=(D.prefs&&D.prefs.pipelineQuota)||{};
+  return {
+    amount:Number(q.amount)||0,
+    periodLabel:q.periodLabel||'Annual',
+    coverageTarget:Number(q.coverageTarget)||3,
+  };
+}
+function _renderPipelineReports(opps,open,won,lost){
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px">
+    ${_reportByCustomer(opps,open,won,lost)}
+    ${_reportStageAging(open)}
+    ${_reportQuarterlyBooking(open)}
+    ${_reportCoverage(open)}
+  </div>`;
+}
+function _reportByCustomer(opps,open,won,lost){
+  const byAccount={};
+  for(const o of opps){
+    const k=o.accountName||'(no account)';
+    const slot=byAccount[k]||{name:k,open:0,won:0,lost:0,onhold:0,totalOpen:0,weighted:0,wonValue:0,lastActivity:''};
+    if(o.status==='won'){slot.won++;slot.wonValue+=Number(o.value)||0;}
+    else if(o.status==='lost')slot.lost++;
+    else {
+      slot.open++;
+      slot.totalOpen+=Number(o.value)||0;
+      slot.weighted+=_weightedValue(o);
+      if(o.stage==='On-Hold')slot.onhold++;
+    }
+    if((o.updatedAt||'')>slot.lastActivity)slot.lastActivity=o.updatedAt||'';
+    byAccount[k]=slot;
+  }
+  const rows=Object.values(byAccount).sort((a,b)=>(b.totalOpen+b.weighted)-(a.totalOpen+a.weighted));
+  const body=rows.length?rows.map(a=>{
+    const winRate=(a.won+a.lost)?Math.round(a.won/(a.won+a.lost)*100):null;
+    const winRateLabel=winRate==null?'<span style="color:var(--t3)">—</span>':`<span style="color:${winRate>=50?'var(--ok)':winRate>=25?'var(--warn)':'var(--red)'};font-weight:600">${winRate}%</span>`;
+    return `<tr style="border-bottom:1px solid var(--bd1)">
+      <td style="padding:6px 8px;font-size:12px;font-weight:600;color:var(--t1)">${esc(a.name)}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">${a.open}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;font-variant-numeric:tabular-nums">${_fmtMoney(a.totalOpen)}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right;color:var(--ok);font-variant-numeric:tabular-nums">${_fmtMoney(a.weighted)}</td>
+      <td style="padding:6px 8px;font-size:11px;text-align:right">${winRateLabel}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--t3);text-align:right">${a.won}W · ${a.lost}L</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--t3);font-size:11px">No opportunities to group.</td></tr>';
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid #3b82f6">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🏢 By Customer / Agency</div><div style="font-size:10px;color:var(--t3)">${rows.length} account${rows.length===1?'':'s'} · sorted by total open</div></div>
+    <p style="font-size:10px;color:var(--t3);margin:0 0 8px">Where your pipeline lives. Win rate shown when at least one deal has closed.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:var(--s2);font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+        <th style="padding:5px 8px;text-align:left">Account</th>
+        <th style="padding:5px 8px;text-align:right">Open</th>
+        <th style="padding:5px 8px;text-align:right">Total $</th>
+        <th style="padding:5px 8px;text-align:right">Weighted</th>
+        <th style="padding:5px 8px;text-align:right">Win Rate</th>
+        <th style="padding:5px 8px;text-align:right">Track</th>
+      </tr></thead><tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+function _reportStageAging(open){
+  // "Days in current stage" approximated by (now - updatedAt). Federal sales
+  // cycles are long so this is a useful aging proxy without needing a full
+  // stage-history audit log on every opp.
+  const now=Date.now();
+  const daysSince=iso=>iso?Math.max(0,Math.floor((now-new Date(iso).getTime())/86400000)):null;
+  const stageBuckets={};
+  for(const s of _PIPELINE_STAGES){if(!s.terminal)stageBuckets[s.key]={count:0,daysSum:0,oldest:null};}
+  for(const o of open){
+    const b=stageBuckets[o.stage];if(!b)continue;
+    const d=daysSince(o.updatedAt);if(d==null)continue;
+    b.count++;b.daysSum+=d;
+    if(!b.oldest||d>b.oldest.days)b.oldest={days:d,opp:o};
+  }
+  const stageRows=Object.entries(stageBuckets).filter(([,b])=>b.count>0).map(([key,b])=>{
+    const avg=Math.round(b.daysSum/b.count);
+    const def=_stageDef(key);
+    const ageBadge=avg>=90?'<span style="color:var(--red);font-weight:600">⚠ '+avg+'d</span>':avg>=60?'<span style="color:var(--warn);font-weight:600">'+avg+'d</span>':`<span style="color:var(--t2)">${avg}d</span>`;
+    return `<tr style="border-bottom:1px solid var(--bd1)">
+      <td style="padding:5px 8px;font-size:11px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${def.color};margin-right:6px"></span>${esc(def.label)}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${b.count}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${ageBadge}</td>
+      <td style="padding:5px 8px;font-size:10px;color:var(--t3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.oldest?esc(b.oldest.opp.name):''}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No open opportunities.</td></tr>';
+  // Stalled list: open opps not updated in 60+ days. Cap to top 8.
+  const stalled=open.filter(o=>{const d=daysSince(o.updatedAt);return d!=null&&d>=60;}).sort((a,b)=>(new Date(a.updatedAt||0).getTime())-(new Date(b.updatedAt||0).getTime())).slice(0,8);
+  const stalledBody=stalled.length?stalled.map(o=>{
+    const d=daysSince(o.updatedAt);
+    return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openOpportunityDetail(${o.id})">
+      <span style="font-size:11px;color:var(--t1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'')}</span>
+      <span style="font-size:10px;color:${d>=120?'var(--red)':'var(--warn)'};font-weight:600;flex-shrink:0">${d}d</span>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(o.stage||'')}</span>
+    </div>`;
+  }).join(''):'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:8px 0">No stalled deals — every open opp updated within 60 days.</div>';
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid #f59e0b">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">⏱ Stage Aging</div><div style="font-size:10px;color:var(--t3)">Avg days at current stage</div></div>
+    <p style="font-size:10px;color:var(--t3);margin:0 0 8px">Where deals get stuck. Aging measured as days since last update (proxy for stage entry).</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
+      <thead><tr style="background:var(--s2);font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+        <th style="padding:5px 8px;text-align:left">Stage</th>
+        <th style="padding:5px 8px;text-align:right">Count</th>
+        <th style="padding:5px 8px;text-align:right">Avg</th>
+        <th style="padding:5px 8px;text-align:left">Oldest</th>
+      </tr></thead><tbody>${stageRows}</tbody>
+    </table>
+    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🚨 Stalled (60d+) · ${stalled.length}</div>
+    ${stalledBody}
+  </div>`;
+}
+function _reportQuarterlyBooking(open){
+  const now=new Date();
+  const horizon=new Date(now);horizon.setDate(now.getDate()+90);
+  const horizonStr=_ymd(horizon);
+  const todayStr=_todayStr;
+  const inWindow=open.filter(o=>o.closeDate&&o.closeDate>=todayStr&&o.closeDate<=horizonStr);
+  const byMonth={};
+  for(const o of inWindow){
+    const m=(o.closeDate||'').slice(0,7);
+    const slot=byMonth[m]||{value:0,weighted:0,count:0,opps:[]};
+    slot.value+=Number(o.value)||0;
+    slot.weighted+=_weightedValue(o);
+    slot.count++;
+    slot.opps.push(o);
+    byMonth[m]=slot;
+  }
+  const months=Object.keys(byMonth).sort();
+  const maxW=Math.max(1,...months.map(m=>byMonth[m].weighted));
+  const totalWeighted=months.reduce((s,m)=>s+byMonth[m].weighted,0);
+  const totalValue=months.reduce((s,m)=>s+byMonth[m].value,0);
+  const totalCount=months.reduce((s,m)=>s+byMonth[m].count,0);
+  const bars=months.length?months.map(m=>{
+    const slot=byMonth[m];
+    const pct=Math.round(slot.weighted/maxW*100);
+    const mLabel=new Date(m+'-01').toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    return `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px">
+        <span style="font-weight:600;color:var(--t1)">${esc(mLabel)}</span>
+        <span style="color:var(--t3)">${slot.count} deal${slot.count===1?'':'s'} · ${_fmtMoney(slot.value)} total · <strong style="color:var(--ok)">${_fmtMoney(slot.weighted)}</strong></span>
+      </div>
+      <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#10b981;border-radius:4px"></div></div>
+    </div>`;
+  }).join(''):'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:20px;text-align:center">No open deals with close dates in the next 90 days. Set close dates on your opportunities to populate this forecast.</div>';
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid #10b981">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">📅 Quarterly Booking (next 90d)</div><div style="font-size:10px;color:var(--t3)">${totalCount} deal${totalCount===1?'':'s'}</div></div>
+    <p style="font-size:10px;color:var(--t3);margin:0 0 10px">Open deals closing in the next 90 days. Use this as your Q forecast — weighted is the expected commit.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;background:color-mix(in srgb,#10b981 10%,transparent);border-radius:6px;margin-bottom:10px">
+      <div style="font-size:11px;color:var(--t2)">Q forecast</div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#10b981">${_fmtMoney(totalWeighted)}</div><div style="font-size:9px;color:var(--t3)">weighted · ${_fmtMoney(totalValue)} unweighted</div></div>
+    </div>
+    ${bars}
+  </div>`;
+}
+function _reportCoverage(open){
+  const q=_pipelineQuota();
+  const totalOpen=open.reduce((s,o)=>s+(Number(o.value)||0),0);
+  const totalWeighted=open.reduce((s,o)=>s+_weightedValue(o),0);
+  const coverage=q.amount>0?(totalOpen/q.amount):null;
+  const weightedCoverage=q.amount>0?(totalWeighted/q.amount):null;
+  const target=q.coverageTarget||3;
+  const status=coverage==null?'unset':coverage>=target?'healthy':coverage>=target*0.6?'caution':'gap';
+  const statusColor={unset:'#64748b',healthy:'#10b981',caution:'#f59e0b',gap:'#ef4444'}[status];
+  const statusLabel={unset:'Quota not set',healthy:'Healthy',caution:'Light',gap:'Gap'}[status];
+  const gaugePct=coverage==null?0:Math.min(100,Math.round((coverage/target)*100));
+  const body=q.amount<=0?
+    `<div style="text-align:center;padding:14px 8px">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Set your ${esc(q.periodLabel)} revenue target to see coverage.</div>
+      <button class="btn btn-p" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Configure quota</button>
+    </div>`
+    :`<div style="text-align:center;margin-bottom:12px">
+      <div style="font-size:28px;font-weight:800;color:${statusColor};line-height:1">${coverage.toFixed(1)}x</div>
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px">coverage · target ${target}x · ${esc(statusLabel)}</div>
+    </div>
+    <div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${gaugePct}%;background:${statusColor};border-radius:5px"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.04em">${esc(q.periodLabel)} Target</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(q.amount)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.04em">Pipeline</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(totalOpen)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.04em">Weighted</div><div style="font-size:14px;font-weight:700;color:var(--ok);margin-top:2px">${_fmtMoney(totalWeighted)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:9px;text-transform:uppercase;letter-spacing:.04em">Weighted Cov.</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${weightedCoverage!=null?weightedCoverage.toFixed(1)+'x':'—'}</div></div>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:10px;text-align:center">${target}x is the industry rule of thumb for healthy B2B sales pipeline.</div>
+    <div style="margin-top:8px;text-align:center"><button class="btn btn-s" style="font-size:10px" onclick="_openPipelineQuotaSettings()">⚙ Adjust quota</button></div>`;
+  return `<div class="cd" style="padding:13px 15px;border-left:3px solid ${statusColor}">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:10px;color:${statusColor};font-weight:600">${esc(statusLabel)}</div></div>
+    <p style="font-size:10px;color:var(--t3);margin:0 0 10px">Total open pipeline value divided by your revenue quota. The 3x rule of thumb assumes you'll win roughly a third of your pipeline.</p>
+    ${body}
+  </div>`;
+}
+function _openPipelineQuotaSettings(){
+  const q=_pipelineQuota();
+  const m=document.getElementById('modal-content');
+  if(!m){toast({type:'warn',title:'Modal not available'});return;}
+  m.innerHTML=`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">🎯 Pipeline Quota</h2>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 14px">Sets the revenue target the Pipeline Coverage report compares against.</p>
+    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Target amount ($)</div><input class="inp" id="quota-amt" type="number" value="${q.amount||''}" placeholder="e.g. 5000000" style="font-size:12px"></div>
+    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Period label</div><select class="inp" id="quota-period" style="font-size:12px">
+      ${['Annual','Quarterly','Monthly','Half-Year'].map(p=>`<option value="${p}" ${q.periodLabel===p?'selected':''}>${p}</option>`).join('')}
+    </select></div>
+    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Coverage target (default 3x)</div><input class="inp" id="quota-cov" type="number" step="0.5" min="1" max="10" value="${q.coverageTarget||3}" style="font-size:12px"></div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1)">
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_savePipelineQuota()">💾 Save</button>
+    </div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _savePipelineQuota(){
+  const amt=Number(document.getElementById('quota-amt').value)||0;
+  const period=document.getElementById('quota-period').value||'Annual';
+  const cov=Math.max(1,Math.min(10,Number(document.getElementById('quota-cov').value)||3));
+  D.prefs=D.prefs||{};
+  D.prefs.pipelineQuota={amount:amt,periodLabel:period,coverageTarget:cov};
+  save('prefs');
+  closeModal();
+  toast({type:'success',title:`✓ Quota set: ${_fmtMoney(amt)} (${period}, ${cov}x target)`,duration:2400});
+  if(curScreen==='pipeline')renderPipeline();
 }
 
 function _newOpportunity(){
