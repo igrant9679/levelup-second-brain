@@ -4579,6 +4579,424 @@ function deleteSavedTaskView(id,e){
   if(typeof renderTasks==='function')renderTasks();
 }
 // N: AI Today's Plan — ranks the current Today set into a suggested order
+// ─── AI PRODUCTIVITY ENGINE ─────────────────────────────────────────────────
+// Capacity check + smart scheduler + manual time blocker. Turns LevelUp from
+// a cockpit (showing reality) into an active scheduling assistant.
+
+// Working hours (24h). Stored in D.prefs so the user can customise later via
+// a Settings entry; defaults to 9-17 (8 hours of nominal focus time).
+function _workingHours(){
+  const p=(D.prefs&&D.prefs.workingHours)||{};
+  const start=Number.isFinite(p.start)?p.start:9;
+  const end=Number.isFinite(p.end)?p.end:17;
+  return {start,end};
+}
+
+/**
+ * Compute today's (or any day's) capacity check:
+ *   plannedMins  — sum of estimatedMins across tasks targeted at that day
+ *                  (myDay flag OR due===date OR startDate===date).
+ *   bookedMins   — sum of calendar-event durations within working hours.
+ *   freeMins     — working hours total − bookedMins.
+ *   deltaMins    — plannedMins − freeMins (positive = over capacity).
+ *   focusMins    — already-logged focus minutes today (D.prefs.focusLog).
+ * Used by the capacity indicator + the smart-scheduler prompt.
+ */
+function _dayCapacityCheck(dateObj){
+  const d=dateObj||new Date();
+  const ds=_ymd(d);
+  const {start:wsH,end:weH}=_workingHours();
+  const workingMins=Math.max(0,(weH-wsH))*60;
+  const isToday=ds===_todayStr;
+  // Tasks targeted at the day. For "today" we include myDay; for other days
+  // we restrict to explicit due/startDate hits.
+  const tasks=(D.tasks||[]).filter(t=>{
+    if(t.status==='Done'||t.status==='Someday')return false;
+    if(t.parentTaskId)return false; // subtasks roll into parents
+    if(isToday&&t.myDay)return true;
+    return t.due===ds||t.startDate===ds;
+  });
+  const plannedMins=tasks.reduce((s,t)=>s+(Number(t.estimatedMins)||30),0);
+  // Calendar events for the day, intersected with working hours.
+  const events=(typeof _calEventsOn==='function')?_calEventsOn(d):[];
+  let bookedMins=0;
+  for(const e of events){
+    const h=typeof e.hour==='number'?e.hour:null;
+    if(h==null)continue;
+    const eh=typeof e.endHour==='number'?e.endHour:h+1;
+    const overlapStart=Math.max(h,wsH);
+    const overlapEnd=Math.min(eh,weH);
+    if(overlapEnd>overlapStart)bookedMins+=(overlapEnd-overlapStart)*60;
+  }
+  const freeMins=Math.max(0,workingMins-bookedMins);
+  const deltaMins=plannedMins-freeMins;
+  const focusMins=Number((D.prefs&&D.prefs.focusLog&&D.prefs.focusLog[ds])||0);
+  return {
+    date:ds,
+    workingHoursStart:wsH,workingHoursEnd:weH,
+    workingMins,bookedMins,freeMins,
+    plannedMins,deltaMins,
+    taskCount:tasks.length,eventCount:events.length,
+    focusMins,
+    tasks,events,
+  };
+}
+
+// Compact "Xh Ym" formatter for capacity numbers.
+function _fmtHm(mins){
+  const m=Math.max(0,Math.round(mins));
+  if(m<60)return m+'m';
+  const h=Math.floor(m/60),r=m%60;
+  return r?(h+'h '+r+'m'):(h+'h');
+}
+
+/**
+ * Render a one-line capacity indicator that drops anywhere. Color codes:
+ *   green  = under capacity (>15min buffer)
+ *   amber  = right at edge (±15min)
+ *   red    = over capacity
+ * Click the bar to expand into a longer explanation (today's events + plan).
+ */
+function _renderCapacityIndicator(check, opts){
+  const c=check||_dayCapacityCheck();
+  const compact=opts&&opts.compact;
+  const color=c.deltaMins>15?'#ef4444':c.deltaMins<-15?'#10b981':'#f59e0b';
+  const verdict=c.deltaMins>15?`over by ${_fmtHm(c.deltaMins)}`:c.deltaMins<-15?`${_fmtHm(-c.deltaMins)} buffer`:'balanced';
+  const planned=_fmtHm(c.plannedMins);
+  const free=_fmtHm(c.freeMins);
+  // Bar visualises planned vs available. Cap planned at 1.5× free for sane bar widths.
+  const barMax=Math.max(c.freeMins,1);
+  const fillPct=Math.min(150,Math.round(c.plannedMins/barMax*100));
+  if(compact){
+    return `<span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${planned}) vs ${free} free in working hours">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span>
+      <strong style="color:${color}">${planned} planned</strong> · ${free} free · ${verdict}
+    </span>`;
+  }
+  return `<div class="cd" style="padding:11px 14px;border-left:3px solid ${color};margin-bottom:10px;cursor:pointer" onclick="_openCapacityDetail()" title="Click for details">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600">📊 Today's Capacity</div>
+      <div style="font-size:11px;color:${color};font-weight:600">${verdict}</div>
+    </div>
+    <div style="display:flex;gap:14px;font-size:11px;color:var(--t2);margin-top:6px;flex-wrap:wrap">
+      <span>📋 <strong style="color:var(--t1)">${planned}</strong> planned (${c.taskCount} task${c.taskCount===1?'':'s'})</span>
+      <span>📅 <strong style="color:var(--t1)">${_fmtHm(c.bookedMins)}</strong> booked (${c.eventCount} event${c.eventCount===1?'':'s'})</span>
+      <span>⏱ <strong style="color:var(--t1)">${free}</strong> free of ${_fmtHm(c.workingMins)} working hours</span>
+    </div>
+    <div style="height:7px;background:var(--s3);border-radius:4px;overflow:hidden;margin-top:7px;position:relative">
+      <div style="height:100%;width:${Math.min(100,fillPct)}%;background:${color};border-radius:4px"></div>
+      ${fillPct>100?`<div style="position:absolute;top:0;right:0;height:100%;width:${Math.min(50,fillPct-100)}%;background:repeating-linear-gradient(45deg,${color},${color} 4px,color-mix(in srgb,${color} 50%,transparent) 4px,color-mix(in srgb,${color} 50%,transparent) 8px);border-radius:0 4px 4px 0"></div>`:''}
+    </div>
+  </div>`;
+}
+
+function _openCapacityDetail(){
+  const c=_dayCapacityCheck();
+  const m=document.getElementById('modal-content');
+  if(!m)return;
+  const tasksList=c.tasks.length?c.tasks.map(t=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'')}</span><span style="color:var(--t3);font-size:10px;flex-shrink:0">${_fmtHm(t.estimatedMins||30)}</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No tasks for today.</li>';
+  const eventsList=c.events.length?c.events.map(e=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</span><span style="color:var(--t3);font-size:10px;flex-shrink:0">${String(e.hour||0).padStart(2,'0')}:00 – ${String(e.endHour||e.hour+1).padStart(2,'0')}:00</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No calendar events today.</li>';
+  m.innerHTML=`<div style="padding:14px 16px;max-width:560px">
+    <h2 style="font-size:14px;font-weight:650;margin:0 0 4px">📊 Capacity for ${esc(new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}))}</h2>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 12px">Working hours: ${c.workingHoursStart}:00 – ${c.workingHoursEnd}:00 (${_fmtHm(c.workingMins)}). Adjust in Settings → General.</p>
+    ${_renderCapacityIndicator(c)}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+      <div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📋 Tasks (${c.tasks.length})</div><ul style="margin:0;padding:0;list-style:none">${tasksList}</ul></div>
+      <div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📅 Events (${c.events.length})</div><ul style="margin:0;padding:0;list-style:none">${eventsList}</ul></div>
+    </div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1)">
+      <button class="btn btn-s" onclick="closeModal();aiSmartSchedule()" style="color:var(--purp);border-color:var(--purp)">🧠 AI Smart Plan</button>
+      <button class="btn btn-p" onclick="closeModal()">Close</button>
+    </div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+
+/**
+ * AI Smart Scheduler. Inputs:
+ *   - today's open tasks targeted at today (myDay, due, startDate)
+ *   - today's calendar events
+ *   - D.prefs.focusByHour peak-hour productivity data
+ *   - per-task energy field (high/medium/low)
+ *   - working hours
+ * Output: a time-blocked schedule [{taskId, startHour, durationMins, reason}]
+ * + an "unscheduled" list with reasons (over capacity, no estimate, etc.).
+ *
+ * Caches latest schedule on D.prefs.todaySchedule so re-opening the modal
+ * shows the prior plan without spending another AI call. The "Apply to
+ * Calendar" button creates _calEvents entries linked to each task.
+ */
+async function aiSmartSchedule(opts){
+  const force=opts&&opts.force;
+  const cached=(D.prefs&&D.prefs.todaySchedule);
+  const cacheFresh=cached&&cached.date===_todayStr;
+  if(cacheFresh&&!force){
+    return _renderSmartScheduleModal(cached);
+  }
+  const m=document.getElementById('modal-content');
+  if(!m){toast({type:'warn',title:'Modal not available'});return;}
+  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
+  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  const c=_dayCapacityCheck();
+  if(!c.taskCount){toast({type:'info',title:'No tasks set for today',msg:'Add some via My Day → Plan or set a due date for today.'});return;}
+  m.innerHTML=`<div style="padding:14px 16px;max-width:520px">
+    <div style="font-size:14px;font-weight:650;margin-bottom:6px">🧠 AI is planning your day…</div>
+    <div style="font-size:11px;color:var(--t3);line-height:1.55">Slotting ${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) around ${c.eventCount} calendar event${c.eventCount===1?'':'s'}, biasing toward your peak-hour focus data. Usually takes ~10s.</div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+  try{
+    // Build the snapshot. Tasks first.
+    const snapshotTasks=c.tasks.map((t,i)=>({
+      taskId:String(t.id),
+      title:(t.title||'').slice(0,160),
+      estimatedMins:Number(t.estimatedMins)||30,
+      priority:t.priority||'Medium',
+      energy:t.energy||null, // high/medium/low if set
+      due:t.due||null,
+      project:(t.projectId&&(D.projects||[]).find(p=>p.id===t.projectId)||{}).name||t.project||null,
+      idx:i,
+    }));
+    // Calendar events as fixed obstacles.
+    const snapshotEvents=c.events.map(e=>({
+      title:(e.title||'event').slice(0,80),
+      startHour:typeof e.hour==='number'?e.hour:0,
+      endHour:typeof e.endHour==='number'?e.endHour:(e.hour||0)+1,
+    }));
+    // Focus-by-hour distribution (sum across past sessions). Used by AI to
+    // identify "your best hours". Sort and pick top-3 peak hours.
+    const focusByHour=(D.prefs&&D.prefs.focusByHour)||{};
+    const peakHours=Object.entries(focusByHour).map(([h,m])=>({hour:Number(h),mins:Number(m)||0}))
+      .filter(x=>Number.isFinite(x.hour)&&x.hour>=c.workingHoursStart&&x.hour<c.workingHoursEnd)
+      .sort((a,b)=>b.mins-a.mins).slice(0,3).map(x=>x.hour);
+    const sys=`You are a focus-scheduling coach. Build a time-blocked schedule for the user's day. Output STRICTLY one JSON object, no prose, no markdown:
+{
+  "blocks": [ {"taskId":"<must be from input>", "startHour": <integer 0-23>, "durationMins": <integer>, "reason":"<one short sentence, ~12 words>"} ],
+  "unscheduled": [ {"taskId":"<from input>", "reason":"<one short sentence on why it didn't fit>"} ],
+  "summary": "<one sentence on the overall plan, 15-25 words>"
+}
+RULES:
+- Working hours: ${c.workingHoursStart}:00 to ${c.workingHoursEnd}:00 ONLY. Never schedule outside.
+- Calendar events are IMMOVABLE obstacles — schedule around them.
+- Prefer the user's peak focus hours (${peakHours.length?peakHours.join(', ')+':00':'unknown'}) for high-priority or high-energy tasks.
+- Batch shallow/admin work (low energy or low priority).
+- Leave a 5-minute buffer between blocks.
+- Items that don't fit go to "unscheduled" with a reason — don't squeeze.
+- startHour is the hour to begin (integer); durationMins respects each task's estimatedMins.
+- Items in "blocks" MUST reference task IDs from the input; do not invent.`;
+    const userContent=`Working hours: ${c.workingHoursStart}-${c.workingHoursEnd}. Peak hours: ${JSON.stringify(peakHours)}. Calendar events (immovable): ${JSON.stringify(snapshotEvents)}. Tasks to schedule: ${JSON.stringify(snapshotTasks)}.`;
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const raw=String(res?.result||res?.text||'').trim();
+    const m2=raw.match(/\{[\s\S]*\}/);
+    if(!m2)throw new Error('AI returned no JSON');
+    const plan=JSON.parse(m2[0]);
+    const record={
+      date:_todayStr,
+      generatedAt:new Date().toISOString(),
+      workingHoursStart:c.workingHoursStart,
+      workingHoursEnd:c.workingHoursEnd,
+      blocks:Array.isArray(plan.blocks)?plan.blocks:[],
+      unscheduled:Array.isArray(plan.unscheduled)?plan.unscheduled:[],
+      summary:String(plan.summary||'').trim(),
+      // Snapshot of task titles so the renderer can show them without
+      // re-looking-up in case a task changes.
+      taskTitles:Object.fromEntries(c.tasks.map(t=>[String(t.id),t.title||''])),
+    };
+    D.prefs=D.prefs||{};
+    D.prefs.todaySchedule=record;
+    save('prefs');
+    _renderSmartScheduleModal(record);
+  }catch(e){
+    m.innerHTML=`<div style="padding:14px 16px;max-width:520px"><div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">⚠ Smart scheduler failed</div><div style="font-size:11px;color:var(--t2);line-height:1.55">${esc(e.message||String(e))}</div><div style="margin-top:10px;display:flex;gap:6px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Close</button></div></div>`;
+  }
+}
+function _renderSmartScheduleModal(record){
+  const m=document.getElementById('modal-content');
+  if(!m||!record)return;
+  const fmt=h=>String(h).padStart(2,'0')+':00';
+  const fmtMin=(h,mm)=>String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+  const blocks=(record.blocks||[]).slice().sort((a,b)=>(a.startHour||0)-(b.startHour||0));
+  const blockRows=blocks.map(b=>{
+    const title=(record.taskTitles&&record.taskTitles[String(b.taskId)])||'(task)';
+    const dur=Number(b.durationMins)||30;
+    const endH=b.startHour+Math.floor(dur/60);
+    const endM=dur%60;
+    return `<div class="lr" style="padding:8px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
+      <span style="font-size:11px;color:var(--ac);font-weight:600;min-width:96px">${fmt(b.startHour)} → ${fmtMin(endH,endM)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;color:var(--t1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</div>
+        ${b.reason?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(b.reason)}</div>`:''}
+      </div>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${_fmtHm(dur)}</span>
+    </div>`;
+  }).join('')||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:12px">No blocks scheduled.</div>';
+  const unschedRows=(record.unscheduled||[]).slice(0,6).map(u=>{
+    const title=(record.taskTitles&&record.taskTitles[String(u.taskId)])||'(task)';
+    return `<div style="font-size:11px;padding:5px 8px;background:var(--s3);border-radius:4px;margin-bottom:4px"><strong>${esc(title)}</strong> — <span style="color:var(--t3)">${esc(u.reason||'no slot available')}</span></div>`;
+  }).join('');
+  const ago=_relTime(record.generatedAt);
+  m.innerHTML=`<div style="padding:16px;max-width:640px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <h2 style="font-size:15px;font-weight:650;margin:0">🧠 Today's Plan</h2>
+      <span style="font-size:10px;color:var(--t3)">Generated ${esc(ago)}</span>
+    </div>
+    ${record.summary?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--ac) 10%,transparent);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px">"${esc(record.summary)}"</div>`:''}
+    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">⏱ Time-blocked schedule (${blocks.length} block${blocks.length===1?'':'s'})</div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;overflow:hidden">${blockRows}</div>
+    ${unschedRows?`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 4px">📥 Couldn't fit (${(record.unscheduled||[]).length})</div>${unschedRows}`:''}
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1);flex-wrap:wrap">
+      <button class="btn btn-s" onclick="aiSmartSchedule({force:true})" title="Regenerate with current data">↻ Refresh</button>
+      <button class="btn btn-s" onclick="_copyScheduleToClipboard()" title="Copy as markdown">📋 Copy</button>
+      <button class="btn btn-p" style="background:var(--ac)" onclick="_applyScheduleToCalendar()">📅 Apply to Calendar</button>
+      <button class="btn btn-s" onclick="closeModal()">Close</button>
+    </div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _copyScheduleToClipboard(){
+  const rec=D.prefs&&D.prefs.todaySchedule;
+  if(!rec){toast({type:'warn',title:'No plan to copy'});return;}
+  const fmt=h=>String(h).padStart(2,'0')+':00';
+  const lines=[];
+  lines.push(`# Today's Plan — ${rec.date}`);
+  if(rec.summary){lines.push('');lines.push(`> ${rec.summary}`);}
+  lines.push('');
+  for(const b of (rec.blocks||[]).slice().sort((a,b)=>(a.startHour||0)-(b.startHour||0))){
+    const title=(rec.taskTitles&&rec.taskTitles[String(b.taskId)])||'(task)';
+    lines.push(`- **${fmt(b.startHour)}** (${_fmtHm(b.durationMins||30)}) — ${title}${b.reason?` _(${b.reason})_`:''}`);
+  }
+  if((rec.unscheduled||[]).length){
+    lines.push('');
+    lines.push('**Unscheduled:**');
+    for(const u of rec.unscheduled){
+      const title=(rec.taskTitles&&rec.taskTitles[String(u.taskId)])||'(task)';
+      lines.push(`- ${title} — ${u.reason||''}`);
+    }
+  }
+  const md=lines.join('\n');
+  try{navigator.clipboard.writeText(md).then(()=>toast({type:'success',title:'Plan copied',duration:1800}),fallback);}catch(_){fallback();}
+  function fallback(){const ta=document.createElement('textarea');ta.value=md;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast({type:'success',title:'Copied',duration:1600});}catch{}ta.remove();}
+}
+function _applyScheduleToCalendar(){
+  const rec=D.prefs&&D.prefs.todaySchedule;
+  if(!rec||!(rec.blocks||[]).length){toast({type:'warn',title:'No blocks to apply'});return;}
+  if(!confirm(`Create ${rec.blocks.length} calendar event${rec.blocks.length===1?'':'s'} on today's calendar? Each will be linked to its source task. Existing events aren't touched.`))return;
+  const ds=rec.date;
+  let created=0;
+  for(const b of rec.blocks){
+    const title=(rec.taskTitles&&rec.taskTitles[String(b.taskId)])||'Focus block';
+    const dur=Number(b.durationMins)||30;
+    const startMins=(b.startHour||0)*60;
+    const endMins=startMins+dur;
+    const endH=Math.floor(endMins/60);
+    // _calEvents shape: {id,title,hour,endHour,color,dateStr,linkedTaskId?}
+    _calEvents=Array.isArray(_calEvents)?_calEvents:[];
+    _calEvents.push({
+      id:Date.now()+Math.floor(Math.random()*1000)+created,
+      title:`▶ ${title}`,
+      hour:b.startHour||0,
+      endHour:endH+(endMins%60?1:0), // round up to next full hour for the bar
+      color:'var(--ac)',
+      dateStr:ds,
+      linkedTaskId:b.taskId,
+      _planned:true,
+    });
+    // Stamp the task's startTime/endTime too so the My Day Execute list shows
+    // the block in-place.
+    const t=D.tasks.find(x=>String(x.id)===String(b.taskId));
+    if(t){
+      t.startTime=String(b.startHour||0).padStart(2,'0')+':00';
+      const eh=Math.floor(endMins/60),em=endMins%60;
+      t.endTime=String(eh).padStart(2,'0')+':'+String(em).padStart(2,'0');
+    }
+    created++;
+  }
+  try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}
+  save('tasks');
+  toast({type:'success',title:`📅 ${created} block${created===1?'':'s'} added to today's calendar`,duration:3000});
+  closeModal();
+  if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();
+  if(curScreen==='myday'&&typeof renderMyDay==='function')renderMyDay();
+}
+
+/**
+ * Manual time-block picker for a single task. Shows free slots in today's
+ * working hours; click one to create a calendar event linked to the task.
+ * Lighter alternative to the AI scheduler — drop one specific task without
+ * regenerating an entire plan.
+ */
+function openTimeBlockPicker(taskId){
+  const t=D.tasks.find(x=>String(x.id)===String(taskId));
+  if(!t){toast({type:'warn',title:'Task not found'});return;}
+  const c=_dayCapacityCheck();
+  const dur=Number(t.estimatedMins)||30;
+  // Build free-slot list: scan working hours by 30-min increments, skip any
+  // hour that overlaps a calendar event. Group consecutive free segments.
+  const free=[];
+  let curStart=null;
+  for(let mins=c.workingHoursStart*60; mins<c.workingHoursEnd*60; mins+=30){
+    const h=Math.floor(mins/60);
+    const overlap=c.events.some(e=>{
+      const eh=typeof e.hour==='number'?e.hour:0;
+      const ehe=typeof e.endHour==='number'?e.endHour:eh+1;
+      return h>=eh&&h<ehe;
+    });
+    if(!overlap){
+      if(curStart==null)curStart=mins;
+    }else{
+      if(curStart!=null){free.push({startMins:curStart,endMins:mins});curStart=null;}
+    }
+  }
+  if(curStart!=null)free.push({startMins:curStart,endMins:c.workingHoursEnd*60});
+  const slots=[];
+  for(const seg of free){
+    // Within each free segment, list start options every 30 min that fit dur.
+    for(let s=seg.startMins; s+dur<=seg.endMins; s+=30){
+      slots.push({startMins:s,endMins:s+dur});
+    }
+  }
+  const m=document.getElementById('modal-content');
+  if(!m){toast({type:'warn',title:'Modal not available'});return;}
+  const fmt=mins=>String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+  const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${JSON.stringify(taskId).replace(/&quot;/g,'&quot;')},${s.startMins},${s.endMins})">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">No free slots fit ' +_fmtHm(dur)+' today. Try the AI Smart Plan to reorganise around your meetings.</div>';
+  m.innerHTML=`<div style="padding:16px;max-width:480px">
+    <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">⏱ Time-block "${esc((t.title||'').slice(0,80))}"</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Estimated ${_fmtHm(dur)}. Pick a free slot below — a linked calendar event will be created.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin-bottom:12px">${slotButtons}</div>
+    <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd1)">
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+function _blockTaskAt(taskId,startMins,endMins){
+  const t=D.tasks.find(x=>String(x.id)===String(taskId));
+  if(!t)return;
+  const ds=_todayStr;
+  const startH=Math.floor(startMins/60);
+  const endH=Math.ceil(endMins/60); // round up to fill the bar
+  _calEvents=Array.isArray(_calEvents)?_calEvents:[];
+  _calEvents.push({
+    id:Date.now()+Math.floor(Math.random()*1000),
+    title:`▶ ${t.title||'Focus block'}`,
+    hour:startH,
+    endHour:endH,
+    color:'var(--ac)',
+    dateStr:ds,
+    linkedTaskId:String(taskId),
+    _planned:true,
+  });
+  try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}
+  t.startTime=String(startH).padStart(2,'0')+':'+String(startMins%60).padStart(2,'0');
+  t.endTime=String(Math.floor(endMins/60)).padStart(2,'0')+':'+String(endMins%60).padStart(2,'0');
+  if(!t.myDay)t.myDay=true; // implicit: blocking time means it's in today's plan
+  save('tasks');
+  toast({type:'success',title:`⏱ Blocked ${t.startTime}–${t.endTime}`,duration:2400});
+  closeModal();
+  if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();
+  if(curScreen==='myday'&&typeof renderMyDay==='function')renderMyDay();
+  if(curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+}
+
 async function aiTodaysPlan(){
   const today=_todayStr;
   const tasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay));
@@ -10723,6 +11141,15 @@ function renderCommandCenter(){
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
     <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
+    ${(function(){
+      // Capacity tile — only visible on All Hats / Personal where today's tasks live.
+      if(hat==='cf'||hat==='lsi')return '';
+      const c=_dayCapacityCheck();
+      if(!c.taskCount)return '';
+      const cColor=c.deltaMins>15?'#ef4444':c.deltaMins<-15?'#10b981':'#f59e0b';
+      const cVerdict=c.deltaMins>15?'over':c.deltaMins<-15?'on track':'tight';
+      return `<div class="cd" style="padding:12px;text-align:center;border-left:3px solid ${cColor};cursor:pointer" onclick="_openCapacityDetail()" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) vs ${_fmtHm(c.freeMins)} free in working hours — click for details"><div style="font-size:18px;font-weight:750;color:${cColor};line-height:1">${_fmtHm(c.plannedMins)}/${_fmtHm(c.freeMins)}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Capacity · ${cVerdict}</div></div>`;
+    })()}
     ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
   </div>
 
@@ -13838,21 +14265,29 @@ async function deleteCalEvent(id){
   renderCal();
 }
 function blockTaskTime(taskId){
+  // New behaviour: show today's free slots so the user can one-click a time
+  // window. Falls back to the legacy "open a blank Calendar event modal" flow
+  // when openTimeBlockPicker isn't available or when the slot picker comes up
+  // empty AND the user wants to manually pick a different day.
+  if(typeof openTimeBlockPicker==='function'){
+    openTimeBlockPicker(taskId);
+    return;
+  }
+  _legacyBlockTaskTime(taskId);
+}
+function _legacyBlockTaskTime(taskId){
   const t=D.tasks.find(x=>x.id===taskId);
   if(!t)return;
-  // Determine best day: use task due date if available, else today
   const today=new Date();
-  let prefillDay=(today.getDay()+6)%7; // 0=Mon
+  let prefillDay=(today.getDay()+6)%7;
   let prefillDateStr=null;
   if(t.due&&t.due!=='No date'){
-    // Try to parse due date
     const parsed=new Date(t.due+', '+today.getFullYear());
     if(!isNaN(parsed)){
       prefillDay=(parsed.getDay()+6)%7;
       prefillDateStr=parsed.toISOString().split('T')[0];
     }
   }
-  // Default start hour: 9 AM, duration based on estimatedMins
   const prefillHour=9;
   const durationMins=t.estimatedMins||60;
   openNewCalEventModal(prefillDay,prefillHour,t.title,durationMins,prefillDateStr);
@@ -15872,7 +16307,7 @@ function renderMyDay(){
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
 $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">☀️ My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
-<div id="md-p" style="display:${_mdSec==='p'?'':'none'}"><div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Auto-assign start times to My Day tasks based on estimated duration">🗓 Schedule My Day</button></div>
+<div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:10px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
