@@ -205,13 +205,27 @@ async function upsertOpportunitiesForUser(
     }
   });
 
+  // Derive {status, wonAt, lostAt} from the standard stage name so terminal-
+  // stage rows correctly count as won/lost rather than open. The client's
+  // stage button does the same flip — keeping these in sync means a row
+  // synced as "Closed Won" lands as status='won' on the first pull.
+  const deriveStatus = (stage: string | null | undefined) => {
+    const s = (stage || '').toLowerCase();
+    if (s === 'closed won') return { status: 'won' as const, wonAt: new Date().toISOString(), lostAt: undefined };
+    if (s === 'closed lost') return { status: 'lost' as const, wonAt: undefined, lostAt: new Date().toISOString() };
+    return { status: 'open' as const, wonAt: undefined, lostAt: undefined };
+  };
+
   let created = 0, updated = 0;
   const nowISO = new Date().toISOString();
   for (const p of pulled) {
     const existingIdx = idxByExt.get(String(p.externalId));
     if (existingIdx != null) {
       const ex = opps[existingIdx];
-      // Update source-owned fields, preserve user-owned (notes, linkedTaskIds, status overrides).
+      // Only re-derive status when the incoming stage actually changed; this
+      // preserves a user who manually flipped status without changing stage.
+      const stageChanged = p.stage && p.stage !== ex.stage;
+      const status = stageChanged ? deriveStatus(p.stage) : { status: ex.status, wonAt: ex.wonAt, lostAt: ex.lostAt };
       opps[existingIdx] = {
         ...ex,
         name: p.name || ex.name,
@@ -222,13 +236,17 @@ async function upsertOpportunitiesForUser(
         closeDate: p.closeDate ?? ex.closeDate ?? '',
         owner: p.owner ?? ex.owner ?? '',
         contact: p.contact ?? ex.contact ?? '',
+        notes: p.notes ?? ex.notes ?? '',
         externalUrl: p.externalUrl ?? ex.externalUrl ?? null,
+        status: status.status,
+        wonAt: status.wonAt,
+        lostAt: status.lostAt,
         updatedAt: nowISO,
       };
       updated++;
     } else {
-      // New: pick an id that doesn't collide with existing.
       const newId = Date.now() * 1000 + Math.floor(Math.random() * 1000) + created;
+      const status = deriveStatus(p.stage);
       opps.push({
         id: newId,
         name: p.name,
@@ -239,8 +257,10 @@ async function upsertOpportunitiesForUser(
         closeDate: p.closeDate || '',
         owner: p.owner || '',
         contact: p.contact || '',
-        notes: '',
-        status: 'open',
+        notes: p.notes || '',
+        status: status.status,
+        wonAt: status.wonAt,
+        lostAt: status.lostAt,
         linkedTaskIds: [],
         source: 'smartsheet',
         sourceConfigId,
