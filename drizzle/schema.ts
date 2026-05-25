@@ -881,3 +881,36 @@ export const timeEntries = mysqlTable('time_entries', {
 }));
 export type TimeEntry = typeof timeEntries.$inferSelect;
 export type InsertTimeEntry = typeof timeEntries.$inferInsert;
+
+// ─── Custom Fields (migration 0039) ────────────────────────────────────────
+// Per-project field definitions + per-task values. Field types: 'text' |
+// 'number' | 'select' | 'date'. For 'select' the options column holds a
+// JSON array of allowed values. Values are always stored as text and
+// coerced at render time.
+export const projectCustomFieldDefs = mysqlTable('project_custom_field_defs', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  projectId: varchar('projectId', { length: 40 }).notNull(),
+  name: varchar('name', { length: 128 }).notNull(),
+  type: varchar('type', { length: 16 }).default('text').notNull(),
+  options: mediumtext('options'),
+  sortOrder: int('sortOrder').default(0).notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUserProj: index('idx_pcfd_user_proj').on(t.userId, t.projectId),
+}));
+export type ProjectCustomFieldDef = typeof projectCustomFieldDefs.$inferSelect;
+
+export const taskCustomFieldValues = mysqlTable('task_custom_field_values', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  taskId: varchar('taskId', { length: 40 }).notNull(),
+  fieldId: int('fieldId').notNull(),
+  value: mediumtext('value'),
+  updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  idxUserTask: index('idx_tcfv_user_task').on(t.userId, t.taskId),
+  idxField: index('idx_tcfv_field').on(t.fieldId),
+  uqTaskField: unique('uq_tcfv_task_field').on(t.userId, t.taskId, t.fieldId),
+}));
+export type TaskCustomFieldValue = typeof taskCustomFieldValues.$inferSelect;

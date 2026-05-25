@@ -274,6 +274,13 @@
       "when": 1780300000000,
       "tag": "0038_pending_status",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "5",
+      "when": 1780350000000,
+      "tag": "0039_custom_fields",
+      "breakpoints": true
     }
   ]
 }

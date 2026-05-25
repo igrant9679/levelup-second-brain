@@ -2696,6 +2696,10 @@ function openDrawer(type,item){
   // Fire-and-forget: failure leaves the line blank, never blocks the drawer.
   if(type==='task' && item?.id){
     setTimeout(()=>_hydrateTaskActuals(item),0);
+    setTimeout(()=>_hydrateTaskCustomFields(item),0);
+  }
+  if(type==='project' && item?.id){
+    setTimeout(()=>_hydrateProjectCustomFieldsList(item.id),0);
   }
   // Hydrate the chip-based Linked Items picker for task drawers. Inline
   // <script> tags inside innerHTML don't execute, so we have to do this here.
@@ -2925,6 +2929,13 @@ function renderDrawer(type,item){
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
+    <div class="field" style="margin-top:14px">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>Custom Fields</span>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openCustomFieldEditor(${item.id})">+ Add field</button>
+      </label>
+      <div id="proj-custom-fields-list" style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;font-size:11px;color:var(--t3)">Loading…</div>
+    </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('project',${item.id})">Save</button>
     <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${item.id})">🧩 AI Suggest Tasks</button>
@@ -10675,6 +10686,139 @@ Tone: factual, exec-ready, no fluff. Reference real task titles. No more than 25
   }catch(e){
     modal.innerHTML=`<div style="padding:14px;max-width:480px"><div style="color:var(--red);font-size:11px;margin-bottom:10px">Generation failed: ${esc(e.message||String(e))}</div><button class="btn" onclick="closeModal()">Close</button></div>`;
   }
+}
+
+// ─── Custom Fields (per-project field defs + per-task values) ──────────────
+// Phase-1 scope: text / number / select / date types. Field defs live in
+// project_custom_field_defs; values in task_custom_field_values. Server
+// router exposes CRUD; client lazily loads + renders inline in the project
+// edit drawer (manage) and task drawer (set values).
+
+async function _hydrateProjectCustomFieldsList(pid){
+  const host=document.getElementById('proj-custom-fields-list');
+  if(!host)return;
+  try{
+    const defs=await _trpc('customFields.listForProject',{projectId:String(pid)},'query');
+    if(!defs.length){host.innerHTML='<em>No custom fields defined for this project yet. Click "+ Add field" to create one.</em>';return;}
+    host.innerHTML=defs.map(f=>{
+      const opts=f.options?(()=>{try{return JSON.parse(f.options);}catch{return [];}})():null;
+      const optLabel=Array.isArray(opts)&&opts.length?` · options: ${opts.join(' / ')}`:'';
+      return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
+        <span style="font-size:11px;font-weight:500;flex:1">${esc(f.name)}</span>
+        <span style="font-size:9px;color:var(--t3)">${esc(f.type)}${esc(optLabel)}</span>
+        <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="_editCustomField(${f.id},${pid})" title="Edit">✎</button>
+        <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px;color:var(--red)" onclick="_deleteCustomField(${f.id},${pid})" title="Delete">✕</button>
+      </div>`;
+    }).join('');
+  }catch(e){host.innerHTML=`<span style="color:var(--red)">Failed: ${esc(e.message||String(e))}</span>`;}
+}
+
+function _openCustomFieldEditor(pid,existing){
+  const modalBg=document.getElementById('modal-capture');
+  const modal=document.getElementById('modal-content');
+  if(!modalBg||!modal)return;
+  const f=existing||{name:'',type:'text',options:''};
+  modal.innerHTML=`<div style="padding:14px;max-width:420px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">${existing?'Edit':'New'} custom field</div>
+    <div class="field"><label>Name</label><input id="cf-name" class="inp" value="${esc(f.name)}" placeholder="e.g. Sprint, Stakeholder, Risk Level"></div>
+    <div class="field"><label>Type</label>
+      <select id="cf-type" class="inp" onchange="document.getElementById('cf-opts-row').style.display=this.value==='select'?'':'none'">
+        ${['text','number','select','date'].map(v=>`<option value="${v}" ${f.type===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" id="cf-opts-row" style="display:${f.type==='select'?'':'none'}">
+      <label>Options (comma-separated)</label>
+      <input id="cf-opts" class="inp" value="${esc(Array.isArray(f.options)?f.options.join(', '):(f.options||''))}" placeholder="e.g. Low, Medium, High">
+    </div>
+    <div class="dr-actions" style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="_saveCustomField(${pid},${existing?existing.id:'null'})">Save</button>
+    </div>
+  </div>`;
+  modalBg.classList.add('show');
+}
+
+async function _saveCustomField(pid,fieldId){
+  const name=document.getElementById('cf-name').value.trim();
+  const type=document.getElementById('cf-type').value;
+  const opts=document.getElementById('cf-opts').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!name){toast({type:'warn',title:'Field name required'});return;}
+  try{
+    if(fieldId){
+      await _trpc('customFields.updateField',{fieldId,name,type,options:type==='select'?opts:null},'mutation');
+    }else{
+      await _trpc('customFields.createField',{projectId:String(pid),name,type,options:type==='select'?opts:undefined},'mutation');
+    }
+    closeModal();
+    toast({type:'success',title:'Field saved',duration:1500});
+    await _hydrateProjectCustomFieldsList(pid);
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+
+async function _editCustomField(fieldId,pid){
+  try{
+    const defs=await _trpc('customFields.listForProject',{projectId:String(pid)},'query');
+    const f=defs.find(x=>x.id===fieldId);
+    if(!f)return;
+    const opts=f.options?(()=>{try{return JSON.parse(f.options);}catch{return [];}})():null;
+    _openCustomFieldEditor(pid,{id:f.id,name:f.name,type:f.type,options:opts});
+  }catch(e){toast({type:'warn',title:'Load failed',msg:e.message||String(e)});}
+}
+
+async function _deleteCustomField(fieldId,pid){
+  if(!confirm('Delete this custom field and ALL its values across every task in this project? Cannot be undone.'))return;
+  try{
+    await _trpc('customFields.deleteField',{fieldId},'mutation');
+    toast({type:'success',title:'Field deleted',duration:1500});
+    await _hydrateProjectCustomFieldsList(pid);
+  }catch(e){toast({type:'warn',title:'Delete failed',msg:e.message||String(e)});}
+}
+
+// Task drawer: render custom-field inputs for the task's project (if any).
+async function _hydrateTaskCustomFields(t){
+  if(!t||!t.projectId)return;
+  try{
+    const defs=await _trpc('customFields.listForProject',{projectId:String(t.projectId)},'query');
+    if(!defs.length)return;
+    const taskId=String(t.taskId||t.id);
+    const values=await _trpc('customFields.getValuesForTask',{taskId},'query');
+    // Insert section into the drawer right before .dr-actions
+    const drawer=document.getElementById('drawer-content');
+    const acts=drawer.querySelector('.dr-actions');
+    if(!acts)return;
+    const section=document.createElement('div');
+    section.className='field';
+    section.style.cssText='margin-top:14px;padding-top:10px;border-top:1px dashed var(--bd1)';
+    section.innerHTML=`<label style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block">Custom Fields <span style="font-size:10px;color:var(--t3);font-weight:400">(from project)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${defs.map(f=>{
+        const v=values[String(f.id)]||'';
+        const opts=f.options?(()=>{try{return JSON.parse(f.options);}catch{return [];}})():[];
+        let input='';
+        if(f.type==='select'){
+          input=`<select class="inp" data-cf-id="${f.id}" data-cf-task="${esc(taskId)}" style="font-size:11px;height:28px" onchange="_setCustomFieldValue(this)">
+            <option value="">—</option>
+            ${(opts||[]).map(o=>`<option value="${esc(o)}" ${v===o?'selected':''}>${esc(o)}</option>`).join('')}
+          </select>`;
+        }else if(f.type==='number'){
+          input=`<input class="inp" type="number" value="${esc(v)}" data-cf-id="${f.id}" data-cf-task="${esc(taskId)}" style="font-size:11px;height:28px" onchange="_setCustomFieldValue(this)">`;
+        }else if(f.type==='date'){
+          input=`<input class="inp" type="date" value="${esc(v)}" data-cf-id="${f.id}" data-cf-task="${esc(taskId)}" style="font-size:11px;height:28px" onchange="_setCustomFieldValue(this)">`;
+        }else{
+          input=`<input class="inp" value="${esc(v)}" data-cf-id="${f.id}" data-cf-task="${esc(taskId)}" style="font-size:11px;height:28px" onblur="_setCustomFieldValue(this)">`;
+        }
+        return `<div><div style="font-size:10px;color:var(--t2);margin-bottom:3px">${esc(f.name)}</div>${input}</div>`;
+      }).join('')}</div>`;
+    acts.parentNode.insertBefore(section,acts);
+  }catch{ /* silent — custom fields are optional */ }
+}
+
+async function _setCustomFieldValue(el){
+  const fieldId=parseInt(el.getAttribute('data-cf-id'),10);
+  const taskId=el.getAttribute('data-cf-task');
+  const value=el.value||null;
+  try{
+    await _trpc('customFields.setValue',{taskId,fieldId,value},'mutation');
+  }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
 }
 
 // ─── Project Edit Drawer: Tasks section ────────────────────────────────────

@@ -28,6 +28,7 @@ import { timeEntriesRouter } from "./routers/timeEntries";
 import { taskMigrationsRouter } from "./routers/taskMigrations";
 import { dailyDigestRouter } from "./routers/dailyDigest";
 import { weeklyReviewRouter } from "./routers/weeklyReview";
+import { customFieldsRouter } from "./routers/customFields";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -95,6 +96,7 @@ export const appRouter = router({
   taskMigrations: taskMigrationsRouter,
   dailyDigest: dailyDigestRouter,
   weeklyReview: weeklyReviewRouter,
+  customFields: customFieldsRouter,
 });
 
 export type AppRouter = typeof appRouter;
