@@ -1905,35 +1905,47 @@ async function _niftyInspectRows(){
       return;
     }
     const fmt=(v)=>{if(v==null)return '<span style="color:var(--t3)">null</span>';if(v===true)return '<span style="color:#16a34a;font-weight:600">true</span>';if(v===false)return '<span style="color:#ef4444">false</span>';return esc(String(v));};
-    const html=`<div style="max-width:1100px;padding:14px;max-height:80vh;overflow:auto">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    // Stash rows on window so per-row buttons can access them without
+    // re-serializing into onclick attributes (which breaks on quotes in raw).
+    window._niftyInspectRows=rows;
+    const ids=rows.map(r=>r.id).join(',');
+    const html=`<div style="max-width:1200px;padding:14px;max-height:90vh;overflow:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
         <div style="font-size:14px;font-weight:600">🔎 Nifty rows — LevelUp vs Nifty state${q?` · matching "${esc(q)}"`:''}</div>
-        <button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('nifty-inspect-ov')?.remove()">Close</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-s" style="font-size:11px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyHideAllShown([${ids}])">🗑 Hide all ${rows.length} shown</button>
+          <button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('nifty-inspect-ov')?.remove()">Close</button>
+        </div>
       </div>
-      <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Showing ${rows.length} row(s). The puller drops a row if <code>nifty_completed</code>=true OR <code>nifty_completed_at</code> is before today OR (looks-done AND no <code>completed_at</code>). If you see rows that you remember completing but all four "drop" signals look open, paste me one row so we can broaden the filter to include that workflow.</p>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Showing ${rows.length} row(s). Click <strong>Raw</strong> to view the full JSON Nifty returned for that task. Click <strong>Hide</strong> to mark that row removed in LevelUp immediately. Use <strong>Hide all shown</strong> for a bulk cleanup.</p>
       <div style="overflow-x:auto;font-size:10px;line-height:1.5">
         <table style="border-collapse:collapse;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace">
           <thead><tr style="background:var(--s3);text-align:left">
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">Title</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">LU status</th>
-            <th style="padding:6px;border-bottom:1px solid var(--bd2)">LU completedAt</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">Nifty completed</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">Nifty completed_at</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">archived</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">status.name</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">status.category</th>
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">task_group</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">task_group_id</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">Actions</th>
           </tr></thead>
-          <tbody>${rows.map(r=>`<tr style="border-bottom:1px solid var(--bd1)">
+          <tbody>${rows.map((r,i)=>`<tr id="nir-${r.id}" style="border-bottom:1px solid var(--bd1)">
             <td style="padding:6px;max-width:240px;word-wrap:break-word"><a href="${esc(r.nifty_url||'#')}" target="_blank" style="color:var(--ac)">${esc(r.title||'(untitled)')}</a></td>
             <td style="padding:6px">${fmt(r.levelup_status)}</td>
-            <td style="padding:6px">${fmt(r.levelup_completedAt)}</td>
             <td style="padding:6px">${fmt(r.nifty_completed)}</td>
             <td style="padding:6px">${fmt(r.nifty_completed_at)}</td>
             <td style="padding:6px">${fmt(r.nifty_archived)}</td>
             <td style="padding:6px">${fmt(r.nifty_status_name)}</td>
             <td style="padding:6px">${fmt(r.nifty_status_category)}</td>
             <td style="padding:6px">${fmt(r.nifty_task_group)}</td>
+            <td style="padding:6px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${fmt(r.nifty_task_group_id)}</td>
+            <td style="padding:6px;white-space:nowrap">
+              <button class="btn btn-s" style="font-size:9px;padding:2px 6px" onclick="_niftyShowRaw(${i})">Raw</button>
+              <button class="btn btn-s" style="font-size:9px;padding:2px 6px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyHideRow(${r.id})">Hide</button>
+            </td>
           </tr>`).join('')}</tbody>
         </table>
       </div>
@@ -1952,6 +1964,58 @@ async function _niftyInspectRows(){
     document.body.appendChild(ov);
   }catch(e){
     toast({type:'warn',title:'Inspect failed',msg:e.message||String(e)});
+  }
+}
+
+// Show the full raw JSON Nifty returned for one inspect row. Lets us see
+// fields the adapter doesn't currently read (custom workflow states,
+// non-standard completion signals, etc).
+function _niftyShowRaw(idx){
+  const r=(window._niftyInspectRows||[])[idx];
+  if(!r){toast({type:'warn',title:'Row not found in cache'});return;}
+  let pretty=r.raw_json||'';
+  try{ pretty=JSON.stringify(JSON.parse(pretty),null,2); }catch(_){}
+  const ta=document.createElement('div');
+  ta.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:10001;display:flex;align-items:center;justify-content:center;padding:30px';
+  ta.onclick=(e)=>{ if(e.target===ta) ta.remove(); };
+  ta.innerHTML=`<div style="background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:10px;padding:14px;max-width:90vw;max-height:85vh;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:13px;font-weight:600">Raw Nifty JSON — ${esc(r.title||'(untitled)')}</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s" style="font-size:10px" onclick="navigator.clipboard.writeText(this.parentElement.parentElement.nextElementSibling.textContent).then(()=>this.textContent='✅ Copied')">📋 Copy</button>
+        <button class="btn btn-s" style="font-size:10px" onclick="this.closest('div[style*=fixed]').remove()">Close</button>
+      </div>
+    </div>
+    <pre style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:10px;line-height:1.5;overflow:auto;max-height:70vh;white-space:pre-wrap;word-wrap:break-word;font-family:ui-monospace,Menlo,Consolas,monospace">${esc(pretty)}</pre>
+  </div>`;
+  document.body.appendChild(ta);
+}
+
+// Hide one Nifty row immediately (stamp removedAt). The row vanishes from
+// the Tasks page and the inspect table.
+async function _niftyHideRow(id){
+  try{
+    const res=await _trpc('externalSources.niftyHideRows',{ids:[id]},'mutation');
+    document.getElementById('nir-'+id)?.remove();
+    toast({type:'success',title:`Hidden ${res.hidden} row`});
+    try{ await loadExternalTasks(); }catch(_){}
+  }catch(e){
+    toast({type:'warn',title:'Hide failed',msg:e.message||String(e)});
+  }
+}
+
+// Bulk-hide every row currently shown in the inspect modal. Confirms first.
+async function _niftyHideAllShown(ids){
+  if(!ids.length){toast({type:'info',title:'Nothing to hide'});return;}
+  if(!confirm(`Hide all ${ids.length} Nifty rows shown?\n\nThey'll be marked removed in LevelUp and disappear from the Tasks page. Local notes/links survive (tombstoned after 72h if not re-pulled).\n\nProceed?`)) return;
+  try{
+    const res=await _trpc('externalSources.niftyHideRows',{ids},'mutation');
+    toast({type:'success',title:`✅ Hidden ${res.hidden} row(s)`});
+    document.getElementById('nifty-inspect-ov')?.remove();
+    try{ await loadExternalTasks(); }catch(_){}
+    try{ renderScreen('tasks'); }catch(_){}
+  }catch(e){
+    toast({type:'warn',title:'Bulk hide failed',msg:e.message||String(e)});
   }
 }
 

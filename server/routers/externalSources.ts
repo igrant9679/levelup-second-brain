@@ -634,10 +634,40 @@ export const externalSourcesRouter = router({
           nifty_status_name: status?.name ?? raw.status_name ?? null,
           nifty_status_category: status?.category ?? null,
           nifty_task_group: (raw.task_group as { name?: string })?.name ?? null,
+          nifty_task_group_id: (raw as { task_group_id?: string }).task_group_id ?? null,
           nifty_due_date: raw.due_date ?? null,
           nifty_url: raw.url ?? null,
+          // Full raw payload for diagnostic copy/paste. Tells us if Nifty
+          // is sending fields the adapter doesn't currently read.
+          raw_json: r.raw || null,
         };
       });
+    }),
+
+  /**
+   * Manually hide selected Nifty external_tasks rows by id. Stamps removedAt
+   * (instead of hard-deleting) so the tombstone reaper preserves local
+   * overrides after the grace period. Used by the inspect-rows modal's
+   * per-row Hide and "Hide all shown" buttons when the puller can't
+   * automatically detect that a task is done.
+   */
+  niftyHideRows: protectedProcedure
+    .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      let hidden = 0;
+      for (const id of input.ids) {
+        const updated = await db.update(externalTasks)
+          .set({ removedAt: sql`CURRENT_TIMESTAMP` })
+          .where(and(
+            eq(externalTasks.id, id),
+            eq(externalTasks.userId, ctx.user.id),
+            eq(externalTasks.source, 'nifty'),
+          ));
+        hidden++;
+        void updated;
+      }
+      return { hidden };
     }),
 
   /**
