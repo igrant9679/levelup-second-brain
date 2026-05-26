@@ -1013,36 +1013,42 @@ export const externalSourcesRouter = router({
         .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
         .limit(1);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
-      // Empirically discovered via niftyFetchTaskRaw: the writable
-      // completion field is `completed_on` (an ISO datetime). Setting
-      // it stamps `completed: true` + `completed_by` automatically.
-      // Setting `null` reopens. Confirmed against a known-completed
-      // Nifty task that exposed `completed_on: "2023-02-08T18:29:55.570Z"`.
-      const url = `https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`;
+      // Empirically discovered via niftyProbeCompletionWrites (build -41):
+      // the real Nifty completion endpoint is POST /tasks/{id}/complete
+      // with body { completed: true|false }. Returns 201 "Successfully
+      // changed task state" and stamps completed_on automatically.
+      //
+      // What DOESN'T work (these silently 200 without applying):
+      //   PUT /tasks/{id} with completed_on/completed_at/done/is_completed
+      // What returns 400:
+      //   PUT /tasks/{id} with completed:true (read-only field)
+      //   POST /tasks/{id}/complete with empty body
+      // What works on both top-level tasks AND subtasks: this one.
+      const url = `https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}/complete`;
       const headers = { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' };
-      const body = input.completed
-        ? { completed_on: new Date().toISOString() }
-        : { completed_on: null };
-      const putResp = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
-      if (!putResp.ok) {
-        const txt = (await putResp.text()).slice(0, 400);
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ completed: input.completed }),
+      });
+      if (!resp.ok) {
+        const txt = (await resp.text()).slice(0, 400);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `Nifty PUT /tasks/${input.externalId} failed: ${putResp.status} ${txt}`,
+          message: `Nifty POST /tasks/${input.externalId}/complete failed: ${resp.status} ${txt}`,
         });
       }
-      // Verify by re-reading. Nifty silently ignored unknown fields on
-      // earlier attempts (e.g. completed_at), returning 2xx without
-      // applying the change. Read-back confirms the field stuck.
-      const verifyResp = await fetch(url, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
+      // Verify by re-reading the task — paranoid check in case Nifty
+      // changes their endpoint behavior in the future.
+      const verifyUrl = `https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`;
+      const verifyResp = await fetch(verifyUrl, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
       if (verifyResp.ok) {
-        const verifyTxt = await verifyResp.text();
         try {
-          const verifyTask = JSON.parse(verifyTxt) as { completed?: boolean };
+          const verifyTask = JSON.parse(await verifyResp.text()) as { completed?: boolean };
           if (verifyTask.completed !== input.completed) {
             throw new TRPCError({
               code: 'INTERNAL_SERVER_ERROR',
-              message: `Nifty accepted PUT (200) but did not flip completed flag. Got completed=${verifyTask.completed}, wanted ${input.completed}.`,
+              message: `Nifty accepted POST (${resp.status}) but did not flip completed flag. Got completed=${verifyTask.completed}, wanted ${input.completed}.`,
             });
           }
         } catch (e) {

@@ -8611,29 +8611,24 @@ function _openExternalAnnotateModal(source,externalId){
     ${(function(){
       // Subtask awareness — if this row's parentExternalId points at another
       // tracked external task, surface a "view parent" breadcrumb at the top
-      // of the modal AND swap the "Mark Done in source" button for a
-      // notice + Hide-in-LevelUp, because Nifty's subtask completion API
-      // doesn't accept the standard PUT body shapes (silently returns 200
-      // without flipping the flag).
+      // of the modal. Completion writes ARE supported for Nifty subtasks
+      // (via POST /tasks/{id}/complete) so the Mark Done button stays.
       const pid=et.parentExternalId||null;
       if(!pid)return '';
       const parent=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===source);
       if(!parent)return '';
-      return `<div style="padding:6px 8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:4px;margin-bottom:8px;font-size:11px;display:flex;flex-direction:column;gap:4px">
-        <div>↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${source}','${esc(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a></div>
-        <div style="color:var(--t3);font-size:10px">${sourceLabel} subtask completion isn't writable via the API on this workspace — use "Hide in LevelUp" below, or check it off in ${sourceLabel} directly.</div>
+      return `<div style="padding:6px 8px;background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.30);border-radius:4px;margin-bottom:8px;font-size:11px">
+        ↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${source}','${esc(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a>
       </div>`;
     })()}
     <!-- Top action row: completion toggle pushes to source; Hide in
-         LevelUp marks the row removed locally (use when source isn't
-         reporting completion correctly and you don't want to fix it). -->
+         LevelUp marks the row removed locally (as a fallback when the
+         source rejects or doesn't accept the change). -->
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      ${et.parentExternalId
-        ?'' // subtask: completion-in-source button hidden (it doesn't work)
-        :(et.status==='Done'
-          ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}. Pushes completed=false back to the source.">↺ Reopen in ${sourceLabel}</button>`
-          :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}. Pushes completed=true back to the source.">✓ Mark Done in ${sourceLabel}</button>`)}
-      <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source. Use when the source can't or shouldn't reflect completion.">🚫 Hide in LevelUp</button>
+      ${et.status==='Done'
+        ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}.">↺ Reopen in ${sourceLabel}</button>`
+        :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}.">✓ Mark Done in ${sourceLabel}</button>`}
+      <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source.">🚫 Hide in LevelUp</button>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
