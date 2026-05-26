@@ -6909,11 +6909,36 @@ function _renderSourceFilterChips(){
   // for users who haven't connected them.
   const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${key}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
   const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
-  return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0">
+  // CF fold-all chip — only appears when there's at least one CF
+  // project group on the Tasks list (i.e. at least one orphan-subtask
+  // row). Toggle label flips based on whether ANY CF project is
+  // currently collapsed: shows "Fold all" when everything is open,
+  // "Expand all" when at least one is folded.
+  const cfFoldChip=(function(){
+    if(!cfCount)return '';
+    const labels=new Set();
+    ext.forEach(et=>{
+      if(et.source!=='smartsheet'||!et.projectLabel||(et.override&&et.override.tombstoned))return;
+      try{const k=JSON.parse(et.raw||'{}').kind;if(k==='subtask')labels.add(String(et.projectLabel).toLowerCase());}catch(_){}
+    });
+    if(!labels.size)return '';
+    const collapsedNow=new Set(((D.prefs&&D.prefs.cfCollapsedProjects)||[]).map(s=>String(s).toLowerCase()));
+    const collapsedCount=Array.from(labels).filter(l=>collapsedNow.has(l)).length;
+    const totalLabels=labels.size;
+    const allCollapsed=collapsedCount===totalLabels && totalLabels>0;
+    const anyCollapsed=collapsedCount>0;
+    let label, fn;
+    if(allCollapsed){ label='⤢ Expand all CF'; fn='_expandAllCfProjects()'; }
+    else if(anyCollapsed){ label=`⤢ Expand all (${collapsedCount}/${totalLabels} folded)`; fn='_expandAllCfProjects()'; }
+    else { label='⤡ Fold all CF'; fn='_foldAllCfProjects()'; }
+    return `<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:transparent;color:#1f6feb;border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
+  })();
+  return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap">
     <span style="font-size:9px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
     ${chip(true,f.personal,'var(--ac)','Personal',personalCount,'personal')}
     ${cfCount?chip(true,f.smartsheet,'#1f6feb','CF',cfCount,'smartsheet'):''}
     ${lsiCount?chip(true,f.nifty,'#9333ea','LSI',lsiCount,'nifty'):''}
+    ${cfFoldChip}
   </div>`;
 }
 function setTaskTabIdx(idx){
