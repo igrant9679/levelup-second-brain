@@ -424,6 +424,7 @@ export const externalSourcesRouter = router({
       label: z.string().max(128).optional(),
       filterByAssignee: z.boolean().default(true),
       defaultProjectId: z.string().max(40).nullable().optional(),
+      includeSubtasks: z.boolean().default(true),
       mirrorAsProject: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -434,12 +435,14 @@ export const externalSourcesRouter = router({
         label: input.label ?? null,
         filterByAssignee: input.filterByAssignee ? 1 : 0,
         defaultProjectId: input.defaultProjectId ?? null,
+        includeSubtasks: input.includeSubtasks ? 1 : 0,
         enabled: 1,
       }).onDuplicateKeyUpdate({
         set: {
           label: input.label ?? null,
           filterByAssignee: input.filterByAssignee ? 1 : 0,
           defaultProjectId: input.defaultProjectId ?? null,
+          includeSubtasks: input.includeSubtasks ? 1 : 0,
           enabled: 1,
         },
       });
@@ -452,6 +455,7 @@ export const externalSourcesRouter = router({
       label: z.string().max(128).optional(),
       filterByAssignee: z.boolean().optional(),
       defaultProjectId: z.string().max(40).nullable().optional(),
+      includeSubtasks: z.boolean().optional(),
       enabled: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -460,6 +464,7 @@ export const externalSourcesRouter = router({
       if (input.label !== undefined) set.label = input.label;
       if (input.filterByAssignee !== undefined) set.filterByAssignee = input.filterByAssignee ? 1 : 0;
       if (input.defaultProjectId !== undefined) set.defaultProjectId = input.defaultProjectId;
+      if (input.includeSubtasks !== undefined) set.includeSubtasks = input.includeSubtasks ? 1 : 0;
       if (input.enabled !== undefined) set.enabled = input.enabled ? 1 : 0;
       await db.update(niftyWatchedProjects).set(set)
         .where(and(eq(niftyWatchedProjects.id, input.id), eq(niftyWatchedProjects.userId, ctx.user.id)));

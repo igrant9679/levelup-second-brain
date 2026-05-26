@@ -1643,6 +1643,13 @@ function _renderWatchList(source,watches){
     const label=w.label||(source==='smartsheet'?w.sheetId:w.projectId);
     const matchSummary=source==='smartsheet'?`${esc(w.ownerColumn)} ${w.matchMode} "${esc(w.ownerMatchValue)}"`:`${w.filterByAssignee?'My tasks only':'All tasks'}`;
     const removeFn=source==='smartsheet'?'_extRemoveSmartsheetWatch':'_extRemoveNiftyWatch';
+    // For Nifty watches, show a "Sync subtasks" toggle row underneath
+    // the match summary so the user can flip noise reduction without
+    // editing JSON in the console.
+    const subtaskToggle=source==='nifty'?`<label style="display:flex;align-items:center;gap:4px;color:var(--t3);font-size:9px;margin-top:2px;cursor:pointer" title="When OFF, subtasks (Nifty rows whose 'task' parent is set) are dropped at pull time — useful when subtasks duplicate parent titles and clutter the Tasks page.">
+      <input type="checkbox" ${(w.includeSubtasks!==0)?'checked':''} onchange="_extToggleNiftySubtasks(${w.id},this.checked)" style="margin:0">
+      Sync subtasks
+    </label>`:'';
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-left:3px solid ${stripe};border-radius:4px;font-size:10px">
       <div style="flex:1;overflow:hidden">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:1px">
@@ -1650,10 +1657,25 @@ function _renderWatchList(source,watches){
           ${pill}
         </div>
         <div style="color:var(--t3);font-size:9px">${matchSummary}</div>
+        ${subtaskToggle}
       </div>
       <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" onclick="${removeFn}(${w.id})" title="Remove">✕</button>
     </div>`;
   }).join('')}</div>`;
+}
+
+// Flip the per-watch "Sync subtasks" toggle. When OFF the next pull
+// drops subtask rows; existing tracked subtasks get stamped removedAt
+// by the vanish logic and disappear from the Tasks view.
+async function _extToggleNiftySubtasks(watchId,includeSubtasks){
+  try{
+    await _trpc('externalSources.updateNiftyWatch',{id:watchId,includeSubtasks},'mutation');
+    toast({type:'info',title:`Subtask sync ${includeSubtasks?'ON':'OFF'} — running pull now…`,duration:1500});
+    await refreshExternalTasksNow();
+    await _hydrateExternalSourcesPanel();
+  }catch(e){
+    toast({type:'warn',title:'Update failed',msg:e.message||String(e)});
+  }
 }
 
 async function _extSetToken(source){

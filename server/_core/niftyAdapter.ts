@@ -73,9 +73,14 @@ interface NiftyTask {
   due_date?: string;
   start_date?: string;
   assigned_to?: string[]; // member IDs
+  // Nifty subtask linkage: in real /tasks responses the parent reference
+  // is `task` (a task id string). `parent_task_id` is a legacy alias we
+  // keep for tolerance — empirically Nifty returns `task`.
+  task?: string | null;
   parent_task_id?: string | null;
   url?: string;
   project_id?: string;
+  project?: string;
   // Nifty's response shape varies by endpoint; we tolerate a few aliases:
   status_name?: string;
   dueDate?: string;
@@ -206,11 +211,23 @@ export async function pullNiftyProject(
   todayStartUtc.setUTCHours(0, 0, 0, 0);
   const todayStartMs = todayStartUtc.getTime();
 
+  // Real parent ref is in `task`, not `parent_task_id`. Tolerate either.
+  const parentOf = (t: NiftyTask): string | null => t.task ?? t.parent_task_id ?? null;
+  const includeSubtasks = cfg.includeSubtasks !== 0; // default 1 (on)
+
   const out: NiftyExternalTaskInput[] = [];
   let skippedHistorical = 0;
+  let skippedSubtasks = 0;
   for (const t of tasks) {
     if (cfg.filterByAssignee && myId) {
       if (!Array.isArray(t.assigned_to) || !t.assigned_to.includes(myId)) continue;
+    }
+    // Subtask filter — when the watch's "Sync subtasks" toggle is off,
+    // drop any task whose parent reference is set. Keeps top-level work
+    // visible without subtask clutter.
+    if (!includeSubtasks && parentOf(t)) {
+      skippedSubtasks++;
+      continue;
     }
     // Historical-completion test: trust the timestamp over the boolean.
     // Nifty's `completed` flag can be stale or false-for-archived even
@@ -257,12 +274,12 @@ export async function pullNiftyProject(
       startDate: t.start_date ?? null,
       assignee: cred.accountDisplayName ?? cred.accountEmail ?? null,
       projectLabel: cfg.label ?? null,
-      parentExternalId: t.parent_task_id ?? null,
+      parentExternalId: parentOf(t),
       raw: JSON.stringify(t),
     });
   }
-  if (skippedHistorical > 0) {
-    console.log(`[nifty] project ${cfg.projectId}: dropped ${skippedHistorical} historical-completion row(s); kept ${out.length}`);
+  if (skippedHistorical > 0 || skippedSubtasks > 0) {
+    console.log(`[nifty] project ${cfg.projectId}: dropped ${skippedHistorical} historical-completion + ${skippedSubtasks} subtask row(s); kept ${out.length}`);
   }
   return out;
 }

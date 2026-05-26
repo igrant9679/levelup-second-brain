@@ -760,6 +760,11 @@ export const niftyWatchedProjects = mysqlTable('nifty_watched_projects', {
   filterByAssignee: tinyint('filterByAssignee').default(1).notNull(),
   // Migration 0037: mirrors smartsheet_watched_sheets.defaultProjectId.
   defaultProjectId: varchar('defaultProjectId', { length: 40 }),
+  // Migration 0042: when 0, the puller drops any Nifty row whose `task`
+  // field is set (i.e. it's a subtask of another task). Default 1 keeps
+  // current behaviour — subtasks come in and render nested under parents
+  // in the Tasks view.
+  includeSubtasks: tinyint('includeSubtasks').default(1).notNull(),
   enabled: tinyint('enabled').default(1).notNull(),
   lastPulledAt: timestamp('lastPulledAt'),
   lastError: mediumtext('lastError'),

@@ -6662,10 +6662,39 @@ function renderTaskList(){
           _source:et.source,
           _url:et.externalUrl,
           _externalId:et.externalId,
+          _parentExternalId:et.parentExternalId||null,
           _override:ov,
           _readOnly:true,
         };
       });
+    // Subtask grouping: re-order the array so each subtask immediately
+    // follows its parent (when both are present in the same filter set).
+    // Keeps unrelated tasks in their original drag/sort order.
+    (function(){
+      const byExtId=new Map();
+      extShaped.forEach(t=>byExtId.set(t._externalId,t));
+      const parents=extShaped.filter(t=>!t._parentExternalId||!byExtId.has(t._parentExternalId));
+      const subsByParent=new Map();
+      extShaped.forEach(t=>{
+        if(t._parentExternalId&&byExtId.has(t._parentExternalId)){
+          if(!subsByParent.has(t._parentExternalId))subsByParent.set(t._parentExternalId,[]);
+          subsByParent.get(t._parentExternalId).push(t);
+        }
+      });
+      const grouped=[];
+      const seen=new Set();
+      const pushWithSubs=(t)=>{
+        if(seen.has(t._externalId))return;
+        seen.add(t._externalId);
+        grouped.push(t);
+        const subs=subsByParent.get(t._externalId)||[];
+        subs.forEach(pushWithSubs);
+      };
+      parents.forEach(pushWithSubs);
+      // Replace contents in place (extShaped is const but we mutate the array).
+      extShaped.length=0;
+      grouped.forEach(t=>extShaped.push(t));
+    })();
     const tabLabel=_taskTabDefs&&_taskTabDefs[_taskFilterTabIdx]?_taskTabDefs[_taskFilterTabIdx].label:'';
     let extFiltered=extShaped;
     if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.status!=='Done'&&(t.due===today||(t._override&&t._override.myDay)));
@@ -6808,13 +6837,28 @@ function renderTaskList(){
       // Use the original/raw status label for display when status was
       // normalised to 'Done' (e.g. show "Closed" if the source said so).
       const statusLabel=t._rawStatus||t.status||'';
-      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);cursor:pointer;${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
+      // Subtask detection — if parentExternalId points at another tracked
+      // external task, render this card visually nested under it with an
+      // indent + dotted left border + breadcrumb pill. Indent is applied
+      // via inline margin-left so the row still flows in document order
+      // (no risk of nested DOM breaking drag-reorder).
+      const pid=t._parentExternalId||t.parentExternalId||null;
+      let parentRow=null;
+      if(pid){
+        parentRow=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===t._source);
+      }
+      const isSubtask=!!parentRow;
+      const indent=isSubtask?'margin-left:24px;border-left:2px dotted var(--bd2);padding-left:8px':'';
+      const breadcrumb=isSubtask
+        ?`<span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`
+        :'';
+      return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
         <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
           <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${esc(t._source)}','${esc(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
           <div style="font-size:9px">${_extSourceBadge(t._source)}</div>
         </div>
         <div class="tlc-body">
-          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
+          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''} ${breadcrumb}</div>
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
@@ -7237,6 +7281,7 @@ function renderTaskGantt(){
         _source:et.source,
         _url:et.externalUrl,
         _externalId:et.externalId,
+        _parentExternalId:et.parentExternalId||null,
       });
     });
   }
@@ -8563,13 +8608,31 @@ function _openExternalAnnotateModal(source,externalId){
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:10px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
     <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
+    ${(function(){
+      // Subtask awareness — if this row's parentExternalId points at another
+      // tracked external task, surface a "view parent" breadcrumb at the top
+      // of the modal AND swap the "Mark Done in source" button for a
+      // notice + Hide-in-LevelUp, because Nifty's subtask completion API
+      // doesn't accept the standard PUT body shapes (silently returns 200
+      // without flipping the flag).
+      const pid=et.parentExternalId||null;
+      if(!pid)return '';
+      const parent=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===source);
+      if(!parent)return '';
+      return `<div style="padding:6px 8px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.30);border-radius:4px;margin-bottom:8px;font-size:11px;display:flex;flex-direction:column;gap:4px">
+        <div>↳ <strong>Subtask</strong> of <a href="javascript:void(0)" onclick="closeModal();setTimeout(()=>_openExternalAnnotateModal('${source}','${esc(pid)}'),50)" style="color:var(--ac);text-decoration:none">${esc(parent.title||'(untitled parent)')}</a></div>
+        <div style="color:var(--t3);font-size:10px">${sourceLabel} subtask completion isn't writable via the API on this workspace — use "Hide in LevelUp" below, or check it off in ${sourceLabel} directly.</div>
+      </div>`;
+    })()}
     <!-- Top action row: completion toggle pushes to source; Hide in
          LevelUp marks the row removed locally (use when source isn't
          reporting completion correctly and you don't want to fix it). -->
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      ${et.status==='Done'
-        ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}. Pushes completed=false back to the source.">↺ Reopen in ${sourceLabel}</button>`
-        :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}. Pushes completed=true back to the source.">✓ Mark Done in ${sourceLabel}</button>`}
+      ${et.parentExternalId
+        ?'' // subtask: completion-in-source button hidden (it doesn't work)
+        :(et.status==='Done'
+          ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}. Pushes completed=false back to the source.">↺ Reopen in ${sourceLabel}</button>`
+          :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}. Pushes completed=true back to the source.">✓ Mark Done in ${sourceLabel}</button>`)}
       <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source. Use when the source can't or shouldn't reflect completion.">🚫 Hide in LevelUp</button>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
