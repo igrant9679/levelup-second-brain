@@ -207,20 +207,31 @@ export async function pullNiftyProject(
   const todayStartMs = todayStartUtc.getTime();
 
   const out: NiftyExternalTaskInput[] = [];
+  let skippedHistorical = 0;
   for (const t of tasks) {
     if (cfg.filterByAssignee && myId) {
       if (!Array.isArray(t.assigned_to) || !t.assigned_to.includes(myId)) continue;
     }
-    const looksDone = isDoneStatus(t) || t.completed === true;
-    if (looksDone) {
-      const compAtStr = t.completed_at ?? null;
-      const compMs = compAtStr ? Date.parse(compAtStr) : NaN;
-      if (isFinite(compMs)) {
-        if (compMs < todayStartMs) continue;
-      } else {
-        // Done with no completion timestamp → assume historical and skip.
-        continue;
-      }
+    // Historical-completion test: trust the timestamp over the boolean.
+    // Nifty's `completed` flag can be stale or false-for-archived even
+    // when completed_at is populated, so any completed_at < today's UTC
+    // midnight is treated as historical and dropped.
+    const compAtStr = t.completed_at ?? null;
+    const compMs = compAtStr ? Date.parse(compAtStr) : NaN;
+    if (isFinite(compMs) && compMs < todayStartMs) {
+      skippedHistorical++;
+      continue;
+    }
+    // Done-without-timestamp: also drop. Covers archived tasks, tasks in
+    // custom done statuses ("Reviewed", "Shipped"), and tasks where the
+    // status category is 'closed' but Nifty never wrote a completed_at.
+    const looksDone =
+      isDoneStatus(t) ||
+      t.completed === true ||
+      t.archived === true;
+    if (looksDone && !isFinite(compMs)) {
+      skippedHistorical++;
+      continue;
     }
 
     // Status resolution. Some workspaces leave the named status object null
@@ -249,6 +260,9 @@ export async function pullNiftyProject(
       parentExternalId: t.parent_task_id ?? null,
       raw: JSON.stringify(t),
     });
+  }
+  if (skippedHistorical > 0) {
+    console.log(`[nifty] project ${cfg.projectId}: dropped ${skippedHistorical} historical-completion row(s); kept ${out.length}`);
   }
   return out;
 }
