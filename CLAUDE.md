@@ -276,6 +276,118 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Session totals (May 25 2026 — May 26 handoff)
+
+**Current build: `2026-05-25-31`.** Shipped 22 builds today (-10 → -31)
+across 14 arcs. The PM cockpit is now genuinely a full operating system
+for executive work — Command Center, Standup, Programs Portfolio,
+Project Health, Drill-through, AI Briefing, Saved Views, Time tracking,
+Help articles, Mobile pass, Hierarchical Smartsheet sync, AI
+Productivity Engine (capacity + scheduler + manual blocks + OAuth
+calendar push), Cross-project Dependencies DAG, **Sales Pipeline**
+(opportunities entity + Smartsheet sync + drawer + AI next-steps),
+**Pipeline Reports** (4 cards: by-customer / aging / quarterly / coverage),
+plus iOS home-screen icon fix.
+
+19 real CF opportunities populated on production. `$7.2M` pipeline,
+`$3.1M` weighted, 4 closed wins ($450K). Air Force is biggest account
+(5 open · $2.8M total · $1.3M weighted · 100% historical win rate).
+
+## Most recently shipped (May 25 2026 — Pipeline Reports + iOS icon, builds `-28` → `-31`)
+
+Four small follow-up builds after the Pipeline shipped and the user
+started populating real Status + Potential $ data.
+
+### `-28` Inspect-with-samples diagnostic
+
+`smartsheetInspectSheet` returns a `sampleRows` array — the first 8
+rows' raw + displayValue cells for the oppName / account / stage /
+value / close columns. Use when "I added a column but it's not picking
+up" to see what the Smartsheet API actually returns. Caught a case where
+the user had added the Status / Potential $ / Exp Close Date columns but
+not yet populated any cell values — every sampled row returned `null`,
+explaining why the Pipeline still showed the previous multi-stage data.
+
+### `-29` Per-row fallback: single-stage → multi-stage
+
+When the sheet has BOTH layouts active (Status column AND the older
+Lead Gen / Presales / Sales / Delivery PICKLIST columns), the adapter
+now picks single-stage layout WINS — but for any row where the new
+Status cell is empty, falls back to the multi-stage rightmost-occupied
+logic. Lets users gradually transition without losing pipeline state.
+Value column stays single-stage-only.
+
+### `-30` 📊 Pipeline Reports tab — 4 cards
+
+New view button on the Pipeline page (alongside Kanban / Table /
+Forecast). Renders a responsive 2-col grid:
+
+- **🏢 By Customer / Agency** — groups opps by accountName. Per-row:
+  open count, total $, weighted $, historical win rate (when at least
+  one closed deal exists in that account), W·L track record. Sorted
+  total-open descending.
+- **⏱ Stage Aging** — avg days at current stage per non-terminal stage,
+  computed as `now - updatedAt`. Aging badges: amber at 60d+, red at
+  90d+. Plus a "Stalled (60d+)" list capped at 8, oldest first, drawer
+  on click.
+- **📅 Quarterly Booking (next 90d)** — open opps with closeDate
+  in today→today+90d. Bar per close month showing count + total $ +
+  weighted $. Q forecast banner = sum of weighted.
+- **🎯 Pipeline Coverage** — total open ÷ user-configured quota.
+  Color-coded vs target (3x healthy / 60% caution / less than that gap).
+  Empty state has "⚙ Configure quota" button → modal accepting amount /
+  period label / coverage target (default 3x).
+
+`_pipelineQuota()` reads `D.prefs.pipelineQuota.{amount, periodLabel,
+coverageTarget}`. `_savePipelineQuota()` writes it. The quota is
+optional — until set, the Coverage card shows an empty state.
+
+### `-31` iOS home-screen icon
+
+Root cause: `client/index.html` `apple-touch-icon` + 192/512 png
+`<link rel="icon">` plus `manifest.webmanifest` icons[] all pointed at
+`/manus-storage/favicon-192_0a5868b9.png`. That backend was
+decommissioned weeks ago (Manus storage → Google Drive); URLs now
+return HTTP 500. iOS Safari "Add to Home Screen" fell back to a
+thumbnail screenshot.
+
+Fix: repointed all icon URLs to `/favicon-192.png` and
+`/favicon-512.png` which exist in `client/public/`. Added explicit
+`sizes="180x180"` / `192x192` / `512x512` variants so older iOS picks
+right. Manifest now declares both `"any"` and `"maskable"` purposes
+for adaptive icons. Both URLs return 200 confirmed.
+
+**To refresh the user's actual home screen** (iOS caches per-host):
+remove existing tile, open in Safari, Share → Add to Home Screen.
+Bumping APP_BUILD alone won't refresh cached tiles.
+
+### Session commits (newest first)
+
+- `4a291a9` iOS home-screen icon — repoint from dead Manus URLs (`-31`)
+- `2e53f6f` Pipeline Reports tab — 4 cards (`-30`)
+- `0cf37ae` Per-row single→multi fallback (`-29`)
+- `c645647` Inspect-with-samples diagnostic (`-28`)
+
+### Open follow-ups
+
+- **Pipeline Coverage quota** — user hasn't set one yet. Need to ask
+  for CF's CY/FY revenue target.
+- **Win Rate explanation** — currently 100% because the user has 4
+  Closed/Won and 0 explicit Closed/Lost. If they want a realistic
+  rate, they need to mark past lost bids as Closed/Lost in Smartsheet.
+- **Push-back to Smartsheet** — stage changes in LevelUp drawer don't
+  write back to source. Documented in the Sales Pipeline section.
+- **Stage aging is approximated** by `updatedAt` rather than a real
+  per-stage history log. Fine for the user's case since federal sales
+  cycles are slow, but a `stageHistory: [{stage, enteredAt}]` array
+  would be more accurate.
+- **Multi-source forecast** — when LSI gets a pipeline sheet, the
+  Forecast view will mix CF + LSI without a source filter. Need a hat
+  chip row like the Command Center has.
+- **Pipeline AI Coach card** — could add to the Reports tab: "AI
+  reads your pipeline state, highlights top-3 deals to focus on this
+  week." Same `ai.assist` plumbing as the existing per-project Coach.
+
 ## Most recently shipped (May 25 2026 — Pipeline sync debugging arc, build `-27`)
 
 After Sales Pipeline shipped at `-23` the user's actual CF Smartsheet failed
