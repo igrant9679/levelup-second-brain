@@ -8810,7 +8810,15 @@ function renderTasks(){
   })()}
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
-    <input id="task-quick-input" class="inp" name="lu-quick-task" type="text" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
+    <!-- Chrome honeypot: a hidden, off-screen email + password pair Chrome
+         autofills INSTEAD of our real input. This is the most reliable
+         fix once Chrome has decided the page has a login-ish form (the
+         email started leaking into the quick-add after Chrome saw it on
+         another page and "helpfully" auto-completed). The honeypot pair
+         absorbs the autofill; our real input below stays clean. -->
+    <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0">
+    <input type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0">
+    <input id="task-quick-input" class="inp" name="lu-task-${Date.now()}" type="search" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
     <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="setTaskPriorityFilter(this.value)">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
