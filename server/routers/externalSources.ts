@@ -1093,15 +1093,26 @@ export const externalSourcesRouter = router({
         headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
       });
       const taskBody = await taskResp.text();
-      let task: { project_id?: string; task_group_id?: string; task_group?: { id?: string } };
+      let task: { project_id?: string; project?: string; task_group_id?: string; task?: string };
       try { task = JSON.parse(taskBody); } catch { return { error: 'Could not parse task', taskBody }; }
-      const projectId = task.project_id;
-      if (!projectId) return { error: 'task has no project_id', task };
-      const groupsResp = await fetch(`https://openapi.niftypm.com/api/v1.0/projects/${projectId}/task_groups`, {
-        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
-      });
-      const groupsBody = await groupsResp.text();
-      return { task, groupsStatus: groupsResp.status, groupsBody };
+      // Nifty's actual field is `project` (not `project_id`) on this
+      // workspace; tolerate either name in case other workspaces differ.
+      const projectId = task.project || task.project_id;
+      if (!projectId) return { error: 'task has no project field', task };
+      // Try several endpoint shapes — different Nifty API versions /
+      // workspace tiers expose task groups under different paths.
+      const candidates = [
+        `https://openapi.niftypm.com/api/v1.0/task_groups?project_id=${projectId}`,
+        `https://openapi.niftypm.com/api/v1.0/task_groups?project=${projectId}`,
+        `https://openapi.niftypm.com/api/v1.0/projects/${projectId}/task_groups`,
+      ];
+      const attempts: Array<{ url: string; status: number; body: string }> = [];
+      for (const url of candidates) {
+        const r = await fetch(url, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
+        attempts.push({ url, status: r.status, body: (await r.text()).slice(0, 1500) });
+        if (r.status === 200) break;
+      }
+      return { task, attempts };
     }),
 
   /** Helper: list available Nifty status names for a watched project. */
