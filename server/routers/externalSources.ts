@@ -1109,6 +1109,64 @@ export const externalSourcesRouter = router({
       return { task, attempts };
     }),
 
+  /**
+   * Diagnostic: try a battery of Nifty write strategies to mark a task
+   * complete. Returns per-attempt status code + response body + a
+   * verify read after each attempt so we can see exactly which one
+   * actually flips `completed: true`.
+   *
+   * Use ONLY in dev — runs ~12 requests and may modify the task state.
+   */
+  niftyProbeCompletionWrites: protectedProcedure
+    .input(z.object({ externalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
+      const base = `https://openapi.niftypm.com/api/v1.0`;
+      const taskUrl = `${base}/tasks/${input.externalId}`;
+      const headers = { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' };
+      const nowIso = new Date().toISOString();
+      const variants: Array<{ name: string; url: string; method: string; body: unknown | null }> = [
+        { name: 'PUT completed_on=ISO',     url: taskUrl, method: 'PUT',    body: { completed_on: nowIso } },
+        { name: 'PATCH completed_on=ISO',   url: taskUrl, method: 'PATCH',  body: { completed_on: nowIso } },
+        { name: 'PUT completed=true',       url: taskUrl, method: 'PUT',    body: { completed: true } },
+        { name: 'PUT completed_at=ISO',     url: taskUrl, method: 'PUT',    body: { completed_at: nowIso } },
+        { name: 'POST /complete',           url: `${taskUrl}/complete`, method: 'POST', body: {} },
+        { name: 'POST /actions/complete',   url: `${taskUrl}/actions/complete`, method: 'POST', body: {} },
+        { name: 'PUT done=true',            url: taskUrl, method: 'PUT',    body: { done: true } },
+        { name: 'PUT is_completed=true',    url: taskUrl, method: 'PUT',    body: { is_completed: true } },
+        { name: 'POST /completions',        url: `${taskUrl}/completions`, method: 'POST', body: { completed_on: nowIso } },
+      ];
+      const results: Array<{ name: string; status: number; respBody: string; verifyCompleted: boolean | null; verifyCompletedOn: string | null }> = [];
+      for (const v of variants) {
+        let resp;
+        try {
+          resp = await fetch(v.url, { method: v.method, headers, body: v.body == null ? undefined : JSON.stringify(v.body) });
+        } catch (e) {
+          results.push({ name: v.name, status: -1, respBody: `fetch error: ${(e as Error).message}`, verifyCompleted: null, verifyCompletedOn: null });
+          continue;
+        }
+        const respBody = (await resp.text()).slice(0, 300);
+        // Verify by re-reading the task.
+        let verifyCompleted: boolean | null = null;
+        let verifyCompletedOn: string | null = null;
+        try {
+          const vr = await fetch(taskUrl, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
+          if (vr.ok) {
+            const vt = JSON.parse(await vr.text()) as { completed?: boolean; completed_on?: string | null };
+            verifyCompleted = vt.completed ?? null;
+            verifyCompletedOn = vt.completed_on ?? null;
+          }
+        } catch { /* swallow */ }
+        results.push({ name: v.name, status: resp.status, respBody, verifyCompleted, verifyCompletedOn });
+        if (verifyCompleted === true) break; // found a working strategy
+      }
+      return { results };
+    }),
+
   /** Helper: list available Nifty status names for a watched project. */
   niftyStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
