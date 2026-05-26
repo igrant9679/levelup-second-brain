@@ -191,14 +191,37 @@ export async function pullNiftyProject(
   const tasks = await fetchAllProjectTasks(fresh.apiToken, cfg.projectId);
   const myId = cred.accountExternalId;
 
+  // Historical-completion cutoff: any task that's done with a completion
+  // date *prior to today* (UTC) is treated as noise and excluded from the
+  // pull. Tasks completed today still flow through so the user sees them
+  // in the Done tab + weekly review "shipped" section.
+  //
+  // Side-effect on already-tracked rows: if a Nifty task was synced as
+  // open and the user completed it yesterday in Nifty, it'll now be
+  // filtered out → cron stamps removedAt → it disappears from active
+  // LevelUp views. Tombstone reaper cleans it up after the standard
+  // grace period. This matches the user's "I don't want to see them"
+  // intent (rather than retaining them in the Done tab indefinitely).
+  const todayStartUtc = new Date();
+  todayStartUtc.setUTCHours(0, 0, 0, 0);
+  const todayStartMs = todayStartUtc.getTime();
+
   const out: NiftyExternalTaskInput[] = [];
   for (const t of tasks) {
     if (cfg.filterByAssignee && myId) {
       if (!Array.isArray(t.assigned_to) || !t.assigned_to.includes(myId)) continue;
     }
-    // No longer drop done rows at pull time — render + cron handle completion
-    // semantics (stamp completedAt, hide from active views, surface in Done
-    // tab and weekly review's shipped section).
+    const looksDone = isDoneStatus(t) || t.completed === true;
+    if (looksDone) {
+      const compAtStr = t.completed_at ?? null;
+      const compMs = compAtStr ? Date.parse(compAtStr) : NaN;
+      if (isFinite(compMs)) {
+        if (compMs < todayStartMs) continue;
+      } else {
+        // Done with no completion timestamp → assume historical and skip.
+        continue;
+      }
+    }
 
     // Status resolution. Some workspaces leave the named status object null
     // (no task-group naming configured) — fall back to the top-level
