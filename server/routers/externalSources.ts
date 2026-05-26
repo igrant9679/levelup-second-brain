@@ -655,6 +655,9 @@ export const externalSourcesRouter = router({
     .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
+      // Source check intentionally relaxed — historically called only for
+      // Nifty rows but the modal Hide-in-LevelUp button now also fires for
+      // Smartsheet rows when the puller can't auto-mark them done.
       let hidden = 0;
       for (const id of input.ids) {
         const updated = await db.update(externalTasks)
@@ -662,7 +665,6 @@ export const externalSourcesRouter = router({
           .where(and(
             eq(externalTasks.id, id),
             eq(externalTasks.userId, ctx.user.id),
-            eq(externalTasks.source, 'nifty'),
           ));
         hidden++;
         void updated;

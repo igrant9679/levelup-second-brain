@@ -6543,7 +6543,18 @@ function setTaskListSort(col){
 // Card-view sort dropdown (no column headers to click anymore).
 function setTaskListSortValue(by){
   _taskListSortBy=by||'';
-  if(!_taskListSortBy)_taskListSortDir='asc';
+  if(!_taskListSortBy){_taskListSortDir='asc';}
+  else {
+    // Smart default direction per sort field:
+    // - priority / status: descending so the most important shows first
+    //   (priRank.High=3 → desc puts High at top; statusRank.Done=5 →
+    //   desc puts Done at top, BUT for status users usually want to
+    //   see open work first, so we flip status to asc and let users
+    //   click the column header to invert if they want Done first).
+    // - dates: ascending so earliest deadlines / starts surface first.
+    // - title / created: ascending (A→Z, oldest→newest).
+    _taskListSortDir=(by==='priority')?'desc':'asc';
+  }
   _persistPageState('tasks',{listSortBy:_taskListSortBy,listSortDir:_taskListSortDir});
   renderCurrentTaskView();
 }
@@ -6797,7 +6808,7 @@ function renderTaskList(){
       // Use the original/raw status label for display when status was
       // normalised to 'Done' (e.g. show "Closed" if the source said so).
       const statusLabel=t._rawStatus||t.status||'';
-      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}">
+      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);cursor:pointer;${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click for actions (mark done, hide, annotate)">
         <div style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${doneExt?'<span style="color:var(--ok);font-size:14px">✓</span>':_extSourceBadge(t._source)}</div>
         <div class="tlc-body">
           <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
@@ -8544,11 +8555,20 @@ function _openExternalAnnotateModal(source,externalId){
   if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
   const badge=_extSourceBadge(source);
   const sourceLabel=source==='smartsheet'?'Smartsheet':'NiftyPM';
-  modal.innerHTML=`<div style="padding:14px;max-width:520px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel} · read-only</span></div>
+  const externalUrl=et.externalUrl||et._url||'';
+  modal.innerHTML=`<div style="padding:14px;max-width:560px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:10px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
     <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
+    <!-- Top action row: the user's most common asks. Mark Done pushes
+         to the source; Hide in LevelUp marks the row removed locally
+         (use when Nifty isn't reporting the task as done and you don't
+         want to fix the source). -->
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extMarkDoneFromModal('${source}','${esc(externalId)}')" title="Mark this task done in ${sourceLabel}. Picks the first done-style status the source allows.">✓ Mark Done in ${sourceLabel}</button>
+      <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source. Use when the task is done in your head but the source doesn't reflect it.">🚫 Hide in LevelUp</button>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div>
         <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local priority</div>
@@ -8587,6 +8607,54 @@ function _openExternalAnnotateModal(source,externalId){
   </div>`;
   modalBg.classList.add('show');
   setTimeout(()=>{const n=document.getElementById('ext-ann-note');if(n)n.focus();},50);
+}
+
+// Mark an external task done from inside the annotate modal. Picks the
+// first done-style status the source's status options include (so the
+// user doesn't have to drill into the status pill). Falls back gracefully
+// if no done-style status is available.
+async function _extMarkDoneFromModal(source,externalId){
+  closeModal();
+  try{
+    const et=(D.externalTasks||[]).find(t=>t.source===source&&t.externalId===externalId);
+    if(!et){toast({type:'warn',title:'Task not found locally'});return;}
+    const fetcher=source==='smartsheet'?'externalSources.smartsheetStatusOptions':'externalSources.niftyStatusOptions';
+    const result=await _trpc(fetcher,{watchId:et.sourceConfigId},'query');
+    const opts=Array.isArray(result.options)?result.options:[];
+    const doneRe=/(done|complete|closed|cancell?ed|resolved|shipped)/i;
+    const doneVal=opts.find(v=>doneRe.test(v||''));
+    if(!doneVal){
+      toast({type:'warn',title:`No done-style status configured in ${source==='smartsheet'?'Smartsheet':'NiftyPM'}`,msg:'Open the source status picker on the task card to pick manually.'});
+      return;
+    }
+    toast({type:'info',title:`Marking done as "${doneVal}"…`,duration:1200});
+    const proc=source==='smartsheet'?'externalSources.smartsheetSetRowStatus':'externalSources.niftySetTaskStatus';
+    const payload=source==='smartsheet'?{externalId,status:doneVal}:{externalId,statusName:doneVal};
+    await _trpc(proc,payload,'mutation');
+    toast({type:'success',title:`✓ Marked done in source`});
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(err){
+    toast({type:'warn',title:'Mark done failed',msg:err.message||String(err)});
+  }
+}
+
+// Hide an external task locally without touching the source. Uses the
+// niftyHideRows endpoint for Nifty rows (extending later for Smartsheet
+// would need a parallel endpoint, but for now this covers the user's
+// concrete need — Nifty tasks done in spirit but not in the API).
+async function _extHideFromModal(rowId){
+  if(!rowId){toast({type:'warn',title:'Could not resolve row id — refresh and retry'});return;}
+  if(!confirm('Hide this task in LevelUp?\n\nIt vanishes from Tasks immediately. Local notes/links survive (tombstoned after 72h if not re-pulled by source). The source row is untouched.')) return;
+  closeModal();
+  try{
+    const res=await _trpc('externalSources.niftyHideRows',{ids:[rowId]},'mutation');
+    toast({type:'success',title:`✅ Hidden ${res.hidden} row in LevelUp`});
+    await loadExternalTasks();
+    if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  }catch(err){
+    toast({type:'warn',title:'Hide failed',msg:err.message||String(err)});
+  }
 }
 
 async function _saveExternalAnnotations(source,externalId){
