@@ -1134,16 +1134,20 @@ export const externalSourcesRouter = router({
       const taskUrl = `${base}/tasks/${input.externalId}`;
       const headers = { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' };
       const nowIso = new Date().toISOString();
+      // Round 2: zero in on POST /complete with various body shapes (it
+      // returned 400 with {} body, meaning the endpoint exists but
+      // demands specific fields). Also try DELETE for uncomplete patterns.
       const variants: Array<{ name: string; url: string; method: string; body: unknown | null }> = [
-        { name: 'PUT completed_on=ISO',     url: taskUrl, method: 'PUT',    body: { completed_on: nowIso } },
-        { name: 'PATCH completed_on=ISO',   url: taskUrl, method: 'PATCH',  body: { completed_on: nowIso } },
-        { name: 'PUT completed=true',       url: taskUrl, method: 'PUT',    body: { completed: true } },
-        { name: 'PUT completed_at=ISO',     url: taskUrl, method: 'PUT',    body: { completed_at: nowIso } },
-        { name: 'POST /complete',           url: `${taskUrl}/complete`, method: 'POST', body: {} },
-        { name: 'POST /actions/complete',   url: `${taskUrl}/actions/complete`, method: 'POST', body: {} },
-        { name: 'PUT done=true',            url: taskUrl, method: 'PUT',    body: { done: true } },
-        { name: 'PUT is_completed=true',    url: taskUrl, method: 'PUT',    body: { is_completed: true } },
-        { name: 'POST /completions',        url: `${taskUrl}/completions`, method: 'POST', body: { completed_on: nowIso } },
+        { name: 'POST /complete body={completed_on:ISO}', url: `${taskUrl}/complete`, method: 'POST', body: { completed_on: nowIso } },
+        { name: 'POST /complete body={completed:true}',   url: `${taskUrl}/complete`, method: 'POST', body: { completed: true } },
+        { name: 'POST /complete body={date:ISO}',         url: `${taskUrl}/complete`, method: 'POST', body: { date: nowIso } },
+        { name: 'POST /complete body={timestamp:ISO}',    url: `${taskUrl}/complete`, method: 'POST', body: { timestamp: nowIso } },
+        { name: 'POST /complete body={user:me}',          url: `${taskUrl}/complete`, method: 'POST', body: { user: cred.accountExternalId } },
+        { name: 'POST /complete body={by:me,on:ISO}',     url: `${taskUrl}/complete`, method: 'POST', body: { by: cred.accountExternalId, on: nowIso } },
+        { name: 'POST /complete body=null',               url: `${taskUrl}/complete`, method: 'POST', body: null },
+        { name: 'PUT /complete body={completed_on:ISO}',  url: `${taskUrl}/complete`, method: 'PUT', body: { completed_on: nowIso } },
+        { name: 'DELETE /complete',                       url: `${taskUrl}/complete`, method: 'DELETE', body: null },
+        { name: 'POST /uncomplete',                       url: `${taskUrl}/uncomplete`, method: 'POST', body: {} },
       ];
       const results: Array<{ name: string; status: number; respBody: string; verifyCompleted: boolean | null; verifyCompletedOn: string | null }> = [];
       for (const v of variants) {
