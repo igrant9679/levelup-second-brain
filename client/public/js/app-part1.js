@@ -6808,8 +6808,11 @@ function renderTaskList(){
       // Use the original/raw status label for display when status was
       // normalised to 'Done' (e.g. show "Closed" if the source said so).
       const statusLabel=t._rawStatus||t.status||'';
-      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);cursor:pointer;${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click for actions (mark done, hide, annotate)">
-        <div style="width:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${doneExt?'<span style="color:var(--ok);font-size:14px">✓</span>':_extSourceBadge(t._source)}</div>
+      return `<div class="tlc ${isOverdueE?'tlc-od':''}" style="border:1px dashed var(--bd2);cursor:pointer;${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
+        <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${esc(t._source)}','${esc(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
+          <div style="font-size:9px">${_extSourceBadge(t._source)}</div>
+        </div>
         <div class="tlc-body">
           <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''}</div>
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
@@ -8560,13 +8563,14 @@ function _openExternalAnnotateModal(source,externalId){
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:10px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
     <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
-    <!-- Top action row: the user's most common asks. Mark Done pushes
-         to the source; Hide in LevelUp marks the row removed locally
-         (use when Nifty isn't reporting the task as done and you don't
-         want to fix the source). -->
+    <!-- Top action row: completion toggle pushes to source; Hide in
+         LevelUp marks the row removed locally (use when source isn't
+         reporting completion correctly and you don't want to fix it). -->
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      <button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extMarkDoneFromModal('${source}','${esc(externalId)}')" title="Mark this task done in ${sourceLabel}. Picks the first done-style status the source allows.">✓ Mark Done in ${sourceLabel}</button>
-      <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source. Use when the task is done in your head but the source doesn't reflect it.">🚫 Hide in LevelUp</button>
+      ${et.status==='Done'
+        ?`<button class="btn" style="font-size:11px;height:28px;background:#1e40af;color:#fff;border-color:#1e3a8a" onclick="_extToggleCompleted('${source}','${esc(externalId)}',false)" title="Reopen this task in ${sourceLabel}. Pushes completed=false back to the source.">↺ Reopen in ${sourceLabel}</button>`
+        :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}. Pushes completed=true back to the source.">✓ Mark Done in ${sourceLabel}</button>`}
+      <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source. Use when the source can't or shouldn't reflect completion.">🚫 Hide in LevelUp</button>
     </div>
     <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -8609,34 +8613,51 @@ function _openExternalAnnotateModal(source,externalId){
   setTimeout(()=>{const n=document.getElementById('ext-ann-note');if(n)n.focus();},50);
 }
 
-// Mark an external task done from inside the annotate modal. Picks the
-// first done-style status the source's status options include (so the
-// user doesn't have to drill into the status pill). Falls back gracefully
-// if no done-style status is available.
-async function _extMarkDoneFromModal(source,externalId){
+// Two-way completion toggle for external tasks. For NiftyPM, flips the
+// `completed` boolean directly via niftySetTaskCompleted (works even in
+// workspaces with no named statuses — the LSI Media case). For Smartsheet,
+// picks the first done-style status from the watch's status column.
+//
+// completed=true → mark done in source; completed=false → reopen.
+async function _extToggleCompleted(source,externalId,completed){
   closeModal();
   try{
     const et=(D.externalTasks||[]).find(t=>t.source===source&&t.externalId===externalId);
     if(!et){toast({type:'warn',title:'Task not found locally'});return;}
-    const fetcher=source==='smartsheet'?'externalSources.smartsheetStatusOptions':'externalSources.niftyStatusOptions';
-    const result=await _trpc(fetcher,{watchId:et.sourceConfigId},'query');
-    const opts=Array.isArray(result.options)?result.options:[];
-    const doneRe=/(done|complete|closed|cancell?ed|resolved|shipped)/i;
-    const doneVal=opts.find(v=>doneRe.test(v||''));
-    if(!doneVal){
-      toast({type:'warn',title:`No done-style status configured in ${source==='smartsheet'?'Smartsheet':'NiftyPM'}`,msg:'Open the source status picker on the task card to pick manually.'});
+    if(source==='nifty'){
+      toast({type:'info',title:completed?'Marking done in NiftyPM…':'Reopening in NiftyPM…',duration:1200});
+      await _trpc('externalSources.niftySetTaskCompleted',{externalId,completed},'mutation');
+      toast({type:'success',title:completed?'✓ Marked done in NiftyPM':'↺ Reopened in NiftyPM'});
+    } else if (source==='smartsheet'){
+      // Smartsheet uses status names. Look up the first done/open style
+      // and PUT that. Reopen falls back to "Not Started" or "In Progress".
+      const result=await _trpc('externalSources.smartsheetStatusOptions',{watchId:et.sourceConfigId},'query');
+      const opts=Array.isArray(result.options)?result.options:[];
+      const doneRe=/(done|complete|closed|cancell?ed|resolved|shipped)/i;
+      const openRe=/(not started|in[\s_-]?progress|open|todo|pending|new)/i;
+      const target=completed?opts.find(v=>doneRe.test(v||'')):opts.find(v=>openRe.test(v||''))||opts.find(v=>!doneRe.test(v||''));
+      if(!target){
+        toast({type:'warn',title:`No matching status configured in Smartsheet`,msg:'Open the status picker on the card to pick manually.'});
+        return;
+      }
+      toast({type:'info',title:`Setting status to "${target}"…`,duration:1200});
+      await _trpc('externalSources.smartsheetSetRowStatus',{externalId,status:target},'mutation');
+      toast({type:'success',title:`✓ Set to ${target}`});
+    } else {
+      toast({type:'warn',title:`Unknown source: ${source}`});
       return;
     }
-    toast({type:'info',title:`Marking done as "${doneVal}"…`,duration:1200});
-    const proc=source==='smartsheet'?'externalSources.smartsheetSetRowStatus':'externalSources.niftySetTaskStatus';
-    const payload=source==='smartsheet'?{externalId,status:doneVal}:{externalId,statusName:doneVal};
-    await _trpc(proc,payload,'mutation');
-    toast({type:'success',title:`✓ Marked done in source`});
     await loadExternalTasks();
     if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
   }catch(err){
-    toast({type:'warn',title:'Mark done failed',msg:err.message||String(err)});
+    toast({type:'warn',title:'Completion toggle failed',msg:err.message||String(err)});
   }
+}
+
+// Back-compat shim: the modal Mark-Done button used to call this. Now
+// delegates to the two-way toggle with completed=true.
+async function _extMarkDoneFromModal(source,externalId){
+  return _extToggleCompleted(source,externalId,true);
 }
 
 // Hide an external task locally without touching the source. Uses the

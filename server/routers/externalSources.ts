@@ -983,6 +983,45 @@ export const externalSourcesRouter = router({
       return { success: true, statusName: input.statusName, statusId };
     }),
 
+  /**
+   * Write-back: flip a NiftyPM task's `completed` boolean directly.
+   * Use when the workspace doesn't define named statuses (status.name
+   * is null for every task — common for workspaces that only use the
+   * default task-group columns) — niftySetTaskStatus relies on
+   * project status names existing, which they don't here.
+   *
+   * The Nifty `/tasks/{id}` PUT accepts `completed: true|false` and
+   * (per their OpenAPI spec) also stamps `completed_at` when flipping
+   * to true / clears it when flipping to false.
+   *
+   * Triggers an immediate re-pull so LevelUp reflects the change
+   * without waiting for the next cron tick.
+   */
+  niftySetTaskCompleted: protectedProcedure
+    .input(z.object({
+      externalId: z.string(),
+      completed: z.boolean(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
+      const putResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: input.completed }),
+      });
+      if (!putResp.ok) {
+        const body = await putResp.text();
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Nifty update failed: ${putResp.status} ${body.slice(0, 300)}` });
+      }
+      // Best-effort immediate re-pull so the UI sees the new state.
+      try { await processExternalTaskPull({ userId: ctx.user.id }); } catch { /* best effort */ }
+      return { success: true, completed: input.completed };
+    }),
+
   /** Helper: list available Nifty status names for a watched project. */
   niftyStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
