@@ -1008,14 +1008,48 @@ export const externalSourcesRouter = router({
         .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
         .limit(1);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
-      const putResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: input.completed }),
-      });
-      if (!putResp.ok) {
-        const body = await putResp.text();
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `Nifty update failed: ${putResp.status} ${body.slice(0, 300)}` });
+      // Nifty's PUT /tasks/{id} treats `completed` as a read-only computed
+      // field (it errors with "Bad Request Exception" if you send it).
+      // Try a sequence of body shapes the API does accept, in order:
+      //   1. completed_at: ISO datetime (or null to reopen)
+      //   2. completed_on: YYYY-MM-DD date (or null)
+      //   3. is_completed: boolean
+      // First one that returns 2xx wins; collect each attempt's body so we
+      // can surface a useful error if all fail.
+      const url = `https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`;
+      const baseHeaders = { Authorization: `Bearer ${cred.apiToken}`, 'Content-Type': 'application/json' };
+      const nowIso = new Date().toISOString();
+      const today = nowIso.slice(0, 10);
+      const attempts: Array<{ method: 'PUT' | 'PATCH'; body: Record<string, unknown> }> = input.completed
+        ? [
+            { method: 'PUT',   body: { completed_at: nowIso } },
+            { method: 'PATCH', body: { completed_at: nowIso } },
+            { method: 'PUT',   body: { completed_on: today } },
+            { method: 'PUT',   body: { is_completed: true } },
+          ]
+        : [
+            { method: 'PUT',   body: { completed_at: null } },
+            { method: 'PATCH', body: { completed_at: null } },
+            { method: 'PUT',   body: { completed_on: null } },
+            { method: 'PUT',   body: { is_completed: false } },
+          ];
+      const failures: string[] = [];
+      let success = false;
+      for (const att of attempts) {
+        const resp = await fetch(url, {
+          method: att.method,
+          headers: baseHeaders,
+          body: JSON.stringify(att.body),
+        });
+        if (resp.ok) { success = true; break; }
+        const txt = (await resp.text()).slice(0, 200);
+        failures.push(`${att.method} ${JSON.stringify(att.body)} → ${resp.status} ${txt}`);
+      }
+      if (!success) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Nifty rejected every completion shape. Tried:\n${failures.join('\n')}`,
+        });
       }
       // Best-effort immediate re-pull so the UI sees the new state.
       try { await processExternalTaskPull({ userId: ctx.user.id }); } catch { /* best effort */ }
