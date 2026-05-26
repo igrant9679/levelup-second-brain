@@ -2721,6 +2721,45 @@ function _openNoteInsightPanel(noteId){
   aiNoteDeepInsight(noteId);
 }
 
+// Toggle the collapsed state of a CF project section header in the Tasks
+// list. Persists in D.prefs.cfCollapsedProjects[] so the fold state
+// survives reloads. Re-renders the current task view so the section
+// expands/collapses immediately.
+function _toggleCfProjectCollapsed(label){
+  D.prefs=D.prefs||{};
+  D.prefs.cfCollapsedProjects=D.prefs.cfCollapsedProjects||[];
+  const norm=String(label).toLowerCase();
+  const set=new Set(D.prefs.cfCollapsedProjects.map(s=>String(s).toLowerCase()));
+  if(set.has(norm)){
+    D.prefs.cfCollapsedProjects=D.prefs.cfCollapsedProjects.filter(s=>String(s).toLowerCase()!==norm);
+  } else {
+    D.prefs.cfCollapsedProjects.push(label);
+  }
+  save('prefs');
+  if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+}
+
+// "Collapse all" / "Expand all" CF project sections at once. Wired to a
+// small header button in the Tasks page header (see _renderCfFoldAllBtn).
+function _foldAllCfProjects(){
+  D.prefs=D.prefs||{};
+  // Find every CF project label that has at least one orphan-subtask row.
+  const labels=new Set();
+  (D.externalTasks||[]).forEach(et=>{
+    if(et.source!=='smartsheet'||!et.projectLabel)return;
+    try{const k=JSON.parse(et.raw||'{}').kind;if(k==='subtask')labels.add(et.projectLabel);}catch(_){}
+  });
+  D.prefs.cfCollapsedProjects=Array.from(labels);
+  save('prefs');
+  if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+}
+function _expandAllCfProjects(){
+  D.prefs=D.prefs||{};
+  D.prefs.cfCollapsedProjects=[];
+  save('prefs');
+  if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+}
+
 // Helper: create a native task from an AI-suggested action item, linked
 // back to the originating note.
 function _aiInsightCreateTask(noteId, actionIdx){
@@ -7320,9 +7359,57 @@ function renderTaskList(){
     </div>`;
   }
   const _rowR=cardMode?cardRow:rowFor;
+  // CF Project section headers: between CF orphan-subtask groups, insert
+  // a collapsible "📁 <project name>" header row. Tracks transitions
+  // between projects so each group gets exactly one header. The header's
+  // collapsed state is persisted in D.prefs.cfCollapsedProjects[] so the
+  // user's fold state survives reloads.
+  // Helper kept inline — emitProjectHeaderHtml(label, projectId, count, collapsed)
+  // returns the header div markup.
+  const _emitCfHeader=(label,projectId,count,collapsed,doneCount)=>{
+    const safe=_jsAttr?_jsAttr(label):String(label).replace(/'/g,"\\'");
+    const projName=esc(label);
+    return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${safe}')" title="Click to ${collapsed?'expand':'collapse'} this project">
+      <span style="font-size:13px;color:#1f6feb;width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">📁 ${projName}</span>
+      <span style="font-size:10px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
+      ${projectId?`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${projectId}))" title="Open this project's LevelUp page">→</button>`:''}
+    </div>`;
+  };
+  const _collapsedSet=new Set(((D.prefs&&D.prefs.cfCollapsedProjects)||[]).map(s=>String(s).toLowerCase()));
+  const _isCfOrphanSubtask=(t)=>t&&t._source==='smartsheet'&&t._kind==='subtask'&&!!t._projectLabel;
+  // Pre-count rows per CF project group (for the "N tasks" badge).
+  const _cfGroupCounts=new Map();
+  const _cfGroupDone=new Map();
+  filtered.forEach(t=>{
+    if(!_isCfOrphanSubtask(t))return;
+    const key=String(t._projectLabel).toLowerCase();
+    _cfGroupCounts.set(key,(_cfGroupCounts.get(key)||0)+1);
+    if(t.status==='Done')_cfGroupDone.set(key,(_cfGroupDone.get(key)||0)+1);
+  });
   let bodyHtml='';
   if(_taskListGroupBy==='none'){
-    bodyHtml=filtered.map(_rowR).join('');
+    let lastCfKey=null;
+    const parts=[];
+    for(const t of filtered){
+      if(_isCfOrphanSubtask(t)){
+        const key=String(t._projectLabel).toLowerCase();
+        if(key!==lastCfKey){
+          const projMatch=(D.projects||[]).find(p=>(p.name||'').toLowerCase()===key);
+          const count=_cfGroupCounts.get(key)||0;
+          const done=_cfGroupDone.get(key)||0;
+          const isCollapsed=_collapsedSet.has(key);
+          parts.push(_emitCfHeader(t._projectLabel,projMatch?projMatch.id:null,count,isCollapsed,done));
+          lastCfKey=key;
+        }
+        // Skip rendering the row body when its project group is collapsed.
+        if(_collapsedSet.has(key))continue;
+      } else {
+        lastCfKey=null; // reset when we leave the CF cluster
+      }
+      parts.push(_rowR(t));
+    }
+    bodyHtml=parts.join('');
   }else{
     const groups={};
     const order=[];
