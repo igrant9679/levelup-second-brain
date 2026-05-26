@@ -592,6 +592,55 @@ export const externalSourcesRouter = router({
   }),
 
   /**
+   * Diagnostic: dump the stored Nifty `raw` payload for the user's current
+   * Nifty external_tasks rows so we can see exactly what Nifty is telling
+   * LevelUp. Use when historical-completion tasks are still appearing as
+   * Open and the puller's filter isn't catching them — the answer is in
+   * the raw fields (status.name, completed, completed_at, archived).
+   *
+   * Returns the first 30 visible (non-removed) rows by default, with
+   * the most relevant fields extracted from `raw` so we don't have to
+   * eyeball giant JSON blobs. Pass titleQuery to narrow to one task.
+   */
+  niftyInspectRows: protectedProcedure
+    .input(z.object({
+      titleQuery: z.string().optional(),
+      limit: z.number().int().positive().max(200).default(30),
+      includeRemoved: z.boolean().default(false),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const rows = await db.select().from(externalTasks)
+        .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'nifty')));
+      const q = (input.titleQuery || '').toLowerCase().trim();
+      const filtered = rows
+        .filter(r => input.includeRemoved || !r.removedAt)
+        .filter(r => !q || (r.title || '').toLowerCase().includes(q))
+        .slice(0, input.limit);
+      return filtered.map(r => {
+        let raw: Record<string, unknown> = {};
+        try { raw = JSON.parse(r.raw || '{}'); } catch { /* ignore */ }
+        const status = raw.status as { name?: string; category?: string } | undefined;
+        return {
+          id: r.id,
+          externalId: r.externalId,
+          title: r.title,
+          levelup_status: r.status,
+          levelup_completedAt: r.completedAt,
+          levelup_removedAt: r.removedAt,
+          nifty_completed: raw.completed ?? null,
+          nifty_completed_at: raw.completed_at ?? null,
+          nifty_archived: raw.archived ?? null,
+          nifty_status_name: status?.name ?? raw.status_name ?? null,
+          nifty_status_category: status?.category ?? null,
+          nifty_task_group: (raw.task_group as { name?: string })?.name ?? null,
+          nifty_due_date: raw.due_date ?? null,
+          nifty_url: raw.url ?? null,
+        };
+      });
+    }),
+
+  /**
    * Diagnostic: search every enabled Nifty watched project for tasks matching
    * a title substring (case-insensitive). Returns the raw Nifty payload for
    * each match so we can see exactly what the API thinks the status is,

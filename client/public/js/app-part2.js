@@ -618,6 +618,7 @@ function renderSettingsHTML(){
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
       <button class="btn btn-s" style="height:28px;font-size:10px;background:#0c7b41;color:#fff;border-color:#0a6535" onclick="_readdCfWatches()" title="Re-create the standard CommunityForce watched sheets (120-Day Plan + Pipeline) — safe to click even if some already exist.">＋ Re-add CF watches</button>
       <button class="btn btn-s" style="height:28px;font-size:10px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyResetAndResync()" title="Mark all Nifty rows as removed, then re-pull. Only currently-open Nifty tasks come back — anything completed prior to today stays hidden. Use this if 'previously completed' tasks linger as Open.">🧹 Nifty: reset historical</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_niftyInspectRows()" title="Show the raw Nifty API state for each Nifty task in LevelUp — completed flag, completed_at, archived flag, status name + category. Use this to see why the historical-completion filter isn't catching tasks you remember completing.">🔎 Inspect Nifty rows</button>
     </div>
     <div class="lr" style="padding:8px 0;margin-top:8px;border-top:1px solid var(--bd1);align-items:center">
       <div style="flex:1">
@@ -1881,6 +1882,76 @@ async function _niftyResetAndResync(){
     try{ renderScreen('tasks'); }catch(_){}
   }catch(e){
     toast({type:'warn',title:'Reset failed',msg:e.message||String(e)});
+  }
+}
+
+// Inspect: dump LevelUp + Nifty state for each Nifty external_tasks row so
+// we can see why the historical-completion filter isn't catching tasks the
+// user remembers completing. The columns to watch:
+//   - nifty_completed:    boolean (true => puller WILL drop)
+//   - nifty_completed_at: ISO string (set + < today => puller WILL drop)
+//   - nifty_archived:     boolean (treated as done if no completed_at)
+//   - nifty_status_name + nifty_task_group: what status the user sees in Nifty
+// If nifty_completed=false AND nifty_completed_at is null AND nifty_archived
+// is false AND status_name is some custom done-ish value ("Reviewed",
+// "Shipped"), we need to broaden the filter to include that status name.
+async function _niftyInspectRows(){
+  toast({type:'info',title:'Loading Nifty rows…',duration:1500});
+  try{
+    const q=(prompt('Filter by title (leave blank for first 30 rows):','')||'').trim();
+    const rows=await _trpc('externalSources.niftyInspectRows',{titleQuery:q||undefined,limit:50},'query');
+    if(!rows||!rows.length){
+      toast({type:'info',title:'No matching Nifty rows in LevelUp'});
+      return;
+    }
+    const fmt=(v)=>{if(v==null)return '<span style="color:var(--t3)">null</span>';if(v===true)return '<span style="color:#16a34a;font-weight:600">true</span>';if(v===false)return '<span style="color:#ef4444">false</span>';return esc(String(v));};
+    const html=`<div style="max-width:1100px;padding:14px;max-height:80vh;overflow:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600">🔎 Nifty rows — LevelUp vs Nifty state${q?` · matching "${esc(q)}"`:''}</div>
+        <button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('nifty-inspect-ov')?.remove()">Close</button>
+      </div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Showing ${rows.length} row(s). The puller drops a row if <code>nifty_completed</code>=true OR <code>nifty_completed_at</code> is before today OR (looks-done AND no <code>completed_at</code>). If you see rows that you remember completing but all four "drop" signals look open, paste me one row so we can broaden the filter to include that workflow.</p>
+      <div style="overflow-x:auto;font-size:10px;line-height:1.5">
+        <table style="border-collapse:collapse;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace">
+          <thead><tr style="background:var(--s3);text-align:left">
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">Title</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">LU status</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">LU completedAt</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">Nifty completed</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">Nifty completed_at</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">archived</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">status.name</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">status.category</th>
+            <th style="padding:6px;border-bottom:1px solid var(--bd2)">task_group</th>
+          </tr></thead>
+          <tbody>${rows.map(r=>`<tr style="border-bottom:1px solid var(--bd1)">
+            <td style="padding:6px;max-width:240px;word-wrap:break-word"><a href="${esc(r.nifty_url||'#')}" target="_blank" style="color:var(--ac)">${esc(r.title||'(untitled)')}</a></td>
+            <td style="padding:6px">${fmt(r.levelup_status)}</td>
+            <td style="padding:6px">${fmt(r.levelup_completedAt)}</td>
+            <td style="padding:6px">${fmt(r.nifty_completed)}</td>
+            <td style="padding:6px">${fmt(r.nifty_completed_at)}</td>
+            <td style="padding:6px">${fmt(r.nifty_archived)}</td>
+            <td style="padding:6px">${fmt(r.nifty_status_name)}</td>
+            <td style="padding:6px">${fmt(r.nifty_status_category)}</td>
+            <td style="padding:6px">${fmt(r.nifty_task_group)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+    // Use a simple fixed overlay instead of the capture modal (which is
+    // specialized for new-item capture and doesn't accept arbitrary HTML).
+    document.getElementById('nifty-inspect-ov')?.remove();
+    const ov=document.createElement('div');
+    ov.id='nifty-inspect-ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+    const inner=document.createElement('div');
+    inner.style.cssText='background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,0.5);max-width:95vw;max-height:90vh;overflow:hidden';
+    inner.innerHTML=html;
+    ov.appendChild(inner);
+    document.body.appendChild(ov);
+  }catch(e){
+    toast({type:'warn',title:'Inspect failed',msg:e.message||String(e)});
   }
 }
 
