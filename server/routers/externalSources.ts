@@ -1056,6 +1056,54 @@ export const externalSourcesRouter = router({
       return { success: true, completed: input.completed };
     }),
 
+  /**
+   * Diagnostic: GET one Nifty task by external id and return the raw
+   * payload. Used to discover which fields Nifty's API exposes on this
+   * workspace so we can determine the right write target for completion.
+   */
+  niftyFetchTaskRaw: protectedProcedure
+    .input(z.object({ externalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
+      const resp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+      });
+      const body = await resp.text();
+      return { status: resp.status, body };
+    }),
+
+  /**
+   * Diagnostic: list the task_groups for the project a given Nifty task
+   * belongs to. Tells us which group_id corresponds to "Done" / "Completed"
+   * so we can move the task there to mark it complete.
+   */
+  niftyFetchTaskGroups: protectedProcedure
+    .input(z.object({ externalId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await requireDb();
+      const [cred] = await db.select().from(externalSourceCredentials)
+        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
+        .limit(1);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
+      const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+      });
+      const taskBody = await taskResp.text();
+      let task: { project_id?: string; task_group_id?: string; task_group?: { id?: string } };
+      try { task = JSON.parse(taskBody); } catch { return { error: 'Could not parse task', taskBody }; }
+      const projectId = task.project_id;
+      if (!projectId) return { error: 'task has no project_id', task };
+      const groupsResp = await fetch(`https://openapi.niftypm.com/api/v1.0/projects/${projectId}/task_groups`, {
+        headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
+      });
+      const groupsBody = await groupsResp.text();
+      return { task, groupsStatus: groupsResp.status, groupsBody };
+    }),
+
   /** Helper: list available Nifty status names for a watched project. */
   niftyStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
