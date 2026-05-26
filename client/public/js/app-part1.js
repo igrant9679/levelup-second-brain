@@ -2381,6 +2381,372 @@ function _weatherIcon(desc,code){
   if(d.includes('clear')||d.includes('sun'))return '☀';
   return '🌤';
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// AI CONTENT-AWARE LAYER (Tier 1)
+// ═══════════════════════════════════════════════════════════════════════════
+// The original `_buildAIContext()` ships counts + titles. These helpers go
+// deeper — they pull *actual content* (note bodies, task descriptions,
+// journal entries, idea details) so AI prompts can reason about real text
+// rather than just metadata.
+//
+// Three public entry points:
+//   - aiAskLevelup(query)       → universal Q&A with citations
+//   - aiNoteDeepInsight(noteId) → per-note key points / actions / questions
+//   - _gatherRelevantContent(q) → shared content scorer (returns top hits)
+//
+// All are token-conscious: cap total prompt content to ~8K chars, prefer
+// title + first 400 chars per item, and order results by relevance.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Score an object's relevance to a query using a simple keyword overlap +
+ * recency boost. Returns 0..N — higher = better. Designed to be cheap so
+ * we can score every note/task/journal/idea on each invocation.
+ *
+ * Scoring:
+ *   +3 per query term that appears in the title (case-insensitive)
+ *   +1 per query term that appears in the body
+ *   +0.5 if the object was touched in the last 7 days
+ *   +0.25 if the object was touched in the last 30 days
+ */
+function _relevanceScore(obj, queryTerms, bodyExtractor){
+  if(!obj) return 0;
+  const title = String(obj.title || obj.name || '').toLowerCase();
+  const body = String((bodyExtractor ? bodyExtractor(obj) : (obj.body || obj.bodyHtml || obj.description || ''))).toLowerCase();
+  let score = 0;
+  for(const term of queryTerms){
+    if(!term) continue;
+    if(title.includes(term)) score += 3;
+    if(body.includes(term)) score += 1;
+  }
+  // Recency boost — _ymd if available, else parse updated/createdAt.
+  const updatedRaw = obj.updated || obj.updatedAt || obj.createdAt || obj.date || '';
+  const tMs = Date.parse(updatedRaw);
+  if(isFinite(tMs)){
+    const ageDays = (Date.now() - tMs) / (86400 * 1000);
+    if(ageDays < 7) score += 0.5;
+    else if(ageDays < 30) score += 0.25;
+  }
+  return score;
+}
+
+/**
+ * Pull a snippet of plain text from an object's body. Strips HTML and
+ * caps length so we don't burn tokens on a 10k-char note body.
+ */
+function _bodySnippet(text, maxLen){
+  if(!text) return '';
+  // Strip HTML tags + decode common entities.
+  let plain = String(text).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  if(plain.length > maxLen) plain = plain.slice(0, maxLen) + '…';
+  return plain;
+}
+
+/**
+ * Gather content from across the workspace relevant to a query. Returns
+ * up to `limit` items (default 12) scored & sorted by relevance, each with
+ * type, id, title, snippet, score, and a render-back URL.
+ *
+ * Includes: notes, tasks (native + external), journal entries, ideas,
+ * opportunities. Skips Done tasks and tombstoned externals unless
+ * `opts.includeDone` is true.
+ */
+function _gatherRelevantContent(query, opts){
+  opts = opts || {};
+  const limit = opts.limit || 12;
+  const maxBodyChars = opts.maxBodyChars || 400;
+  const queryTerms = String(query || '').toLowerCase().split(/[\s,;:!?"()\[\]{}]+/).filter(w => w.length > 2);
+  if(!queryTerms.length){
+    // No query terms (e.g. very short question). Fall back to most-recently-touched.
+    queryTerms.push('');
+  }
+  const candidates = [];
+  // Notes — bodyHtml or body.
+  for(const n of (D.notes || [])){
+    if(n.archived && !opts.includeArchived) continue;
+    const bodyText = n.bodyHtml || n.body || '';
+    const score = _relevanceScore(n, queryTerms, () => bodyText);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'note', id:n.id, title:n.title || '(untitled)', snippet:_bodySnippet(bodyText, maxBodyChars), score, openFn:`showNoteInEditor(${n.id})`, icon:'📝'});
+  }
+  // Tasks (native).
+  for(const t of (D.tasks || [])){
+    if(t.status === 'Done' && !opts.includeDone) continue;
+    const bodyText = t.description || t.notes || '';
+    const score = _relevanceScore({title:t.title, body:bodyText, updated:t.updated || t.createdAt}, queryTerms);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'task', id:t.id, title:t.title, snippet:_bodySnippet(bodyText, maxBodyChars), score, meta:`${t.priority||'Medium'}${t.due?' · due '+t.due:''}${t.project?' · '+t.project:''}`, openFn:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`, icon:'☑'});
+  }
+  // External tasks.
+  for(const et of (D.externalTasks || [])){
+    if(et.removedAt || (et.override && et.override.tombstoned)) continue;
+    if(et.status === 'Done' && !opts.includeDone) continue;
+    const score = _relevanceScore({title:et.title, body:et.description || '', updated:et.updatedAt || et.fetchedAt}, queryTerms);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'ext-task', id:et.externalId, title:et.title, snippet:_bodySnippet(et.description || '', maxBodyChars), score, meta:`${et.source==='nifty'?'LSI':'CF'}${et.status?' · '+et.status:''}${et.due?' · due '+et.due:''}`, openFn:`_openExternalAnnotateModal('${et.source}','${et.externalId}')`, icon:et.source==='nifty'?'🟣':'🟦'});
+  }
+  // Journal entries.
+  for(const j of (D.journal || [])){
+    const bodyText = j.body || '';
+    const score = _relevanceScore({title:j.title || j.date, body:bodyText, updated:j.date}, queryTerms);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'journal', id:j.id, title:`${j.date} ${j.mood||''} ${j.title||''}`.trim(), snippet:_bodySnippet(bodyText, maxBodyChars), score, openFn:`nav('jrnl')`, icon:'📔'});
+  }
+  // Ideas.
+  for(const i of (D.ideas || [])){
+    const bodyText = i.description || i.bodyHtml || '';
+    const score = _relevanceScore({title:i.title, body:bodyText, updated:i.updatedAt || i.createdAt}, queryTerms);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'idea', id:i.id, title:i.title, snippet:_bodySnippet(bodyText, maxBodyChars), score, meta:`stage: ${i.stage||'spark'}`, openFn:`openIdeaDetail&&openIdeaDetail(${i.id})`, icon:'💡'});
+  }
+  // Opportunities.
+  for(const o of (D.opportunities || [])){
+    const bodyText = o.notes || '';
+    const score = _relevanceScore({title:`${o.name||''} ${o.accountName||''}`, body:bodyText, updated:o.updatedAt}, queryTerms);
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'opportunity', id:o.id, title:`${o.name||'(unnamed)'} — ${o.accountName||''}`, snippet:_bodySnippet(bodyText, maxBodyChars), score, meta:`${o.stage||''}${o.value?' · $'+o.value.toLocaleString():''}`, openFn:`openOpportunityDetail&&openOpportunityDetail(${o.id})`, icon:'💼'});
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, limit);
+}
+
+/**
+ * ASK LEVELUP — universal Q&A. Gathers relevant content from across the
+ * workspace, asks AI to synthesize an answer with citations back to the
+ * source objects, renders in an overlay modal with clickable citations.
+ *
+ * Cmd+/ shortcut or topbar button to invoke.
+ */
+async function aiAskLevelup(prefillQuery){
+  // Show the modal with an input first; submit triggers the actual AI call.
+  const existing = document.getElementById('ask-lu-ov');
+  if(existing) existing.remove();
+  const ov = document.createElement('div');
+  ov.id = 'ask-lu-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding-top:80px';
+  ov.onclick = (e) => { if(e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:var(--s1);color:var(--t1);border:1px solid var(--bd2);border-radius:12px;box-shadow:0 12px 48px rgba(0,0,0,0.5);width:680px;max-width:95vw;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:10px">
+      <span style="font-size:20px">✨</span>
+      <input id="ask-lu-input" type="text" placeholder="Ask anything about your workspace… (e.g., 'what did I decide about hiring?')" value="${esc(prefillQuery||'')}" autocomplete="off" data-1p-ignore data-lpignore="true" style="flex:1;background:transparent;border:none;outline:none;color:var(--t1);font-size:15px">
+      <button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('ask-lu-ov')?.remove()">Esc</button>
+    </div>
+    <div id="ask-lu-suggest" style="padding:10px 16px;border-bottom:1px solid var(--bd1);font-size:11px;color:var(--t3);display:flex;flex-wrap:wrap;gap:6px">
+      <span style="font-weight:600;color:var(--t2)">Try:</span>
+      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What\'s blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:10px;padding:2px 8px;height:22px" onclick="document.getElementById('ask-lu-input').value=${_jsAttr?_jsAttr(s):"'"+s.replace(/'/g,"\\'")+"'"};document.getElementById('ask-lu-input').focus()">${esc(s)}</button>`).join('')}
+    </div>
+    <div id="ask-lu-body" style="flex:1;overflow:auto;padding:16px;font-size:13px;line-height:1.6;color:var(--t2)">
+      <div style="text-align:center;color:var(--t3);padding:30px 20px">
+        <div style="font-size:36px;margin-bottom:10px">🧠</div>
+        <div>Type a question above. LevelUp will read your notes, tasks, journal entries, ideas, and opportunities to answer with citations.</div>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp = document.getElementById('ask-lu-input');
+  setTimeout(() => { try { inp?.focus(); inp?.select(); } catch(_){} }, 50);
+  const submit = async () => {
+    const q = inp.value.trim();
+    if(!q) return;
+    const body = document.getElementById('ask-lu-body');
+    body.innerHTML = `<div style="color:var(--t3);text-align:center;padding:30px"><div class="lu-spin" style="display:inline-block;width:24px;height:24px;border:3px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="margin-top:10px;font-size:11px">Gathering relevant content and thinking…</div></div>`;
+    try {
+      const hits = _gatherRelevantContent(q, {limit:12, maxBodyChars:500});
+      if(!hits.length){
+        body.innerHTML = `<div style="text-align:center;color:var(--t3);padding:30px">No relevant content found in your workspace. Try keywords from a note title, task name, or journal entry.</div>`;
+        return;
+      }
+      const sourceBlock = hits.map((h, i) => `[${i+1}] ${h.type.toUpperCase()} — ${h.title}\n${h.snippet}`).join('\n\n');
+      const sys = `You are LevelUp's research assistant. The user has a personal-productivity workspace (notes, tasks, journal entries, ideas, sales opportunities). Below are the most relevant items to their question. Answer concisely (2-5 short paragraphs) referencing specific items using the [1] [2] [3] citation format. Do NOT make up facts — only use what's in the items. If the answer isn't in the items, say so.\n\nRELEVANT ITEMS:\n${sourceBlock}`;
+      const cfg = typeof _getAIConfig === 'function' ? _getAIConfig() : {};
+      const res = await _trpc('ai.assist', {
+        systemPrompt: sys,
+        userContent: q,
+        provider: cfg.provider || 'manus',
+        apiKey: cfg.apiKey || undefined,
+      }, 'mutation');
+      const answer = String(res?.result || res?.text || '').trim() || '(no answer returned)';
+      const answerHtml = esc(answer).replace(/\[(\d+)\]/g, (_, n) => {
+        const i = parseInt(n, 10) - 1;
+        const h = hits[i];
+        if(!h) return `[${n}]`;
+        return `<a href="javascript:void(0)" onclick="document.getElementById('ask-lu-ov')?.remove();setTimeout(()=>{${h.openFn}},80)" style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid color-mix(in srgb,var(--ac) 30%,transparent)" title="${esc(h.title)}">${h.icon} ${n}</a>`;
+      }).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+      body.innerHTML = `<div style="margin-bottom:16px">${answerHtml}</div>
+        <div style="border-top:1px solid var(--bd1);padding-top:12px;margin-top:12px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:6px;font-weight:600">Sources (${hits.length}) — click any [n] in the answer above</div>
+          <div style="display:flex;flex-direction:column;gap:6px">${hits.map((h,i)=>`<div style="font-size:11px;padding:6px 8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1);cursor:pointer" onclick="document.getElementById('ask-lu-ov')?.remove();setTimeout(()=>{${h.openFn}},80)" title="Open">
+            <div style="display:flex;align-items:center;gap:6px"><span style="background:var(--s3);color:var(--t2);padding:1px 5px;border-radius:8px;font-weight:600">${i+1}</span><span>${h.icon}</span><span style="font-weight:600;color:var(--t1)">${esc(h.title)}</span>${h.meta?`<span style="color:var(--t3);font-size:10px;margin-left:auto">${esc(h.meta)}</span>`:''}</div>
+            <div style="color:var(--t3);margin-top:3px;font-size:10px;line-height:1.4">${esc(h.snippet.slice(0,200))}${h.snippet.length>200?'…':''}</div>
+          </div>`).join('')}</div>
+        </div>`;
+    } catch(err){
+      body.innerHTML = `<div style="color:var(--red);padding:20px;background:rgba(239,68,68,0.08);border-radius:6px">⚠ Failed to answer: ${esc(err.message || String(err))}</div>`;
+    }
+  };
+  inp.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); submit(); }
+    if(e.key === 'Escape'){ ov.remove(); }
+  });
+  if(prefillQuery) submit();
+}
+
+/**
+ * AI DEEP INSIGHT for a single note — reads the full bodyHtml/body and
+ * returns structured analysis: key points, action items extracted (with
+ * "create task" buttons), open questions, related notes from the
+ * gatherer. Cached on n.aiDeepInsight so re-opens are instant.
+ */
+async function aiNoteDeepInsight(noteId, opts){
+  const note = (D.notes || []).find(n => n.id === noteId);
+  if(!note){ toast({type:'warn', title:'Note not found'}); return; }
+  const force = opts && opts.force;
+  // Check cache.
+  if(!force && note.aiDeepInsight && note.aiDeepInsight.cachedAt){
+    return _renderNoteDeepInsight(noteId, note.aiDeepInsight);
+  }
+  const bodyText = _bodySnippet(note.bodyHtml || note.body || '', 6000);
+  if(!bodyText){
+    toast({type:'info', title:'Note has no content to analyze'});
+    return;
+  }
+  // Open the panel with a loading state immediately.
+  _renderNoteDeepInsight(noteId, {loading:true});
+  try {
+    const cfg = typeof _getAIConfig === 'function' ? _getAIConfig() : {};
+    const sys = `You are LevelUp's note analyzer. Read the note below and respond with STRICT JSON ONLY (no markdown, no code fences) of shape:
+{
+  "summary": "1-2 sentence summary",
+  "keyPoints": ["bullet 1", "bullet 2", "bullet 3"],
+  "actionItems": [{"title":"specific imperative task", "why":"brief reason"}],
+  "openQuestions": ["question 1", "question 2"]
+}
+Rules: 3-6 keyPoints, 0-5 actionItems (only genuinely actionable items — skip vague stuff), 0-4 openQuestions. Output JSON only.
+
+NOTE TITLE: ${note.title || '(untitled)'}
+NOTE BODY:
+${bodyText}`;
+    const res = await _trpc('ai.assist', {
+      systemPrompt: sys,
+      userContent: 'Analyze this note.',
+      provider: cfg.provider || 'manus',
+      apiKey: cfg.apiKey || undefined,
+      jsonMode: true,
+    }, 'mutation');
+    let parsed;
+    const raw = String(res?.result || res?.text || '').trim();
+    try { parsed = JSON.parse(raw); }
+    catch(_){
+      // Strip code fences if present.
+      const m = raw.match(/\{[\s\S]*\}/);
+      if(m) try { parsed = JSON.parse(m[0]); } catch(_){}
+    }
+    if(!parsed || typeof parsed !== 'object'){
+      throw new Error('AI returned non-JSON output');
+    }
+    // Pull related notes via the gatherer using the note title + first 100 chars as the query.
+    const relatedQuery = `${note.title || ''} ${bodyText.slice(0,200)}`;
+    const related = _gatherRelevantContent(relatedQuery, {limit:5}).filter(h => !(h.type === 'note' && h.id === noteId));
+    const insight = {
+      cachedAt: new Date().toISOString(),
+      summary: parsed.summary || '',
+      keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+      actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
+      openQuestions: Array.isArray(parsed.openQuestions) ? parsed.openQuestions : [],
+      related: related.slice(0, 5),
+    };
+    note.aiDeepInsight = insight;
+    save('notes');
+    _renderNoteDeepInsight(noteId, insight);
+  } catch(err){
+    _renderNoteDeepInsight(noteId, {error: err.message || String(err)});
+  }
+}
+
+function _renderNoteDeepInsight(noteId, insight){
+  const host = document.getElementById('note-ai-insight-panel');
+  if(!host){
+    // No host — caller hasn't opened the panel container. Open via toast nav.
+    return;
+  }
+  if(insight.loading){
+    host.innerHTML = `<div style="padding:14px;text-align:center;color:var(--t3)"><div class="lu-spin" style="display:inline-block;width:20px;height:20px;border:3px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="margin-top:8px;font-size:11px">Reading your note and extracting insights…</div></div>`;
+    return;
+  }
+  if(insight.error){
+    host.innerHTML = `<div style="padding:12px;color:var(--red);background:rgba(239,68,68,0.08);border-radius:6px;font-size:11px">⚠ ${esc(insight.error)}<br><button class="btn btn-s" style="font-size:10px;margin-top:6px" onclick="aiNoteDeepInsight(${noteId},{force:true})">Retry</button></div>`;
+    return;
+  }
+  const cachedAge = insight.cachedAt ? Math.round((Date.now() - new Date(insight.cachedAt).getTime()) / 60000) : 0;
+  host.innerHTML = `<div style="padding:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">🧠 AI Deep Insight</div>
+      <div style="display:flex;gap:6px;align-items:center;font-size:9px;color:var(--t3)">
+        ${cachedAge<60?`${cachedAge}m ago`:`${Math.round(cachedAge/60)}h ago`}
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="aiNoteDeepInsight(${noteId},{force:true})" title="Regenerate">↻</button>
+      </div>
+    </div>
+    ${insight.summary?`<div style="padding:8px 10px;background:var(--s2);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px;font-size:12px;line-height:1.5;font-style:italic">${esc(insight.summary)}</div>`:''}
+    ${insight.keyPoints && insight.keyPoints.length?`<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">🎯 Key points</div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">${insight.keyPoints.map(k=>`<li>${esc(k)}</li>`).join('')}</ul>
+    </div>`:''}
+    ${insight.actionItems && insight.actionItems.length?`<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">⚡ Suggested action items</div>
+      <div style="display:flex;flex-direction:column;gap:4px">${insight.actionItems.map((a,i)=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:6px 8px;background:var(--s2);border-radius:4px;font-size:11px">
+        <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px;flex-shrink:0;background:#16a34a;color:#fff;border-color:#15803d" onclick="_aiInsightCreateTask(${noteId},${i})" title="Create as task linked to this note">+ Task</button>
+        <div style="flex:1"><div style="color:var(--t1);font-weight:500">${esc(a.title)}</div>${a.why?`<div style="color:var(--t3);font-size:10px;margin-top:2px">${esc(a.why)}</div>`:''}</div>
+      </div>`).join('')}</div>
+    </div>`:''}
+    ${insight.openQuestions && insight.openQuestions.length?`<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">❓ Open questions</div>
+      <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6;color:var(--t2)">${insight.openQuestions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+    </div>`:''}
+    ${insight.related && insight.related.length?`<div>
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">🔗 Related across workspace</div>
+      <div style="display:flex;flex-direction:column;gap:4px">${insight.related.map(r=>`<div style="font-size:11px;padding:5px 8px;background:var(--s2);border-radius:4px;cursor:pointer" onclick="${r.openFn}" title="${esc(r.snippet.slice(0,200))}"><span style="margin-right:5px">${r.icon}</span><span style="font-weight:500">${esc(r.title)}</span>${r.meta?`<span style="color:var(--t3);margin-left:6px;font-size:10px">${esc(r.meta)}</span>`:''}</div>`).join('')}</div>
+    </div>`:''}
+  </div>`;
+}
+
+// Opens a side panel overlay for the Note Deep Insight. The panel
+// docks on the right edge so the user can read the note + insight
+// side-by-side. Calls aiNoteDeepInsight which writes into the host
+// div #note-ai-insight-panel inside this overlay.
+function _openNoteInsightPanel(noteId){
+  document.getElementById('note-insight-side')?.remove();
+  const side = document.createElement('div');
+  side.id = 'note-insight-side';
+  side.style.cssText = 'position:fixed;top:56px;right:0;width:380px;max-width:95vw;height:calc(100vh - 56px);background:var(--s1);border-left:1px solid var(--bd2);box-shadow:-4px 0 20px rgba(0,0,0,0.25);z-index:200;overflow-y:auto;padding:14px;display:flex;flex-direction:column;animation:slideInRight 200ms ease-out';
+  side.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
+    <div style="font-size:13px;font-weight:600;color:var(--t1)">🧠 Deep Insight</div>
+    <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 6px" onclick="document.getElementById('note-insight-side')?.remove()" title="Close">✕</button>
+  </div>
+  <div id="note-ai-insight-panel" style="flex:1"></div>`;
+  document.body.appendChild(side);
+  aiNoteDeepInsight(noteId);
+}
+
+// Helper: create a native task from an AI-suggested action item, linked
+// back to the originating note.
+function _aiInsightCreateTask(noteId, actionIdx){
+  const note = (D.notes || []).find(n => n.id === noteId);
+  if(!note || !note.aiDeepInsight) return;
+  const action = note.aiDeepInsight.actionItems && note.aiDeepInsight.actionItems[actionIdx];
+  if(!action) return;
+  const newId = Date.now();
+  D.tasks = D.tasks || [];
+  D.tasks.unshift({
+    id: newId,
+    title: action.title,
+    description: action.why || '',
+    status: 'Not Started',
+    priority: 'Medium',
+    createdAt: new Date().toISOString(),
+    createdBy: (D.creds && D.creds.userName) || 'AI',
+    linkedNoteIds: [noteId],
+  });
+  // Add the reverse link on the note for future "tasks from this note" rollup.
+  note.linkedTaskIds = note.linkedTaskIds || [];
+  if(!note.linkedTaskIds.includes(newId)) note.linkedTaskIds.push(newId);
+  save('tasks'); save('notes');
+  toast({type:'success', title:`+ Task: ${action.title.slice(0,40)}${action.title.length>40?'…':''}`, msg:'Linked to this note.'});
+}
+
 async function _refreshAIInsight(){
   const today=new Date().toISOString().slice(0,10);
   try{
@@ -11153,6 +11519,7 @@ function renderNoteEditor(n){
       <div style="position:relative;display:inline-block">
         <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">🧠 Deep Insight panel</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${n.id})">✨ Summarize into bullets</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${n.id})">🏷 Auto-tag</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${n.id})">🔗 Find related notes</button>

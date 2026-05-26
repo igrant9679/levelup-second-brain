@@ -2068,6 +2068,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      wouldn't break anything either, but this is belt-and-suspenders). -->
 <button id="topbar-token-refresh" style="display:none!important" aria-hidden="true" tabindex="-1"></button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
+<button class="tbtn" id="topbar-ask-btn" onclick="aiAskLevelup()" title="Ask LevelUp anything about your workspace (Ctrl/Cmd + /)" style="color:#8b5cf6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/></svg></button>
 <button class="tbtn" id="topbar-sync-btn" onclick="_topbarSyncNow()" title="Sync external sources (Smartsheet + NiftyPM)" style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span id="topbar-sync-dot" style="display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--ok)"></span></button>
 <span id="topbar-sync-label" style="font-size:10px;color:var(--t3);align-self:center;cursor:pointer;display:none" onclick="nav('command')" title="Open Command Center"></span>
 <button id="topbar-push-btn" onclick="_pushPendingNow()" style="display:none;background:#f59e0b;color:#fff;border:none;height:30px;padding:0 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer" title="Push queued status changes to source">⬆ Push <span data-pcount>0</span></button>
@@ -2521,7 +2522,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-26-42';
+  var APP_BUILD='2026-05-26-43';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

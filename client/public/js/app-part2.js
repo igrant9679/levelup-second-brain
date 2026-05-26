@@ -4037,6 +4037,10 @@ document.addEventListener('keydown',e=>{
   if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}
   if((e.ctrlKey||e.metaKey)&&e.key==='j'){e.preventDefault();toggleAIPanel()}
+  // Cmd/Ctrl + / opens the Ask LevelUp universal Q&A overlay. Different
+  // mental model from Cmd+J (persistent chat) vs Cmd+K (navigate) — this
+  // is "ask one question and get cited answer back."
+  if((e.ctrlKey||e.metaKey)&&e.key==='/'){e.preventDefault();if(typeof aiAskLevelup==='function')aiAskLevelup();}
   // '?' anywhere (when not typing) opens the keyboard shortcuts overlay.
   if(e.key==='?'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
     const t=e.target;
