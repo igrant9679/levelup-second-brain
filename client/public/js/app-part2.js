@@ -616,6 +616,7 @@ function renderSettingsHTML(){
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-p" style="height:28px;font-size:10px" onclick="refreshExternalTasksNow()">↻ Refresh now</button>
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px;background:#0c7b41;color:#fff;border-color:#0a6535" onclick="_readdCfWatches()" title="Re-create the standard CommunityForce watched sheets (120-Day Plan + Pipeline) — safe to click even if some already exist.">＋ Re-add CF watches</button>
     </div>
     <div class="lr" style="padding:8px 0;margin-top:8px;border-top:1px solid var(--bd1);align-items:center">
       <div style="flex:1">
@@ -1830,6 +1831,37 @@ async function _extSubmitSmartsheetWatch(){
     await refreshExternalTasksNow();
     await _hydrateExternalSourcesPanel();
   }catch(e){toast({type:'warn',title:'Save failed',msg:e.message||String(e)});}
+}
+
+// Re-add the two standard CommunityForce watched sheets in one click. Used
+// when a "reconnect Smartsheet" wiped existing watches — the user shouldn't
+// have to re-key sheet IDs and column choices from memory.
+async function _readdCfWatches(){
+  const ownerName=(D.creds&&D.creds.userName)||'Idris Grant';
+  const presets=[
+    {sheetId:'7278463428808580',label:'CF — 120-Day Plan',ownerColumn:'PM',ownerMatchValue:ownerName,matchMode:'contains',statusColumn:'Status',dueColumn:'Due'},
+    {sheetId:'1841858691596164',label:'CF — Pipeline 2026/2027',ownerColumn:'PM',ownerMatchValue:ownerName,matchMode:'contains',statusColumn:'Status',dueColumn:'Exp Close Date'},
+  ];
+  if(!confirm('Re-add the two standard CommunityForce watched sheets ('+presets.map(p=>p.label).join(', ')+')?\n\nThis is safe to run if some already exist — duplicates are ignored.')) return;
+  let okCount=0, errs=[];
+  for(const p of presets){
+    try{
+      await _trpc('externalSources.addSmartsheetWatch',p,'mutation');
+      okCount++;
+    }catch(e){
+      // Duplicate-sheet errors are expected & harmless — treat them as success.
+      const msg=String(e&&e.message||e);
+      if(/duplicate|already|exists/i.test(msg)){ okCount++; }
+      else errs.push(p.label+': '+msg);
+    }
+  }
+  if(errs.length){
+    toast({type:'warn',title:`Re-added ${okCount}/${presets.length} · ${errs.length} failed`,msg:errs.join(' · ')});
+  } else {
+    toast({type:'success',title:`✅ Re-added ${okCount} CF watches — pulling now…`});
+  }
+  try{ await refreshExternalTasksNow(); }catch(_){}
+  await _hydrateExternalSourcesPanel();
 }
 
 function _renderAddNiftyWatchModal(projects){

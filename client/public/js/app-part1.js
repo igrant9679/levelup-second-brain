@@ -3380,17 +3380,41 @@ function _drAddLink(category,idStr){
   const id=parseInt(idStr);if(isNaN(id))return;
   if(!_drLinks[category])_drLinks[category]=[];
   if(!_drLinks[category].includes(id))_drLinks[category].push(id);
+  _drAutoSaveLinks();
   // Defer the re-render: rebuilding #dr-task-links innerHTML *inside* the
   // <select>'s own change event makes iOS Safari swallow the selection
   // (picking a Note appeared to do nothing). Let the event finish first.
-  setTimeout(_drRenderTaskLinks,0);
+  setTimeout(()=>_drRenderTaskLinks(_drAutoTargetContainer()),0);
 }
 function _drRemoveLink(category,id){
   _drLinks[category]=(_drLinks[category]||[]).filter(x=>x!==id);
-  setTimeout(_drRenderTaskLinks,0);
+  _drAutoSaveLinks();
+  setTimeout(()=>_drRenderTaskLinks(_drAutoTargetContainer()),0);
 }
-function _drRenderTaskLinks(){
-  const wrap=document.getElementById('dr-task-links');if(!wrap)return;
+function _drAutoTargetContainer(){
+  // When the inline note editor is showing, its container takes precedence.
+  return document.getElementById('note-inline-links')?'note-inline-links':'dr-task-links';
+}
+function _drAutoSaveLinks(){
+  // When the inline note editor is the active host, persist link changes to
+  // the underlying note immediately — the inline editor has no Save button.
+  if(!_drLinksAutoSaveNoteId)return;
+  const n=(D.notes||[]).find(x=>x.id===_drLinksAutoSaveNoteId);
+  if(!n)return;
+  n.linkedProjectIds=[...(_drLinks.projects||[])];
+  n.linkedGoalIds=[...(_drLinks.goals||[])];
+  n.linkedTaskIds=[...(_drLinks.tasks||[])];
+  n.linkedNoteIds=[...(_drLinks.notes||[])];
+  n.linkedBookmarkIds=[...(_drLinks.bookmarks||[])];
+  n.linkedJournalIds=[...(_drLinks.journal||[])];
+  n.updated='Just now';
+  try{ save('notes'); }catch(e){ console.error('autosave note links failed',e); }
+}
+function _drRenderTaskLinks(containerId){
+  // Renders the chip-based linker into the target element. Defaults to the
+  // drawer's `dr-task-links` for backward compat; the inline note editor
+  // passes its own id so both linkers can coexist on the same page.
+  const wrap=document.getElementById(containerId||'dr-task-links');if(!wrap)return;
   const cats=[
     {key:'projects',label:'Projects',icon:'📁',source:()=>D.projects||[],labelOf:p=>p.name,filter:()=>true},
     {key:'goals',label:'Goals',icon:'🎯',source:()=>D.goals||[],labelOf:g=>(g.icon||'🎯')+' '+g.title,filter:()=>true},
@@ -9253,12 +9277,33 @@ function showNoteInEditor(id){
   // Render in editor pane
   const ed=$('notes-editor-panel')||document.querySelector('.notes-editor');
   if(ed)ed.innerHTML=renderNoteEditor(n);
+  // Hydrate the inline chip linker (read-mode only — edit-mode uses its own
+  // flow). Wraps _drInitLinks with a flag so add/remove auto-saves to the
+  // note instead of waiting for "Save Changes".
+  if(!_noteInlineEditId&&document.getElementById('note-inline-links')&&typeof _drInitLinks==='function'){
+    _drInitLinks({
+      projects:n.linkedProjectIds||[],
+      goals:n.linkedGoalIds||[],
+      tasks:n.linkedTaskIds||[],
+      notes:n.linkedNoteIds||[],
+      bookmarks:n.linkedBookmarkIds||[],
+      journal:n.linkedJournalIds||[],
+    },n.id);
+    _drLinksAutoSaveNoteId=n.id;
+    setTimeout(()=>_drRenderTaskLinks('note-inline-links'),0);
+  } else {
+    _drLinksAutoSaveNoteId=null;
+  }
   // Update backlink graph in rail
   const gc=document.getElementById('notes-graph-container');
   if(gc)gc.innerHTML=renderNotesGraph(id);
   const bp=document.getElementById('notes-backlinks-panel');
   if(bp)bp.innerHTML=_renderNotesBacklinkRail(id);
 }
+// When set, the chip linker writes through to D.notes[].linked*Ids on every
+// add/remove instead of waiting for a Save button. Used by the inline note
+// editor, which has no Save action.
+let _drLinksAutoSaveNoteId=null;
 // ─── Unified Notes Filter Engine ─────────────────────────────────────────────
 // ─── Note polish helpers ────────────────────────────────────────────────
 // Color palette for note color tags (small dot shown on the list card +
@@ -10973,6 +11018,12 @@ function renderNoteEditor(n){
   ${(n.versions&&n.versions.length)?`<div style="margin-bottom:14px">${_renderNoteVersionSparkline(n)}</div>`:''}
   ${(()=>{const o=_renderNoteOutline(n,bodyHtml);bodyHtml=o.htmlWithIds;return o.toc;})()}
   <div class="note-body" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>
+  <!-- Chip-based linker — Projects / Goals / Tasks / Other Notes / Bookmarks /
+       Journal. Hydrated by showNoteInEditor() so it persists across re-renders. -->
+  <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--bd1)">
+    <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:8px">🔗 Linked Items <span style="font-size:9px;color:var(--t3);font-weight:400">Pick from each dropdown to link · click ✕ on a chip to unlink · auto-saves</span></div>
+    <div id="note-inline-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+  </div>
   </div>`;
 }
 
