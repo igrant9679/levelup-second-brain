@@ -617,6 +617,7 @@ function renderSettingsHTML(){
       <button class="btn btn-p" style="height:28px;font-size:10px" onclick="refreshExternalTasksNow()">↻ Refresh now</button>
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
       <button class="btn btn-s" style="height:28px;font-size:10px;background:#0c7b41;color:#fff;border-color:#0a6535" onclick="_readdCfWatches()" title="Re-create the standard CommunityForce watched sheets (120-Day Plan + Pipeline) — safe to click even if some already exist.">＋ Re-add CF watches</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyResetAndResync()" title="Mark all Nifty rows as removed, then re-pull. Only currently-open Nifty tasks come back — anything completed prior to today stays hidden. Use this if 'previously completed' tasks linger as Open.">🧹 Nifty: reset historical</button>
     </div>
     <div class="lr" style="padding:8px 0;margin-top:8px;border-top:1px solid var(--bd1);align-items:center">
       <div style="flex:1">
@@ -1862,6 +1863,25 @@ async function _readdCfWatches(){
   }
   try{ await refreshExternalTasksNow(); }catch(_){}
   await _hydrateExternalSourcesPanel();
+}
+
+// Nuclear reset: stamp removedAt on every Nifty row, then re-pull. The
+// puller's historical-completion filter only re-adds currently-open
+// Nifty tasks. Historical completions stay hidden permanently. Use when
+// previously-completed Nifty tasks linger as Open in the LevelUp Tasks
+// list because the puller never had a reason to vanish them.
+async function _niftyResetAndResync(){
+  if(!confirm("Reset all Nifty rows in LevelUp and re-pull?\n\n• Every Nifty row will be marked hidden\n• Then a fresh pull runs immediately\n• Only currently-open Nifty tasks come back\n• Anything completed prior to today stays hidden\n• Local notes/links survive (preserved as tombstones if not re-pulled)\n\nProceed?")) return;
+  toast({type:'info',title:'Resetting Nifty rows + re-pulling…',duration:3000});
+  try{
+    const res=await _trpc('externalSources.niftyResetAndResync',{},'mutation');
+    toast({type:'success',title:`✅ Nifty reset complete`,msg:`Hidden ${res.stampedAtStart} stale row(s) · re-added ${res.visibleAfterPull} currently-open · ${res.stillHiddenAfterPull} stayed hidden (historical or no longer in Nifty)`});
+    try{ await loadExternalTasks(); }catch(_){}
+    await _hydrateExternalSourcesPanel();
+    try{ renderScreen('tasks'); }catch(_){}
+  }catch(e){
+    toast({type:'warn',title:'Reset failed',msg:e.message||String(e)});
+  }
 }
 
 function _renderAddNiftyWatchModal(projects){

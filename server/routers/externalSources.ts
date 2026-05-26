@@ -548,6 +548,50 @@ export const externalSourcesRouter = router({
   }),
 
   /**
+   * Nuclear reset: stamp removedAt on every Nifty external_tasks row for
+   * the current user, then run a fresh full Nifty pull. The pull's
+   * historical-completion filter only re-adds rows Nifty currently
+   * reports as not-historically-done — anything else stays hidden.
+   *
+   * Use when previously-completed Nifty tasks linger as "Open" in
+   * LevelUp because the row went stale at a time when Nifty returned
+   * them as open (so the puller never had a reason to vanish them).
+   *
+   * Overrides are preserved. If a removed row stays missing past the
+   * 72h grace window the override is tombstoned (not destroyed) so
+   * personal notes survive in the Tombstoned archive.
+   */
+  niftyResetAndResync: protectedProcedure.mutation(async ({ ctx }) => {
+    const db = await requireDb();
+    const niftyRows = await db.select({ id: externalTasks.id, removedAt: externalTasks.removedAt })
+      .from(externalTasks)
+      .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'nifty')));
+    let stamped = 0;
+    for (const r of niftyRows) {
+      if (r.removedAt) continue;
+      await db.update(externalTasks)
+        .set({ removedAt: sql`CURRENT_TIMESTAMP` })
+        .where(eq(externalTasks.id, r.id));
+      stamped++;
+    }
+    // Fresh pull. Only currently-open Nifty tasks will have removedAt
+    // cleared (the upsert sets it to null on every matched row); historical
+    // ones stay hidden and disappear from active views.
+    const pullStats = await processExternalTaskPull({ userId: ctx.user.id });
+    const after = await db.select({ id: externalTasks.id, removedAt: externalTasks.removedAt })
+      .from(externalTasks)
+      .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'nifty')));
+    const stillHidden = after.filter(r => r.removedAt).length;
+    const visible = after.filter(r => !r.removedAt).length;
+    return {
+      stampedAtStart: stamped,
+      stillHiddenAfterPull: stillHidden,
+      visibleAfterPull: visible,
+      pullStats,
+    };
+  }),
+
+  /**
    * Diagnostic: search every enabled Nifty watched project for tasks matching
    * a title substring (case-insensitive). Returns the raw Nifty payload for
    * each match so we can see exactly what the API thinks the status is,
