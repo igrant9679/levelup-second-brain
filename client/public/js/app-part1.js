@@ -7029,13 +7029,29 @@ function renderTaskList(){
           _url:et.externalUrl,
           _externalId:et.externalId,
           _parentExternalId:et.parentExternalId||null,
+          // Extract hierarchy classification from the raw payload so the
+          // renderer can spot Smartsheet subtasks even when no parent row
+          // is tracked (CF 120-Day Plan has Project headers + SubTask
+          // leaves with no intermediate Task rows, so parentExternalId is
+          // never populated by the adapter).
+          _kind:(function(){try{const r=JSON.parse(et.raw||'{}');return r.kind||r.hierarchyLevel||null;}catch(_){return null;}})(),
+          _projectLabel:et.projectLabel||null,
           _override:ov,
           _readOnly:true,
         };
       });
     // Subtask grouping: re-order the array so each subtask immediately
-    // follows its parent (when both are present in the same filter set).
-    // Keeps unrelated tasks in their original drag/sort order.
+    // follows its parent. Two grouping rules:
+    //   1) Parent-by-externalId: when a subtask's parentExternalId points
+    //      at another tracked external task (Nifty subtasks, Smartsheet
+    //      outline subtasks). Subtask sits directly under its parent.
+    //   2) CF Project-grouping fallback: when a Smartsheet row is
+    //      classified subtask-kind but has no parent in the tracked set
+    //      (the CF 120-Day Plan case — Project headers + SubTask leaves
+    //      with no intermediate Task rows), group rows by their
+    //      projectLabel so all subtasks of the same CF Project appear
+    //      adjacent. Keeps the visual "↳ Project" breadcrumb clusters
+    //      from looking randomly interleaved.
     (function(){
       const byExtId=new Map();
       extShaped.forEach(t=>byExtId.set(t._externalId,t));
@@ -7057,6 +7073,19 @@ function renderTaskList(){
         subs.forEach(pushWithSubs);
       };
       parents.forEach(pushWithSubs);
+      // Now reorder the grouped array to cluster CF subtasks by their
+      // projectLabel. Stable sort within projects preserves the original
+      // sheet row order. Non-CF rows + CF rows with no projectLabel get
+      // a synthetic "" sort key so they stay clustered at the start.
+      const isCfOrphanSub=(t)=>t._source==='smartsheet'&&t._kind==='subtask'&&!byExtId.has(t._parentExternalId||'')&&!!t._projectLabel;
+      grouped.sort((a,b)=>{
+        const aCf=isCfOrphanSub(a), bCf=isCfOrphanSub(b);
+        if(!aCf&&!bCf)return 0; // preserve order for non-CF-subtask rows
+        if(aCf&&!bCf)return 1;  // CF subtasks land after other rows
+        if(!aCf&&bCf)return -1;
+        // Both are CF orphan subtasks — sort by projectLabel.
+        return String(a._projectLabel||'').localeCompare(String(b._projectLabel||''));
+      });
       // Replace contents in place (extShaped is const but we mutate the array).
       extShaped.length=0;
       grouped.forEach(t=>extShaped.push(t));
@@ -7203,21 +7232,34 @@ function renderTaskList(){
       // Use the original/raw status label for display when status was
       // normalised to 'Done' (e.g. show "Closed" if the source said so).
       const statusLabel=t._rawStatus||t.status||'';
-      // Subtask detection — if parentExternalId points at another tracked
-      // external task, render this card visually nested under it with an
-      // indent + dotted left border + breadcrumb pill. Indent is applied
-      // via inline margin-left so the row still flows in document order
-      // (no risk of nested DOM breaking drag-reorder).
+      // Subtask detection — two paths:
+      //   A) parentExternalId points at another tracked external task
+      //      (Nifty subtasks under parent tasks, Smartsheet rows with
+      //      explicit outline parents). Breadcrumb = parent task title.
+      //   B) Smartsheet row classified as kind='subtask' but no tracked
+      //      parent (CF 120-Day Plan: Project headers + SubTask leaves,
+      //      no intermediate Task rows). Breadcrumb = projectLabel —
+      //      clicking it jumps to the corresponding LevelUp project.
+      // Both paths apply the same indent + dotted left border styling.
       const pid=t._parentExternalId||t.parentExternalId||null;
       let parentRow=null;
       if(pid){
         parentRow=(D.externalTasks||[]).find(x=>x.externalId===pid&&x.source===t._source);
       }
-      const isSubtask=!!parentRow;
+      const isSubtaskByParent=!!parentRow;
+      const isCfSubtaskByKind=!isSubtaskByParent && t._source==='smartsheet' && t._kind==='subtask' && !!t._projectLabel;
+      const isSubtask=isSubtaskByParent||isCfSubtaskByKind;
       const indent=isSubtask?'margin-left:24px;border-left:2px dotted var(--bd2);padding-left:8px':'';
-      const breadcrumb=isSubtask
-        ?`<span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`
-        :'';
+      let breadcrumb='';
+      if(isSubtaskByParent){
+        breadcrumb=`<span style="font-size:9px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`;
+      } else if(isCfSubtaskByKind){
+        // Find the LevelUp project (auto-created from this projectLabel) so
+        // the breadcrumb clicks open that project's drawer.
+        const projMatch=(D.projects||[]).find(p=>(p.name||'').toLowerCase()===(t._projectLabel||'').toLowerCase());
+        const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id===${projMatch.id}))`:`nav('projects')`;
+        breadcrumb=`<span style="font-size:9px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">📁 ${esc((t._projectLabel||'').slice(0,48))}</span>`;
+      }
       return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
         <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
           <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${esc(t._source)}','${esc(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
