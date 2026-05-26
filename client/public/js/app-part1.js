@@ -2943,13 +2943,6 @@ function renderDrawer(type,item){
         </select>
       </div>
     </div>
-    <!-- Linked Items — chip-based picker (same as the Task drawer). The
-         old 4× <select multiple> rendered as if everything was selected
-         (and listed all example data), which read as "every note linked
-         to everything". Hydrated by openDrawer -> _drInitLinks. -->
-    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:9px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
-      <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
-    </div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
       <label style="display:flex;justify-content:space-between;align-items:center">
@@ -2985,6 +2978,18 @@ function renderDrawer(type,item){
         </div>
         <div id="dr-note-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
+    </div>
+    <!-- Linked Items — chip-based picker (same as the Task drawer). Moved
+         to sit next to Related Bookmarks so it's visible in the same scroll
+         viewport above the Save / Delete / Cancel actions; the user can't
+         miss it from the bottom of the drawer. Hydrated by
+         openDrawer -> _drInitLinks. -->
+    <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Linked Items</span>
+        <span style="font-size:9px;color:var(--t3);font-weight:400">Pick from each dropdown · click ✕ on a chip to unlink · saves with Save Changes</span>
+      </div>
+      <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
     </div>
     <!-- Related Bookmarks Section -->
     <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
@@ -3392,13 +3397,20 @@ function _drRemoveLink(category,id){
   setTimeout(()=>_drRenderTaskLinks(_drAutoTargetContainer()),0);
 }
 function _drAutoTargetContainer(){
-  // When the inline note editor is showing, its container takes precedence.
+  // When the Full-Edit drawer is open, drawer-links takes precedence even if
+  // the inline editor's note-inline-links is also in the DOM behind it.
+  // Otherwise prefer the inline editor's container, falling back to drawer.
+  const drawerOpen=document.getElementById('drawer-ov')?.classList.contains('show');
+  if(drawerOpen&&document.getElementById('dr-task-links')) return 'dr-task-links';
   return document.getElementById('note-inline-links')?'note-inline-links':'dr-task-links';
 }
 function _drAutoSaveLinks(){
   // When the inline note editor is the active host, persist link changes to
   // the underlying note immediately — the inline editor has no Save button.
+  // Skip auto-save when the Full-Edit drawer is on top: the drawer's own
+  // "Save Changes" button is the commit point for that flow.
   if(!_drLinksAutoSaveNoteId)return;
+  if(document.getElementById('drawer-ov')?.classList.contains('show'))return;
   const n=(D.notes||[]).find(x=>x.id===_drLinksAutoSaveNoteId);
   if(!n)return;
   n.linkedProjectIds=[...(_drLinks.projects||[])];
