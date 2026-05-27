@@ -683,6 +683,17 @@ function renderSettingsHTML(){
   </div>
   <!-- AI Features --><div id="sp-6" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">✨ AI Features</h3>
+  <!-- Default AI output length -->
+  <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">📏 Default AI output length</h4>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Controls how much text AI generates (Validate, Pre-mortem, Expand, Compose Notes, Compose Description, Journal modes, Note modes, etc.). You can override per-RTE via the chip in each AI Assistance bar — clicking it cycles Short → Medium → Long.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${[['short','📏 Short','~80 words · 3-5 sentences'],['medium','📐 Medium','~200 words · default'],['long','📋 Long','~500 words · formatted'] ].map(([v,l,h])=>{
+        const active=((D.prefs&&D.prefs.aiOutputLength)||'medium')===v;
+        return `<button class="btn ${active?'btn-p':'btn-s'}" style="font-size:11px;height:auto;padding:8px 10px;text-align:left;flex:1;min-width:140px" onclick="_aiSetLength('${v}');renderScreen('settings')"><div style="font-weight:600">${l}</div><div style="font-size:9px;color:${active?'rgba(255,255,255,.85)':'var(--t3)'};margin-top:2px">${h}</div></button>`;
+      }).join('')}
+    </div>
+  </div>
   <!-- AI Provider Keys -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
@@ -5017,6 +5028,7 @@ function renderFANote(){
           <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('autotag')">🏷 Auto-tag</button>
           <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('questions')">❓ Key Questions</button>
           <button type="button" class="btn btn-d" style="height:24px;font-size:10px" onclick="document.getElementById('fa-note-rte').innerHTML='';document.getElementById('fa-note-rte-wc').textContent='0 words'">🗑 Clear</button>
+          ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="fa-note-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
       </div>
@@ -5282,6 +5294,7 @@ function renderFAJournal(){
         <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('mood')">🟡 Mood Analysis</button>
         <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('questions')">❓ Prompt Me</button>
         <button type="button" class="btn btn-d" style="height:26px;font-size:10px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';document.getElementById('fa-jrnl-rte-wordcount').textContent='0 words'">🗑 Clear</button>
+        ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       </div>
       <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
     </div>
@@ -7510,44 +7523,90 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   el.style.display='block';
   el.innerHTML='<span style="color:var(--t3)">⏳ Thinking...</span>';
   const {provider,apiKey}=_getAIConfig();
+  // Inject the current length-guidance hint into the systemPrompt so the
+  // model knows how long to make the response. Cheap; happens at call time
+  // so a chip change between renders takes effect on the next click.
+  const sysWithLen=(typeof _aiLengthHint==='function')?(systemPrompt+_aiLengthHint()):systemPrompt;
   try{
-    const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sysWithLen,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
     const text=res?.result||res?.text||'No response generated.';
-    // Save to history
+    // Save the raw markdown to history (rendered HTML is regenerated on demand).
     if(targetRteId)_rteHistorySave(targetRteId,systemPrompt.substring(0,120),text);
-    // Render result with optional Insert button + history panel
-    const insertBtn=targetRteId?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteInsert('${targetRteId}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`:
-      `<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteCopyToClipboard(this)">📋 Copy</button>`;
+    // Render the AI output as HTML via renderMd so headings / bold / lists /
+    // links show up formatted in the preview pane. Stash the markdown source
+    // on a data-md attribute so Insert + Copy can grab the original.
+    const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
+    const previewId='ai-out-'+Math.random().toString(36).slice(2,9);
+    const insertBtn=targetRteId
+      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteInsertHTML('${targetRteId}','${previewId}')">⬇ Insert into body</button>`
+      :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteCopyToClipboard('${previewId}')">📋 Copy</button>`;
     const historyHtml=targetRteId?_rteHistoryRender(targetRteId):'';
-    el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(text)}</div>${insertBtn}${historyHtml}`;
+    // data-md holds the original markdown for clipboard copy. The visible div
+    // shows the rendered HTML. Both live in the same node so the Insert /
+    // Copy buttons can reach either via getElementById(previewId).
+    el.innerHTML=`<div id="${previewId}" data-md="${esc(text)}" style="line-height:1.55;font-size:12px;color:var(--t1)">${html}</div>${insertBtn}${historyHtml}`;
   }catch(e){
     el.textContent='⚠ AI error: '+(e?.message||'unknown');
   }
 }
 
-function _rteInsert(rteId,text){
+// Insert the rendered HTML from an AI preview into a contenteditable RTE.
+// Used by _rteAIGeneral's Insert button. The source element's innerHTML is
+// already rendered HTML (from renderMd) — we transplant its children into
+// the RTE so formatting (headings, lists, bold, links, images) survives.
+function _rteInsertHTML(rteId,sourceElId){
   const rte=document.getElementById(rteId);
-  if(!rte)return;
+  const src=document.getElementById(sourceElId);
+  if(!rte||!src)return;
   rte.focus();
-  // Append a line break then the text
-  const br=document.createElement('br');
-  const textNode=document.createTextNode(text);
-  rte.appendChild(br);
-  rte.appendChild(textNode);
-  // Move cursor to end
+  // Spacer line so the inserted block isn't visually glued to existing content.
+  if(rte.lastChild&&rte.innerHTML.trim()!=='')rte.appendChild(document.createElement('br'));
+  // Clone children rather than moving them so the preview pane stays intact
+  // (lets the user click Insert multiple times, regenerate, etc.).
+  Array.from(src.childNodes).forEach(node=>rte.appendChild(node.cloneNode(true)));
+  // Move cursor to end + fire input so word-count / autosave hooks re-run.
   const range=document.createRange();
   range.selectNodeContents(rte);
   range.collapse(false);
   const sel=window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
-  // Trigger word count update
   rte.dispatchEvent(new Event('input',{bubbles:true}));
   toast('✓ Inserted into body');
 }
 
-function _rteCopyToClipboard(btn){
-  const text=btn.previousElementSibling?.textContent||'';
+// Legacy plain-text insert — preserved for any caller still passing raw text.
+// New callers should use _rteInsertHTML.
+function _rteInsert(rteId,text){
+  const rte=document.getElementById(rteId);
+  if(!rte)return;
+  rte.focus();
+  const br=document.createElement('br');
+  const textNode=document.createTextNode(text);
+  rte.appendChild(br);
+  rte.appendChild(textNode);
+  const range=document.createRange();
+  range.selectNodeContents(rte);
+  range.collapse(false);
+  const sel=window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  rte.dispatchEvent(new Event('input',{bubbles:true}));
+  toast('✓ Inserted into body');
+}
+
+function _rteCopyToClipboard(srcId){
+  // New signature: takes the preview element id and copies its data-md
+  // (the original markdown source) rather than the rendered text content.
+  // Back-compat: if a DOM node is passed (old call sites), fall back to
+  // its textContent.
+  let text='';
+  if(typeof srcId==='string'){
+    const el=document.getElementById(srcId);
+    text=el?.dataset?.md||el?.textContent||'';
+  }else if(srcId&&srcId.previousElementSibling){
+    text=srcId.previousElementSibling.dataset?.md||srcId.previousElementSibling.textContent||'';
+  }
   navigator.clipboard.writeText(text).then(()=>toast('📋 Copied!')).catch(()=>toast('Copy failed'));
 }
 

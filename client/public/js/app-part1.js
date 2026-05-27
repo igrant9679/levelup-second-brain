@@ -445,6 +445,52 @@ function renderMd(text){
   return s;
 }
 
+// ─── AI output length control ───────────────────────────────────────────────
+// Centralised so every AI button (RTE Assistance bars, Compose flows, Decision
+// Brief, etc.) picks up the same length preference. Resolution order:
+//   window._aiLengthOverride (transient — set by an in-bar chip)
+//   D.prefs.aiOutputLength    (persisted Settings → AI default)
+//   'medium'                  (built-in fallback)
+// `level` is one of 'short' | 'medium' | 'long'.
+function _aiLength(){
+  const ov=(typeof window!=='undefined'&&window._aiLengthOverride)||'';
+  const pref=(D&&D.prefs&&D.prefs.aiOutputLength)||'';
+  const v=ov||pref||'medium';
+  return (v==='short'||v==='medium'||v==='long')?v:'medium';
+}
+// Word-count guidance injected into the AI systemPrompt. Phrased as a "ceiling"
+// hint so models that ignore exact targets still produce noticeably different
+// lengths. Returns an empty string for unknown levels.
+function _aiLengthHint(level){
+  const L=(level||_aiLength());
+  if(L==='short')return '\n\nLength guidance: Keep your response SHORT. Aim for ~80 words (roughly 3-5 sentences). Be punchy and direct. No filler.';
+  if(L==='long')return '\n\nLength guidance: Provide a LONG, comprehensive response. Aim for ~500 words. Use headings (##), bullet lists, and bold where helpful. Cover the topic thoroughly.';
+  return '\n\nLength guidance: Provide a MEDIUM-length response. Aim for ~200 words. Use formatting (headings, bullets, bold) only when it genuinely helps comprehension.';
+}
+function _aiSetLength(level){
+  if(level!=='short'&&level!=='medium'&&level!=='long')return;
+  // Persist as the Settings default so the change sticks across sessions.
+  // Clear the transient override so the persisted value is what reads next.
+  if(!D.prefs)D.prefs={};
+  D.prefs.aiOutputLength=level;
+  if(typeof window!=='undefined')window._aiLengthOverride=null;
+  if(typeof save==='function')save('prefs');
+  // Refresh any visible length chips (each chip carries data-ai-length-chip).
+  document.querySelectorAll('[data-ai-length-chip]').forEach(el=>{
+    const labels={short:'Short',medium:'Medium',long:'Long'};
+    el.textContent='Length: '+labels[level];
+  });
+  if(typeof toast==='function')toast('AI length: '+level);
+}
+// Compact dropdown-style chip for the AI Assistance bars. Click cycles through
+// short → medium → long → short.
+function _aiLengthChip(){
+  const lvl=_aiLength();
+  const labels={short:'Short',medium:'Medium',long:'Long'};
+  const next={short:'medium',medium:'long',long:'short'};
+  return `<button type="button" class="btn btn-s" data-ai-length-chip style="height:24px;font-size:10px;padding:0 8px;margin-left:auto;color:var(--t2)" onclick="_aiSetLength('${next[lvl]}')" title="Click to cycle Short → Medium → Long. Affects all AI buttons on this page.">Length: ${labels[lvl]}</button>`;
+}
+
 // Convert RTE HTML back to plain text / markdown for storage
 function luRTE_htmlToMd(html){
   if(!html)return'';
@@ -3569,6 +3615,7 @@ function renderDrawer(type,item){
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">📌 Summarise</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">📊 Mood</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
+          ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
@@ -4700,13 +4747,19 @@ async function aiComposeTaskNotes(id){
       ta.value.trim()?`Existing notes (rewrite/extend):\n${ta.value.trim()}`:'',
     ].filter(Boolean).join('\n');
     const {provider,apiKey}=_getAIConfig();
+    // Drop the hardcoded "Max 100 words" so the user's length preference
+    // (Short / Medium / Long via _aiLengthHint) becomes the sole guidance.
+    const sys='You are a task description writer for a productivity app. Given the task metadata, write a clear description explaining what the task involves, why it matters, and what "done" looks like. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
-      systemPrompt:'You are a task description writer for a productivity app. Given the task metadata, write 2-4 concise sentences explaining what the task involves, why it matters, and what "done" looks like. Plain prose, no headers, no bullets, no fluff. Max 100 words.',
+      systemPrompt:sys,
       userContent:ctxLines,
       provider:provider||'manus',apiKey:apiKey||undefined,
     },'mutation');
     const text=res?.result||res?.text||'';
-    if(text){ta.value=text.trim();toast('✨ Description composed');}
+    // Show a preview modal instead of stomping the textarea directly. The
+    // user can sanity-check the rendered output, regenerate, or insert.
+    if(text){_aiComposePreview('task',id,text.trim(),'dr-notes','aiComposeTaskNotes');}
+    else toast('No description generated');
     else toast('No description generated');
   }catch(e){toast('AI compose failed: '+(e.message||e));}
   finally{if(btn){btn.textContent=orig||'✨ AI Compose';btn.disabled=false;}}
@@ -4789,16 +4842,53 @@ async function aiComposeProjectDesc(id){
       projTasks.length?`Sample tasks already in this project:\n- `+projTasks.map(t=>t.title).join('\n- '):'',
     ].filter(Boolean).join('\n');
     const {provider,apiKey}=_getAIConfig();
+    // Drop the hardcoded "Max 130 words" so the user's length preference
+    // (Short / Medium / Long via _aiLengthHint) becomes the sole guidance.
+    const sys='You are a project description writer. Write a clear description explaining the project goal, scope, and success criteria. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
-      systemPrompt:'You are a project description writer. Write 3-5 concise sentences explaining the project goal, scope, and success criteria. Plain prose, no headers, no bullets. Max 130 words.',
+      systemPrompt:sys,
       userContent:ctxLines,
       provider:provider||'manus',apiKey:apiKey||undefined,
     },'mutation');
     const text=res?.result||res?.text||'';
-    if(text){ta.value=text.trim();toast('✨ Description composed');}
+    if(text){_aiComposePreview('project',id,text.trim(),'dr-body','aiComposeProjectDesc');}
     else toast('No description generated');
   }catch(e){toast('AI compose failed: '+(e.message||e));}
   finally{if(btn){btn.textContent=orig||'✨ AI Describe';btn.disabled=false;}}
+}
+
+// Compose-flow preview modal. Used by aiComposeTaskNotes + aiComposeProjectDesc
+// to show a rendered-markdown preview of the AI output BEFORE stomping the
+// underlying textarea. Buttons: Insert (writes raw markdown text into the
+// target textarea), Regenerate (re-fires the originating compose function),
+// Cancel. `entityType` is informational ('task' / 'project'); `entityId` is
+// passed back to the regenerate function so a second call works without
+// requiring drawer state.
+function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName){
+  const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
+  const safeText=JSON.stringify(text);
+  const m=document.getElementById('modal-content');
+  if(!m)return;
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">✨ AI ${entityType==='task'?'Task Notes':'Project Description'} Preview</h2>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Review the rendered output, then choose to insert it into the description field. Markdown formatting will display correctly when the ${entityType} is viewed.</div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;font-size:12px;line-height:1.65;max-height:380px;overflow-y:auto;margin-bottom:10px">${html}</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_aiComposeInsert('${targetTextareaId}',${safeText})">⬇ Insert</button>
+      <button class="btn btn-s" onclick="closeModal();${esc(regenFnName)}(${entityId})">🔄 Regenerate</button>
+      ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
+      <button class="btn btn-s" onclick="navigator.clipboard.writeText(${safeText});toast('📋 Copied')">📋 Copy</button>
+      <button class="btn btn-s" onclick="closeModal()" style="margin-left:auto">Cancel</button>
+    </div>`;
+  document.getElementById('modal-capture').classList.add('show');
+}
+// Insert the raw markdown source into the target textarea then close the
+// preview modal. The textarea stores plain text; the markdown is rendered
+// when the entity is later displayed via renderMd() (drawer / summary card).
+function _aiComposeInsert(targetTextareaId,text){
+  const ta=document.getElementById(targetTextareaId);
+  if(ta){ta.value=String(text||'').trim();ta.dispatchEvent(new Event('input',{bubbles:true}));}
+  closeModal();
+  toast('✨ Description inserted');
 }
 
 // AI Suggest Tasks for a project
@@ -19674,6 +19764,7 @@ function openNewIdeaModal(){
         <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('ice')">🎯 ICE Score</button>
         <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('expand')">💡 Expand</button>
         <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('competitors')">🔍 Competitors</button>
+        ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       </div>
       <div id="ni-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
     </div>
@@ -20174,11 +20265,45 @@ async function aiIdeaDecisionBrief(id){
     const sys=`You are an experienced strategic advisor preparing a one-page decision brief. Output MUST be markdown with these exact sections, in order: ## Recommendation (one line: PROMOTE / PARK / KILL with confidence %), ## Why this idea wins (3 bullets), ## Why it might fail (3 bullets), ## What we don't know yet (2 bullets), ## Decision criteria met / not met, ## Suggested next step (1-2 sentences). Be honest and specific.`;
     const ctx=`Idea: ${idea.title}\nType: ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}\nDescription: ${idea.description||'(none)'}\nStage: ${idea.stage}\nICE composite: ${ice}\nAnswers so far:\n${answers||'(none)'}\nUser ICE (impact/conf/ease): ${idea.ice_impact}/${idea.ice_confidence}/${idea.ice_ease}\nAI ICE: ${idea.ai_ice_impact||'—'}/${idea.ai_ice_confidence||'—'}/${idea.ai_ice_ease||'—'}`;
     const text=String(await _ideaAICall(`${sys}\n\n${ctx}\n\nWrite the decision brief.`)||'').trim();
+    // Render the markdown so headings / bullets / bold show formatted in the
+    // modal preview AND get saved to idea.decisionBriefHtml for future renders
+    // (drawer, summary card, etc.) without recomputing renderMd every time.
+    const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
+    const copyJs=`navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('📋 Copied')`;
     const m=document.getElementById('modal-content');
-    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📋 Decision Brief: ${esc(idea.title)}</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📋 Decision Brief: ${esc(idea.title)}</h2><div id="ai-brief-preview" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;max-height:480px;overflow-y:auto">${html}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_aiBriefAppendToIdea(${idea.id})" title="Append the brief to the idea's full description">⬇ Append to Description</button><button class="btn btn-s" onclick="${copyJs}">📋 Copy markdown</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
-    idea.decisionBrief=text;idea.decisionBriefAt=new Date().toISOString();save('ideas');
+    // Persist BOTH the markdown source (for editing / regenerating) and the
+    // pre-rendered HTML (for instant display in drawers / summaries). The
+    // drawer-render code can prefer .decisionBriefHtml when present, fall
+    // back to renderMd(.decisionBrief) for legacy briefs.
+    idea.decisionBrief=text;
+    idea.decisionBriefHtml=html;
+    idea.decisionBriefAt=new Date().toISOString();
+    save('ideas');
   }catch(e){toast({type:'error',title:'Brief failed',msg:String(e.message||e).slice(0,200),duration:5000});}
+}
+// Append the rendered Decision Brief HTML into the idea's full description
+// (idea.descriptionHtml) so it lives inside the idea body alongside the user's
+// own writing. Falls back to creating descriptionHtml if it doesn't exist yet.
+function _aiBriefAppendToIdea(id){
+  const idea=D.ideas.find(x=>x.id===id);if(!idea)return;
+  const prev=String(idea.descriptionHtml||idea.description||'').trim();
+  const briefHtml=idea.decisionBriefHtml||(typeof renderMd==='function'?renderMd(idea.decisionBrief||''):'');
+  if(!briefHtml)return toast('No brief content to append');
+  const stamp=new Date().toLocaleDateString();
+  const block=`<hr style="border:none;border-top:1px solid var(--bd1);margin:10px 0"><div style="font-size:10px;color:var(--t3);margin-bottom:4px">📋 Decision Brief · ${stamp}</div>${briefHtml}`;
+  idea.descriptionHtml=prev?prev+block:block;
+  // Keep .description in sync as a plain-text fallback for older renderers.
+  idea.description=(idea.description||'')+(idea.description?'\n\n':'')+'--- Decision Brief ('+stamp+') ---\n'+(idea.decisionBrief||'');
+  save('ideas');
+  closeModal();
+  toast({type:'success',title:'✓ Brief appended to idea',duration:3000});
+  // Refresh the idea detail view if it's open. _currentIdeaId is a script-
+  // scoped let (line ~19820) so it's directly accessible here without window.
+  // renderIdeaDetail takes the idea object, not the id.
+  if(typeof renderIdeaDetail==='function'&&typeof _currentIdeaId!=='undefined'&&_currentIdeaId===id)renderIdeaDetail(idea);
+  else if(typeof renderIdeas==='function')renderIdeas();
 }
 // I4: AI Roadmap Generator
 function openAIRoadmap(){
