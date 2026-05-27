@@ -2504,6 +2504,19 @@ function _gatherRelevantContent(query, opts){
   return candidates.slice(0, limit);
 }
 
+// Suggestion-chip handler for the Ask LevelUp modal. Sets the input
+// value and immediately submits — saves a click. Called from inline
+// onclick="" so it must be in global scope.
+function _askLuPrefill(q){
+  const inp=document.getElementById('ask-lu-input');
+  if(!inp)return;
+  inp.value=q;
+  inp.focus();
+  // Trigger submit via the keydown handler we registered.
+  const ev=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true});
+  inp.dispatchEvent(ev);
+}
+
 /**
  * ASK LEVELUP — universal Q&A. Gathers relevant content from across the
  * workspace, asks AI to synthesize an answer with citations back to the
@@ -2527,7 +2540,7 @@ async function aiAskLevelup(prefillQuery){
     </div>
     <div id="ask-lu-suggest" style="padding:10px 16px;border-bottom:1px solid var(--bd1);font-size:11px;color:var(--t3);display:flex;flex-wrap:wrap;gap:6px">
       <span style="font-weight:600;color:var(--t2)">Try:</span>
-      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What\'s blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:10px;padding:2px 8px;height:22px" onclick="document.getElementById('ask-lu-input').value=${_jsAttr?_jsAttr(s):"'"+s.replace(/'/g,"\\'")+"'"};document.getElementById('ask-lu-input').focus()">${esc(s)}</button>`).join('')}
+      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What is blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:10px;padding:2px 8px;height:22px" onclick="_askLuPrefill('${_jsAttr(s)}')">${esc(s)}</button>`).join('')}
     </div>
     <div id="ask-lu-body" style="flex:1;overflow:auto;padding:16px;font-size:13px;line-height:1.6;color:var(--t2)">
       <div style="text-align:center;color:var(--t3);padding:30px 20px">
@@ -2545,13 +2558,34 @@ async function aiAskLevelup(prefillQuery){
     const body = document.getElementById('ask-lu-body');
     body.innerHTML = `<div style="color:var(--t3);text-align:center;padding:30px"><div class="lu-spin" style="display:inline-block;width:24px;height:24px;border:3px solid var(--bd2);border-top-color:var(--ac);border-radius:50%;animation:spin 1s linear infinite"></div><div style="margin-top:10px;font-size:11px">Gathering relevant content and thinking…</div></div>`;
     try {
-      const hits = _gatherRelevantContent(q, {limit:12, maxBodyChars:500});
+      // Gather candidates — pull more than we'll use, with modest body
+      // snippets per item. We trim the assembled prompt to ~3500 chars
+      // total (server enforces 4000-char systemPrompt limit). Smaller
+      // snippets per item mean more items can fit.
+      let hits = _gatherRelevantContent(q, {limit:10, maxBodyChars:240});
       if(!hits.length){
         body.innerHTML = `<div style="text-align:center;color:var(--t3);padding:30px">No relevant content found in your workspace. Try keywords from a note title, task name, or journal entry.</div>`;
         return;
       }
-      const sourceBlock = hits.map((h, i) => `[${i+1}] ${h.type.toUpperCase()} — ${h.title}\n${h.snippet}`).join('\n\n');
-      const sys = `You are LevelUp's research assistant. The user has a personal-productivity workspace (notes, tasks, journal entries, ideas, sales opportunities). Below are the most relevant items to their question. Answer concisely (2-5 short paragraphs) referencing specific items using the [1] [2] [3] citation format. Do NOT make up facts — only use what's in the items. If the answer isn't in the items, say so.\n\nRELEVANT ITEMS:\n${sourceBlock}`;
+      // Build the source block under a hard budget. Add items until we
+      // exceed 2800 chars (leaving ~700 for the system-prompt boilerplate).
+      const SOURCE_BUDGET = 2800;
+      const SYSTEM_BUDGET = 3600; // total systemPrompt cap, under server's 4000
+      const blockLines = [];
+      let used = 0;
+      const usedHits = [];
+      for(const h of hits){
+        const line = `[${usedHits.length+1}] ${h.type.toUpperCase()} — ${(h.title||'').slice(0,80)}\n${(h.snippet||'').slice(0,300)}`;
+        if(used + line.length + 2 > SOURCE_BUDGET) break;
+        blockLines.push(line);
+        used += line.length + 2;
+        usedHits.push(h);
+      }
+      hits = usedHits;
+      const sourceBlock = blockLines.join('\n\n');
+      let sys = `You are LevelUp's research assistant. The user has a personal-productivity workspace (notes, tasks, journal entries, ideas, sales opportunities). Below are the most relevant items to their question. Answer concisely (2-5 short paragraphs) referencing items using [1] [2] [3] citation format. Do NOT make up facts — only use what's in the items. If the answer isn't in the items, say so.\n\nRELEVANT ITEMS:\n${sourceBlock}`;
+      // Final safety trim — should never trigger but belt-and-suspenders.
+      if(sys.length > SYSTEM_BUDGET) sys = sys.slice(0, SYSTEM_BUDGET - 20) + '\n…(truncated)';
       const cfg = typeof _getAIConfig === 'function' ? _getAIConfig() : {};
       const res = await _trpc('ai.assist', {
         systemPrompt: sys,
