@@ -3385,7 +3385,33 @@ function renderDrawer(type,item){
       <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-assignee',item.assignedTo)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Notes<button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button></label><textarea class="inp" id="dr-notes">${esc(item.notes||'')}</textarea></div>
+    <div class="field">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        Notes
+        <span style="display:flex;align-items:center;gap:6px">
+          <span id="dr-notes-wc" style="font-size:10px;color:var(--t3)">${(()=>{const t=(item.notesHtml?item.notesHtml.replace(/<[^>]*>/g,' '):(item.notes||'')).trim();const w=t?t.split(/\s+/).length:0;return w+' word'+(w===1?'':'s');})()}</span>
+          <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
+        </span>
+      </label>
+      <!-- Drawer RTE Toolbar (Task Notes) -->
+      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-notes-rte')" title="Insert image (file or URL)">🖼</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      </div>
+      <div id="dr-notes-rte" contenteditable="true" spellcheck="true"
+        style="min-height:120px;max-height:360px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.65;color:var(--t1);outline:none"
+        data-placeholder="Notes, context, decisions…"
+        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-notes-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
+      >${item.notesHtml||(item.notes?(typeof renderMd==='function'?renderMd(item.notes):esc(item.notes)):'')}</div>
+    </div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
@@ -3961,7 +3987,20 @@ function saveItem(type,id){
     t.energy=$('#dr-energy').value;
     const gSel=document.getElementById('dr-goal');
     t.linkedGoalId=gSel.value?parseInt(gSel.value):null;
-    t.notes=$('#dr-notes').value;
+    // Task Notes: now a contenteditable RTE (dr-notes-rte). Store the rendered
+    // HTML on t.notesHtml; mirror plain text into t.notes so existing search /
+    // export paths (which read t.notes) keep working. Back-compat: if the old
+    // textarea is still around (e.g., a stale render path), fall through.
+    {
+      const ntRte=document.getElementById('dr-notes-rte');
+      const ntTa=document.getElementById('dr-notes');
+      if(ntRte){
+        t.notesHtml=ntRte.innerHTML;
+        t.notes=(ntRte.innerText||'').trim();
+      }else if(ntTa){
+        t.notes=ntTa.value;
+      }
+    }
     // Custom assignee dropdown stores value in a hidden input with id dr-assignee-val
     const aHidden=document.getElementById('dr-assignee-val');
     const aSel=document.getElementById('dr-assignee');
@@ -4728,27 +4767,32 @@ function aiAutoPriority(){
 }
 
 // ─── AI Compose for task notes ──────────────────────────────────────────────
-// Generates a 2-4 sentence draft description for a task based on its title,
-// project, tags, and existing notes. Streams into #dr-notes.
+// Generates a draft description for a task based on its title, project, tags,
+// and existing notes. Targets the dr-notes-rte contenteditable (the Notes
+// field is now a Rich Text Editor, not a plain textarea). The preview modal
+// detects target type and inserts rendered HTML when targeting an RTE.
 async function aiComposeTaskNotes(id){
   const t=D.tasks.find(x=>x.id===id);if(!t)return;
-  const ta=document.getElementById('dr-notes');if(!ta)return;
+  // Prefer the RTE; fall back to the legacy textarea id for back-compat.
+  const target=document.getElementById('dr-notes-rte')||document.getElementById('dr-notes');
+  if(!target)return;
   const btn=document.getElementById('btn-dr-task-ai-desc');
   const orig=btn?btn.textContent:'';
   if(btn){btn.textContent='⏳ Composing...';btn.disabled=true;}
   try{
     const projectName=t.project||(t.projectId?(D.projects.find(p=>p.id===t.projectId)||{}).name:'')||'';
+    // Pull existing notes as PLAIN TEXT so the AI doesn't see HTML tags.
+    // RTE: innerText. Textarea: .value.
+    const existingText=target.isContentEditable?(target.innerText||'').trim():(target.value||'').trim();
     const ctxLines=[
       `Title: ${t.title}`,
       projectName?`Project: ${projectName}`:'',
       t.priority?`Priority: ${t.priority}`:'',
       t.due?`Due: ${t.due}`:'',
       (t.tags||[]).length?`Tags: ${(t.tags||[]).join(', ')}`:'',
-      ta.value.trim()?`Existing notes (rewrite/extend):\n${ta.value.trim()}`:'',
+      existingText?`Existing notes (rewrite/extend):\n${existingText}`:'',
     ].filter(Boolean).join('\n');
     const {provider,apiKey}=_getAIConfig();
-    // Drop the hardcoded "Max 100 words" so the user's length preference
-    // (Short / Medium / Long via _aiLengthHint) becomes the sole guidance.
     const sys='You are a task description writer for a productivity app. Given the task metadata, write a clear description explaining what the task involves, why it matters, and what "done" looks like. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
       systemPrompt:sys,
@@ -4756,9 +4800,7 @@ async function aiComposeTaskNotes(id){
       provider:provider||'manus',apiKey:apiKey||undefined,
     },'mutation');
     const text=res?.result||res?.text||'';
-    // Show a preview modal instead of stomping the textarea directly. The
-    // user can sanity-check the rendered output, regenerate, or insert.
-    if(text){_aiComposePreview('task',id,text.trim(),'dr-notes','aiComposeTaskNotes');}
+    if(text){_aiComposePreview('task',id,text.trim(),target.id,'aiComposeTaskNotes');}
     else toast('No description generated');
   }catch(e){toast('AI compose failed: '+(e.message||e));}
   finally{if(btn){btn.textContent=orig||'✨ AI Compose';btn.disabled=false;}}
@@ -4880,12 +4922,29 @@ function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName
     </div>`;
   document.getElementById('modal-capture').classList.add('show');
 }
-// Insert the raw markdown source into the target textarea then close the
-// preview modal. The textarea stores plain text; the markdown is rendered
-// when the entity is later displayed via renderMd() (drawer / summary card).
-function _aiComposeInsert(targetTextareaId,text){
-  const ta=document.getElementById(targetTextareaId);
-  if(ta){ta.value=String(text||'').trim();ta.dispatchEvent(new Event('input',{bubbles:true}));}
+// Insert AI-composed content into the target field then close the preview
+// modal. Two target types are supported:
+//   - <textarea> (project description) — sets .value with the raw markdown
+//     source. Markdown is rendered later via renderMd() on display.
+//   - contenteditable RTE (task Notes) — replaces the editor's HTML with the
+//     renderMd-rendered HTML so formatting (headings, lists, bold) lives in
+//     the editor immediately.
+function _aiComposeInsert(targetElId,text){
+  const el=document.getElementById(targetElId);
+  if(!el){closeModal();return;}
+  const md=String(text||'').trim();
+  if(el.isContentEditable){
+    // RTE target. Render markdown → HTML and replace the editor contents.
+    // We replace (not append) to match the prompt phrasing "rewrite/extend"
+    // — the AI was given the existing notes and produced the next version.
+    const html=(typeof renderMd==='function')?renderMd(md):`<div style="white-space:pre-wrap">${esc(md)}</div>`;
+    el.innerHTML=html;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }else if('value' in el){
+    // Plain textarea — store the raw markdown source.
+    el.value=md;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
   closeModal();
   toast('✨ Description inserted');
 }
