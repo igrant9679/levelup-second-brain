@@ -7724,9 +7724,19 @@ function renderTaskCards(){
   }
   const cards=nativeTasks.map(nativeCard).concat(extCards.map(extCard));
   const addBtn=`<div onclick="openFA('task')" style="background:transparent;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;min-height:120px;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t3)'">+ Add Task</div>`;
-  const emptyMsg=cards.length?'':'<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎴</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">No tasks in this view</div><div style="font-size:12px">Try switching tabs or clearing the priority filter.</div></div>';
+  const emptyMsg='<div style="text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎴</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">No tasks in this view</div><div style="font-size:12px">Try switching tabs or clearing the priority filter.</div></div>';
   const countLabel=cards.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:10px">${nativeTasks.length} task${nativeTasks.length===1?'':'s'}${extCards.length?` · ${extCards.length} external`:''}</div>`:'';
-  list.innerHTML=`${countLabel}<div class="lu-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start">${emptyMsg}${cards.join('')}${cards.length?addBtn:''}</div>`;
+  // Layout: CSS multi-column flow (masonry-like) instead of CSS grid. Grid
+  // uses uniform row heights, so a 4-subtask card next to a 0-subtask card
+  // leaves a giant gap below the short one. Columns pack each card flush
+  // to the next, no dead space. Reading order is top-to-bottom in column 1,
+  // then column 2, etc. (Pinterest-style) which is fine since each card
+  // stands alone. `break-inside:avoid` keeps cards from splitting across
+  // columns; `display:inline-block` is the cross-browser equivalent.
+  const gridHtml=cards.length
+    ?`<style>.lu-cards-grid>*{break-inside:avoid;-webkit-column-break-inside:avoid;page-break-inside:avoid;margin:0 0 12px;display:inline-block;width:100%;vertical-align:top}</style><div class="lu-cards-grid" style="column-width:340px;column-gap:12px">${cards.join('')}${addBtn}</div>`
+    :emptyMsg;
+  list.innerHTML=`${countLabel}${gridHtml}`;
 }
 // Map an external task's free-form status string to one of the Board columns.
 // Outline-style Smartsheet rows often have "Month 1" / "Phase 2" / blank
