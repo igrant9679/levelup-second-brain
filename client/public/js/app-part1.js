@@ -6770,6 +6770,7 @@ function renderCurrentTaskView(){
   if(_taskView==='calendar')return renderTaskCalendar();
   if(_taskView==='clusters')return renderTaskClusters();
   if(_taskView==='focus')return renderTaskFocus();
+  if(_taskView==='cards')return renderTaskCards();
   return renderTaskList();
 }
 // Generic dropdown-menu toggle. Closes on the next outside click.
@@ -6789,7 +6790,7 @@ function closeTaskAIMenu(){closePopMenu('task-ai-menu');}
 function setTaskView(v){
   _taskView=v;
   _persistPageState('tasks',{view:v});
-  ['list','board','matrix','gantt','calendar','clusters','focus'].forEach(k=>{
+  ['list','board','matrix','gantt','calendar','clusters','focus','cards'].forEach(k=>{
     const b=document.getElementById('tasks-view-'+k);
     if(!b)return;
     const on=k===v;
@@ -7603,6 +7604,129 @@ function renderTaskFocus(){
   html+= body || `<div style="text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎯</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">Nothing demanding your attention</div><div style="font-size:12px">No overdue, due-today, in-progress or My Day tasks. Inbox zero — enjoy it.</div></div>`;
   html+=`</div>`;
   list.innerHTML=html;
+}
+// 🎴 Cards — responsive grid of compact task cards with subtasks expanded
+// inline as a checklist. Modeled on renderTaskList's data prep but emits a
+// CSS-grid of cards instead of a vertical row stack. Cards target ~340px
+// wide and the grid uses repeat(auto-fit, minmax(340px, 1fr)) so the layout
+// flows 1/2/3+ columns based on viewport. External tasks render as
+// dashed-border read-only cards; native tasks get the full interactive
+// treatment (priority pill picker, status pill picker, subtask toggles,
+// click-to-drawer).
+function renderTaskCards(){
+  const list=document.getElementById('tasks-list');
+  if(!list)return;
+  const today=_todayStr;
+  // 1. Native top-level tasks — mirrors renderTaskList's filter pipeline.
+  let nativeTasks=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
+  if(_taskMyOnly)nativeTasks=nativeTasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
+  nativeTasks=_applyPriorityFilter(nativeTasks);
+  // 2. External tasks — skipped under My Items (no createdBy on ext rows).
+  let extCards=[];
+  if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    extCards=D.externalTasks
+      .filter(t=>!(t.override&&t.override.tombstoned)&&_sourceOn(t.source))
+      .map(et=>{
+        const ov=et.override||{};
+        const done=isExtDone(et);
+        return {
+          id:'ext:'+et.source+':'+et.externalId,
+          title:et.title,
+          status:done?'Done':(et.status||'Not Started'),
+          _rawStatus:et.status||'',
+          priority:ov.localPriority||et.priority||'Medium',
+          due:ov.localDue||et.due||'',
+          project:et.projectLabel||(et.source==='smartsheet'?'CommunityForce':'LSI Media'),
+          assignedTo:et.assignee||'',
+          _ext:et,
+          _source:et.source,
+        };
+      })
+      .filter(_taskFilter);
+    extCards=_applyPriorityFilter(extCards);
+  }
+  // 3. Sort: priority desc, then due asc.
+  const priRank={High:3,Medium:2,Low:1};
+  const cmp=(a,b)=>(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0)||(a.due||'9999').localeCompare(b.due||'9999');
+  nativeTasks.sort(cmp);extCards.sort(cmp);
+  // 4. Render.
+  const priColors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
+  const priBg={High:'rgba(239,68,68,.12)',Medium:'rgba(245,158,11,.12)',Low:'rgba(16,185,129,.12)'};
+  const statusColors={'Not Started':'var(--s3)','In Progress':'rgba(59,130,246,.15)','Done':'rgba(34,197,94,.15)','Someday':'rgba(148,163,184,.15)','Blocked':'rgba(239,68,68,.15)'};
+  const statusText={'Not Started':'var(--t2)','In Progress':'var(--ac)','Done':'var(--ok)','Someday':'var(--t3)','Blocked':'var(--red)'};
+  const projOf=t=>{const p=(D.projects||[]).find(x=>x.id===t.projectId||x.name===t.project);return p||(t.project?{name:t.project,color:null}:null);};
+  function nativeCard(t){
+    const subs=t.subtasks||[];const subDone=subs.filter(s=>s.done).length;
+    const pri=t.priority||'Medium';const pc=priColors[pri]||priColors.Medium;
+    const status=t.status||'Not Started';const done=status==='Done';
+    const isOverdue=t.due&&t.due<today&&!done;
+    const proj=projOf(t);const projName=proj?proj.name:'';const projColor=proj?proj.color:null;
+    const assigned=t.assignedTo||t.createdBy||'';
+    const titleStyle=done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor}`:'color:var(--t1)');
+    return `<div class="lu-task-card" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .1s,box-shadow .15s;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;line-height:1.35;${titleStyle}">${esc(t.title||'Untitled')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priBg[pri]};color:${pc};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
+            ${t.due?`<span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(t.due)}</span>`:''}
+          </div>
+        </div>
+      </div>
+      ${subs.length?`<div style="border-top:1px dashed var(--bd1);padding-top:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <div style="flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="width:${Math.round(subDone/subs.length*100)}%;height:100%;background:${pc};transition:width .3s"></div></div>
+          <span style="font-size:9px;color:var(--t3);font-weight:600">${subDone}/${subs.length}</span>
+        </div>
+        ${subs.slice(0,6).map((s,si)=>`<div class="lr" style="padding:2px 0;gap:6px" onclick="event.stopPropagation()">
+          <div class="chk ${s.done?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="toggleSubtask(${t.id},${si});setTimeout(renderCurrentTaskView,80)"></div>
+          <span style="font-size:11px;line-height:1.35;${s.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(s.title)}</span>
+        </div>`).join('')}
+        ${subs.length>6?`<div style="font-size:9px;color:var(--t3);margin-top:3px;padding-left:18px">+ ${subs.length-6} more…</div>`:''}
+      </div>`:''}
+      <div style="display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3)">
+        ${projName?`<span style="display:inline-flex;align-items:center;gap:3px;min-width:0;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};flex-shrink:0"></i>`:''}${esc(projName)}</span>`:'<span>—</span>'}
+        ${assigned?`<span style="flex-shrink:0">· 👤 ${esc(assigned.split(' ')[0])}</span>`:''}
+        <span style="flex:1"></span>
+        <span style="color:var(--t3);font-size:14px">›</span>
+      </div>
+    </div>`;
+  }
+  function extCard(c){
+    const et=c._ext;const done=c.status==='Done';
+    const isOverdue=c.due&&c.due<today&&!done;
+    const pri=c.priority||'Medium';const pc=priColors[pri]||priColors.Medium;
+    const status=c.status;const sourceLabel=et.source==='smartsheet'?'CF':(et.source==='nifty'?'LSI':et.source.toUpperCase());
+    const sourceColor=et.source==='smartsheet'?'#1f6feb':'#8b5cf6';
+    return `<div class="lu-task-card" data-ext-id="${esc(et.externalId)}" data-source="${esc(et.source)}" onclick="_openExternalAnnotateModal('${esc(et.source)}','${esc(et.externalId)}')" style="background:var(--s2);border:1px dashed var(--bd2);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();_extToggleCompleted('${esc(et.source)}','${esc(et.externalId)}',${done?'false':'true'})" title="${done?'Reopen in source':'Mark complete in source'}"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;line-height:1.35;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(c.title||'Untitled')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
+            <span style="background:${priBg[pri]};color:${pc};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${esc(c._rawStatus||status)}</span>
+            ${c.due?`<span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(c.due)}</span>`:''}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3)">
+        <span style="background:color-mix(in srgb,${sourceColor} 12%,transparent);color:${sourceColor};font-size:9px;font-weight:700;padding:1px 6px;border-radius:6px;flex-shrink:0">${sourceLabel}</span>
+        ${c.project?`<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.project)}</span>`:''}
+        ${c.assignedTo?`<span style="flex-shrink:0">· 👤 ${esc(c.assignedTo.split(' ')[0])}</span>`:''}
+        <span style="flex:1"></span>
+        <a href="${esc(et.externalUrl||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none;font-size:11px" title="Open in source">↗</a>
+      </div>
+    </div>`;
+  }
+  const cards=nativeTasks.map(nativeCard).concat(extCards.map(extCard));
+  const addBtn=`<div onclick="openFA('task')" style="background:transparent;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;min-height:120px;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t3)'">+ Add Task</div>`;
+  const emptyMsg=cards.length?'':'<div style="grid-column:1/-1;text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎴</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">No tasks in this view</div><div style="font-size:12px">Try switching tabs or clearing the priority filter.</div></div>';
+  const countLabel=cards.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:10px">${nativeTasks.length} task${nativeTasks.length===1?'':'s'}${extCards.length?` · ${extCards.length} external`:''}</div>`:'';
+  list.innerHTML=`${countLabel}<div class="lu-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;align-items:start">${emptyMsg}${cards.join('')}${cards.length?addBtn:''}</div>`;
 }
 // Map an external task's free-form status string to one of the Board columns.
 // Outline-style Smartsheet rows often have "Month 1" / "Phase 2" / blank
@@ -9379,7 +9503,7 @@ function renderTasks(){
   }
   $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700">📋 Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(_taskInWeek).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
     // B: visible 3 most-used views + a More dropdown for the rest
-    const visible=[{k:'focus',icon:'⚡',label:'Focus'},{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
+    const visible=[{k:'focus',icon:'⚡',label:'Focus'},{k:'cards',icon:'🎴',label:'Cards'},{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
     const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
     // If the current view is in overflow, surface it inline so the user sees it active
     const cur=[...visible,...overflow].find(v=>v.k===_taskView);
