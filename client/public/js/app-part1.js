@@ -7222,6 +7222,18 @@ function renderTaskList(){
         case 'project':{const p=findProj(t);return (p?p.name:t.project||'').toLowerCase();}
         case 'assignee':return (t.assignedTo||t.createdBy||'').toLowerCase();
         case 'created':return t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'9999');
+        // Source: native tasks have no _source field (treated as Personal);
+        // external rows carry _source ∈ {'smartsheet','nifty',…}. The sort
+        // key is prefixed with a rank digit so ascending order matches the
+        // chip row's natural order (Personal → CF → LSI → other), instead
+        // of pure alphabetical (which would put Nifty before Personal).
+        case 'source':{
+          const s=t._source||'';
+          if(!s)return '1·Personal';
+          if(s==='smartsheet')return '2·CF';
+          if(s==='nifty')return '3·LSI';
+          return '9·'+s;
+        }
       }
       return '';
     };
@@ -7244,7 +7256,7 @@ function renderTaskList(){
     ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
     <span style="margin-left:auto;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sort:</span>
     <select class="inp" style="height:22px;font-size:10px;padding:0 4px" onchange="setTaskListSortValue(this.value)">
-      ${[['','Manual (drag)'],['title','Title'],['priority','Priority'],['status','Status'],['start','Start date'],['end','Due date'],['created','Created']].map(([v,l])=>`<option value="${v}" ${_taskListSortBy===v?'selected':''}>${l}</option>`).join('')}
+      ${[['','Manual (drag)'],['title','Title'],['priority','Priority'],['status','Status'],['start','Start date'],['end','Due date'],['created','Created'],['source','Source']].map(([v,l])=>`<option value="${v}" ${_taskListSortBy===v?'selected':''}>${l}</option>`).join('')}
     </select>
     ${_taskListSortBy?`<button class="btn btn-s" style="height:22px;width:24px;padding:0;font-size:11px" onclick="toggleTaskListSortDir()" title="Sort direction">${_taskListSortDir==='asc'?'↑':'↓'}</button>`:''}
   </div>`;
@@ -7646,10 +7658,31 @@ function renderTaskCards(){
       .filter(_taskFilter);
     extCards=_applyPriorityFilter(extCards);
   }
-  // 3. Sort: priority desc, then due asc.
+  // 3. Sort. Respects the global _taskListSortBy / _taskListSortDir set by
+  // the List view's Sort dropdown so the user's choice (incl. Source) carries
+  // across views. Falls back to priority desc → due asc when no explicit sort.
   const priRank={High:3,Medium:2,Low:1};
-  const cmp=(a,b)=>(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0)||(a.due||'9999').localeCompare(b.due||'9999');
-  nativeTasks.sort(cmp);extCards.sort(cmp);
+  const statusRank={'Done':5,'In Progress':4,'Scheduled':3,'Pending':2,'Not Started':1,'Someday':0};
+  if(_taskListSortBy){
+    const keyFor=t=>{
+      switch(_taskListSortBy){
+        case 'title':return (t.title||'').toLowerCase();
+        case 'priority':return priRank[t.priority||'Medium']||0;
+        case 'status':return statusRank[t.status||'Not Started']||0;
+        case 'start':return t.startDate||'9999';
+        case 'end':return t.due||t.endDate||'9999';
+        case 'created':return t.createdAt||'9999';
+        case 'source':{const s=t._source||'';if(!s)return '1·Personal';if(s==='smartsheet')return '2·CF';if(s==='nifty')return '3·LSI';return '9·'+s;}
+      }
+      return '';
+    };
+    const dir=_taskListSortDir==='asc'?1:-1;
+    const sortFn=(a,b)=>{const ka=keyFor(a),kb=keyFor(b);if(ka<kb)return -dir;if(ka>kb)return dir;return 0;};
+    nativeTasks.sort(sortFn);extCards.sort(sortFn);
+  }else{
+    const cmp=(a,b)=>(priRank[b.priority||'Medium']||0)-(priRank[a.priority||'Medium']||0)||(a.due||'9999').localeCompare(b.due||'9999');
+    nativeTasks.sort(cmp);extCards.sort(cmp);
+  }
   // 4. Render.
   const priColors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
   const priBg={High:'rgba(239,68,68,.12)',Medium:'rgba(245,158,11,.12)',Low:'rgba(16,185,129,.12)'};
