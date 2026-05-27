@@ -276,7 +276,244 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
-## Session totals (May 25 2026 — May 26 handoff)
+## Session totals (May 26 2026 — Nifty subtask completion + AI content + CF hierarchy + design audit)
+
+**Current build: `2026-05-26-47`.** Shipped 16 builds today (-32 → -47)
+across 7 arcs. Three big wins this session:
+
+1. **Cracked Nifty's actual completion API** — discovered via diagnostic
+   probe that the writable endpoint is `POST /tasks/{id}/complete` with
+   body `{completed: true|false}`, NOT any PUT field. Now works on
+   top-level Nifty tasks AND subtasks (the LSI workspace has no named
+   statuses, so the old status-name approach silently failed).
+2. **Smartsheet + Nifty subtask hierarchy in LevelUp** — adapter
+   correctly classifies CF rows as subtasks via raw `kind`; client
+   renders them indented with project-label breadcrumb pills; CF
+   project section headers are collapsible (with Fold All / Expand
+   All toggle); LSI subtasks get parent-task breadcrumbs.
+3. **AI content-aware layer (Tier 1 of an AI roadmap)** — universal
+   "Ask LevelUp" overlay (✨ topbar button) with citation-linked
+   answers; per-note "AI Deep Insight" panel; `_gatherRelevantContent`
+   helper that scores every workspace object against a query.
+
+Also: per-watch "Sync subtasks" toggle (migration `0042`), external
+task cards are now clickable to open the annotate modal with
+Mark Done / Reopen / Hide action buttons, priority sort defaults to
+desc, browser autofill defeated on the quick-add input via Chrome
+honeypot pattern.
+
+## Most recently shipped (May 26 2026 — Nifty subtasks, AI content, CF hierarchy, builds `-32` → `-47`)
+
+### Discovered: Nifty's real completion API (builds `-37` → `-42`)
+
+After three failed iterations (PUT with `completed_on`, `completed_at`,
+`done`, `is_completed` — all silently 200 with no state change), built
+`niftyProbeCompletionWrites` diagnostic that tries 9 strategies with
+verify-by-read. Round 2 added POST /complete body variations.
+**Winning call:**
+
+```
+POST /api/v1.0/tasks/{id}/complete
+Body: { "completed": true }
+→ 201 "Successfully changed task state"
+→ Verify: completed=true, completed_on stamped by Nifty
+```
+
+For reopen, same endpoint with `{completed:false}`. Works identically
+on top-level tasks AND subtasks. The verify-by-read pattern is critical
+— Nifty returns `200 "Successfully edited task"` for *any* PUT body
+including unknown fields, silently ignoring writes.
+
+`niftySetTaskCompleted` in `server/routers/externalSources.ts` is the
+production endpoint. Diagnostics (`niftyProbeCompletionWrites`,
+`niftyFetchTaskRaw`, `niftyFetchTaskGroups`) left in place — useful
+if Nifty changes their API.
+
+### Nifty subtask awareness (builds `-41` → `-42`)
+
+The adapter was looking for `t.parent_task_id` on Nifty responses, but
+the real field is `t.task` (a string pointing at the parent's id).
+Subtasks were imported as if they were top-level tasks, losing parent
+context. Fix:
+
+- `niftyAdapter.ts`: `parentOf(t)` reads `t.task ?? t.parent_task_id`.
+  NiftyTask interface extended with both fields.
+- Migration `0042`: `nifty_watched_projects.includeSubtasks` tinyint
+  (default 1). When 0, the puller drops any row whose parentOf is set.
+- `addNiftyWatch` + `updateNiftyWatch` accept the new boolean.
+- Settings → Integrations → each Nifty watch row gets a "Sync subtasks"
+  checkbox.
+- Client renderer (`cardRow` in `app-part1.js`): subtask rows render
+  with 24px indent + dotted left border + ↳ glyph + breadcrumb pill
+  showing parent task title.
+- Annotate modal: subtask rows show a blue "↳ Subtask of <parent>"
+  info panel at the top, with a click-through to the parent's modal.
+
+### CF Smartsheet hierarchy (builds `-44` → `-46`)
+
+The CF 120-Day Plan sheet has Project headers + SubTask leaves with
+NO intermediate Task rows. The adapter's positional `task parent` lookup
+returns null for every CF subtask, so `parentExternalId` ends up null.
+The raw payload's `kind: "subtask"` was the only hint.
+
+Client-side fix (no server changes needed):
+- `extShaped` mapper extracts `_kind` from `JSON.parse(et.raw).kind`
+  and `_projectLabel` from `et.projectLabel`.
+- `cardRow` adds a second subtask-detection path: when `_source ==
+  'smartsheet'` AND `_kind == 'subtask'` AND no tracked parent →
+  treat as CF orphan subtask. Breadcrumb shows the project label
+  as a CF-blue pill that opens the matching LevelUp project's drawer
+  when clicked.
+- Re-ordering pass clusters CF orphan-subtasks by projectLabel so
+  rows under the same project sit adjacent.
+- **Collapsible project section headers**: a `📁 <name>` header div
+  renders before each project's first subtask, with chevron toggle
+  + per-group counts ("N tasks · M done") + → button to open the
+  LevelUp project drawer.
+- Persistence: `D.prefs.cfCollapsedProjects[]` array of label strings,
+  survives reload.
+- Tasks page Sources chip row gets a `⤡ Fold all CF` / `⤢ Expand all
+  (N/M folded)` toggle that flips based on current state.
+- Module-scope helpers: `_toggleCfProjectCollapsed(label)`,
+  `_foldAllCfProjects()`, `_expandAllCfProjects()`.
+
+### AI content-aware Tier 1 (builds `-43`, `-47`)
+
+The original `_buildAIContext()` ships counts + titles only — AI
+features knew metadata, not content. New layer in `app-part1.js`:
+
+- **`_gatherRelevantContent(query, opts)`** — scores every note / task /
+  external task / journal entry / idea / opportunity against a query
+  using simple keyword-overlap + recency boost. Returns top hits with
+  type, id, title, snippet (HTML stripped, 400-char cap by default),
+  meta, openFn, icon. Cheap enough to call on every Ask LevelUp click.
+- **`aiAskLevelup(prefillQuery)`** — universal Q&A overlay launched
+  from the ✨ topbar button. Gathers up to 10 hits with 240-char
+  snippets, builds a source block under a 2800-char budget (leaves
+  ~700 for boilerplate; final systemPrompt capped at 3600 to stay
+  under server's 4000-char limit), calls `ai.assist`, renders the
+  answer with `[1] [2] [3]` clickable citations that open the source
+  object. Plus a Sources footer with full snippets.
+- **`aiNoteDeepInsight(noteId)`** — per-note AI panel. Calls ai.assist
+  with the full bodyHtml (up to 6000 chars) and strict-JSON output:
+  `{summary, keyPoints[], actionItems[{title,why}], openQuestions[]}`
+  + related notes from the gatherer. Renders into `note-ai-insight-panel`
+  container. Action items have one-click "+ Task" buttons that create
+  a native task pre-linked to the originating note.
+- **`_aiInsightCreateTask(noteId, actionIdx)`** — helper that creates
+  the linked task and adds bidirectional `linkedNoteIds` + `linkedTaskIds`.
+
+Cached on `note.aiDeepInsight = {cachedAt, summary, keyPoints,
+actionItems, openQuestions, related}` so re-opens are instant.
+
+**Open follow-ups for future AI work:**
+- Tier 2 (cross-corpus daily): Morning Briefing 2.0 that reads
+  yesterday's journal + actual task descriptions + calendar events;
+  Evening Reflection prompt; Stale-work spotter.
+- Tier 3 (architectural): embeddings + vector search. Would unlock
+  semantic search across all corpora, auto-link suggestions, smarter
+  knowledge graph. ~1-2 days work, OpenAI embeddings ~$0.05/month.
+- Tier 4 polish: Task "Why this is hard" coach, Goal-task alignment
+  check, Note "extract everything actionable" one-click.
+
+### External task click + completion polish (builds `-37` → `-38`)
+
+External task `.tlc` cards had no onclick — clicking the card body did
+nothing. Fixed:
+- onclick now opens `_openExternalAnnotateModal` for the row
+- Annotate modal action row shows context-aware buttons:
+  - **✓ Mark Done in <source>** (green) when status !== Done
+  - **↺ Reopen in <source>** (blue) when status === Done
+  - **🚫 Hide in LevelUp** (dark red) — local removeAt stamp, untouched in source
+- Source-badge icon on the card is now a real `.tlc-chk` checkbox that
+  triggers `_extToggleCompleted` (same code path as the modal button).
+- Subtask rows hide the source-completion button when subtask
+  completion isn't supported by the workspace — was wired before we
+  cracked the API; removed once `niftySetTaskCompleted` started
+  working for subtasks too.
+
+### Other smaller wins from this session
+
+- **Notes inline editor**: all 6 link categories (Projects / Goals /
+  Tasks / Notes / Bookmarks / Journal) now usable in read mode, not
+  just Bookmarks. Auto-saves on every chip add/remove. `_drAutoTargetContainer()`
+  + `_drAutoSaveLinks()` route the picker correctly when the drawer
+  is open over the inline editor.
+- **Notes drawer**: Linked Items panel moved next to Related Bookmarks
+  (above the action row) so it's visible in the same viewport as
+  Save Changes.
+- **Settings → Integrations → "＋ Re-add CF watches" button**: one-click
+  recreates the two standard CF watched sheets (120-Day Plan + Pipeline
+  2026/2027). Duplicate-sheet errors swallowed (idempotent).
+- **Nifty: "🧹 Reset historical" button + "🔎 Inspect Nifty rows"
+  diagnostic + per-row Hide buttons**: nuclear cleanup options for
+  stale Nifty data. The "Reset" stamps removedAt on every Nifty
+  external_tasks row then re-pulls; the puller's historical-completion
+  filter only re-adds currently-open rows. Inspect overlay dumps each
+  row's stored raw JSON so we can see exactly what Nifty's API said.
+- **Priority sort default direction**: `setTaskListSortValue` picks
+  desc for priority (so High sorts first), asc for everything else.
+  Fixes the "Low priority appeared first" confusion.
+- **Quick-add input autofill defense**: triple-layer fix —
+  honeypot username+password inputs hidden off-screen absorb Chrome's
+  autofill; real input uses `type="search"` + `readonly` + random
+  per-render name. Defeats Chromium's aggressive autofill heuristics
+  that ignored standard `autocomplete="off"` hints.
+- **Ask LevelUp prompt-size + suggestion-chip bugs** (build `-47`):
+  systemPrompt was exceeding the server's 4000-char zod limit;
+  suggestion chips had a quoting mismatch that broke their onclick.
+  Both fixed.
+
+### Session commits (newest first)
+
+- `ac27a90` Ask LevelUp: clamp prompt size + fix suggestion-chip
+  onclicks (`-47`)
+- `f6a6f1f` Tasks header: Fold all CF / Expand all toggle chip (`-46`)
+- `a0b52bd` CF Tasks: collapsible Project section headers (`-45`)
+- `485e380` CF Smartsheet: subtask hierarchy in Tasks list
+  (Project → SubTask) (`-44`)
+- `fc40380` AI content-aware Tier 1: Ask LevelUp + Note Deep Insight
+  + `_gatherRelevantContent` helper (`-43`)
+- `05609ec` Nifty completion: use POST /tasks/{id}/complete —
+  discovered, works for subtasks too (`-42`)
+- `9cbf401` Probe round 2: POST /complete body variations
+- `7ee4ae4` Nifty subtasks: identify, nest, toggle (migration `0042`,
+  `-41`)
+- `d6207ec` Diag: niftyProbeCompletionWrites tries 9 write strategies
+- `f685d0b` Nifty completion: try completed_on (rejected by verify)
+- (earlier this session) — `-32` through `-39` covering Notes inline
+  linker, CF re-add button, historical-completion filters, reset +
+  inspect diagnostics, external card click handlers, annotate-modal
+  action row, completion-flag-write attempts.
+
+### Pending design / IA roadmap
+
+The user asked for layout + design ideas at end of session. Proposed
+a 4-tier roadmap; user approved Tier 1 to start NEXT session:
+
+**Tier 1 — Information architecture (next session):**
+1. **Two-tier sidebar with collapsible groups** — group ~30 routes
+   into Work / Mind / Pipeline / Life / Other. *User said "yes" — ship
+   first thing next session.*
+2. Unified Today landing surface (replaces Home + My Day + Command
+   Center triad with one hat-aware page).
+3. Topbar simplification — collapse 8 items to 5 via an ✨ AI menu
+   dropdown that groups Ask LevelUp / AI Chat / AI Briefing / AI Settings.
+4. Cmd+K + Cmd+J + Ask LevelUp unification — favor Cmd+K as the
+   universal launcher (prefix `?` for AI, `>` for command).
+
+**Tier 2 — Visual rhythm:** Tasks page header redesign (3 stacked
+rows), Spacious / Compact mode toggle, standardized Card component.
+
+**Tier 3 — Interaction patterns:** right-rail Detail panel (replaces
+or supplements drawer), inline row expand, bulk-action floating bar.
+
+**Tier 4 — Design system:** Calm mode (less color noise), typography
+scale enforcement (5 sizes via CSS vars), empty-state delight.
+
+**Tier 5 — Mobile:** bottom-nav on phone widths, PWA install prompt.
+
+## Session totals (May 25 2026 — superseded by May 26)
 
 **Current build: `2026-05-25-31`.** Shipped 22 builds today (-10 → -31)
 across 14 arcs. The PM cockpit is now genuinely a full operating system
