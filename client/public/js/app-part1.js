@@ -4760,7 +4760,6 @@ async function aiComposeTaskNotes(id){
     // user can sanity-check the rendered output, regenerate, or insert.
     if(text){_aiComposePreview('task',id,text.trim(),'dr-notes','aiComposeTaskNotes');}
     else toast('No description generated');
-    else toast('No description generated');
   }catch(e){toast('AI compose failed: '+(e.message||e));}
   finally{if(btn){btn.textContent=orig||'✨ AI Compose';btn.disabled=false;}}
 }
