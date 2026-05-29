@@ -11360,24 +11360,78 @@ function _atlasProjectsHTML(snap,category){
   }).join('')}</div>`;
 }
 
+// Atlas's canonical stage + status definitions (mirrors index.html OPP_STAGES / OPP_STATUS_C).
+const _ATLAS_OPP_STAGES=[
+  {k:'Lead Gen',c:'#546478'},
+  {k:'Presales',c:'#2563EB'},
+  {k:'Sales',c:'#D97706'},
+  {k:'Delivery',c:'#2D6A4F'},
+  {k:'Won',c:'#059669'},
+  {k:'Lost',c:'#DC2626'},
+];
+const _ATLAS_OPP_STATUS_C={'New':'#546478','Qualified':'#2563EB','Proposal':'#D97706','Negotiation':'#7C3AED','Closed Won':'#2D6A4F','Closed Lost':'#DC2626','On-Hold':'#94A3B8'};
+let _atlasOppHideClosed=true;
+
 function _atlasOppsHTML(snap){
   const opps=(snap.projects||[]).filter(p=>p.category==='opportunity');
   if(!opps.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No opportunities.</div>`;
-  const stages={};opps.forEach(o=>{const k=o.stage||o.status||'Unstaged';(stages[k]=stages[k]||[]).push(o);});
-  return `<div style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start">${Object.keys(stages).map(stage=>{
-    const list=stages[stage];
-    const total=list.reduce((s,o)=>s+(o.potential||o.targetRevenue||0),0);
-    return `<div style="flex:0 0 260px;background:var(--s2);padding:8px;border-radius:8px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--t2);margin-bottom:6px;display:flex;justify-content:space-between">
-        <span>${esc(stage)}</span><span>${list.length} · ${_atlasMoney(total)}</span>
+  // KPI strip
+  const open=opps.filter(o=>!/won|lost/i.test(o.stage||'')&&!/closed/i.test(o.status||''));
+  const won=opps.filter(o=>/won/i.test(o.stage||'')||/closed won/i.test(o.status||''));
+  const lost=opps.filter(o=>/lost/i.test(o.stage||'')||/closed lost/i.test(o.status||''));
+  const totalPipeline=open.reduce((s,o)=>s+(Number(o.potential)||0),0);
+  const wonValue=won.reduce((s,o)=>s+(Number(o.potential)||0),0);
+  const winRate=(won.length+lost.length)?Math.round(won.length/(won.length+lost.length)*100):0;
+  const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_atlasMoney(totalPipeline)}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${won.length}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won (${_atlasMoney(wonValue)})</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+  </div>`;
+  // Group by stage; canonical order, then any unknown stages at end
+  const byStage={};_ATLAS_OPP_STAGES.forEach(s=>byStage[s.k]=[]);
+  const unknown={};
+  opps.forEach(o=>{
+    const s=(o.stage||'').trim();
+    if(byStage[s])byStage[s].push(o);
+    else{(unknown[s||'Unstaged']=unknown[s||'Unstaged']||[]).push(o);}
+  });
+  // Hide-closed toggle row
+  const toggleRow=`<div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><label style="display:flex;align-items:center;gap:6px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_atlasOppHideClosed?'checked':''} onchange="_atlasOppHideClosed=this.checked;renderAtlas()"> Hide Won / Lost</label></div>`;
+  const visibleStages=_ATLAS_OPP_STAGES.filter(s=>!_atlasOppHideClosed||(s.k!=='Won'&&s.k!=='Lost'));
+  const unknownKeys=Object.keys(unknown);
+  const columnCount=visibleStages.length+unknownKeys.length;
+  const cardHTML=o=>{
+    const statusColor=o.status?(_ATLAS_OPP_STATUS_C[o.status]||'#64748b'):null;
+    const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
+    const daysToClose=o.closeDate?(()=>{const d=new Date(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
+    const closeLbl=o.closeDate?(daysToClose!==null?(daysToClose<0?`<span style="color:#dc2626">${Math.abs(daysToClose)}d overdue</span>`:`${daysToClose}d`):esc(o.closeDate)):'';
+    return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:default" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
+      ${o.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
+      ${o.potential?`<div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:3px">${_atlasMoney(o.potential)}/yr</div>`:''}
+      ${statusChip?`<div style="margin-bottom:3px">${statusChip}</div>`:''}
+      <div style="font-size:10px;color:var(--t2);line-height:1.5">
+        ${o.pm?`<div>PM: <strong>${esc(o.pm)}</strong></div>`:''}
+        ${o.opr?`<div>OPR: ${esc(o.opr)}</div>`:''}
+        ${closeLbl?`<div>Close: ${closeLbl}</div>`:''}
       </div>
-      ${list.map(o=>`<div class="cd" style="padding:9px 11px;margin-bottom:6px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
-        ${o.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
-        <div style="font-size:10px;color:var(--t2)">${o.potential?_atlasMoney(o.potential)+' yr · ':''}${o.pm?'PM '+esc(o.pm):''}${o.closeDate?' · close '+esc(o.closeDate):''}</div>
-      </div>`).join('')}
     </div>`;
-  }).join('')}</div>`;
+  };
+  const stageCol=(stageName,color,list)=>{
+    const total=list.reduce((s,o)=>s+(Number(o.potential)||0),0);
+    return `<div style="flex:0 0 240px;background:var(--s2);padding:8px;border-radius:8px;border-top:3px solid ${color}">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${color};margin-bottom:6px;display:flex;justify-content:space-between">
+        <span>${esc(stageName)}</span><span style="color:var(--t3);font-weight:600">${list.length}${total?' · '+_atlasMoney(total):''}</span>
+      </div>
+      ${list.length?list.map(cardHTML).join(''):'<div style="font-size:10px;color:var(--t3);padding:8px 4px;text-align:center">—</div>'}
+    </div>`;
+  };
+  const board=`<div style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:6px">
+    ${visibleStages.map(s=>stageCol(s.k,s.c,byStage[s.k]||[])).join('')}
+    ${unknownKeys.map(k=>stageCol(k,'#94a3b8',unknown[k])).join('')}
+  </div>`;
+  return kpis+toggleRow+board;
 }
 
 function _atlasOrgChartHTML(snap){

@@ -26,6 +26,7 @@ import {
 } from "../../drizzle/schema";
 import { pullSmartsheet, type ExternalTaskInput, type OpportunityInput } from "./smartsheetAdapter";
 import { pullNiftyProject, type NiftyExternalTaskInput } from "./niftyAdapter";
+import { pullAtlasSnapshot } from "./atlasAdapter";
 import { insertScheduledTaskLog } from "../db";
 
 const TOMBSTONE_GRACE_HOURS = 72; // 3 days
@@ -756,7 +757,58 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
   } catch { /* logging is best-effort */ }
   console.log(`[ext-cron] pass complete:`, stats);
 
+  // Atlas snapshot mirror — independent of the Smartsheet/Nifty pass.
+  try {
+    const atlas = await processAtlasPull();
+    if (atlas.reason) console.log(`[atlas-cron] skipped: ${atlas.reason}`);
+    else console.log(`[atlas-cron] snapshot mirrored to ${atlas.usersUpdated} user(s)`);
+  } catch (e: any) {
+    console.error('[atlas-cron] unexpected failure:', e?.message || e);
+  }
+
   return stats;
+}
+
+/**
+ * Atlas snapshot puller.
+ *
+ * Atlas (CFResourcePlanner) is an org-wide single source — one snapshot
+ * served, all users see the same data. We pull once per pass (cheap, single
+ * fetch) and distribute the payload to every user_app_data row that already
+ * has a non-null atlas blob. New users don't get auto-populated; they opt in
+ * by clicking "Pull from Atlas" once in Settings → Integrations.
+ *
+ * Skipped silently if ATLAS_SYNC_URL is not set on this LevelUp deployment.
+ * Failures here never break the Smartsheet/Nifty pass; we just log + continue.
+ */
+async function processAtlasPull(): Promise<{ usersUpdated: number; reason: string | null }> {
+  const url = (process.env.ATLAS_SYNC_URL || '').trim();
+  if (!url) return { usersUpdated: 0, reason: 'ATLAS_SYNC_URL not set' };
+  const db = await getDb();
+  if (!db) return { usersUpdated: 0, reason: 'db unavailable' };
+  let snap;
+  try {
+    snap = await pullAtlasSnapshot();
+  } catch (e: any) {
+    console.error('[atlas-cron] pull failed:', e?.message || e);
+    return { usersUpdated: 0, reason: 'pull failed: ' + (e?.message || 'unknown') };
+  }
+  const payload = JSON.stringify(snap);
+  // Only push to users who already opted in (have a non-null atlas blob).
+  const users = await db.select({ userId: userAppData.userId })
+    .from(userAppData)
+    .where(sql`${userAppData.atlas} IS NOT NULL`);
+  if (!users.length) return { usersUpdated: 0, reason: 'no opted-in users' };
+  let ok = 0;
+  for (const u of users) {
+    try {
+      await db.update(userAppData).set({ atlas: payload }).where(eq(userAppData.userId, u.userId));
+      ok++;
+    } catch (e: any) {
+      console.error(`[atlas-cron] write failed for user ${u.userId}:`, e?.message || e);
+    }
+  }
+  return { usersUpdated: ok, reason: null };
 }
 
 let _cronStarted = false;
