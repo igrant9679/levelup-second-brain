@@ -606,28 +606,6 @@ function renderSettingsHTML(){
     </div>
     <div style="font-size:10px;color:var(--t3);margin-top:6px">${D.creds.clo_key?'<span style="color:var(--ok)">✓ Configured</span>':'Not configured — <a href="https://clodura.ai" target="_blank" style="color:var(--ac)">Get a Clodura API key</a>'}</div>
   </div>
-  <!-- Smartsheet (CommunityForce) + NiftyPM (LSI) command-center pulls.
-       Hydrated by _hydrateExternalSourcesPanel() after the settings page
-       mounts (status + watch lists are async). -->
-  <div id="ext-sources-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 Command Center — Smartsheet + NiftyPM</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Pull tasks owned by you from Smartsheet (CF) and NiftyPM (LSI) into LevelUp's rails and reports. Source tools stay authoritative; LevelUp is read-only with local annotations.</p>
-    <div id="ext-sources-body" style="font-size:11px;color:var(--t2)">Loading…</div>
-    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="refreshExternalTasksNow()">↻ Refresh now</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateExternalSourcesPanel()">Reload status</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px;background:#0c7b41;color:#fff;border-color:#0a6535" onclick="_readdCfWatches()" title="Re-create the standard CommunityForce watched sheets (120-Day Plan + Pipeline) — safe to click even if some already exist.">＋ Re-add CF watches</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyResetAndResync()" title="Mark all Nifty rows as removed, then re-pull. Only currently-open Nifty tasks come back — anything completed prior to today stays hidden. Use this if 'previously completed' tasks linger as Open.">🧹 Nifty: reset historical</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_niftyInspectRows()" title="Show the raw Nifty API state for each Nifty task in LevelUp — completed flag, completed_at, archived flag, status name + category. Use this to see why the historical-completion filter isn't catching tasks you remember completing.">🔎 Inspect Nifty rows</button>
-    </div>
-    <div class="lr" style="padding:8px 0;margin-top:8px;border-top:1px solid var(--bd1);align-items:center">
-      <div style="flex:1">
-        <div style="font-size:11px;font-weight:600">⬆ Queue status changes (don't auto-push)</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">When ON, status changes you make in LevelUp are queued and shown as <span style="color:#f59e0b;font-weight:600">→ pending</span> pills. Click the orange <strong>⬆ Push</strong> button in the top header to flush them to Smartsheet + NiftyPM in one batch. When OFF (default), each change writes back immediately.</div>
-      </div>
-      <div class="tog ${(D.prefs&&D.prefs.externalQueueMode)?'on':''}" id="tog-ext-queue" onclick="_toggleExternalQueueMode()"></div>
-    </div>
-  </div>
   <!-- Atlas (CFResourcePlanner) one-way sync.
        Hydrated by _hydrateAtlasPanel() after the settings page mounts. -->
   <div id="atlas-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
@@ -638,31 +616,8 @@ function renderSettingsHTML(){
       <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateAtlasPanel()">Reload status</button>
       <button class="btn btn-s" style="height:28px;font-size:10px" onclick="nav('atlas')">→ Open Atlas page</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_removeCfSmartsheetWatches()" title="Delete the two legacy CF Smartsheet watches (120-Day Plan + Pipeline). Atlas now mirrors this data directly.">🧹 Remove legacy CF Smartsheet watches</button>
       <button class="btn btn-d" style="height:28px;font-size:10px" onclick="_atlasClear()" title="Wipe the locally cached Atlas snapshot. Does NOT touch Atlas itself.">✕ Clear cached snapshot</button>
     </div>
-  </div>
-  <!-- Tombstoned-external archive — annotations preserved after source-side delete -->
-  <div id="ext-archive-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗄 Archived external tasks (tombstoned)</div>
-        <p style="font-size:10px;color:var(--t3);margin-bottom:8px">External rows whose source row was deleted but local annotations (notes, tags, project links) are preserved. Revive to surface them again, or leave hidden.</p>
-      </div>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_hydrateTombstoneArchive()">Reload</button>
-    </div>
-    <div id="ext-archive-body" style="font-size:11px;color:var(--t2);margin-top:6px">Click reload to load…</div>
-  </div>
-  <!-- Auto-synced project maintenance — cleanup orphans + AI fill descriptions -->
-  <div id="ext-projects-maint-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;margin-bottom:4px">📁 Auto-synced project maintenance</div>
-        <p style="font-size:10px;color:var(--t3);margin-bottom:0">Projects created by the Smartsheet hierarchical sync. Cleanup removes the empty ones (no linked tasks); AI fill writes 2-sentence descriptions for any without one.</p>
-      </div>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_renderAutoProjectsMaint()">Reload</button>
-    </div>
-    <div id="ext-projects-maint-body" style="font-size:11px;color:var(--t2);margin-top:6px"></div>
   </div>
   <!-- Automation Rules — hydrated by _hydrateAutomationsPanel() -->
   <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
@@ -1003,7 +958,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
-  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();if(typeof _renderAutoProjectsMaint==='function')_renderAutoProjectsMaint();if(typeof _hydrateAtlasPanel==='function')_hydrateAtlasPanel();}
+  if(id==='sp-5'){if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateAtlasPanel==='function')_hydrateAtlasPanel();}
   if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -9628,7 +9583,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -10015,6 +9970,14 @@ async function loadServerData(){
     if(sd.atlas&&typeof sd.atlas==='object'){
       D.atlas=sd.atlas;
       changed=true;
+    }
+    // Atlas per-user annotations (notes/tags on individual Atlas items).
+    // Object keyed by `{type}:{id}`. Editable on the client; persisted via
+    // appData.save's atlasAnnotations field.
+    if(sd.atlasAnnotations&&typeof sd.atlasAnnotations==='object'){
+      D.atlasAnnotations=sd.atlasAnnotations;changed=true;
+    } else if(!D.atlasAnnotations){
+      D.atlasAnnotations={};
     }
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
       D.prefs=Object.assign({},D.prefs,sd.prefs);
@@ -11288,9 +11251,11 @@ function renderAtlas(){
     {k:'proj',l:'Projects',cnt:snap.projects.filter(p=>p.category==='project').length},
     {k:'init',l:'Initiatives',cnt:snap.projects.filter(p=>p.category==='initiative').length},
     {k:'opp',l:'Opportunities',cnt:snap.projects.filter(p=>p.category==='opportunity').length},
+    {k:'prop',l:'Proposals',cnt:(snap.proposals||[]).length},
     {k:'over',l:'Overhead',cnt:snap.projects.filter(p=>p.category==='overhead').length},
     {k:'org',l:'Org Chart',cnt:(snap.departments||[]).length},
     {k:'res',l:'Resources',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).length,0)},
+    {k:'cls',l:'Classification',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).filter(m=>m.sme||m.hub||m.associate||m.proposal||m.recruiter).length,0)},
     {k:'coe',l:'COE Plan',cnt:(snap.activities||[]).filter(a=>(a.kind||'coe')==='coe').length},
     {k:'ptask',l:'Project Tasks',cnt:(snap.activities||[]).filter(a=>a.kind==='project').length},
   ];
@@ -11310,9 +11275,11 @@ function renderAtlas(){
   if(_atlasView==='proj')body=_atlasProjectsHTML(snap,'project');
   else if(_atlasView==='init')body=_atlasProjectsHTML(snap,'initiative');
   else if(_atlasView==='opp')body=_atlasOppsHTML(snap);
+  else if(_atlasView==='prop')body=_atlasProposalsHTML(snap);
   else if(_atlasView==='over')body=_atlasProjectsHTML(snap,'overhead');
   else if(_atlasView==='org')body=_atlasOrgChartHTML(snap);
   else if(_atlasView==='res')body=_atlasResourcesHTML(snap);
+  else if(_atlasView==='cls')body=_atlasClassificationHTML(snap);
   else if(_atlasView==='coe')body=_atlasActivitiesHTML(snap,'coe');
   else if(_atlasView==='ptask')body=_atlasActivitiesHTML(snap,'project');
   m.innerHTML=header+tabBar+body;
@@ -11345,7 +11312,7 @@ function _atlasProjectsHTML(snap,category){
     },0),0);
     const rev=p.revenue||p.targetRevenue||0;
     const margin=rev-cost;
-    return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9">
+    return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9;cursor:pointer" onclick="atlasOpenDrawer('project','${p.id}')">
       <div style="font-size:13px;font-weight:700;margin-bottom:2px">${esc(p.name)}</div>
       ${p.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">${esc(p.customer)}</div>`:''}
       <div style="display:flex;gap:8px;font-size:11px;color:var(--t2);margin-bottom:4px">
@@ -11356,6 +11323,7 @@ function _atlasProjectsHTML(snap,category){
       ${p.pm?`<div style="font-size:10px;color:var(--t3)">PM: ${esc(p.pm)}</div>`:''}
       ${p.revenueNote?`<div style="font-size:10px;color:var(--t3);margin-top:4px;font-style:italic">${esc(p.revenueNote)}</div>`:''}
       ${p.clins&&p.clins.length?`<div style="font-size:10px;color:var(--t3);margin-top:4px">${p.clins.length} CLIN${p.clins.length===1?'':'s'}</div>`:''}
+      ${_atlasAnnotIndicator('project',p.id)}
     </div>`;
   }).join('')}</div>`;
 }
@@ -11406,7 +11374,7 @@ function _atlasOppsHTML(snap){
     const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
     const daysToClose=o.closeDate?(()=>{const d=new Date(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
     const closeLbl=o.closeDate?(daysToClose!==null?(daysToClose<0?`<span style="color:#dc2626">${Math.abs(daysToClose)}d overdue</span>`:`${daysToClose}d`):esc(o.closeDate)):'';
-    return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:default" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
+    return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:pointer" onclick="atlasOpenDrawer('project','${o.id}')" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
       <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
       ${o.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
       ${o.potential?`<div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:3px">${_atlasMoney(o.potential)}/yr</div>`:''}
@@ -11444,10 +11412,10 @@ function _atlasOrgChartHTML(snap){
       const cost=members.reduce((s,m)=>s+(m.cost||0),0);
       return `<div class="cd" style="padding:10px 12px;margin-bottom:8px;margin-left:${depth*16}px;border-left:3px solid ${esc(d.accent||'#64748b')}">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-          <div><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:10px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''}</div>
+          <div style="cursor:pointer" onclick="atlasOpenDrawer('department','${d.id}')"><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:10px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''} ${_atlasAnnotIndicator('department',d.id)}</div>
           <div style="font-size:10px;color:var(--t3)">${members.length} · ${_atlasMoney(cost)}/mo</div>
         </div>
-        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:10px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:10px;color:var(--t3)">No members</div>'}
+        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:10px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:10px;color:var(--t3)">No members</div>'}
         ${tree(d.id,depth+1)}
       </div>`;
     }).join('');
@@ -11466,11 +11434,12 @@ function _atlasResourcesHTML(snap){
     return `<div style="margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📍 ${esc(locName(lid))} <span style="color:var(--t3);font-weight:400">· ${list.length} ${list.length===1?'person':'people'} · ${_atlasMoney(cost)}/mo</span></div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        ${list.map(m=>`<div class="cd" style="padding:10px 12px">
+        ${list.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
           <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
           <div style="font-size:10px;color:var(--t2);margin-top:4px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
           ${m.sme||m.hub||m.associate||m.proposal||m.recruiter?`<div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">${m.sme?'<span style="background:rgba(124,92,191,.15);color:#7c5cbf;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">SME</span>':''}${m.hub?'<span style="background:rgba(13,148,136,.15);color:#0d9488;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">HUB</span>':''}${m.associate?'<span style="background:rgba(217,119,6,.15);color:#d97706;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">ASSOC</span>':''}${m.proposal?'<span style="background:rgba(5,150,105,.15);color:#059669;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">PROP</span>':''}${m.recruiter?'<span style="background:rgba(124,58,237,.15);color:#7c3aed;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">RECR</span>':''}</div>`:''}
+          ${_atlasAnnotIndicator('member',m.id)}
         </div>`).join('')}
       </div>
     </div>`;
@@ -11512,10 +11481,10 @@ function _atlasTaskRow(snap,a,statusCfg){
   const owners=(a.owners||[]).map(id=>{const x=_atlasMember(snap,id);return x?x.member.name:'';}).filter(Boolean);
   const ownerLbl=owners.length?owners.join(', '):(a.ownerText||'—');
   const proj=a.projectId?_atlasProject(snap,a.projectId):null;
-  return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start">
+  return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start;cursor:pointer" onclick="atlasOpenDrawer('activity','${a.id}')">
     <span style="display:inline-block;background:${s.c};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${s.l}</span>
     <div style="flex:1;min-width:0">
-      <div style="font-size:12px;font-weight:600">${a.isMilestone?'◆ ':''}${esc(a.subtask||'(untitled)')}</div>
+      <div style="font-size:12px;font-weight:600">${a.isMilestone?'◆ ':''}${esc(a.subtask||'(untitled)')} ${_atlasAnnotIndicator('activity',a.id)}</div>
       ${a.objective?`<div style="font-size:10px;color:var(--t2);margin-top:2px"><strong>Next:</strong> ${esc(a.objective)}</div>`:''}
       <div style="font-size:10px;color:var(--t3);margin-top:3px">
         ${a.phase?'<span>'+esc(a.phase)+'</span> · ':''}
@@ -11545,4 +11514,399 @@ function _atlasRailHTML(snap){
     <div style="margin-top:10px;font-size:10px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
     <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:11px;color:var(--ac);text-decoration:none">Open Atlas ↗</a>
   </div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATLAS — PROPOSALS VIEW
+   ════════════════════════════════════════════════════════════════════════ */
+const _PROP_STATUS_COLOR={'draft':'#64748B','in-review':'#0EA5E9','red-team':'#D97706','submitted':'#7C3AED','won':'#16A34A','lost':'#DC2626','no-bid':'#94A3B8'};
+function _atlasProposalsHTML(snap){
+  const props=(snap.proposals||[]).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if(!props.length)return `<div class="cd" style="padding:24px;color:var(--t3);text-align:center"><div style="font-size:13px;margin-bottom:6px">No proposals yet</div><div style="font-size:11px">Proposals authored in Atlas (with RFP intake, drafted sections, staffing matrix, etc.) will surface here.</div></div>`;
+  const open=props.filter(p=>['draft','in-review','red-team'].includes(p.status)).length;
+  const won=props.filter(p=>p.status==='won').length;
+  const lost=props.filter(p=>p.status==='lost').length;
+  const submitted=props.filter(p=>p.status==='submitted').length;
+  const winRate=(won+lost)?Math.round(won/(won+lost)*100):0;
+  const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #0EA5E9"><div style="font-size:18px;font-weight:750;color:#0EA5E9;line-height:1">${open}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">In Progress</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #7C3AED"><div style="font-size:18px;font-weight:750;color:#7C3AED;line-height:1">${submitted}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Submitted</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #16A34A"><div style="font-size:18px;font-weight:750;color:#16A34A;line-height:1">${won}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #DC2626"><div style="font-size:18px;font-weight:750;color:#DC2626;line-height:1">${winRate}%</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+  </div>`;
+  const rows=props.map(p=>{
+    const opp=p.opportunityId?(snap.projects||[]).find(x=>x.id===p.opportunityId):null;
+    const c=_PROP_STATUS_COLOR[p.status]||'#64748b';
+    const due=p.rfp&&p.rfp.dueDate;
+    const dueChip=due?(()=>{const dd=new Date(due);if(isNaN(dd))return '';const days=Math.round((dd-Date.now())/86400000);if(days<0)return `<span style="font-size:10px;color:#dc2626;font-weight:700">${Math.abs(days)}d overdue</span>`;if(days<14)return `<span style="font-size:10px;color:#d97706;font-weight:700">due in ${days}d</span>`;return `<span style="font-size:10px;color:var(--t3)">due in ${days}d</span>`;})():'';
+    const secCount=(p.sections||[]).filter(s=>(s.html||'').trim()).length;
+    const totSec=(p.sections||[]).length;
+    const ppMatches=(p.pastPerformance&&p.pastPerformance.matches)?p.pastPerformance.matches.length:0;
+    const roles=(p.rfp&&p.rfp.requiredRoles)?p.rfp.requiredRoles.length:0;
+    return `<div class="cd" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid ${c};cursor:pointer" onclick="atlasOpenDrawer('proposal','${p.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:5px">
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800">${esc(p.title)} ${_atlasAnnotIndicator('proposal',p.id)}</div>
+        ${opp?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(opp.name)}${opp.customer?' · '+esc(opp.customer):''}</div>`:(p.rfp&&p.rfp.customer?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(p.rfp.customer)}</div>`:'')}</div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span style="background:${c}22;color:${c};padding:2px 7px;font-size:9px;font-weight:700;border-radius:3px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${dueChip}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--t2)">
+        <span>📝 ${secCount}/${totSec} sections</span>
+        ${roles?`<span>👥 ${roles} roles</span>`:''}
+        ${ppMatches?`<span>🎯 ${ppMatches} PP matches</span>`:''}
+        ${p.rfp&&p.rfp.potentialValue?`<span>💰 ${_atlasMoney(p.rfp.potentialValue)}</span>`:''}
+        ${p.llmProvider?`<span style="color:var(--t3)">LLM: ${esc(p.llmProvider)}${p.llmModel?'/'+esc(p.llmModel):''}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  return kpis+rows;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATLAS — CLASSIFICATION VIEW (Hub / SME / Associate / Proposal / Recruiter)
+   ════════════════════════════════════════════════════════════════════════ */
+const _ATLAS_CLASSIFICATIONS=[
+  {k:'sme',l:'SME',c:'#7C5CBF',icon:'🎓'},
+  {k:'hub',l:'Hub',c:'#0D9488',icon:'🌐'},
+  {k:'associate',l:'Associate',c:'#D97706',icon:'🧰'},
+  {k:'proposal',l:'Proposal',c:'#059669',icon:'📋'},
+  {k:'recruiter',l:'Recruiter',c:'#7C3AED',icon:'🔎'}
+];
+function _atlasClassificationHTML(snap){
+  const all=[];(snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>all.push({...m,_dept:d.name})));
+  if(!all.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No resources to classify.</div>`;
+  let html='';
+  _ATLAS_CLASSIFICATIONS.forEach(c=>{
+    const people=all.filter(m=>!!m[c.k]);
+    if(!people.length)return;
+    const cost=people.reduce((s,m)=>s+(m.cost||0),0);
+    html+=`<div class="cd" style="padding:14px 16px;margin-bottom:14px;border-left:4px solid ${c.c}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:${c.c}">${c.icon} ${c.l}</div>
+        <div style="font-size:11px;color:var(--t3)">${people.length} ${people.length===1?'person':'people'} · ${_atlasMoney(cost)}/mo</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+        ${people.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
+          <div style="font-size:12px;font-weight:700">${esc(m.name)} ${_atlasAnnotIndicator('member',m.id)}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:3px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+  // Unclassified
+  const uncl=all.filter(m=>!_ATLAS_CLASSIFICATIONS.some(c=>m[c.k]));
+  if(uncl.length){
+    const cost=uncl.reduce((s,m)=>s+(m.cost||0),0);
+    html+=`<div class="cd" style="padding:14px 16px;margin-bottom:14px;border-left:4px solid #94A3B8">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:#64748B">Unclassified</div>
+        <div style="font-size:11px;color:var(--t3)">${uncl.length} · ${_atlasMoney(cost)}/mo</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+        ${uncl.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
+          <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+  return html||`<div class="cd" style="padding:16px;color:var(--t3);text-align:center">Nobody has classification flags set yet.</div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATLAS — DETAIL DRAWER + ANNOTATIONS + SPAWN HELPERS
+   ════════════════════════════════════════════════════════════════════════ */
+function _atlasAnnotKey(type,id){return type+':'+id;}
+function _atlasAnnotGet(type,id){return (D.atlasAnnotations||{})[_atlasAnnotKey(type,id)]||null;}
+function _atlasAnnotIndicator(type,id){
+  const a=_atlasAnnotGet(type,id);
+  if(!a||!(a.notes||'').replace(/<[^>]+>/g,'').trim())return '';
+  return '<span style="display:inline-block;background:#facc15;color:#78350f;font-size:8px;font-weight:800;padding:1px 5px;border-radius:3px;letter-spacing:.3px;margin-left:4px;vertical-align:middle" title="Has your notes">📝</span>';
+}
+function _atlasFindEntity(type,id){
+  const snap=D.atlas||{};
+  if(type==='project')return (snap.projects||[]).find(x=>x.id===id);
+  if(type==='member'){for(const d of (snap.departments||[])){const m=(d.members||[]).find(x=>x.id===id);if(m)return Object.assign({},m,{_dept:d.name,_deptId:d.id});}return null;}
+  if(type==='department')return (snap.departments||[]).find(x=>x.id===id);
+  if(type==='activity')return (snap.activities||[]).find(x=>x.id===id);
+  if(type==='proposal')return (snap.proposals||[]).find(x=>x.id===id);
+  return null;
+}
+function atlasOpenDrawer(type,id){
+  const e=_atlasFindEntity(type,id);
+  if(!e){toast({type:'warn',title:'Item not found in current snapshot',msg:'Try pulling Atlas again.'});return;}
+  _atlasDrawerState={type,id,tab:'details'};
+  _atlasRenderDrawer();
+}
+let _atlasDrawerState=null;
+function _atlasCloseDrawer(){_atlasDrawerState=null;_atlasRenderDrawer();}
+function _atlasDrawerSetTab(t){if(!_atlasDrawerState)return;_atlasDrawerState.tab=t;_atlasRenderDrawer();}
+function _atlasRenderDrawer(){
+  let el=document.getElementById('atlas-drawer');
+  if(!_atlasDrawerState){if(el)el.remove();return;}
+  if(!el){el=document.createElement('div');el.id='atlas-drawer';el.style.cssText='position:fixed;inset:0;background:rgba(15,20,35,.5);backdrop-filter:blur(3px);z-index:2000;display:flex;justify-content:flex-end';el.onclick=function(ev){if(ev.target===el)_atlasCloseDrawer();};document.body.appendChild(el);}
+  const {type,id,tab}=_atlasDrawerState;
+  const e=_atlasFindEntity(type,id);
+  if(!e){el.remove();return;}
+  const a=_atlasAnnotGet(type,id)||{notes:'',tags:[],updatedAt:0};
+  const titleMap={project:'Item',member:'Person',department:'Department',activity:'Task',proposal:'Proposal'};
+  const typeLabel=e.category?(e.category.charAt(0).toUpperCase()+e.category.slice(1)):(titleMap[type]||type);
+  const name=_atlasEntityName(type,e);
+  const tabs=[{k:'details',l:'Details'},{k:'notes',l:'My Notes'+((a.notes||'').replace(/<[^>]+>/g,'').trim()?' ●':'')},{k:'spawn',l:'+ Create…'}];
+  const tabBar=`<div style="display:flex;gap:2px;border-bottom:2px solid var(--brd);margin:0 16px">${tabs.map(t=>`<button onclick="_atlasDrawerSetTab('${t.k}')" style="background:transparent;border:none;padding:9px 14px;font-size:12px;font-weight:700;color:${tab===t.k?'var(--ac)':'var(--t2)'};cursor:pointer;border-bottom:2px solid ${tab===t.k?'var(--ac)':'transparent'};margin-bottom:-2px;font-family:inherit">${t.l}</button>`).join('')}</div>`;
+  let body='';
+  if(tab==='details')body=_atlasDrawerDetailsHTML(type,e);
+  else if(tab==='notes')body=_atlasDrawerNotesHTML(type,id,a);
+  else if(tab==='spawn')body=_atlasDrawerSpawnHTML(type,id,e);
+  el.innerHTML=`<div style="background:var(--bg);width:680px;max-width:100%;height:100%;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.3);display:flex;flex-direction:column">
+    <div style="padding:16px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">Atlas · ${esc(typeLabel)}</div>
+        <div style="font-size:18px;font-weight:800;margin-top:3px">${esc(name)}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <a href="${ATLAS_PUBLIC_URL}" target="_blank" class="btn btn-s" style="height:28px;font-size:10px;text-decoration:none">↗ Atlas</a>
+        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_atlasCloseDrawer()">✕</button>
+      </div>
+    </div>
+    ${tabBar}
+    <div style="flex:1;overflow-y:auto;padding:16px">${body}</div>
+  </div>`;
+}
+function _atlasEntityName(type,e){
+  if(type==='proposal')return e.title||'(untitled)';
+  if(type==='activity')return e.subtask||'(untitled task)';
+  return e.name||'(unnamed)';
+}
+function _atlasDrawerDetailsHTML(type,e){
+  if(type==='project')return _atlasDetailsProject(e);
+  if(type==='member')return _atlasDetailsMember(e);
+  if(type==='department')return _atlasDetailsDept(e);
+  if(type==='activity')return _atlasDetailsActivity(e);
+  if(type==='proposal')return _atlasDetailsProposal(e);
+  return '<div>Unknown type</div>';
+}
+function _atlasDetailsProject(p){
+  const snap=D.atlas||{};
+  const cost=(snap.departments||[]).reduce((sum,d)=>sum+(d.members||[]).reduce((s2,m)=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(!e)return s2;const pct=typeof e==='object'?(e.pct||100):100;return s2+Math.round((m.cost||0)*pct/100);},0),0);
+  const team=[];(snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>{const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);if(e)team.push({m,pct:typeof e==='object'?(e.pct||100):100,clinId:e&&e.clinId});}));
+  const rev=p.revenue||p.targetRevenue||0;
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_atlasFld('Category',p.category)}${_atlasFld('Customer',p.customer)}
+      ${_atlasFld('Revenue',rev?_atlasMoney(rev)+(p.category==='project'?'/mo':' target'):'—')}
+      ${_atlasFld('Assigned Cost',_atlasMoney(cost)+'/mo')}
+      ${_atlasFld('Stage',p.stage)}${_atlasFld('Status',p.status)}
+      ${_atlasFld('PM',p.pm)}${_atlasFld('OPR / Owner',p.opr)}
+      ${_atlasFld('Potential',p.potential?_atlasMoney(p.potential):'')}
+      ${_atlasFld('Close Date',p.closeDate)}
+      ${_atlasFld('Contract Vehicle',p.leadGen||p.presales||p.sales||p.delivery)}
+    </div>
+    ${p.description?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Description</div><div style="font-size:13px;color:var(--t1);line-height:1.55">${p.description}</div></div>`:''}
+    ${p.revenueNote?`<div style="margin-top:10px;padding:8px 10px;background:var(--s2);border-radius:6px;font-size:12px;font-style:italic;color:var(--t2)">${esc(p.revenueNote)}</div>`:''}
+    ${p.team?`<div style="margin-top:10px;font-size:12px"><b>Team:</b> ${esc(p.team)}</div>`:''}
+    ${p.changeRequested?`<div style="margin-top:10px;padding:8px 10px;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.25);border-radius:6px;font-size:12px"><b>Change Requested:</b> ${esc(p.changeRequested)}</div>`:''}
+    ${p.clins&&p.clins.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">CLINs (${p.clins.length})</div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="background:var(--s2)"><th style="text-align:left;padding:6px">#</th><th style="text-align:left;padding:6px">Title</th><th style="text-align:right;padding:6px">Revenue</th></tr></thead><tbody>
+        ${p.clins.map(c=>`<tr><td style="padding:5px 6px;border-bottom:1px solid var(--bd1)">${esc(c.number||'')}</td><td style="padding:5px 6px;border-bottom:1px solid var(--bd1)">${esc(c.title||'')}</td><td style="padding:5px 6px;border-bottom:1px solid var(--bd1);text-align:right">${_atlasMoney(c.revenue)}/mo</td></tr>`).join('')}
+      </tbody></table></div>`:''}
+    ${team.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Team (${team.length})</div>
+      ${team.map(t=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${t.m.id}')"><div><b>${esc(t.m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(t.m.role||'')}</span></div><div style="font-size:11px;color:var(--t3)">${t.pct}% · ${_atlasMoney(Math.round((t.m.cost||0)*t.pct/100))}/mo</div></div>`).join('')}
+    </div>`:''}
+    ${p.attachments&&p.attachments.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Attachments (${p.attachments.length})</div>
+      ${p.attachments.map(a=>`<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--bd1)">${a.type==='file'?'📄':'🔗'} <a href="${esc(a.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(a.name||a.url)}</a></div>`).join('')}
+    </div>`:''}`;
+}
+function _atlasDetailsMember(m){
+  const snap=D.atlas||{};
+  const skills=(m.skillsets||[]).map(id=>{const s=(snap.skillsets||[]).find(x=>x.id===id);return s?s.name:'';}).filter(Boolean);
+  const certs=(m.certifications||[]).map(id=>{const c=(snap.certifications||[]).find(x=>x.id===id);return c?c.name:'';}).filter(Boolean);
+  const locName=(snap.locations||[]).find(x=>x.id===m.location);
+  const clrName=(snap.clearances||[]).find(x=>x.id===m.clearance);
+  const projAssign=(m.projects||[]).map(e=>{const id=typeof e==='object'?e.id:e;const pct=typeof e==='object'?(e.pct||100):100;const p=(snap.projects||[]).find(x=>x.id===id);return {p,pct,id};}).filter(x=>x.p);
+  const cls=[];if(m.sme)cls.push(['SME','#7C5CBF']);if(m.hub)cls.push(['Hub','#0D9488']);if(m.associate)cls.push(['Associate','#D97706']);if(m.proposal)cls.push(['Proposal','#059669']);if(m.recruiter)cls.push(['Recruiter','#7C3AED']);
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_atlasFld('Role',m.role)}${_atlasFld('Department',m._dept)}
+      ${_atlasFld('Monthly Cost',_atlasMoney(m.cost))}${_atlasFld('Reports To',m.reportsTo)}
+      ${_atlasFld('Location',locName?locName.name:m.location)}${_atlasFld('Clearance',clrName?clrName.name:m.clearance)}
+      ${_atlasFld('Badge',m.badge)}${_atlasFld('Flag',m.reassess?'⚠ Reassess':'')}
+    </div>
+    ${cls.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">${cls.map(([l,c])=>`<span style="background:${c}22;color:${c};font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${l}</span>`).join('')}</div>`:''}
+    ${skills.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Skills</div><div style="display:flex;flex-wrap:wrap;gap:5px">${skills.map(s=>`<span style="background:rgba(14,165,233,.12);color:#0EA5E9;padding:3px 9px;border-radius:3px;font-size:11px;font-weight:600">${esc(s)}</span>`).join('')}</div></div>`:''}
+    ${certs.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Certifications</div><div style="display:flex;flex-wrap:wrap;gap:5px">${certs.map(c=>`<span style="background:rgba(13,148,136,.12);color:#0d9488;padding:3px 9px;border-radius:3px;font-size:11px;font-weight:600">${esc(c)}</span>`).join('')}</div></div>`:''}
+    ${m.note?`<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:6px;font-size:12px;color:var(--t2)">${esc(m.note)}</div>`:''}
+    ${projAssign.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Project Assignments (${projAssign.length})</div>
+      ${projAssign.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('project','${x.id}')"><div><b>${esc(x.p.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(x.p.category||'')}</span></div><div style="font-size:11px;color:var(--t3)">${x.pct}% · ${_atlasMoney(Math.round((m.cost||0)*x.pct/100))}/mo</div></div>`).join('')}
+    </div>`:''}
+    ${m.resumeLink?`<div style="margin-top:10px;font-size:12px">📎 <a href="${esc(m.resumeLink)}" target="_blank" style="color:var(--ac);text-decoration:none">Resume</a></div>`:''}
+    ${m.attachments&&m.attachments.length?`<div style="margin-top:10px">${m.attachments.map(a=>`<div style="font-size:12px;padding:4px 0">${a.type==='file'?'📄':'🔗'} <a href="${esc(a.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(a.name||a.url)}</a></div>`).join('')}</div>`:''}`;
+}
+function _atlasDetailsDept(d){
+  const members=d.members||[];
+  const cost=members.reduce((s,m)=>s+(m.cost||0),0);
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_atlasFld('Subtitle',d.subtitle)}${_atlasFld('Members',members.length)}
+      ${_atlasFld('Total Cost',_atlasMoney(cost)+'/mo')}${_atlasFld('Accent',d.accent)}
+    </div>
+    ${members.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Members</div>
+      ${members.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bd1);font-size:12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')"><div><b>${esc(m.name)}</b><span style="color:var(--t3);margin-left:6px">${esc(m.role||'')}</span>${m.sme?' 🎓':''}${m.hub?' 🌐':''}</div><div style="font-size:11px;color:var(--t3)">${_atlasMoney(m.cost)}/mo</div></div>`).join('')}
+    </div>`:''}`;
+}
+function _atlasDetailsActivity(a){
+  const snap=D.atlas||{};
+  const proj=a.projectId?(snap.projects||[]).find(x=>x.id===a.projectId):null;
+  const prog=a.programId?(snap.programs||[]).find(x=>x.id===a.programId):null;
+  const owners=(a.owners||[]).map(id=>{for(const d of (snap.departments||[])){const m=(d.members||[]).find(x=>x.id===id);if(m)return m;}return null;}).filter(Boolean);
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_atlasFld('Status',a.status)}${_atlasFld('Phase',a.phase)}
+      ${_atlasFld('Start',a.start)}${_atlasFld('Due',a.dueDate)}
+      ${_atlasFld('PM',a.pm)}${_atlasFld('Kind',a.kind||'coe')}
+      ${prog?_atlasFld('Program',prog.name):''}
+      ${proj?_atlasFld('Project',proj.name):''}
+      ${_atlasFld('Milestone',a.isMilestone?'◆ Yes':'')}${_atlasFld('Task Group',a.task)}
+    </div>
+    ${a.outline?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Description</div><div style="font-size:13px;color:var(--t1);line-height:1.55">${a.outline}</div></div>`:''}
+    ${a.objective?`<div style="margin-top:10px;padding:8px 10px;background:rgba(197,165,90,.08);border:1px solid rgba(197,165,90,.25);border-radius:6px;font-size:12px"><b>Next Steps:</b> ${esc(a.objective)}</div>`:''}
+    ${owners.length?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${owners.map(m=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline;text-underline-offset:2px" onclick="atlasOpenDrawer('member','${m.id}')">${esc(m.name)}</span>`).join(', ')}</div>`:(a.ownerText?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${esc(a.ownerText)}</div>`:'')}
+    ${a.updates&&a.updates.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Status Updates (${a.updates.length})</div>
+      ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:10px">${esc(u.author||'—')} · ${new Date(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
+    </div>`:''}
+    ${a.attachments&&a.attachments.length?`<div style="margin-top:10px">${a.attachments.map(at=>`<div style="font-size:12px;padding:4px 0">${at.type==='file'?'📄':'🔗'} <a href="${esc(at.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(at.name||at.url)}</a></div>`).join('')}</div>`:''}`;
+}
+function _atlasDetailsProposal(p){
+  const snap=D.atlas||{};
+  const opp=p.opportunityId?(snap.projects||[]).find(x=>x.id===p.opportunityId):null;
+  const tpl=p.templateId?(snap.taskTemplates||[]).find(x=>x.id===p.templateId):null;
+  const rfp=p.rfp||{};
+  const drafted=(p.sections||[]).filter(s=>(s.html||'').trim()).length;
+  const total=(p.sections||[]).length;
+  const c=_PROP_STATUS_COLOR[p.status]||'#64748b';
+  const sectionsList=(p.sections||[]).map(s=>{
+    const has=(s.html||'').replace(/<[^>]+>/g,' ').trim();
+    return `<div style="border-bottom:1px solid var(--bd1);padding:9px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:700">${esc(s.title)}${s.source==='ai'?' <span style="font-size:9px;color:#7C3AED;font-weight:700;letter-spacing:.3px;text-transform:uppercase">AI</span>':s.source==='computed'?' <span style="font-size:9px;color:#059669;font-weight:700;letter-spacing:.3px;text-transform:uppercase">computed</span>':''}</div><div style="font-size:9px;color:var(--t3)">${has?(s.html.replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length+' words'):'empty'}</div></div>
+      ${has?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5;max-height:80px;overflow:hidden;position:relative">${s.html}</div>`:''}
+    </div>`;
+  }).join('');
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="background:${c}22;color:${c};font-size:10px;font-weight:800;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${opp?`<span style="font-size:11px;color:var(--t2);cursor:pointer;text-decoration:underline" onclick="atlasOpenDrawer('project','${opp.id}')">↗ ${esc(opp.name)}</span>`:''}${tpl?`<span style="font-size:11px;color:var(--t3)">📄 ${esc(tpl.name)}</span>`:''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_atlasFld('Customer',rfp.customer)}${_atlasFld('Due Date',rfp.dueDate)}
+      ${_atlasFld('Period of Performance',rfp.pop)}${_atlasFld('Potential Value',rfp.potentialValue?_atlasMoney(rfp.potentialValue):'')}
+      ${_atlasFld('Contract Vehicle',rfp.contractVehicle)}${_atlasFld('Set-Aside',rfp.setAsideType)}
+      ${_atlasFld('Sections',drafted+'/'+total+' drafted')}${_atlasFld('LLM',p.llmProvider?p.llmProvider+(p.llmModel?'/'+p.llmModel:''):'(account default)')}
+    </div>
+    ${rfp.summary?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Summary</div><div style="font-size:13px;color:var(--t1);line-height:1.55">${esc(rfp.summary)}</div></div>`:''}
+    ${rfp.scope?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Scope</div><div style="font-size:12px;color:var(--t2);line-height:1.55">${esc(rfp.scope.slice(0,800))}${rfp.scope.length>800?'…':''}</div></div>`:''}
+    ${(rfp.requirements||[]).length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Requirements (${rfp.requirements.length})</div><ul style="font-size:12px;color:var(--t2);padding-left:18px;line-height:1.55">${rfp.requirements.slice(0,10).map(r=>`<li>${esc(r)}</li>`).join('')}${rfp.requirements.length>10?`<li style="color:var(--t3)">…+${rfp.requirements.length-10} more</li>`:''}</ul></div>`:''}
+    ${(rfp.requiredRoles||[]).length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Required Roles (${rfp.requiredRoles.length})</div>${rfp.requiredRoles.map(r=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--bd1)"><b>${esc(r.title||'?')}</b> × ${r.count||1}${r.clearance?` · ${esc(r.clearance)}`:''}${r.location?` · ${esc(r.location)}`:''}</div>`).join('')}</div>`:''}
+    ${total?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Sections</div>${sectionsList}</div>`:''}
+    ${p.pricing&&p.pricing.items&&p.pricing.items.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Pricing — ${_atlasMoney(p.pricing.items.reduce((s,i)=>s+(i.fee||0),0))} total</div><div style="font-size:11px;color:var(--t3)">${p.pricing.items.length} line items · ${p.pricing.mode==='project-clins'?'pulled from CLINs':'manual'}</div></div>`:''}
+    ${p.winLoss?`<div style="margin-top:14px;padding:10px 12px;background:${c}11;border:1px solid ${c}44;border-radius:6px"><div style="font-size:11px;font-weight:700;color:${c};text-transform:uppercase;letter-spacing:.4px">Win/Loss Debrief</div><div style="font-size:12px;color:var(--t2);margin-top:4px;line-height:1.55">${esc(p.winLoss.notes||'(no notes)')}</div></div>`:''}`;
+}
+function _atlasFld(label,val){if(val===null||val===undefined||val==='')return '';return `<div style="background:var(--s2);padding:7px 10px;border-radius:5px"><div style="font-size:9px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">${esc(label)}</div><div style="font-size:12px;color:var(--t1);margin-top:2px">${esc(String(val))}</div></div>`;}
+
+/* ── Annotations ── */
+function _atlasDrawerNotesHTML(type,id,a){
+  const key=_atlasAnnotKey(type,id);
+  return `<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Your private notes about this Atlas item. Stored in your LevelUp account — never synced back to Atlas. Updated ${a.updatedAt?new Date(a.updatedAt).toLocaleString():'never'}.</div>
+    <textarea id="atlas-annot-textarea" style="width:100%;min-height:280px;padding:10px 12px;border:1.5px solid var(--brd);border-radius:7px;font-size:13px;font-family:inherit;background:var(--s1);color:var(--t1);line-height:1.55" placeholder="Add notes, observations, follow-ups...">${esc(a.notes||'')}</textarea>
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${type}','${id}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:10px" onclick="_atlasClearAnnot('${type}','${id}')">Clear</button>`:''}</div>`;
+}
+function _atlasSaveAnnot(type,id){
+  const ta=document.getElementById('atlas-annot-textarea');if(!ta)return;
+  if(!D.atlasAnnotations)D.atlasAnnotations={};
+  const key=_atlasAnnotKey(type,id);
+  const txt=ta.value.trim();
+  if(!txt){delete D.atlasAnnotations[key];}
+  else{D.atlasAnnotations[key]={notes:txt,tags:(D.atlasAnnotations[key]&&D.atlasAnnotations[key].tags)||[],updatedAt:Date.now()};}
+  save('atlasAnnotations');
+  if(typeof _pushKeyToServer==='function')_pushKeyToServer('atlasAnnotations');
+  toast({type:'success',title:'Notes saved'});
+  _atlasRenderDrawer();
+  if(curScreen==='atlas')renderAtlas();
+}
+function _atlasClearAnnot(type,id){
+  if(!confirm('Clear your notes on this item?'))return;
+  if(D.atlasAnnotations)delete D.atlasAnnotations[_atlasAnnotKey(type,id)];
+  save('atlasAnnotations');
+  if(typeof _pushKeyToServer==='function')_pushKeyToServer('atlasAnnotations');
+  toast({type:'success',title:'Notes cleared'});
+  _atlasRenderDrawer();
+  if(curScreen==='atlas')renderAtlas();
+}
+
+/* ── Spawn into LevelUp (Note / Journal / Task) ── */
+function _atlasDrawerSpawnHTML(type,id,e){
+  return `<div style="font-size:12px;color:var(--t2);margin-bottom:14px">Create a LevelUp item linked back to this Atlas object. The link goes in the body so you can find it later via search or by jumping back to the Atlas item.</div>
+    <div style="display:grid;grid-template-columns:1fr;gap:8px">
+      <button class="btn btn-p" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnNote('${type}','${id}')">
+        <div style="font-size:13px;font-weight:700">📝 Create LevelUp Note</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;font-weight:400">Long-form notes, ideas, research about this Atlas item</div>
+      </button>
+      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnJournal('${type}','${id}')">
+        <div style="font-size:13px;font-weight:700">📓 Add Journal Entry</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px;font-weight:400">A dated personal log entry referencing this item</div>
+      </button>
+      <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnTask('${type}','${id}')">
+        <div style="font-size:13px;font-weight:700">✅ Create LevelUp Task</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px;font-weight:400">An actionable task with this Atlas item as context</div>
+      </button>
+    </div>`;
+}
+function _atlasSpawnRef(type,id,e){
+  const name=_atlasEntityName(type,e);
+  const typeLabel={project:'Item',member:'Person',department:'Department',activity:'Task',proposal:'Proposal'}[type]||type;
+  return {name,typeLabel,refLine:`<p><i>From Atlas ${typeLabel}: <strong>${esc(name)}</strong> (id <code>${esc(id)}</code>)</i> — <a href="${ATLAS_PUBLIC_URL}" target="_blank">Open Atlas ↗</a></p>`};
+}
+function _atlasSpawnNote(type,id){
+  const e=_atlasFindEntity(type,id);if(!e)return;
+  const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
+  const title=prompt('Note title:','Re: '+name);if(title===null)return;
+  const note={
+    id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    title:title.trim()||('Re: '+name),
+    bodyHtml:refLine+'<p></p>',
+    folderId:'',pinned:false,starred:false,archived:false,color:'',
+    tags:['atlas-'+type],
+    atlasRef:{type,id,name},
+    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+  };
+  if(!D.notes)D.notes=[];
+  D.notes.unshift(note);
+  save('notes');if(typeof _pushKeyToServer==='function')_pushKeyToServer('notes');
+  toast({type:'success',title:'📝 Note created',msg:title.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('notes');setTimeout(()=>{if(typeof openNote==='function')openNote(note.id);else if(typeof _openNoteDrawer==='function')_openNoteDrawer(note.id);},150);}}]});
+}
+function _atlasSpawnJournal(type,id){
+  const e=_atlasFindEntity(type,id);if(!e)return;
+  const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
+  const entry={
+    id:'j_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    date:new Date().toISOString().slice(0,10),
+    title:'Re: '+name,
+    bodyHtml:refLine+'<p></p>',
+    mood:'',tags:['atlas-'+type],
+    atlasRef:{type,id,name},
+    createdAt:new Date().toISOString()
+  };
+  if(!D.journal)D.journal=[];
+  D.journal.unshift(entry);
+  save('journal');if(typeof _pushKeyToServer==='function')_pushKeyToServer('journal');
+  toast({type:'success',title:'📓 Journal entry added',msg:name.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('journal');}}]});
+}
+function _atlasSpawnTask(type,id){
+  const e=_atlasFindEntity(type,id);if(!e)return;
+  const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
+  const title=prompt('Task title:','Follow up on '+name);if(title===null)return;
+  const task={
+    id:'t_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    title:title.trim()||('Follow up on '+name),
+    notes:refLine,
+    status:'todo',priority:'medium',due:'',startDate:'',myDay:false,
+    tags:['atlas-'+type],
+    atlasRef:{type,id,name},
+    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+  };
+  if(!D.tasks)D.tasks=[];
+  D.tasks.unshift(task);
+  save('tasks');if(typeof _pushKeyToServer==='function')_pushKeyToServer('tasks');
+  toast({type:'success',title:'✅ Task created',msg:title.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('tasks');}}]});
 }

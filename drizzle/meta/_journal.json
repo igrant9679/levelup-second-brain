@@ -309,6 +309,13 @@
       "when": 1780550000000,
       "tag": "0043_atlas_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "5",
+      "when": 1780600000000,
+      "tag": "0044_atlas_annotations",
+      "breakpoints": true
     }
   ]
 }
