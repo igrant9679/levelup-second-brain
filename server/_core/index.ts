@@ -364,6 +364,13 @@ async function startServer() {
     try { startWeeklyReviewCron(); } catch (e) { console.error('[startup] weekly-review cron failed:', e); }
     // Kick off the automation rules cron (15-min granularity).
     try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
+    // Atlas integration env-var boot diagnostic. Prints only the
+    // configured/length status — never the value — so logs are safe.
+    try {
+      const u = (process.env.ATLAS_SYNC_URL || '').trim();
+      const t = (process.env.ATLAS_SYNC_TOKEN || '').trim();
+      console.log(`[atlas] env check — ATLAS_SYNC_URL: ${u ? `configured (${u.length} chars, host=${(u.match(/^https?:\/\/([^/]+)/)||[])[1] || 'unparsable'})` : 'MISSING'} · ATLAS_SYNC_TOKEN: ${t ? `configured (${t.length} chars)` : 'MISSING'}`);
+    } catch (e) { console.error('[startup] atlas env diag failed:', e); }
   });
 }
 
