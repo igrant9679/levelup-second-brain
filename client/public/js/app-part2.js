@@ -628,6 +628,20 @@ function renderSettingsHTML(){
       <div class="tog ${(D.prefs&&D.prefs.externalQueueMode)?'on':''}" id="tog-ext-queue" onclick="_toggleExternalQueueMode()"></div>
     </div>
   </div>
+  <!-- Atlas (CFResourcePlanner) one-way sync.
+       Hydrated by _hydrateAtlasPanel() after the settings page mounts. -->
+  <div id="atlas-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗺 Atlas — CFResourcePlanner mirror</div>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
+    <div id="atlas-panel-body" style="font-size:11px;color:var(--t2)">Loading…</div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateAtlasPanel()">Reload status</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="nav('atlas')">→ Open Atlas page</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_removeCfSmartsheetWatches()" title="Delete the two legacy CF Smartsheet watches (120-Day Plan + Pipeline). Atlas now mirrors this data directly.">🧹 Remove legacy CF Smartsheet watches</button>
+      <button class="btn btn-d" style="height:28px;font-size:10px" onclick="_atlasClear()" title="Wipe the locally cached Atlas snapshot. Does NOT touch Atlas itself.">✕ Clear cached snapshot</button>
+    </div>
+  </div>
   <!-- Tombstoned-external archive — annotations preserved after source-side delete -->
   <div id="ext-archive-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
@@ -989,7 +1003,7 @@ function showSetTab(el,id){
   document.querySelectorAll('.sp').forEach(x=>x.style.display='none');
   document.getElementById(id).style.display='';
   if(id==='sp-4'){loadOAuthStatus();loadEmailDeliveryLog();populateRedirectUris();}
-  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();if(typeof _renderAutoProjectsMaint==='function')_renderAutoProjectsMaint();}
+  if(id==='sp-5'){if(typeof _hydrateExternalSourcesPanel==='function')_hydrateExternalSourcesPanel();if(typeof _hydrateAutomationsPanel==='function')_hydrateAutomationsPanel();if(typeof _hydrateTombstoneArchive==='function')_hydrateTombstoneArchive();if(typeof _renderAutoProjectsMaint==='function')_renderAutoProjectsMaint();if(typeof _hydrateAtlasPanel==='function')_hydrateAtlasPanel();}
   if(id==='sp-3'){loadEmailNotifPrefs();if(typeof _hydrateDailyDigestPanel==='function')_hydrateDailyDigestPanel();if(typeof _hydrateWeeklyReviewPanel==='function')_hydrateWeeklyReviewPanel();}
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
@@ -9995,6 +10009,13 @@ async function loadServerData(){
         }
       }
     });
+    // Atlas snapshot (one-way mirror from CFResourcePlanner). Object-shaped,
+    // not array — just replace wholesale. The server is the only writer
+    // (via atlas.pull); the client never mutates D.atlas.
+    if(sd.atlas&&typeof sd.atlas==='object'){
+      D.atlas=sd.atlas;
+      changed=true;
+    }
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
       D.prefs=Object.assign({},D.prefs,sd.prefs);
       localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
@@ -11161,4 +11182,313 @@ function mmConvertToNote(nodeId){
   save('notes');
   document.getElementById('mm-context-menu').style.display = 'none';
   toast(`📝 Note created: "${node.text}"`);
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   ATLAS (CFResourcePlanner) — one-way sync, read-only mirror.
+   Server-side: tRPC atlas.status / atlas.pull / atlas.clear.
+   Data lands in D.atlas via the usual appData.load pipeline.
+   ═════════════════════════════════════════════════════════════════════ */
+const ATLAS_PUBLIC_URL='https://cfresourceplanner-production.up.railway.app';
+let _atlasView='proj';
+
+async function _hydrateAtlasPanel(){
+  const body=document.getElementById('atlas-panel-body');
+  if(!body)return;
+  try{
+    const s=await _trpc('atlas.status',{},'query');
+    const url=s.baseUrl||'(not configured)';
+    const tokenLine=s.tokenConfigured
+      ? '<span style="color:var(--ok)">✓ Token configured</span>'
+      : '<span style="color:var(--warn)">⚠ Token missing</span>';
+    const urlLine=s.urlConfigured
+      ? `<span style="color:var(--ok)">✓ URL: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">${esc(url)}</code></span>`
+      : '<span style="color:var(--warn)">⚠ ATLAS_SYNC_URL env var missing</span>';
+    const synced=s.lastPulledAt
+      ? `Last synced: <strong>${new Date(s.lastPulledAt).toLocaleString()}</strong>${s.lastUpdatedAt?` · source updated ${new Date(s.lastUpdatedAt).toLocaleString()}`:''}`
+      : 'Never pulled yet.';
+    const counts=s.entityCounts||{};
+    const countLine=Object.keys(counts).length
+      ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${Object.entries(counts).map(([k,v])=>`<span style="background:var(--s3);padding:2px 6px;border-radius:3px;font-size:10px"><strong>${v}</strong> ${esc(k)}</span>`).join('')}</div>`
+      : '';
+    body.innerHTML=`${urlLine} · ${tokenLine}<br><span style="color:var(--t3);font-size:10px">${synced}</span>${countLine}`;
+  }catch(e){
+    body.innerHTML=`<span style="color:var(--warn)">Status check failed: ${esc(String(e&&e.message||e))}</span>`;
+  }
+}
+
+async function _atlasPullNow(){
+  toast({type:'info',title:'Pulling Atlas snapshot…',duration:2000});
+  try{
+    const r=await _trpc('atlas.pull',{},'mutation');
+    const c=r.counts||{};
+    toast({type:'success',title:'✅ Atlas synced',msg:`${c.projects||0} projects · ${c.members||0} members · ${c.activities||0} activities · ${c.taskTemplates||0} templates`});
+    // Reload server data into D so D.atlas is fresh
+    try{ if(typeof loadServerData==='function')await loadServerData(); }catch(_){}
+    await _hydrateAtlasPanel();
+    if(curScreen==='atlas')renderAtlas();
+  }catch(e){
+    toast({type:'error',title:'Atlas pull failed',msg:String(e&&e.message||e),duration:8000});
+  }
+}
+
+async function _atlasClear(){
+  if(!confirm('Wipe the locally cached Atlas snapshot?\n\nThis only clears LevelUp\'s mirror — Atlas itself is untouched. You can re-pull at any time.'))return;
+  try{
+    await _trpc('atlas.clear',{},'mutation');
+    D.atlas=null;
+    toast({type:'success',title:'Atlas cache cleared'});
+    await _hydrateAtlasPanel();
+    if(curScreen==='atlas')renderAtlas();
+  }catch(e){
+    toast({type:'error',title:'Clear failed',msg:String(e&&e.message||e)});
+  }
+}
+
+async function _removeCfSmartsheetWatches(){
+  if(!confirm('Delete the two legacy CF Smartsheet watches (120-Day Plan + Pipeline 2026/2027)?\n\nAtlas is now the source of truth for this data. Existing external_tasks rows from those sheets will stop being refreshed but will remain in the Tasks list until you remove them individually.\n\nProceed?'))return;
+  try{
+    const sheets=await _trpc('externalSources.listSmartsheetWatches',{},'query');
+    const cfLabels=['CF — 120-Day Plan','CF — Pipeline 2026/2027'];
+    const targets=(sheets||[]).filter(s=>cfLabels.includes(s.label));
+    if(!targets.length){toast({type:'info',title:'No legacy CF watches found',msg:'Nothing to remove.'});return;}
+    let ok=0,errs=[];
+    for(const w of targets){
+      try{ await _trpc('externalSources.removeSmartsheetWatch',{id:w.id},'mutation'); ok++; }
+      catch(e){ errs.push(w.label+': '+String(e&&e.message||e)); }
+    }
+    if(errs.length)toast({type:'warn',title:`Removed ${ok}/${targets.length} · ${errs.length} failed`,msg:errs.join(' · ')});
+    else toast({type:'success',title:`✅ Removed ${ok} legacy CF watch(es)`});
+    if(typeof _hydrateExternalSourcesPanel==='function')await _hydrateExternalSourcesPanel();
+  }catch(e){
+    toast({type:'error',title:'Remove failed',msg:String(e&&e.message||e)});
+  }
+}
+
+/* ── Atlas screen render ── */
+function renderAtlas(){
+  const m=document.getElementById('atlas-main');
+  if(!m)return;
+  const snap=D.atlas;
+  if(!snap||!snap.projects){
+    m.innerHTML=`<div class="ph-r" style="margin-bottom:14px">
+      <h1 style="font-size:22px;font-weight:700">🗺 Atlas</h1>
+      <p style="font-size:12px;color:var(--t2)">Read-only mirror of the CFResourcePlanner workspace.</p>
+    </div>
+    <div class="cd" style="padding:24px;text-align:center;color:var(--t2)">
+      <div style="font-size:14px;margin-bottom:8px">No Atlas snapshot yet.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:14px">Pull the first snapshot from Atlas to populate this page.</div>
+      <button class="btn btn-p" onclick="_atlasPullNow()">↻ Pull from Atlas now</button>
+      <div style="margin-top:10px"><button class="btn btn-s" onclick="nav('settings');setTimeout(()=>{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');const p=document.getElementById('sp-5');if(p)p.style.display='';document.querySelectorAll('.si').forEach((x,i)=>x.classList.toggle('on',i===5));},50)">→ Configure integration</button></div>
+    </div>`;
+    const r=document.getElementById('atlas-rail');if(r)r.innerHTML='';
+    return;
+  }
+  const tabs=[
+    {k:'proj',l:'Projects',cnt:snap.projects.filter(p=>p.category==='project').length},
+    {k:'init',l:'Initiatives',cnt:snap.projects.filter(p=>p.category==='initiative').length},
+    {k:'opp',l:'Opportunities',cnt:snap.projects.filter(p=>p.category==='opportunity').length},
+    {k:'over',l:'Overhead',cnt:snap.projects.filter(p=>p.category==='overhead').length},
+    {k:'org',l:'Org Chart',cnt:(snap.departments||[]).length},
+    {k:'res',l:'Resources',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).length,0)},
+    {k:'coe',l:'COE Plan',cnt:(snap.activities||[]).filter(a=>(a.kind||'coe')==='coe').length},
+    {k:'ptask',l:'Project Tasks',cnt:(snap.activities||[]).filter(a=>a.kind==='project').length},
+  ];
+  const synced=snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'unknown';
+  const tabBtn=t=>`<button class="btn btn-s" onclick="_atlasView='${t.k}';renderAtlas()" style="${_atlasView===t.k?'background:var(--ac);color:#fff;border-color:var(--ac);':''}">${t.l} <span style="opacity:.65">·${t.cnt}</span></button>`;
+  const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
+    <div>
+      <h1 style="font-size:22px;font-weight:700">🗺 Atlas <span style="font-size:11px;color:var(--t3);font-weight:400;margin-left:8px">read-only mirror</span></h1>
+      <p style="font-size:12px;color:var(--t2)">Last pulled <strong>${synced}</strong> · <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="color:var(--ac);text-decoration:none">Open Atlas ↗</a></p>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-s" onclick="_atlasPullNow()">↻ Refresh</button>
+    </div>
+  </div>`;
+  const tabBar=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${tabs.map(tabBtn).join('')}</div>`;
+  let body='';
+  if(_atlasView==='proj')body=_atlasProjectsHTML(snap,'project');
+  else if(_atlasView==='init')body=_atlasProjectsHTML(snap,'initiative');
+  else if(_atlasView==='opp')body=_atlasOppsHTML(snap);
+  else if(_atlasView==='over')body=_atlasProjectsHTML(snap,'overhead');
+  else if(_atlasView==='org')body=_atlasOrgChartHTML(snap);
+  else if(_atlasView==='res')body=_atlasResourcesHTML(snap);
+  else if(_atlasView==='coe')body=_atlasActivitiesHTML(snap,'coe');
+  else if(_atlasView==='ptask')body=_atlasActivitiesHTML(snap,'project');
+  m.innerHTML=header+tabBar+body;
+  // Right rail: simple summary
+  const r=document.getElementById('atlas-rail');
+  if(r)r.innerHTML=_atlasRailHTML(snap);
+}
+
+function _atlasMoney(n){if(!n)return '$0';return '$'+Math.round(Number(n)).toLocaleString();}
+function _atlasMember(snap,id){
+  for(const d of (snap.departments||[])){
+    const m=(d.members||[]).find(x=>x.id===id);
+    if(m)return {member:m,dept:d};
+  }
+  return null;
+}
+function _atlasProgram(snap,id){return (snap.programs||[]).find(p=>p.id===id);}
+function _atlasProject(snap,id){return (snap.projects||[]).find(p=>p.id===id);}
+function _atlasOpenLink(){return `<a href="${ATLAS_PUBLIC_URL}" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">Open in Atlas ↗</a>`;}
+
+function _atlasProjectsHTML(snap,category){
+  const items=(snap.projects||[]).filter(p=>p.category===category);
+  if(!items.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No ${esc(category)} items.</div>`;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">${items.map(p=>{
+    const cost=(snap.departments||[]).reduce((sum,d)=>sum+(d.members||[]).reduce((s2,m)=>{
+      const e=(m.projects||[]).find(x=>(typeof x==='object'?x.id:x)===p.id);
+      if(!e)return s2;
+      const pct=typeof e==='object'?(e.pct||100):100;
+      return s2+Math.round((m.cost||0)*pct/100);
+    },0),0);
+    const rev=p.revenue||p.targetRevenue||0;
+    const margin=rev-cost;
+    return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9">
+      <div style="font-size:13px;font-weight:700;margin-bottom:2px">${esc(p.name)}</div>
+      ${p.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">${esc(p.customer)}</div>`:''}
+      <div style="display:flex;gap:8px;font-size:11px;color:var(--t2);margin-bottom:4px">
+        <span><strong>${_atlasMoney(rev)}</strong>${category==='project'?'/mo':' tgt'}</span>
+        <span style="color:#dc2626"><strong>${_atlasMoney(cost)}</strong> cost</span>
+        <span style="color:${margin>=0?'#16a34a':'#dc2626'}"><strong>${margin>=0?'':'-'}${_atlasMoney(Math.abs(margin))}</strong></span>
+      </div>
+      ${p.pm?`<div style="font-size:10px;color:var(--t3)">PM: ${esc(p.pm)}</div>`:''}
+      ${p.revenueNote?`<div style="font-size:10px;color:var(--t3);margin-top:4px;font-style:italic">${esc(p.revenueNote)}</div>`:''}
+      ${p.clins&&p.clins.length?`<div style="font-size:10px;color:var(--t3);margin-top:4px">${p.clins.length} CLIN${p.clins.length===1?'':'s'}</div>`:''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function _atlasOppsHTML(snap){
+  const opps=(snap.projects||[]).filter(p=>p.category==='opportunity');
+  if(!opps.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No opportunities.</div>`;
+  const stages={};opps.forEach(o=>{const k=o.stage||o.status||'Unstaged';(stages[k]=stages[k]||[]).push(o);});
+  return `<div style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start">${Object.keys(stages).map(stage=>{
+    const list=stages[stage];
+    const total=list.reduce((s,o)=>s+(o.potential||o.targetRevenue||0),0);
+    return `<div style="flex:0 0 260px;background:var(--s2);padding:8px;border-radius:8px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--t2);margin-bottom:6px;display:flex;justify-content:space-between">
+        <span>${esc(stage)}</span><span>${list.length} · ${_atlasMoney(total)}</span>
+      </div>
+      ${list.map(o=>`<div class="cd" style="padding:9px 11px;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
+        ${o.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
+        <div style="font-size:10px;color:var(--t2)">${o.potential?_atlasMoney(o.potential)+' yr · ':''}${o.pm?'PM '+esc(o.pm):''}${o.closeDate?' · close '+esc(o.closeDate):''}</div>
+      </div>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function _atlasOrgChartHTML(snap){
+  const depts=(snap.departments||[]);
+  if(!depts.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No departments.</div>`;
+  const byParent={};depts.forEach(d=>{(byParent[d.parentId||'']=byParent[d.parentId||'']||[]).push(d);});
+  function tree(parentId,depth){
+    return (byParent[parentId]||[]).map(d=>{
+      const members=d.members||[];
+      const cost=members.reduce((s,m)=>s+(m.cost||0),0);
+      return `<div class="cd" style="padding:10px 12px;margin-bottom:8px;margin-left:${depth*16}px;border-left:3px solid ${esc(d.accent||'#64748b')}">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <div><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:10px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''}</div>
+          <div style="font-size:10px;color:var(--t3)">${members.length} · ${_atlasMoney(cost)}/mo</div>
+        </div>
+        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:10px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:10px;color:var(--t3)">No members</div>'}
+        ${tree(d.id,depth+1)}
+      </div>`;
+    }).join('');
+  }
+  return tree('',0);
+}
+
+function _atlasResourcesHTML(snap){
+  const all=[];(snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>all.push({...m,_dept:d.name})));
+  if(!all.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No resources.</div>`;
+  const byLoc={};all.forEach(m=>{const k=m.location||'_none';(byLoc[k]=byLoc[k]||[]).push(m);});
+  const locName=id=>{const l=(snap.locations||[]).find(x=>x.id===id);return l?l.name:(id==='_none'?'No location set':id);};
+  return Object.keys(byLoc).map(lid=>{
+    const list=byLoc[lid];
+    const cost=list.reduce((s,m)=>s+(m.cost||0),0);
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📍 ${esc(locName(lid))} <span style="color:var(--t3);font-weight:400">· ${list.length} ${list.length===1?'person':'people'} · ${_atlasMoney(cost)}/mo</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+        ${list.map(m=>`<div class="cd" style="padding:10px 12px">
+          <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
+          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:4px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
+          ${m.sme||m.hub||m.associate||m.proposal||m.recruiter?`<div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">${m.sme?'<span style="background:rgba(124,92,191,.15);color:#7c5cbf;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">SME</span>':''}${m.hub?'<span style="background:rgba(13,148,136,.15);color:#0d9488;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">HUB</span>':''}${m.associate?'<span style="background:rgba(217,119,6,.15);color:#d97706;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">ASSOC</span>':''}${m.proposal?'<span style="background:rgba(5,150,105,.15);color:#059669;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">PROP</span>':''}${m.recruiter?'<span style="background:rgba(124,58,237,.15);color:#7c3aed;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">RECR</span>':''}</div>`:''}
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function _atlasActivitiesHTML(snap,kind){
+  const acts=(snap.activities||[]).filter(a=>(a.kind||'coe')===kind);
+  if(!acts.length)return `<div class="cd" style="padding:16px;color:var(--t3);text-align:center">No ${kind==='coe'?'COE Plan':'Project Task'} entries.</div>`;
+  const statusCfg={todo:{l:'Not Started',c:'#64748b'},doing:{l:'In Progress',c:'#d97706'},done:{l:'Completed',c:'#16a34a'},blocked:{l:'Blocked',c:'#dc2626'}};
+  if(kind==='coe'){
+    const byProg={};acts.forEach(a=>{(byProg[a.programId||'_none']=byProg[a.programId||'_none']||[]).push(a);});
+    return Object.keys(byProg).map(pid=>{
+      const list=byProg[pid].slice().sort((a,b)=>(a.order||0)-(b.order||0));
+      const prog=_atlasProgram(snap,pid);
+      const done=list.filter(a=>a.status==='done').length;
+      return `<div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">${esc(prog?prog.name:(byProg[pid][0].program||'Uncategorized'))} <span style="color:var(--t3);font-weight:400">· ${done}/${list.length}</span></div>
+        ${list.map(a=>_atlasTaskRow(snap,a,statusCfg)).join('')}
+      </div>`;
+    }).join('');
+  } else {
+    const byProj={};acts.forEach(a=>{(byProj[a.projectId||'_none']=byProj[a.projectId||'_none']||[]).push(a);});
+    return Object.keys(byProj).map(pid=>{
+      const list=byProj[pid].slice().sort((a,b)=>(a.order||0)-(b.order||0));
+      const proj=_atlasProject(snap,pid);
+      const done=list.filter(a=>a.status==='done').length;
+      const label=proj?`${proj.name} (${proj.category})`:'Unassigned';
+      return `<div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">${esc(label)} <span style="color:var(--t3);font-weight:400">· ${done}/${list.length}</span></div>
+        ${list.map(a=>_atlasTaskRow(snap,a,statusCfg)).join('')}
+      </div>`;
+    }).join('');
+  }
+}
+
+function _atlasTaskRow(snap,a,statusCfg){
+  const s=statusCfg[a.status]||statusCfg.todo;
+  const owners=(a.owners||[]).map(id=>{const x=_atlasMember(snap,id);return x?x.member.name:'';}).filter(Boolean);
+  const ownerLbl=owners.length?owners.join(', '):(a.ownerText||'—');
+  const proj=a.projectId?_atlasProject(snap,a.projectId):null;
+  return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start">
+    <span style="display:inline-block;background:${s.c};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${s.l}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:12px;font-weight:600">${a.isMilestone?'◆ ':''}${esc(a.subtask||'(untitled)')}</div>
+      ${a.objective?`<div style="font-size:10px;color:var(--t2);margin-top:2px"><strong>Next:</strong> ${esc(a.objective)}</div>`:''}
+      <div style="font-size:10px;color:var(--t3);margin-top:3px">
+        ${a.phase?'<span>'+esc(a.phase)+'</span> · ':''}
+        ${a.dueDate?'due '+esc(a.dueDate)+' · ':''}
+        ${ownerLbl!=='—'?esc(ownerLbl):''}
+        ${proj?` · <span style="color:#0ea5e9">${esc(proj.name)}</span>`:''}
+        ${a.pm?` · PM ${esc(a.pm)}`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function _atlasRailHTML(snap){
+  const allM=(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).length,0);
+  const totalCost=(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).reduce((s2,m)=>s2+(m.cost||0),0),0);
+  const revenue=(snap.projects||[]).filter(p=>p.category==='project').reduce((s,p)=>s+(p.revenue||0),0);
+  const targetRev=(snap.projects||[]).filter(p=>p.category==='opportunity'||p.category==='initiative').reduce((s,p)=>s+(p.targetRevenue||0),0);
+  return `<div class="cd" style="padding:14px;margin-bottom:10px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:8px">Snapshot</div>
+    <div style="font-size:12px;line-height:1.8">
+      <div><strong>${(snap.projects||[]).filter(p=>p.category==='project').length}</strong> active projects</div>
+      <div><strong>${(snap.projects||[]).filter(p=>p.category==='opportunity').length}</strong> opportunities</div>
+      <div><strong>${(snap.projects||[]).filter(p=>p.category==='initiative').length}</strong> initiatives</div>
+      <div><strong>${allM}</strong> people · <strong style="color:#dc2626">${_atlasMoney(totalCost)}</strong>/mo cost</div>
+      <div><strong style="color:#16a34a">${_atlasMoney(revenue)}</strong>/mo realized · <strong style="color:#f59e0b">${_atlasMoney(targetRev)}</strong> pipeline</div>
+    </div>
+    <div style="margin-top:10px;font-size:10px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
+    <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:11px;color:var(--ac);text-decoration:none">Open Atlas ↗</a>
+  </div>`;
 }
