@@ -5,7 +5,7 @@ import { userAppData, tasksTable, notesTable, ideasTable } from "../../drizzle/s
 import { protectedProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities'] as const;
+const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).

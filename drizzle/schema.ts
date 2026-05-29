@@ -575,6 +575,7 @@ export const userAppData = mysqlTable('user_app_data', {
   clusters: mediumtext('clusters'),   // JSON array of cluster objects
   programs: mediumtext('programs'),   // JSON array — portfolio layer above projects (migration 0035)
   opportunities: mediumtext('opportunities'), // JSON array — sales pipeline opportunities (migration 0041)
+  atlas: mediumtext('atlas'),         // JSON object — Atlas (CFResourcePlanner) snapshot mirror (migration 0043)
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),
