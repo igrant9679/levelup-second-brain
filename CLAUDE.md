@@ -278,8 +278,9 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 
 ## Session totals (May 31 2026 — P0 accessibility batch + page-header icon migration)
 
-**Current build: `2026-05-31-56`** (was `-55`; the May 27 "ready to ship" fixes
-had never actually landed — build was still `-55` when this session started).
+**Current build: `2026-05-31-60`** (session started at `-55`; the May 27 "ready
+to ship" fixes had never actually landed — build was still `-55`). `-56` and
+`-57` are pushed/live; `-58`/`-59`/`-60` committed locally, unpushed.
 
 This session shipped the long-queued **P0 accessibility batch** (all 5 fixes
 from the May 27 audit) plus the **first real slice of the emoji→SVG migration**
@@ -319,19 +320,45 @@ tinted with `var(--page-accent)` so they take on each screen's hue.
   (standalone print/email docs on white bg — page-accent tinting N/A), and
   Contacts (user rule: skip Contacts in audits).
 
-### Still queued (next emoji→SVG slices, in priority order)
-1. Empty states (`renderEmptyState()` callers — big emoji illustrations).
-2. Chip / breadcrumb labels (📁 project pill, 🔖 bookmark, 🏷 tag).
-3. Button + toast icons (✓ Done, ⚡ Tools, + New, ✨ AI menus).
-4. Settings sub-nav tab labels (👤 Profile, 🔔 Notifications, 🛡 Admin, etc.)
-   and home-widget section titles (📋 Top Tasks, etc.).
-   The header sweep covered ~23 of the ~1,000+ structural-emoji instances.
-- Other queued polish (unchanged): heading hierarchy (H2-before-H1),
-  sub-12px inline `font-size:` sweep, z-index ladder migration to `--z-*`,
-  news-ticker `left`→`transform:translateX`.
+### Emoji→SVG follow-on slices shipped this session (builds -57 → -60)
+- **-57** — all 14 `renderEmptyState()` callers. `renderEmptyState` now accepts
+  an `_ICON_PATHS` name (renders a 44px accent-tinted SVG) OR a literal emoji
+  (backward-compat). Bookmarks/Contacts empties left as emoji per convention.
+- **-58** — 10 task-card project breadcrumb pills (`📁 ${project}` →
+  `_icon('folder',12,'currentColor')`). Left `f.icon||'📁'` / `cl.icon||'📁'`
+  alone — those are USER folder/cluster icon data, not chrome.
+- **-59** — Projects view toggles (List/Kanban/Gantt/Workload) + part2 folder
+  buttons (Mirror/Core Details/Project/Create Project). Added `columns` icon.
+- **-60** — 2 hardcoded home-card titles (Focus/Deadlines → `clock`) + Goals
+  AI-menu items (Progress Narrative/Weekly Review/OKR Alignment).
+- Icons added across the session: barChart, mail, sun, zap, users, map,
+  settings, search, link, columns, clock (+ the original 24).
 
-**Verified:** both bundles pass `node -c`. Changes are **local/unpushed** as of
-this writing — user reviews the diff before any push.
+### Boundary hit — remaining emoji need a refactor, not a swap
+The ~60 sites migrated were the high-visibility, mechanically-safe ones.
+What's left is NOT a simple find/replace:
+- **Shared-data labels** — `_homeCardDefs[].label` (22 widget titles) and the
+  `renderSettingsHTML` `setNav` array are plain-text strings consumed in
+  MULTIPLE contexts (card titles via innerHTML, BUT ALSO `<select><option>`,
+  settings toggle checkboxes, search index). Injecting `${_icon()}` HTML there
+  would render raw markup or break the option text. These need a structural
+  change: split each into `{icon, label}` and have each render site place the
+  icon itself — a small refactor per consumer, not a string swap.
+- **Scattered one-offs** — AI-menu items, toast icons, per-card action buttons.
+  Low value-per-edit; do opportunistically when touching that code.
+- **Alignment caveat:** inline-icon sites (-58/-59/-60) use `_icon(name,12-14,
+  'currentColor')` relying on the SVG's `vertical-align:middle`. NOT visually
+  verified on-device — eyeball a task-card breadcrumb + Projects toggles after
+  deploy; if the glyph sits high/low next to small text, adjust the `_icon`
+  wrapper once (e.g. add `vertical-align:-2px`) and it fixes everywhere.
+
+### Non-emoji polish still queued (unchanged)
+heading hierarchy (H2-before-H1), sub-12px inline `font-size:` sweep, z-index
+ladder migration to `--z-*`, news-ticker `left`→`transform:translateX`.
+
+**Verified:** both bundles pass `node -c` at every build. As of this writing
+`-56` and `-57` are pushed/live; `-58`/`-59`/`-60` are committed locally and
+unpushed pending the user's review.
 
 ## Session totals (May 27 2026 — Visual Foundation arc Stage 1+2 + icon helper + data-grounded UI/UX audit)
 
