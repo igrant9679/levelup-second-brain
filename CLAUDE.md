@@ -278,9 +278,16 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 
 ## Session totals (May 31 2026 — P0 accessibility batch + page-header icon migration)
 
-**Current build: `2026-05-31-60`** (session started at `-55`; the May 27 "ready
-to ship" fixes had never actually landed — build was still `-55`). `-56` and
-`-57` are pushed/live; `-58`/`-59`/`-60` committed locally, unpushed.
+**Current build: `2026-05-31-66`** (session started at `-55`; the May 27 "ready
+to ship" fixes had never actually landed — build was still `-55`). **All builds
+`-56`→`-66` are pushed/live.** ~155 emoji→SVG sites migrated + all 5 P0
+accessibility fixes. `_ICON_PATHS` grew 24 → 56 icons.
+
+**⚠ Not yet visually verified on-device.** Every inline icon uses
+`_icon(name,12-22,color)` relying on the SVG's `vertical-align:middle`. If a
+glyph sits high/low next to small text, it's ONE global fix in the `_icon`
+wrapper (add e.g. `vertical-align:-0.15em`) — do that before/instead of touching
+individual sites. Eyeball the home page + a task-card breadcrumb + a toast first.
 
 This session shipped the long-queued **P0 accessibility batch** (all 5 fixes
 from the May 27 audit) plus the **first real slice of the emoji→SVG migration**
@@ -336,26 +343,49 @@ tinted with `var(--page-accent)` so they take on each screen's hue.
   dashboard card titles de-emojified and tinted per-domain (route palette).
 - **-62** — Settings sub-nav `{icon,label}` refactor: all 13 tabs now have an
   icon (was 4 emoji + 9 bare), matching the main sidebar's icon-per-item.
-- Icons added across the session: barChart, mail, sun, zap, users, map,
-  settings, search, link, columns, clock (+ the original 24).
+  Added 6 icons: user, palette, bell, save, lock, shield.
+- **-63** — Toast notifications: `_showRichToast` default type icons
+  (success/warn/error/info) → checkCircle/alertTriangle/alertCircle/info tinted
+  with `--color-status-*`. Single-point change → every toast app-wide;
+  caller `opts.icon` override still passes through. Added alertTriangle,
+  alertCircle, info.
+- **-64** — Note AI Deep Insight panel headers (AI Deep Insight/Key points/
+  Suggested action items/Deep Insight); modal `<h2>` titles (Edit Task/Goal/
+  Journal Entry); 5 Quick Capture modals (by capture type); Today cluster
+  (Command Center/Today's Plan/Today's Capacity). All currentColor.
+- **-65** — Home/command-center insight sub-headers (Active by Priority/Today's
+  Schedule/Goals Snapshot/Top Tags/Insights/Inbox at a glance/Today's events/
+  Today + 7 days/Upcoming events). currentColor; 2×-rendered ones via replace_all.
+- **-66** — RTE/toolbar action buttons: Expand/Summarise/Auto-tag/Mood →
+  sparkles/list/tag/activity; Move/Delete → folder/trash; Note Templates/
+  Templates → bookOpen; Block time → calendar. Small 12-13px currentColor.
+  **Structural emoji migration is now complete** — only trivial one-off glyphs
+  remain (mop up opportunistically). Icons added across -63→-66: alertTriangle,
+  alertCircle, info, plus the -61/-62 batch (pin, flame, activity, trophy, tag,
+  bookmark, cloud, quote, camera, user, palette, bell, save, lock, shield).
 
-### Boundary hit — remaining emoji need a refactor, not a swap
-The ~60 sites migrated were the high-visibility, mechanically-safe ones.
-What's left is NOT a simple find/replace:
-- **Shared-data labels** — `_homeCardDefs[].label` (22 widget titles) and the
-  `renderSettingsHTML` `setNav` array are plain-text strings consumed in
-  MULTIPLE contexts (card titles via innerHTML, BUT ALSO `<select><option>`,
-  settings toggle checkboxes, search index). Injecting `${_icon()}` HTML there
-  would render raw markup or break the option text. These need a structural
-  change: split each into `{icon, label}` and have each render site place the
-  icon itself — a small refactor per consumer, not a string swap.
-- **Scattered one-offs** — AI-menu items, toast icons, per-card action buttons.
-  Low value-per-edit; do opportunistically when touching that code.
-- **Alignment caveat:** inline-icon sites (-58/-59/-60) use `_icon(name,12-14,
-  'currentColor')` relying on the SVG's `vertical-align:middle`. NOT visually
-  verified on-device — eyeball a task-card breadcrumb + Projects toggles after
-  deploy; if the glyph sits high/low next to small text, adjust the `_icon`
-  wrapper once (e.g. add `vertical-align:-2px`) and it fixes everywhere.
+### Remaining non-emoji a11y work — NOT safe to automate blind (investigated -66)
+Deliberately left undone because each needs a running app to do without
+regressions — confirmed by investigation, not avoidance:
+- **Sub-12px text sweep** — it's ~**1,600 inline `font-size:9px/10px` sites**
+  (not the 57 the old audit sampled), and many sit in **fixed-height containers**
+  (`height:18px;font-size:9px`). A blanket bump to 11px would overflow/misalign
+  dozens of components. Needs per-site judgment with eyes on the result.
+- **Heading hierarchy** (H2-before-H1) — measured on the live DOM; 112 `<h2>` /
+  42 `<h1>` in part1 render markup, NO global heading-tag CSS (so changing tags
+  is visually safe, but getting the *order* right needs the rendered page).
+- **z-index ladder** — `drawer-ov`/`modal-capture` collide at z=200; migrating to
+  the `--z-*` tokens changes app-wide stacking that can't be validated by
+  reasoning alone.
+- (News-ticker `left`→`transform` item from earlier handoffs appears **stale** —
+  no `left`-animating keyframe exists in the current code.)
+### Shared-data label refactor — DONE (-61/-62, superseded the old "boundary")
+An earlier note here said `_homeCardDefs[].label` and `setNav` couldn't be
+migrated by string-swap (consumed in multiple contexts). That was resolved by
+the `{icon,label}` refactor: both are now structured, render sites place the
+icon, labels are clean text. Verified `_homeCardDefs.label` is only consumed in
+the customization modal (innerHTML, 2 sites) — the `<select><option>` worry was
+a different structure (`_homeCardModes[].label`).
 
 ### Non-emoji polish still queued (unchanged)
 heading hierarchy (H2-before-H1), sub-12px inline `font-size:` sweep, z-index
