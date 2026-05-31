@@ -3201,6 +3201,10 @@ const _ICON_PATHS = {
   save:      '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
   lock:      '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   shield:    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  // Status glyphs for toast notifications.
+  alertTriangle:'<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  alertCircle:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  info:      '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
 };
 
 function _icon(name, size, color){
@@ -3328,8 +3332,15 @@ function _showRichToast(opts){
   const wrap=document.createElement('div');
   const type=opts.type||'info';
   wrap.className='toast-rich t-'+type;
-  const icons={success:'✅',warn:'⚠️',error:'❌',info:'💬'};
-  const icon=opts.icon||icons[type]||'💬';
+  // Default type icons are semantic-colored SVGs. A caller-supplied opts.icon
+  // (e.g. a celebration emoji) still overrides, so custom toasts are unaffected.
+  const icons={
+    success:_icon('checkCircle',18,'var(--color-status-ok)'),
+    warn:_icon('alertTriangle',18,'var(--color-status-warn)'),
+    error:_icon('alertCircle',18,'var(--color-status-err)'),
+    info:_icon('info',18,'var(--color-status-info)')
+  };
+  const icon=opts.icon||icons[type]||icons.info;
   const title=opts.title||opts.msg||'';
   const sub=opts.title&&opts.msg?opts.msg:'';
   const safeTitle=String(title).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
