@@ -3096,6 +3096,97 @@ function toggleMobileSidebar(force){
   const bd=document.getElementById('sb-backdrop');
   if(bd)bd.classList.toggle('show',open);
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// SIDEBAR GROUP COLLAPSE (Visual Foundation Stage 2 — May 27)
+// ═══════════════════════════════════════════════════════════════════════════
+// Two-tier sidebar with 6 collapsible groups (today / work / mind / life /
+// comms / other). Each group's collapsed state persists in
+// D.prefs.sidebarGroupsCollapsed[] (array of group keys). Hydrated by
+// initSidebars on every nav so the user's fold state survives across
+// every page render.
+//
+// The sidebar template is re-cloned into every screen's <nav class="sb">
+// on each renderScreen call, so all DOM state would reset without an
+// explicit hydration pass.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function _toggleSidebarGroup(key){
+  D.prefs=D.prefs||{};
+  D.prefs.sidebarGroupsCollapsed=D.prefs.sidebarGroupsCollapsed||[];
+  const set=new Set(D.prefs.sidebarGroupsCollapsed);
+  if(set.has(key)) set.delete(key); else set.add(key);
+  D.prefs.sidebarGroupsCollapsed=Array.from(set);
+  try{ save('prefs'); }catch(_){}
+  _hydrateSidebarGroupsCollapsed();
+}
+
+function _hydrateSidebarGroupsCollapsed(){
+  const collapsed=new Set(((D.prefs&&D.prefs.sidebarGroupsCollapsed)||[]));
+  document.querySelectorAll('[data-sb] .sg').forEach(sg=>{
+    const key=sg.dataset.group;
+    sg.classList.toggle('collapsed', collapsed.has(key));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ICON HELPER (Visual Foundation Stage 3 starter — May 27)
+// ═══════════════════════════════════════════════════════════════════════════
+// Returns Lucide-style stroke-2 SVG markup for the named icon. Callers
+// use this to replace emoji usage in template literals incrementally:
+//   `${_icon('folder', 16)} Project X`   instead of   `📁 Project X`
+//
+// The icon set is intentionally small — only icons LevelUp actually uses
+// at scale. To add an icon: copy the path data from lucide.dev, paste
+// here. Stroke width 2 + 24×24 viewBox matches the existing sidebar SVGs.
+//
+// API: _icon(name, sizePx, colorOrVar)
+//   _icon('folder')                  → 16px, currentColor
+//   _icon('folder', 14)              → 14px, currentColor
+//   _icon('folder', 14, 'var(--ac)') → 14px, accent color
+// ═══════════════════════════════════════════════════════════════════════════
+
+const _ICON_PATHS = {
+  // Navigation + structure
+  folder:    '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  layers:    '<polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/>',
+  list:      '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
+  // Status / actions
+  check:     '<polyline points="20 6 9 17 4 12"/>',
+  checkCircle:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  x:         '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  plus:      '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  trash:     '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  edit:      '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>',
+  refresh:   '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  sparkles:  '<path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/>',
+  // Domains
+  target:    '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  lightbulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M2 13a10 10 0 0 1 20 0c0 5-4 7-4 10H6c0-3-4-5-4-10z"/>',
+  bookOpen:  '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  brain:     '<path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z"/>',
+  calendar:  '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  // Visual states
+  chevronRight: '<polyline points="9 18 15 12 9 6"/>',
+  chevronDown:  '<polyline points="6 9 12 15 18 9"/>',
+  externalLink: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  eye:       '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff:    '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
+};
+
+function _icon(name, size, color){
+  const path = _ICON_PATHS[name];
+  if(!path){
+    // Unknown icon → fall back to a tiny "?" so missing icons are
+    // visible during development, not silently invisible.
+    console.warn('[_icon] unknown icon:', name);
+    return `<span style="display:inline-block;width:${size||16}px;text-align:center;color:var(--red);font-weight:700">?</span>`;
+  }
+  const px = size || 16;
+  const c  = color || 'currentColor';
+  return `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0">${path}</svg>`;
+}
+
 function initSidebars(a){
   const t=document.getElementById('sb-tpl');
   document.querySelectorAll('[data-sb]').forEach(sb=>{
@@ -3116,6 +3207,10 @@ function initSidebars(a){
       sb.appendChild(btn);
     }
   });
+  // Hydrate group-collapse state: re-apply each saved group's collapsed
+  // class on every nav (sidebars are re-cloned from #sb-tpl per render,
+  // so without this every navigation would reset the user's fold state).
+  _hydrateSidebarGroupsCollapsed();
   // Re-clone leaves #sb-name/#sb-email empty (placeholder removed). Fill them
   // immediately from D.creds so the bottom-left avatar doesn't flash a stale
   // placeholder during page navigation.

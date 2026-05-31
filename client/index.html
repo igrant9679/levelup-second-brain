@@ -26,6 +26,93 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#64748B;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px;--brd:rgba(255,255,255,.10)}
+/* ===========================================================================
+   DESIGN TOKENS (May 27 Visual Foundation arc) — additive, breaks nothing.
+   Existing inline `font-size:` / `padding:` etc. continue to work; new code
+   uses var(--fs-md) / var(--space-3) etc. so we can migrate gradually AND
+   enable global toggles (Spacious mode, Calm mode, theme presets) without
+   sweeping every magic number.
+   =========================================================================== */
+:root{
+  /* Font sizes — locked 6-step scale. 9px is BELOW the framework's
+     legibility minimum so the smallest token is 11px (xs). */
+  --fs-xs:11px;
+  --fs-sm:12px;
+  --fs-md:14px;
+  --fs-lg:16px;
+  --fs-xl:20px;
+  --fs-2xl:28px;
+  /* Line heights — tight for headings, normal for body, loose for prose. */
+  --lh-tight:1.2;
+  --lh-normal:1.5;
+  --lh-loose:1.75;
+  /* Spacing scale — 4px base unit, doubling rhythm. */
+  --space-0:0;
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-5:20px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-10:40px;
+  --space-12:48px;
+  /* Radii — sm for chips, md for cards, lg for modals/sheets. */
+  --radius-sm:4px;
+  --radius-md:8px;
+  --radius-lg:12px;
+  --radius-pill:9999px;
+  /* Elevation / shadow scale — three steps. Use sm for chips/inputs,
+     md for cards on hover, lg for popovers/modals. */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 12px rgba(0,0,0,.12);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.22);
+  --shadow-xl:0 20px 60px rgba(0,0,0,.35);
+  /* Semantic source colors — replaces hard-coded #1f6feb / #9333ea / #16a34a
+     scattered through the codebase. */
+  --color-source-cf:#1f6feb;
+  --color-source-lsi:#9333ea;
+  --color-source-personal:#16a34a;
+  --color-source-cf-soft:rgba(31,111,235,.12);
+  --color-source-lsi-soft:rgba(147,51,234,.12);
+  --color-source-personal-soft:rgba(22,163,74,.12);
+  /* Semantic status colors — for state pills, error toasts, success banners.
+     Distinct from page accents so they always read as "system state". */
+  --color-status-ok:#16a34a;
+  --color-status-warn:#f59e0b;
+  --color-status-err:#ef4444;
+  --color-status-info:#0ea5e9;
+  /* Z-index scale — locks layering so modal-over-drawer-over-pop conflicts
+     stop happening. */
+  --z-sticky:10;
+  --z-dropdown:50;
+  --z-drawer:100;
+  --z-modal:1000;
+  --z-toast:5000;
+  --z-tooltip:9000;
+  --z-cmdp:10000;
+  /* Motion tokens — interruption-friendly durations + ease curves. */
+  --motion-fast:120ms;
+  --motion-normal:200ms;
+  --motion-slow:320ms;
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --ease-in:cubic-bezier(.4,0,1,1);
+  --ease-in-out:cubic-bezier(.4,0,.2,1);
+}
+/* Respect prefers-reduced-motion globally. Anything using --motion-* or
+   the standard transition shorthand instantly snaps for affected users. */
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --motion-fast:0.01ms;
+    --motion-normal:0.01ms;
+    --motion-slow:0.01ms;
+  }
+  *,*::before,*::after{
+    animation-duration:0.01ms !important;
+    transition-duration:0.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
 body.light-mode{--bg:#F1F5F9;--s1:#FFFFFF;--s2:#F8FAFC;--s3:#EEF2F7;--s4:#E2E8F0;--bd1:rgba(0,0,0,.07);--bd2:rgba(0,0,0,.10);--bd3:rgba(0,0,0,.16);--t1:#0F172A;--t2:#475569;--t3:#94A3B8;--t4:#CBD5E1;--brd:rgba(0,0,0,.10)}
 /* ROLE-BASED GATING: hide admin-only elements for non-admin users */
 body[data-role="user"] .admin-only,
@@ -414,9 +501,25 @@ body[data-screen="programs"]{--page-accent:#1f6feb}
 .si[data-n="settings"] svg{stroke:#475569}    /* dark slate */
 .si.on svg{stroke:var(--ach)!important}        /* active state: readable against accent bg */
 .sd{height:1px;background:var(--bd1);margin:6px 14px}
-/* Sidebar section label — chunks the long nav into scannable groups. Hidden in compact mode. */
+/* Sidebar section label — chunks the long nav into scannable groups.
+   Now clickable when .sl-toggle is present (two-tier sidebar — May 27).
+   Hidden in compact mode for power users who want max density. */
 .sl{font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:12px 14px 4px;user-select:none}
+.sl.sl-toggle{cursor:pointer;display:flex;align-items:center;gap:6px;transition:color var(--motion-fast) var(--ease-out)}
+.sl.sl-toggle:hover{color:var(--t2)}
+.sl.sl-toggle:focus-visible{outline:2px solid var(--ac);outline-offset:2px;border-radius:4px}
+.sl .sg-chev{display:inline-block;transition:transform var(--motion-normal) var(--ease-out);font-size:8px;width:8px;line-height:1;color:inherit}
+.sg.collapsed .sg-chev{transform:rotate(-90deg)}
+.sg.collapsed .sg-body{display:none}
+/* Optional: animate the body open/close. Kept simple to avoid the
+   classic max-height 0→auto transition gotcha; relies on the chevron
+   rotation for motion feedback. */
+.sg-body{padding-bottom:2px}
 body.compact-mode .sl{display:none!important}
+/* In compact mode, the body must NOT also be hidden — without the .sl
+   header users would lose all sidebar nav. Always render .sg-body in
+   compact mode regardless of the .collapsed flag. */
+body.compact-mode .sg .sg-body{display:block!important}
 /* Dense mode (#13) — even tighter than compact, for power users on big monitors. */
 body.dense-mode{font-size:12px}
 body.dense-mode .lr{padding:1px 0!important;font-size:11px}
@@ -2081,43 +2184,53 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- Token Expiry Warning Banner (disabled — replaced by topbar button) -->
 <div id="token-expiry-banner" style="display:none"></div>
 <template id="sb-tpl">
-<div style="padding:0 4px">
+<!-- Two-tier sidebar: 6 collapsible groups. Click the .sl header to fold/unfold.
+     Persisted in D.prefs.sidebarGroupsCollapsed[]. Hydrated by
+     _hydrateSidebarGroupsCollapsed() on every renderScreen call. -->
+<div class="sg" data-group="today"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('today')"><span class="sg-chev">▾</span><span>Today</span></div><div class="sg-body" style="padding:0 4px">
 <div class="si" data-n="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="l">Home</span></div>
 <div class="si" data-n="myday" data-tour-id="nav-myday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg><span class="l">My Day</span><span class="c" id="badge-myday"></span></div>
 <div class="si" data-n="myweek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">My Week</span></div>
 <div class="si" data-n="myyear"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">My Year</span></div>
-</div><div class="sl">Capture</div><div style="padding:0 4px">
-<div class="si" data-n="ideas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg><span class="l">Ideas</span><span class="c" id="badge-ideas"></span></div>
-<div class="si" data-n="mindmaps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="6" r="2"/><circle cx="4" cy="18" r="2"/><circle cx="20" cy="18" r="2"/><path d="M10 10L5.5 7.5"/><path d="M14 10l4.5-2.5"/><path d="M10 14l-4.5 2.5"/><path d="M14 14l4.5 2.5"/></svg><span class="l">Mind Maps</span></div>
-<div class="si" data-n="focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">Focus</span></div>
-<div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c" id="badge-process"></span></div>
-</div><div class="sl">Workspace</div><div style="padding:0 4px">
+</div></div>
+<div class="sg" data-group="work"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('work')"><span class="sg-chev">▾</span><span>Work</span></div><div class="sg-body" style="padding:0 4px">
 <div class="si" data-n="tasks" data-tour-id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span class="l">Tasks</span><span class="c" id="badge-tasks"></span></div>
-<div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
-<div class="si" data-n="graph" title="Knowledge Graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="11" x2="6.5" y2="7"/><line x1="14" y1="11" x2="17.5" y2="7"/><line x1="10" y1="13" x2="6.5" y2="17"/><line x1="14" y1="13" x2="17.5" y2="17"/></svg><span class="l">Knowledge Graph</span></div>
 <div class="si" data-n="command" title="Command Center — cross-tool PM dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg><span class="l">Command Center</span></div>
-<div class="si" data-n="deps" title="Dependencies — DAG of blocking tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/><line x1="6" y1="8.5" x2="6" y2="15.5"/><line x1="18" y1="8.5" x2="18" y2="15.5"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg><span class="l">Dependencies</span></div>
-<div class="si" data-n="pipeline" title="Sales Pipeline — track opportunities and create tasks to win them"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="l">Pipeline</span></div>
-<div class="si" data-n="atlas" title="Atlas — read-only mirror of CommunityForce Resource Planner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="l">Atlas</span></div>
 <div class="si" data-n="standup" title="Daily Standup view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="6" y="11" width="3" height="7"/><rect x="11" y="6" width="3" height="12"/><rect x="16" y="9" width="3" height="9"/></svg><span class="l">Standup</span></div>
 <div class="si" data-n="programs" title="Programs / Portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="l">Programs</span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
 <div class="si" data-n="clusters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg><span class="l">Clusters</span></div>
+<div class="si" data-n="deps" title="Dependencies — DAG of blocking tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/><line x1="6" y1="8.5" x2="6" y2="15.5"/><line x1="18" y1="8.5" x2="18" y2="15.5"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg><span class="l">Dependencies</span></div>
+<div class="si" data-n="pipeline" title="Sales Pipeline — track opportunities and create tasks to win them"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="l">Pipeline</span></div>
+<div class="si" data-n="atlas" title="Atlas — read-only mirror of CommunityForce Resource Planner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="l">Atlas</span></div>
+</div></div>
+<div class="sg" data-group="mind"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('mind')"><span class="sg-chev">▾</span><span>Mind</span></div><div class="sg-body" style="padding:0 4px">
+<div class="si" data-n="notes" data-tour-id="nav-notes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg><span class="l">Notes</span><span class="c" id="badge-notes"></span></div>
+<div class="si" data-n="graph" title="Knowledge Graph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2.5"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="5" cy="18" r="1.8"/><circle cx="19" cy="18" r="1.8"/><line x1="10" y1="11" x2="6.5" y2="7"/><line x1="14" y1="11" x2="17.5" y2="7"/><line x1="10" y1="13" x2="6.5" y2="17"/><line x1="14" y1="13" x2="17.5" y2="17"/></svg><span class="l">Knowledge Graph</span></div>
+<div class="si" data-n="mindmaps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="6" r="2"/><circle cx="4" cy="18" r="2"/><circle cx="20" cy="18" r="2"/><path d="M10 10L5.5 7.5"/><path d="M14 10l4.5-2.5"/><path d="M10 14l-4.5 2.5"/><path d="M14 14l4.5 2.5"/></svg><span class="l">Mind Maps</span></div>
+<div class="si" data-n="ideas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/></svg><span class="l">Ideas</span><span class="c" id="badge-ideas"></span></div>
+<div class="si" data-n="focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="l">Focus</span></div>
+<div class="si" data-n="process"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="l">Process (GTD)</span><span class="c" id="badge-process"></span></div>
+</div></div>
+<div class="sg" data-group="life"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('life')"><span class="sg-chev">▾</span><span>Life</span></div><div class="sg-body" style="padding:0 4px">
 <div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
-<div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c" id="badge-mail"></span></div>
 <div class="si" data-n="goals" data-tour-id="nav-goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
 <div class="si" data-n="habits" data-tour-id="nav-habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span><span class="c" id="badge-habits"></span></div>
 <div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c" id="badge-coach"></span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
+</div></div>
+<div class="sg" data-group="comms"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('comms')"><span class="sg-chev">▾</span><span>Comms</span></div><div class="sg-body" style="padding:0 4px">
+<div class="si" data-n="mail"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/></svg><span class="l">Mail</span><span class="c" id="badge-mail"></span></div>
 <div class="si" data-n="team"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span class="l">Team</span></div>
 <div class="si" data-n="contacts" data-tour-id="nav-contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 15.5a2 2 0 0 1 0 3"/></svg><span class="l">Contacts</span><span class="c" id="badge-contacts"></span></div>
+</div></div>
+<div class="sg" data-group="other"><div class="sl sl-toggle" onclick="_toggleSidebarGroup('other')"><span class="sg-chev">▾</span><span>Other</span></div><div class="sg-body" style="padding:0 4px">
+<div class="si" data-n="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="l">Reports</span></div>
 <div class="si" data-n="bookmarks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="l">Bookmarks</span><span class="c" id="badge-bookmarks"></span></div>
 <div class="si" data-n="archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg><span class="l">Archive</span></div>
-<div class="si" data-n="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="l">Reports</span></div>
-</div><div class="sl">System</div><div style="padding:0 4px">
 <div class="si" data-n="help" data-tour-id="nav-help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="l">Help &amp; Learning</span></div>
 <div class="si" data-n="settings" data-tour-id="nav-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82.33v.18a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1.08H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1.08H21a2 2 0 0 1 0 4h-.09c-.658.083-1.25.476-1.51 1.08z"/></svg><span class="l">Settings</span></div>
-</div>
+</div></div>
 <div class="su" style="position:relative;cursor:pointer" title="Click for menu" onclick="event.stopPropagation();togglePopMenu('sb-user-menu')"><div class="av" id="sb-avatar">IG</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500" id="sb-name"></div><div style="font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="sb-email"></div></div><span style="font-size:11px;color:var(--t3);margin-right:4px">▾</span><div id="sb-user-menu" data-pop-menu="1" style="display:none;position:absolute;left:0;right:0;bottom:46px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:100;box-shadow:0 -4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');nav('settings')">⚙️ Settings & Profile</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');openExportPicker()">⬇ Export Data…</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left;padding:0 8px" onclick="event.stopPropagation();closePopMenu('sb-user-menu');doLogout()">🚪 Sign Out</button></div></div>
 </template>
 
@@ -2527,7 +2640,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-05-26-54';
+  var APP_BUILD='2026-05-27-55';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
