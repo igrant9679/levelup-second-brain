@@ -276,6 +276,116 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Session totals (May 27 2026 — Visual Foundation arc Stage 1+2 + icon helper)
+
+**Current build: `2026-05-27-55`** (was `-54` from manus-agent overnight).
+
+This session shipped the first chunk of the **Visual Foundation arc**
+(Tier B from the ui-ux-pro-max audit done at the end of May 26):
+
+### Stage 1: Design tokens (`client/index.html` :root)
+Additive — breaks nothing. Existing inline `font-size:` / `padding:` /
+shadow declarations continue to work. New code uses tokens.
+
+- Font scale: `--fs-xs` (11px) → `--fs-2xl` (28px), 6 steps. 9px is
+  below mobile minimum so the floor is 11px.
+- Spacing scale: `--space-0` → `--space-12`, 4px base.
+- Radii: `--radius-sm/md/lg/pill`. Shadows: `--shadow-sm/md/lg/xl`.
+- Semantic source colors: `--color-source-cf/lsi/personal` (+ `-soft`).
+- Semantic status colors: `--color-status-ok/warn/err/info`.
+- Z-index ladder: `--z-sticky/dropdown/drawer/modal/toast/tooltip/cmdp`.
+- Motion tokens: `--motion-fast/normal/slow` + `--ease-out/in/in-out`.
+- **`prefers-reduced-motion` guard**: collapses motion tokens to 0.01ms
+  AND globally enforces `animation-duration: 0` for users with OS
+  reduced-motion on. This was a Tier-1 accessibility gap.
+
+### Stage 2: Two-tier collapsible sidebar
+- Restructured `#sb-tpl` into **6 groups** with clickable headers:
+  - **Today** (4): home, myday, myweek, myyear
+  - **Work** (9): tasks, command, standup, programs, projects,
+    clusters, deps, pipeline, atlas
+  - **Mind** (6): notes, graph, mindmaps, ideas, focus, process
+  - **Life** (5): calendar, goals, habits, coach, journal
+  - **Comms** (3): mail, team, contacts
+  - **Other** (5): reports, bookmarks, archive, help, settings
+- `.sl.sl-toggle` makes section headers clickable. `▾` chevron rotates
+  to `▸` on collapse via `.sg.collapsed .sg-chev` CSS.
+- `_toggleSidebarGroup(key)` persists in `D.prefs.sidebarGroupsCollapsed[]`.
+- `_hydrateSidebarGroupsCollapsed()` re-applies state on every
+  `initSidebars()` call (sidebar is re-cloned per nav).
+- Compact-mode safe: when `.sl` labels hide, `.sg-body` is forced
+  visible so nav doesn't vanish.
+
+### Stage 3 starter: `_icon(name, size, color)` helper
+- Returns Lucide-style stroke-2 SVG markup for a 24-icon starter set:
+  folder, layers, list, check, checkCircle, x, plus, trash, edit,
+  refresh, sparkles, target, lightbulb, bookOpen, briefcase, brain,
+  calendar, chevronRight, chevronDown, externalLink, eye, eyeOff.
+- API: `${_icon('folder', 16)} Project X` replaces `📁 Project X`.
+- Unknown icon name → red `?` placeholder + console.warn (visible
+  during dev, not silently invisible).
+- New icons: paste path data from lucide.dev into `_ICON_PATHS`.
+
+### Pending Visual Foundation work (Stage 3 bulk, queued for next session)
+
+The icon helper is in place but the ~120 remaining emoji sites
+across the app (page headers, empty states, chip labels, button
+labels, breadcrumb pills, toast icons) haven't been migrated yet.
+Order of attack:
+1. Page headers (most visible): `📋 Tasks & Planning`, `📁 Projects`,
+   `🎯 Goals`, `📝 Notes`, `📔 Journal`, etc. → `_icon(...)`.
+2. Empty states (next): `renderEmptyState()` callers use big emoji
+   illustrations.
+3. Chip labels: `📁 Project name` breadcrumb on CF cards, `🔖`
+   bookmark chips, `🏷` tag chips.
+4. Toast icons + button labels: `✓ Done`, `⚡ Tools`, `+ New`.
+5. Module-level: AI surfaces (`✨ Ask LevelUp`, `🧠 Coach`).
+
+Also pending: convert magic-number `font-size:`/`padding:` declarations
+to use the new `var(--fs-*)` / `var(--space-*)` tokens. Mechanical
+sweep — search-and-replace per file with confirmation.
+
+### Pulled in on rebase (manus-agent shipments overnight, builds -48 → -54)
+
+- **Atlas integration**: new sidebar entry (now in Work group),
+  read-only mirror of CommunityForce Resource Planner. Sheet auto-pull,
+  kanban view, classification/proposals views, detail drawer,
+  annotations, spawn helpers. Migrations `0043_atlas_snapshot` and
+  `0044_atlas_annotations`.
+- **Task Notes RTE** (-54): Task description field upgraded from plain
+  textarea to full rich-text editor.
+- **Help overhaul** (-53): 19 new articles, 6 refreshes, 2 new categories.
+- **AI assists**: markdown rendering in RTE inserts + length control
+  everywhere (-51).
+- **Tasks Source sort** (-50): added Source as a sort option; Cards
+  view now respects global sort.
+- **Tasks Cards view** (-48 → -49): new responsive grid view with
+  inline-expanded subtasks. Fixed multi-column flow for row gaps.
+
+### Session commits (newest first)
+
+- `36580dc` Visual Foundation arc Stage 1+2+3-starter: design tokens
+  + two-tier sidebar + icon helper (`-55`)
+- `94f4099` Atlas integration: Classification/Proposals + drawer
+  + annotations (manus-agent)
+- `116ac67` Atlas: pipeline kanban + hourly auto-pull (manus-agent)
+- (manus-agent shipments `-48` → `-54` — see above)
+- `41c21c5` CLAUDE.md May 26 session handoff (from previous session)
+
+### Open follow-ups
+
+1. **Bulk emoji→SVG migration** (Visual Foundation Stage 3 main pass).
+2. **Magic-number → token sweep**: replace inline `font-size:` /
+   `padding:` with `var(--fs-*)` / `var(--space-*)`.
+3. **Spacious/Calm mode toggles** in Settings (now possible thanks to
+   token system) — Tier 2 from the audit.
+4. **Tier 1.2 from audit**: Unified Today landing surface (replaces
+   Home + My Day + Command Center triad).
+5. **Tier 1.3**: Topbar simplification — collapse 8 controls to 5 via
+   ✨ AI menu dropdown.
+6. **Tier 1.4**: Cmd+K + Cmd+J + Ask LevelUp unification — pick one
+   universal launcher pattern (`?` prefix for AI, `>` for command).
+
 ## Session totals (May 26 2026 — Nifty subtask completion + AI content + CF hierarchy + design audit)
 
 **Current build: `2026-05-26-47`.** Shipped 16 builds today (-32 → -47)
