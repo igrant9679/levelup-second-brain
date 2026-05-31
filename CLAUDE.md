@@ -331,6 +331,11 @@ tinted with `var(--page-accent)` so they take on each screen's hue.
   buttons (Mirror/Core Details/Project/Create Project). Added `columns` icon.
 - **-60** — 2 hardcoded home-card titles (Focus/Deadlines → `clock`) + Goals
   AI-menu items (Progress Narrative/Weekly Review/OKR Alignment).
+- **-61** — Home-widget `{icon,label}` refactor: `_homeCardDefs` now carries an
+  icon name + clean label (2 modal consumers updated); all ~22 visible
+  dashboard card titles de-emojified and tinted per-domain (route palette).
+- **-62** — Settings sub-nav `{icon,label}` refactor: all 13 tabs now have an
+  icon (was 4 emoji + 9 bare), matching the main sidebar's icon-per-item.
 - Icons added across the session: barChart, mail, sun, zap, users, map,
   settings, search, link, columns, clock (+ the original 24).
 

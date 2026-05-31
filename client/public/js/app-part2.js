@@ -1,5 +1,13 @@
 function renderSettingsHTML(){
-  const setNav=['\ud83d\udc64 Profile','General','Appearance','\ud83d\udd14 Notifications','Accounts','Integrations','AI Features','Teams','\ud83d\udcdd Word Doc Import','Sync','Backup','Privacy','\ud83d\udee1 Admin'];
+  // Each tab: an _ICON_PATHS name + plain-text label. Rendered icon+label so
+  // every Settings tab has an icon (matches the main sidebar's icon-per-item).
+  const setNav=[
+    {ic:'user',lb:'Profile'},{ic:'settings',lb:'General'},{ic:'palette',lb:'Appearance'},
+    {ic:'bell',lb:'Notifications'},{ic:'mail',lb:'Accounts'},{ic:'link',lb:'Integrations'},
+    {ic:'sparkles',lb:'AI Features'},{ic:'users',lb:'Teams'},{ic:'edit',lb:'Word Doc Import'},
+    {ic:'refresh',lb:'Sync'},{ic:'save',lb:'Backup'},{ic:'lock',lb:'Privacy'},
+    {ic:'shield',lb:'Admin'}
+  ];
   // Visual section breaks before these indexes (same pattern as the sidebar).
   const setSections={1:'Preferences',4:'Connections',7:'Workspace & Data',12:'Admin'};
   const name=D.creds.userName||'Idris Grant';
@@ -7,7 +15,7 @@ function renderSettingsHTML(){
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
   return `<div class="pg-h"><h1 style="display:inline-flex;align-items:center;gap:8px">${_icon('settings',22,'var(--page-accent)')}Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
-  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${n}</div>`;}).join('')}</div>
+  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${_icon(n.ic,15,'currentColor')} ${n.lb}</div>`;}).join('')}</div>
   <div>
   <!-- Profile --><div id="sp-0" class="sp">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
