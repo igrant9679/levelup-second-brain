@@ -3180,6 +3180,8 @@ const _ICON_PATHS = {
   users:     '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   map:       '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
   settings:  '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  search:    '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  link:      '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
 };
 
 function _icon(name, size, color){
@@ -3362,7 +3364,13 @@ function _dismissToast(el){
 // ctaFn is a function name (string) registered globally OR a JS expression.
 // Used in lieu of plain "No X yet." text wherever a list is empty.
 function renderEmptyState(o){
-  const icon=esc(o.icon||'✨');
+  // icon accepts either an _ICON_PATHS name (preferred — renders a large
+  // accent-tinted SVG illustration that matches the page hue) OR a literal
+  // emoji/string for legacy callers not yet migrated.
+  const rawIcon=o.icon||'sparkles';
+  const icon=(typeof rawIcon==='string' && _ICON_PATHS[rawIcon])
+    ? `<span style="display:inline-flex;opacity:.9">${_icon(rawIcon,44,'var(--page-accent)')}</span>`
+    : esc(rawIcon);
   const title=esc(o.title||'Nothing here yet');
   const hint=o.hint?`<div class="es-hint">${esc(o.hint)}</div>`:'';
   const cta=o.ctaLabel?`<button class="es-cta" onclick="${o.ctaFn||''}">${esc(o.ctaLabel)}</button>`:'';
@@ -7512,7 +7520,7 @@ function renderTaskList(){
     </select>
     ${_taskListSortBy?`<button class="btn btn-s" style="height:22px;width:24px;padding:0;font-size:11px" onclick="toggleTaskListSortDir()" title="Sort direction">${_taskListSortDir==='asc'?'↑':'↓'}</button>`:''}
   </div>`;
-  if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'📋',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
+  if(!filtered.length){list.innerHTML=groupBar+renderEmptyState({icon:'list',title:'Inbox zero — for now ✨',hint:'No tasks match your current filter. Capture the next thing on your plate, or relax the filter to see what else is around.',ctaLabel:'+ Add a task',ctaFn:"openFA('task')"});return;}
   const today=_todayStr;
   const priColors={High:'rgba(239,68,68,0.15)',Medium:'rgba(245,158,11,0.15)',Low:'rgba(34,197,94,0.15)'};
   const priText={High:'#F87171',Medium:'#FBBF24',Low:'#86EFAC'};
@@ -10850,7 +10858,7 @@ function applyNotesFilters(){
         <button class="btn btn-p" style="height:24px;font-size:10px;padding:0 10px;margin-left:auto" onclick="clearNotesFilters()">Show all notes</button>
       </div>`
     :'';
-  el.innerHTML=_banner+((pinnedHtml+(html||''))||renderEmptyState({icon:'🔍',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'}));
+  el.innerHTML=_banner+((pinnedHtml+(html||''))||renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'}));
 
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
@@ -11757,7 +11765,7 @@ function renderNotes(){
 
   // Populate Notes editor panel
   const editor=$('notes-editor-panel');
-  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):renderEmptyState({icon:'📒',title:'Your second brain starts here',hint:'Capture an idea, drop a web clip, paste meeting notes, or import a document. Everything is searchable and linkable from day one.',ctaLabel:'+ Create your first note',ctaFn:"openFA('note')"});
+  editor.innerHTML=D.notes.length?renderNoteEditor(D.notes[0]):renderEmptyState({icon:'bookOpen',title:'Your second brain starts here',hint:'Capture an idea, drop a web clip, paste meeting notes, or import a document. Everything is searchable and linkable from day one.',ctaLabel:'+ Create your first note',ctaFn:"openFA('note')"});
 
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
@@ -12521,7 +12529,7 @@ function renderCommandCenter(){
     if(overdue.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Overdue (${overdue.length})</div>`+overdue.slice(0,8).map(t=>atRiskRow(t,'overdue')).join(''));
     if(dueToday.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Due today (${dueToday.length})</div>`+dueToday.slice(0,8).map(t=>atRiskRow(t,'today')).join(''));
     if(stalled.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Stalled (${stalled.length})</div>`+stalled.slice(0,6).map(t=>atRiskRow(t,'stalled')).join(''));
-    return sections.length?sections.join(''):renderEmptyState({icon:'✅',title:'Nothing at risk',hint:'No overdue, due-today, or stalled tasks in this context.'});
+    return sections.length?sections.join(''):renderEmptyState({icon:'checkCircle',title:'Nothing at risk',hint:'No overdue, due-today, or stalled tasks in this context.'});
   })();
 
   // Stakeholder column (group by assignee, top 8)
@@ -12549,7 +12557,7 @@ function renderCommandCenter(){
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
       <span style="font-size:10px;color:var(--t3);flex-shrink:0">${when}</span>
     </div>`;
-  }).join(''):renderEmptyState({icon:'🚀',title:'Nothing shipped yet this week',hint:'Tasks marked Done in the last 7 days will appear here — push some over the line.'});
+  }).join(''):renderEmptyState({icon:'zap',title:'Nothing shipped yet this week',hint:'Tasks marked Done in the last 7 days will appear here — push some over the line.'});
 
   const pendingPushBody=pendingRows.length?pendingRows.slice(0,12).map(et=>{
     const ov=et.override||{};
@@ -12630,7 +12638,7 @@ function renderCommandCenter(){
     <!-- Projects -->
     <div class="cd" style="padding:11px 13px;grid-column:1/-1">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;font-weight:600">📁 By Project (open work)</div><div style="font-size:10px;color:var(--t3)">top ${Object.keys(byProj).length>12?12:Object.keys(byProj).length} of ${Object.keys(byProj).length}</div></div>
-      ${projCards?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${projCards}</div>`:renderEmptyState({icon:'📁',title:'No open work',hint:'No active projects in this context.'})}
+      ${projCards?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${projCards}</div>`:renderEmptyState({icon:'folder',title:'No open work',hint:'No active projects in this context.'})}
     </div>
     <!-- Shipped -->
     <div class="cd" style="padding:0;overflow:hidden">
@@ -12804,7 +12812,7 @@ function renderDeps(){
     m.innerHTML=`<div style="padding:24px;max-width:760px">${(()=>{
       // Use the existing empty-state helper.
       if(typeof renderEmptyState==='function')return renderEmptyState({
-        icon:'🔗',
+        icon:'link',
         title:'No task dependencies yet',
         hint:'Open any task drawer → Predecessors → pick the tasks that must finish first. This view will then surface every blocking chain across your CF, LSI, and Personal work.',
         ctaLabel:'Open Tasks',
@@ -14038,7 +14046,7 @@ function renderPrograms(){
       </div>
     </div>`;
   }).join('');
-  const empty=programs.length?'':renderEmptyState({icon:'📊',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
+  const empty=programs.length?'':renderEmptyState({icon:'barChart',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-s" onclick="nav('command')" title="Open the Command Center">🎯 Command Center</button><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
     ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}
     ${(D.projects||[]).length?_renderPortfolioTimeline():''}`;
@@ -15482,7 +15490,7 @@ function renderGoals(){
     if(!goals.length){
       el.style.gridTemplateColumns='1fr';
       const hasFilters=_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All';
-      el.innerHTML=renderEmptyState({icon:'🎯',title:hasFilters?'No goals match your filters':'No goals yet',hint:hasFilters?'Try clearing the filters or broadening your search.':_goalsMyOnly?"You haven't set any goals. Aim somewhere — the rest of the system aligns around them.":'Goals turn intent into trackable outcomes. Start with one.',ctaLabel:hasFilters?'Clear filters':'+ Set your first goal',ctaFn:hasFilters?'clearGoalsFilters()':"openFA('goal')"});
+      el.innerHTML=renderEmptyState({icon:'target',title:hasFilters?'No goals match your filters':'No goals yet',hint:hasFilters?'Try clearing the filters or broadening your search.':_goalsMyOnly?"You haven't set any goals. Aim somewhere — the rest of the system aligns around them.":'Goals turn intent into trackable outcomes. Start with one.',ctaLabel:hasFilters?'Clear filters':'+ Set your first goal',ctaFn:hasFilters?'clearGoalsFilters()':"openFA('goal')"});
       return;
     }
     el.innerHTML=goals.map(g=>{
@@ -15773,7 +15781,7 @@ function renderJournalList(){
   const el=document.getElementById('jrnl-entries');
   if(!el)return;
   if(!entries.length){
-    el.innerHTML=renderEmptyState({icon:'📓',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
+    el.innerHTML=renderEmptyState({icon:'bookOpen',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
     return;
   }
   el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
@@ -16000,7 +16008,7 @@ function openMailItem(id){
 function renderMailInboxList(q=''){
   let items=_getMailItems();
   if(q)items=items.filter(m=>(m.from||'').toLowerCase().includes(q)||(m.subject||'').toLowerCase().includes(q)||(m.preview||m.body||'').toLowerCase().includes(q));
-  if(!items.length)return q?`<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No results for "${esc(q)}"</div>`:renderEmptyState({icon:'📭',title:'Inbox zero — or nothing synced yet',hint:'Connect Microsoft 365 in Settings → Accounts and your inbox will populate here.',ctaLabel:'Sync from Office 365',ctaFn:"syncOAuthMail('microsoft')"});
+  if(!items.length)return q?`<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No results for "${esc(q)}"</div>`:renderEmptyState({icon:'mail',title:'Inbox zero — or nothing synced yet',hint:'Connect Microsoft 365 in Settings → Accounts and your inbox will populate here.',ctaLabel:'Sync from Office 365',ctaFn:"syncOAuthMail('microsoft')"});
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.receivedDateTime);
@@ -16010,7 +16018,7 @@ function renderMailInboxList(q=''){
 function renderMailSentList(q=''){
   let items=_getSentItems();
   if(q)items=items.filter(m=>(m.to||m.toEmail||'').toLowerCase().includes(q)||(m.subject||'').toLowerCase().includes(q)||(m.preview||m.body||'').toLowerCase().includes(q));
-  if(!items.length)return q?`<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No results for "${esc(q)}"</div>`:renderEmptyState({icon:'📤',title:'No sent messages yet',hint:'Sync from Office 365 to pull in your sent mail.',ctaLabel:'Sync sent mail',ctaFn:'syncSentMail()'});
+  if(!items.length)return q?`<div style="padding:20px;text-align:center;color:var(--t3);font-size:11px">No results for "${esc(q)}"</div>`:renderEmptyState({icon:'mail',title:'No sent messages yet',hint:'Sync from Office 365 to pull in your sent mail.',ctaLabel:'Sync sent mail',ctaFn:'syncSentMail()'});
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.sentDateTime);
@@ -19854,7 +19862,7 @@ function renderIdeas(){
       return `<button class="btn" style="border-radius:0;height:28px;font-size:10px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
     }).join('')}
   </div>
-  ${_ideasView==='leaderboard'?renderIdeasLeaderboard():filtered.length===0?renderEmptyState({icon:'💡',title:_ideasSearch?'No matches for your search':_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasSearch?'Try the ✨ Semantic button for an AI-powered intent search.':_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:_ideasSearch?'Clear search':'+ Capture an idea',ctaFn:_ideasSearch?"setIdeasSearch('')":'openNewIdeaModal()'}):`
+  ${_ideasView==='leaderboard'?renderIdeasLeaderboard():filtered.length===0?renderEmptyState({icon:'lightbulb',title:_ideasSearch?'No matches for your search':_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasSearch?'Try the ✨ Semantic button for an AI-powered intent search.':_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:_ideasSearch?'Clear search':'+ Capture an idea',ctaFn:_ideasSearch?"setIdeasSearch('')":'openNewIdeaModal()'}):`
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
     ${filtered.map(idea=>{
       const ice=ideaICE(idea);
@@ -21391,7 +21399,7 @@ function renderHabits(){
   const total=todayHabits.length;
   const pct=total?Math.round(done/total*100):0;
   $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('checkCircle',22,'var(--page-accent)')}Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
-  ${visibleHabits.length===0?renderEmptyState({icon:'🌱',title:_habitsMyOnly?'No habits yet':'No team habits',hint:_habitsMyOnly?'Small daily reps compound. Start with one habit you can stick to.':'Switch to "My Habits" or add one to get the team going.',ctaLabel:'+ Start your first habit',ctaFn:"openFA('habit')"}):`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
+  ${visibleHabits.length===0?renderEmptyState({icon:'checkCircle',title:_habitsMyOnly?'No habits yet':'No team habits',hint:_habitsMyOnly?'Small daily reps compound. Start with one habit you can stick to.':'Switch to "My Habits" or add one to get the team going.',ctaLabel:'+ Start your first habit',ctaFn:"openFA('habit')"}):`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
       <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
