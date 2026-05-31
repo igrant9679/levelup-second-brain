@@ -3184,6 +3184,16 @@ const _ICON_PATHS = {
   link:      '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   columns:   '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>',
   clock:     '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  // Added May 31 for the home-widget {icon,label} refactor.
+  pin:       '<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>',
+  flame:     '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  activity:  '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  trophy:    '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  tag:       '<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  bookmark:  '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  cloud:     '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  quote:     '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/>',
+  camera:    '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
 };
 
 function _icon(name, size, color){
@@ -6095,37 +6105,41 @@ function autoCalcGoalPctBidirectional(g){
 }
 
 // Home dashboard card order & visibility
+// Each def carries an `icon` (an _ICON_PATHS name) plus a plain-text `label`.
+// Render sites place the icon themselves via _icon(def.icon,…) so the label
+// stays clean text — safe for any consumer (the customization list renders
+// icon+label as innerHTML; nothing here feeds a <select> or textContent).
 const _homeCardDefs=[
-  {id:'tasks',label:'📋 Top Tasks',default:true},
-  {id:'notes',label:'📝 Recent Notes',default:true},
-  {id:'projects',label:'📁 Active Projects',default:true},
-  {id:'goals',label:'🎯 Goals',default:true},
-  {id:'files',label:'📁 Recent Files',default:true},
-  {id:'habits',label:'⚡ Today\'s Habits',default:true},
-  {id:'meetings',label:'📅 Upcoming Meetings',default:true},
-  {id:'recent',label:'🕐 Recently Added',default:true},
-  {id:'pinned',label:'📌 Pinned',default:true},
-  {id:'focus',label:'⏱ Focus Widget',default:true},
-  {id:'reports',label:'📊 Reports & Insights',default:true},
-  {id:'habitHeatmap',label:'🔥 Habit Heatmap (30 days)',default:false},
-  {id:'moodTrend',label:'💭 Mood Trend (14 days)',default:false},
-  {id:'mindmaps',label:'🧠 Recent Mind Maps',default:false},
-  {id:'bookmarks',label:'🔖 Recent Bookmarks',default:false},
-  {id:'deadlines',label:'⏰ Upcoming Deadlines',default:false},
+  {id:'tasks',icon:'list',label:'Top Tasks',default:true},
+  {id:'notes',icon:'edit',label:'Recent Notes',default:true},
+  {id:'projects',icon:'folder',label:'Active Projects',default:true},
+  {id:'goals',icon:'target',label:'Goals',default:true},
+  {id:'files',icon:'folder',label:'Recent Files',default:true},
+  {id:'habits',icon:'checkCircle',label:'Today\'s Habits',default:true},
+  {id:'meetings',icon:'calendar',label:'Upcoming Meetings',default:true},
+  {id:'recent',icon:'clock',label:'Recently Added',default:true},
+  {id:'pinned',icon:'pin',label:'Pinned',default:true},
+  {id:'focus',icon:'clock',label:'Focus Widget',default:true},
+  {id:'reports',icon:'barChart',label:'Reports & Insights',default:true},
+  {id:'habitHeatmap',icon:'flame',label:'Habit Heatmap (30 days)',default:false},
+  {id:'moodTrend',icon:'activity',label:'Mood Trend (14 days)',default:false},
+  {id:'mindmaps',icon:'brain',label:'Recent Mind Maps',default:false},
+  {id:'bookmarks',icon:'bookmark',label:'Recent Bookmarks',default:false},
+  {id:'deadlines',icon:'clock',label:'Upcoming Deadlines',default:false},
   // 6 NEW widgets
-  {id:'productivityScore',label:'📊 Productivity Score (today)',default:false},
-  {id:'streaks',label:'🏆 Top Streaks',default:false},
-  {id:'weekAhead',label:'🗓 Week Ahead (7-day plan)',default:false},
-  {id:'ideasPipeline',label:'💡 Ideas Pipeline',default:false},
-  {id:'taskVelocity',label:'🚀 Task Velocity (this vs last week)',default:false},
-  {id:'tagCloud',label:'🏷 Tag Cloud (all sources)',default:false},
+  {id:'productivityScore',icon:'barChart',label:'Productivity Score (today)',default:false},
+  {id:'streaks',icon:'trophy',label:'Top Streaks',default:false},
+  {id:'weekAhead',icon:'calendar',label:'Week Ahead (7-day plan)',default:false},
+  {id:'ideasPipeline',icon:'lightbulb',label:'Ideas Pipeline',default:false},
+  {id:'taskVelocity',icon:'zap',label:'Task Velocity (this vs last week)',default:false},
+  {id:'tagCloud',icon:'tag',label:'Tag Cloud (all sources)',default:false},
   // 5 NEW variety widgets (May 2026)
-  {id:'weather',label:'🌤 Weather',default:false},
-  {id:'quoteOfDay',label:'💭 Quote of the Day',default:false},
-  {id:'yesteryear',label:'📸 On this day',default:false},
-  {id:'aiInsight',label:'🧠 AI Insight',default:false},
-  {id:'focusSuggestion',label:'🎯 Peak Focus Hour',default:false},
-  {id:'staleContent',label:'🧹 Stale Content (>30d)',default:false},
+  {id:'weather',icon:'cloud',label:'Weather',default:false},
+  {id:'quoteOfDay',icon:'quote',label:'Quote of the Day',default:false},
+  {id:'yesteryear',icon:'camera',label:'On this day',default:false},
+  {id:'aiInsight',icon:'sparkles',label:'AI Insight',default:false},
+  {id:'focusSuggestion',icon:'target',label:'Peak Focus Hour',default:false},
+  {id:'staleContent',icon:'trash',label:'Stale Content (>30d)',default:false},
 ];
 function getHomeCardPrefs(){
   try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
@@ -6243,7 +6257,7 @@ function openHomeDashCustomize(){
           <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
           <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
         </div>
-        <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+        <span style="flex:1;font-size:12px;display:inline-flex;align-items:center;gap:6px">${def?`${_icon(def.icon,14,'currentColor')} ${esc(def.label)}`:esc(p.id)}</span>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
           <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
           Show
@@ -6333,7 +6347,7 @@ function homeCardMove(id,dir){
             <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',-1)">↑</button>
             <button class="btn btn-s" style="height:16px;width:20px;padding:0;font-size:10px" onclick="homeCardMove('${p.id}',1)">↓</button>
           </div>
-          <span style="flex:1;font-size:12px">${def?def.label:p.id}</span>
+          <span style="flex:1;font-size:12px;display:inline-flex;align-items:center;gap:6px">${def?`${_icon(def.icon,14,'currentColor')} ${esc(def.label)}`:esc(p.id)}</span>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
             <input type="checkbox" id="hc-${p.id}" ${p.visible?'checked':''} onchange="homeCardToggle('${p.id}',this.checked)">
             Show
@@ -6493,7 +6507,7 @@ function renderHome(){
       </div>`).join('')}
     </div>
   </div>
-  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">⚡ Quick Add</span>
+  <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">${_icon('zap',15,'var(--page-accent)')} Quick Add</span>
   ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${c};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
   ${(()=>{
     const cardHtml={
@@ -6517,7 +6531,7 @@ function renderHome(){
           }).sort((a,b)=>b.overdue-a.overdue||b.dueToday-a.dueToday||b.pri-a.pri||a.due.localeCompare(b.due)||b.ts-a.ts).slice(0,5).map(x=>x.t);
         }
         const modeLabel=(_homeCardModes.tasks.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📋 Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${chosen.length?chosen.map(t=>taskRow(t,false)).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">Nothing here for this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('list',15,'#22c55e')} Top Tasks</div><span class="cd-a" onclick="nav('tasks')">View all</span></div>${chosen.length?chosen.map(t=>taskRow(t,false)).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">Nothing here for this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ Add Task</div></div>`;
       })(),
       notes:(()=>{
         const mode=getHomeCardMode('notes');
@@ -6530,7 +6544,7 @@ function renderHome(){
         else arr.sort((a,b)=>tsUpdated(b)-tsUpdated(a)); // 'recent' default
         const byRecent=arr.slice(0,5);
         const modeLabel=(_homeCardModes.notes.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📝 Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.length?byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No notes match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('edit',15,'#f97316')} Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.length?byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No notes match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
       })(),
       projects:(()=>{
         const mode=getHomeCardMode('projects');
@@ -6548,7 +6562,7 @@ function renderHome(){
         }
         const top=arr.slice(0,5);
         const modeLabel=(_homeCardModes.projects.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">📁 Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('folder',15,'#a855f7')} Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
       })(),
       goals:renderGoalCards(3),
       focus:(()=>{
@@ -6568,7 +6582,7 @@ function renderHome(){
           <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
         </div>`;
       })(),
-      files:`<div class="cd"><div class="cd-h"><div class="cd-t">📁 Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
+      files:`<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('folder',15,'#3b82f6')} Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
       reports:(()=>{
         const today=new Date();
         const todayKey=today.toISOString().slice(0,10);
@@ -6593,7 +6607,7 @@ function renderHome(){
         const donePct=totalAll?Math.round(totalDone/totalAll*100):0;
         // Donut SVG (CSS-only ring)
         const ringStyle=`background:conic-gradient(var(--ok) 0% ${donePct}%, var(--s3) ${donePct}% 100%);width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative`;
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">📊 Reports & Insights</div><span class="cd-a" onclick="openExportPicker()">Export</span></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#3b82f6')} Reports & Insights</div><span class="cd-a" onclick="openExportPicker()">Export</span></div>
           <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
             <div>
               <div style="font-size:10px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ac)">(${totalC} total)</strong></div>
@@ -6622,7 +6636,7 @@ function renderHome(){
         const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
         const cells=days.map(k=>{const total=habits.length;const done=habits.filter(h=>(h.completedDates||[]).includes(k)).length;const pct=total?done/total:0;const c=pct===0?'var(--s3)':(pct<.34?'rgba(34,197,94,.25)':(pct<.67?'rgba(34,197,94,.55)':'rgba(34,197,94,.95)'));return `<div title="${k}: ${done}/${total}" style="width:14px;height:14px;background:${c};border-radius:3px"></div>`;}).join('');
         const totalCompletions=habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>days.includes(d)).length,0);
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🔥 Habit Heatmap</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('flame',15,'#ef4444')} Habit Heatmap</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>
           <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 30 days · ${totalCompletions} completion${totalCompletions===1?'':'s'} across ${habits.length} habit${habits.length===1?'':'s'}</div>
           <div style="display:grid;grid-template-columns:repeat(15,1fr);gap:4px">${cells}</div>
           <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:9px;color:var(--t3)"><span>Less</span><div style="width:10px;height:10px;background:var(--s3);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.25);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.55);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.95);border-radius:2px"></div><span>More</span></div>
@@ -6640,7 +6654,7 @@ function renderHome(){
         const path=validPts.length>1?'M '+validPts.map(p=>`${p.x},${p.y}`).join(' L '):'';
         const dots=points.map(p=>p.y!==null?`<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="var(--ac)"><title>${p.date}: ${p.mood} (${p.score}/5)</title></circle>`:'').join('');
         const avgScore=validPts.length?(validPts.reduce((s,p)=>s+p.score,0)/validPts.length).toFixed(1):'—';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">💭 Mood Trend</div><span class="cd-a" onclick="nav('journal')">Open journal</span></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('activity',15,'#14b8a6')} Mood Trend</div><span class="cd-a" onclick="nav('journal')">Open journal</span></div>
           <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 14 days · avg ${avgScore}/5 from ${validPts.length} entr${validPts.length===1?'y':'ies'}</div>
           ${validPts.length?`<svg viewBox="0 0 100 60" style="width:100%;height:80px;overflow:visible" preserveAspectRatio="none"><path d="${path}" stroke="var(--ac)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>${dots}</svg>`:'<div style="font-size:10px;color:var(--t3);padding:14px;text-align:center">Write journal entries with a mood to see your trend.</div>'}
         </div>`;
@@ -6655,7 +6669,7 @@ function renderHome(){
           maps=(D.mindmaps||[]).slice(-5).reverse();
         }
         const body=maps.length?maps.map(m=>`<div class="lr" style="cursor:pointer" onclick="nav('mindmaps');setTimeout(()=>typeof mmOpen==='function'&&mmOpen(${m.id}),100)"><span style="font-size:14px;flex-shrink:0">🧠</span><span class="rt" style="font-size:11px">${esc(m.title||m.name||'Untitled')}</span><span class="rm">${(m.nodes||[]).length} nodes</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No mind maps yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'mindmaps\')">Create one →</span></div>';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 Mind Maps</div><span class="cd-a" onclick="nav('mindmaps')">View all</span></div>${body}<div class="add-c" onclick="nav('mindmaps')">+ New Mind Map</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('brain',15,'#ec4899')} Mind Maps</div><span class="cd-a" onclick="nav('mindmaps')">View all</span></div>${body}<div class="add-c" onclick="nav('mindmaps')">+ New Mind Map</div></div>`;
       })(),
       // ── Recent Bookmarks ──
       bookmarks:(()=>{
@@ -6702,7 +6716,7 @@ function renderHome(){
         const overduePenalty=Math.min(ovd*2,10);
         const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
         const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">📊 Productivity Score</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#3b82f6')} Productivity Score</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
           <div style="display:flex;gap:14px;align-items:center">
             <div style="text-align:center;flex-shrink:0">
               <div style="font-size:38px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
@@ -6712,7 +6726,7 @@ function renderHome(){
               <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--t2)">
                 <div>✓ Tasks done: <strong>${tDone}</strong></div>
-                <div>🔥 Habits: <strong>${habsDone}/${dailyHabits.length}</strong></div>
+                <div>${_icon('flame',12,'#ef4444')} Habits:<strong>${habsDone}/${dailyHabits.length}</strong></div>
                 <div>⏱ Focus: <strong>${focusMins}m</strong></div>
                 <div style="color:${ovd>0?'var(--red)':'var(--t3)'}">⚠ Overdue: <strong>${ovd}</strong></div>
               </div>
@@ -6729,14 +6743,14 @@ function renderHome(){
         items.sort((a,b)=>streakMode==='shortest'?a.count-b.count:b.count-a.count);
         const top=items.slice(0,6);
         const body=top.length?top.map(it=>`<div class="lr" style="padding:5px 0"><span style="font-size:14px;flex-shrink:0">${it.icon}</span><span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:var(--warn);font-weight:700;flex-shrink:0">🔥 ${it.count}${it.unit==='day'?'d':''}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No active streaks yet. Build one by checking off a habit daily.</div>';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🏆 Top Streaks</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>${body}</div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trophy',15,'#f59e0b')} Top Streaks</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>${body}</div>`;
       })(),
       // ── Week Ahead (next 7 days mini-calendar) ──
       weekAhead:(()=>{
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
         const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
         const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:9px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:9px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:9px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:9px;color:var(--t3)">—</div>':''}</div>`;}).join('');
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🗓 Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('calendar',15,'#6366f1')} Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
       })(),
       // ── Ideas Pipeline (counts by stage) ──
       ideasPipeline:(()=>{
@@ -6745,7 +6759,7 @@ function renderHome(){
         const counts=stages.map(s=>({...s,c2:s.c,n:ideas.filter(i=>i.stage===s.k).length}));
         const max=Math.max(...counts.map(c=>c.n),1);
         const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${c.c}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">💡 Ideas Pipeline</div><span class="cd-a" onclick="nav('ideas')">All ideas</span></div>${body}</div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('lightbulb',15,'#eab308')} Ideas Pipeline</div><span class="cd-a" onclick="nav('ideas')">All ideas</span></div>${body}</div>`;
       })(),
       // ── Task Velocity (this week vs last week) ──
       taskVelocity:(()=>{
@@ -6759,7 +6773,7 @@ function renderHome(){
         const delta=thisWeek-lastWeek;
         const arrow=delta>0?'↑':delta<0?'↓':'→';
         const dColor=delta>0?'var(--ok)':delta<0?'var(--red)':'var(--t3)';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🚀 Task Velocity</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('zap',15,'#ef4444')} Task Velocity</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
             <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${thisWeek}</div><div style="font-size:10px;color:var(--t3)">This week</div></div>
             <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--t2)">${lastWeek}</div><div style="font-size:10px;color:var(--t3)">Last week</div></div>
@@ -6776,7 +6790,7 @@ function renderHome(){
         const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,30);
         const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
         const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(10+(c-min)/range*8);const hue=Math.abs(t.split('').reduce((h,ch)=>h*31+ch.charCodeAt(0),0))%360;return `<span style="display:inline-block;padding:3px 9px;margin:3px;border-radius:12px;background:hsl(${hue},45%,30%);color:hsl(${hue},65%,80%);font-size:${sz}px;cursor:pointer" title="${c} item${c===1?'':'s'}">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No tags yet — add tags to tasks, notes, or journal entries.</div>';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🏷 Tag Cloud</div><span class="cd-a">${arr.length} unique</span></div><div style="line-height:1.8">${body}</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('tag',15,'#06b6d4')} Tag Cloud</div><span class="cd-a">${arr.length} unique</span></div><div style="line-height:1.8">${body}</div></div>`;
       })(),
       // 🌤 Weather — wttr.in / no key required. Cached for 30 mins.
       weather:(()=>{
@@ -6784,11 +6798,11 @@ function renderHome(){
         const cached=(D.prefs&&D.prefs.weatherCache)||null;
         const fresh=cached&&(Date.now()-cached.ts<30*60*1000);
         if(!loc){
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center"><div style="margin-bottom:6px">Set your city to see the forecast.</div><input id="home-weather-loc" class="inp" placeholder="e.g. New York" style="font-size:11px;margin-bottom:6px" onkeydown="if(event.key==='Enter')_setWeatherLoc(this.value)"><button class="btn btn-p" style="font-size:10px;height:24px" onclick="_setWeatherLoc(document.getElementById('home-weather-loc').value)">Save</button></div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('cloud',15,'#38bdf8')} Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center"><div style="margin-bottom:6px">Set your city to see the forecast.</div><input id="home-weather-loc" class="inp" placeholder="e.g. New York" style="font-size:11px;margin-bottom:6px" onkeydown="if(event.key==='Enter')_setWeatherLoc(this.value)"><button class="btn btn-p" style="font-size:10px;height:24px" onclick="_setWeatherLoc(document.getElementById('home-weather-loc').value)">Save</button></div></div>`;
         }
         if(fresh&&cached.data){
           const w=cached.data;
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div><span class="cd-a" onclick="_refreshWeather()" title="Refresh">↻ ${esc(loc)}</span></div>
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('cloud',15,'#38bdf8')} Weather</div><span class="cd-a" onclick="_refreshWeather()" title="Refresh">↻ ${esc(loc)}</span></div>
             <div style="display:flex;align-items:center;gap:14px;padding:6px 4px">
               <div style="font-size:48px;line-height:1">${esc(w.icon||'☀')}</div>
               <div style="flex:1">
@@ -6800,7 +6814,7 @@ function renderHome(){
         }
         // Trigger a refresh in the background; show a placeholder for now.
         if(!fresh)setTimeout(_refreshWeather,200);
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🌤 Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center">Loading ${esc(loc)}…</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('cloud',15,'#38bdf8')} Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center">Loading ${esc(loc)}…</div></div>`;
       })(),
       // 💭 Quote of the day — day-of-year seeded so it's stable through the day.
       quoteOfDay:(()=>{
@@ -6838,7 +6852,7 @@ function renderHome(){
         ];
         const doy=Math.floor((Date.now()-new Date(new Date().getFullYear(),0,0).getTime())/86400000);
         const q=QUOTES[doy%QUOTES.length];
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">💭 Quote of the Day</div></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('quote',15,'#a78bfa')} Quote of the Day</div></div>
           <div style="padding:6px 4px">
             <div style="font-size:14px;color:var(--t1);line-height:1.5;font-style:italic;quotes:'\\201C''\\201D'">${esc(q.q)}</div>
             <div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:right">— ${esc(q.a)}</div>
@@ -6852,10 +6866,10 @@ function renderHome(){
         (D.journal||[]).forEach(j=>{const k=(j.date||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'journal',title:j.title||(j.body||'').slice(0,80),year:y,when:k});});
         (D.notes||[]).forEach(n=>{const k=(n.created||n.updated||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'note',title:n.title,year:y,when:k});});
         items.sort((a,b)=>b.year-a.year);
-        if(!items.length){return `<div class="cd"><div class="cd-h"><div class="cd-t">📸 On this day</div></div><div style="padding:12px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing yet from previous years — come back next year!</div></div>`;}
+        if(!items.length){return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('camera',15,'#f472b6')} On this day</div></div><div style="padding:12px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing yet from previous years — come back next year!</div></div>`;}
         const ICONS={task:'✓',journal:'✏',note:'📝'};
         const body=items.slice(0,5).map(it=>`<div class="lr" style="padding:4px 2px"><span style="font-size:11px;flex-shrink:0">${ICONS[it.type]}</span><span class="rt" style="font-size:11px;color:var(--t1)">${esc(it.title||'(untitled)')}</span><span style="font-size:10px;color:var(--t3);white-space:nowrap">${thisYear-it.year}y ago</span></div>`).join('');
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">📸 On this day</div><span class="cd-a">${items.length} memor${items.length===1?'y':'ies'}</span></div>${body}</div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('camera',15,'#f472b6')} On this day</div><span class="cd-a">${items.length} memor${items.length===1?'y':'ies'}</span></div>${body}</div>`;
       })(),
       // 🧠 AI Insight — cached daily, calls ai.assist with a workspace snapshot.
       aiInsight:(()=>{
@@ -6863,10 +6877,10 @@ function renderHome(){
         const today=new Date().toISOString().slice(0,10);
         const fresh=cache&&cache.date===today&&cache.text;
         if(fresh){
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:9px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:9px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
         }
         if(!cache||cache.date!==today)setTimeout(_refreshAIInsight,800);
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧠 AI Insight</div></div><div style="padding:14px 4px;font-size:11px;color:var(--t3);text-align:center">⏳ Generating today's insight…</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div></div><div style="padding:14px 4px;font-size:11px;color:var(--t3);text-align:center">⏳ Generating today's insight…</div></div>`;
       })(),
       // 🎯 Peak Focus Hour — analyses D.prefs.focusLog to find the best-performing hour.
       focusSuggestion:(()=>{
@@ -6876,11 +6890,11 @@ function renderHome(){
         if(!hours.length){
           // Fall back to total focus across days
           const total=Object.values(fl).reduce((a,b)=>a+(Number(b)||0),0);
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Peak Focus Hour</div></div><div style="padding:8px 4px;font-size:11px;color:var(--t3);text-align:center">Use the Focus timer for a few sessions and we'll surface your most productive hours here.<br><span style="display:block;margin-top:6px;font-size:10px">${total} minutes logged so far.</span></div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div><div style="padding:8px 4px;font-size:11px;color:var(--t3);text-align:center">Use the Focus timer for a few sessions and we'll surface your most productive hours here.<br><span style="display:block;margin-top:6px;font-size:10px">${total} minutes logged so far.</span></div></div>`;
         }
         const fmt=h=>{const n=Number(h);const ap=n>=12?'pm':'am';const h12=((n%12)||12);return h12+ap;};
         const top=hours[0];
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Peak Focus Hour</div></div>
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div>
           <div style="padding:4px;font-size:12px;color:var(--t1);line-height:1.55">
             Your peak focus is around <strong style="color:var(--page-accent)">${fmt(top[0])}</strong> — ${top[1]} minutes logged in this hour across all sessions.
             <div style="font-size:10px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
@@ -6906,7 +6920,7 @@ function renderHome(){
         }
         // 'oldest' default sorts by largest ago first; 'newest' flips it.
         stale.sort((a,b)=>stMode==='newest'?a.ago-b.ago:b.ago-a.ago);
-        if(!stale.length)return `<div class="cd"><div class="cd-h"><div class="cd-t">🧹 Stale Content</div></div><div style="padding:18px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing stale — your workspace is fresh. ✨</div></div>`;
+        if(!stale.length)return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trash',15,'#f59e0b')} Stale Content</div></div><div style="padding:18px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing stale — your workspace is fresh. ✨</div></div>`;
         const top=stale.slice(0,8);
         const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${it.type}',${it.id})" title="Open ${it.type}">
           <span style="font-size:13px;flex-shrink:0">${it.icon}</span>
@@ -6914,7 +6928,7 @@ function renderHome(){
           <span style="font-size:9px;color:var(--t3);flex-shrink:0">${it.ago}d</span>
           <button class="btn btn-s" style="height:18px;width:22px;padding:0;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();_staleTouch('${it.type}',${it.id})" title="Mark as still relevant — hide for 30 more days">✓</button>
         </div>`).join('');
-        return `<div class="cd"><div class="cd-h"><div class="cd-t">🧹 Stale Content</div><span class="cd-a">${stale.length} item${stale.length===1?'':'s'} >30d old</span></div>${rows}</div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trash',15,'#f59e0b')} Stale Content</div><span class="cd-a">${stale.length} item${stale.length===1?'':'s'} >30d old</span></div>${rows}</div>`;
       })()
     };
     const visCards=_homeOrder.filter(id=>_homeVisible.has(id)&&cardHtml[id]);
@@ -7005,7 +7019,7 @@ function renderHome(){
     }
   }catch{ /* never break Home */ }
 }
-function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">🎯 Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
+function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#dc2626')} Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
 // Module-level task list state so tab clicks work after renderTasks() returns
 let _taskTabDefs=null;
@@ -9150,7 +9164,7 @@ function renderTaskRailHTML(){
       const score=Math.max(0,Math.min(100,Math.round(habsScore+tasksScore+focusScore-overduePenalty+10)));
       const grade=score>=90?{l:'A+',c:'var(--ok)'}:score>=80?{l:'A',c:'var(--ok)'}:score>=70?{l:'B',c:'var(--ac)'}:score>=60?{l:'C',c:'var(--warn)'}:{l:'D',c:'var(--red)'};
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;margin-bottom:12px;text-align:center">
-        <div style="font-size:11px;font-weight:600;margin-bottom:8px">📊 Productivity Score</div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('barChart',14,'#3b82f6')} Productivity Score</div>
         <div style="font-size:36px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
         <div style="font-size:18px;color:${grade.c};font-weight:600;margin-bottom:8px">${grade.l}</div>
         <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
