@@ -276,6 +276,63 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
+## Session totals (May 31 2026 — P0 accessibility batch + page-header icon migration)
+
+**Current build: `2026-05-31-56`** (was `-55`; the May 27 "ready to ship" fixes
+had never actually landed — build was still `-55` when this session started).
+
+This session shipped the long-queued **P0 accessibility batch** (all 5 fixes
+from the May 27 audit) plus the **first real slice of the emoji→SVG migration**
+(every in-app page header). Constraint honored throughout: *keep the app
+colorful* — nothing was desaturated; the focus rings and header icons are
+tinted with `var(--page-accent)` so they take on each screen's hue.
+
+### P0 accessibility fixes (all in `client/index.html`)
+1. **Sidebar group headers** — `.sl` was `9px`/`var(--t3)` (3.82:1, FAIL) →
+   `var(--fs-xs)` (11px)/`var(--t2)` = **7.1:1 AAA**. Also fixed the inline
+   `.sl` override inside `renderSettingsHTML` (app-part2.js) that re-introduced
+   9px/t3 locally.
+2. **Primary button contrast** — white-on-`#3B82F6` was 3.68:1 (FAIL). Added
+   `--ac-strong:#2563EB` (blue-600) used ONLY as the `.bn` fill → **4.5:1 AA**.
+   `--ac` (#3B82F6) stays the bright accent everywhere else (icons/borders/text/
+   active states). `.bn:hover` now lightens to `--ac` for feedback. Font-weight
+   alone can't fix this — contrast is a function of color, not weight.
+3. **Focus rings** — broad `:focus-visible` rule (was only `.sl-toggle`).
+   `outline:2px solid var(--page-accent,var(--ac))` → ring is page-tinted.
+4. **aria-labels** — added to the 5 topbar icon buttons + made the avatar a
+   keyboard-operable `role="button"` with `aria-label` + Enter/Space handler.
+5. **Touch targets** — `@media (pointer:coarse),(max-width:560px)` bumps
+   `.tbtn/.bn/.tab/.si/.tlc-chk` to the 44px minimum. Desktop density untouched.
+
+### Emoji→SVG page-header migration (Visual Foundation Stage 3, first slice)
+- Added 7 icons to `_ICON_PATHS` (app-part1.js): `barChart, mail, sun, zap,
+  users, map, settings`.
+- Converted **all 23 in-app page-header `<h1>` titles** across both bundles to
+  `${_icon(name,22,'var(--page-accent)')}` — Tasks(list), Programs(barChart),
+  Projects(folder), Goals(target), Journal(edit), Mail(mail), Calendar×3,
+  My Day(sun), Command Center(target), Daily Standup(list), Reports(barChart),
+  My Week(calendar), Process GTD(zap), Ideas(lightbulb), Coach(brain),
+  Team(users), Habits(checkCircle), Clusters(layers), Mind Maps(brain),
+  Atlas(map), Settings(settings). Each `<h1>` got `display:inline-flex;
+  align-items:center;gap:8px`.
+- **Deliberately skipped:** the Weekly Portfolio Briefing + Journal Export H1s
+  (standalone print/email docs on white bg — page-accent tinting N/A), and
+  Contacts (user rule: skip Contacts in audits).
+
+### Still queued (next emoji→SVG slices, in priority order)
+1. Empty states (`renderEmptyState()` callers — big emoji illustrations).
+2. Chip / breadcrumb labels (📁 project pill, 🔖 bookmark, 🏷 tag).
+3. Button + toast icons (✓ Done, ⚡ Tools, + New, ✨ AI menus).
+4. Settings sub-nav tab labels (👤 Profile, 🔔 Notifications, 🛡 Admin, etc.)
+   and home-widget section titles (📋 Top Tasks, etc.).
+   The header sweep covered ~23 of the ~1,000+ structural-emoji instances.
+- Other queued polish (unchanged): heading hierarchy (H2-before-H1),
+  sub-12px inline `font-size:` sweep, z-index ladder migration to `--z-*`,
+  news-ticker `left`→`transform:translateX`.
+
+**Verified:** both bundles pass `node -c`. Changes are **local/unpushed** as of
+this writing — user reviews the diff before any push.
+
 ## Session totals (May 27 2026 — Visual Foundation arc Stage 1+2 + icon helper + data-grounded UI/UX audit)
 
 **Current build: `2026-05-27-55`** (was `-54` from manus-agent overnight).

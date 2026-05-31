@@ -5,9 +5,9 @@ function renderSettingsHTML(){
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
-  return `<div class="pg-h"><h1>\u2699 Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
+  return `<div class="pg-h"><h1 style="display:inline-flex;align-items:center;gap:8px">${_icon('settings',22,'var(--page-accent)')}Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
-  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:9px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${n}</div>`;}).join('')}</div>
+  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${n}</div>`;}).join('')}</div>
   <div>
   <!-- Profile --><div id="sp-0" class="sp">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
@@ -10118,7 +10118,7 @@ function renderMindmaps(){
   const maps = D.mindmaps || [];
   main.innerHTML = `
   <div class="ph-r" style="margin-bottom:16px">
-    <div><h1 style="font-size:22px;font-weight:700">🧠 Mind Maps</h1>
+    <div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('brain',22,'var(--page-accent)')}Mind Maps</h1>
     <p style="font-size:12px;color:var(--t2)">${(()=>{const ms=D.mindmaps||[];const total=ms.length;const nodes=ms.reduce((s,m)=>s+((m.nodes||[]).length),0);return total?`${total} mind map${total!==1?'s':''}${nodes?` · ${nodes} node${nodes!==1?'s':''}`:''}`:'No mind maps yet — create one to start brainstorming.';})()}</p></div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-p" onclick="mmCreate()">+ New Mind Map</button>
@@ -11235,7 +11235,7 @@ function renderAtlas(){
   const snap=D.atlas;
   if(!snap||!snap.projects){
     m.innerHTML=`<div class="ph-r" style="margin-bottom:14px">
-      <h1 style="font-size:22px;font-weight:700">🗺 Atlas</h1>
+      <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('map',22,'var(--page-accent)')}Atlas</h1>
       <p style="font-size:12px;color:var(--t2)">Read-only mirror of the CFResourcePlanner workspace.</p>
     </div>
     <div class="cd" style="padding:24px;text-align:center;color:var(--t2)">
