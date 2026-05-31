@@ -3623,10 +3623,10 @@ function renderDrawer(type,item){
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('expand')">📝 Expand</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('summarise')">📌 Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('link')">🔗 Link Concepts</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('autotag')">🏷 Auto-tag</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('autotag')">${_icon('tag',12,'currentColor')} Auto-tag</button>
         </div>
         <div id="dr-note-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
@@ -3777,10 +3777,10 @@ function renderDrawer(type,item){
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('expand')">📝 Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">📌 Summarise</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">📊 Mood</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">${_icon('activity',12,'currentColor')} Mood</button>
           <button type="button" class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
           ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
@@ -4700,7 +4700,7 @@ function taskRow(t,showActs=true){
   const _subChip=_subs.length?`<span class="lu-subtask-chip ${_subDone===_subs.length?'done':''}" title="${_subDone} of ${_subs.length} subtask${_subs.length===1?'':'s'} done">☑ ${_subDone}/${_subs.length}</span>`:'';
   // E: clickable priority + status pills with inline picker
   const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')">${t.priority}</span>`;
-  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">📅 Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
+  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:9px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -9853,8 +9853,8 @@ function renderTasks(){
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
     <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('someday')">💤 Someday</button>
-    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('project')">📁 Move</button>
-    <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">🗑 Delete</button>
+    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
+    <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">${_icon('trash',12,'currentColor')} Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
   <div class="tabs" id="tasks-tabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${_taskTabDefs.map((td,i)=>`<div class="tab ${i===_taskFilterTabIdx?'on':''}" onclick="setTaskTabIdx(${i})">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}${(()=>{
@@ -11518,7 +11518,7 @@ function openNoteTemplates(){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
   ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:20px;width:420px;max-width:95vw">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-    <div style="font-size:14px;font-weight:700">📝 Note Templates</div>
+    <div style="font-size:14px;font-weight:700">${_icon('bookOpen',13,'currentColor')} Note Templates</div>
     <button class="btn btn-s" style="height:24px;width:24px;padding:0" onclick="document.getElementById('note-tmpl-ov').remove()">✕</button>
   </div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Select a template to create a new note with pre-filled structure.</div>
@@ -11709,7 +11709,7 @@ function renderNotes(){
         <div style="position:relative;display:inline-block">
           <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();togglePopMenu('notes-overflow-menu')" title="More actions">⋮</button>
           <div id="notes-overflow-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:26px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');openNoteTemplates()">📝 Templates</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');openNoteTemplates()">${_icon('bookOpen',13,'currentColor')} Templates</button>
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('md-import-input').click()">📥 Import .md / .txt</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('doc-import-input').click()">📄 Import PDF / Word / RTF</button>
@@ -12170,7 +12170,7 @@ function renderNoteEditor(n){
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${n.id})">✨ Summarize into bullets</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${n.id})">🏷 Auto-tag</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${n.id})">${_icon('tag',12,'currentColor')} Auto-tag</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${n.id})">🔗 Find related notes</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiGapDetect(${n.id})">🔍 Detect knowledge gaps</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiExpandToDoc(${n.id})">📄 Expand to full doc</button>
@@ -13486,7 +13486,7 @@ function openOpportunityDetail(oppId,opts){
       <button class="btn btn-p" onclick="_saveOpportunityFields(${o.id})">💾 Save changes</button>
       <button class="btn btn-s" style="color:var(--ok);border-color:var(--ok)" onclick="_setOpportunityStage(${o.id},'Closed Won')">🎉 Mark Won</button>
       <button class="btn btn-s" style="color:var(--red);border-color:var(--red)" onclick="_setOpportunityStage(${o.id},'Closed Lost')">✕ Mark Lost</button>
-      <button class="btn btn-d" style="margin-left:auto" onclick="_deleteOpportunity(${o.id})">🗑 Delete</button>
+      <button class="btn btn-d" style="margin-left:auto" onclick="_deleteOpportunity(${o.id})">${_icon('trash',12,'currentColor')} Delete</button>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tasks to win this opportunity (${linkedOpen.length})</div>
     ${linkedOpen.length?linkedOpen.map(taskRow).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0;font-style:italic">No active tasks linked yet — click below to add one.</p>'}
@@ -20131,7 +20131,7 @@ function renderIdeaDetail(idea){
           <div style="display:flex;gap:4px;flex-wrap:wrap">
             <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'validate')">✅ Validate</button>
             <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'premortem')">💥 Pre-mortem</button>
-            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'expand')">📝 Expand</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
             <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'competitors')">🔭 Competitors</button>
           </div>
           <div id="idea-detail-ai-result-${idea.id}" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
