@@ -2754,7 +2754,7 @@ function _renderNoteDeepInsight(noteId, insight){
   const cachedAge = insight.cachedAt ? Math.round((Date.now() - new Date(insight.cachedAt).getTime()) / 60000) : 0;
   host.innerHTML = `<div style="padding:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">🧠 AI Deep Insight</div>
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">${_icon('brain',16,'currentColor')} AI Deep Insight</div>
       <div style="display:flex;gap:6px;align-items:center;font-size:9px;color:var(--t3)">
         ${cachedAge<60?`${cachedAge}m ago`:`${Math.round(cachedAge/60)}h ago`}
         <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="aiNoteDeepInsight(${noteId},{force:true})" title="Regenerate">↻</button>
@@ -2762,11 +2762,11 @@ function _renderNoteDeepInsight(noteId, insight){
     </div>
     ${insight.summary?`<div style="padding:8px 10px;background:var(--s2);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px;font-size:12px;line-height:1.5;font-style:italic">${esc(insight.summary)}</div>`:''}
     ${insight.keyPoints && insight.keyPoints.length?`<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">🎯 Key points</div>
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('target',14,'currentColor')} Key points</div>
       <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">${insight.keyPoints.map(k=>`<li>${esc(k)}</li>`).join('')}</ul>
     </div>`:''}
     ${insight.actionItems && insight.actionItems.length?`<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">⚡ Suggested action items</div>
+      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('zap',14,'currentColor')} Suggested action items</div>
       <div style="display:flex;flex-direction:column;gap:4px">${insight.actionItems.map((a,i)=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:6px 8px;background:var(--s2);border-radius:4px;font-size:11px">
         <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px;flex-shrink:0;background:#16a34a;color:#fff;border-color:#15803d" onclick="_aiInsightCreateTask(${noteId},${i})" title="Create as task linked to this note">+ Task</button>
         <div style="flex:1"><div style="color:var(--t1);font-weight:500">${esc(a.title)}</div>${a.why?`<div style="color:var(--t3);font-size:10px;margin-top:2px">${esc(a.why)}</div>`:''}</div>
@@ -2793,7 +2793,7 @@ function _openNoteInsightPanel(noteId){
   side.id = 'note-insight-side';
   side.style.cssText = 'position:fixed;top:56px;right:0;width:380px;max-width:95vw;height:calc(100vh - 56px);background:var(--s1);border-left:1px solid var(--bd2);box-shadow:-4px 0 20px rgba(0,0,0,0.25);z-index:200;overflow-y:auto;padding:14px;display:flex;flex-direction:column;animation:slideInRight 200ms ease-out';
   side.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
-    <div style="font-size:13px;font-weight:600;color:var(--t1)">🧠 Deep Insight</div>
+    <div style="font-size:13px;font-weight:600;color:var(--t1)">${_icon('brain',15,'currentColor')} Deep Insight</div>
     <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 6px" onclick="document.getElementById('note-insight-side')?.remove()" title="Close">✕</button>
   </div>
   <div id="note-ai-insight-panel" style="flex:1"></div>`;
@@ -3476,7 +3476,7 @@ function renderDrawer(type,item){
       </div>`;
     }).join('');
     const doneCount=subs.filter(s=>s.done).length;
-    return `<h2>📋 Edit Task ${pinBtn('task',item.id)}${cb}</h2>
+    return `<h2>${_icon('list',18,'currentColor')} Edit Task ${pinBtn('task',item.id)}${cb}</h2>
     <div class="field-row" style="align-items:flex-end">
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
       <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
@@ -3703,7 +3703,7 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='goal'){
-    return `<h2>🎯 Edit Goal ${pinBtn('goal',item.id)}${cb}</h2>
+    return `<h2>${_icon('target',18,'currentColor')} Edit Goal ${pinBtn('goal',item.id)}${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field-row">
       <div class="field"><label>Icon</label>${_iconPickBtn('dr-icon',item.icon||'🎯','Pick…')}</div>
@@ -3745,7 +3745,7 @@ function renderDrawer(type,item){
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='journal'){
-    return `<h2>✏️ Edit Journal Entry ${cb}</h2>
+    return `<h2>${_icon('edit',18,'currentColor')} Edit Journal Entry ${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
     <div class="field"><label>Date</label><input class="inp" value="${esc(item.date)}" id="dr-date"></div>
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
@@ -4297,7 +4297,7 @@ function renderCaptureModal(active){
   const footer=`<div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn btn-s" onclick="closeModal()">Cancel</button><button class="btn btn-p" onclick="doCapture()">Save ${active}</button></div>`;
   const titleField=`<div class="field"><label>Title</label><input class="inp" placeholder="${active==='Task'?'What needs to be done?':active==='Note'?'Note title...':active==='Project'?'Project name...':active==='Goal'?'Goal title...':'Journal entry title...'}" id="cap-title"></div>`;
   if(active==='Task'){
-    return `<h2>⚡ Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    return `<h2>${_icon('zap',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div class="field"><label>Notes</label><textarea class="inp" placeholder="Add details..." id="cap-body"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="field"><label>Priority</label><select class="inp" id="cap-pri"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
@@ -4306,14 +4306,14 @@ function renderCaptureModal(active){
     <div class="field"><label>Context</label>${_renderContextSelect('cap-ctx','Inbox')}</div></div>${footer}`;
   }
   if(active==='Note'){
-    return `<h2>📝 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    return `<h2>${_icon('edit',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:100px" placeholder="Write your note..." id="cap-body"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="field"><label>Tags (comma separated)</label><input class="inp" placeholder="tag1, tag2" id="cap-tags"></div>
     <div class="field"><label>Source</label><select class="inp" id="cap-source"><option>Manual</option><option>Meeting Notes</option><option>Web Clipper</option><option>Quick Capture</option></select></div></div>${footer}`;
   }
   if(active==='Project'){
-    return `<h2>📁 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    return `<h2>${_icon('folder',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div class="field"><label>Description</label><textarea class="inp" placeholder="What is this project about?" id="cap-body"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
     <div class="field"><label>Due Date</label><input class="inp" type="date" id="cap-due"></div>
@@ -4321,7 +4321,7 @@ function renderCaptureModal(active){
     <div class="field"><label>Color</label><input type="color" class="inp" id="cap-color" value="#3B82F6" style="height:32px;cursor:pointer"></div></div>${footer}`;
   }
   if(active==='Goal'){
-    return `<h2>🎯 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    return `<h2>${_icon('target',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="field"><label>Icon</label>${_iconPickBtn('cap-icon','🎯','Pick…')}</div>
     <div class="field"><label>Target description</label><input class="inp" placeholder="e.g. 5 of 12 done" id="cap-target"></div></div>${footer}`;
@@ -4332,7 +4332,7 @@ function renderCaptureModal(active){
     <div class="field"><label>Mood</label><div style="display:flex;gap:8px;margin-top:4px">${['😊','🙂','😐','😫','😰'].map(mo=>`<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:6px" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';document.getElementById('cap-mood').value='${mo}'">${mo}</span>`).join('')}</div><input type="hidden" id="cap-mood" value="😊"></div>${footer}`;
   }
   if(active==='Idea'){
-    return `<h2>💡 Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
+    return `<h2>${_icon('lightbulb',18,'currentColor')} Quick Capture <button class="close" onclick="closeModal()">✕</button></h2>${tabBar}${titleField}
     <div class="field"><label>One-line description</label><input class="inp" placeholder="In one sentence…" id="cap-body"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div class="field"><label>Idea type</label><select class="inp" id="cap-idea-type">${Object.entries(IDEA_TYPE_LABELS).map(([k,v])=>`<option value="${k}">${IDEA_TYPE_ICONS[k]} ${v}</option>`).join('')}</select></div>
@@ -5591,7 +5591,7 @@ function _renderCapacityIndicator(check, opts){
   }
   return `<div class="cd" style="padding:11px 14px;border-left:3px solid ${color};margin-bottom:10px;cursor:pointer" onclick="_openCapacityDetail()" title="Click for details">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <div style="font-size:12px;font-weight:600">📊 Today's Capacity</div>
+      <div style="font-size:12px;font-weight:600">${_icon('barChart',16,'currentColor')} Today's Capacity</div>
       <div style="font-size:11px;color:${color};font-weight:600">${verdict}</div>
     </div>
     <div style="display:flex;gap:14px;font-size:11px;color:var(--t2);margin-top:6px;flex-wrap:wrap">
@@ -5794,7 +5794,7 @@ function _renderSmartScheduleModal(record){
   const ago=_relTime(record.generatedAt);
   m.innerHTML=`<div style="padding:16px;max-width:640px;max-height:80vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-      <h2 style="font-size:15px;font-weight:650;margin:0">🧠 Today's Plan</h2>
+      <h2 style="font-size:15px;font-weight:650;margin:0">${_icon('brain',16,'currentColor')} Today's Plan</h2>
       <span style="font-size:10px;color:var(--t3)">Generated ${esc(ago)}</span>
     </div>
     ${record.summary?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--ac) 10%,transparent);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px">"${esc(record.summary)}"</div>`:''}
@@ -9414,7 +9414,7 @@ function _renderDailyCommandCenterCard(){
   };
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="font-size:12px;font-weight:600">🎯 Today's Command Center</span>
+      <span style="font-size:12px;font-weight:600">${_icon('target',16,'currentColor')} Today's Command Center</span>
       <button class="btn btn-s" style="font-size:9px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh CF + LSI">↻</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
@@ -12168,7 +12168,7 @@ function renderNoteEditor(n){
       <div style="position:relative;display:inline-block">
         <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">🧠 Deep Insight panel</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${n.id})">✨ Summarize into bullets</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${n.id})">🏷 Auto-tag</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${n.id})">🔗 Find related notes</button>
