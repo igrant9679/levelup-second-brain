@@ -1762,7 +1762,7 @@ function _renderAddSmartsheetWatchModal(sheets){
         <input id="ext-ss-exclude" class="inp" style="width:100%;font-size:11px" placeholder="(blank — pull all, completion syncs via completedAt)">
       </div>
       <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-        <div style="font-size:11px;font-weight:600;margin-bottom:4px">📁 Mirror as LevelUp project</div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">${_icon('folder',13,'currentColor')} Mirror as LevelUp project</div>
         <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every row pulled from this sheet to a LevelUp project so it appears on the Projects page + roll-ups.</div>
         <select id="ext-ss-project" class="inp" style="width:100%;font-size:11px">
           <option value="__new__">+ Create new project from this sheet</option>
@@ -2033,7 +2033,7 @@ function _renderAddNiftyWatchModal(projects){
     <input id="ext-nf-label" class="inp" style="width:100%;font-size:11px;margin-bottom:8px" placeholder="LSI: Q3 Launch">
     <label style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:8px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-      <div style="font-size:11px;font-weight:600;margin-bottom:4px">📁 Mirror as LevelUp project</div>
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px">${_icon('folder',13,'currentColor')} Mirror as LevelUp project</div>
       <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every Nifty task pulled to a LevelUp project.</div>
       <select id="ext-nf-project-map" class="inp" style="width:100%;font-size:11px">
         <option value="__new__">+ Create new project from this Nifty project</option>
@@ -5043,7 +5043,7 @@ function renderFANote(){
 function renderFAProject(){
   return`
   <div class="fa-section">
-    <div class="fa-section-title">📁 Core Details</div>
+    <div class="fa-section-title">${_icon('folder',14,'currentColor')} Core Details</div>
     <div class="fa-field" style="margin-bottom:10px">
       <label>Project Name <span style="color:var(--red)">*</span></label>
       <input class="fa-inp" id="fa-title" placeholder="Project name...">
@@ -10643,7 +10643,7 @@ function mmRenderSidePanel(){
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmAddChild(${node.id})">+ Child</button>
         <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToTask(${node.id})">📋 Task</button>
-        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToProject(${node.id})">📁 Project</button>
+        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToProject(${node.id})">${_icon('folder',13,'currentColor')} Project</button>
         <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToNote(${node.id})">📝 Note</button>
         <button class="btn btn-d" style="font-size:10px;height:24px;flex:1" onclick="mmDeleteNode(${node.id})">🗑 Delete</button>
       </div>
@@ -10668,7 +10668,7 @@ function mmNodeContext(e, id){
   ctx.innerHTML = `
     <div style="padding:6px 10px;font-size:11px;font-weight:600;color:var(--t3);border-bottom:1px solid var(--bd1)">Node: ${esc(node.text)}</div>
     <div class="mm-ctx-item" onclick="mmConvertToTask(${id})">📋 Create Task</div>
-    <div class="mm-ctx-item" onclick="mmConvertToProject(${id})">📁 Create Project</div>
+    <div class="mm-ctx-item" onclick="mmConvertToProject(${id})">${_icon('folder',13,'currentColor')} Create Project</div>
     <div class="mm-ctx-item" onclick="mmConvertToNote(${id})">📝 Create Note</div>
     <div style="border-top:1px solid var(--bd1);margin:2px 0"></div>
     <div class="mm-ctx-item" onclick="mmEditNode(${id})">✏ Edit Text</div>
