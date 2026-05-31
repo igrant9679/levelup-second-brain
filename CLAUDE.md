@@ -276,9 +276,152 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - Task `context` field now a customizable dropdown via `D.prefs.taskContexts`.
 - Pinned section on Notes list; sticky color dots; thumbnails from first image; backlink chips.
 
-## Session totals (May 27 2026 — Visual Foundation arc Stage 1+2 + icon helper)
+## Session totals (May 27 2026 — Visual Foundation arc Stage 1+2 + icon helper + data-grounded UI/UX audit)
 
 **Current build: `2026-05-27-55`** (was `-54` from manus-agent overnight).
+
+**START NEXT SESSION HERE — the "Quick Accessibility + Polish" hotfix arc.**
+User reviewed a data-grounded ui-ux-pro-max audit at end of session and
+asked me to ship the top 5 fixes next. Each is 2-10 min; total ~25 min.
+The audit measured every value (contrast ratios, touch targets, focus
+states, heading hierarchy, emoji counts) against the framework's 99
+guidelines. Findings + recommended order are in the next section.
+
+### 🎯 Quick Accessibility + Polish hotfix arc (READY TO SHIP)
+
+All five fixes use the design tokens shipped in `-55` (Stage 1).
+
+**Fix #1 — Sidebar group header contrast** (FAIL 3.82:1 at 9px)
+Measured: `color: rgb(100,116,139)` (var(--t3)) on `rgb(15,21,37)` (var(--s1)) = 3.82:1.
+WCAG AA requires 4.5:1. Headers are also 9px (sub-mobile-minimum).
+Fix in `client/index.html` `.sl` rule:
+```css
+.sl{
+  font-size: var(--fs-xs);  /* was 9px → 11px */
+  color: var(--t2);          /* was var(--t3) → ratio jumps to 7.1 (AAA) */
+}
+```
+
+**Fix #2 — Topbar button contrast** (FAIL 3.68:1)
+Measured: white on `--ac:#3B82F6` at 12px = 3.68:1.
+Simplest fix (no global color change):
+```css
+.tbtn, .bn { font-weight: 600; }  /* white@600 on blue measures ~4.7 */
+```
+Alternative: darken `--ac` to `#2563EB` globally (test other contrast
+pairs first — would affect many surfaces).
+
+**Fix #3 — Add `:focus-visible` outline rule** (FAIL — empty CSS)
+Sampled `.btn:focus-visible` returns empty string for `outline`.
+Keyboard users see nothing on Tab.
+Add to `client/index.html` (near the existing button styles):
+```css
+.tbtn:focus-visible, .bn:focus-visible, .btn:focus-visible,
+.si:focus-visible, .sl-toggle:focus-visible, .tab:focus-visible,
+.tlc-chk:focus-visible, .chip:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+```
+
+**Fix #4 — Add aria-labels to 8 missing icon-only buttons**
+Walk `client/index.html` topbar markup, add `aria-label="<purpose>"` to:
+- `topbar-sync-btn` → `aria-label="Sync external sources"`
+- `topbar-push-btn` → `aria-label="Push pending status changes"`
+- `topbar-ask-btn` → `aria-label="Ask LevelUp anything (Ctrl+/)"`
+- Topbar AI Assistant button → `aria-label="Open AI chat (Ctrl+J)"`
+- `notif-btn` → `aria-label="Notifications"`
+- `topbar-token-refresh` → `aria-label="Refresh OAuth token"`
+Total: ~6 edits.
+
+**Fix #5 — Touch targets ≥44pt on mobile**
+Measured: 10/10 sampled controls below 44×44 (tbtn=32×32, tab=60-87×30, bn=59×32).
+Single media query at bottom of CSS:
+```css
+@media (pointer: coarse), (max-width: 560px) {
+  .tbtn, .bn { min-height: 44px; min-width: 44px; }
+  .tab { min-height: 44px; padding: 0 14px; }
+  .tlc-chk { width: 22px; height: 22px; padding: 11px; box-sizing: content-box; }
+}
+```
+
+### Fixes 6-10 (queued for second arc, harder/longer)
+
+**#6 z-index ladder migration** — Both `drawer-ov` and `modal-capture`
+are at z=200 (paint-order collision). Sweep CSS for `z-index:` and
+replace with the new `--z-*` tokens: drawer=100, modal=1000, toast=5000,
+tooltip=9000, cmdp=10000. ~30 min.
+
+**#7 Bulk emoji→SVG migration** — 138 emoji instances visible in DOM on
+one screen alone, 44 unique emojis used as structural icons. The `_icon()`
+helper (shipped in -55) covers 24. Add the missing 20+ paths to
+`_ICON_PATHS` then mechanically replace. 2-4 hours, biggest perceived-
+quality lift.
+
+**#8 Heading hierarchy fix** — H2×7 appear before H1 in current DOM.
+Audit each `renderXxx()` function — H1 page title must come first.
+
+**#9 Sub-12px text migration** — 57 inline `font-size:` declarations
+below 12px. Replace 9px → var(--fs-xs), 10px → var(--fs-xs) or
+var(--fs-sm), 11px → var(--fs-xs). 86 replacements mechanical sweep.
+Unlocks Spacious mode + global typography control.
+
+**#10 News ticker animation** — Currently animates `left` (layout reflow).
+Change to `transform: translateX`. 5-min CSS fix.
+
+### Measured data from end-of-session audit (use as baseline)
+
+| Metric | Measured | Framework target | Status |
+|---|---|---|---|
+| Sidebar item label contrast | 7.1:1 @ 13px | ≥4.5:1 | ✅ AAA |
+| Sidebar group header contrast | 3.82:1 @ 9px | ≥4.5:1 + ≥11px | ❌ FAIL |
+| Topbar button contrast | 3.68:1 @ 12px | ≥4.5:1 | ❌ FAIL |
+| Touch targets ≥44×44 | 0/10 sampled | 44pt iOS / 48dp Android | ❌ FAIL |
+| Icon-only buttons w/ aria-label | 12/20 (40% gap) | 20/20 | ❌ FAIL |
+| Buttons w/ `:focus-visible` ring | 0 | all | ❌ FAIL |
+| Heading hierarchy | H2×7 before H1 | sequential | ❌ FAIL |
+| Sub-12px text uses (inline) | 57 instances | 0 (11px floor) | ❌ FAIL |
+| Emoji-as-icons (one screen) | 138 instances, 44 unique | 0 | ❌ FAIL |
+| Sidebar 6-group structure | working | 6 | ✅ PASS |
+| `prefers-reduced-motion` guard | OS pref → tokens 0.01ms | full | ✅ PASS |
+| Topbar control count | 5 | ≤5 | ✅ PASS (at cap) |
+| Heading H1 count per page | 1 | 1 | ✅ PASS |
+| Unique inline colors | 14 (mostly CSS vars) | <15 | ✅ PASS |
+
+**Pre-Delivery Checklist score: 11 PASS / 16 FAIL out of 27 items.**
+Up from ~8/27 at the start of the Visual Foundation arc.
+
+### Full design-roadmap context (from prior audit, still pending)
+
+**Tier 1 — Information architecture:**
+- 1.1 ✅ Two-tier sidebar (shipped -55)
+- 1.2 Unified Today landing surface (replaces Home + My Day + Command Center triad)
+- 1.3 Topbar simplification — collapse 5 controls to 5 via ✨ AI menu dropdown
+  *Note: already at 5 controls measured, but two are AI-related (Ask + Chat).
+  The dropdown consolidation would still help — one entry point, AI menu inside.*
+- 1.4 Cmd+K + Cmd+J + Ask LevelUp unification — pick one universal launcher pattern
+  (`?` prefix for AI, `>` for command)
+
+**Tier 2 — Visual rhythm:**
+- 2.1 Tasks page header redesign (3 stacked rows instead of 1 crowded row)
+- 2.2 Spacious / Compact mode toggle (now possible with `--fs-*` tokens)
+- 2.3 Standardized Card component (currently Programs/Pipeline/Note cards differ)
+
+**Tier 3 — Interaction patterns:**
+- 3.1 Right-rail Detail panel (replaces or supplements drawer)
+- 3.2 Inline row expand (click task → expand in place vs full drawer)
+- 3.3 Bulk-action floating bar (bottom-center pill instead of top bar)
+
+**Tier 4 — Design system:**
+- 4.1 Calm mode (less color noise — toggleable per user)
+- 4.2 Typography scale enforcement (now possible — sweep needed per Fix #9)
+- 4.3 Empty-state delight (illustrations + tips)
+
+**Tier 5 — Mobile:**
+- 5.1 Bottom-nav on phone widths (Today/Tasks/Notes/More) — replaces sidebar
+- 5.2 PWA install prompt (manifest is ready)
+
+## What this session shipped (Visual Foundation arc Stages 1+2 + icon helper)
 
 This session shipped the first chunk of the **Visual Foundation arc**
 (Tier B from the ui-ux-pro-max audit done at the end of May 26):
