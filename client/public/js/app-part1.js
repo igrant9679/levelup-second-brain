@@ -9126,11 +9126,11 @@ function renderTaskRailHTML(){
       const pMax=Math.max(...Object.values(pCounts),1);
       const pColors={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
       const bars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⚡ Active by Priority</div>${active.length?bars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}</div>`;
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('zap',14,'currentColor')} Active by Priority</div>${active.length?bars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}</div>`;
     })(),
     todaySchedule:(()=>{
       const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:9px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No meetings today.</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">📅 Today's Schedule</div><div style="font-size:9px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">${_icon('calendar',14,'currentColor')} Today's Schedule</div><div style="font-size:9px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
     })(),
     topOverdue:(()=>{
       const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:9px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
@@ -9144,7 +9144,7 @@ function renderTaskRailHTML(){
     goalsSnapshot:(()=>{
       const gs=(D.goals||[]).slice(0,5);
       const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No goals yet.</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🎯 Goals Snapshot</div>${body}</div>`;
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('target',14,'currentColor')} Goals Snapshot</div>${body}</div>`;
     })(),
     projectVelocity:(()=>{
       const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkKey=wkStart.toISOString().slice(0,10);
@@ -9160,7 +9160,7 @@ function renderTaskRailHTML(){
       const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15);
       const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
       const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${esc(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No tags yet.</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🏷 Top Tags</div>${body}</div>`;
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('tag',14,'currentColor')} Top Tags</div>${body}</div>`;
     })(),
     recentActivity:(()=>{
       const recent=[];
@@ -9198,7 +9198,7 @@ function renderTaskRailHTML(){
   // per-user setup once Smartsheet/Nifty is wired in Settings).
   const externalWidget=_renderExternalTasksRailWidget();
   return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div style="font-size:13px;font-weight:700">📊 Insights</div>
+    <div style="font-size:13px;font-weight:700">${_icon('barChart',14,'currentColor')} Insights</div>
     <button class="btn btn-s" style="font-size:9px;padding:0 8px;height:22px" onclick="openTaskRailCustomize()">⚙ Customize</button>
   </div>${externalWidget}${visibleHTML}`;
 }
@@ -10128,13 +10128,13 @@ function _populateMailRail(){
   const senders={};inbox.slice(0,200).forEach(m=>{const f=m.fromName||m.from||m.fromEmail||'(unknown)';senders[f]=(senders[f]||0)+1;});
   const topSenders=Object.entries(senders).sort((a,b)=>b[1]-a[1]).slice(0,5);
   r.innerHTML=`
-  <div style="font-size:13px;font-weight:700;margin-bottom:10px">📊 Inbox at a glance</div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('barChart',14,'currentColor')} Inbox at a glance</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${inbox.length}</div><div style="font-size:9px;color:var(--t3)">Total</div></div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${unread?'var(--warn)':'var(--ok)'}">${unread}</div><div style="font-size:9px;color:var(--t3)">Unread</div></div>
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
-    <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Today's events</div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Today's events</div>
     ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="nav('cal')"><span style="font-size:9px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events today.</div>'}
   </div>
   ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:10px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:9px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
@@ -10151,13 +10151,13 @@ function _populateCalRail(){
   const upcoming=[];
   for(let i=0;i<7&&upcoming.length<6;i++){const d=new Date();d.setDate(d.getDate()+i);_calEventsOn(d).forEach(e=>{if(upcoming.length<6)upcoming.push({e,dateLabel:_ymd(d).slice(5)});});}
   r.innerHTML=`
-  <div style="font-size:13px;font-weight:700;margin-bottom:10px">📋 Today + 7 days</div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('list',14,'currentColor')} Today + 7 days</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">✓ Tasks for today</div>
     ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority||'M'}</span><span class="rt" style="font-size:10px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Nothing scheduled.</div>'}
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
-    <div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 Upcoming events</div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Upcoming events</div>
     ${upcoming.length?upcoming.map(o=>`<div class="lr" style="padding:4px 0;font-size:10px"><span style="width:54px;flex-shrink:0;font-size:9px;color:var(--t3)">${esc(o.dateLabel)} ${esc(_calEventTimeLabel(o.e))}</span><span class="rt" style="font-size:10px">${esc(o.e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events in the next 7 days.</div>'}
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
@@ -12308,7 +12308,7 @@ function _renderProjRail(){
   const due30=ps.filter(p=>{if(!p.due)return false;const d=Date.parse(p.due);if(isNaN(d))return false;const days=Math.ceil((d-Date.now())/86400000);return days>=0&&days<=30;}).sort((a,b)=>Date.parse(a.due)-Date.parse(b.due)).slice(0,6);
   const recentTasks=D.tasks.filter(t=>t.projectId&&t.completedAt).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||'')).slice(0,5);
   r.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <div style="font-size:13px;font-weight:700">📊 Insights</div>
+    <div style="font-size:13px;font-weight:700">${_icon('barChart',14,'currentColor')} Insights</div>
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:8px">Health</div>
@@ -21868,7 +21868,7 @@ function renderCoach(){
   ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:10px;color:var(--t3)">All tasks done! 🎉</p>')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">✅ Habit Check-In</div>
   ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:9px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
-  <div style="font-size:12px;font-weight:600;margin:12px 0 6px">🎯 Goals Snapshot</div>
+  <div style="font-size:12px;font-weight:600;margin:12px 0 6px">${_icon('target',14,'currentColor')} Goals Snapshot</div>
   ${D.goals.slice(0,4).map(g=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span></div><div class="pb"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div></div>`).join('')}
   `;
 }
