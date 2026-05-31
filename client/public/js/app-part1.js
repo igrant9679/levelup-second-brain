@@ -7629,7 +7629,7 @@ function renderTaskList(){
         // the breadcrumb clicks open that project's drawer.
         const projMatch=(D.projects||[]).find(p=>(p.name||'').toLowerCase()===(t._projectLabel||'').toLowerCase());
         const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id===${projMatch.id}))`:`nav('projects')`;
-        breadcrumb=`<span style="font-size:9px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">📁 ${esc((t._projectLabel||'').slice(0,48))}</span>`;
+        breadcrumb=`<span style="font-size:9px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">${_icon('folder',12,'currentColor')} ${esc((t._projectLabel||'').slice(0,48))}</span>`;
       }
       return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
         <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
@@ -7644,7 +7644,7 @@ function renderTaskList(){
             ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'};cursor:pointer" title="Click to change status in source" onclick="event.stopPropagation();_externalSetStatus('${t._source}','${esc(t._externalId)}',event)">${esc(statusLabel)}</span>`:''}
             ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
             ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(String(t.completedAt).slice(0,10))}</span>`:''}
-            ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
+            ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
             ${_extAnnotationChips(t._override)}
           </div>
         </div>
@@ -7703,7 +7703,7 @@ function renderTaskList(){
     const projName=esc(label);
     return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${safe}')" title="Click to ${collapsed?'expand':'collapse'} this project">
       <span style="font-size:13px;color:#1f6feb;width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
-      <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">📁 ${projName}</span>
+      <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">${_icon('folder',12,'currentColor')} ${projName}</span>
       <span style="font-size:10px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
       ${projectId?`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${projectId}))" title="Open this project's LevelUp page">→</button>`:''}
     </div>`;
@@ -7849,7 +7849,7 @@ function renderTaskFocus(){
           ${t.due?`<span class="${od?'tf-od':''}">📅 ${fmtDate(t.due)}</span>`:''}
           ${t.startTime?`<span>⏰ ${esc(t.startTime)}</span>`:''}
           ${t.estimatedMins?`<span>⏱ ${t.estimatedMins}m</span>`:''}
-          ${pn?`<span>📁 ${esc(pn)}</span>`:''}
+          ${pn?`<span>${_icon('folder',12,'currentColor')} ${esc(pn)}</span>`:''}
           ${(t.subtasks||[]).length?`<span>☑ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length}</span>`:''}
         </div>
       </div>
@@ -8068,7 +8068,7 @@ function renderTaskBoard(){
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
-           ${t.due?`<span style="font-size:9px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">📁 ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
+           ${t.due?`<span style="font-size:9px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:9px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:9px;color:var(--red);font-weight:600">🔒</span>`:''}
           ${t.assignedTo?`<span style="font-size:9px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
           ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
@@ -8093,7 +8093,7 @@ function renderTaskBoard(){
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:9px;color:var(--t3)">
           ${et.status?`<span>${esc(et.status)}</span>`:''}
           ${due?`<span>📅 ${fmtDate(due)}</span>`:''}
-          ${et.projectLabel?`<span>📁 ${esc(et.projectLabel)}</span>`:''}
+          ${et.projectLabel?`<span>${_icon('folder',12,'currentColor')} ${esc(et.projectLabel)}</span>`:''}
           ${_extAnnotationChips(et.override)}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
@@ -8172,7 +8172,7 @@ function renderTaskMatrix(){
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
             <span class="pill ${pillClass(pri)}" style="font-size:8px">${pri}</span>
             ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
-            ${t.projectLabel?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.projectLabel)}</span>`:''}
+            ${t.projectLabel?`<span style="font-size:9px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.projectLabel)}</span>`:''}
             ${_extAnnotationChips(t.override)}
             <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px;margin-left:auto" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
             <button class="btn btn-s" style="height:16px;font-size:8px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
@@ -8184,7 +8184,7 @@ function renderTaskMatrix(){
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
           <span style="font-size:9px;color:var(--t3)">${t.estimatedMins||30}m</span>
-          ${t.project?`<span style="font-size:9px;color:var(--t3)">📁 ${esc(t.project)}</span>`:''}
+          ${t.project?`<span style="font-size:9px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span style="font-size:9px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
           ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:9px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
@@ -11586,7 +11586,7 @@ function renderNotes(){
     return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:9px;color:var(--t3)">${sf.count}</span></div>`).join('');
   })()}
   <div style="font-size:9px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
-    <span>📁 Folders</span>
+    <span>${_icon('folder',12,'currentColor')} Folders</span>
     <span style="cursor:pointer;color:var(--ac);font-size:13px;font-weight:700;padding:0 3px;line-height:1" onclick="addNoteFolder(null)" title="New top-level folder">+</span>
   </div>
   ${(()=>{
@@ -14311,7 +14311,7 @@ function renderProjectsTeamKanban(header){
         <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
         <div style="display:flex;gap:6px;font-size:9px;color:var(--t3)">
           <span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span>
-          ${t.project?`<span>📁 ${esc(t.project)}</span>`:''}
+          ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span>📅 ${fmtDate(t.due)}</span>`:''}        </div>
         ${(t.subtasks||[]).length?`<div style="font-size:9px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
       </div>`).join('')}
