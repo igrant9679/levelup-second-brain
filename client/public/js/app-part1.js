@@ -7671,7 +7671,7 @@ function renderTaskList(){
           <div style="font-size:9px">${_extSourceBadge(t._source)}</div>
         </div>
         <div class="tlc-body">
-          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''} ${breadcrumb}</div>
+          <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''} ${breadcrumb}</div>
           ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
           <div class="tlc-m">
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
@@ -7687,7 +7687,7 @@ function renderTaskList(){
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Annotate" onclick="event.stopPropagation();_openExternalAnnotateModal('${t._source}','${esc(t._externalId)}')">✎</button>
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="event.stopPropagation();_toggleExternalMyDay('${t._source}','${esc(t._externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         </div>
-        <a href="${esc(url)}" target="_blank" rel="noopener" class="tlc-go" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none" title="Open in source">↗</a>
+        <a ${_extOpenAttrs(url)} class="tlc-go" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none" title="Open in source">↗</a>
       </div>`;
     }
     const proj=findProject(t);
@@ -8045,7 +8045,7 @@ function renderTaskCards(){
         ${c.project?`<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.project)}</span>`:''}
         ${c.assignedTo?`<span style="flex-shrink:0">· 👤 ${esc(c.assignedTo.split(' ')[0])}</span>`:''}
         <span style="flex:1"></span>
-        <a href="${esc(et.externalUrl||'#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none;font-size:11px" title="Open in source">↗</a>
+        <a ${_extOpenAttrs(et.externalUrl)} onclick="event.stopPropagation()" style="color:var(--t3);text-decoration:none;font-size:11px" title="Open in source">↗</a>
       </div>
     </div>`;
   }
@@ -8122,7 +8122,7 @@ function renderTaskBoard(){
       return `<div style="background:var(--s2);border:1px dashed var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
           ${_extSourceBadge(et.source)}
-          <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${et.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:11px;font-weight:500;line-height:1.3;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(et.title)}</a>
+          <a ${_extOpenAttrs(url)} title="Open in ${et.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:11px;font-weight:500;line-height:1.3;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(et.title)}</a>
         </div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:9px;color:var(--t3)">
           ${et.status?`<span>${esc(et.status)}</span>`:''}
@@ -8135,7 +8135,7 @@ function renderTaskBoard(){
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${et.source}','${esc(et.externalId)}',event)">⚙ Status</button>
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${et.source}','${esc(et.externalId)}',event)">⏰</button>
           <button class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px" title="Annotate (note, tags, override priority/due)" onclick="_openExternalAnnotateModal('${et.source}','${esc(et.externalId)}')">✎</button>
-          <a href="${esc(url)}" target="_blank" rel="noopener" class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
+          <a ${_extOpenAttrs(url)} class="btn btn-s" style="height:18px;font-size:8px;padding:0 4px;display:inline-flex;align-items:center;text-decoration:none">↗ Open</a>
         </div>
       </div>`;
     }).join('');
@@ -8201,7 +8201,7 @@ function renderTaskMatrix(){
         return `<div class="mtx-card" style="background:var(--s1);border:1px dashed var(--bd2);border-radius:6px;padding:6px 8px;margin-bottom:5px;font-size:11px">
           <div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
             ${_extSourceBadge(t.source)}
-            <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in source" style="flex:1;font-weight:500;color:var(--t1);text-decoration:none;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+            <a ${_extOpenAttrs(url)} title="Open in source" style="flex:1;font-weight:500;color:var(--t1);text-decoration:none;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
           </div>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
             <span class="pill ${pillClass(pri)}" style="font-size:8px">${pri}</span>
@@ -8344,7 +8344,7 @@ function renderTaskGantt(){
     // Today marker offset
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
     const isExt=t._source&&t._source!=='local';
-    const titleClickHandler=isExt?`window.open('${esc(t._url||'#')}','_blank','noopener')`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
+    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t.externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
     const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
@@ -8568,7 +8568,7 @@ function renderTaskCalendar(){
           const url=t._url||'#';
           const badgeColor=t._source==='smartsheet'?'#1f6feb':'#9333ea';
           const badgeText=t._source==='smartsheet'?'CF':'LSI';
-          return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
+          return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
         }
         return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
       }).join('')}
@@ -8800,7 +8800,7 @@ function _renderExternalClusterCards(){
       const hierBadge=depth>0?`<span title="Subtask depth ${depth}" style="font-size:10px;color:var(--t3);margin-right:2px">↳</span>`:'';
       return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px ${indent}px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},${(0.04+depth*0.02).toFixed(2)})">
         ${hierBadge}<span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
-        <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:${depth?400:500};color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
+        <a ${_extOpenAttrs(url)} title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:${depth?400:500};color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
         ${t.status?`<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
         <button class="btn btn-s" style="height:20px;font-size:9px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
@@ -9239,7 +9239,7 @@ function _renderExternalTasksRailWidget(){
     const myDay=t.override&&t.override.myDay;
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:10px">
       ${_extSourceBadge(t.source)}
-      <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      <a ${_extOpenAttrs(url)} title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${_extAnnotationChips(t.override)}
       <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:9px">${dueLabel}</span>
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙</button>
@@ -9609,6 +9609,34 @@ function _externalSnoozeMenu(source,externalId,event){
 // keep a server-side per-user overlay for: My Day flag, local priority,
 // personal note, local tags (comma-separated), local due-date override.
 // This modal edits everything except myDay (which has its own one-click toggle).
+// Anchor attributes for "open external task in source". A real http(s) URL
+// opens in a new tab; a missing URL (e.g. NiftyPM's API returns no per-task
+// web URL) is routed to the in-app detail modal instead of an href="#" link —
+// the latter, combined with target="_blank", was spawning a blank LevelUp Home
+// tab (the "clicking a Nifty task takes me to Home" bug). Takes only the url so
+// it can be dropped into every external-task anchor regardless of the local
+// item variable; the no-url click walks up to the row's data-ext-id/source.
+function _extOpenAttrs(u){
+  if(u && /^https?:\/\//i.test(u)) return `href="${esc(u)}" target="_blank" rel="noopener"`;
+  return `href="javascript:void(0)" onclick="event.preventDefault();event.stopPropagation();_extOpenFromEl(this)"`;
+}
+function _extOpenFromEl(el){
+  if(!el)return;
+  // Cards carry data-ext-id/data-source on the row — use them directly.
+  const row=el.closest&&el.closest('[data-ext-id][data-source]');
+  if(row&&row.dataset.source&&row.dataset.extId){
+    _openExternalAnnotateModal(row.dataset.source,row.dataset.extId);return;
+  }
+  // Board/list rows don't carry data attrs but DO have an annotate (✎) button
+  // wired to _openExternalAnnotateModal — walk up a few levels and reuse it so
+  // the title click opens the detail modal everywhere.
+  let node=el.parentElement,hops=0;
+  while(node&&hops<6){
+    const ann=node.querySelector&&node.querySelector('[onclick*="_openExternalAnnotateModal"]');
+    if(ann){ann.click();return;}
+    node=node.parentElement;hops++;
+  }
+}
 function _openExternalAnnotateModal(source,externalId){
   const et=(D.externalTasks||[]).find(t=>t.source===source&&t.externalId===externalId);
   if(!et){toast({type:'warn',title:'Task not found locally — try refresh'});return;}
@@ -14942,7 +14970,7 @@ function _renderProjectEditTasksSection(pid){
     const url=t.externalUrl||'#';
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px;background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
       ${_extSourceBadge(t.source)}
-      <a href="${esc(url)}" target="_blank" rel="noopener" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      <a ${_extOpenAttrs(url)} style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" title="Unlink from project" onclick="_unlinkExternalFromProjectFromEdit('${t.source}','${esc(t.externalId)}',${pid})">✕</button>
     </div>`;
@@ -15034,7 +15062,7 @@ function _renderLinkedExternalTasksSection(pid){
     const due=ov.localDue||t.due;
     return `<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
       ${_extSourceBadge(t.source)}
-      <a href="${esc(url)}" target="_blank" rel="noopener" title="Open in source" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
+      <a ${_extOpenAttrs(url)} title="Open in source" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${t.status?`<span style="font-size:9px;color:var(--t3)">${esc(t.status)}</span>`:''}
       ${due?`<span style="font-size:10px;color:var(--t3);flex-shrink:0">${due}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 5px" onclick="_unlinkExternalFromProject('${t.source}','${esc(t.externalId)}',${pid})" title="Unlink from this project">✕</button>
