@@ -12748,6 +12748,8 @@ function renderCommandCenter(){
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="refreshExternalTasksNow()">↻ Force sync now</button>
         ${pendingRows.length?`<button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left;color:#f97316;border-color:#f97316" onclick="openPushQueueDrawer()">⬆ Preview push queue (${pendingRows.length})</button>`:''}
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('standup')">📋 Open Standup view</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('clusters')">⬡ Clusters dashboard</button>
+        <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('process')">⚡ Process (GTD)</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('programs')">📊 Portfolio view</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="nav('reports')">📈 Build a widget</button>
         <button class="btn btn-s" style="font-size:11px;justify-content:flex-start;text-align:left" onclick="_openSavedCCViews()" title="Save the current hat + filter set">⭐ Saved views</button>

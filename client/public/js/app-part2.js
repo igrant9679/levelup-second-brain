@@ -3515,6 +3515,7 @@ function _cmdpActions(){
     {id:'nav-ideas',group:'Navigate',icon:'💡',title:'Go to Ideas',run:()=>nav('ideas')},
     {id:'nav-bookmarks',group:'Navigate',icon:'🔖',title:'Go to Bookmarks',run:()=>nav('bookmarks')},
     {id:'nav-graph',group:'Navigate',icon:'🕸',title:'Go to Knowledge Graph',run:()=>nav('graph')},
+    {id:'nav-clusters',group:'Navigate',icon:'⬡',title:'Go to Clusters',run:()=>nav('clusters')},
     {id:'nav-contacts',group:'Navigate',icon:'👤',title:'Go to Contacts',run:()=>nav('contacts')},
     {id:'nav-reports',group:'Navigate',icon:'📊',title:'Go to Reports',run:()=>nav('reports')},
     {id:'nav-focus',group:'Navigate',icon:'⏱',title:'Go to Focus / Pomodoro',run:()=>nav('focus')},
@@ -10129,6 +10130,7 @@ function renderMindmaps(){
     <div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('brain',22,'var(--page-accent)')}Mind Maps</h1>
     <p style="font-size:12px;color:var(--t2)">${(()=>{const ms=D.mindmaps||[];const total=ms.length;const nodes=ms.reduce((s,m)=>s+((m.nodes||[]).length),0);return total?`${total} mind map${total!==1?'s':''}${nodes?` · ${nodes} node${nodes!==1?'s':''}`:''}`:'No mind maps yet — create one to start brainstorming.';})()}</p></div>
     <div style="display:flex;gap:6px">
+      <button class="btn btn-s" onclick="nav('graph')" title="Open the auto-generated Knowledge Graph of your notes &amp; links">Knowledge Graph</button>
       <button class="btn btn-p" onclick="mmCreate()">+ New Mind Map</button>
     </div>
   </div>
