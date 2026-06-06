@@ -46,6 +46,10 @@ export const atlasRouter = router({
             activities: (snap.activities || []).length,
             programs: (snap.programs || []).length,
             taskTemplates: (snap.taskTemplates || []).length,
+            proposals: (snap.proposals || []).length,
+            recruitings: (snap.recruitings || []).length,
+            candidates: (snap.candidates || []).length,
+            reports: (snap.atlasComputed?.reports || []).length,
           };
         } catch { /* swallow parse errors — treat as no snapshot */ }
       }
@@ -91,6 +95,10 @@ export const atlasRouter = router({
         activities: snapshot.activities?.length || 0,
         programs: snapshot.programs?.length || 0,
         taskTemplates: snapshot.taskTemplates?.length || 0,
+        proposals: snapshot.proposals?.length || 0,
+        recruitings: snapshot.recruitings?.length || 0,
+        candidates: snapshot.candidates?.length || 0,
+        reports: snapshot.atlasComputed?.reports?.length || 0,
       },
     };
   }),

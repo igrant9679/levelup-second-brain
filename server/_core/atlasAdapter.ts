@@ -40,6 +40,13 @@ export interface AtlasMember {
   pastClients: string[];
   resumeLink: string;
   attachments: Array<{ id?: string; name: string; url: string; type: string; size?: number }>;
+  // Financial / time-phased (Resource Planning + Capacity mirror)
+  pto?: Array<{ id?: string; start: string; end: string; note?: string }>;
+  furloughDate?: string;
+  allocSchedule?: Array<{ projectId: string; pct: number; start?: string; end?: string }>;
+  costSchedule?: Array<{ from: string; cost?: number; value?: number }>;
+  costEscalator?: { pct: number; from: string; period?: string } | null;
+  oneTimeCosts?: Array<{ month: string; amount: number; label?: string }>;
 }
 
 export interface AtlasDepartment {
@@ -76,6 +83,65 @@ export interface AtlasProject {
   potential: number;
   closeDate: string;
   changeRequested: string;
+  // Scheduling / time-phased revenue
+  startDate?: string;
+  endDate?: string;
+  timeline?: Array<{ start?: string; end?: string; value?: number; note?: string }>;
+  revenueSteps?: Array<{ from: string; value: number }>;
+  revenueEscalator?: { pct: number; from: string; period?: string } | null;
+}
+
+/** Recruiting requisition. */
+export interface AtlasRecruiting {
+  id: string;
+  taskId?: string;
+  title?: string;
+  jdTitle?: string;
+  status?: string;
+  createdAt?: number;
+  createdBy?: string;
+  jdAttachments?: Array<{ id?: string; name: string; url: string }>;
+}
+
+/** Candidate record. */
+export interface AtlasCandidate {
+  id: string;
+  recruitingId?: string;
+  name?: string;
+  salaryK?: number;
+  status?: string;
+  resume?: { id?: string; url?: string };
+  fitStrengths?: string[];
+  fitSummary?: string;
+  clearance?: string;
+  location?: string;
+}
+
+/** A forecast month row from capProjData. */
+export interface AtlasForecastRow {
+  label: string; y: number; m: number;
+  revenue: number; baseRev: number; oppRev: number;
+  projectPayroll: number; otherPayroll: number; overhead: number;
+  cost: number; profit: number; cum: number;
+}
+
+/** Pre-computed bundle baked by the Atlas client's buildAtlasComputed(). */
+export interface AtlasComputed {
+  generatedAt?: string;
+  capacity?: {
+    totals?: Record<string, number>;
+    projects?: Array<{ id: string; name: string; category: string; revenue: number; cost: number; profit: number; margin: number; fte: number }>;
+    forecast?: AtlasForecastRow[];
+    noDate?: number; modeled?: number;
+  };
+  proforma?: { openingCash?: number; debtService?: number; overheadMonthly?: number };
+  resourcePlanning?: {
+    months?: Array<{ label: string; y: number; m: number }>;
+    heatmap?: Array<{ id: string; name: string; dept: string; cells: Array<{ pct: number; byCat?: { project: number; initiative: number; overhead: number; total: number } | null }> }>;
+    availability?: Array<{ id: string; name: string; dept: string; note?: string; firstUnder?: { label: string; pct: number } | null; furlough?: string }>;
+  };
+  reports?: Array<{ key: string; title: string; area: string; financial: boolean; html: string }>;
+  capacityError?: string; proformaError?: string; rpError?: string; reportsError?: string;
 }
 
 export interface AtlasActivity {
@@ -120,6 +186,17 @@ export interface AtlasSnapshot {
   clearances: Array<{ id: string; name: string }>;
   pastProjects: Array<{ id: string; name: string }>;
   pastClients: Array<{ id: string; name: string }>;
+  // Added in the full-parity expansion (version 3):
+  proposals?: any[];
+  companyProfile?: any;
+  corporateCertifications?: any[];
+  recruitings?: AtlasRecruiting[];
+  candidates?: AtlasCandidate[];
+  resumeBank?: any[];
+  proforma?: any;
+  scenarios?: any[];
+  reportTemplates?: any[];
+  atlasComputed?: AtlasComputed | null;
   /** Local-only: populated by pullAtlasSnapshot() with the time of the pull,
    *  separate from `generatedAt` which Atlas stamps. */
   pulledAt?: string;

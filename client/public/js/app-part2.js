@@ -618,7 +618,7 @@ function renderSettingsHTML(){
        Hydrated by _hydrateAtlasPanel() after the settings page mounts. -->
   <div id="atlas-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗺 Atlas — CFResourcePlanner mirror</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
+    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, proposals, recruiting, resource planning, capacity, proforma, reports, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:9px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
     <div id="atlas-panel-body" style="font-size:11px;color:var(--t2)">Loading…</div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
       <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
@@ -11268,6 +11268,12 @@ function renderAtlas(){
     {k:'cls',l:'Classification',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).filter(m=>m.sme||m.hub||m.associate||m.proposal||m.recruiter).length,0)},
     {k:'coe',l:'COE Plan',cnt:(snap.activities||[]).filter(a=>(a.kind||'coe')==='coe').length},
     {k:'ptask',l:'Project Tasks',cnt:(snap.activities||[]).filter(a=>a.kind==='project').length},
+    {k:'recruit',l:'Recruiting',cnt:(snap.recruitings||[]).length},
+    {k:'pplan',l:'Resource Planning',cnt:((snap.atlasComputed&&snap.atlasComputed.resourcePlanning&&snap.atlasComputed.resourcePlanning.heatmap)||[]).length},
+    {k:'cap',l:'Capacity',cnt:((snap.atlasComputed&&snap.atlasComputed.capacity&&snap.atlasComputed.capacity.projects)||[]).length},
+    {k:'proforma',l:'Proforma',cnt:(snap.proforma?(((snap.proforma.scenarios)||[]).length||'·'):0)},
+    {k:'reports',l:'Reports',cnt:((snap.atlasComputed&&snap.atlasComputed.reports)||[]).length},
+    {k:'pto',l:'PTO',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).reduce((s2,m)=>s2+((m.pto||[]).length?1:0),0),0)},
   ];
   const synced=snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'unknown';
   const tabBtn=t=>`<button class="btn btn-s" onclick="_atlasView='${t.k}';renderAtlas()" style="${_atlasView===t.k?'background:var(--ac);color:#fff;border-color:var(--ac);':''}">${t.l} <span style="opacity:.65">·${t.cnt}</span></button>`;
@@ -11292,6 +11298,12 @@ function renderAtlas(){
   else if(_atlasView==='cls')body=_atlasClassificationHTML(snap);
   else if(_atlasView==='coe')body=_atlasActivitiesHTML(snap,'coe');
   else if(_atlasView==='ptask')body=_atlasActivitiesHTML(snap,'project');
+  else if(_atlasView==='recruit')body=_atlasRecruitingHTML(snap);
+  else if(_atlasView==='pplan')body=_atlasResourcePlanningHTML(snap);
+  else if(_atlasView==='cap')body=_atlasCapacityHTML(snap);
+  else if(_atlasView==='proforma')body=_atlasProformaHTML(snap);
+  else if(_atlasView==='reports')body=_atlasReportsHTML(snap);
+  else if(_atlasView==='pto')body=_atlasPTOHTML(snap);
   m.innerHTML=header+tabBar+body;
   // Right rail: simple summary
   const r=document.getElementById('atlas-rail');
@@ -11524,6 +11536,181 @@ function _atlasRailHTML(snap){
     <div style="margin-top:10px;font-size:10px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
     <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:11px;color:var(--ac);text-decoration:none">Open Atlas ↗</a>
   </div>`;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATLAS — full-parity pages (Recruiting / Resource Planning / Capacity /
+   Proforma / Reports / PTO). Computed pages read snap.atlasComputed, which
+   Atlas bakes via buildAtlasComputed(). Reports render Atlas's own HTML.
+   ════════════════════════════════════════════════════════════════════════ */
+function _atlasAllocColor(p){if(p>100)return '#dc2626';if(p>=85)return '#d97706';if(p>0)return '#2d6a4f';return '#94a3b8';}
+function _atlasComputedEmpty(err){
+  return `<div class="cd" style="padding:24px;text-align:center;color:var(--t2)">
+    <div style="font-size:13px;margin-bottom:6px">No pre-computed data yet.</div>
+    <div style="font-size:11px;color:var(--t3);max-width:460px;margin:0 auto 12px">This page mirrors Atlas's computed forecast/reports. Open the Atlas app once (it bakes the data on load), then click Refresh here to pull it.${err?'<br><br><span style="color:var(--warn)">Atlas reported: '+esc(err)+'</span>':''}</div>
+    <button class="btn btn-p" onclick="_atlasPullNow()">↻ Refresh from Atlas</button>
+  </div>`;
+}
+function _atlasInjectRptCSS(){
+  if(document.getElementById('atlas-rpt-css'))return;
+  const s=document.createElement('style');s.id='atlas-rpt-css';
+  s.textContent=`
+  .atlas-rpt .pf-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .atlas-rpt .pf-tbl th,.atlas-rpt .pf-tbl td{border:1px solid var(--brd);padding:5px 9px;text-align:left;vertical-align:top}
+  .atlas-rpt .pf-tbl thead th{background:var(--s2);font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--t3)}
+  .atlas-rpt .pf-tbl tbody tr:nth-child(even){background:var(--s2)}
+  .atlas-rpt .pf-note{font-size:11px;color:var(--t3);margin-top:6px}
+  .atlas-rpt .pf-pill{display:inline-block;font-size:9px;font-weight:800;padding:1px 7px;border-radius:9px;background:var(--s3);color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
+  .atlas-rpt .pf-pill.pf-crit{background:#FEE2E2;color:#B91C1C}
+  .atlas-rpt .pf-pill.pf-high{background:#FEF3C7;color:#B45309}
+  .atlas-rpt .pf-pill.pf-med{background:#E0E7FF;color:#3730A3}
+  .atlas-rpt .pf-pill.pf-ok{background:#DCFCE7;color:#166534}
+  .atlas-rpt .rpt-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--t2)}
+  .atlas-rpt .rpt-leg{display:inline-flex;align-items:center;gap:5px}
+  .atlas-rpt .rpt-leg i{width:10px;height:10px;border-radius:2px;display:inline-block;flex:0 0 auto}
+  .atlas-rpt .rpt-empty{font-size:11px;color:var(--t3);padding:18px;text-align:center}
+  .atlas-rpt .rpt-lock{display:flex;align-items:center;justify-content:center;min-height:120px;color:var(--t3);font-size:12px}
+  .atlas-rpt svg{max-width:100%;height:auto}`;
+  document.head.appendChild(s);
+}
+
+/* ── Recruiting ── */
+function _atlasRecruitingHTML(snap){
+  const reqs=snap.recruitings||[],cands=snap.candidates||[],bank=snap.resumeBank||[];
+  if(!reqs.length&&!cands.length&&!bank.length)return `<div class="cd" style="padding:24px;color:var(--t3);text-align:center">No recruiting data in the snapshot.</div>`;
+  const STAGES=['new','screening','interviewing','offer','hired'];
+  const stageLbl={new:'New',screening:'Screening',interviewing:'Interviewing',offer:'Offer',hired:'Hired'};
+  const stageCol={new:'#64748b',screening:'#0ea5e9',interviewing:'#d97706',offer:'#7c3aed',hired:'#16a34a'};
+  // Funnel KPIs
+  const byStage={};STAGES.forEach(s=>byStage[s]=0);
+  cands.forEach(c=>{const s=(c.status||'new').toLowerCase();if(byStage[s]!=null)byStage[s]++;});
+  const funnel=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px">
+    ${STAGES.map(s=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${stageCol[s]}"><div style="font-size:18px;font-weight:750;color:${stageCol[s]};line-height:1">${byStage[s]}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${stageLbl[s]}</div></div>`).join('')}</div>`;
+  // Requisitions + their candidates
+  const reqHTML=reqs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">Open Requisitions</div>`+reqs.map(r=>{
+    const rc=cands.filter(c=>c.recruitingId===r.id);
+    const title=r.title||r.jdTitle||'(untitled requisition)';
+    return `<div class="cd" style="padding:12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:13px;font-weight:700">${esc(title)}</div><span class="pf-pill ${r.status==='open'?'pf-ok':''}" style="font-size:9px">${esc(r.status||'open')}</span></div>
+      ${rc.length?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">${rc.map(c=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px"><span>${esc(c.name||'—')}${c.clearance?` · <span style="color:var(--t3)">${esc(c.clearance)}</span>`:''}</span><span style="color:${stageCol[(c.status||'new').toLowerCase()]||'#64748b'};font-weight:700">${esc(stageLbl[(c.status||'new').toLowerCase()]||c.status||'new')}${c.salaryK?` · $${c.salaryK}K`:''}</span></div>`).join('')}</div>`:`<div style="font-size:10px;color:var(--t3);margin-top:6px">No candidates linked.</div>`}
+    </div>`;
+  }).join(''):'';
+  // Resume bank
+  const bankHTML=bank.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin:14px 0 6px">Resume Bank <span style="color:var(--t3);font-weight:400">· ${bank.length}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${bank.map(b=>`<div class="cd" style="padding:10px 12px">
+      <div style="font-size:12px;font-weight:700">${esc(b.name||'—')}</div>
+      ${b.role?`<div style="font-size:10px;color:var(--t3)">${esc(b.role)}</div>`:''}
+      <div style="font-size:10px;color:var(--t2);margin-top:4px">${[b.clearance,b.location,b.partner].filter(Boolean).map(esc).join(' · ')}</div>
+      ${(b.skills&&b.skills.length)?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${b.skills.slice(0,5).map(esc).join(', ')}</div>`:''}
+    </div>`).join('')}</div>`:'';
+  return funnel+reqHTML+bankHTML;
+}
+
+/* ── Resource Planning (allocation heatmap + availability) ── */
+function _atlasResourcePlanningHTML(snap){
+  const rp=snap.atlasComputed&&snap.atlasComputed.resourcePlanning;
+  if(!rp||!rp.heatmap)return _atlasComputedEmpty(snap.atlasComputed&&snap.atlasComputed.rpError);
+  const months=rp.months||[];
+  const rows=(rp.heatmap||[]).filter(r=>(r.cells||[]).some(c=>c.pct>0)).sort((a,b)=>{
+    const am=Math.max(...(a.cells||[{pct:0}]).map(c=>c.pct)),bm=Math.max(...(b.cells||[{pct:0}]).map(c=>c.pct));return bm-am;});
+  const heat=`<div class="cd" style="padding:12px;margin-bottom:14px;overflow:auto">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Allocation Heatmap <span style="font-size:10px;color:var(--t3);font-weight:400">· % allocated by month (red &gt;100, amber 85–100)</span></div>
+    <table style="border-collapse:collapse;font-size:10px;white-space:nowrap">
+      <thead><tr><th style="text-align:left;padding:3px 6px;position:sticky;left:0;background:var(--bg)">Resource</th>${months.map(mo=>`<th style="padding:3px 5px;color:var(--t3)">${esc(mo.label)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr><td style="padding:3px 6px;position:sticky;left:0;background:var(--bg)"><strong>${esc(r.name)}</strong><span style="color:var(--t3)"> · ${esc(r.dept||'')}</span></td>${(r.cells||[]).map(c=>{const col=_atlasAllocColor(c.pct);return `<td style="padding:0" title="${c.pct}%"><div style="background:${c.pct?col:'transparent'}22;color:${c.pct?col:'var(--t3)'};text-align:center;padding:3px 5px;font-weight:${c.pct>100?'800':'600'}">${c.pct||'·'}</div></td>`;}).join('')}</tr>`).join('')}</tbody>
+    </table></div>`;
+  const avail=(rp.availability||[]);
+  const availHTML=avail.length?`<div class="cd" style="padding:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Availability Snapshot <span style="font-size:10px;color:var(--t3);font-weight:400">· first month with spare capacity</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="text-align:left;color:var(--t3)"><th style="padding:4px">Resource</th><th>Dept</th><th>Spare from</th><th>Status</th></tr></thead><tbody>
+    ${avail.map(a=>`<tr style="border-top:1px solid var(--brd)"><td style="padding:4px">${esc(a.name)}</td><td style="color:var(--t3)">${esc(a.dept||'')}</td><td>${a.firstUnder?`${esc(a.firstUnder.label)} <span style="color:var(--t3)">(${a.firstUnder.pct}%)</span>`:'—'}</td><td>${a.furlough?`<span style="color:#dc2626;font-weight:700">${esc(a.furlough)}</span>`:(a.note?esc(a.note):'<span style="color:var(--t3)">—</span>')}</td></tr>`).join('')}
+    </tbody></table></div>`:'';
+  return heat+availHTML;
+}
+
+/* ── Capacity (forecast + profitability) ── */
+function _atlasCapacityHTML(snap){
+  const c=snap.atlasComputed&&snap.atlasComputed.capacity;
+  if(!c)return _atlasComputedEmpty(snap.atlasComputed&&snap.atlasComputed.capacityError);
+  const t=c.totals||{};
+  const kpis=[{l:'Projected Revenue',v:_atlasMoney(t.revenue),col:'#16a34a'},{l:'Payroll',v:_atlasMoney(t.payroll),col:'#dc2626'},{l:'Profit',v:_atlasMoney(t.profit),col:(t.profit>=0?'#16a34a':'#dc2626')},{l:'Margin',v:(t.margin||0)+'%',col:'#3b82f6'},{l:'Utilization',v:(t.util||0)+'%',col:'#7c3aed'},{l:'Bench FTE',v:(t.benchFTE||0),col:'#f59e0b'},{l:'Headcount',v:(t.headcount||0),col:'#0ea5e9'},{l:'Over-allocated',v:(t.over||0),col:'#dc2626'}];
+  const kpiHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:17px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
+  // Forecast table
+  const fc=c.forecast||[];
+  const maxRev=Math.max(1,...fc.map(r=>r.revenue||0));
+  const fcHTML=fc.length?`<div class="cd" style="padding:12px;margin-bottom:14px;overflow:auto"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Revenue & Profit Forecast</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="text-align:right;color:var(--t3)"><th style="text-align:left;padding:4px">Month</th><th>Revenue</th><th>Project Payroll</th><th>Other Payroll</th><th>Overhead</th><th>Profit</th><th>Cumulative</th></tr></thead><tbody>
+    ${fc.map(r=>`<tr style="border-top:1px solid var(--brd);text-align:right"><td style="text-align:left;padding:4px">${esc(r.label)}</td><td>${_atlasMoney(r.revenue)}</td><td style="color:#dc2626">${_atlasMoney(r.projectPayroll)}</td><td style="color:#dc2626">${_atlasMoney(r.otherPayroll)}</td><td style="color:#dc2626">${_atlasMoney(r.overhead)}</td><td style="color:${r.profit>=0?'#16a34a':'#dc2626'};font-weight:700">${_atlasMoney(r.profit)}</td><td style="color:${r.cum>=0?'#16a34a':'#dc2626'}">${_atlasMoney(r.cum)}</td></tr>`).join('')}
+    </tbody></table></div>`:'';
+  // Item profitability
+  const projs=c.projects||[];
+  const projHTML=projs.length?`<div class="cd" style="padding:12px;overflow:auto"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Item Profitability <span style="font-size:10px;color:var(--t3);font-weight:400">· current month</span></div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--t3)"><th style="text-align:left;padding:4px">Item</th><th style="text-align:left">Category</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Profit</th><th style="text-align:right">Margin</th><th style="text-align:right">FTE</th></tr></thead><tbody>
+    ${projs.map(p=>`<tr style="border-top:1px solid var(--brd)"><td style="padding:4px">${esc(p.name)}</td><td style="color:var(--t3)">${esc(p.category)}</td><td style="text-align:right">${_atlasMoney(p.revenue)}</td><td style="text-align:right;color:#dc2626">${_atlasMoney(p.cost)}</td><td style="text-align:right;color:${p.profit>=0?'#16a34a':'#dc2626'};font-weight:700">${_atlasMoney(p.profit)}</td><td style="text-align:right">${p.margin}%</td><td style="text-align:right">${p.fte}</td></tr>`).join('')}
+    </tbody></table></div>`:'';
+  return kpiHTML+fcHTML+projHTML;
+}
+
+/* ── Proforma (financial model, read-only) ── */
+function _atlasProformaHTML(snap){
+  const P=snap.proforma;
+  if(!P)return `<div class="cd" style="padding:24px;color:var(--t3);text-align:center">No proforma data in the snapshot.</div>`;
+  const cp=snap.atlasComputed&&snap.atlasComputed.proforma;
+  const co=P.company||{};
+  let html='';
+  // Computed + company KPIs
+  const kpis=[];
+  if(cp){if(cp.openingCash!=null)kpis.push({l:'Opening Cash',v:_atlasMoney(cp.openingCash),col:'#16a34a'});if(cp.debtService!=null)kpis.push({l:'Debt Service/mo',v:_atlasMoney(cp.debtService),col:'#dc2626'});if(cp.overheadMonthly!=null)kpis.push({l:'Overhead/mo',v:_atlasMoney(cp.overheadMonthly),col:'#d97706'});}
+  if(co.monthlyRevenue!=null)kpis.push({l:'Monthly Revenue',v:_atlasMoney(co.monthlyRevenue),col:'#3b82f6'});
+  if(co.monthlyProfit!=null)kpis.push({l:'Monthly Profit',v:_atlasMoney(co.monthlyProfit),col:'#16a34a'});
+  if(co.fy27RevenueTarget!=null)kpis.push({l:'FY27 Target',v:_atlasMoney(co.fy27RevenueTarget),col:'#7c3aed'});
+  if(kpis.length)html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:16px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
+  const card=(title,inner)=>`<div class="cd" style="padding:12px;margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">${esc(title)}</div>${inner}</div>`;
+  const tbl=(cols,rows)=>`<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--t3);text-align:left">${cols.map(c=>`<th style="padding:4px ${c.r?'4px;text-align:right':'4px'}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr style="border-top:1px solid var(--brd)">${cols.map(c=>`<td style="padding:4px${c.r?';text-align:right':''}">${r[c.k]==null?'':esc(String(r[c.k]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const F=P.financials||{};
+  if((F.cashTrajectory||[]).length)html+=card('Cash Trajectory',tbl([{l:'Period',k:'period'},{l:'Cash',k:'_cash',r:1},{l:'Status',k:'status'}],(F.cashTrajectory||[]).map(r=>({period:r.period||r.month||'',_cash:_atlasMoney(r.cash),status:r.status||''}))));
+  if((P.scenarios||[]).length)html+=card('Scenarios',`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${P.scenarios.map(s=>`<div style="padding:10px;background:var(--s2);border-radius:6px"><div style="font-size:12px;font-weight:700">${esc(s.name||'Scenario')}</div>${s.cashAtHorizon!=null?`<div style="font-size:11px;color:var(--t2);margin-top:3px">Cash @ horizon: <strong>${_atlasMoney(s.cashAtHorizon)}</strong></div>`:''}${s.gateTiming?`<div style="font-size:10px;color:var(--t3)">Gate: ${esc(s.gateTiming)}</div>`:''}${s.assumptions?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${esc(s.assumptions)}</div>`:''}</div>`).join('')}</div>`);
+  if((P.contractEconomics||[]).length)html+=card('Contract Economics',tbl([{l:'Contract',k:'contract'},{l:'Revenue',k:'_rev',r:1},{l:'Cost',k:'_cost',r:1},{l:'Profit',k:'_profit',r:1},{l:'Margin',k:'_margin',r:1},{l:'Role',k:'role'}],(P.contractEconomics||[]).map(r=>({contract:r.contract||'',_rev:_atlasMoney(r.rev),_cost:_atlasMoney(r.cost),_profit:_atlasMoney(r.profit),_margin:(r.margin!=null?r.margin+'%':''),role:r.role||''}))));
+  if((P.dates||[]).length)html+=card('Critical Dates',tbl([{l:'Date',k:'date'},{l:'Event',k:'event'},{l:'Impact',k:'impact'},{l:'Status',k:'status'}],P.dates));
+  if((P.risks||[]).length)html+=card('Risks',tbl([{l:'Risk',k:'risk'},{l:'Level',k:'level'},{l:'Status',k:'status'},{l:'Owner',k:'owner'},{l:'Mitigation',k:'mitigation'}],P.risks));
+  if(P.debt&&(P.debt.total!=null||(P.debt.corporate||[]).length))html+=card('Debt',`${P.debt.total!=null?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px">Total: <strong>${_atlasMoney(P.debt.total)}</strong>${P.debt.monthlyRange?` · monthly ${esc(String(P.debt.monthlyRange))}`:''}</div>`:''}${(P.debt.corporate||[]).length?tbl([{l:'Lender',k:'lender'},{l:'Balance',k:'_bal',r:1},{l:'Monthly',k:'_mo',r:1},{l:'Rate/Term',k:'rateTerm'},{l:'Status',k:'status'}],P.debt.corporate.map(d=>({lender:d.lender||'',_bal:_atlasMoney(d.balance),_mo:_atlasMoney(d.monthlyPayment),rateTerm:d.rateTerm||'',status:d.status||''}))):''}`);
+  return html||`<div class="cd" style="padding:24px;color:var(--t3);text-align:center">Proforma model present but has no displayable sections.</div>`;
+}
+
+/* ── Reports (Atlas-rendered HTML) ── */
+let _atlasRptOpen=null;
+function _atlasReportsHTML(snap){
+  const c=snap.atlasComputed;
+  if(!c||!c.reports||!c.reports.length)return _atlasComputedEmpty(c&&c.reportsError);
+  _atlasInjectRptCSS();
+  const reports=c.reports;
+  if(_atlasRptOpen){
+    const r=reports.find(x=>x.key===_atlasRptOpen);
+    if(r)return `<div style="margin-bottom:10px"><button class="btn btn-s" onclick="_atlasRptOpen=null;renderAtlas()">← All reports</button></div>
+      <div class="cd atlas-rpt" style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="font-size:16px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial report" style="font-size:11px;color:#d97706">$</span>':''}</h2><span style="font-size:10px;color:var(--t3)">${esc(r.area)}</span></div>${r.html||'<div class="rpt-empty">No content.</div>'}</div>`;
+  }
+  const byArea={};reports.forEach(r=>{(byArea[r.area]=byArea[r.area]||[]).push(r);});
+  return Object.keys(byArea).map(area=>`<div style="margin-bottom:14px">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">${esc(area)}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">
+    ${byArea[area].map(r=>`<div class="cd" style="padding:12px;cursor:pointer" onclick="_atlasRptOpen='${r.key}';renderAtlas()">
+      <div style="font-size:13px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial" style="font-size:9px;color:#d97706">$</span>':''}</div>
+      <div style="font-size:10px;color:var(--ac);margin-top:4px">Open report →</div></div>`).join('')}
+    </div></div>`).join('');
+}
+
+/* ── PTO ── */
+function _atlasPTOHTML(snap){
+  const rows=[];
+  (snap.departments||[]).forEach(d=>(d.members||[]).forEach(m=>{
+    if((m.pto&&m.pto.length)||m.furloughDate)rows.push({name:m.name,dept:d.name,pto:m.pto||[],furlough:m.furloughDate||''});
+  }));
+  if(!rows.length)return `<div class="cd" style="padding:24px;color:var(--t3);text-align:center">No PTO or furlough entries recorded.</div>`;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">${rows.map(r=>`<div class="cd" style="padding:12px">
+    <div style="font-size:13px;font-weight:700">${esc(r.name)}</div>
+    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">${esc(r.dept)}</div>
+    ${r.furlough?`<div style="font-size:11px;color:#dc2626;font-weight:700;margin-bottom:4px">Furlough: ${esc(r.furlough)}</div>`:''}
+    ${r.pto.length?r.pto.map(p=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-top:1px solid var(--brd)">${esc(p.start||'?')} → ${esc(p.end||'?')}${p.note?` <span style="color:var(--t3)">· ${esc(p.note)}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No PTO logged</div>'}
+  </div>`).join('')}</div>`;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
