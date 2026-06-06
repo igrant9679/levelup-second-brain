@@ -3121,11 +3121,26 @@ function _toggleSidebarGroup(key){
 }
 
 function _hydrateSidebarGroupsCollapsed(){
+  // Declutter default: for users who have never toggled a group, start with the
+  // low-traffic groups (Comms, Other) collapsed so the resting sidebar is
+  // shorter. Saved once so it's stable; any user toggle thereafter wins.
+  if(D.prefs && D.prefs.sidebarGroupsCollapsed===undefined){
+    D.prefs.sidebarGroupsCollapsed=['comms','other'];
+    try{ save('prefs'); }catch(_){}
+  }
   const collapsed=new Set(((D.prefs&&D.prefs.sidebarGroupsCollapsed)||[]));
   document.querySelectorAll('[data-sb] .sg').forEach(sg=>{
     const key=sg.dataset.group;
     sg.classList.toggle('collapsed', collapsed.has(key));
   });
+}
+
+// Day / Week / Year segmented toggle shared by the three "Planner" pages
+// (My Day / My Week / My Year). Consolidating those into one sidebar entry
+// ("Planner") + this in-page toggle removed two routes from the sidebar.
+function _focusViewTabs(active){
+  const tabs=[['myday','Day'],['myweek','Week'],['myyear','Year']];
+  return `<div style="display:inline-flex;margin-top:8px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;overflow:hidden">${tabs.map(([r,l])=>`<button class="btn" style="border-radius:0;height:26px;font-size:11px;border:none;padding:0 12px;background:${active===r?'var(--ac)':'transparent'};color:${active===r?'#fff':'var(--t2)'}" onclick="nav('${r}')">${l}</button>`).join('')}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -18541,7 +18556,7 @@ function renderArchive(){
 function renderMyDay(){
 // Restore the user's last subnav choice; default to Execute (most-used view).
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
-$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p></div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
+$('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:10px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
@@ -18944,7 +18959,7 @@ function renderMyWeek(){
   }).join('');
   $('myweek-main').innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
-    <div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}My Week</h1><p style="font-size:12px;color:var(--t2)">${days[0].toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p></div>
+    <div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}My Week</h1><p style="font-size:12px;color:var(--t2)">${days[0].toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>${_focusViewTabs('myweek')}</div>
     <div style="display:flex;gap:4px">
       <button class="btn btn-s" onclick="weekOffset--;renderMyWeek()">← Prev</button>
       <button class="btn btn-s" onclick="weekOffset=0;renderMyWeek()">Today</button>
@@ -19039,7 +19054,7 @@ function renderMyYear(){
 
   $('myyear-main').innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
-    <div><h1 style="font-size:22px;font-weight:700">🗓 My Year — ${yr}</h1><p style="font-size:12px;color:var(--t2)">Day ${dayOfYear} of ${daysInYear} · ${yearPct}% through the year</p></div>
+    <div><h1 style="font-size:22px;font-weight:700">🗓 My Year — ${yr}</h1><p style="font-size:12px;color:var(--t2)">Day ${dayOfYear} of ${daysInYear} · ${yearPct}% through the year</p>${_focusViewTabs('myyear')}</div>
     <button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button>
   </div>
 
