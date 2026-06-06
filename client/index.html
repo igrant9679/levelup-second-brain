@@ -744,7 +744,7 @@ textarea.fa-inp{resize:vertical;min-height:70px;font-family:inherit}
 .lu-mini-week-h{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:6px;padding:0 2px}
 .lu-mini-week-h a{color:var(--ac);cursor:pointer}
 .lu-mini-week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.lu-mini-week-cell{position:relative;aspect-ratio:1;border-radius:6px;background:var(--s1);border:1px solid var(--bd1);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s,border-color .12s,background .12s;padding:2px;min-height:42px}
+.lu-mini-week-cell{position:relative;min-width:0;border-radius:6px;background:var(--s1);border:1px solid var(--bd1);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s,border-color .12s,background .12s;padding:2px 1px;min-height:44px}
 .lu-mini-week-cell:hover{transform:translateY(-1px);border-color:var(--ac);background:var(--s3)}
 .lu-mini-week-cell.today{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
 .lu-mini-week-cell .lu-mini-week-dow{font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600;line-height:1}
@@ -2655,7 +2655,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-06-05-70';
+  var APP_BUILD='2026-06-06-71';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
