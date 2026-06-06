@@ -1550,7 +1550,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',deps:'s-deps',pipeline:'s-pipeline',atlas:'s-atlas'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas'};
 var curScreen='home';
 function nav(s){
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
@@ -4463,7 +4463,6 @@ function renderScreen(s){
   if(s==='graph')renderKnowledgeGraph();
   if(s==='command')renderCommandCenter();
   if(s==='standup')renderStandup();
-  if(s==='deps')renderDeps();
   if(s==='pipeline')renderPipeline();
   if(s==='atlas')renderAtlas();
   if(s==='help')renderHelp();
@@ -12845,182 +12844,6 @@ function _copyStandup(){
   const txt=pre.textContent;
   try{navigator.clipboard.writeText(txt).then(()=>toast({type:'success',title:'Standup copied','msg':'Paste into Slack / Teams / email.',duration:2500}),()=>fallback());}catch(_){fallback();}
   function fallback(){const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');toast({type:'success',title:'Standup copied',duration:1800});}catch{}ta.remove();}
-}
-
-// ─── Cross-project Dependency view (s-deps) ─────────────────────────────────
-// Renders a layered DAG of native tasks with predecessorIds. Tasks without
-// predecessors AND not referenced as a predecessor are skipped — they're
-// just normal tasks, not part of any chain. Layout is column-based by
-// topological depth (column = max(depth(predecessors)) + 1), then sorted
-// within each column by status (active first, then blocked, then done).
-let _depsHighlightCritical=false;
-let _depsHat='all'; // reuses _ccHat semantics so user can scope to CF/LSI/Personal
-function renderDeps(){
-  const m=document.getElementById('deps-main');
-  if(!m)return;
-  // Build the dependency graph from native tasks. External tasks don't carry
-  // predecessorIds in this codebase yet, so the graph is native-only.
-  const tasks=(D.tasks||[]).filter(t=>!t.parentTaskId);
-  const byId=new Map(tasks.map(t=>[String(t.id),t]));
-  // Nodes are tasks that EITHER have predecessors OR are someone's predecessor.
-  const inSet=new Set();
-  for(const t of tasks){
-    const preds=(t.predecessorIds||[]).map(String);
-    if(preds.length)inSet.add(String(t.id));
-    for(const p of preds)if(byId.has(p))inSet.add(p);
-  }
-  const nodes=Array.from(inSet).map(id=>byId.get(id)).filter(Boolean);
-  if(!nodes.length){
-    m.innerHTML=`<div style="padding:24px;max-width:760px">${(()=>{
-      // Use the existing empty-state helper.
-      if(typeof renderEmptyState==='function')return renderEmptyState({
-        icon:'link',
-        title:'No task dependencies yet',
-        hint:'Open any task drawer → Predecessors → pick the tasks that must finish first. This view will then surface every blocking chain across your CF, LSI, and Personal work.',
-        ctaLabel:'Open Tasks',
-        ctaFn:"nav('tasks')",
-      });
-      return '<div style="padding:24px;text-align:center;color:var(--t3)">No task dependencies set.</div>';
-    })()}</div>`;
-    document.body.setAttribute('data-screen','deps');
-    return;
-  }
-  // Compute depth via memoised DFS (guards against accidental cycles).
-  const depth=new Map();const visiting=new Set();
-  function computeDepth(id){
-    const s=String(id);
-    if(depth.has(s))return depth.get(s);
-    if(visiting.has(s)){depth.set(s,0);return 0;} // cycle — bail
-    visiting.add(s);
-    const t=byId.get(s);if(!t){visiting.delete(s);return 0;}
-    const preds=(t.predecessorIds||[]).map(String).filter(p=>byId.has(p));
-    let d=0;
-    for(const p of preds){const pd=computeDepth(p);if(pd+1>d)d=pd+1;}
-    visiting.delete(s);
-    depth.set(s,d);
-    return d;
-  }
-  nodes.forEach(n=>computeDepth(n.id));
-  const maxDepth=Math.max(0,...Array.from(depth.values()));
-  // Column-bucket by depth.
-  const columns=Array.from({length:maxDepth+1},()=>[]);
-  nodes.forEach(n=>{
-    const d=depth.get(String(n.id))||0;
-    columns[d].push(n);
-  });
-  // Within each column, sort by status: not-done first, then done; tie-break
-  // by title for stable layout.
-  for(const col of columns){
-    col.sort((a,b)=>{
-      const ad=a.status==='Done'?1:0,bd=b.status==='Done'?1:0;
-      if(ad!==bd)return ad-bd;
-      return (a.title||'').localeCompare(b.title||'');
-    });
-  }
-  // Critical path: longest chain from any source (no preds) to any sink.
-  // We compute it greedily — each sink's path = its predecessors' best path.
-  const bestPath=new Map();
-  function pathTo(id){
-    const s=String(id);
-    if(bestPath.has(s))return bestPath.get(s);
-    const t=byId.get(s);if(!t){bestPath.set(s,[s]);return [s];}
-    const preds=(t.predecessorIds||[]).map(String).filter(p=>byId.has(p));
-    if(!preds.length){bestPath.set(s,[s]);return [s];}
-    let best=[];
-    for(const p of preds){const path=pathTo(p);if(path.length>best.length)best=path;}
-    const out=best.concat([s]);
-    bestPath.set(s,out);
-    return out;
-  }
-  nodes.forEach(n=>pathTo(n.id));
-  // Longest chain overall.
-  let critical=[];
-  for(const n of nodes){const p=bestPath.get(String(n.id))||[];if(p.length>critical.length)critical=p;}
-  const criticalSet=new Set(critical);
-
-  // Layout dimensions.
-  const COL_W=240,ROW_H=64,PAD_X=40,PAD_Y=80;
-  const maxRows=Math.max(1,...columns.map(c=>c.length));
-  const W=PAD_X*2+columns.length*COL_W;
-  const H=PAD_Y*2+maxRows*ROW_H;
-  // Node positions.
-  const pos=new Map();
-  columns.forEach((col,ci)=>{
-    const colH=col.length*ROW_H;
-    const startY=PAD_Y+(maxRows*ROW_H-colH)/2;
-    col.forEach((n,ri)=>{
-      pos.set(String(n.id),{x:PAD_X+ci*COL_W+COL_W/2,y:startY+ri*ROW_H+ROW_H/2});
-    });
-  });
-  // Edges: predecessor → successor.
-  const edges=[];
-  for(const n of nodes){
-    for(const p of (n.predecessorIds||[]).map(String)){
-      if(!byId.has(p))continue;
-      edges.push({from:p,to:String(n.id)});
-    }
-  }
-  const statusColor=t=>{
-    if(t.status==='Done')return '#10b981';
-    if(t.status==='Blocked'||(t.predecessorIds||[]).some(pid=>{const pp=byId.get(String(pid));return pp&&pp.status!=='Done';}))return '#ef4444';
-    if(t.due&&t.due<_todayStr)return '#f59e0b';
-    return '#3b82f6';
-  };
-  const today=_todayStr;
-  const nodeSvg=nodes.map(n=>{
-    const p=pos.get(String(n.id));if(!p)return '';
-    const color=statusColor(n);
-    const onCrit=_depsHighlightCritical&&criticalSet.has(String(n.id));
-    const stroke=onCrit?'#ef4444':color;
-    const sw=onCrit?3:2;
-    const title=esc((n.title||'').slice(0,32));
-    const overdue=n.status!=='Done'&&n.due&&n.due<today;
-    return `<g class="dep-node" data-task-id="${n.id}" style="cursor:pointer" transform="translate(${p.x-100},${p.y-20})">
-      <rect width="200" height="40" rx="6" fill="${color}" fill-opacity="${n.status==='Done'?0.35:0.9}" stroke="${stroke}" stroke-width="${sw}"/>
-      <text x="100" y="17" text-anchor="middle" font-size="11" font-weight="600" fill="#fff" style="pointer-events:none">${title}</text>
-      <text x="100" y="32" text-anchor="middle" font-size="9" fill="#fff" fill-opacity=".85" style="pointer-events:none">${esc(n.status||'')}${overdue?' · overdue':''}</text>
-    </g>`;
-  }).join('');
-  const edgeSvg=edges.map(e=>{
-    const a=pos.get(e.from),b=pos.get(e.to);if(!a||!b)return '';
-    const onCrit=_depsHighlightCritical&&criticalSet.has(e.from)&&criticalSet.has(e.to)&&Math.abs(critical.indexOf(e.from)-critical.indexOf(e.to))===1;
-    // Curve via cubic Bezier between right side of `a` and left side of `b`.
-    const x1=a.x+100,y1=a.y;const x2=b.x-100,y2=b.y;
-    const mx=(x1+x2)/2;
-    const stroke=onCrit?'#ef4444':'var(--bd2)';
-    const sw=onCrit?2.5:1.5;
-    return `<path d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" fill="none" stroke="${stroke}" stroke-width="${sw}" marker-end="url(#dep-arrow)" opacity="${onCrit?1:0.55}"/>`;
-  }).join('');
-  m.innerHTML=`<div class="ph-r" style="margin:0;padding:18px 24px 12px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;background:var(--s1);position:relative;z-index:2">
-    <div>
-      <h1 style="font-size:22px;font-weight:700">🔗 Dependencies</h1>
-      <p style="font-size:12px;color:var(--t2)">DAG of task predecessors across native LevelUp tasks. ${nodes.length} task${nodes.length===1?'':'s'} in ${columns.length} layer${columns.length===1?'':'s'} · ${edges.length} edge${edges.length===1?'':'s'}${critical.length>1?` · critical path = ${critical.length} step${critical.length===1?'':'s'}`:''}.</p>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-s" onclick="_depsHighlightCritical=!_depsHighlightCritical;renderDeps()" style="${_depsHighlightCritical?'background:#ef4444;color:#fff;border-color:#ef4444':''}" title="Highlight the longest chain of dependencies (the critical path)">⛓ ${_depsHighlightCritical?'Hide':'Show'} critical path</button>
-      <button class="btn btn-s" onclick="nav('tasks')" title="Back to Tasks">→ Tasks</button>
-    </div>
-  </div>
-  <div style="position:absolute;top:80px;left:0;right:0;bottom:0;overflow:auto;background:var(--s1)">
-    <svg viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;min-height:${H}px">
-      <defs>
-        <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--bd2)"/></marker>
-      </defs>
-      ${edgeSvg}
-      ${nodeSvg}
-    </svg>
-  </div>`;
-  document.body.setAttribute('data-screen','deps');
-  // Wire node clicks → open task drawer.
-  setTimeout(()=>{
-    m.querySelectorAll('.dep-node').forEach(g=>{
-      g.addEventListener('click',()=>{
-        const id=Number(g.getAttribute('data-task-id'));
-        const t=D.tasks.find(x=>x.id===id);
-        if(t&&typeof openDrawer==='function')openDrawer('task',t);
-      });
-    });
-  },0);
 }
 
 // ─── Sales Pipeline (s-pipeline) ────────────────────────────────────────────
@@ -22330,7 +22153,6 @@ var HC_ARTICLES=[
   {id:26,slug:'external-task-actions',catId:2,title:'External task actions (CF / LSI)',summary:'Mark Done in source, Hide, Snooze, My Day toggle, Annotate.',tags:['external','smartsheet','nifty','overrides'],body:`## External task actions\n\nTasks pulled from Smartsheet (CF) and NiftyPM (LSI) live alongside native tasks in every view. Click any external card to open the **Annotate** modal.\n\n### Buttons in the modal\n- **✓ Mark Done in <source>** — writes back to Smartsheet or Nifty via the source's API. Verified by re-read; the source-completion checkbox flips immediately. For Nifty: uses \`POST /tasks/{id}/complete\` with body \`{completed:true}\` — the only API call Nifty actually honours (PUT with \`completed:true\` silently fails).\n- **↺ Reopen in <source>** — appears when the task is currently Done\n- **🚫 Hide in LevelUp** — local-only tombstone (\`override.tombstoned=true\`); the row stays untouched in the source. Reappears only if you clear the tombstone.\n- **⏰ Snooze** — moves the task off active views until the snooze date\n- **☀ My Day** toggle — surfaces this external task on the Focus view + Standup Today column\n- **✎ Annotate** — adds local tags + notes that don't write back to the source\n\n### Subtask hierarchy\nSubtask rows render indented with a ↳ glyph + breadcrumb pill showing the parent's title. Nifty subtasks use \`parent_task_id\`; Smartsheet subtasks use the row's \`kind: "subtask"\` flag.\n\nThe CF 120-Day Plan sheet has Project headers + SubTask leaves with no intermediate Task rows — those subtasks show a 📁 *Project name* pill instead, which opens the matching LevelUp project's drawer.\n\n### "Sync subtasks" per Nifty watch\nIn **Settings → Integrations → Nifty**, each watched project has a "Sync subtasks" checkbox. Uncheck to pull only top-level tasks.`},
   {id:27,slug:'smartsheet-integration',catId:6,title:'Smartsheet integration (CF / CommunityForce)',summary:'Watched sheets, hierarchy, pipeline detection, push-back.',tags:['smartsheet','integration','external'],body:`## Smartsheet integration\n\nLevelUp pulls Smartsheet rows in as external tasks (or opportunities, when the sheet is pipeline-shaped). Setup lives at **Settings → Integrations → Smartsheet**.\n\n### Setup\n1. Get a Smartsheet API token from your Smartsheet account\n2. Paste it under Integrations\n3. Use **+ Add watched sheet** to register one or more sheets by Sheet ID\n4. **＋ Re-add CF watches** is a one-click button that re-registers the two CF defaults (120-Day Plan + Pipeline 2026/2027)\n\n### Sync cadence\nA cron runs every 5 minutes server-side; **↻ Force sync now** in Command Center triggers an immediate pull.\n\n### Two sheet shapes\nThe adapter auto-detects which shape each watched sheet has:\n- **Project / Task / SubTask hierarchy** — flows into Tasks. Outline level determines parent/child.\n- **Pipeline** — sheets with a Stage/Status column + a Value/Amount column flip to pipeline mode and become Opportunities. See "Pipeline Smartsheet sync."\n\n### Hierarchy quirks (CF 120-Day Plan)\nProject header rows + SubTask leaves with no intermediate Task rows. The adapter reads \`kind: "subtask"\` from each row's raw payload and shows them under a 📁 project pill in Tasks. Use **⤡ Fold all CF** in the Tasks header to collapse all CF project sections.\n\n### Diagnostics\n- **smartsheetInspectSheet** — server endpoint that returns the full column schema + which column each detector matched + a sample of 8 rows. Useful for "I added a column but it's not picking up."\n- **🧹 Reset historical** — stamps removedAt on every Smartsheet external_tasks row, then re-pulls only currently-open rows. Use after a major sheet restructure.\n\n### Push-back\nMarking an external task Done in LevelUp calls Smartsheet's setRowStatus API. Stage changes on Pipeline opportunities don't yet write back — pipeline push-back is a planned follow-up.`},
   {id:28,slug:'nifty-integration',catId:6,title:'NiftyPM integration (LSI / LSI Media)',summary:'Watched projects, subtask hierarchy, the real completion API.',tags:['nifty','integration','external'],body:`## NiftyPM integration\n\nLevelUp pulls Nifty tasks in as external tasks. Setup lives at **Settings → Integrations → Nifty**.\n\n### Setup\n1. Get a Nifty API token (Nifty workspace → API settings)\n2. Paste it under Integrations\n3. Use **+ Add Nifty watch** to register a project by Project ID\n4. Each watch has a **Sync subtasks** checkbox (default on)\n\n### Subtask hierarchy\nNifty subtasks carry a \`task\` field (string, points at parent's id). The adapter reads both \`task\` and the legacy \`parent_task_id\`. Subtasks render indented with ↳ + parent breadcrumb pill in every task view.\n\nWhen "Sync subtasks" is unchecked, the puller drops any row whose parent points at another tracked task — only top-level tasks come through.\n\n### Completion API (the real one)\nMarking a Nifty task Done uses \`POST /api/v1.0/tasks/{id}/complete\` with body \`{completed: true}\`. This is the **only** call Nifty actually honours. PUT with \`completed:true\` returns 200 "Successfully edited task" but silently ignores the write — discovered after 4 failed iterations and a 9-strategy diagnostic probe (\`niftyProbeCompletionWrites\`). Works for top-level tasks AND subtasks. To reopen, same endpoint with \`{completed:false}\`.\n\n### Diagnostics\n- **🔎 Inspect Nifty rows** — dumps each row's stored raw JSON\n- **🧹 Reset historical** — same pattern as Smartsheet: tombstone all + re-pull only currently-open\n- **niftyFetchTaskRaw / niftyFetchTaskGroups** — left in place for future API debugging`},
-  {id:29,slug:'dependencies-dag',catId:10,title:'Dependencies — DAG of blocking tasks',summary:'Visualise what blocks what across all your work.',tags:['dependencies','dag','blockers'],body:`## Dependencies\n\nThe **Dependencies** screen (left sidebar, red blocker icon) renders a directed-acyclic-graph of every "blocked by" relationship in your tasks. Use it to spot critical paths and find the unblock that frees the most downstream work.\n\n### What links count as edges\n- Native task \`blockedBy\` array — explicit links you set in the task drawer\n- External subtask → parent task — every subtask is implicitly blocked by its parent's status\n- Tasks tagged \`#blocked\` get a visual marker but aren't auto-linked\n\n### The graph view\n- **Nodes** colour-coded by status (red = overdue, amber = in-progress, green = done, grey = not started)\n- **Edges** flow left-to-right; an arrow A → B means "A blocks B" (B can't start until A is done)\n- **Critical-path highlight** — the longest chain of incomplete tasks lights up in red. Unblocking the leftmost task in that chain has the biggest ripple effect.\n\n### Adding a dependency\nOpen any task drawer → **Blocked by** field → pick the upstream task. The link appears in the DAG immediately on next render.\n\n### Cycles\nThe graph rejects circular dependencies at write time — you'll see a toast if you try to add a link that would create a cycle.`},
   {id:30,slug:'programs-portfolio',catId:10,title:'Programs & Portfolio',summary:'Top-level container that groups projects into programs with a portfolio timeline.',tags:['programs','portfolio','timeline'],body:`## Programs & Portfolio\n\nA **Program** is a named container for multiple projects (e.g., "Q4 Customer Onboarding" containing 5 projects). The Programs page (left sidebar, blue grid icon) lists every program with rolled-up KPIs.\n\n### Program cards show\n- Program name + owner\n- Child project count + total open tasks\n- Aggregate progress bar (sum of project progress weighted by task count)\n- Risk indicator — red if any child project is at risk, amber for caution, green for healthy\n- Click → opens the program drawer with the full child-project list\n\n### Portfolio timeline\nScroll past the program cards to find the **📅 Portfolio Timeline** — a swimlane gantt across every project that has at least one dated task. See the "Portfolio Timeline" article for full details.\n\n### Project Health (per-project)\nEach project drawer has a **Health** strip with: velocity (tasks closed / week) · burn rate · risk score · ETA based on velocity. AI Coach card suggests the top 3 actions for this project.\n\n### Creating a program\n**+ New Program** → fill in name, owner, target date. Then drag projects from the unassigned list into the program. A project can belong to at most one program.`},
   {id:31,slug:'pipeline-overview',catId:11,title:'Sales Pipeline — overview',summary:'Track opportunities, weighted forecast, and the next action to win each deal.',tags:['pipeline','sales','opportunities'],body:`## Sales Pipeline\n\nThe **💼 Pipeline** screen (left sidebar, green pyramid icon) is your first-class sales cockpit. Tracks Opportunities — distinct from Tasks — through stages from Lead to Closed/Won (or Closed/Lost).\n\n### Stages\nThe built-in stage progression (with probability %):\n- **Lead** (10%) · **Qualified** (25%) · **Proposal** (50%) · **Negotiation** (75%) · **On-Hold** (0%, non-terminal) · **Closed/Won** (100%, won) · **Closed/Lost** (0%, lost)\n\n### Three views\n- **Kanban** — one column per non-terminal stage, cards sorted by value desc. "Hide Closed Won/Lost" toggle (default on).\n- **Table** — full sortable table\n- **Forecast** — weighted-value-by-close-month horizontal bars + by-stage donut + Q-forecast banner\n- **📊 Reports** — see the dedicated "Pipeline Reports" article\n\n### Header KPIs\nPipeline Value · Weighted Forecast · Open Opps · Win Rate (calculated from terminal-stage history).\n\n### Adding opportunities\nThree ways:\n1. **+ New Opportunity** — manual entry\n2. **Smartsheet sync** — sheets with Stage/Status + Value/Amount columns auto-flow in. See "Pipeline Smartsheet sync."\n3. **Promote from Idea** — the 📁 AI Promote → Project button on an idea creates a project + tasks, and optionally an opportunity if the idea has a value estimate.\n\n### Right rail\nQuick Actions · Past-close-date warnings · Recent wins.`},
   {id:32,slug:'opportunities-lifecycle',catId:11,title:'Opportunities — lifecycle & drawer',summary:'Edit, link tasks, run AI Next Steps, mark Won/Lost.',tags:['opportunities','lifecycle','ai'],body:`## Opportunities\n\nClick any opportunity card to open its drawer.\n\n### Drawer sections\n- **Stage progression buttons** — one per stage; click to advance. Plus **Mark Won** / **Mark Lost** quick actions.\n- **Inline fields** (editable): name, account, value, probability override, close date, owner, contact, notes. **💾 Save changes** commits.\n- **Tasks to win this opportunity** — every \`D.tasks\` row with \`linkedOpportunityId === opp.id\`. Grouped by Open / Done. Click a task to open its drawer.\n- **+ New task for this opportunity** — stashes \`_faPrefill\` so the standard Quick Add modal carries the opp link through.\n- **✨ AI: Next steps** — calls the model with the opp snapshot + existing task titles. Returns headline + 3 actions, each with a **+ Add task** button.\n\n### Data model\nEach opp: \`{id, name, accountName, stage, value, probability, closeDate, owner, contact, notes, status: 'open'|'won'|'lost', linkedTaskIds, source: 'manual'|'smartsheet', externalId, externalUrl, createdAt, updatedAt}\`.\n\n### Probability override\nBy default each stage carries a built-in probability (10/25/50/75/100). Set the **Probability override** field on an opp to lock its forecast weight to a different number — useful when a 75%-stage deal has a known wrinkle that drops actual close-likelihood.\n\n### Smartsheet-sourced opps\nOpps pulled from Smartsheet keep \`source:'smartsheet'\` and \`externalId\`. Source-owned fields (name, stage, value, close, account, owner, contact) are overwritten on each sync; user-owned fields (notes, linkedTaskIds, manual probability override) are preserved.`},

@@ -368,7 +368,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .si[data-n="graph"] svg{stroke:#a855f7}        /* purple */
 .si[data-n="command"] svg{stroke:#f59e0b}     /* amber — command center */
 .si[data-n="standup"] svg{stroke:#14b8a6}     /* teal — standup */
-.si[data-n="deps"] svg{stroke:#dc2626}        /* red — dependencies / blockers */
 .si[data-n="pipeline"] svg{stroke:#16a34a}    /* green — sales pipeline / money in */
 .si[data-n="atlas"] svg{stroke:#0ea5e9}       /* sky — Atlas (CFResourcePlanner) mirror */
 
@@ -403,7 +402,6 @@ body[data-screen="reports"]{--page-accent:#06b6d4}
 body[data-screen="graph"]{--page-accent:#a855f7}
 body[data-screen="command"]{--page-accent:#f59e0b}
 body[data-screen="standup"]{--page-accent:#14b8a6}
-body[data-screen="deps"]{--page-accent:#dc2626}
 body[data-screen="pipeline"]{--page-accent:#16a34a}
 body[data-screen="programs"]{--page-accent:#1f6feb}
 
@@ -2225,7 +2223,6 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="si" data-n="programs" title="Programs / Portfolio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span class="l">Programs</span></div>
 <div class="si" data-n="projects"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span class="l">Projects</span></div>
 <div class="si" data-n="clusters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><polyline points="12 22 12 15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg><span class="l">Clusters</span></div>
-<div class="si" data-n="deps" title="Dependencies — DAG of blocking tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.5" y1="6" x2="15.5" y2="6"/><line x1="6" y1="8.5" x2="6" y2="15.5"/><line x1="18" y1="8.5" x2="18" y2="15.5"/><line x1="8.5" y1="18" x2="15.5" y2="18"/></svg><span class="l">Dependencies</span></div>
 <div class="si" data-n="pipeline" title="Sales Pipeline — track opportunities and create tasks to win them"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span class="l">Pipeline</span></div>
 <div class="si" data-n="atlas" title="Atlas — read-only mirror of CommunityForce Resource Planner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="l">Atlas</span></div>
 </div></div>
@@ -2326,7 +2323,6 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <!-- ===== S-COMMAND (Command Center cross-tool dashboard) ===== -->
 <div class="scr" id="s-command"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="command-main"></main><aside class="rr" id="command-rail"></aside></div></div>
 <!-- ===== S-DEPS (Cross-project dependency view) ===== -->
-<div class="scr" id="s-deps"><div class="bg" style="grid-template-columns:var(--side) 1fr"><nav class="sb" data-sb></nav><main class="mn" id="deps-main" style="max-width:none;width:100%;padding:0;overflow:hidden;position:relative"></main></div></div>
 <!-- ===== S-PIPELINE (Sales pipeline / opportunities) ===== -->
 <div class="scr" id="s-pipeline"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="pipeline-main"></main><aside class="rr" id="pipeline-rail"></aside></div></div>
 
@@ -2665,7 +2661,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-06-02-67';
+  var APP_BUILD='2026-06-05-68';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
