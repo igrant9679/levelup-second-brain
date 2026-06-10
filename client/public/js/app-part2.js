@@ -7516,7 +7516,7 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
     const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
     const previewId='ai-out-'+Math.random().toString(36).slice(2,9);
     const insertBtn=targetRteId
-      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteInsertHTML('${targetRteId}','${previewId}')">⬇ Insert into body</button>`
+      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onmousedown="event.preventDefault()" onclick="_rteInsertHTML('${targetRteId}','${previewId}',this)">⬇ Insert into body</button>`
       :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteCopyToClipboard('${previewId}')">📋 Copy</button>`;
     const historyHtml=targetRteId?_rteHistoryRender(targetRteId):'';
     // data-md holds the original markdown for clipboard copy. The visible div
@@ -7532,32 +7532,48 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
 // Used by _rteAIGeneral's Insert button. The source element's innerHTML is
 // already rendered HTML (from renderMd) — we transplant its children into
 // the RTE so formatting (headings, lists, bold, links, images) survives.
-function _rteInsertHTML(rteId,sourceElId){
-  const rte=document.getElementById(rteId);
-  const src=document.getElementById(sourceElId);
-  if(!rte||!src)return;
-  rte.focus();
-  // Spacer line so the inserted block isn't visually glued to existing content.
-  if(rte.lastChild&&rte.innerHTML.trim()!=='')rte.appendChild(document.createElement('br'));
-  // Clone children rather than moving them so the preview pane stays intact
-  // (lets the user click Insert multiple times, regenerate, etc.).
-  Array.from(src.childNodes).forEach(node=>rte.appendChild(node.cloneNode(true)));
-  // Move cursor to end + fire input so word-count / autosave hooks re-run.
-  const range=document.createRange();
-  range.selectNodeContents(rte);
-  range.collapse(false);
-  const sel=window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-  rte.dispatchEvent(new Event('input',{bubbles:true}));
-  toast('✓ Inserted into body');
+function _rteInsertHTML(rteId,sourceElId,btnEl){
+  try{
+    const rte=document.getElementById(rteId);
+    // Prefer the preview node adjacent to the clicked button — immune to
+    // stale/duplicate ids if the pane re-rendered after the button was drawn.
+    let src=(btnEl&&btnEl.previousElementSibling&&btnEl.previousElementSibling.hasAttribute&&btnEl.previousElementSibling.hasAttribute('data-md'))
+      ?btnEl.previousElementSibling
+      :document.getElementById(sourceElId);
+    if(!rte){toast({type:'error',title:'Insert failed',msg:'Editor "'+rteId+'" not found on this screen — please report this.'});return;}
+    if(!src){toast({type:'error',title:'Insert failed',msg:'AI preview content not found — regenerate and try again.'});return;}
+    rte.focus();
+    // Spacer line so the inserted block isn't visually glued to existing content.
+    if(rte.lastChild&&rte.innerHTML.trim()!=='')rte.appendChild(document.createElement('br'));
+    // Clone children rather than moving them so the preview pane stays intact
+    // (lets the user click Insert multiple times, regenerate, etc.).
+    Array.from(src.childNodes).forEach(node=>rte.appendChild(node.cloneNode(true)));
+    // Move cursor to end + fire input so word-count / autosave hooks re-run.
+    const range=document.createRange();
+    range.selectNodeContents(rte);
+    range.collapse(false);
+    const sel=window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    rte.dispatchEvent(new Event('input',{bubbles:true}));
+    // Make the insertion unmissable: scroll the editor (and the inserted end)
+    // into view and flash the surface briefly.
+    rte.scrollTop=rte.scrollHeight;
+    if(rte.scrollIntoView)rte.scrollIntoView({block:'nearest'});
+    const prevOutline=rte.style.outline;
+    rte.style.outline='2px solid var(--ok)';
+    setTimeout(()=>{rte.style.outline=prevOutline||'';},900);
+    toast('✓ Inserted into body');
+  }catch(e){
+    toast({type:'error',title:'Insert failed',msg:String(e&&e.message||e)});
+  }
 }
 
 // Legacy plain-text insert — preserved for any caller still passing raw text.
 // New callers should use _rteInsertHTML.
 function _rteInsert(rteId,text){
   const rte=document.getElementById(rteId);
-  if(!rte)return;
+  if(!rte){toast({type:'error',title:'Insert failed',msg:'Editor "'+rteId+'" not found on this screen — please report this.'});return;}
   rte.focus();
   const br=document.createElement('br');
   const textNode=document.createTextNode(text);
