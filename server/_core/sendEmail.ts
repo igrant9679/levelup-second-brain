@@ -1,9 +1,12 @@
 /**
- * sendEmail — Nodemailer-based email transport that uses the connected
- * Google or Microsoft OAuth2 account selected as the system notification sender.
+ * sendEmail — Nodemailer-based email transport for ALL system mail
+ * (Team invites, reports, notifications). Every message is sent from the single
+ * configured "secondary email": the system notification sender if one is
+ * explicitly selected, otherwise the configured SMTP/IMAP secondary account.
+ * Supports a connected Google/Microsoft OAuth2 account too, if that's selected.
  *
- * Falls back to a plain-text log when no sender is configured (dev mode).
- * Every attempt (success, failure, or skipped) is recorded in email_delivery_log.
+ * Logs as "skipped" when no sender is configured. Every attempt (sent, failed,
+ * or skipped) is recorded in email_delivery_log.
  */
 import nodemailer from "nodemailer";
 import { getDb } from "../db";
@@ -20,12 +23,9 @@ export interface EmailPayload {
   /** userId of the sender (for delivery log). Pass null for system-initiated emails. */
   senderUserId?: number | null;
   /**
-   * userId of the *recipient*. If provided AND that user has their own SMTP/IMAP
-   * secondary account configured (smtp_imap_accounts row), the email is sent
-   * **from** that account. This is the per-user notification sender model:
-   * each team member's notifications go out from the SMTP account that the
-   * admin configured for them. Falls back to the global system notification
-   * sender if no per-user account exists.
+   * @deprecated Ignored as of the admin-shared sender model. All system mail
+   * is sent from the single configured secondary email (the system notification
+   * sender). Kept in the type so existing callers compile unchanged.
    */
   recipientUserId?: number | null;
 }
@@ -48,32 +48,49 @@ async function resolveNotificationSender(): Promise<{
     .select()
     .from(systemSettings)
     .where(eq(systemSettings.key, "notificationSender"));
-  if (!rows.length || !rows[0].value) return null;
 
-  const raw = rows[0].value;
+  const raw = rows[0]?.value;
+  if (raw) {
+    // Try JSON format first: {"provider":"google","userId":3}
+    try {
+      const parsed = JSON.parse(raw) as {
+        provider: "google" | "microsoft" | "smtp";
+        userId: number;
+      };
+      if (parsed.provider && parsed.userId) return parsed;
+    } catch {
+      // Not JSON — fall through to colon-separated format
+    }
 
-  // Try JSON format first: {"provider":"google","userId":3}
-  try {
-    const parsed = JSON.parse(raw) as {
-      provider: "google" | "microsoft" | "smtp";
-      userId: number;
-    };
-    if (parsed.provider && parsed.userId) return parsed;
-  } catch {
-    // Not JSON — fall through to colon-separated format
+    // Try colon-separated format: "provider:userId"
+    const parts = raw.split(":");
+    if (parts.length === 2) {
+      const provider = parts[0] as "google" | "microsoft" | "smtp";
+      const userId = parseInt(parts[1], 10);
+      if (
+        (provider === "google" || provider === "microsoft" || provider === "smtp") &&
+        !isNaN(userId)
+      ) {
+        return { provider, userId };
+      }
+    }
   }
 
-  // Try colon-separated format: "provider:userId"
-  const parts = raw.split(":");
-  if (parts.length === 2) {
-    const provider = parts[0] as "google" | "microsoft" | "smtp";
-    const userId = parseInt(parts[1], 10);
-    if (
-      (provider === "google" || provider === "microsoft" || provider === "smtp") &&
-      !isNaN(userId)
-    ) {
-      return { provider, userId };
+  // Fallback: no sender was explicitly selected, but a secondary (SMTP/IMAP)
+  // email account IS configured. Use it. This makes "configure the secondary
+  // email" sufficient to send ALL system mail (Team invites, reports,
+  // notifications) — no separate "select notification sender" step required.
+  try {
+    const { getAllSmtpAccounts } = await import("../db");
+    const accounts = await getAllSmtpAccounts();
+    if (accounts.length) {
+      // Deterministic when more than one exists: prefer the lowest userId,
+      // i.e. the owner / first-configured secondary account.
+      const acct = accounts.slice().sort((a, b) => a.userId - b.userId)[0];
+      return { provider: "smtp", userId: acct.userId };
     }
+  } catch (e) {
+    console.warn("[sendEmail] secondary-account fallback lookup failed:", e);
   }
 
   return null;
@@ -157,18 +174,12 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   const logUserId = payload.senderUserId ?? null;
 
   try {
-    // Per-user notification sender: if the recipient has their own SMTP/IMAP
-    // account configured, use it as the sending account.
-    let sender: { provider: "google" | "microsoft" | "smtp"; userId: number } | null = null;
-    if (payload.recipientUserId) {
-      const { getSmtpImapAccountFull } = await import("../db");
-      const own = await getSmtpImapAccountFull(payload.recipientUserId);
-      if (own) {
-        sender = { provider: "smtp", userId: payload.recipientUserId };
-      }
-    }
-    // Fall back to the global system notification sender.
-    if (!sender) sender = await resolveNotificationSender();
+    // Admin-shared model: ALL system mail (Team invites, reports, notifications)
+    // goes out from the one configured secondary email — the system notification
+    // sender. The per-user `recipientUserId` override was removed so a recipient's
+    // own SMTP account can never redirect system mail away from the secondary
+    // email. (recipientUserId is still accepted for backward compat but ignored.)
+    const sender = await resolveNotificationSender();
     if (!sender) {
       // No sender configured — log as skipped
       console.warn(

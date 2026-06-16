@@ -516,7 +516,7 @@ function renderSettingsHTML(){
   </div>
   <!-- Admin: shared sender info -->
   <div class="admin-only" style="background:var(--s2);border-radius:8px;padding:10px 12px;margin-bottom:10px;border:1px dashed var(--ac);font-size:11px;color:var(--t2)">
-    💡 Notifications for the whole team are sent using the <strong>System Notification Sender</strong> below. Configure your own secondary email above, then select it here.
+    💡 All system mail — <strong>Team invites, reports, and notifications</strong> — is sent from the secondary email configured above. Once it's saved it's used automatically; the <strong>System Notification Sender</strong> picker below is optional and only needed to override which account sends.
   </div>
   <!-- Per-User Credential Entry -->
   <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
