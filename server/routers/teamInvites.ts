@@ -163,10 +163,30 @@ export const teamInvitesRouter = router({
   validate: publicProcedure
     .input(z.object({ token: z.string().min(1) }))
     .query(async ({ input }) => {
-      const invite = await db.getTeamInviteByToken(input.token);
-      if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'Invite not found or already used' });
-      if (invite.accepted) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has already been used' });
-      if (new Date() > invite.expiresAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has expired' });
+      const token = input.token.trim();
+      const invite = await db.getTeamInviteByToken(token);
+      if (!invite) {
+        // Most common cause: the invite was RESENT (resend regenerates the
+        // token, so an earlier email's link stops working) or it was deleted.
+        // Log the token prefix + total invite count so the cause is visible in
+        // the logs without exposing the full token.
+        try {
+          const all = await db.getAllTeamInvites();
+          console.warn(`[teamInvites.validate] No invite for token ${token.slice(0, 8)}… (${all.length} invite(s) exist). Likely replaced by a newer invite (resend) or deleted.`);
+        } catch { /* best-effort logging only */ }
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'This invite link is no longer valid — it was most likely replaced by a newer invite (resending an invite generates a fresh link) or removed. Ask your admin to resend the invite, then use the link from the most recent email.',
+        });
+      }
+      if (invite.accepted) throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This invite has already been used — your account already exists. Use the Sign in option with this email and the password you set.',
+      });
+      if (new Date() > invite.expiresAt) throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'This invite has expired. Ask your admin to resend it.',
+      });
       return { email: invite.email, name: invite.name, role: invite.role, expiresAt: invite.expiresAt };
     }),
 
@@ -178,10 +198,10 @@ export const teamInvitesRouter = router({
       password: z.string().min(8).max(128),
     }))
     .mutation(async ({ input }) => {
-      const invite = await db.getTeamInviteByToken(input.token);
-      if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'Invite not found' });
-      if (invite.accepted) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has already been used' });
-      if (new Date() > invite.expiresAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has expired' });
+      const invite = await db.getTeamInviteByToken(input.token.trim());
+      if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'This invite link is no longer valid — it may have been replaced by a newer invite or removed. Ask your admin to resend it.' });
+      if (invite.accepted) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has already been used — your account already exists. Use the Sign in option instead.' });
+      if (new Date() > invite.expiresAt) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This invite has expired. Ask your admin to resend it.' });
 
       const passwordHash = await bcrypt.hash(input.password, 12);
       const { getDb } = await import('../db');

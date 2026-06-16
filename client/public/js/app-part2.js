@@ -9595,9 +9595,10 @@ async function acceptInviteSubmit(){
 applyPrefs();
 // Check if this is an invite acceptance URL (/invite/:token)
 (function(){
-  const m=window.location.pathname.match(/^\/invite\/([a-f0-9]{64})$/i);
+  // Tolerate a trailing slash some mail clients append (…/invite/<token>/).
+  const m=window.location.pathname.match(/^\/invite\/([a-f0-9]{64})\/?$/i);
   if(m){
-    initInviteScreen(m[1]);
+    initInviteScreen(m[1].toLowerCase());
     return;
   }
   initLoginScreen();
