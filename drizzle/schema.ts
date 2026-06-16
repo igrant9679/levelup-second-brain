@@ -608,6 +608,12 @@ export const tasksTable = mysqlTable('tasks', {
   context: varchar('context', { length: 64 }),
   assignedTo: varchar('assignedTo', { length: 255 }),
   createdBy: varchar('createdBy', { length: 255 }),
+  // Migration 0045 (team-visibility foundation): stable userId-based owner +
+  // assignee, alongside the legacy `createdBy`/`assignedTo` name strings (kept
+  // for display + back-compat). Access filtering will use these ids. Nullable
+  // until backfilled. See the access helper in server/_core/access.ts.
+  createdById: int('createdById'),
+  assigneeId: int('assigneeId'),
   // Migration 0032: nested subtasks. parentTaskId references another tasks.taskId
   // (string, since taskIds can be Date.now() values). Null = top-level task.
   parentTaskId: varchar('parentTaskId', { length: 40 }),
@@ -642,6 +648,10 @@ export const notesTable = mysqlTable('notes', {
   color: varchar('color', { length: 32 }),
   updatedAt: varchar('updatedAt', { length: 40 }),
   createdAt: varchar('createdAt', { length: 40 }),
+  // Migration 0045 (team-visibility foundation): userId-based owner + assignee.
+  // Nullable until backfilled. See server/_core/access.ts.
+  createdById: int('createdById'),
+  assigneeId: int('assigneeId'),
   raw: mediumtext('raw'),
   syncedAt: timestamp('syncedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
