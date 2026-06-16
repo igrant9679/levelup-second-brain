@@ -9930,7 +9930,28 @@ async function loadServerData(){
   _serverSyncReady=true;
   try{
     if(!sd){
-      // No server data yet — genuine first-time user.
+      // No server data yet — genuine first-time user (e.g. a freshly invited
+      // member). Start them with a CLEAN workspace instead of inheriting the
+      // bundled demo data (or another user's cached localStorage on a shared
+      // browser): every member should only ever see items they create or that
+      // are assigned to them. We persist '[]' to localStorage (NOT removal) so
+      // the demo defaults in the D initializer — `localStorage||[demo]` — can't
+      // reload on the next boot, and we block the one-time example seeder.
+      const _newUserKeys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','clusters','programs','opportunities','calEvents'];
+      let _clearedDemo=false;
+      _newUserKeys.forEach(k=>{
+        if(Array.isArray(D[k])&&D[k].length)_clearedDemo=true;
+        D[k]=[];
+        try{ localStorage.setItem('lu_'+k,'[]'); }catch(_){}
+      });
+      try{ localStorage.setItem('lu_examples_seeded_v1','1'); }catch(_){}
+      if(_clearedDemo){
+        console.info('[appData] first-time user — cleared bundled demo data for a clean workspace');
+        // Push the empty slate up so the clean workspace becomes the source of
+        // truth (the sync gate is already open at this point).
+        _newUserKeys.forEach(k=>{ try{ if(typeof _pushKeyToServer==='function')setTimeout(()=>_pushKeyToServer(k),800); }catch(_){} });
+        if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
+      }
     }else{
     const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities'];
     let changed=false;
