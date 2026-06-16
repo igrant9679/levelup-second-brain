@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { userAppData, tasksTable, notesTable, ideasTable } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
 const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations'] as const;
@@ -443,5 +443,55 @@ export const appDataRouter = router({
       blobCount,
       consistent: tableRows.length === blobCount,
     };
+  }),
+
+  /**
+   * Phase 1 / step 2 (team-visibility): one-shot backfill of the userId-based
+   * createdById / assigneeId columns (migration 0045) from the existing data.
+   *   - tasks: createdById ← resolve(createdBy name) ?? row owner;
+   *            assigneeId  ← resolve(assignedTo name) ?? null
+   *   - notes: createdById ← row owner (notes have no createdBy column);
+   *            assigneeId  ← null
+   * Admin-only, idempotent (safe to re-run). Returns counts. If it throws, the
+   * 0045 columns almost certainly didn't get created — the error says so.
+   */
+  backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, error: 'db unavailable' };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const usersList = await adminListAllUsers();
+      const nameToId = new Map<string, number>();
+      const emailToId = new Map<string, number>();
+      for (const u of usersList) {
+        if (u.name) nameToId.set(u.name.trim().toLowerCase(), u.id);
+        if (u.email) emailToId.set(u.email.trim().toLowerCase(), u.id);
+      }
+      const resolve = (s: string | null | undefined): number | null => {
+        if (!s) return null;
+        const key = String(s).trim().toLowerCase();
+        return nameToId.get(key) ?? emailToId.get(key) ?? null;
+      };
+
+      const taskRows = await db.select().from(tasksTable);
+      let tasksUpdated = 0;
+      for (const r of taskRows) {
+        const createdById = resolve(r.createdBy) ?? r.userId;
+        const assigneeId = resolve(r.assignedTo);
+        await db.update(tasksTable).set({ createdById, assigneeId }).where(eq(tasksTable.id, r.id));
+        tasksUpdated++;
+      }
+
+      const noteRows = await db.select({ id: notesTable.id, userId: notesTable.userId }).from(notesTable);
+      let notesUpdated = 0;
+      for (const r of noteRows) {
+        await db.update(notesTable).set({ createdById: r.userId, assigneeId: null }).where(eq(notesTable.id, r.id));
+        notesUpdated++;
+      }
+
+      return { ok: true as const, users: usersList.length, tasksUpdated, notesUpdated };
+    } catch (e: any) {
+      return { ok: false as const, error: String(e?.message || e) };
+    }
   }),
 });
