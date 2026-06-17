@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
 import { userAppData, tasksTable, notesTable, ideasTable } from "../../drizzle/schema";
@@ -488,6 +488,40 @@ export const appDataRouter = router({
    * Admin-only, idempotent (safe to re-run). Returns counts. If it throws, the
    * 0045 columns almost certainly didn't get created — the error says so.
    */
+  /**
+   * Team-visibility read augmentation (Phase 1, step 2c). Tasks this user
+   * should SEE but does not OWN (they live in another member's blob):
+   *   - regular member → tasks ASSIGNED to them by someone else (assigneeId==me,
+   *     owned by another user);
+   *   - admin / owner   → every other member's tasks (full visibility).
+   * The user's OWN tasks come through the normal appData.load path. Each row is
+   * tagged `_sharedFromUserId` + `_readOnly` so the client renders it read-only
+   * and excludes it from the user's own blob on save. Resilient: any failure
+   * returns an empty list (the app falls back to just the user's own tasks).
+   */
+  sharedTasksForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, tasks: [] as any[] };
+    try {
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = admin
+        ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
+        : await db.select().from(tasksTable).where(and(eq(tasksTable.assigneeId, ctx.user.id), ne(tasksTable.userId, ctx.user.id)));
+      const tasks = rows.map((r: any) => {
+        let t: any = null;
+        try { t = JSON.parse(r.raw); } catch { return null; }
+        if (!t) return null;
+        t._sharedFromUserId = r.userId;
+        t._readOnly = true;
+        return t;
+      }).filter(Boolean);
+      return { ok: true as const, admin, tasks };
+    } catch (e: any) {
+      return { ok: false as const, tasks: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
   backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
