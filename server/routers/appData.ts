@@ -522,6 +522,68 @@ export const appDataRouter = router({
     }
   }),
 
+  /**
+   * Team-visibility: let the ASSIGNEE (or an admin) change the STATUS of a task
+   * that lives in another member's blob. Writes back to the owner's JSON blob
+   * (source of truth) AND the relational mirror. Status-only — the assignee
+   * can't rewrite the owner's title/notes/etc. Authorized by assigneeId.
+   */
+  updateSharedTaskStatus: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      taskId: z.string().min(1),
+      status: z.string().min(1).max(32),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const [row] = await db.select().from(tasksTable)
+          .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId)))
+          .limit(1);
+        if (!row) return { ok: false as const, error: 'task not found' };
+        const { isAdminUser } = await import("../_core/access");
+        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id;
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+
+        const isDone = /done|complete|completed|closed/i.test(input.status);
+        const completedAt = isDone ? new Date().toISOString() : null;
+
+        // 1) Owner's JSON blob (source of truth).
+        const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (appRow && appRow.tasks) {
+          try {
+            const arr = JSON.parse(appRow.tasks);
+            if (Array.isArray(arr)) {
+              const t = arr.find((x: any) => x && String(x.id) === input.taskId);
+              if (t) {
+                t.status = input.status;
+                t.completedAt = completedAt;
+                await db.update(userAppData).set({ tasks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+              }
+            }
+          } catch { /* blob unparseable — mirror update below still applies */ }
+        }
+
+        // 2) Relational mirror (status col + raw JSON).
+        let newRaw = row.raw;
+        try {
+          const t = JSON.parse(row.raw || '{}');
+          t.status = input.status;
+          t.completedAt = completedAt;
+          newRaw = JSON.stringify(t);
+        } catch { /* keep old raw */ }
+        await db.update(tasksTable)
+          .set({ status: input.status.slice(0, 32), completedAt: completedAt ? completedAt.slice(0, 40) : null, raw: newRaw })
+          .where(eq(tasksTable.id, row.id));
+
+        return { ok: true as const, status: input.status };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
   backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };

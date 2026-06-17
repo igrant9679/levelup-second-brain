@@ -7214,9 +7214,30 @@ function _openSharedTaskView(id){
     ${row('Due', t.due)}
     ${row('Project', t.project)}
     ${notes?`<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Notes</div><div style="font-size:12px;color:var(--t1);line-height:1.5;white-space:pre-wrap;max-height:220px;overflow:auto">${esc(String(notes).replace(/<[^>]+>/g,' '))}</div></div>`:''}
-    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-s" onclick="closeModal&&closeModal();document.getElementById('modal-capture').classList.remove('show')">Close</button></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:16px">
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">Set status</span>
+      <select class="inp" style="height:28px;font-size:11px;flex:1;min-width:0" onchange="_updateSharedTaskStatus(${Number(t._sharedFromUserId)||0},'${esc(String(t.id))}',this.value)">${['Not Started','In Progress','Scheduled','Pending','Done'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>
+      <button class="btn btn-s" style="flex-shrink:0" onclick="document.getElementById('modal-capture').classList.remove('show')">Close</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:6px">You can update the status; other fields are managed by ${esc(from)}.</div>
   </div>`;
   bg.classList.add('show');
+}
+// Assignee/admin updates the status of a task that lives in another member's
+// blob (writes back to the owner via the server). Status-only.
+async function _updateSharedTaskStatus(ownerUserId,taskId,status){
+  try{
+    const res=await _trpc('appData.updateSharedTaskStatus',{ownerUserId:Number(ownerUserId),taskId:String(taskId),status},'mutation');
+    if(res&&res.ok){
+      const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(taskId));
+      if(t)t.status=status;
+      toast({type:'success',title:'Status updated',msg:'Saved to the task owner.',duration:2200});
+      if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
+      _openSharedTaskView(taskId);
+    }else{
+      toast({type:'error',title:'Could not update status',msg:(res&&res.error)||'Try again.'});
+    }
+  }catch(e){ toast({type:'error',title:'Could not update status',msg:String(e&&e.message||e)}); }
 }
 // Dedicated "Shared with you" section, rendered into #shared-tasks-section
 // above the task list. Shown in EVERY task view (the view renderers only touch
