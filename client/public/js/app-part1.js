@@ -7181,7 +7181,10 @@ async function _loadSharedTasks(){
     const res=await _trpc('appData.sharedTasksForMe',undefined,'query');
     if(res&&res.ok&&Array.isArray(res.tasks)){
       // Mark each so views render it read-only and the save path skips it.
-      D._sharedTasks=res.tasks.map(t=>({...t,_shared:true,_readOnly:true}));
+      // Stamp a stable index so cards can be opened by position — robust even
+      // when a task's id is unusual (e.g. Nifty-origin string ids) where an
+      // id-string match in an onclick attribute would fail.
+      D._sharedTasks=res.tasks.map((t,i)=>({...t,_shared:true,_readOnly:true,_idx:i}));
       _sharedTasksLoaded=true;
       if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
     }
@@ -7197,17 +7200,15 @@ function _userNameById(uid){
 }
 // Read-only detail view for a shared task (it lives in another member's blob,
 // so it can be viewed but not edited from here).
-async function _openSharedTaskView(id){
-  let t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id));
+async function _openSharedTaskView(idx){
+  let t=(D._sharedTasks||[])[idx];
   // Robustness: if the in-memory list is stale/empty, re-fetch once and retry.
-  if(!t&&typeof _loadSharedTasks==='function'){ await _loadSharedTasks(); t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id)); }
-  if(!t){toast('Shared task not found — try refreshing.');return;}
+  if(!t&&typeof _loadSharedTasks==='function'){ await _loadSharedTasks(); t=(D._sharedTasks||[])[idx]; }
+  if(!t){toast('Shared task not found — try refreshing the page.');return;}
   const from=t._delegated?'you':_userNameById(t._sharedFromUserId);
   const modal=document.getElementById('modal-content');
   const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Editor not available');return;}
-  const owner=Number(t._sharedFromUserId)||0;
-  const tid=esc(String(t.id));
   const notes=String(t.notes||t.description||'').replace(/<[^>]+>/g,' ');
   const statusOpts=['Not Started','In Progress','Scheduled','Pending','Done'];
   const priOpts=['High','Medium','Low'];
@@ -7224,7 +7225,7 @@ async function _openSharedTaskView(id){
     <div class="field"><label>Due</label><input class="inp" id="st-due" value="${esc(t.due||'')}" placeholder="YYYY-MM-DD"></div>
     <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px">
-      <button class="btn btn-p" onclick="_saveSharedTask(${owner},'${tid}')">Save</button>
+      <button class="btn btn-p" onclick="_saveSharedTask(${Number(idx)||0})">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
     <div style="font-size:9px;color:var(--t3);margin-top:8px">Saved back to ${t._delegated?'this task':esc(from)+"&#39;s copy"}. Title/status/priority/due/notes only.</div>
@@ -7232,7 +7233,11 @@ async function _openSharedTaskView(id){
   bg.classList.add('show');
 }
 // Save edits to a shared task back to the owner (assignee/owner/admin only).
-async function _saveSharedTask(ownerUserId,taskId){
+async function _saveSharedTask(idx){
+  const t=(D._sharedTasks||[])[idx];
+  if(!t){toast('Could not save — task not loaded. Refresh and try again.');return;}
+  const ownerUserId=Number(t._sharedFromUserId)||0;
+  const taskId=String(t.id);
   const g=id=>document.getElementById(id);
   const patch={
     title:(g('st-title')?.value||'').trim(),
@@ -7242,12 +7247,11 @@ async function _saveSharedTask(ownerUserId,taskId){
     notes:g('st-notes')?.value||'',
   };
   try{
-    const res=await _trpc('appData.updateSharedTask',{ownerUserId:Number(ownerUserId),taskId:String(taskId),patch},'mutation');
+    const res=await _trpc('appData.updateSharedTask',{ownerUserId,taskId,patch},'mutation');
     if(res&&res.ok){
-      const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(taskId));
-      if(t)Object.assign(t,patch);
+      Object.assign(t,patch);
       // Delegated task = my own task → keep the normal list in sync locally too.
-      const mine=(D.tasks||[]).find(x=>String(x.id)===String(taskId));
+      const mine=(D.tasks||[]).find(x=>String(x.id)===taskId);
       if(mine){ Object.assign(mine,patch); try{save('tasks');}catch(_){} }
       toast({type:'success',title:'Saved',msg:'Changes saved to the task owner.',duration:2200});
       document.getElementById('modal-capture').classList.remove('show');
@@ -7345,7 +7349,7 @@ function _sharedTaskCard(t){
   const badge=delegated?'DELEGATED':'SHARED';
   const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
   const tip=delegated?('Task you delegated — assigned to '+esc(who)+' (click to edit)'):('Shared task — owned by '+esc(who)+' (click to edit)');
-  return `<div onclick="_openSharedTaskView('${esc(String(t.id))}')" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="${tip}">
+  return `<div onclick="_openSharedTaskView(${Number(t._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="${tip}">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${badge}</span>
       <div style="flex:1;min-width:0">
