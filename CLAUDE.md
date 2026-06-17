@@ -138,6 +138,55 @@ Per-entity gotchas:
 - **projects / goals / ideas / clusters / contacts / habits** — plain arrays,
   follow the tasks pattern directly. Good order to tackle them in.
 
+## Team visibility / shared-workspace model (June 6 2026 — IN PROGRESS)
+
+**Goal (user-chosen):** every member sees only items they CREATE or that are
+ASSIGNED to them; admins/owners see everything. Data stays per-user blobs; we
+*augment reads* rather than rewrite the save path (chosen over a full
+shared-pool rewrite because the wholesale "replace my whole list" blob save is
+incompatible with a shared pool — a member saving their filtered slice would
+delete everyone else's items).
+
+**Only TASKS are assignable** — notes/projects/goals are owner-only, so per-user
+blobs already give "only mine" for those. The feature is scoped to tasks.
+
+**What shipped & is LIVE + verified (builds -76 → -80):**
+- **-76** new members start with a clean workspace (loadServerData `sd===null`
+  branch clears the bundled demo data; persists `'[]'` so it can't reload).
+- **-77** migration `0045`: `createdById`/`assigneeId` int cols on `tasks` +
+  `notes`. `server/_core/access.ts` → `canSeeItem(item,user)` / `isAdminUser`.
+- **-78** `appData.backfillTeamVisibilityIds` (adminProcedure) — stamps the id
+  cols from existing data (createdBy/assignedTo names → userIds via
+  `adminListAllUsers`; notes owner = row userId). RUN + verified on prod:
+  `{ok:true, users:3, tasksUpdated:58, notesUpdated:202}`.
+- **-78** dual-write: `mirrorTasksToRelational`/`mirrorNotesToRelational` set the
+  id cols on every save (cached `_resolveUserIdMap`, ~60s). Try/caught in
+  `appData.save` so a missing col can't break saves.
+- **-79** `appData.sharedTasksForMe` (read endpoint): member → tasks where
+  `assigneeId==me AND userId!=me`; admin → all tasks `userId!=me`. Rows tagged
+  `_sharedFromUserId` + `_readOnly`.
+- **-79** client: `_loadSharedTasks()` → `D._sharedTasks` (SEPARATE from
+  D.tasks — never saved/cached, no clobber). `_taskPool()` = own + shared.
+  `renderTaskList` renders from it; `cardRow` short-circuits `_shared` →
+  `_sharedTaskCard` (read-only purple SHARED card).
+- **-80** `team.listMembers` (protectedProcedure) → real workspace roster so the
+  assignee dropdown includes invited accounts (was reading D.teams blob only).
+  Client `_loadWorkspaceMembers()`→`_workspaceMembers`; `_assigneeMembers()`
+  merges real accounts + blob members; `buildAssigneeDropdown`/`_caSelect` use
+  it. Shared cards open `_openSharedTaskView` (read-only modal).
+
+**Verified end-to-end on prod:** assign a task to a member → it appears in their
+List as a read-only SHARED card; admin sees all; My Items excludes shared.
+
+**Remaining (next):**
+- Extend the shared view beyond the LIST view — board/cards/matrix/gantt/
+  clusters/calendar still show own-tasks only. Each has its own card renderer;
+  either add a `_shared` read-only guard per renderer, or render a single
+  dedicated "Shared with you" section across views. `_taskPool()` is the hook.
+- Optional: cross-member *editing* of an assigned task (status write-back to the
+  owner's blob) — currently read-only.
+- Optional: assignment for projects if projects become assignable.
+
 ## Deploy workflow
 
 - Push to `main` → Railway picks it up → builds → runs `pnpm install --frozen-lockfile` → builds (vite + esbuild) → starts.
