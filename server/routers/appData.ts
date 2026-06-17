@@ -1,7 +1,7 @@
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { userAppData, tasksTable, notesTable, ideasTable } from "../../drizzle/schema";
+import { userAppData, tasksTable, notesTable, ideasTable, externalTasks } from "../../drizzle/schema";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
@@ -888,6 +888,79 @@ export const appDataRouter = router({
         }
         for (const r of rows) { await db.delete(tasksTable).where(eq(tasksTable.id, r.id)); }
         return { ok: true as const, deleted: total, byOwner };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Admin cleanup: remove NATIVE task rows that are duplicates of live Nifty/LSI
+   * synced tasks. These are the copies that surface in the "Shared" view; the
+   * real synced versions live in `external_tasks` and are left untouched, so the
+   * sync keeps working — we just drop the stray native twins (matched by title).
+   * Two gates, same as adminDeleteSharedTasks:
+   *   - no confirmCount → DRY RUN (count + sample + unmatched), deletes nothing.
+   *   - confirmCount → must EXACTLY equal the matched count, else refuses.
+   * Deletes relational rows by PRIMARY KEY (immune to Nifty's long ids being
+   * truncated in taskId) and best-effort-prunes each owner's JSON blob.
+   */
+  adminRemoveNiftyDuplicates: adminProcedure
+    .input(z.object({ confirmCount: z.number().int().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const norm = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        // Live (non-removed) Nifty synced task titles — the records we KEEP.
+        const niftyRows = await db.select({ title: externalTasks.title })
+          .from(externalTasks)
+          .where(and(eq(externalTasks.source, 'nifty'), isNull(externalTasks.removedAt)));
+        const niftyTitles = new Set(niftyRows.map((r: any) => norm(r.title)).filter(Boolean));
+        if (!niftyTitles.size) return { ok: false as const, error: 'No live Nifty tasks found to match against — aborting so nothing is deleted by mistake.' };
+        // The "shared pool" the admin sees: every native task owned by someone
+        // else, plus the admin's own delegated tasks.
+        const others = await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id));
+        const mineDelegated = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
+        const pool = others.concat(mineDelegated);
+        const dupes = pool.filter((r: any) => niftyTitles.has(norm(r.title)));
+        const matched = dupes.length;
+        const { adminListAllUsers } = await import("../db");
+        const usersAll = await adminListAllUsers();
+        const nameById = new Map(usersAll.map((u: any) => [u.id, u.name || u.email || ('user ' + u.id)]));
+        const byOwnerMap = new Map<number, number>();
+        for (const r of dupes) byOwnerMap.set(r.userId, (byOwnerMap.get(r.userId) || 0) + 1);
+        const byOwner = Array.from(byOwnerMap.entries()).map(([userId, count]) => ({ userId, name: nameById.get(userId) || ('user ' + userId), count }));
+        if (input.confirmCount == null) {
+          const unmatched = pool.filter((r: any) => !niftyTitles.has(norm(r.title)));
+          return {
+            ok: true as const, preview: true as const,
+            poolTotal: pool.length, willDelete: matched, byOwner,
+            sample: dupes.slice(0, 12).map((r: any) => r.title),
+            unmatched: unmatched.slice(0, 12).map((r: any) => r.title),
+            unmatchedCount: unmatched.length,
+          };
+        }
+        if (input.confirmCount !== matched) {
+          return { ok: false as const, error: `Count mismatch (you passed ${input.confirmCount}, current match is ${matched}). Re-run the preview and use the new number.`, willDelete: matched };
+        }
+        // Best-effort: prune each owner's JSON blob by the duplicate ids.
+        const idsByOwner = new Map<number, Set<string>>();
+        for (const r of dupes) { if (!idsByOwner.has(r.userId)) idsByOwner.set(r.userId, new Set()); idsByOwner.get(r.userId)!.add(String(r.taskId)); }
+        for (const [uid, ids] of idsByOwner.entries()) {
+          const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+          if (appRow && appRow.tasks) {
+            try {
+              const parsed = JSON.parse(appRow.tasks);
+              if (Array.isArray(parsed)) {
+                const next = parsed.filter((x: any) => !(x && ids.has(String(x.id).slice(0, 40))));
+                await db.update(userAppData).set({ tasks: JSON.stringify(next) }).where(eq(userAppData.userId, uid));
+              }
+            } catch { /* blob unparseable — relational delete below still applies */ }
+          }
+        }
+        // Authoritative: delete the relational rows by primary key.
+        for (const r of dupes) { await db.delete(tasksTable).where(eq(tasksTable.id, r.id)); }
+        return { ok: true as const, deleted: matched, byOwner };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
