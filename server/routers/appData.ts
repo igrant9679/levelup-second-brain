@@ -20,10 +20,35 @@ function _col(v: unknown, max: number): string | null {
  * Delete-all + re-insert keeps it a faithful copy of the blob. Returns the row
  * count, or undefined if the input wasn't a usable JSON array.
  */
+// Team-visibility (migration 0045): resolve the legacy createdBy/assignedTo
+// NAME strings to stable userIds. Cached ~60s so we don't re-query users on
+// every save. Empty map on failure → ids fall back to null/owner (harmless).
+let _uidMapCache: { map: Map<string, number>; at: number } | null = null;
+async function _resolveUserIdMap(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (_uidMapCache && now - _uidMapCache.at < 60000) return _uidMapCache.map;
+  const map = new Map<string, number>();
+  try {
+    const { adminListAllUsers } = await import("../db");
+    const users = await adminListAllUsers();
+    for (const u of users) {
+      if (u.name) map.set(String(u.name).trim().toLowerCase(), u.id);
+      if (u.email) map.set(String(u.email).trim().toLowerCase(), u.id);
+    }
+  } catch { /* leave empty — ids stay null, no harm */ }
+  _uidMapCache = { map, at: now };
+  return map;
+}
+
 async function mirrorTasksToRelational(db: any, userId: number, tasksJson: string) {
   let arr: any;
   try { arr = JSON.parse(tasksJson); } catch { return; }
   if (!Array.isArray(arr)) return;
+  const idMap = await _resolveUserIdMap();
+  const resolveId = (s: any): number | null => {
+    if (!s) return null;
+    return idMap.get(String(s).trim().toLowerCase()) ?? null;
+  };
   const seen = new Set<string>();
   const rows = arr
     .filter((t: any) => t && t.id != null && String(t.id).length > 0)
@@ -42,6 +67,10 @@ async function mirrorTasksToRelational(db: any, userId: number, tasksJson: strin
       context: _col(t.context, 64),
       assignedTo: _col(t.assignedTo, 255),
       createdBy: _col(t.createdBy, 255),
+      // Stable userId-based owner + assignee (migration 0045). Owner falls back
+      // to the row's user when createdBy is missing/unresolved.
+      createdById: resolveId(t.createdBy) ?? userId,
+      assigneeId: resolveId(t.assignedTo),
       raw: JSON.stringify(t),
     }))
     .filter((r: any) => !seen.has(r.taskId) && seen.add(r.taskId));
@@ -104,6 +133,10 @@ async function mirrorNotesToRelational(db: any, userId: number, json: string) {
       color: _col(n.color, 32),
       updatedAt: _col(n.updated, 40),
       createdAt: _col(n.createdAt, 40),
+      // Team-visibility (migration 0045): a note's creator is its owning user;
+      // notes aren't assigned, so assigneeId stays null.
+      createdById: (n.createdById != null ? n.createdById : userId),
+      assigneeId: (n.assigneeId != null ? n.assigneeId : null),
       raw: JSON.stringify(n),
     }))
     .filter((r: any) => !seen.has(r.noteId) && seen.add(r.noteId));
