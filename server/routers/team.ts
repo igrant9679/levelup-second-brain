@@ -7,6 +7,16 @@ import { ENV } from "../_core/env";
 
 export const teamRouter = router({
   /**
+   * List the real workspace members (accounts) so any member can assign work to
+   * teammates — including invited users like new hires that aren't in the local
+   * D.teams blob. Available to all signed-in members; returns minimal fields.
+   */
+  listMembers: protectedProcedure.query(async () => {
+    const users = await db.adminListAllUsers();
+    return users.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role }));
+  }),
+
+  /**
    * Upload a team member avatar.
    * Accepts a base64 data URL (e.g. "data:image/jpeg;base64,...").
    * Returns the /manus-storage/... URL to store in D.teams member.avatar.

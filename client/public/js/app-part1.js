@@ -3934,9 +3934,42 @@ async function exportBookmarks(format){
     else _exportToCSV('levelup-bookmarks-'+stamp+'.csv',headers,items);
   }catch(e){toast('⚠ Export failed: '+e.message);}
 }
+// Real workspace accounts (so you can assign work to invited members like new
+// hires that aren't in the local D.teams blob). Loaded once after login.
+let _workspaceMembers=[];
+async function _loadWorkspaceMembers(){
+  try{
+    if(typeof _trpc!=='function')return;
+    const res=await _trpc('team.listMembers',undefined,'query');
+    if(Array.isArray(res))_workspaceMembers=res;
+  }catch(_){ /* non-fatal — fall back to blob members */ }
+}
+// Merged assignee roster: real accounts first, then any legacy blob team
+// members, deduped by name. Avatar/color come from a blob member when present.
+function _assigneeMembers(){
+  const blob=(D.teams||[]).flatMap(t=>t.members||[]);
+  const byName=new Map();
+  for(const m of blob){ if(m&&m.name)byName.set(m.name.trim().toLowerCase(),m); }
+  const out=[];
+  const seen=new Set();
+  for(const u of (_workspaceMembers||[])){
+    if(!u||!u.name)continue;
+    const k=u.name.trim().toLowerCase();
+    if(seen.has(k))continue; seen.add(k);
+    const b=byName.get(k)||{};
+    out.push({ name:u.name, role:u.role||b.role||'member', color:b.color||'#6366f1', avatar:b.avatar, userId:u.id });
+  }
+  for(const m of blob){
+    if(!m||!m.name)continue;
+    const k=m.name.trim().toLowerCase();
+    if(seen.has(k))continue; seen.add(k);
+    out.push(m);
+  }
+  return out;
+}
 // Build a custom avatar+name assignee dropdown
 function buildAssigneeDropdown(id,currentValue){
-  const members=D.teams.flatMap(t=>t.members);
+  const members=_assigneeMembers();
   const sel=members.find(m=>m.name===currentValue);
   const selInitials=sel?sel.name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase():'';
   const selColor=sel?sel.color||'var(--ac)':'var(--t3)';
@@ -3976,7 +4009,7 @@ function _caSelect(id,value){
   // Update trigger display
   const wrap=document.getElementById(id+'-wrap');
   if(!wrap)return;
-  const members=D.teams.flatMap(t=>t.members);
+  const members=_assigneeMembers();
   const sel=members.find(m=>m.name===value);
   const trigger=wrap.querySelector('.ca-trigger');
   if(!trigger)return;
@@ -7155,12 +7188,39 @@ function _userNameById(uid){
   }catch(_){}
   return 'a teammate';
 }
+// Read-only detail view for a shared task (it lives in another member's blob,
+// so it can be viewed but not edited from here).
+function _openSharedTaskView(id){
+  const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id));
+  if(!t){toast('Shared task not found — try refreshing.');return;}
+  const from=_userNameById(t._sharedFromUserId);
+  const modal=document.getElementById('modal-content');
+  const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Viewer not available');return;}
+  const row=(label,val)=>val?`<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:11px;color:var(--t3)">${label}</span><span style="font-size:12px;color:var(--t1);text-align:right">${esc(String(val))}</span></div>`:'';
+  const notes=t.notes||t.description||'';
+  modal.innerHTML=`<div style="padding:16px;max-width:520px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">SHARED · READ-ONLY</span>
+    </div>
+    <div style="font-size:17px;font-weight:700;line-height:1.3;margin-bottom:8px">${esc(t.title||'Untitled')}</div>
+    ${row('Owner', from)}
+    ${row('Assigned to', t.assignedTo)}
+    ${row('Status', t.status)}
+    ${row('Priority', t.priority)}
+    ${row('Due', t.due)}
+    ${row('Project', t.project)}
+    ${notes?`<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Notes</div><div style="font-size:12px;color:var(--t1);line-height:1.5;white-space:pre-wrap;max-height:220px;overflow:auto">${esc(String(notes).replace(/<[^>]+>/g,' '))}</div></div>`:''}
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-s" onclick="closeModal&&closeModal();document.getElementById('modal-capture').classList.remove('show')">Close</button></div>
+  </div>`;
+  bg.classList.add('show');
+}
 // Read-only card for a task shared with me (assigned to me / admin view).
 function _sharedTaskCard(t){
   const pri=t.priority||'Medium';
   const done=(t.status==='Done');
   const from=_userNameById(t._sharedFromUserId);
-  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95" title="Shared task — read-only (owned by ${esc(from)})">
+  return `<div onclick="_openSharedTaskView('${esc(String(t.id))}')" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="Shared task — read-only (owned by ${esc(from)})">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">SHARED</span>
       <div style="flex:1;min-width:0">
