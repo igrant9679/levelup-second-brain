@@ -7123,6 +7123,53 @@ function setTaskScope(my){_taskMyOnly=!!my;_persistPageState('tasks',{myOnly:_ta
 // as standalone tasks in List/Board/Matrix/etc.
 function _isSubtaskRow(t){ return !!(t&&t.parentTaskId); }
 function _topLevelTasks(arr){ return (arr||[]).filter(t=>!_isSubtaskRow(t)); }
+
+// ── Team-visibility (shared-workspace): tasks ASSIGNED to me by other members
+//    (or, for admins, every other member's tasks). They live in another user's
+//    blob, so they are kept SEPARATE from D.tasks — never saved into my blob,
+//    never written to localStorage — and merged in only at render time, marked
+//    read-only. _taskPool() returns my own tasks + these shared ones for views.
+let _sharedTasksLoaded=false;
+function _taskPool(){
+  const own=Array.isArray(D.tasks)?D.tasks:[];
+  const shared=Array.isArray(D._sharedTasks)?D._sharedTasks:[];
+  return shared.length?own.concat(shared):own;
+}
+async function _loadSharedTasks(){
+  try{
+    if(typeof _trpc!=='function')return;
+    const res=await _trpc('appData.sharedTasksForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.tasks)){
+      // Mark each so views render it read-only and the save path skips it.
+      D._sharedTasks=res.tasks.map(t=>({...t,_shared:true,_readOnly:true}));
+      _sharedTasksLoaded=true;
+      if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+    }
+  }catch(e){ /* non-fatal — just show my own tasks */ }
+}
+function _userNameById(uid){
+  if(uid==null)return '';
+  try{
+    const m=(D.teams||[]).flatMap(t=>t.members||[]).find(x=>x&&(x.userId===uid||x.id===uid));
+    if(m&&m.name)return m.name;
+  }catch(_){}
+  return 'a teammate';
+}
+// Read-only card for a task shared with me (assigned to me / admin view).
+function _sharedTaskCard(t){
+  const pri=t.priority||'Medium';
+  const done=(t.status==='Done');
+  const from=_userNameById(t._sharedFromUserId);
+  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95" title="Shared task — read-only (owned by ${esc(from)})">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">SHARED</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title||'Untitled')}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(pri)}${t.status?' · '+esc(t.status):''}${t.due?' · due '+esc(t.due):''} · from ${esc(from)}</div>
+      </div>
+    </div>
+  </div>`;
+}
 function _childTasksOf(parentTaskId){
   if(parentTaskId==null)return [];
   return (D.tasks||[]).filter(t=>t.parentTaskId!=null&&String(t.parentTaskId)===String(parentTaskId));
@@ -7399,7 +7446,9 @@ function _tlResizeEnd(){
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
+  // _taskPool() = my own tasks + tasks shared with me (assigned-to-me / admin),
+  // the latter marked _shared/_readOnly and rendered via _sharedTaskCard.
+  let filtered=_sourceOn('personal')?_topLevelTasks(_taskPool()).filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
@@ -7644,6 +7693,10 @@ function renderTaskList(){
   // width (no more 11-column grid). Sort/drag/bulk all preserved.
   const cardMode=true;
   function cardRow(t){
+    // Tasks shared with me (assigned-to-me / admin view) live in another
+    // member's blob — render a dedicated read-only card, never the mutable
+    // native one, so they can't be edited/completed/deleted from here.
+    if(t&&(t._shared||t._readOnly))return _sharedTaskCard(t);
     // External tasks render as a read-only sibling card so they fit the same
     // visual rhythm but route clicks to the source URL + the annotate modal.
     if(t._source&&t._source!=='local'){

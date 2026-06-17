@@ -4300,6 +4300,9 @@ function doLoginSuccess(member){
   updateSidebarBadges();
   // Load server-side data (restores data across deployments and devices)
   setTimeout(loadServerData,300);
+  // Team-visibility: pull tasks shared with me (assigned-to-me / admin view)
+  // after my own data has loaded. Kept separate from D.tasks; read-only.
+  setTimeout(()=>{ if(typeof _loadSharedTasks==='function')_loadSharedTasks(); },1600);
   // Pull external-source tasks (Smartsheet/Nifty) into D.externalTasks.
   // Independent of loadServerData — its own table, its own endpoint, its
   // own failure mode (no token / no watches = empty array, never throws).
