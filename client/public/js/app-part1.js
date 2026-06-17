@@ -7197,7 +7197,7 @@ function _userNameById(uid){
 function _openSharedTaskView(id){
   const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id));
   if(!t){toast('Shared task not found — try refreshing.');return;}
-  const from=_userNameById(t._sharedFromUserId);
+  const from=t._delegated?'you':_userNameById(t._sharedFromUserId);
   const modal=document.getElementById('modal-content');
   const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Viewer not available');return;}
@@ -7256,10 +7256,10 @@ function _renderSharedTasksSection(){
   el.innerHTML=`<div class="cd" style="border-left:3px solid var(--purp)">
     <div onclick="_toggleSharedSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open&&items.length?'margin-bottom:8px':''}">
       <span style="display:inline-block;transition:transform .2s;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
-      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared with you</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
       <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${items.length}</span>
       <span style="flex:1"></span>
-      <span style="font-size:10px;color:var(--t3)">read-only · assigned to you</span>
+      <span style="font-size:10px;color:var(--t3)">read-only · assigned to/by you</span>
     </div>
     ${open?(items.length?items.map(_sharedTaskCard).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing matches the current filter.</div>'):''}
   </div>`;
@@ -7322,13 +7322,17 @@ function _sharedProjectCard(p){
 function _sharedTaskCard(t){
   const pri=t.priority||'Medium';
   const done=(t.status==='Done');
-  const from=_userNameById(t._sharedFromUserId);
-  return `<div onclick="_openSharedTaskView('${esc(String(t.id))}')" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="Shared task — read-only (owned by ${esc(from)})">
+  const delegated=!!t._delegated;
+  const who=delegated?(t._assigneeName||'someone'):_userNameById(t._sharedFromUserId);
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  const tip=delegated?('Task you delegated — assigned to '+esc(who)):('Shared task — read-only (owned by '+esc(who)+')');
+  return `<div onclick="_openSharedTaskView('${esc(String(t.id))}')" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="${tip}">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">SHARED</span>
+      <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${badge}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title||'Untitled')}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(pri)}${t.status?' · '+esc(t.status):''}${t.due?' · due '+esc(t.due):''} · from ${esc(from)}</div>
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(pri)}${t.status?' · '+esc(t.status):''}${t.due?' · due '+esc(t.due):''} · ${sub}</div>
       </div>
     </div>
   </div>`;

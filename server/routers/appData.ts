@@ -505,17 +505,23 @@ export const appDataRouter = router({
     try {
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
-      const rows = admin
+      // Tasks owned by OTHERS: assigned to me, or all of them if I'm admin.
+      const sharedRows = admin
         ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
         : await db.select().from(tasksTable).where(and(eq(tasksTable.assigneeId, ctx.user.id), ne(tasksTable.userId, ctx.user.id)));
-      const tasks = rows.map((r: any) => {
+      // MY OWN tasks delegated to someone else (assignee set and != me; SQL
+      // `!=` already excludes the null/unassigned rows).
+      const delegatedRows = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
+      const mapRow = (r: any, delegated: boolean) => {
         let t: any = null;
         try { t = JSON.parse(r.raw); } catch { return null; }
         if (!t) return null;
         t._sharedFromUserId = r.userId;
         t._readOnly = true;
+        if (delegated) { t._delegated = true; t._assigneeName = r.assignedTo || ''; }
         return t;
-      }).filter(Boolean);
+      };
+      const tasks = [...sharedRows.map((r: any) => mapRow(r, false)), ...delegatedRows.map((r: any) => mapRow(r, true))].filter(Boolean);
       return { ok: true as const, admin, tasks };
     } catch (e: any) {
       return { ok: false as const, tasks: [] as any[], error: String(e?.message || e) };
@@ -594,7 +600,7 @@ export const appDataRouter = router({
           .limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
         const { isAdminUser } = await import("../_core/access");
-        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id;
+        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id;
         if (!allowed) return { ok: false as const, error: 'not authorized' };
 
         const isDone = /done|complete|completed|closed/i.test(input.status);
