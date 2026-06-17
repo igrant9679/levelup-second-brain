@@ -4303,6 +4303,7 @@ function doLoginSuccess(member){
   // Team-visibility: pull tasks shared with me (assigned-to-me / admin view)
   // after my own data has loaded. Kept separate from D.tasks; read-only.
   setTimeout(()=>{ if(typeof _loadSharedTasks==='function')_loadSharedTasks(); },1600);
+  setTimeout(()=>{ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); },1800);
   // Load the real workspace roster so assignment dropdowns include invited
   // members (e.g. new hires) that aren't in the local D.teams blob.
   setTimeout(()=>{ if(typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers(); },900);

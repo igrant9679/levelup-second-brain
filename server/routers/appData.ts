@@ -523,6 +523,44 @@ export const appDataRouter = router({
   }),
 
   /**
+   * Team-visibility for PROJECTS. Projects are blob-only (no relational table),
+   * so we scan every member's `projects` blob (small data) and return projects
+   * ASSIGNED to me (project.assignee/assignedTo name matches my account) — or,
+   * for admins, all other members' projects. Tagged _sharedFromUserId +
+   * _readOnly. Resilient: any failure returns an empty list.
+   */
+  sharedProjectsForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, projects: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const me = users.find(u => u.id === ctx.user.id);
+      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
+      const out: any[] = [];
+      for (const r of rows) {
+        if (r.userId === ctx.user.id) continue; // my own come via appData.load
+        let arr: any;
+        try { arr = JSON.parse(r.projects || '[]'); } catch { continue; }
+        if (!Array.isArray(arr)) continue;
+        for (const p of arr) {
+          if (!p) continue;
+          const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
+          if (admin || (assignee && myKeys.has(assignee))) {
+            out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+          }
+        }
+      }
+      return { ok: true as const, admin, projects: out };
+    } catch (e: any) {
+      return { ok: false as const, projects: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  /**
    * Team-visibility: let the ASSIGNEE (or an admin) change the STATUS of a task
    * that lives in another member's blob. Writes back to the owner's JSON blob
    * (source of truth) AND the relational mirror. Status-only — the assignee

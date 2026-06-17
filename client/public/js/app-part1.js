@@ -3707,6 +3707,7 @@ function renderDrawer(type,item){
     <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div></div>
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
+    <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-proj-assignee',item.assignedTo)}</div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
     <div class="field" style="margin-top:14px">
@@ -4246,7 +4247,7 @@ function saveItem(type,id){
   }
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;const newPct=parseInt($('#dr-pct').value)||0;// Setting pct explicitly via the drawer locks it (pctManual=true). If user wants auto, they can clear via the value 0 + the auto-pct will resume showing computed value on cards.
     if(newPct!==(p.pct||0))p.pctManual=true;
-    p.pct=newPct;p.desc=$('#dr-body').value;save('projects')}}
+    p.pct=newPct;p.desc=$('#dr-body').value;p.assignedTo=document.getElementById('dr-proj-assignee-val')?.value||'';save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
     g.icon=$('#dr-icon').value;
@@ -7268,6 +7269,50 @@ function _toggleSharedSection(){
   D.prefs.sharedSectionCollapsed=!D.prefs.sharedSectionCollapsed;
   try{ save('prefs'); }catch(_){}
   _renderSharedTasksSection();
+}
+// ── Shared PROJECTS (assigned to me / admin view). Same model as tasks, but
+//    projects are blob-only so the server scans blobs. Kept in D._sharedProjects
+//    (separate, read-only). Rendered as a section in the Projects list view.
+async function _loadSharedProjects(){
+  try{
+    if(typeof _trpc!=='function')return;
+    const res=await _trpc('appData.sharedProjectsForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.projects)){
+      D._sharedProjects=res.projects;
+      if(typeof curScreen!=='undefined'&&curScreen==='projects'&&typeof renderProjects==='function')renderProjects();
+    }
+  }catch(e){ /* non-fatal */ }
+}
+function _renderSharedProjectsSection(){
+  const shared=Array.isArray(D._sharedProjects)?D._sharedProjects:[];
+  if(!shared.length)return '';
+  const open=!(D.prefs&&D.prefs.sharedProjSectionCollapsed);
+  return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:10px">
+    <div onclick="_toggleSharedProjSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
+      <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared with you</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">read-only · assigned to you</span>
+    </div>
+    ${open?shared.map(_sharedProjectCard).join(''):''}
+  </div>`;
+}
+function _toggleSharedProjSection(){
+  D.prefs=D.prefs||{};
+  D.prefs.sharedProjSectionCollapsed=!D.prefs.sharedProjSectionCollapsed;
+  try{ save('prefs'); }catch(_){}
+  if(typeof renderProjects==='function')renderProjects();
+}
+function _sharedProjectCard(p){
+  const from=_userNameById(p._sharedFromUserId);
+  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px" title="Shared project — read-only (owned by ${esc(from)})">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">SHARED</span>
+      <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'Untitled')}</span>
+      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${p.pct!=null?esc(String(p.pct))+'%':''}</span>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''}${p.due?' · due '+esc(p.due):''} · from ${esc(from)}</div>
+  </div>`;
 }
 // Read-only card for a task shared with me (assigned to me / admin view).
 function _sharedTaskCard(t){
@@ -14508,7 +14553,7 @@ function renderProjectsList(header){
     filtered.forEach(p=>{const k=groupKey(p);if(!(k in groups)){groups[k]=[];order.push(k);}groups[k].push(p);});
     body=order.map(k=>`<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(k)} <span style="font-weight:400;color:var(--t3)">(${groups[k].length})</span></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${groups[k].map(projCard).join('')}</div></div>`).join('');
   }
-  $('proj-main').innerHTML=header+_projPortfolioStrip()+groupBar+body;
+  $('proj-main').innerHTML=header+_renderSharedProjectsSection()+_projPortfolioStrip()+groupBar+body;
 }
 // P6: drag-reorder handlers for project list
 let _projDragId=null;
