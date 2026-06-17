@@ -7184,7 +7184,11 @@ async function _loadSharedTasks(){
       // Stamp a stable index so cards can be opened by position — robust even
       // when a task's id is unusual (e.g. Nifty-origin string ids) where an
       // id-string match in an onclick attribute would fail.
-      D._sharedTasks=res.tasks.map((t,i)=>({...t,_shared:true,_readOnly:true,_idx:i}));
+      // Safety net: external-origin tasks (Nifty/LSI, Smartsheet/CF) must never
+      // show as "shared" — they render via their own source path. Drop them here
+      // too, in case the server build hasn't redeployed yet.
+      const _extOrigin=t=>!!(t&&(t.externalId||t._externalId||['nifty','smartsheet'].includes(String(t.source||t._source||'').toLowerCase())||/nifty|smartsheet/i.test(String(t._url||t.url||''))));
+      D._sharedTasks=res.tasks.filter(t=>!_extOrigin(t)).map((t,i)=>({...t,_shared:true,_readOnly:true,_idx:i}));
       _sharedTasksLoaded=true;
       if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
     }

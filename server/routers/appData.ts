@@ -512,10 +512,20 @@ export const appDataRouter = router({
       // MY OWN tasks delegated to someone else (assignee set and != me; SQL
       // `!=` already excludes the null/unassigned rows).
       const delegatedRows = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
+      // External-origin tasks (Nifty/LSI, Smartsheet/CF) must NEVER appear in the
+      // shared view — they render through their own external-source path (source
+      // chip + annotate modal). If such a task ever lands in a native blob and
+      // gets mirrored here, skip it so it can't masquerade as a "shared" task.
+      const isExternalOrigin = (t: any) => !!(t && (
+        t.externalId || t._externalId ||
+        ['nifty', 'smartsheet'].includes(String(t.source || t._source || '').toLowerCase()) ||
+        /nifty|smartsheet/i.test(String(t._url || t.url || ''))
+      ));
       const mapRow = (r: any, delegated: boolean) => {
         let t: any = null;
         try { t = JSON.parse(r.raw); } catch { return null; }
         if (!t) return null;
+        if (isExternalOrigin(t)) return null;
         t._sharedFromUserId = r.userId;
         t._readOnly = true;
         if (delegated) { t._delegated = true; t._assigneeName = r.assignedTo || ''; }
