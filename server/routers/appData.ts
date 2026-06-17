@@ -819,6 +819,70 @@ export const appDataRouter = router({
       }
     }),
 
+  /**
+   * DESTRUCTIVE (admin-only): delete EVERYTHING in the admin's shared view —
+   * every task owned by another member, plus the admin's own delegated tasks.
+   * Two safety gates:
+   *   1. With no confirmCount → DRY RUN: returns the count + per-owner breakdown,
+   *      deletes nothing.
+   *   2. With confirmCount → only deletes if it EXACTLY matches the current
+   *      computed total (forces you to have seen the preview; refuses on drift).
+   * Removes from each owner's JSON blob AND the relational tasks mirror.
+   */
+  adminDeleteSharedTasks: adminProcedure
+    .input(z.object({ confirmCount: z.number().int().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        // Scope = everything in the admin shared view:
+        //   tasks owned by someone else  +  my own tasks delegated out.
+        const others = await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id));
+        const mineDelegated = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
+        const rows = others.concat(mineDelegated);
+        const total = rows.length;
+
+        const { adminListAllUsers } = await import("../db");
+        const users = await adminListAllUsers();
+        const nameById = new Map(users.map(u => [u.id, u.name || u.email || ('user ' + u.id)]));
+        const byOwnerMap = new Map<number, number>();
+        for (const r of rows) byOwnerMap.set(r.userId, (byOwnerMap.get(r.userId) || 0) + 1);
+        const byOwner = Array.from(byOwnerMap.entries()).map(([userId, count]) => ({ userId, name: nameById.get(userId) || ('user ' + userId), count }));
+
+        // Gate 1: dry run.
+        if (input.confirmCount == null) {
+          return { ok: true as const, preview: true as const, total, byOwner, sample: rows.slice(0, 12).map(r => ({ title: r.title, owner: nameById.get(r.userId) })) };
+        }
+        // Gate 2: count must match exactly.
+        if (input.confirmCount !== total) {
+          return { ok: false as const, error: `Count mismatch (you passed ${input.confirmCount}, current is ${total}). Re-run the preview and use the new number.`, total };
+        }
+
+        // Delete: edit each owner's blob, then drop the mirror rows.
+        const idsByOwner = new Map<number, Set<string>>();
+        for (const r of rows) {
+          if (!idsByOwner.has(r.userId)) idsByOwner.set(r.userId, new Set());
+          idsByOwner.get(r.userId)!.add(String(r.taskId));
+        }
+        for (const [uid, ids] of idsByOwner.entries()) {
+          const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+          if (appRow && appRow.tasks) {
+            try {
+              const parsed = JSON.parse(appRow.tasks);
+              if (Array.isArray(parsed)) {
+                const next = parsed.filter((x: any) => !(x && ids.has(String(x.id))));
+                await db.update(userAppData).set({ tasks: JSON.stringify(next) }).where(eq(userAppData.userId, uid));
+              }
+            } catch { /* blob unparseable — mirror delete below still applies */ }
+          }
+        }
+        for (const r of rows) { await db.delete(tasksTable).where(eq(tasksTable.id, r.id)); }
+        return { ok: true as const, deleted: total, byOwner };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
   backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
