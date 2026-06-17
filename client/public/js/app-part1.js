@@ -7212,6 +7212,7 @@ async function _openSharedTaskView(idx){
   const notes=String(t.notes||t.description||'').replace(/<[^>]+>/g,' ');
   const statusOpts=['Not Started','In Progress','Scheduled','Pending','Done'];
   const priOpts=['High','Medium','Low'];
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${t._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
@@ -7223,12 +7224,14 @@ async function _openSharedTaskView(idx){
       <div class="field"><label>Priority</label><select class="inp" id="st-pri">${priOpts.map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
     <div class="field"><label>Due</label><input class="inp" id="st-due" value="${esc(t.due||'')}" placeholder="YYYY-MM-DD"></div>
+    ${adminSh?`<div class="field"><label>Assigned To (reassign)</label>${buildAssigneeDropdown('st-assignee',t.assignedTo)}</div>`:''}
     <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px">
       <button class="btn btn-p" onclick="_saveSharedTask(${Number(idx)||0})">Save</button>
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'tasks','st')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:9px;color:var(--t3);margin-top:8px">Saved back to ${t._delegated?'this task':esc(from)+"&#39;s copy"}. Title/status/priority/due/notes only.</div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign &amp; delete — saved to the owner.':('Saved to '+(t._delegated?'this task':esc(from)+"&#39;s copy")+'.')}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7246,6 +7249,9 @@ async function _saveSharedTask(idx){
     due:(g('st-due')?.value||'').trim(),
     notes:g('st-notes')?.value||'',
   };
+  // Admin-only reassignment field (present only when rendered for admins).
+  const assigneeEl=g('st-assignee-val');
+  if(assigneeEl)patch.assignedTo=assigneeEl.value||'';
   try{
     const res=await _trpc('appData.updateSharedTask',{ownerUserId,taskId,patch},'mutation');
     if(res&&res.ok){
@@ -7255,12 +7261,41 @@ async function _saveSharedTask(idx){
       if(mine){ Object.assign(mine,patch); try{save('tasks');}catch(_){} }
       toast({type:'success',title:'Saved',msg:'Changes saved to the task owner.',duration:2200});
       document.getElementById('modal-capture').classList.remove('show');
+      // Reassignment changes who can see the task — re-pull the shared list.
+      if(patch.assignedTo!==undefined&&typeof _loadSharedTasks==='function')_loadSharedTasks();
       if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
       if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
     }else{
       toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
     }
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
+// Admin/owner: delete a shared/delegated item from the owner's workspace.
+async function _deleteSharedItem(idx,kind){
+  const arr=kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const item=arr[idx];
+  if(!item){toast('Could not delete — item not loaded. Refresh and try again.');return;}
+  const label=item.title||item.name||'this item';
+  if(!confirm(`Delete "${label}" from the owner's workspace? This can't be undone.`))return;
+  const ownerUserId=Number(item._sharedFromUserId)||0;
+  const itemId=String(item.id);
+  try{
+    const res=await _trpc('appData.deleteSharedItem',{ownerUserId,kind,itemId},'mutation');
+    if(res&&res.ok){
+      // Drop it locally from the shared list AND (if it's my own delegated item) my list.
+      if(kind==='projects')D._sharedProjects=(D._sharedProjects||[]).filter((_,i)=>i!==idx);
+      else D._sharedTasks=(D._sharedTasks||[]).filter((_,i)=>i!==idx);
+      const ownKey=kind==='projects'?'projects':'tasks';
+      if(Array.isArray(D[ownKey])){ const f=D[ownKey].filter(x=>String(x.id)!==itemId); if(f.length!==D[ownKey].length){ D[ownKey]=f; try{save(ownKey);}catch(_){} } }
+      toast({type:'success',title:'Deleted',msg:"Removed from the owner's workspace.",duration:2200});
+      document.getElementById('modal-capture')?.classList.remove('show');
+      // Re-fetch to re-stamp the stable indexes cleanly, then re-render.
+      if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); else if(typeof renderProjects==='function')renderProjects(); }
+      else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection(); }
+    }else{
+      toast({type:'error',title:'Could not delete',msg:(res&&res.error)||'Try again.'});
+    }
+  }catch(e){ toast({type:'error',title:'Could not delete',msg:String(e&&e.message||e)}); }
 }
 // Dedicated "Shared with you" section, rendered into #shared-tasks-section
 // above the task list. Shown in EVERY task view (the view renderers only touch
@@ -7300,7 +7335,7 @@ async function _loadSharedProjects(){
     if(typeof _trpc!=='function')return;
     const res=await _trpc('appData.sharedProjectsForMe',undefined,'query');
     if(res&&res.ok&&Array.isArray(res.projects)){
-      D._sharedProjects=res.projects;
+      D._sharedProjects=res.projects.map((p,i)=>({...p,_idx:i}));
       if(typeof curScreen!=='undefined'&&curScreen==='projects'&&typeof renderProjects==='function')renderProjects();
     }
   }catch(e){ /* non-fatal */ }
@@ -7314,7 +7349,7 @@ function _renderSharedProjectsSection(){
       <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
       <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">read-only · assigned to/by you</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedProjectCard).join(''):''}
   </div>`;
@@ -7325,13 +7360,67 @@ function _toggleSharedProjSection(){
   try{ save('prefs'); }catch(_){}
   if(typeof renderProjects==='function')renderProjects();
 }
+// Editable detail modal for a shared/delegated project.
+async function _openSharedProjectView(idx){
+  let p=(D._sharedProjects||[])[idx];
+  if(!p&&typeof _loadSharedProjects==='function'){ await _loadSharedProjects(); p=(D._sharedProjects||[])[idx]; }
+  if(!p){toast('Shared project not found — try refreshing the page.');return;}
+  const from=p._delegated?'you':_userNameById(p._sharedFromUserId);
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
+  const desc=String(p.desc||p.descriptionHtml||'').replace(/<[^>]+>/g,' ');
+  const statusOpts=['Active','On Hold','Completed'];
+  modal.innerHTML=`<div style="padding:16px;max-width:520px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+    </div>
+    <div class="field"><label>Name</label><input class="inp" id="sp-name" value="${esc(p.name||'')}"></div>
+    <div class="field-row">
+      <div class="field"><label>Status</label><select class="inp" id="sp-status">${statusOpts.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Due</label><input class="inp" id="sp-due" value="${esc(p.due||'')}" placeholder="YYYY-MM-DD"></div>
+    </div>
+    ${adminSh?`<div class="field"><label>Assigned To (reassign)</label>${buildAssigneeDropdown('sp-assignee',p.assignedTo||p.assignee)}</div>`:''}
+    <div class="field"><label>Description</label><textarea class="inp" id="sp-desc" style="min-height:90px">${esc(desc)}</textarea></div>
+    <div class="dr-actions" style="margin-top:14px">
+      <button class="btn btn-p" onclick="_saveSharedProject(${Number(idx)||0})">Save</button>
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'projects')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign &amp; delete — saved to the owner.':'Saved to the project owner.'}</div>
+  </div>`;
+  bg.classList.add('show');
+}
+async function _saveSharedProject(idx){
+  const p=(D._sharedProjects||[])[idx];
+  if(!p){toast('Could not save — project not loaded. Refresh and try again.');return;}
+  const ownerUserId=Number(p._sharedFromUserId)||0; const projectId=String(p.id);
+  const g=id=>document.getElementById(id);
+  const patch={ name:(g('sp-name')?.value||'').trim(), status:g('sp-status')?.value||'', due:(g('sp-due')?.value||'').trim(), desc:g('sp-desc')?.value||'' };
+  const aEl=g('sp-assignee-val'); if(aEl)patch.assignedTo=aEl.value||'';
+  try{
+    const res=await _trpc('appData.updateSharedProject',{ownerUserId,projectId,patch},'mutation');
+    if(res&&res.ok){
+      Object.assign(p,patch);
+      const mine=(D.projects||[]).find(x=>String(x.id)===projectId);
+      if(mine){ Object.assign(mine,patch); try{save('projects');}catch(_){} }
+      toast({type:'success',title:'Saved',msg:'Changes saved to the project owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
+      if(patch.assignedTo!==undefined&&typeof _loadSharedProjects==='function')_loadSharedProjects();
+      else if(typeof renderProjects==='function'&&curScreen==='projects')renderProjects();
+    }else{
+      toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
+    }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
 function _sharedProjectCard(p){
   const delegated=!!p._delegated;
   const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
   const badge=delegated?'DELEGATED':'SHARED';
   const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
-  const tip=delegated?('Project you delegated — assigned to '+esc(who)):('Shared project — read-only (owned by '+esc(who)+')');
-  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px" title="${tip}">
+  const tip=delegated?('Project you delegated — assigned to '+esc(who)+' (click to edit)'):('Shared project — owned by '+esc(who)+' (click to edit)');
+  return `<div onclick="_openSharedProjectView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="${tip}">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'Untitled')}</span>

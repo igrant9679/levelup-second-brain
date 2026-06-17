@@ -658,6 +658,7 @@ export const appDataRouter = router({
         priority: z.string().max(16).optional(),
         due: z.string().max(32).optional(),
         notes: z.string().optional(),
+        assignedTo: z.string().max(255).optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -673,12 +674,26 @@ export const appDataRouter = router({
         const p = input.patch;
         const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
         const completedAt = isDone ? new Date().toISOString() : null;
+        // Resolve a reassignment (assignedTo name → userId) so visibility moves
+        // to the new assignee. Empty string clears the assignment.
+        let newAssigneeId: number | null | undefined = undefined;
+        if (p.assignedTo != null) {
+          if (!p.assignedTo.trim()) { newAssigneeId = null; }
+          else {
+            const { adminListAllUsers } = await import("../db");
+            const users = await adminListAllUsers();
+            const key = p.assignedTo.trim().toLowerCase();
+            const u = users.find(x => (x.name && x.name.trim().toLowerCase() === key) || (x.email && x.email.trim().toLowerCase() === key));
+            newAssigneeId = u ? u.id : null;
+          }
+        }
         const applyTo = (t: any) => {
           if (p.title != null) t.title = p.title;
           if (p.status != null) { t.status = p.status; t.completedAt = completedAt; }
           if (p.priority != null) t.priority = p.priority;
           if (p.due != null) t.due = p.due;
           if (p.notes != null) t.notes = p.notes;
+          if (p.assignedTo != null) t.assignedTo = p.assignedTo;
         };
 
         // 1) Owner's blob (source of truth).
@@ -702,8 +717,102 @@ export const appDataRouter = router({
         if (p.status != null) { set.status = p.status.slice(0, 32); set.completedAt = completedAt ? completedAt.slice(0, 40) : null; }
         if (p.priority != null) set.priority = p.priority.slice(0, 16);
         if (p.due != null) set.due = p.due.slice(0, 32);
+        if (p.assignedTo != null) { set.assignedTo = p.assignedTo.slice(0, 255); set.assigneeId = newAssigneeId ?? null; }
         await db.update(tasksTable).set(set).where(eq(tasksTable.id, row.id));
 
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Team-visibility: edit a shared/delegated PROJECT (blob-only, no mirror).
+   * Admin / owner / assignee. Patch: name/status/due/desc/assignedTo.
+   */
+  updateSharedProject: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      projectId: z.string().min(1),
+      patch: z.object({
+        name: z.string().max(200).optional(),
+        status: z.string().max(40).optional(),
+        due: z.string().max(40).optional(),
+        desc: z.string().optional(),
+        assignedTo: z.string().max(255).optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const [appRow] = await db.select({ projects: userAppData.projects }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !appRow.projects) return { ok: false as const, error: 'project not found' };
+        let arr: any;
+        try { arr = JSON.parse(appRow.projects); } catch { return { ok: false as const, error: 'bad data' }; }
+        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
+        const proj = arr.find((x: any) => x && String(x.id) === input.projectId);
+        if (!proj) return { ok: false as const, error: 'project not found' };
+        // Authorize: admin, owner, or current assignee (by name/email).
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id;
+        if (!allowed) {
+          const { adminListAllUsers } = await import("../db");
+          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
+          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const cur = String(proj.assignee || proj.assignedTo || '').trim().toLowerCase();
+          allowed = !!cur && myKeys.includes(cur);
+        }
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const q = input.patch;
+        if (q.name != null) proj.name = q.name;
+        if (q.status != null) proj.status = q.status;
+        if (q.due != null) proj.due = q.due;
+        if (q.desc != null) proj.desc = q.desc;
+        if (q.assignedTo != null) proj.assignedTo = q.assignedTo;
+        await db.update(userAppData).set({ projects: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Team-visibility: delete a shared item from the owner's blob (+ relational
+   * mirror for tasks/notes). ADMIN or OWNER only — destructive.
+   */
+  deleteSharedItem: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes']),
+      itemId: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id;
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        // Remove from the owner's JSON blob.
+        const [appRow] = await db.select().from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        const cur = appRow ? (appRow as any)[input.kind] : null;
+        if (cur) {
+          try {
+            const arr = JSON.parse(cur);
+            if (Array.isArray(arr)) {
+              const next = arr.filter((x: any) => x && String(x.id) !== input.itemId);
+              await db.update(userAppData).set({ [input.kind]: JSON.stringify(next) } as any).where(eq(userAppData.userId, input.ownerUserId));
+            }
+          } catch { /* blob unparseable — mirror delete below still applies */ }
+        }
+        // Relational mirror.
+        if (input.kind === 'tasks') {
+          await db.delete(tasksTable).where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.itemId)));
+        } else if (input.kind === 'notes') {
+          await db.delete(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId)));
+        }
         return { ok: true as const };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
