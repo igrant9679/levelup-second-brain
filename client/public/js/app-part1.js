@@ -7110,6 +7110,9 @@ let _taskKindFilter=null;
 let _taskView=_tasksRestored.view||'clusters'; // 'list' | 'board' | 'matrix' | 'gantt' | 'calendar' | 'clusters'
 let _taskCalCursor=null; // YYYY-MM string for calendar nav
 function renderCurrentTaskView(){
+  // Render the read-only "Shared with you" section above the view (it lives in
+  // a sibling container, so it persists no matter which view renders below).
+  if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
   if(_taskView==='board')return renderTaskBoard();
   if(_taskView==='matrix')return renderTaskMatrix();
   if(_taskView==='gantt')return renderTaskGantt();
@@ -7214,6 +7217,36 @@ function _openSharedTaskView(id){
     <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-s" onclick="closeModal&&closeModal();document.getElementById('modal-capture').classList.remove('show')">Close</button></div>
   </div>`;
   bg.classList.add('show');
+}
+// Dedicated "Shared with you" section, rendered into #shared-tasks-section
+// above the task list. Shown in EVERY task view (the view renderers only touch
+// #tasks-list, so this sibling persists). Read-only; collapsible.
+function _renderSharedTasksSection(){
+  const el=document.getElementById('shared-tasks-section');
+  if(!el)return;
+  const shared=Array.isArray(D._sharedTasks)?D._sharedTasks:[];
+  if(!shared.length){ el.innerHTML=''; return; }
+  let items=shared.filter(t=>!_isSubtaskRow(t));
+  // Respect the active search/priority filters for consistency with the list.
+  try{ if(typeof _taskFilter==='function')items=items.filter(_taskFilter); }catch(_){}
+  try{ if(typeof _applyPriorityFilter==='function')items=_applyPriorityFilter(items); }catch(_){}
+  const open=!(D.prefs&&D.prefs.sharedSectionCollapsed);
+  el.innerHTML=`<div class="cd" style="border-left:3px solid var(--purp)">
+    <div onclick="_toggleSharedSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open&&items.length?'margin-bottom:8px':''}">
+      <span style="display:inline-block;transition:transform .2s;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared with you</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${items.length}</span>
+      <span style="flex:1"></span>
+      <span style="font-size:10px;color:var(--t3)">read-only · assigned to you</span>
+    </div>
+    ${open?(items.length?items.map(_sharedTaskCard).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing matches the current filter.</div>'):''}
+  </div>`;
+}
+function _toggleSharedSection(){
+  D.prefs=D.prefs||{};
+  D.prefs.sharedSectionCollapsed=!D.prefs.sharedSectionCollapsed;
+  try{ save('prefs'); }catch(_){}
+  _renderSharedTasksSection();
 }
 // Read-only card for a task shared with me (assigned to me / admin view).
 function _sharedTaskCard(t){
@@ -7506,9 +7539,7 @@ function _tlResizeEnd(){
 function renderTaskList(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  // _taskPool() = my own tasks + tasks shared with me (assigned-to-me / admin),
-  // the latter marked _shared/_readOnly and rendered via _sharedTaskCard.
-  let filtered=_sourceOn('personal')?_topLevelTasks(_taskPool()).filter(_taskFilter):[];
+  let filtered=_sourceOn('personal')?_topLevelTasks(D.tasks).filter(_taskFilter):[];
   if(_taskMyOnly)filtered=filtered.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant'));
   filtered=_applyPriorityFilter(filtered);
   // Inject external tasks (Smartsheet/Nifty) into the list. Coerced into a
@@ -10060,6 +10091,7 @@ function renderTasks(){
     </select>
     <button class="btn btn-p" style="height:28px;font-size:10px;padding:0 8px" onclick="quickAddTask()">Add</button>
   </div>
+  <div id="shared-tasks-section" style="margin-bottom:8px"></div>
   <div class="cd" id="tasks-list"></div>`;
   renderCurrentTaskView();
   $('tasks-rail').innerHTML=renderTaskRailHTML();
