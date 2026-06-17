@@ -641,6 +641,75 @@ export const appDataRouter = router({
       }
     }),
 
+  /**
+   * Team-visibility: edit a task that lives in another member's blob (or your
+   * own delegated task). Authorized by assignee / owner / admin. Applies a
+   * field patch (title/status/priority/due/notes) to the owner's JSON blob AND
+   * the relational mirror. Only these fields — structural fields stay the
+   * owner's.
+   */
+  updateSharedTask: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      taskId: z.string().min(1),
+      patch: z.object({
+        title: z.string().max(512).optional(),
+        status: z.string().max(32).optional(),
+        priority: z.string().max(16).optional(),
+        due: z.string().max(32).optional(),
+        notes: z.string().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const [row] = await db.select().from(tasksTable)
+          .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1);
+        if (!row) return { ok: false as const, error: 'task not found' };
+        const { isAdminUser } = await import("../_core/access");
+        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id;
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const p = input.patch;
+        const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
+        const completedAt = isDone ? new Date().toISOString() : null;
+        const applyTo = (t: any) => {
+          if (p.title != null) t.title = p.title;
+          if (p.status != null) { t.status = p.status; t.completedAt = completedAt; }
+          if (p.priority != null) t.priority = p.priority;
+          if (p.due != null) t.due = p.due;
+          if (p.notes != null) t.notes = p.notes;
+        };
+
+        // 1) Owner's blob (source of truth).
+        const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (appRow && appRow.tasks) {
+          try {
+            const arr = JSON.parse(appRow.tasks);
+            if (Array.isArray(arr)) {
+              const t = arr.find((x: any) => x && String(x.id) === input.taskId);
+              if (t) { applyTo(t); await db.update(userAppData).set({ tasks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId)); }
+            }
+          } catch { /* blob unparseable — mirror update still applies */ }
+        }
+
+        // 2) Relational mirror (queryable cols + raw).
+        let newRaw = row.raw;
+        try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch { /* keep old raw */ }
+        const set: Record<string, unknown> = { raw: newRaw };
+        if (p.title != null) set.title = p.title.slice(0, 512);
+        if (p.status != null) { set.status = p.status.slice(0, 32); set.completedAt = completedAt ? completedAt.slice(0, 40) : null; }
+        if (p.priority != null) set.priority = p.priority.slice(0, 16);
+        if (p.due != null) set.due = p.due.slice(0, 32);
+        await db.update(tasksTable).set(set).where(eq(tasksTable.id, row.id));
+
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
   backfillTeamVisibilityIds: adminProcedure.mutation(async () => {
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };

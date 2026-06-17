@@ -7197,51 +7197,66 @@ function _userNameById(uid){
 }
 // Read-only detail view for a shared task (it lives in another member's blob,
 // so it can be viewed but not edited from here).
-function _openSharedTaskView(id){
-  const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id));
+async function _openSharedTaskView(id){
+  let t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id));
+  // Robustness: if the in-memory list is stale/empty, re-fetch once and retry.
+  if(!t&&typeof _loadSharedTasks==='function'){ await _loadSharedTasks(); t=(D._sharedTasks||[]).find(x=>String(x.id)===String(id)); }
   if(!t){toast('Shared task not found — try refreshing.');return;}
   const from=t._delegated?'you':_userNameById(t._sharedFromUserId);
   const modal=document.getElementById('modal-content');
   const bg=document.getElementById('modal-capture');
-  if(!modal||!bg){toast('Viewer not available');return;}
-  const row=(label,val)=>val?`<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:11px;color:var(--t3)">${label}</span><span style="font-size:12px;color:var(--t1);text-align:right">${esc(String(val))}</span></div>`:'';
-  const notes=t.notes||t.description||'';
+  if(!modal||!bg){toast('Editor not available');return;}
+  const owner=Number(t._sharedFromUserId)||0;
+  const tid=esc(String(t.id));
+  const notes=String(t.notes||t.description||'').replace(/<[^>]+>/g,' ');
+  const statusOpts=['Not Started','In Progress','Scheduled','Pending','Done'];
+  const priOpts=['High','Medium','Low'];
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">SHARED · READ-ONLY</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${t._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${t._delegated?('assigned to '+esc(t._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
-    <div style="font-size:17px;font-weight:700;line-height:1.3;margin-bottom:8px">${esc(t.title||'Untitled')}</div>
-    ${row('Owner', from)}
-    ${row('Assigned to', t.assignedTo)}
-    ${row('Status', t.status)}
-    ${row('Priority', t.priority)}
-    ${row('Due', t.due)}
-    ${row('Project', t.project)}
-    ${notes?`<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Notes</div><div style="font-size:12px;color:var(--t1);line-height:1.5;white-space:pre-wrap;max-height:220px;overflow:auto">${esc(String(notes).replace(/<[^>]+>/g,' '))}</div></div>`:''}
-    <div style="display:flex;align-items:center;gap:8px;margin-top:16px">
-      <span style="font-size:11px;color:var(--t3);flex-shrink:0">Set status</span>
-      <select class="inp" style="height:28px;font-size:11px;flex:1;min-width:0" onchange="_updateSharedTaskStatus(${Number(t._sharedFromUserId)||0},'${esc(String(t.id))}',this.value)">${['Not Started','In Progress','Scheduled','Pending','Done'].map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>
-      <button class="btn btn-s" style="flex-shrink:0" onclick="document.getElementById('modal-capture').classList.remove('show')">Close</button>
+    <div class="field"><label>Title</label><input class="inp" id="st-title" value="${esc(t.title||'')}"></div>
+    <div class="field-row">
+      <div class="field"><label>Status</label><select class="inp" id="st-status">${statusOpts.map(s=>`<option ${t.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Priority</label><select class="inp" id="st-pri">${priOpts.map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
-    <div style="font-size:9px;color:var(--t3);margin-top:6px">You can update the status; other fields are managed by ${esc(from)}.</div>
+    <div class="field"><label>Due</label><input class="inp" id="st-due" value="${esc(t.due||'')}" placeholder="YYYY-MM-DD"></div>
+    <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
+    <div class="dr-actions" style="margin-top:14px">
+      <button class="btn btn-p" onclick="_saveSharedTask(${owner},'${tid}')">Save</button>
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">Saved back to ${t._delegated?'this task':esc(from)+"&#39;s copy"}. Title/status/priority/due/notes only.</div>
   </div>`;
   bg.classList.add('show');
 }
-// Assignee/admin updates the status of a task that lives in another member's
-// blob (writes back to the owner via the server). Status-only.
-async function _updateSharedTaskStatus(ownerUserId,taskId,status){
+// Save edits to a shared task back to the owner (assignee/owner/admin only).
+async function _saveSharedTask(ownerUserId,taskId){
+  const g=id=>document.getElementById(id);
+  const patch={
+    title:(g('st-title')?.value||'').trim(),
+    status:g('st-status')?.value||'',
+    priority:g('st-pri')?.value||'',
+    due:(g('st-due')?.value||'').trim(),
+    notes:g('st-notes')?.value||'',
+  };
   try{
-    const res=await _trpc('appData.updateSharedTaskStatus',{ownerUserId:Number(ownerUserId),taskId:String(taskId),status},'mutation');
+    const res=await _trpc('appData.updateSharedTask',{ownerUserId:Number(ownerUserId),taskId:String(taskId),patch},'mutation');
     if(res&&res.ok){
       const t=(D._sharedTasks||[]).find(x=>String(x.id)===String(taskId));
-      if(t)t.status=status;
-      toast({type:'success',title:'Status updated',msg:'Saved to the task owner.',duration:2200});
+      if(t)Object.assign(t,patch);
+      // Delegated task = my own task → keep the normal list in sync locally too.
+      const mine=(D.tasks||[]).find(x=>String(x.id)===String(taskId));
+      if(mine){ Object.assign(mine,patch); try{save('tasks');}catch(_){} }
+      toast({type:'success',title:'Saved',msg:'Changes saved to the task owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
       if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
-      _openSharedTaskView(taskId);
+      if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
     }else{
-      toast({type:'error',title:'Could not update status',msg:(res&&res.error)||'Try again.'});
+      toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
     }
-  }catch(e){ toast({type:'error',title:'Could not update status',msg:String(e&&e.message||e)}); }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
 }
 // Dedicated "Shared with you" section, rendered into #shared-tasks-section
 // above the task list. Shown in EVERY task view (the view renderers only touch
@@ -7262,7 +7277,7 @@ function _renderSharedTasksSection(){
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
       <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${items.length}</span>
       <span style="flex:1"></span>
-      <span style="font-size:10px;color:var(--t3)">read-only · assigned to/by you</span>
+      <span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?(items.length?items.map(_sharedTaskCard).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing matches the current filter.</div>'):''}
   </div>`;
@@ -7329,7 +7344,7 @@ function _sharedTaskCard(t){
   const who=delegated?(t._assigneeName||'someone'):_userNameById(t._sharedFromUserId);
   const badge=delegated?'DELEGATED':'SHARED';
   const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
-  const tip=delegated?('Task you delegated — assigned to '+esc(who)):('Shared task — read-only (owned by '+esc(who)+')');
+  const tip=delegated?('Task you delegated — assigned to '+esc(who)+' (click to edit)'):('Shared task — owned by '+esc(who)+' (click to edit)');
   return `<div onclick="_openSharedTaskView('${esc(String(t.id))}')" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:10px;padding:10px 12px;margin-bottom:6px;opacity:.95;cursor:pointer" title="${tip}">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="flex-shrink:0;font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${badge}</span>
