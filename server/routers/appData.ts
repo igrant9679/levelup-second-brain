@@ -542,15 +542,28 @@ export const appDataRouter = router({
       const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
       const out: any[] = [];
       for (const r of rows) {
-        if (r.userId === ctx.user.id) continue; // my own come via appData.load
         let arr: any;
         try { arr = JSON.parse(r.projects || '[]'); } catch { continue; }
         if (!Array.isArray(arr)) continue;
-        for (const p of arr) {
-          if (!p) continue;
-          const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
-          if (admin || (assignee && myKeys.has(assignee))) {
-            out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+        if (r.userId === ctx.user.id) {
+          // MY OWN projects that I've assigned to someone else → "delegated".
+          // (My own un-delegated projects come through the normal load path.)
+          for (const p of arr) {
+            if (!p) continue;
+            const assigneeName = p.assignee || p.assignedTo || '';
+            const assignee = String(assigneeName).trim().toLowerCase();
+            if (assignee && !myKeys.has(assignee)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true, _delegated: true, _assigneeName: assigneeName });
+            }
+          }
+        } else {
+          // OTHER members' projects: assigned to me, or all of them if I'm admin.
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
+            if (admin || (assignee && myKeys.has(assignee))) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+            }
           }
         }
       }

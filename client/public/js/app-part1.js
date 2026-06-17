@@ -7290,9 +7290,9 @@ function _renderSharedProjectsSection(){
   return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:10px">
     <div onclick="_toggleSharedProjSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
       <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
-      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared with you</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
       <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">read-only · assigned to you</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">read-only · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedProjectCard).join(''):''}
   </div>`;
@@ -7304,14 +7304,18 @@ function _toggleSharedProjSection(){
   if(typeof renderProjects==='function')renderProjects();
 }
 function _sharedProjectCard(p){
-  const from=_userNameById(p._sharedFromUserId);
-  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px" title="Shared project — read-only (owned by ${esc(from)})">
+  const delegated=!!p._delegated;
+  const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  const tip=delegated?('Project you delegated — assigned to '+esc(who)):('Shared project — read-only (owned by '+esc(who)+')');
+  return `<div style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px" title="${tip}">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">SHARED</span>
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'Untitled')}</span>
       <span style="font-size:10px;color:var(--t3);flex-shrink:0">${p.pct!=null?esc(String(p.pct))+'%':''}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''}${p.due?' · due '+esc(p.due):''} · from ${esc(from)}</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''}${p.due?' · due '+esc(p.due):''} · ${sub}</div>
   </div>`;
 }
 // Read-only card for a task shared with me (assigned to me / admin view).
