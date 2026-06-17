@@ -138,7 +138,7 @@ Per-entity gotchas:
 - **projects / goals / ideas / clusters / contacts / habits** — plain arrays,
   follow the tasks pattern directly. Good order to tackle them in.
 
-## Team visibility / shared-workspace model (June 6 2026 — IN PROGRESS)
+## Team visibility / shared-workspace model (June 6 2026 — DONE, builds -76→-84)
 
 **Goal (user-chosen):** every member sees only items they CREATE or that are
 ASSIGNED to them; admins/owners see everything. Data stays per-user blobs; we
@@ -175,17 +175,35 @@ blobs already give "only mine" for those. The feature is scoped to tasks.
   merges real accounts + blob members; `buildAssigneeDropdown`/`_caSelect` use
   it. Shared cards open `_openSharedTaskView` (read-only modal).
 
-**Verified end-to-end on prod:** assign a task to a member → it appears in their
-List as a read-only SHARED card; admin sees all; My Items excludes shared.
+**Completed & verified on prod (builds -81 → -84):**
+- **-81** TASKS: dedicated read-only **"Shared & delegated"** section
+  (`#shared-tasks-section` sibling above `#tasks-list`, persists across all task
+  views; `_renderSharedTasksSection` hooked into `renderCurrentTaskView`).
+- **-82** PROJECTS: `appData.sharedProjectsForMe` (scans project blobs — projects
+  are blob-only), project drawer gains an **Assigned To** dropdown
+  (`p.assignedTo`), `_renderSharedProjectsSection()` injected into the Projects
+  **List** view. `team.listMembers` (added -80) feeds the real-account roster
+  into `buildAssigneeDropdown`/`_assigneeMembers()`.
+- **-82** STATUS write-back (tasks): `appData.updateSharedTaskStatus` — assignee/
+  owner/admin can change a shared task's status; writes back to the owner's blob
+  + relational mirror. Client status control in `_openSharedTaskView` modal.
+- **-83/-84** DELEGATED view: both `sharedTasksForMe` + `sharedProjectsForMe`
+  also return the requester's OWN items assigned to someone else (tagged
+  `_delegated`), so the owner/admin sees delegated work too (badge DELEGATED →
+  "assigned to X" vs SHARED → "from X"). Solves "admin owns everything, so the
+  shared section is always empty" for their own seat.
 
-**Remaining (next):**
-- Extend the shared view beyond the LIST view — board/cards/matrix/gantt/
-  clusters/calendar still show own-tasks only. Each has its own card renderer;
-  either add a `_shared` read-only guard per renderer, or render a single
-  dedicated "Shared with you" section across views. `_taskPool()` is the hook.
-- Optional: cross-member *editing* of an assigned task (status write-back to the
-  owner's blob) — currently read-only.
-- Optional: assignment for projects if projects become assignable.
+**Model is symmetric across tasks + projects:** see items assigned TO you +
+items you DELEGATED out; admin/owner sees everyone's. All read-only in the
+section; the owner edits in the normal list. Status write-back is tasks-only.
+USER CONFIRMED DONE (June 6 2026).
+
+**Genuinely optional follow-ups (not requested):**
+- Shared-PROJECTS section is in the Projects **List** view only — Kanban/Gantt/
+  Workload still show own-projects only (extend with `_renderSharedProjectsSection`).
+- Project status write-back (projects are read-only when shared).
+- The shared-TASKS section is the dedicated-section pattern (option B); it shows
+  in every task view already.
 
 ## Deploy workflow
 
