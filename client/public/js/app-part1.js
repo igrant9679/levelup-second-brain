@@ -3942,7 +3942,10 @@ async function _loadWorkspaceMembers(){
   try{
     if(typeof _trpc!=='function')return;
     const res=await _trpc('team.listMembers',undefined,'query');
-    if(Array.isArray(res))_workspaceMembers=res;
+    if(Array.isArray(res)){
+      _workspaceMembers=res;
+      if(typeof curScreen!=='undefined'&&curScreen==='team'&&typeof renderTeam==='function')renderTeam();
+    }
   }catch(_){ /* non-fatal — fall back to blob members */ }
 }
 // Merged assignee roster: real accounts first, then any legacy blob team
@@ -21985,7 +21988,31 @@ function renderTeam(){
       if(changed)save('teams');
     }
   }catch(_){}
-  const allMembers=D.teams.flatMap(t=>t.members);
+  // If the real workspace roster hasn't loaded yet, fetch it (it re-renders the
+  // Team page on arrival) so invited accounts like new hires show up.
+  if((!_workspaceMembers||!_workspaceMembers.length)&&typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers();
+  // Merge the REAL accounts (from team.listMembers) with any local blob members,
+  // deduped by name — so invited members (e.g. Lucas) appear, not just the
+  // demo/blob roster. Real accounts win for id/email/role; blob supplies
+  // color/avatar when present.
+  const allMembers=(function(){
+    const blob=D.teams.flatMap(t=>t.members||[]);
+    const byName=new Map();
+    for(const m of blob){ if(m&&m.name)byName.set(String(m.name).trim().toLowerCase(),m); }
+    const out=[]; const seen=new Set();
+    for(const u of (_workspaceMembers||[])){
+      if(!u||!u.name)continue;
+      const k=u.name.trim().toLowerCase(); if(seen.has(k))continue; seen.add(k);
+      const b=byName.get(k)||{};
+      out.push({...b,id:u.id,userId:u.id,name:u.name,email:u.email||b.email,role:b.role||u.role||'member',color:b.color||'#6366f1',avatar:b.avatar});
+    }
+    for(const m of blob){
+      if(!m||!m.name)continue;
+      const k=m.name.trim().toLowerCase(); if(seen.has(k))continue; seen.add(k);
+      out.push(m);
+    }
+    return out;
+  })();
   const today=_todayStr; // local — was UTC toISOString()
   function memberCard(m){
     const tasks=D.tasks.filter(t=>t.createdBy===m.name);
