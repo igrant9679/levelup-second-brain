@@ -5105,17 +5105,21 @@ async function aiComposeProjectDesc(id){
 // requiring drawer state.
 function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName){
   const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
-  const safeText=JSON.stringify(text);
+  // Pass the generated text as a single-quoted JS string literal via _jsAttr.
+  // Raw JSON.stringify emits DOUBLE quotes, which terminate the double-quoted
+  // onclick="" attribute and silently break the Insert/Copy buttons (the
+  // documented inline-onclick escaping gotcha — "nothing happens" on click).
+  const argText="'"+_jsAttr(text)+"'";
   const m=document.getElementById('modal-content');
   if(!m)return;
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">✨ AI ${entityType==='task'?'Task Notes':'Project Description'} Preview</h2>
     <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Review the rendered output, then choose to insert it into the description field. Markdown formatting will display correctly when the ${entityType} is viewed.</div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;font-size:12px;line-height:1.65;max-height:380px;overflow-y:auto;margin-bottom:10px">${html}</div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-p" onclick="_aiComposeInsert('${targetTextareaId}',${safeText})">⬇ Insert</button>
+      <button class="btn btn-p" onclick="_aiComposeInsert('${targetTextareaId}',${argText})">⬇ Insert</button>
       <button class="btn btn-s" onclick="closeModal();${esc(regenFnName)}(${entityId})">🔄 Regenerate</button>
       ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
-      <button class="btn btn-s" onclick="navigator.clipboard.writeText(${safeText});toast('📋 Copied')">📋 Copy</button>
+      <button class="btn btn-s" onclick="navigator.clipboard.writeText(${argText});toast('📋 Copied')">📋 Copy</button>
       <button class="btn btn-s" onclick="closeModal()" style="margin-left:auto">Cancel</button>
     </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -5129,7 +5133,7 @@ function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName
 //     the editor immediately.
 function _aiComposeInsert(targetElId,text){
   const el=document.getElementById(targetElId);
-  if(!el){closeModal();return;}
+  if(!el){toast({type:'error',title:'Could not insert',msg:'The editor field is no longer open — reopen the item and try again. Your text was copied so you can paste it.'});try{navigator.clipboard.writeText(String(text||''));}catch(_){}return;}
   const md=String(text||'').trim();
   if(el.isContentEditable){
     // RTE target. Render markdown → HTML and replace the editor contents.
