@@ -7980,7 +7980,11 @@ function renderTaskList(){
     // Tasks shared with me (assigned-to-me / admin view) live in another
     // member's blob — render a dedicated read-only card, never the mutable
     // native one, so they can't be edited/completed/deleted from here.
-    if(t&&(t._shared||t._readOnly))return _sharedTaskCard(t);
+    // MUST be the _shared (shared-workspace) marker only — external tasks
+    // (Nifty/LSI, Smartsheet/CF) also carry _readOnly but belong to the
+    // external-source path below; routing them here gave them a bogus SHARED
+    // badge + "Shared task not found" on click (no _idx, empty _sharedTasks).
+    if(t&&t._shared&&!t._source)return _sharedTaskCard(t);
     // External tasks render as a read-only sibling card so they fit the same
     // visual rhythm but route clicks to the source URL + the annotate modal.
     if(t._source&&t._source!=='local'){
