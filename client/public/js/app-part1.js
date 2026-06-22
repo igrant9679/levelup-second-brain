@@ -4981,7 +4981,9 @@ async function aiComposeTaskNotes(id){
     const projectName=t.project||(t.projectId?(D.projects.find(p=>p.id===t.projectId)||{}).name:'')||'';
     // Pull existing notes as PLAIN TEXT so the AI doesn't see HTML tags.
     // RTE: innerText. Textarea: .value.
-    const existingText=target.isContentEditable?(target.innerText||'').trim():(target.value||'').trim();
+    // Cap existing notes so the combined userContent stays under ai.assist's
+    // 8000-char zod limit (rich-text task notes can be long).
+    const existingText=(target.isContentEditable?(target.innerText||'').trim():(target.value||'').trim()).slice(0,6000);
     const ctxLines=[
       `Title: ${t.title}`,
       projectName?`Project: ${projectName}`:'',
@@ -4989,7 +4991,7 @@ async function aiComposeTaskNotes(id){
       t.due?`Due: ${t.due}`:'',
       (t.tags||[]).length?`Tags: ${(t.tags||[]).join(', ')}`:'',
       existingText?`Existing notes (rewrite/extend):\n${existingText}`:'',
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n').slice(0,7800);
     const {provider,apiKey}=_getAIConfig();
     const sys='You are a task description writer for a productivity app. Given the task metadata, write a clear description explaining what the task involves, why it matters, and what "done" looks like. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
@@ -5013,12 +5015,16 @@ async function aiSuggestSubtasks(id){
   if(btn){btn.textContent='⏳ Thinking...';btn.disabled=true;}
   try{
     const projectName=t.project||(t.projectId?(D.projects.find(p=>p.id===t.projectId)||{}).name:'')||'';
+    // Notes are now rich text and can be long — strip HTML and cap so the
+    // combined userContent stays under ai.assist's 8000-char zod limit.
+    const _plain=s=>String(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+    const notesPlain=_plain(t.notes).slice(0,6000);
     const ctxLines=[
       `Task: ${t.title}`,
       projectName?`Project: ${projectName}`:'',
-      t.notes?`Notes:\n${t.notes}`:'',
+      notesPlain?`Notes:\n${notesPlain}`:'',
       (t.subtasks||[]).length?`Existing subtasks (avoid duplicates):\n- `+(t.subtasks||[]).map(s=>s.title).join('\n- '):'',
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n').slice(0,7800);
     const {provider,apiKey}=_getAIConfig();
     const res=await _trpc('ai.assist',{
       systemPrompt:'You are a task breakdown assistant. Given a task, propose 3-6 concrete subtasks that, completed in order, would finish it. Return ONLY a JSON object of the form {"subtasks":["First action","Second action",...]} with no extra commentary. Each subtask is a short imperative phrase, max 80 chars.',
