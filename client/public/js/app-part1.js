@@ -10978,6 +10978,49 @@ function _voiceShowIndicator(){
 }
 function _voiceSetInterim(t){ const el=document.getElementById('lu-voice-interim'); if(el)el.textContent=t?('“'+t+'”'):''; }
 function _voiceHideIndicator(){ const el=document.getElementById('lu-voice-indicator'); if(el)el.remove(); }
+
+// ── Web Clip for Notes ────────────────────────────────────────────────────
+// The 🔗 Clip quick-capture button opens a New Note pre-set as a Web Clip,
+// auto-fills the URL from the clipboard (if it holds a link), and fetches the
+// page's title + excerpt server-side (bookmarks.fetchMetadata) so a single
+// click turns a link into a titled, summarised note. Source is set to the
+// exact 'Web Clipper' string so the note lands in the Notes → Web Clips view.
+let _webClipBusy=false;
+function startWebClip(){
+  if(typeof openFA==='function')openFA('note');
+  setTimeout(async ()=>{
+    const g=id=>document.getElementById(id);
+    const nt=g('fa-notetype'); if(nt){ nt.value='Web Clip'; if(typeof faUpdateNoteType==='function')faUpdateNoteType('Web Clip'); }
+    const src=g('fa-source'); if(src&&!src.value)src.value='Web Clipper';
+    const urlEl=g('fa-sourceurl');
+    // Fetch whenever the user enters/pastes a URL into the Source URL field.
+    if(urlEl&&!urlEl._clipHooked){ urlEl._clipHooked=true; urlEl.addEventListener('change',()=>{ const u=(urlEl.value||'').trim(); if(/^https?:\/\//i.test(u))_webClipFetch(u); }); }
+    // Try the clipboard for a URL to auto-fill + auto-fetch.
+    let clip=''; try{ clip=(await navigator.clipboard.readText())||''; }catch(_){ /* denied / unavailable — fine */ }
+    clip=clip.trim();
+    if(/^https?:\/\/\S+$/i.test(clip)){ if(urlEl)urlEl.value=clip; _webClipFetch(clip); }
+    else if(urlEl){ urlEl.focus(); toast({type:'info',title:'Web Clip',msg:'Paste a link in Source URL and I’ll fetch the title + summary.',duration:3000}); }
+  },350);
+}
+async function _webClipFetch(url){
+  if(_webClipBusy)return; _webClipBusy=true;
+  const g=id=>document.getElementById(id);
+  const titleEl=g('fa-title'), descEl=g('fa-desc');
+  toast('🔗 Fetching page…');
+  try{
+    const res=await _trpc('bookmarks.fetchMetadata',{url},'mutation');
+    if(res&&res.ok){
+      if(res.title&&titleEl&&!titleEl.value)titleEl.value=res.title;
+      const stub=[`> Clipped from [${res.siteName||url}](${url})`, res.description?('\n'+res.description):''].filter(Boolean).join('\n');
+      if(descEl){ descEl.value=descEl.value?descEl.value+'\n\n'+stub:stub; if(typeof renderNotePreview==='function')renderNotePreview(descEl.value); }
+      try{ _faHasChanges=true; }catch(_){}
+      toast({type:'success',title:'Clipped',msg:res.title?('“'+String(res.title).slice(0,60)+'”'):'Page details added.',duration:2400});
+    } else {
+      toast({type:'warn',title:'Could not read that page',msg:(res&&res.error)||'Some sites block fetching — you can still type the note.'});
+    }
+  }catch(e){ toast({type:'error',title:'Clip failed',msg:String(e&&e.message||e)}); }
+  finally{ _webClipBusy=false; }
+}
 function _noteStatus(n){return (n&&n.status)||'fleeting';}
 function _noteStatusMeta(id){return _NOTE_STATUSES.find(s=>s.id===id)||_NOTE_STATUSES[0];}
 function setNoteStatus(id,status){
@@ -12271,7 +12314,7 @@ function renderNotes(){
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" title="${lbl==='Voice'?'Dictate a new note with your voice':''}" onclick="${lbl==='Voice'?'startVoiceNote()':`openFA('${lbl==='Task'?'task':'note'}')`}">${ic} ${lbl}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':''}" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}">${ic} ${lbl}</div>`).join('')}</div>
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>

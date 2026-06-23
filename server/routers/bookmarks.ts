@@ -164,6 +164,23 @@ function resolveUrl(url: string | null | undefined, origin: string): string | nu
 
 export const bookmarksRouter = router({
   /**
+   * Fetch page metadata (title, description, favicon, …) for an arbitrary URL
+   * WITHOUT creating a bookmark. Used by the Notes "Web Clip" quick-capture so
+   * pasting a link auto-populates the note title + excerpt. Resilient: any
+   * fetch failure returns nulls rather than throwing.
+   */
+  fetchMetadata: protectedProcedure
+    .input(z.object({ url: z.string().url('Please enter a valid URL') }))
+    .mutation(async ({ input }) => {
+      try {
+        const meta = await extractMetadata(input.url);
+        return { ok: true as const, ...meta };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e), title: null, description: null, favicon: null, ogImage: null, siteName: null, wordCount: null };
+      }
+    }),
+
+  /**
    * Create a new bookmark. Accepts a URL and optional overrides.
    * Automatically fetches page metadata (title, description, favicon, og:image).
    */
