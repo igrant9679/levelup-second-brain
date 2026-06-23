@@ -4275,6 +4275,8 @@ function doLoginSuccess(member){
   // Also re-applied inside loadServerData() in case habits arrive from the
   // server after this point.
   if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
+  // One-time: migrate notes flagged favorite→starred so the Favorites view shows them.
+  if(typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
   // Load workspace-shared AI keys (admin manages, everyone uses)
   if(typeof loadSharedAISettings==='function')loadSharedAISettings();
   // Catch-up: send any scheduled reports whose time has passed. Fired ~6s
@@ -5420,7 +5422,9 @@ function doFASave(addAnother){
         sourceUrl:document.getElementById('fa-sourceurl')?.value||'',
         readingStatus:document.getElementById('fa-readstatus')?.value||'Inbox',
         favorite:document.getElementById('fa-favorite')?.checked||false,
-        tags:_faTags,scope,updated:'Just now',starred:false,
+        // The Favorites view filters on `starred`, so the ⭐ Favorite checkbox
+        // must set `starred` (was hardcoded false → new "favorites" never showed).
+        tags:_faTags,scope,updated:'Just now',starred:document.getElementById('fa-favorite')?.checked||false,
         linkedTaskIds:_faLinked.tasks,linkedProjectIds:_faLinked.projects,
         createdBy:D.creds.userName||'Idris Grant',
         createdAt:new Date().toISOString()
@@ -10016,6 +10020,12 @@ async function loadServerData(){
         if(k==='habits'){
           try{localStorage.removeItem('lu_habits_owner_migrated_v1');}catch(_){}
           if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
+        }
+        // When notes arrive from the server, run the one-time favorite→starred
+        // backfill (no-op if it already ran; the flag stays set so a later
+        // un-star is never re-applied from a lingering favorite:true).
+        if(k==='notes'){
+          if(typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
         }
       }
     });

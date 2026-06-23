@@ -21715,6 +21715,21 @@ function reassignHabitsToOwner(){
   return changed;
 }
 
+// One-time: notes "favorited" via the New Note ⭐ checkbox were saved with
+// `favorite:true` but `starred:false`, so they never appeared in the Favorites
+// view (which filters on `starred`). Converge onto `starred` as the single
+// source of truth. Guarded by a localStorage flag so a later un-star (which
+// only clears `starred`) is never undone by a lingering `favorite:true`.
+function _backfillNoteStarredFromFavorite(){
+  if(localStorage.getItem('lu_note_fav_starred_v1')==='1')return false;
+  if(!Array.isArray(D.notes)||!D.notes.length)return false; // wait for notes to load
+  let changed=false;
+  D.notes.forEach(n=>{ if(n&&n.favorite&&!n.starred){n.starred=true;changed=true;} });
+  if(changed)save('notes');
+  localStorage.setItem('lu_note_fav_starred_v1','1');
+  return changed;
+}
+
 function renderHabits(){
   const me=D.creds.userName||'Idris Grant';
   const visibleHabits=_habitsMyOnly?D.habits.filter(h=>!h.createdBy||h.createdBy===me):D.habits;
