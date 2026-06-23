@@ -10906,6 +10906,78 @@ const _NOTE_STATUSES=[
   {id:'archived',  label:'Archived',  icon:'🗄', color:'#64748b', hint:'Kept for reference, out of flow'},
 ];
 const _NOTE_TYPES=['Permanent','Literature','Reference','Index / MOC','Meeting','Journal','Idea','Project'];
+// ── Voice dictation for Notes (Web Speech API) ────────────────────────────
+// The 🎤 Voice quick-capture button opens a New Note and live-dictates speech
+// into the free-form RTE body (#fa-note-rte → saved as n.bodyHtml). Uses the
+// browser's webkitSpeechRecognition (Chrome/Edge/Safari) — no backend/API key.
+// Graceful fallback: unsupported browsers still get a normal typeable note.
+let _voiceRec=null, _voiceActive=false;
+function startVoiceNote(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  // Always open the New Note modal so the user can type even if voice is off.
+  if(typeof openFA==='function')openFA('note');
+  if(!SR){ toast({type:'warn',title:'Voice not supported here',msg:'This browser has no speech recognition. Try Chrome, Edge, or Safari — you can still type the note.'}); return; }
+  // Wait for the modal's RTE to mount, then start listening.
+  setTimeout(()=>_voiceBegin(SR),350);
+}
+function _voiceBegin(SR){
+  if(!document.getElementById('fa-note-rte')){ toast('Could not start voice — note editor not open.'); return; }
+  if(_voiceActive)_voiceStop();
+  let rec; try{ rec=new SR(); }catch(e){ toast('Voice unavailable: '+(e.message||e)); return; }
+  _voiceRec=rec; _voiceActive=true;
+  rec.continuous=true; rec.interimResults=true; rec.lang=(navigator.language||'en-US');
+  const rte0=document.getElementById('fa-note-rte'); if(rte0)rte0.focus();
+  _voiceShowIndicator();
+  rec.onresult=(ev)=>{
+    const rte=document.getElementById('fa-note-rte');
+    if(!rte){ _voiceStop(); return; } // modal was closed — stop the mic
+    let finalText='';
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      const r=ev.results[i];
+      if(r.isFinal)finalText+=r[0].transcript; else _voiceSetInterim(r[0].transcript);
+    }
+    if(finalText){
+      _voiceSetInterim('');
+      const needsSpace=rte.innerText && !/\s$/.test(rte.innerText);
+      rte.appendChild(document.createTextNode((needsSpace?' ':'')+finalText.trim()+' '));
+      rte.dispatchEvent(new Event('input',{bubbles:true}));
+      _voicePlaceCaretEnd(rte);
+    }
+  };
+  rec.onerror=(ev)=>{
+    if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){
+      toast({type:'error',title:'Microphone blocked',msg:'Allow microphone access for this site, then click 🎤 Voice again.'});
+      _voiceStop();
+    } // 'no-speech' / transient errors: let onend auto-restart
+  };
+  rec.onend=()=>{
+    // continuous mode still ends on long pauses — restart while active.
+    if(_voiceActive && document.getElementById('fa-note-rte')){ try{ rec.start(); }catch(_){ } }
+    else { _voiceActive=false; _voiceHideIndicator(); }
+  };
+  try{ rec.start(); }catch(e){ toast('Could not start microphone: '+(e.message||e)); _voiceStop(); }
+}
+function _voiceStop(){
+  _voiceActive=false;
+  if(_voiceRec){ try{ _voiceRec.onend=null; _voiceRec.stop(); }catch(_){ } _voiceRec=null; }
+  _voiceHideIndicator();
+}
+function _voicePlaceCaretEnd(el){
+  try{ const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(_){}
+}
+function _voiceShowIndicator(){
+  if(!document.getElementById('lu-voice-style')){ const st=document.createElement('style'); st.id='lu-voice-style'; st.textContent='@keyframes luVoicePulse{0%,100%{opacity:1}50%{opacity:.25}}'; document.head.appendChild(st); }
+  let el=document.getElementById('lu-voice-indicator');
+  if(!el){
+    el=document.createElement('div'); el.id='lu-voice-indicator';
+    el.style.cssText='position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:100000;display:flex;align-items:center;gap:10px;background:var(--s1,#0f1525);border:1px solid var(--bd1,#2a3550);border-radius:999px;padding:8px 14px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-size:12px;color:var(--t1,#fff)';
+    el.innerHTML='<span style="width:10px;height:10px;border-radius:50%;background:#ef4444;animation:luVoicePulse 1s infinite;flex-shrink:0"></span><span>Listening… <span id="lu-voice-interim" style="color:var(--t3,#8a93a6)"></span></span><button onclick="_voiceStop()" style="margin-left:6px;background:#ef4444;color:#fff;border:none;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;cursor:pointer">Stop</button>';
+    document.body.appendChild(el);
+  }
+  el.style.display='flex';
+}
+function _voiceSetInterim(t){ const el=document.getElementById('lu-voice-interim'); if(el)el.textContent=t?('“'+t+'”'):''; }
+function _voiceHideIndicator(){ const el=document.getElementById('lu-voice-indicator'); if(el)el.remove(); }
 function _noteStatus(n){return (n&&n.status)||'fleeting';}
 function _noteStatusMeta(id){return _NOTE_STATUSES.find(s=>s.id===id)||_NOTE_STATUSES[0];}
 function setNoteStatus(id,status){
@@ -12199,7 +12271,7 @@ function renderNotes(){
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" onclick="openFA('${lbl==='Task'?'task':'note'}')">${ic} ${lbl}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" title="${lbl==='Voice'?'Dictate a new note with your voice':''}" onclick="${lbl==='Voice'?'startVoiceNote()':`openFA('${lbl==='Task'?'task':'note'}')`}">${ic} ${lbl}</div>`).join('')}</div>
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>

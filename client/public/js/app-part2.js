@@ -4590,6 +4590,7 @@ function closeFA(force){
   if(!force&&_faHasChanges){
     if(!confirm('You have unsaved changes. Close anyway?'))return;
   }
+  if(typeof _voiceStop==='function')_voiceStop(); // stop voice dictation if active
   document.getElementById('fa-modal-ov').classList.remove('show');
   _faType=null;
 }
