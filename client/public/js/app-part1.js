@@ -11117,6 +11117,15 @@ function setNoteColor(id,hex){
   if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
 }
 
+// Creation time for a note, as a sortable number (newer = larger). Prefers the
+// real createdAt timestamp; falls back to the id (FA ids are sequential /
+// Date.now()-based, so higher id == created later) so the Recent view orders by
+// when a note was CREATED, not by its freeform 'updated' display string.
+function _noteCreatedTime(n){
+  if(n&&n.createdAt){ const c=new Date(n.createdAt); if(!isNaN(c.getTime()))return c.getTime(); }
+  if(n&&typeof n.id==='number')return n.id;
+  return 0;
+}
 function _parseNoteDate(n){
   // Try to parse a note's updated/created field into a Date. Falls back to
   // createdAt, then to id (Date.now()-based), so newer notes always sort
@@ -11269,7 +11278,9 @@ function applyNotesFilters(){
   // Sort. The "Recent" category implicitly forces newest-first regardless
   // of the user's saved sort, since "Recent" without recency makes no sense.
   if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder){
-    notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
+    // Recent = most recently CREATED first (by createdAt / id, not the
+    // freeform 'updated' string which is unreliable to parse).
+    notes=[...notes].sort((a,b)=>_noteCreatedTime(b)-_noteCreatedTime(a));
   }
   else if(_notesSort==='newest')notes=[...notes].sort((a,b)=>_parseNoteDate(b)-_parseNoteDate(a));
   else if(_notesSort==='oldest')notes=[...notes].sort((a,b)=>_parseNoteDate(a)-_parseNoteDate(b));
@@ -12314,7 +12325,7 @@ function renderNotes(){
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:10px">${[['📄','Note'],['🔗','Clip'],['☑','Task'],['🎤','Voice']].map(([ic,lbl])=>`<div style="text-align:center;padding:5px;border-radius:5px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;font-size:9px;color:var(--t2)" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':''}" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}">${ic} ${lbl}</div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:10px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
