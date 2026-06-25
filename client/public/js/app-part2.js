@@ -4309,6 +4309,7 @@ function doLoginSuccess(member){
   setTimeout(()=>{ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); },2000);
   setTimeout(()=>{ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); },2200);
   setTimeout(()=>{ if(typeof _loadSharedReports==='function')_loadSharedReports(); },2400);
+  setTimeout(()=>{ if(typeof _loadSharedNotes==='function')_loadSharedNotes(); },2600);
   // Load the real workspace roster so assignment dropdowns include invited
   // members (e.g. new hires) that aren't in the local D.teams blob.
   setTimeout(()=>{ if(typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers(); },900);

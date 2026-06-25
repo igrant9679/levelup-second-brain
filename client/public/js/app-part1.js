@@ -7344,10 +7344,10 @@ async function _saveSharedTask(idx){
 }
 // Admin: take ownership of a shared TASK/PROJECT — move it into my workspace.
 async function _takeOwnership(idx,kind){
-  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='notes'?(D._sharedNotes||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
   const it=arr[idx];
   if(!it){toast('Item not loaded — refresh and try again.');return;}
-  const noun=kind==='programs'?'program':kind==='mindmaps'?'mind map':kind==='projects'?'project':'task';
+  const noun=kind==='programs'?'program':kind==='mindmaps'?'mind map':kind==='notes'?'note':kind==='projects'?'project':'task';
   const ownerUserId=Number(it._sharedFromUserId)||0;
   const itemId=String(it.id);
   if(!confirm('Take ownership of this '+noun+'?\n\nIt moves into your workspace and you become the owner. The current owner stays on as an assignee so they keep access.'))return;
@@ -7359,6 +7359,7 @@ async function _takeOwnership(idx,kind){
       if(typeof loadServerData==='function')loadServerData();
       if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); if(typeof renderPrograms==='function'&&typeof curScreen!=='undefined'&&curScreen==='programs')renderPrograms(); }
       else if(kind==='mindmaps'){ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); if(typeof renderMindmaps==='function'&&typeof curScreen!=='undefined'&&curScreen==='mindmaps')renderMindmaps(); }
+      else if(kind==='notes'){ if(typeof _loadSharedNotes==='function')_loadSharedNotes(); if(typeof renderNotes==='function'&&typeof curScreen!=='undefined'&&curScreen==='notes')renderNotes(); }
       else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); if(typeof renderProjects==='function'&&typeof curScreen!=='undefined'&&curScreen==='projects')renderProjects(); }
       else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof renderCurrentTaskView==='function'&&typeof curScreen!=='undefined'&&curScreen==='tasks')renderCurrentTaskView(); }
     }else{
@@ -7368,7 +7369,7 @@ async function _takeOwnership(idx,kind){
 }
 // Admin/owner: delete a shared/delegated item from the owner's workspace.
 async function _deleteSharedItem(idx,kind){
-  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='notes'?(D._sharedNotes||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
   const item=arr[idx];
   if(!item){toast('Could not delete — item not loaded. Refresh and try again.');return;}
   const label=item.title||item.name||'this item';
@@ -7381,15 +7382,17 @@ async function _deleteSharedItem(idx,kind){
       // Drop it locally from the shared list AND (if it's my own delegated item) my list.
       if(kind==='programs')D._sharedPrograms=(D._sharedPrograms||[]).filter((_,i)=>i!==idx);
       else if(kind==='mindmaps')D._sharedMindMaps=(D._sharedMindMaps||[]).filter((_,i)=>i!==idx);
+      else if(kind==='notes')D._sharedNotes=(D._sharedNotes||[]).filter((_,i)=>i!==idx);
       else if(kind==='projects')D._sharedProjects=(D._sharedProjects||[]).filter((_,i)=>i!==idx);
       else D._sharedTasks=(D._sharedTasks||[]).filter((_,i)=>i!==idx);
-      const ownKey=kind==='programs'?'programs':kind==='mindmaps'?'mindmaps':kind==='projects'?'projects':'tasks';
+      const ownKey=kind==='programs'?'programs':kind==='mindmaps'?'mindmaps':kind==='notes'?'notes':kind==='projects'?'projects':'tasks';
       if(Array.isArray(D[ownKey])){ const f=D[ownKey].filter(x=>String(x.id)!==itemId); if(f.length!==D[ownKey].length){ D[ownKey]=f; try{ if(ownKey==='mindmaps'&&typeof saveMindmaps==='function')saveMindmaps(); else save(ownKey); }catch(_){} } }
       toast({type:'success',title:'Deleted',msg:"Removed from the owner's workspace.",duration:2200});
       document.getElementById('modal-capture')?.classList.remove('show');
       // Re-fetch to re-stamp the stable indexes cleanly, then re-render.
       if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); else if(typeof renderPrograms==='function')renderPrograms(); }
       else if(kind==='mindmaps'){ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); else if(typeof renderMindmaps==='function')renderMindmaps(); }
+      else if(kind==='notes'){ if(typeof _loadSharedNotes==='function')_loadSharedNotes(); else if(typeof renderNotes==='function')renderNotes(); }
       else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); else if(typeof renderProjects==='function')renderProjects(); }
       else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection(); }
     }else{
@@ -7600,6 +7603,110 @@ async function _saveSharedProgram(idx){
       document.getElementById('modal-capture').classList.remove('show');
       if(typeof _loadSharedPrograms==='function')_loadSharedPrograms();
       else if(typeof renderPrograms==='function'&&curScreen==='programs')renderPrograms();
+    }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
+// ── Shared NOTES (relational, like tasks) — assignment + sharing ──────────
+function _openNoteAssign(id){
+  const n=(D.notes||[]).find(x=>String(x.id)===String(id)); if(!n){toast('Note not found');return;}
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Note</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(n.title||'Untitled')}</div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('note-assign-ma',n)}</div>
+    <div class="dr-actions" style="margin-top:14px">
+      <button class="btn btn-p" onclick="_saveNoteAssign('${String(id)}')">Save</button>
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+  </div>`;
+  bg.classList.add('show');
+}
+function _saveNoteAssign(id){
+  const n=(D.notes||[]).find(x=>String(x.id)===String(id)); if(!n)return;
+  if(typeof _maGet==='function'){ const ma=_maGet('note-assign-ma'); n.assignees=ma.assignees; n.assigneeNames=ma.assigneeNames; n.primaryAssigneeId=ma.primaryAssigneeId; const pi=ma.assignees.indexOf(ma.primaryAssigneeId); n.assignedTo=pi>=0?ma.assigneeNames[pi]:''; }
+  n.updated='Just now';
+  try{save('notes');}catch(_){}
+  document.getElementById('modal-capture').classList.remove('show');
+  toast({type:'success',title:'Assigned',msg:n.assignedTo?('Primary: '+n.assignedTo):'Assignees updated.',duration:1800});
+  if(typeof renderNotes==='function')renderNotes();
+}
+async function _loadSharedNotes(){
+  try{ if(typeof _trpc!=='function')return; const res=await _trpc('appData.sharedNotesForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.notes)){ D._sharedNotes=res.notes.map((p,i)=>({...p,_idx:i})); if(typeof curScreen!=='undefined'&&curScreen==='notes'&&typeof renderNotes==='function')renderNotes(); }
+  }catch(e){ /* non-fatal */ }
+}
+function _renderSharedNotesSection(){
+  const shared=Array.isArray(D._sharedNotes)?D._sharedNotes:[];
+  if(!shared.length)return '';
+  const open=!(D.prefs&&D.prefs.sharedNotesSectionCollapsed);
+  return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:12px">
+    <div onclick="_toggleSharedNotesSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
+      <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated notes</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+    </div>
+    ${open?shared.map(_sharedNoteCard).join(''):''}
+  </div>`;
+}
+function _toggleSharedNotesSection(){ D.prefs=D.prefs||{}; D.prefs.sharedNotesSectionCollapsed=!D.prefs.sharedNotesSectionCollapsed; try{save('prefs');}catch(_){} if(typeof renderNotes==='function')renderNotes(); }
+function _sharedNoteCard(p){
+  const delegated=!!p._delegated;
+  const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  return `<div onclick="_openSharedNoteView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared note — click to edit assignment">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||'Untitled')}</span>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${sub}</div>
+  </div>`;
+}
+async function _openSharedNoteView(idx){
+  let p=(D._sharedNotes||[])[idx];
+  if(!p&&typeof _loadSharedNotes==='function'){ await _loadSharedNotes(); p=(D._sharedNotes||[])[idx]; }
+  if(!p){toast('Shared note not found — try refreshing.');return;}
+  const from=p._delegated?'you':_userNameById(p._sharedFromUserId);
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
+  const snippet=String(p.bodyHtml?p.bodyHtml.replace(/<[^>]+>/g,' '):(p.body||'')).replace(/\s+/g,' ').trim().slice(0,200);
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+    </div>
+    <div class="field"><label>Title</label><input class="inp" id="snt-title" value="${esc(p.title||'')}"></div>
+    ${snippet?`<div style="font-size:11px;color:var(--t3);background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:8px;margin-bottom:8px;max-height:80px;overflow:hidden">${esc(snippet)}…</div>`:''}
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_saveSharedNote(${Number(idx)||0})">Save</button>
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'notes')" title="Move this note into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'notes')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The note body stays with the owner.':'The note body stays with the owner; you can update its assignment here.'}</div>
+  </div>`;
+  bg.classList.add('show');
+}
+async function _saveSharedNote(idx){
+  const p=(D._sharedNotes||[])[idx]; if(!p){toast('Could not save — refresh and try again.');return;}
+  const ownerUserId=Number(p._sharedFromUserId)||0; const noteId=String(p.id);
+  const g=id=>document.getElementById(id);
+  const patch={ title:(g('snt-title')?.value||'').trim() };
+  if(typeof _maGet==='function'){ const ma=_maGet('snt-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
+  try{
+    const res=await _trpc('appData.updateSharedNote',{ownerUserId,noteId,patch},'mutation');
+    if(res&&res.ok){
+      Object.assign(p,patch);
+      const mine=(D.notes||[]).find(x=>String(x.id)===noteId);
+      if(mine){ Object.assign(mine,patch); try{save('notes');}catch(_){} }
+      toast({type:'success',title:'Saved',msg:'Changes saved to the note owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
+      if(typeof _loadSharedNotes==='function')_loadSharedNotes();
+      else if(typeof renderNotes==='function')renderNotes();
     }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
 }
@@ -11588,7 +11695,8 @@ function applyNotesFilters(){
         <button class="btn btn-p" style="height:24px;font-size:10px;padding:0 10px;margin-left:auto" onclick="clearNotesFilters()">Show all notes</button>
       </div>`
     :'';
-  el.innerHTML=_banner+((pinnedHtml+(html||''))||renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'}));
+  const _sharedNotesHtml=(typeof _renderSharedNotesSection==='function')?_renderSharedNotesSection():'';
+  el.innerHTML=_banner+_sharedNotesHtml+((pinnedHtml+(html||''))||(_sharedNotesHtml?'':renderEmptyState({icon:'search',title:'No matches',hint:'No notes match your current filters. Try a broader search or clear the active filters.',ctaLabel:'Clear filters',ctaFn:'clearNotesFilters()'})));
 
   // Update result count in filter bar
   const countEl=document.getElementById('notes-filter-count');
@@ -12872,6 +12980,7 @@ function renderNoteEditor(n){
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiExpandToDoc(${n.id})">📄 Expand to full doc</button>
         </div>
       </div>
+      <button class="btn btn-s" style="height:26px;font-size:10px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${n.id})" title="Assign to team members">👥</button>
       <button class="btn btn-s" style="height:26px;font-size:10px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑</button>
     </div>
     <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
