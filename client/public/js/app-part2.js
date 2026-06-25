@@ -11729,14 +11729,16 @@ function _shGridHtml(){
   let head='<tr><th class="sh-rownum-h">#</th>';
   cols.forEach((col,ci)=>{
     const tIcon=(SHEET_COL_TYPES.find(t=>t.k===col.type)||{}).icon||'T';
-    head+=`<th class="sh-colhead" style="width:${col.width||150}px;${col.color?`border-top:3px solid ${col.color}`:''}" onclick="shColMenu(event,${col.id})" title="${esc(col.name)} — click to edit column">
-      <span class="sh-colhead-i">${esc(tIcon)}</span><span class="sh-colhead-n">${esc(col.name||_shColName(ci))}</span><span class="sh-colhead-letter">${_shColName(ci)}</span></th>`;
+    head+=`<th class="sh-colhead" data-cid="${col.id}" style="width:${col.width||150}px;${col.color?`border-top:3px solid ${col.color}`:''}" onclick="shColMenu(event,${col.id})" title="${esc(col.name)} — click to edit · drag right edge to resize">
+      <span class="sh-colhead-i">${esc(tIcon)}</span><span class="sh-colhead-n">${esc(col.name||_shColName(ci))}</span><span class="sh-colhead-letter">${_shColName(ci)}</span><span class="sh-col-resize" title="Drag to resize column" onmousedown="shColResizeStart(event,${col.id})" onclick="event.stopPropagation()"></span></th>`;
   });
   head+='<th class="sh-addcol" onclick="shAddCol()" title="Add column">+</th></tr>';
   let body='';
   s.rows.forEach((row,ri)=>{
-    const rc=row.color?`style="box-shadow:inset 4px 0 0 ${row.color}"`:'';
-    body+=`<tr ${rc}><td class="sh-rownum" onclick="shRowMenu(event,${row.id})" title="Row actions">${ri+1}</td>`;
+    const rh=row.height?`height:${row.height}px;`:'';
+    const shadow=row.color?`box-shadow:inset 4px 0 0 ${row.color};`:'';
+    const trStyle=(rh||shadow)?` style="${rh}${shadow}"`:'';
+    body+=`<tr data-rid="${row.id}"${trStyle}><td class="sh-rownum" onclick="shRowMenu(event,${row.id})" title="Row actions · drag bottom edge to resize">${ri+1}<span class="sh-row-resize" title="Drag to resize row" onmousedown="shRowResizeStart(event,${row.id})" onclick="event.stopPropagation()"></span></td>`;
     cols.forEach((col,ci)=>{ body+=`<td class="sh-td sh-td-${col.type}" style="${col.align?`text-align:${col.align}`:''}">${_shCellHtml(s,row,col)}</td>`; });
     body+='<td class="sh-rowpad"></td></tr>';
   });
@@ -11753,6 +11755,47 @@ function _shGridHtml(){
 // Re-render only the grid (not the design side) so an in-progress assignee
 // selection isn't reset when a cell is edited.
 function renderSheetGrid(){ const w=document.getElementById('sheet-grid-wrap'); if(w)w.innerHTML=_shGridHtml(); }
+
+// ─── Column / row drag-resize ────────────────────────────────────────────────
+let _shResize=null, _shResizeJustEnded=false;
+function shColResizeStart(e,cid){
+  e.preventDefault(); e.stopPropagation();
+  const s=_sheetCurrent; const col=s&&s.columns.find(c=>c.id===cid); if(!col)return;
+  _shResize={type:'col',id:cid,start:e.clientX,size:col.width||150,live:col.width||150};
+  document.body.style.cursor='col-resize'; document.body.classList.add('sh-resizing');
+  document.addEventListener('mousemove',_shResizeMove); document.addEventListener('mouseup',_shResizeEnd);
+}
+function shRowResizeStart(e,rid){
+  e.preventDefault(); e.stopPropagation();
+  const s=_sheetCurrent; const row=s&&s.rows.find(r=>r.id===rid); if(!row)return;
+  _shResize={type:'row',id:rid,start:e.clientY,size:row.height||32,live:row.height||32};
+  document.body.style.cursor='row-resize'; document.body.classList.add('sh-resizing');
+  document.addEventListener('mousemove',_shResizeMove); document.addEventListener('mouseup',_shResizeEnd);
+}
+function _shResizeMove(e){
+  if(!_shResize)return;
+  if(_shResize.type==='col'){
+    const w=Math.max(60,Math.min(700,_shResize.size+(e.clientX-_shResize.start)));
+    _shResize.live=w; const th=document.querySelector('.sh-colhead[data-cid="'+_shResize.id+'"]'); if(th)th.style.width=w+'px';
+  }else{
+    const h=Math.max(26,Math.min(400,_shResize.size+(e.clientY-_shResize.start)));
+    _shResize.live=h; const tr=document.querySelector('tr[data-rid="'+_shResize.id+'"]'); if(tr)tr.style.height=h+'px';
+  }
+}
+function _shResizeEnd(){
+  document.removeEventListener('mousemove',_shResizeMove); document.removeEventListener('mouseup',_shResizeEnd);
+  document.body.style.cursor=''; document.body.classList.remove('sh-resizing');
+  const r=_shResize; _shResize=null; const s=_sheetCurrent; if(!r||!s)return;
+  if(r.type==='col'){
+    const col=s.columns.find(c=>c.id===r.id);
+    if(col&&(col.width||150)!==Math.round(r.live)){ _shSnap(); col.width=Math.round(r.live); saveSheets(); }
+    _shResizeJustEnded=true; setTimeout(()=>{_shResizeJustEnded=false;},250); // swallow the click that would open the column menu
+  }else{
+    const row=s.rows.find(x=>x.id===r.id);
+    if(row&&(row.height||32)!==Math.round(r.live)){ _shSnap(); row.height=Math.round(r.live); saveSheets(); }
+  }
+  renderSheetGrid();
+}
 
 function _shCellHtml(s,row,col){
   const raw=(row.cells||{})[col.id];
@@ -11790,6 +11833,7 @@ function shOpenPerson(ev,rid,cid){ ev.stopPropagation(); const mem=(typeof _assi
 function _shColIdx(cid){ return _sheetCurrent.columns.findIndex(c=>c.id===cid); }
 function shColMenu(ev,cid){
   ev.stopPropagation();
+  if(_shResizeJustEnded){ _shResizeJustEnded=false; return; }
   const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return;
   const items=[
     {html:'✏ Rename',onClick:()=>{ const n=prompt('Column name:',col.name); if(n==null)return; _shSnap(); col.name=n.trim()||col.name; saveSheets(); renderSheetGrid(); }},
