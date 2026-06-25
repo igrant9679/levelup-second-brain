@@ -9622,7 +9622,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -9966,7 +9966,7 @@ async function loadServerData(){
         if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
       }
     }else{
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps'];
     let changed=false;
     // Timestamp the server blob was last written. A local-only item is only
     // "rescued" if it's NEWER than this — i.e. a genuinely new local add the

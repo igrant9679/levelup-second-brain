@@ -5,7 +5,7 @@ import { userAppData, tasksTable, notesTable, ideasTable, externalTasks } from "
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations'] as const;
+const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -302,6 +302,7 @@ export const appDataRouter = router({
         programs:  z.string().optional(),
         opportunities: z.string().optional(),
         atlasAnnotations: z.string().optional(),
+        mindmaps: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -712,6 +713,109 @@ export const appDataRouter = router({
     }),
 
   /**
+   * Team-visibility for MIND MAPS (blob-only array; made shareable in migration
+   * 0046). Same model as projects/programs — assignees + Primary Responsible.
+   */
+  sharedMindMapsForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, mindmaps: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const me = users.find(u => u.id === ctx.user.id);
+      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = await db.select({ userId: userAppData.userId, mindmaps: userAppData.mindmaps }).from(userAppData);
+      const out: any[] = [];
+      const meId = ctx.user.id;
+      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
+      for (const r of rows) {
+        let arr: any;
+        try { arr = JSON.parse((r as any).mindmaps || '[]'); } catch { continue; }
+        if (!Array.isArray(arr)) continue;
+        if (r.userId === ctx.user.id) {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if ((assignee && !myKeys.has(assignee)) || assignedToOthers(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true, _delegated: true, _assigneeName: p.assignedTo || '' });
+            }
+          }
+        } else {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+            }
+          }
+        }
+      }
+      return { ok: true as const, admin, mindmaps: out };
+    } catch (e: any) {
+      return { ok: false as const, mindmaps: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  /**
+   * Team-visibility: edit a shared/delegated MIND MAP. Admin / owner / assignee.
+   * Patch: name + multi-assignee + Primary Responsible (mind-map graph data is
+   * the owner's; this only changes metadata + assignment).
+   */
+  updateSharedMindMap: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      mindmapId: z.string().min(1),
+      patch: z.object({
+        name: z.string().max(200).optional(),
+        assignedTo: z.string().max(255).optional(),
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const [appRow] = await db.select({ mindmaps: userAppData.mindmaps }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !(appRow as any).mindmaps) return { ok: false as const, error: 'mind map not found' };
+        let arr: any;
+        try { arr = JSON.parse((appRow as any).mindmaps); } catch { return { ok: false as const, error: 'bad data' }; }
+        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
+        const mm = arr.find((x: any) => x && String(x.id) === input.mindmapId);
+        if (!mm) return { ok: false as const, error: 'mind map not found' };
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+          || (Array.isArray(mm.assignees) && mm.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
+        if (!allowed) {
+          const { adminListAllUsers } = await import("../db");
+          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
+          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const cur = String(mm.assignedTo || '').trim().toLowerCase();
+          allowed = !!cur && myKeys.includes(cur);
+        }
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const q = input.patch;
+        if (q.name != null) { mm.name = q.name; if (mm.title !== undefined) mm.title = q.name; }
+        if (q.assignees != null) mm.assignees = q.assignees;
+        if (q.assigneeNames != null) mm.assigneeNames = q.assigneeNames;
+        if (q.primaryAssigneeId !== undefined) mm.primaryAssigneeId = q.primaryAssigneeId;
+        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+          const idx = q.assignees.indexOf(q.primaryAssigneeId);
+          if (idx >= 0) mm.assignedTo = q.assigneeNames[idx];
+        } else if (q.assignedTo != null) mm.assignedTo = q.assignedTo;
+        await db.update(userAppData).set({ mindmaps: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
    * Team-visibility: let the ASSIGNEE (or an admin) change the STATUS of a task
    * that lives in another member's blob. Writes back to the owner's JSON blob
    * (source of truth) AND the relational mirror. Status-only — the assignee
@@ -956,7 +1060,7 @@ export const appDataRouter = router({
   deleteSharedItem: protectedProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes', 'programs']),
+      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes', 'programs', 'mindmaps']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1000,7 +1104,7 @@ export const appDataRouter = router({
   transferItemOwnership: adminProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects', 'programs']),
+      kind: z.enum(['tasks', 'projects', 'programs', 'mindmaps']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1008,8 +1112,8 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
       try {
-        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : userAppData.projects;
-        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : { projects: json };
+        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : k === 'mindmaps' ? userAppData.mindmaps : userAppData.projects;
+        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : k === 'mindmaps' ? { mindmaps: json } : { projects: json };
         const readArr = async (uid: number): Promise<any[]> => {
           const [r] = await db.select({ v: colOf(input.kind) }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
           try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
