@@ -205,6 +205,91 @@ USER CONFIRMED DONE (June 6 2026).
 - The shared-TASKS section is the dedicated-section pattern (option B); it shows
   in every task view already.
 
+## Multi-assignee + Primary Responsible + admin ownership (June 25 2026 — DONE, builds -90→-104)
+
+Extends the team-visibility model from single-assignee to **multiple assignees +
+a Primary Responsible**, across **six** entities, plus admin **full-edit /
+take-ownership**. USER REQUESTED all five of Task/Project/Mind Map/Program/Report
+"in one push", both admin actions as separate buttons; Notes added after as a 6th.
+
+**Data model (lives in each item's JSON):**
+- `assignees: number[]` (userIds) · `assigneeNames: string[]` (parallel display) ·
+  `primaryAssigneeId: number|null`.
+- Legacy `assignedTo` (name) + the relational `tasks.assigneeId`/`notes.assigneeId`
+  columns are kept **synced to the Primary** so every existing card/report/query
+  keeps working. Only **real accounts** (members with a `userId`) are assignable.
+
+**Reusable client picker (`app-part1.js`):** `buildMultiAssignee(id,item)` renders
+chips (★ = set Primary, × = remove) + an "+ Add member" select; read it back with
+`_maGet(id)` → `{assignees, assigneeNames, primaryAssigneeId}`. State in `_maState`,
+keyed by a per-editor id (`dr-ma`, `dr-proj-ma`, `dr-prog-ma`, `st-ma`, `sp-ma`,
+`sg-ma`, `smm-ma`, `srp-ma`, `snt-ma`, `*-assign-ma`). Members come from
+`_assigneeMembers().filter(m=>m.userId!=null)`.
+
+**Per-entity wiring (all in `server/routers/appData.ts` + the two client bundles):**
+- **Tasks / Notes** — relational table; `sharedTasksForMe`/`sharedNotesForMe` query
+  the table and `isMineAssigned` parses `raw.assignees`. `updateSharedTask`/
+  `updateSharedNote` patch the blob + mirror.
+- **Projects / Programs** — blob-array scan; `sharedProjectsForMe`/
+  `sharedProgramsForMe` + `updateSharedProject`/`updateSharedProgram`.
+- **Mind Maps** — were **localStorage-only**; migration **0046** added
+  `user_app_data.mindmaps` (+ schema, `DATA_KEYS`, save-input, load, client
+  `_syncKeys`, `loadServerData` merge keys). Fixed a latent bug: `saveMindmaps`
+  synced into the **`ideas`** column → now `mindmaps`. `sharedMindMapsForMe` +
+  `updateSharedMindMap`.
+- **Reports** — nested in `prefs.savedReports`; dedicated **prefs-scan** endpoints
+  `sharedReportsForMe` / `updateSharedReport` / `transferReportOwnership` /
+  `deleteSharedReport` (the array-column helpers don't apply).
+- **Admin take-ownership** — `transferItemOwnership` (adminProcedure) for tasks/
+  projects/programs/mindmaps/notes (moves the item between owners' blobs, keeps the
+  previous owner as an assignee, rebuilds the relational mirror for tasks/notes);
+  reports use `transferReportOwnership`. Delete via `deleteSharedItem` (enum now
+  includes programs/mindmaps) / `deleteSharedReport`.
+- **Client shared sections** per page (`_renderSharedXSection` + `_openSharedXView`
+  + `_saveSharedX` + `_loadSharedX`); admin editors expose **Full edit**,
+  **⬇ Take ownership**, **Delete**. `_takeOwnership(idx,kind)` + `_deleteSharedItem(idx,kind)`
+  are generic over kind; reports have `_takeReportOwnership`/`_deleteSharedReportItem`.
+  Boot loaders staggered in `doLoginSuccess` at 1600/1800/2000/2200/2400/2600 ms.
+
+**Caveats:** only real accounts assignable; the shared **Notes** editor edits
+**title + assignment only** (body stays with the owner); no local TS toolchain so
+the server is validated by the Railway build (migration 0046 confirmed applied at
+`-100` — data still loads). Existing items show no assignee list until re-saved.
+
+### Email delivery fix (build -104)
+"No emails going out" since mid-June. Root cause: the OAuth send path
+(`server/_core/sendEmail.ts` → `buildTransporter`) used a **raw stored access
+token with no refresh** — Google/Microsoft tokens expire ~1h, so system mail
+stopped an hour after the last refresh. Fix: `buildTransporter` now calls
+`getValidAccessToken(userId,provider)` (newly **exported** from
+`server/routers/oauth-sync.ts`) to refresh via the stored `refresh_token` first,
+falling back to the stored token. Also added an **Error column** to the admin
+**Email Delivery Log** (`app-part2.js`) surfacing the captured `errorMessage` so
+failures are self-diagnosing. NB: if the logged error is `535 Username and
+Password not accepted`, that's the **secondary SMTP** account's password (revoked
+Gmail app-password etc.), a config fix in Settings → Notifications — NOT the OAuth
+path this build fixed.
+
+### Other fixes this session (builds -90→-97)
+- **-90/-92** External (Nifty/LSI, Smartsheet/CF) tasks were rendering as purple
+  "SHARED" cards + "Shared task not found" on click. Real cause: `cardRow` routed
+  any `_readOnly` task to `_sharedTaskCard`, and external tasks carry `_readOnly`
+  (no `_shared`). Fixed to `t._shared && !t._source`; `sharedTasksForMe`/`_loadSharedTasks`
+  also drop external-origin items. (`adminRemoveNiftyDuplicates` preview returned
+  `poolTotal:0` — the cards were never native; nothing to delete.)
+- **-91** AI "Insert" into Task Notes/Project Desc did nothing — `safeText=JSON.stringify(text)`
+  in a double-quoted `onclick=""` broke the handler; use `_jsAttr` single-quoted.
+- **-93** AI Suggest Subtasks / Describe failed on long notes (ai.assist caps
+  `userContent` at 8000) — strip HTML + clamp.
+- **-94** Notes 🎤 **Voice** button → real Web Speech dictation (`startVoiceNote`).
+- **-95** Notes favorited via the New-Note ⭐ checkbox didn't show in Favorites —
+  checkbox saved `favorite:true` but `starred:false` while the view filters
+  `starred`. Now sets `starred`; one-time `_backfillNoteStarredFromFavorite`.
+- **-96** Notes 🔗 **Clip** button → real one-click web clipper (`startWebClip` +
+  `bookmarks.fetchMetadata` reusing `extractPageMetadata`).
+- **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
+  most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
+
 ## Deploy workflow
 
 - Push to `main` → Railway picks it up → builds → runs `pnpm install --frozen-lockfile` → builds (vite + esbuild) → starts.
