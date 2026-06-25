@@ -5,7 +5,7 @@ import { userAppData, tasksTable, notesTable, ideasTable, externalTasks } from "
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps'] as const;
+const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -303,6 +303,7 @@ export const appDataRouter = router({
         opportunities: z.string().optional(),
         atlasAnnotations: z.string().optional(),
         mindmaps: z.string().optional(),
+        sheets: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -809,6 +810,123 @@ export const appDataRouter = router({
           if (idx >= 0) mm.assignedTo = q.assigneeNames[idx];
         } else if (q.assignedTo != null) mm.assignedTo = q.assignedTo;
         await db.update(userAppData).set({ mindmaps: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Team-visibility for SHEETS (Smartsheet-like spreadsheets; blob-only array,
+   * made shareable in migration 0047). Same model as mind maps — assignees +
+   * Primary Responsible. Unlike mind maps, shared sheets are CO-EDITABLE (the
+   * grid data itself can be patched by an assignee), so members can work the
+   * sheet together.
+   */
+  sharedSheetsForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, sheets: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const me = users.find(u => u.id === ctx.user.id);
+      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = await db.select({ userId: userAppData.userId, sheets: userAppData.sheets }).from(userAppData);
+      const out: any[] = [];
+      const meId = ctx.user.id;
+      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
+      for (const r of rows) {
+        let arr: any;
+        try { arr = JSON.parse((r as any).sheets || '[]'); } catch { continue; }
+        if (!Array.isArray(arr)) continue;
+        if (r.userId === ctx.user.id) {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if ((assignee && !myKeys.has(assignee)) || assignedToOthers(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false, _delegated: true, _assigneeName: p.assignedTo || '' });
+            }
+          }
+        } else {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false });
+            }
+          }
+        }
+      }
+      return { ok: true as const, admin, sheets: out };
+    } catch (e: any) {
+      return { ok: false as const, sheets: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  /**
+   * Team-visibility: edit a shared/delegated SHEET. Admin / owner / assignee may
+   * patch the assignment metadata AND the grid contents (columns + rows), so a
+   * sheet is genuinely collaborative. Writes back into the owner's blob.
+   */
+  updateSharedSheet: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      sheetId: z.string().min(1),
+      patch: z.object({
+        title: z.string().max(200).optional(),
+        assignedTo: z.string().max(255).optional(),
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
+        columns: z.array(z.any()).optional(),
+        rows: z.array(z.any()).optional(),
+        theme: z.any().optional(),
+        icon: z.string().max(16).optional(),
+        color: z.string().max(32).optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const [appRow] = await db.select({ sheets: userAppData.sheets }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !(appRow as any).sheets) return { ok: false as const, error: 'sheet not found' };
+        let arr: any;
+        try { arr = JSON.parse((appRow as any).sheets); } catch { return { ok: false as const, error: 'bad data' }; }
+        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
+        const sh = arr.find((x: any) => x && String(x.id) === input.sheetId);
+        if (!sh) return { ok: false as const, error: 'sheet not found' };
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+          || (Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
+        if (!allowed) {
+          const { adminListAllUsers } = await import("../db");
+          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
+          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const cur = String(sh.assignedTo || '').trim().toLowerCase();
+          allowed = !!cur && myKeys.includes(cur);
+        }
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const q = input.patch;
+        if (q.title != null) sh.title = q.title;
+        if (q.icon != null) sh.icon = q.icon;
+        if (q.color != null) sh.color = q.color;
+        if (q.theme !== undefined) sh.theme = q.theme;
+        if (q.columns != null) sh.columns = q.columns;
+        if (q.rows != null) sh.rows = q.rows;
+        if (q.assignees != null) sh.assignees = q.assignees;
+        if (q.assigneeNames != null) sh.assigneeNames = q.assigneeNames;
+        if (q.primaryAssigneeId !== undefined) sh.primaryAssigneeId = q.primaryAssigneeId;
+        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+          const idx = q.assignees.indexOf(q.primaryAssigneeId);
+          if (idx >= 0) sh.assignedTo = q.assigneeNames[idx];
+        } else if (q.assignedTo != null) sh.assignedTo = q.assignedTo;
+        sh.updatedAt = new Date().toISOString();
+        await db.update(userAppData).set({ sheets: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
         return { ok: true as const };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
@@ -1327,7 +1445,7 @@ export const appDataRouter = router({
   deleteSharedItem: protectedProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes', 'programs', 'mindmaps']),
+      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes', 'programs', 'mindmaps', 'sheets']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1371,7 +1489,7 @@ export const appDataRouter = router({
   transferItemOwnership: adminProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects', 'programs', 'mindmaps', 'notes']),
+      kind: z.enum(['tasks', 'projects', 'programs', 'mindmaps', 'notes', 'sheets']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1379,8 +1497,8 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
       try {
-        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : k === 'mindmaps' ? userAppData.mindmaps : k === 'notes' ? userAppData.notes : userAppData.projects;
-        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : k === 'mindmaps' ? { mindmaps: json } : k === 'notes' ? { notes: json } : { projects: json };
+        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : k === 'mindmaps' ? userAppData.mindmaps : k === 'notes' ? userAppData.notes : k === 'sheets' ? userAppData.sheets : userAppData.projects;
+        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : k === 'mindmaps' ? { mindmaps: json } : k === 'notes' ? { notes: json } : k === 'sheets' ? { sheets: json } : { projects: json };
         const readArr = async (uid: number): Promise<any[]> => {
           const [r] = await db.select({ v: colOf(input.kind) }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
           try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }

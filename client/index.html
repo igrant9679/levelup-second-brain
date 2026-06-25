@@ -2263,6 +2263,108 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </div></div>
 
 <!-- ===== S-04 NOTES ===== -->
+<style id="sheets-css">
+/* ─── Notes ⇄ Sheets mode toggle ─── */
+.notes-mode-seg button{height:28px;font-size:10px;padding:0 11px;background:transparent;border:none;color:var(--t2);cursor:pointer;font-weight:600}
+.notes-mode-seg button.on{background:var(--ac);color:#fff}
+#notes-sheets-section{display:none;grid-column:2/-1;grid-row:2;min-height:0;overflow:auto;margin:6px 16px 16px;flex-direction:column}
+.notes-only-sheets{display:none!important}
+body.notes-mode-sheets #s-notes .notes-nav,
+body.notes-mode-sheets #s-notes .notes-list,
+body.notes-mode-sheets #s-notes .notes-editor,
+body.notes-mode-sheets #s-notes .notes-rail,
+body.notes-mode-sheets #s-notes #notes-mobile-tabs,
+body.notes-mode-sheets #s-notes .notes-resize{display:none!important}
+body.notes-mode-sheets #s-notes .notes-only-notes{display:none!important}
+body.notes-mode-sheets #s-notes .notes-only-sheets{display:inline-flex!important}
+body.notes-mode-sheets #s-notes #notes-sheets-section{display:flex!important}
+/* ─── Sheets gallery ─── */
+.sh-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.sh-card{position:relative;background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:14px 14px 16px;cursor:pointer;overflow:hidden;transition:transform .12s,box-shadow .12s,border-color .12s}
+.sh-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.22);border-color:var(--c)}
+.sh-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sh-card-ic{font-size:20px}
+.sh-card-title{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sh-card-meta{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:6px}
+.sh-card-badge{font-size:9px;font-weight:700;border-radius:20px;padding:1px 7px}
+.sh-card-bar{position:absolute;left:0;bottom:0;height:4px;width:100%;background:var(--c)}
+.sh-card-shared{border-left:3px solid var(--c)}
+/* ─── Editor shell ─── */
+.sh-editor{display:flex;flex-direction:column;min-height:0;flex:1}
+.sh-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.sh-ed-ic{font-size:20px}
+.sh-ed-title{font-size:16px;font-weight:700;background:transparent;border:none;color:var(--t1);min-width:160px;max-width:340px;padding:2px 4px;border-radius:6px}
+.sh-ed-title:focus{outline:none;background:var(--s2);box-shadow:0 0 0 1px var(--bd2)}
+.sh-shared-tag{font-size:9px;font-weight:700;color:var(--purp);border:1px solid var(--purp);border-radius:20px;padding:1px 8px}
+.sh-body{display:flex;gap:12px;flex:1;min-height:0}
+.sh-grid-wrap{flex:1;min-width:0;overflow:auto;border:1px solid var(--bd2);border-radius:10px;background:var(--s1)}
+.sh-side{width:230px;flex-shrink:0;overflow-y:auto;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:12px}
+/* ─── Grid table ─── */
+.sh-table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:12px}
+.sh-table th,.sh-table td{border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);vertical-align:middle}
+.sh-table.sh-nogrid td{border-right-color:transparent}
+.sh-table thead th{position:sticky;top:0;z-index:3;background:var(--s2);padding:0;height:34px}
+.sh-table.sh-hdr-accent thead th{background:color-mix(in srgb,var(--c) 16%,var(--s2))}
+.sh-table.sh-hdr-bold thead th .sh-colhead-n{font-weight:800}
+.sh-colhead{cursor:pointer;text-align:left;padding:0 8px!important;user-select:none}
+.sh-colhead:hover{background:color-mix(in srgb,var(--c) 22%,var(--s2))}
+.sh-colhead-i{display:inline-block;width:14px;color:var(--t3);font-size:10px;text-align:center;margin-right:4px}
+.sh-colhead-n{font-weight:700;font-size:11px}
+.sh-colhead-letter{float:right;color:var(--t3);font-size:9px;opacity:.6}
+.sh-rownum-h,.sh-rownum{width:34px;min-width:34px;text-align:center;color:var(--t3);font-size:10px;background:var(--s2);position:sticky;left:0;z-index:2;cursor:pointer}
+.sh-rownum:hover{background:color-mix(in srgb,var(--c) 18%,var(--s2));color:var(--t1)}
+.sh-rownum-h{z-index:4}
+.sh-addcol{cursor:pointer;color:var(--t3);font-size:16px;text-align:center;width:30px}
+.sh-addcol:hover{color:var(--ac);background:var(--s2)}
+.sh-td{padding:0;height:32px}
+.sh-table.sh-compact .sh-td,.sh-table.sh-compact thead th{height:26px}
+.sh-table.sh-striped tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--t3) 6%,transparent)}
+.sh-cell-edit{padding:6px 8px;min-height:20px;outline:none;cursor:text;white-space:pre-wrap;word-break:break-word}
+.sh-cell-edit.sh-editing{box-shadow:inset 0 0 0 2px var(--ac);background:var(--s1)}
+.sh-cell-edit.sh-formula{color:var(--ac)}
+.sh-td-number .sh-cell-edit,.sh-td-currency .sh-cell-edit{text-align:right;font-variant-numeric:tabular-nums}
+/* visual cell types */
+.sh-chk{width:18px;height:18px;margin:7px auto;border:1.5px solid var(--bd2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:#fff;font-weight:700}
+.sh-chk.on{background:var(--ac);border-color:var(--ac)}
+.sh-rating{padding:6px 8px;white-space:nowrap}
+.sh-star{cursor:pointer;color:var(--bd2);font-size:14px;transition:color .1s}
+.sh-star.on{color:#f59e0b}
+.sh-star:hover{color:#fbbf24}
+.sh-prog{position:relative;height:18px;margin:7px 8px;background:var(--bd1);border-radius:20px;overflow:hidden;cursor:pointer;min-width:60px}
+.sh-prog-bar{position:absolute;left:0;top:0;height:100%;border-radius:20px;transition:width .2s}
+.sh-prog-n{position:relative;z-index:1;font-size:9px;font-weight:700;color:var(--t1);line-height:18px;padding-left:8px;mix-blend-mode:luminosity}
+.sh-pill{display:inline-flex;align-items:center;gap:5px;margin:5px 8px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;max-width:100%}
+.sh-pill-empty{color:var(--t3);border:1px dashed var(--bd2);font-weight:500}
+.sh-pill-ch{font-size:8px;opacity:.7;margin-left:2px}
+.sh-person{background:var(--s3);color:var(--t1);border:1px solid var(--bd2)}
+.sh-avatar{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:9px;font-weight:700}
+.sh-addrow{padding:8px 10px;font-size:11px;color:var(--t3);cursor:pointer;position:sticky;left:0}
+.sh-addrow:hover{color:var(--ac);background:var(--s2)}
+.sh-footrow td{background:var(--s2);font-weight:700;font-size:11px}
+.sh-foot{padding:6px 8px;text-align:right;color:var(--t1)}
+.sh-foot-l{font-size:8px;text-transform:uppercase;color:var(--t3);font-weight:600;margin-right:4px}
+/* design side panel */
+.sh-side-sec{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--bd1)}
+.sh-side-h{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.4px;margin-bottom:7px}
+.sh-icon-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.sh-icon-b{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:15px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.sh-icon-b:hover{background:var(--s3)}
+.sh-icon-b.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 18%,transparent)}
+.sh-color-grid{display:flex;flex-wrap:wrap;gap:6px}
+.sh-color-sw{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.sh-color-sw.on{border-color:var(--t1);box-shadow:0 0 0 1px var(--bg)}
+.sh-seg{display:inline-flex;border:1px solid var(--bd2);border-radius:7px;overflow:hidden;width:100%}
+.sh-seg-b{flex:1;height:26px;font-size:10px;background:transparent;border:none;color:var(--t2);cursor:pointer}
+.sh-seg-b.on{background:var(--ac);color:#fff}
+.sh-check{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--t1);margin-bottom:6px;cursor:pointer}
+/* floating menu */
+.sh-popmenu{position:fixed;z-index:10000;background:var(--s1);border:1px solid var(--bd2);border-radius:9px;padding:4px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-height:340px;overflow-y:auto}
+.sh-popmenu-item{display:flex;align-items:center;gap:7px;padding:7px 10px;font-size:12px;border-radius:6px;cursor:pointer;color:var(--t1)}
+.sh-popmenu-item:hover{background:var(--s3)}
+.sh-dot{display:inline-block;width:11px;height:11px;border-radius:50%;flex-shrink:0}
+@media (max-width:760px){.sh-body{flex-direction:column}.sh-side{width:auto}}
+@media (max-width:900px){#notes-sheets-section{grid-column:1/-1!important;margin:6px 12px 14px}}
+</style>
 <div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px;grid-template-rows:auto 1fr;min-height:0">
 <nav class="sb" data-sb style="grid-row:1/-1"></nav>
 <header class="ph-r" style="grid-column:2/-1;margin:12px 16px 0">
@@ -2271,10 +2373,15 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
     <p style="font-size:12px;color:var(--t2)"><span id="notes-page-sub">Your second brain</span></p>
   </div>
   <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT">📥 Import Docs</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
-    <button class="btn btn-p" onclick="openFA('note')">+ New Note</button>
+    <div class="notes-mode-seg" style="display:inline-flex;border:1px solid var(--bd2);border-radius:8px;overflow:hidden;margin-right:6px">
+      <button id="notes-mode-notes" class="on" onclick="setNotesMode('notes')" title="Notes">📝 Notes</button>
+      <button id="notes-mode-sheets-btn" onclick="setNotesMode('sheets')" title="Spreadsheets">📊 Sheets</button>
+    </div>
+    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
+    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT">📥 Import Docs</button>
+    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
+    <button class="btn btn-p notes-only-notes" onclick="openFA('note')">+ New Note</button>
+    <button class="btn btn-p notes-only-sheets" onclick="shNewSheetMenu(event)">+ New Sheet</button>
   </div>
 </header>
 <!-- Mobile-only tab strip to switch between the four Notes panes. -->
@@ -2303,6 +2410,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div class="notes-list" id="notes-list-panel" style="min-height:0"></div>
 <div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto;min-height:0"></div>
 <div class="notes-rail" id="notes-rail-panel" style="min-height:0"></div>
+<section id="notes-sheets-section"></section>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -2655,7 +2763,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-06-25-105';
+  var APP_BUILD='2026-06-25-106';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

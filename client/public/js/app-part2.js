@@ -9629,7 +9629,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -9973,7 +9973,7 @@ async function loadServerData(){
         if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
       }
     }else{
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets'];
     let changed=false;
     // Timestamp the server blob was last written. A local-only item is only
     // "rescued" if it's NEWER than this — i.e. a genuinely new local add the
@@ -11429,6 +11429,487 @@ function mmConvertToNote(nodeId){
   save('notes');
   document.getElementById('mm-context-menu').style.display = 'none';
   toast(`📝 Note created: "${node.text}"`);
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   SHEETS — Smartsheet-like spreadsheets, shown as a section inside Notes.
+   Data: D.sheets (blob array, migration 0047). Per-cell formulas (=…),
+   visual column types (status/progress/rating/person), table themes,
+   templates, and team co-editing via appData.sharedSheetsForMe /
+   updateSharedSheet. See CLAUDE.md "Sheets feature build".
+   ═════════════════════════════════════════════════════════════════════ */
+let _sheetCurrent=null;          // open sheet — own: ref into D.sheets; shared: detached copy
+let _sheetUndo=[]; let _sheetRedo=[];
+let _sharedSheetsLoaded=false;
+let _sheetSharedSyncTimer=null;
+let _sheetShowDesign=true;
+
+const SHEET_PALETTE=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#64748b'];
+const SHEET_ICONS=['📊','📋','🗂','🎯','🚀','💡','🧭','📈','💰','🗓','🧩','🛠','⚙','🔬','🏗','📌','🌱','🏆'];
+const SHEET_COL_TYPES=[
+  {k:'text',label:'Text',icon:'T'},{k:'number',label:'Number',icon:'#'},
+  {k:'currency',label:'Currency',icon:'$'},{k:'date',label:'Date',icon:'📅'},
+  {k:'checkbox',label:'Checkbox',icon:'☑'},{k:'select',label:'Status / Select',icon:'▾'},
+  {k:'progress',label:'Progress bar',icon:'▰'},{k:'rating',label:'Rating',icon:'★'},
+  {k:'person',label:'Person',icon:'@'}];
+
+function ensureSheets(){ if(!Array.isArray(D.sheets))D.sheets=[]; }
+function _sheetNextId(){ ensureSheets(); const all=D.sheets.concat(Array.isArray(D._sharedSheets)?D._sharedSheets:[]); let mx=Date.now(); all.forEach(s=>{const n=Number(s.id); if(!isNaN(n)&&n>=mx)mx=n+1;}); return mx; }
+function saveSheets(){
+  if(_sheetCurrent)_sheetCurrent.updatedAt=new Date().toISOString();
+  if(_sheetCurrent&&_sheetCurrent._shared){ _shPushShared(_sheetCurrent); }
+  else { try{(window.save||save)('sheets');}catch(_){ try{localStorage.setItem('lu_sheets',JSON.stringify(D.sheets));}catch(__){} } }
+}
+function _shPushShared(sheet){
+  clearTimeout(_sheetSharedSyncTimer);
+  _sheetSharedSyncTimer=setTimeout(async()=>{
+    try{ await _trpc('appData.updateSharedSheet',{ownerUserId:Number(sheet._sharedFromUserId)||0,sheetId:String(sheet.id),patch:{
+      title:sheet.title,icon:sheet.icon,color:sheet.color,theme:sheet.theme,columns:sheet.columns,rows:sheet.rows,
+      assignees:sheet.assignees,assigneeNames:sheet.assigneeNames,primaryAssigneeId:sheet.primaryAssigneeId,assignedTo:sheet.assignedTo}},'mutation'); }
+    catch(e){ if(typeof toast==='function')toast({type:'error',title:'Shared sheet not synced',msg:String(e&&e.message||e).slice(0,120)}); }
+  },1500);
+}
+
+// ─── Notes ⇄ Sheets section toggle ───────────────────────────────────────────
+function _notesModeIsSheets(){ return !!(D.prefs&&D.prefs.notesMode==='sheets'); }
+function setNotesMode(mode){ D.prefs=D.prefs||{}; D.prefs.notesMode=(mode==='sheets'?'sheets':'notes'); try{(window.save||save)('prefs');}catch(_){} _applyNotesMode(); }
+function _applyNotesMode(){
+  const sheets=_notesModeIsSheets();
+  if(typeof document==='undefined')return;
+  document.body.classList.toggle('notes-mode-sheets',sheets);
+  const bn=document.getElementById('notes-mode-notes'),bs=document.getElementById('notes-mode-sheets-btn');
+  if(bn)bn.classList.toggle('on',!sheets); if(bs)bs.classList.toggle('on',sheets);
+  if(sheets)renderSheetsSection();
+}
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+function _shMakeSheet(title,icon,color,colDefs,rowVals){
+  const columns=colDefs.map((d,i)=>({id:i+1,name:d.name,type:d.type||'text',width:d.width||150,color:d.color||'',options:d.options||null,summary:d.summary||'none',align:d.align||''}));
+  const rows=(rowVals||[]).map((vals,ri)=>{ const cells={}; columns.forEach((c,ci)=>{ if(vals[ci]!==undefined&&vals[ci]!=='')cells[c.id]=vals[ci]; }); return {id:ri+1,cells:cells,color:''}; });
+  return {title,icon,color,columns,rows};
+}
+function _shOpts(arr){ return arr.map((l,i)=>({label:l,color:SHEET_PALETTE[i%SHEET_PALETTE.length]})); }
+const SHEET_TEMPLATES=[
+  {key:'blank',name:'Blank sheet',icon:'📊',desc:'Start from scratch',build:()=>_shMakeSheet('Untitled sheet','📊','#3b82f6',
+    [{name:'Item',width:220},{name:'Detail'},{name:'Notes',width:200}],
+    [['','',''],['','',''],['','','']])},
+  {key:'project',name:'Project plan',icon:'🚀',desc:'Tasks, owners, status & progress',build:()=>_shMakeSheet('Project plan','🚀','#3b82f6',
+    [{name:'Task',width:240},{name:'Owner',type:'person'},{name:'Status',type:'select',options:_shOpts(['Not started','In progress','Blocked','Done'])},{name:'Priority',type:'select',options:_shOpts(['Low','Medium','High'])},{name:'Start',type:'date'},{name:'Due',type:'date'},{name:'Progress',type:'progress',summary:'avg'},{name:'Notes',width:200}],
+    [['Define scope','','In progress','High','','','40',''],['Design',' ','Not started','Medium','','','0',''],['Build','','Not started','High','','','0',''],['Launch','','Not started','Medium','','','0','']])},
+  {key:'okr',name:'OKRs / Strategy',icon:'🎯',desc:'Objectives, key results, confidence',build:()=>_shMakeSheet('OKRs','🎯','#8b5cf6',
+    [{name:'Objective',width:240},{name:'Key result',width:240},{name:'Owner',type:'person'},{name:'Progress',type:'progress',summary:'avg'},{name:'Confidence',type:'rating'},{name:'Status',type:'select',options:_shOpts(['On track','At risk','Off track','Done'])}],
+    [['Grow activation','Lift D1 retention to 45%','','30','4','On track'],['Grow activation','Ship onboarding v2','','10','3','At risk'],['Expand revenue','Reach $50k MRR','','55','4','On track']])},
+  {key:'roadmap',name:'Roadmap',icon:'🧭',desc:'Initiatives by quarter & theme',build:()=>_shMakeSheet('Roadmap','🧭','#06b6d4',
+    [{name:'Initiative',width:260},{name:'Quarter',type:'select',options:_shOpts(['Q1','Q2','Q3','Q4'])},{name:'Theme',type:'select',options:_shOpts(['Growth','Retention','Platform','Quality'])},{name:'Owner',type:'person'},{name:'Status',type:'select',options:_shOpts(['Idea','Planned','Building','Shipped'])},{name:'Impact',type:'rating'}],
+    [['Self-serve onboarding','Q1','Growth','','Planned','5'],['Mobile app','Q2','Platform','','Idea','4'],['Reliability hardening','Q1','Quality','','Building','3']])},
+  {key:'swot',name:'SWOT analysis',icon:'🧩',desc:'Strengths, weaknesses, opportunities, threats',build:()=>_shMakeSheet('SWOT analysis','🧩','#f59e0b',
+    [{name:'Type',type:'select',options:[{label:'Strength',color:'#10b981'},{label:'Weakness',color:'#ef4444'},{label:'Opportunity',color:'#3b82f6'},{label:'Threat',color:'#f59e0b'}]},{name:'Item',width:320},{name:'Priority',type:'rating'},{name:'Notes',width:220}],
+    [['Strength','Strong brand loyalty','4',''],['Weakness','Limited mobile presence','3',''],['Opportunity','Emerging market demand','5',''],['Threat','New competitor entrants','4','']])},
+  {key:'risk',name:'Risk register',icon:'⚠',desc:'Likelihood × impact scoring',build:()=>_shMakeSheet('Risk register','⚠','#ef4444',
+    [{name:'Risk',width:260},{name:'Likelihood',type:'rating'},{name:'Impact',type:'rating'},{name:'Score',type:'number',summary:'max'},{name:'Owner',type:'person'},{name:'Mitigation',width:240},{name:'Status',type:'select',options:_shOpts(['Open','Mitigating','Closed'])}],
+    [['Key vendor outage','3','5','=B2*C2','','Add fallback provider','Open'],['Scope creep','4','3','=B3*C3','','Weekly scope review','Mitigating'],['Data loss','2','5','=B4*C4','','Automated backups','Open']])},
+  {key:'decision',name:'Decision matrix',icon:'⚖',desc:'Weighted option scoring',build:()=>_shMakeSheet('Decision matrix','⚖','#84cc16',
+    [{name:'Option',width:220},{name:'Impact',type:'rating'},{name:'Confidence',type:'rating'},{name:'Ease',type:'rating'},{name:'Score',type:'number',summary:'max'}],
+    [['Option A','4','3','5','=B2+C2+D2'],['Option B','5','4','2','=B3+C3+D3'],['Option C','3','5','4','=B4+C4+D4']])},
+  {key:'budget',name:'Budget tracker',icon:'💰',desc:'Estimate vs actual with variance',build:()=>_shMakeSheet('Budget','💰','#10b981',
+    [{name:'Item',width:220},{name:'Category',type:'select',options:_shOpts(['People','Tools','Marketing','Ops'])},{name:'Estimate',type:'currency',summary:'sum'},{name:'Actual',type:'currency',summary:'sum'},{name:'Variance',type:'currency',summary:'sum'}],
+    [['Engineering','People','12000','11500','=C2-D2'],['SaaS tools','Tools','800','920','=C3-D3'],['Ads','Marketing','3000','2750','=C4-D4']])},
+  {key:'content',name:'Content calendar',icon:'🗓',desc:'Plan & track publishing',build:()=>_shMakeSheet('Content calendar','🗓','#ec4899',
+    [{name:'Title',width:240},{name:'Channel',type:'select',options:_shOpts(['Blog','Email','LinkedIn','X','YouTube'])},{name:'Owner',type:'person'},{name:'Publish',type:'date'},{name:'Status',type:'select',options:_shOpts(['Idea','Draft','Review','Scheduled','Published'])},{name:'Notes',width:200}],
+    [['Launch announcement','Blog','','','Draft',''],['Weekly tips','Email','','','Idea',''],['Behind the scenes','LinkedIn','','','Idea','']])}
+];
+
+// ─── Section render (gallery vs editor) ──────────────────────────────────────
+function renderSheetsSection(){
+  const host=document.getElementById('notes-sheets-section'); if(!host)return;
+  ensureSheets();
+  if(!_sharedSheetsLoaded)_loadSharedSheets();
+  if(_sheetCurrent){ host.innerHTML=_shEditorHtml(); _shHydrateEditor(); return; }
+  // Gallery
+  const own=D.sheets.slice().sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+  const shared=Array.isArray(D._sharedSheets)?D._sharedSheets:[];
+  const totalCells=D.sheets.reduce((s,sh)=>s+((sh.rows||[]).length*(sh.columns||[]).length),0);
+  host.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">📊 Sheets</div>
+        <div style="font-size:11px;color:var(--t2)">${D.sheets.length} sheet${D.sheets.length===1?'':'s'}${totalCells?` · ${totalCells} cells`:''} · build visual, spreadsheet-style strategy boards</div>
+      </div>
+      <span style="flex:1"></span>
+      <button class="btn btn-p" onclick="shNewSheetMenu(event)">+ New sheet</button>
+    </div>
+    ${own.length?`<div class="sh-gallery">${own.map(_shCard).join('')}</div>`:`<div style="border:1px dashed var(--bd2);border-radius:12px;padding:34px;text-align:center;color:var(--t2)">
+      <div style="font-size:34px;margin-bottom:8px">📊</div>
+      <div style="font-weight:600;margin-bottom:4px">No sheets yet</div>
+      <div style="font-size:12px;margin-bottom:14px">Spin up a spreadsheet to plan projects, score decisions, map a strategy, or track a budget.</div>
+      <button class="btn btn-p" onclick="shNewSheetMenu(event)">+ New sheet from template</button></div>`}
+    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated sheets <span style="font-size:10px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((s,i)=>_shSharedCard(s,i)).join('')}</div></div>`:''}
+  `;
+}
+function _shCard(s){
+  const rows=(s.rows||[]).length,cols=(s.columns||[]).length;
+  const c=s.color||'#3b82f6';
+  const assignBadge=(Array.isArray(s.assignees)&&s.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${s.assignees.length}</span>`:'';
+  return `<div class="sh-card" style="--c:${c}" onclick="shOpen(${Number(s.id)})">
+    <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
+    <div class="sh-card-meta">${rows} row${rows===1?'':'s'} · ${cols} col${cols===1?'':'s'} ${assignBadge}</div>
+    <div class="sh-card-bar"></div>
+  </div>`;
+}
+function _shSharedCard(s,i){
+  const c=s.color||'#8b5cf6';
+  const tag=s._delegated?`assigned to ${esc(s.assignedTo||'someone')}`:'shared with you';
+  return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="shOpenShared(${i})">
+    <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
+    <div class="sh-card-meta">${(s.rows||[]).length} rows · ${s._delegated?'➡ ':'👥 '}${tag}</div>
+    <div class="sh-card-bar"></div>
+  </div>`;
+}
+
+function shNewSheetMenu(ev){
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  _shPopMenu(ev||{clientX:200,clientY:160},SHEET_TEMPLATES.map(t=>({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>shCreateFromTemplate(t.key)})),260);
+}
+function shCreateFromTemplate(key){
+  ensureSheets();
+  const tpl=SHEET_TEMPLATES.find(t=>t.key===key)||SHEET_TEMPLATES[0];
+  const base=tpl.build();
+  const sheet=Object.assign(base,{
+    id:_sheetNextId(),templateKey:key,
+    theme:{density:'comfortable',striped:true,gridlines:true,headerStyle:'accent'},
+    assignees:[],assigneeNames:[],primaryAssigneeId:null,assignedTo:'',
+    createdBy:(D.creds&&(D.creds.userName||D.creds.name))||'User',
+    createdById:(D.creds&&D.creds.userId)||null,
+    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+  });
+  D.sheets.push(sheet);
+  saveSheets();
+  _sheetUndo=[];_sheetRedo=[];
+  _sheetCurrent=sheet;
+  renderSheetsSection();
+  toast(`📊 Created “${sheet.title}”`);
+}
+function shOpen(id){ ensureSheets(); const s=D.sheets.find(x=>Number(x.id)===Number(id)); if(!s)return toast('Sheet not found'); _sheetCurrent=s; _sheetUndo=[];_sheetRedo=[]; renderSheetsSection(); }
+async function shOpenShared(i){
+  let s=(D._sharedSheets||[])[i];
+  if(!s){ await _loadSharedSheets(); s=(D._sharedSheets||[])[i]; }
+  if(!s)return toast('Shared sheet unavailable');
+  _sheetCurrent=s; _sheetUndo=[];_sheetRedo=[]; renderSheetsSection();
+}
+function shClose(){ _sheetCurrent=null; renderSheetsSection(); }
+function shDeleteSheet(id){
+  if(!confirm('Delete this sheet? This cannot be undone.'))return;
+  ensureSheets(); D.sheets=D.sheets.filter(x=>Number(x.id)!==Number(id));
+  if(_sheetCurrent&&Number(_sheetCurrent.id)===Number(id))_sheetCurrent=null;
+  (window.save||save)('sheets'); renderSheetsSection(); toast('🗑 Sheet deleted');
+}
+
+// ─── Formula engine (Excel-style A1 refs + functions) ────────────────────────
+function _shColName(i){ let s=''; i=Number(i); if(isNaN(i)||i<0)return 'A'; do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0); return s; }
+function _shRefRC(ref){ const m=/^([A-Za-z]{1,2})(\d+)$/.exec(String(ref).trim()); if(!m)return null; const L=m[1].toUpperCase(); let c=0; for(let k=0;k<L.length;k++)c=c*26+(L.charCodeAt(k)-64); return {c:c-1,r:parseInt(m[2],10)-1}; }
+function _shNum(v){ if(typeof v==='number')return v; if(v===true)return 1; if(v===false||v==null)return NaN; let s=String(v).trim().replace(/[$,%£€\s]/g,''); if(s==='')return NaN; const n=parseFloat(s); return isNaN(n)?NaN:n; }
+function _shResolveRC(sheet,r,c,depth){
+  const col=sheet.columns[c],row=sheet.rows[r];
+  if(!col||!row)return 0;
+  let raw=(row.cells||{})[col.id];
+  if(raw==null||raw==='')return 0;
+  if(typeof raw==='string'&&raw.charAt(0)==='='){ if((depth||0)>25)return '#CYCLE'; return _shEval(sheet,raw,(depth||0)+1); }
+  const n=_shNum(raw); return isNaN(n)?raw:n;
+}
+function _shHelpers(sheet,depth){
+  const flat=a=>a.reduce((o,v)=>o.concat(Array.isArray(v)?flat(v):[v]),[]);
+  const nums=a=>flat(a).map(x=>typeof x==='number'?x:_shNum(x)).filter(x=>!isNaN(x));
+  return {
+    c:(ref)=>{ const rc=_shRefRC(ref); return rc?_shResolveRC(sheet,rc.r,rc.c,depth):0; },
+    r:(rg)=>{ const p=String(rg).split(':'); const A=_shRefRC(p[0]),B=_shRefRC(p[1]); if(!A||!B)return []; const out=[]; for(let r=Math.min(A.r,B.r);r<=Math.max(A.r,B.r);r++)for(let c=Math.min(A.c,B.c);c<=Math.max(A.c,B.c);c++)out.push(_shResolveRC(sheet,r,c,depth)); return out; },
+    fn:{
+      SUM:(...a)=>nums(a).reduce((s,x)=>s+x,0),
+      AVERAGE:(...a)=>{const n=nums(a);return n.length?n.reduce((s,x)=>s+x,0)/n.length:0;},
+      AVG:(...a)=>{const n=nums(a);return n.length?n.reduce((s,x)=>s+x,0)/n.length:0;},
+      MIN:(...a)=>{const n=nums(a);return n.length?Math.min.apply(null,n):0;},
+      MAX:(...a)=>{const n=nums(a);return n.length?Math.max.apply(null,n):0;},
+      COUNT:(...a)=>nums(a).length,
+      COUNTA:(...a)=>flat(a).filter(x=>x!==''&&x!=null).length,
+      ROUND:(x,d)=>{const f=Math.pow(10,d||0);return Math.round(_shNum(x)*f)/f;},
+      ABS:x=>Math.abs(_shNum(x)),
+      PRODUCT:(...a)=>nums(a).reduce((s,x)=>s*x,1),
+      IF:(c,t,f)=>c?t:(f===undefined?false:f),
+      CONCAT:(...a)=>flat(a).join(''),
+      MEDIAN:(...a)=>{const n=nums(a).sort((x,y)=>x-y);if(!n.length)return 0;const m=Math.floor(n.length/2);return n.length%2?n[m]:(n[m-1]+n[m])/2;}
+    }
+  };
+}
+function _shEval(sheet,formula,depth){
+  try{
+    let f=String(formula).replace(/^=/,'').trim();
+    if(!f)return '';
+    const re=/\s*(?:(\d+(?:\.\d+)?)|("(?:[^"]*)")|([A-Za-z]{1,2}\d+:[A-Za-z]{1,2}\d+)|([A-Za-z]{1,2}\d+)|([A-Za-z_]+)(?=\s*\()|(<=|>=|<>|\*\*|[-+*/%^(),<>=]))/g;
+    let js='',last=0,m;
+    while((m=re.exec(f))){
+      if(m.index!==last)return '#ERR';
+      if(m[1]!=null)js+=m[1];
+      else if(m[2]!=null)js+=JSON.stringify(m[2].slice(1,-1));
+      else if(m[3]!=null)js+='H.r("'+m[3].toUpperCase()+'")';
+      else if(m[4]!=null)js+='H.c("'+m[4].toUpperCase()+'")';
+      else if(m[5]!=null)js+='H.fn.'+m[5].toUpperCase();
+      else if(m[6]!=null){ let op=m[6]; if(op==='^')op='**'; else if(op==='<>')op='!=='; else if(op==='=')op='==='; js+=op; }
+      last=re.lastIndex;
+    }
+    if(last!==f.length)return '#ERR';
+    const H=_shHelpers(sheet,depth||0);
+    const val=Function('H','return ('+js+')')(H);
+    if(typeof val==='number'){ if(!isFinite(val))return '#DIV/0'; return Math.round(val*1e10)/1e10; }
+    return val;
+  }catch(e){ return '#ERR'; }
+}
+
+// ─── Display / formatting ────────────────────────────────────────────────────
+function _shFmtVal(col,v){
+  if(v==null||v==='')return '';
+  if(typeof v==='string'&&v.charAt(0)==='#'&&/^#(ERR|DIV|CYCLE)/.test(v))return `<span style="color:var(--red);font-size:10px">${esc(v)}</span>`;
+  switch(col.type){
+    case 'currency':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+    case 'number':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return esc(String(Math.round(n*1e6)/1e6));}
+    default:return esc(String(v));
+  }
+}
+function _shCellDisplay(sheet,row,col){
+  let raw=(row.cells||{})[col.id];
+  if(typeof raw==='string'&&raw.charAt(0)==='='){ return _shFmtVal(col,_shEval(sheet,raw,0)); }
+  return _shFmtVal(col,raw);
+}
+function _shColSummary(sheet,col){
+  if(!col.summary||col.summary==='none')return '';
+  const vals=sheet.rows.map(r=>{ let raw=(r.cells||{})[col.id]; if(typeof raw==='string'&&raw.charAt(0)==='=')return _shEval(sheet,raw,0); return raw; });
+  const nums=vals.map(_shNum).filter(x=>!isNaN(x));
+  let out='';
+  if(col.summary==='sum')out=nums.reduce((s,x)=>s+x,0);
+  else if(col.summary==='avg')out=nums.length?(nums.reduce((s,x)=>s+x,0)/nums.length):0;
+  else if(col.summary==='min')out=nums.length?Math.min.apply(null,nums):0;
+  else if(col.summary==='max')out=nums.length?Math.max.apply(null,nums):0;
+  else if(col.summary==='count')return String(vals.filter(v=>v!=null&&v!=='').length);
+  out=Math.round(out*100)/100;
+  return col.type==='currency'?('$'+out.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})):String(out);
+}
+
+// ─── Editor render ───────────────────────────────────────────────────────────
+function _shEditorHtml(){
+  const s=_sheetCurrent; const c=s.color||'#3b82f6';
+  const shared=s._shared?`<span class="sh-shared-tag">${s._delegated?'➡ delegated':'👥 shared'}</span>`:'';
+  return `<div class="sh-editor" style="--c:${c}">
+    <div class="sh-toolbar">
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shClose()">← Sheets</button>
+      <span class="sh-ed-ic">${esc(s.icon||'📊')}</span>
+      <input class="sh-ed-title" value="${esc(s.title||'')}" onchange="shSetTitle(this.value)" placeholder="Untitled sheet">
+      ${shared}
+      <span style="flex:1"></span>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shUndo()" title="Undo">↶</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shRedo()" title="Redo">↷</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shAddRow()">+ Row</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shAddCol()">+ Column</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shExportCSV()" title="Export CSV">⬇ CSV</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px;${_sheetShowDesign?'background:var(--ac);color:#fff':''}" onclick="shToggleDesign()" title="Design & sharing">🎨 Design</button>
+    </div>
+    <div class="sh-body">
+      <div class="sh-grid-wrap" id="sheet-grid-wrap">${_shGridHtml()}</div>
+      <aside class="sh-side" id="sheet-side" style="display:${_sheetShowDesign?'block':'none'}">${_shDesignHtml()}</aside>
+    </div>
+  </div>`;
+}
+function _shHydrateEditor(){ if(typeof buildMultiAssignee==='function'){ /* picker rendered inside design html; nothing extra */ } }
+function shToggleDesign(){ _sheetShowDesign=!_sheetShowDesign; renderSheetsSection(); }
+function shSetTitle(v){ if(!_sheetCurrent)return; _sheetCurrent.title=(v||'').trim()||'Untitled sheet'; saveSheets(); }
+
+function _shGridHtml(){
+  const s=_sheetCurrent; const th=s.theme||{};
+  const dens=th.density==='compact'?'sh-compact':'';
+  const strp=th.striped?'sh-striped':''; const gl=th.gridlines===false?'sh-nogrid':'';
+  const hdr=th.headerStyle==='accent'?'sh-hdr-accent':(th.headerStyle==='bold'?'sh-hdr-bold':'');
+  const cols=s.columns;
+  let head='<tr><th class="sh-rownum-h">#</th>';
+  cols.forEach((col,ci)=>{
+    const tIcon=(SHEET_COL_TYPES.find(t=>t.k===col.type)||{}).icon||'T';
+    head+=`<th class="sh-colhead" style="width:${col.width||150}px;${col.color?`border-top:3px solid ${col.color}`:''}" onclick="shColMenu(event,${col.id})" title="${esc(col.name)} — click to edit column">
+      <span class="sh-colhead-i">${esc(tIcon)}</span><span class="sh-colhead-n">${esc(col.name||_shColName(ci))}</span><span class="sh-colhead-letter">${_shColName(ci)}</span></th>`;
+  });
+  head+='<th class="sh-addcol" onclick="shAddCol()" title="Add column">+</th></tr>';
+  let body='';
+  s.rows.forEach((row,ri)=>{
+    const rc=row.color?`style="box-shadow:inset 4px 0 0 ${row.color}"`:'';
+    body+=`<tr ${rc}><td class="sh-rownum" onclick="shRowMenu(event,${row.id})" title="Row actions">${ri+1}</td>`;
+    cols.forEach((col,ci)=>{ body+=`<td class="sh-td sh-td-${col.type}" style="${col.align?`text-align:${col.align}`:''}">${_shCellHtml(s,row,col)}</td>`; });
+    body+='<td class="sh-rowpad"></td></tr>';
+  });
+  // Summary footer (only if any column has a summary)
+  let foot='';
+  if(cols.some(c=>c.summary&&c.summary!=='none')){
+    foot='<tr class="sh-footrow"><td class="sh-rownum" title="Column summaries">Σ</td>';
+    cols.forEach(col=>{ const sm=_shColSummary(s,col); foot+=`<td class="sh-foot">${sm?`<span class="sh-foot-l">${esc(col.summary)}</span> ${esc(sm)}`:''}</td>`; });
+    foot+='<td></td></tr>';
+  }
+  return `<table class="sh-table ${dens} ${strp} ${gl} ${hdr}"><thead>${head}</thead><tbody>${body}</tbody>${foot?`<tfoot>${foot}</tfoot>`:''}</table>
+    <div class="sh-addrow" onclick="shAddRow()">+ Add row</div>`;
+}
+// Re-render only the grid (not the design side) so an in-progress assignee
+// selection isn't reset when a cell is edited.
+function renderSheetGrid(){ const w=document.getElementById('sheet-grid-wrap'); if(w)w.innerHTML=_shGridHtml(); }
+
+function _shCellHtml(s,row,col){
+  const raw=(row.cells||{})[col.id];
+  switch(col.type){
+    case 'checkbox':{ const on=!!raw&&raw!=='false'; return `<div class="sh-chk ${on?'on':''}" onclick="shToggleCheck(${row.id},${col.id})">${on?'✓':''}</div>`; }
+    case 'rating':{ const v=Math.max(0,Math.min(5,Math.round(_shNum(raw)||0))); let st=''; for(let i=1;i<=5;i++)st+=`<span class="sh-star ${i<=v?'on':''}" onclick="shSetRating(${row.id},${col.id},${i})">★</span>`; return `<div class="sh-rating">${st}</div>`; }
+    case 'progress':{ const p=Math.max(0,Math.min(100,Math.round(_shNum(typeof raw==='string'&&raw.charAt(0)==='='?_shEval(s,raw,0):raw)||0))); const cc=p>=100?'#10b981':p>=50?'#3b82f6':'#f59e0b'; return `<div class="sh-prog" onclick="shEditProgress(${row.id},${col.id})" title="Click to set %"><div class="sh-prog-bar" style="width:${p}%;background:${cc}"></div><span class="sh-prog-n">${p}%</span></div>`; }
+    case 'select':{ const opt=(col.options||[]).find(o=>o.label===raw); const bg=opt?opt.color:'#64748b'; return raw?`<div class="sh-pill" style="background:${bg};color:#fff" onclick="shOpenSelect(event,${row.id},${col.id})">${esc(String(raw))}<span class="sh-pill-ch">▾</span></div>`:`<div class="sh-pill sh-pill-empty" onclick="shOpenSelect(event,${row.id},${col.id})">— select —<span class="sh-pill-ch">▾</span></div>`; }
+    case 'person':{ return raw?`<div class="sh-pill sh-person" onclick="shOpenPerson(event,${row.id},${col.id})"><span class="sh-avatar">${esc((String(raw)[0]||'?').toUpperCase())}</span>${esc(String(raw))}</div>`:`<div class="sh-pill sh-pill-empty" onclick="shOpenPerson(event,${row.id},${col.id})">— assign —</div>`; }
+    default:{ const disp=_shCellDisplay(s,row,col); const isF=typeof raw==='string'&&raw.charAt(0)==='='; return `<div class="sh-cell-edit ${isF?'sh-formula':''}" contenteditable="true" data-row="${row.id}" data-col="${col.id}" data-raw="${esc(raw==null?'':String(raw))}" onfocus="shCellFocus(this)" onblur="shCellBlur(this)" onkeydown="shCellKey(event,this)" spellcheck="false" title="${isF?esc(String(raw)):''}">${disp}</div>`; }
+  }
+}
+
+// ─── Cell editing ────────────────────────────────────────────────────────────
+function shCellFocus(el){ const raw=el.getAttribute('data-raw')||''; el.textContent=raw; el.classList.add('sh-editing'); setTimeout(()=>{ try{const r=document.createRange();r.selectNodeContents(el);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);}catch(_){} },0); }
+function shCellBlur(el){ el.classList.remove('sh-editing'); const rid=Number(el.dataset.row),cid=Number(el.dataset.col); shSetCell(rid,cid,el.textContent); }
+function shCellKey(e,el){ if(e.key==='Enter'){e.preventDefault();el.blur();} else if(e.key==='Escape'){e.preventDefault();el.textContent=el.getAttribute('data-raw')||'';el.blur();} else if(e.key==='Tab'){e.preventDefault();el.blur();} }
+function shSetCell(rid,cid,val){
+  const s=_sheetCurrent; if(!s)return;
+  const row=s.rows.find(r=>r.id===rid),col=s.columns.find(c=>c.id===cid); if(!row||!col)return;
+  row.cells=row.cells||{};
+  let v=(typeof val==='string')?val.replace(/ /g,' ').trim():val;
+  if(String(row.cells[cid]==null?'':row.cells[cid])===String(v==null?'':v))return;
+  _shSnap();
+  if(v==='')delete row.cells[cid]; else row.cells[cid]=v;
+  saveSheets(); renderSheetGrid();
+}
+function shToggleCheck(rid,cid){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; row.cells=row.cells||{}; _shSnap(); row.cells[cid]=!(row.cells[cid]&&row.cells[cid]!=='false'); saveSheets(); renderSheetGrid(); }
+function shSetRating(rid,cid,v){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; row.cells=row.cells||{}; const cur=Math.round(_shNum(row.cells[cid])||0); _shSnap(); row.cells[cid]=(cur===v?v-1:v)||0; if(!row.cells[cid])delete row.cells[cid]; saveSheets(); renderSheetGrid(); }
+function shEditProgress(rid,cid){ const s=_sheetCurrent; const row=s.rows.find(r=>r.id===rid); if(!row)return; const cur=Math.round(_shNum((row.cells||{})[cid])||0); const v=prompt('Progress % (0–100):',String(cur)); if(v==null)return; let n=Math.max(0,Math.min(100,Math.round(parseFloat(v)||0))); row.cells=row.cells||{}; _shSnap(); row.cells[cid]=n; saveSheets(); renderSheetGrid(); }
+function shOpenSelect(ev,rid,cid){ ev.stopPropagation(); const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); col.options=col.options||[]; const items=col.options.map(o=>({html:`<span class="sh-dot" style="background:${o.color}"></span>${esc(o.label)}`,onClick:()=>shSetCell(rid,cid,o.label)})); items.push({html:'<span style="color:var(--ac)">＋ New option…</span>',onClick:()=>{ const lbl=prompt('New option label:'); if(!lbl)return; col.options.push({label:lbl.trim(),color:SHEET_PALETTE[col.options.length%SHEET_PALETTE.length]}); shSetCell(rid,cid,lbl.trim()); }}); items.push({html:'<span style="color:var(--t3)">Clear</span>',onClick:()=>shSetCell(rid,cid,'')}); _shPopMenu(ev,items); }
+function shOpenPerson(ev,rid,cid){ ev.stopPropagation(); const mem=(typeof _assigneeMembers==='function'?_assigneeMembers():[]).filter(m=>m&&m.name); const items=mem.length?mem.map(m=>({html:`<span class="sh-avatar">${esc((m.name[0]||'?').toUpperCase())}</span>${esc(m.name)}`,onClick:()=>shSetCell(rid,cid,m.name)})):[{html:'<span style="color:var(--t3)">No team members</span>',onClick:()=>{}}]; items.push({html:'<span style="color:var(--t3)">Clear</span>',onClick:()=>shSetCell(rid,cid,'')}); _shPopMenu(ev,items); }
+
+// ─── Column & row operations ─────────────────────────────────────────────────
+function _shColIdx(cid){ return _sheetCurrent.columns.findIndex(c=>c.id===cid); }
+function shColMenu(ev,cid){
+  ev.stopPropagation();
+  const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return;
+  const items=[
+    {html:'✏ Rename',onClick:()=>{ const n=prompt('Column name:',col.name); if(n==null)return; _shSnap(); col.name=n.trim()||col.name; saveSheets(); renderSheetGrid(); }},
+    {html:'🔧 Change type…',onClick:()=>setTimeout(()=>_shPopMenu(ev,SHEET_COL_TYPES.map(t=>({html:`<span style="display:inline-block;width:16px">${t.icon}</span> ${t.label}${col.type===t.k?' ✓':''}`,onClick:()=>shSetColType(cid,t.k)}))),0)},
+    {html:'🎨 Header colour…',onClick:()=>setTimeout(()=>_shColorMenu(ev,c=>{ _shSnap(); col.color=c; saveSheets(); renderSheetGrid(); }),0)},
+    {html:'Σ Summary…',onClick:()=>setTimeout(()=>_shPopMenu(ev,['none','sum','avg','min','max','count'].map(k=>({html:k+(col.summary===k?' ✓':''),onClick:()=>{_shSnap();col.summary=k;saveSheets();renderSheetGrid();}}))),0)}
+  ];
+  if(col.type==='select')items.push({html:'🏷 Edit options…',onClick:()=>shEditSelectOptions(cid)});
+  items.push({html:'↕ Width',onClick:()=>{ const w=prompt('Column width (px):',String(col.width||150)); if(w==null)return; _shSnap(); col.width=Math.max(60,Math.min(600,parseInt(w,10)||150)); saveSheets(); renderSheetGrid(); }});
+  items.push({html:'⬆ Sort A→Z',onClick:()=>shSortByCol(cid,1)});
+  items.push({html:'⬇ Sort Z→A',onClick:()=>shSortByCol(cid,-1)});
+  items.push({html:'⬅ Insert left',onClick:()=>shInsertCol(cid,0)});
+  items.push({html:'➡ Insert right',onClick:()=>shInsertCol(cid,1)});
+  items.push({html:'<span style="color:var(--red)">🗑 Delete column</span>',onClick:()=>shDeleteCol(cid)});
+  _shPopMenu(ev,items);
+}
+function shSetColType(cid,type){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap(); col.type=type; if(type==='select'&&!col.options)col.options=[]; if(type==='progress'&&col.summary==='none')col.summary='avg'; saveSheets(); renderSheetGrid(); }
+function shEditSelectOptions(cid){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; const cur=(col.options||[]).map(o=>o.label).join(', '); const v=prompt('Options (comma-separated):',cur); if(v==null)return; _shSnap(); col.options=v.split(',').map(x=>x.trim()).filter(Boolean).map((l,i)=>{ const ex=(col.options||[]).find(o=>o.label===l); return ex||{label:l,color:SHEET_PALETTE[i%SHEET_PALETTE.length]}; }); saveSheets(); renderSheetGrid(); }
+function shAddCol(){ const s=_sheetCurrent; if(!s)return; _shSnap(); const id=(s.columns.reduce((m,c)=>Math.max(m,c.id),0)||0)+1; s.columns.push({id,name:'Column '+(s.columns.length+1),type:'text',width:150,color:'',options:null,summary:'none',align:''}); saveSheets(); renderSheetGrid(); }
+function shInsertCol(cid,after){ const s=_sheetCurrent; const idx=_shColIdx(cid); if(idx<0)return; _shSnap(); const id=(s.columns.reduce((m,c)=>Math.max(m,c.id),0)||0)+1; s.columns.splice(idx+(after?1:0),0,{id,name:'Column',type:'text',width:150,color:'',options:null,summary:'none',align:''}); saveSheets(); renderSheetGrid(); }
+function shDeleteCol(cid){ const s=_sheetCurrent; if(s.columns.length<=1)return toast('A sheet needs at least one column'); _shSnap(); s.columns=s.columns.filter(c=>c.id!==cid); s.rows.forEach(r=>{ if(r.cells)delete r.cells[cid]; }); saveSheets(); renderSheetGrid(); }
+function shSortByCol(cid,dir){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap(); const val=row=>{ let v=(row.cells||{})[cid]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); const n=_shNum(v); return isNaN(n)?String(v==null?'':v).toLowerCase():n; }; s.rows.sort((a,b)=>{ const va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number')return (va-vb)*dir; return String(va).localeCompare(String(vb))*dir; }); saveSheets(); renderSheetGrid(); }
+
+function shAddRow(){ const s=_sheetCurrent; if(!s)return; _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.push({id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }
+function shRowMenu(ev,rid){
+  ev.stopPropagation(); const s=_sheetCurrent; const idx=s.rows.findIndex(r=>r.id===rid); if(idx<0)return;
+  const items=[
+    {html:'⬆ Insert above',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx,0,{id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }},
+    {html:'⬇ Insert below',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx+1,0,{id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }},
+    {html:'⧉ Duplicate',onClick:()=>{ _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.splice(idx+1,0,{id,cells:Object.assign({},s.rows[idx].cells),color:s.rows[idx].color}); saveSheets(); renderSheetGrid(); }},
+    {html:'🎨 Row colour…',onClick:()=>setTimeout(()=>_shColorMenu(ev,c=>{ _shSnap(); s.rows[idx].color=c; saveSheets(); renderSheetGrid(); },true),0)},
+    {html:'⬆ Move up',onClick:()=>{ if(idx<=0)return; _shSnap(); const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx-1,0,r); saveSheets(); renderSheetGrid(); }},
+    {html:'⬇ Move down',onClick:()=>{ if(idx>=s.rows.length-1)return; _shSnap(); const r=s.rows.splice(idx,1)[0]; s.rows.splice(idx+1,0,r); saveSheets(); renderSheetGrid(); }},
+    {html:'<span style="color:var(--red)">🗑 Delete row</span>',onClick:()=>{ _shSnap(); s.rows=s.rows.filter(r=>r.id!==rid); saveSheets(); renderSheetGrid(); }}
+  ];
+  _shPopMenu(ev,items);
+}
+
+// ─── Design / theme / sharing panel ──────────────────────────────────────────
+function _shDesignHtml(){
+  const s=_sheetCurrent; const th=s.theme||(s.theme={density:'comfortable',striped:true,gridlines:true,headerStyle:'accent'});
+  const seg=(active,val,label,fn)=>`<button class="sh-seg-b ${active?'on':''}" onclick="${fn}('${val}')">${label}</button>`;
+  return `
+    <div class="sh-side-sec"><div class="sh-side-h">Sheet</div>
+      <div class="sh-icon-grid">${SHEET_ICONS.map(ic=>`<div class="sh-icon-b ${s.icon===ic?'on':''}" onclick="shSetIcon('${ic}')">${ic}</div>`).join('')}</div>
+    </div>
+    <div class="sh-side-sec"><div class="sh-side-h">Accent colour</div>
+      <div class="sh-color-grid">${SHEET_PALETTE.map(c=>`<div class="sh-color-sw ${s.color===c?'on':''}" style="background:${c}" onclick="shSetColor('${c}')"></div>`).join('')}</div>
+    </div>
+    <div class="sh-side-sec"><div class="sh-side-h">Density</div>
+      <div class="sh-seg">${seg(th.density!=='compact','comfortable','Comfortable','shSetDensity')}${seg(th.density==='compact','compact','Compact','shSetDensity')}</div>
+    </div>
+    <div class="sh-side-sec"><div class="sh-side-h">Header</div>
+      <div class="sh-seg">${seg(th.headerStyle==='accent','accent','Accent','shSetHeaderStyle')}${seg(th.headerStyle==='bold','bold','Bold','shSetHeaderStyle')}${seg(th.headerStyle==='plain','plain','Plain','shSetHeaderStyle')}</div>
+    </div>
+    <div class="sh-side-sec"><div class="sh-side-h">Style</div>
+      <label class="sh-check"><input type="checkbox" ${th.striped?'checked':''} onchange="shToggleTheme('striped')"> Striped rows</label>
+      <label class="sh-check"><input type="checkbox" ${th.gridlines!==false?'checked':''} onchange="shToggleTheme('gridlines')"> Gridlines</label>
+    </div>
+    <div class="sh-side-sec"><div class="sh-side-h">👥 Share with team</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this sheet from their Sheets section.</div>
+      ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('sheet-ma',s):'<div style="font-size:11px;color:var(--t3)">Assignment unavailable</div>'}
+      <button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:6px" onclick="shSaveAssign()">Save sharing</button>
+    </div>
+    <div class="sh-side-sec">
+      <button class="btn btn-d" style="height:26px;font-size:10px;width:100%" onclick="shDeleteSheet(${Number(s.id)})" ${s._shared?'disabled title="Only the owner can delete"':''}>🗑 Delete sheet</button>
+    </div>`;
+}
+function shSetIcon(ic){ if(!_sheetCurrent)return; _sheetCurrent.icon=ic; saveSheets(); renderSheetsSection(); }
+function shSetColor(c){ if(!_sheetCurrent)return; _sheetCurrent.color=c; saveSheets(); renderSheetsSection(); }
+function shSetDensity(v){ _sheetCurrent.theme=_sheetCurrent.theme||{}; _sheetCurrent.theme.density=v; saveSheets(); renderSheetsSection(); }
+function shSetHeaderStyle(v){ _sheetCurrent.theme=_sheetCurrent.theme||{}; _sheetCurrent.theme.headerStyle=v; saveSheets(); renderSheetsSection(); }
+function shToggleTheme(k){ const th=_sheetCurrent.theme=_sheetCurrent.theme||{}; if(k==='gridlines'){ th.gridlines=!(th.gridlines!==false); } else { th[k]=!th[k]; } saveSheets(); renderSheetsSection(); }
+function shSaveAssign(){ if(!_sheetCurrent)return; let g=null; try{ if(typeof _maGet==='function')g=_maGet('sheet-ma'); }catch(_){}
+  if(g){ _sheetCurrent.assignees=g.assignees||[]; _sheetCurrent.assigneeNames=g.assigneeNames||[]; _sheetCurrent.primaryAssigneeId=g.primaryAssigneeId||null;
+    if(g.primaryAssigneeId!=null&&Array.isArray(g.assignees)){ const i=g.assignees.indexOf(g.primaryAssigneeId); _sheetCurrent.assignedTo=(i>=0&&g.assigneeNames)?g.assigneeNames[i]:(_sheetCurrent.assignedTo||''); } }
+  saveSheets(); toast('👥 Sharing saved'); renderSheetsSection();
+}
+
+// ─── Undo / export / shared load ─────────────────────────────────────────────
+function _shSnap(){ if(!_sheetCurrent)return; try{ _sheetUndo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); if(_sheetUndo.length>40)_sheetUndo.shift(); _sheetRedo=[]; }catch(_){} }
+function shUndo(){ if(!_sheetCurrent||!_sheetUndo.length)return toast('Nothing to undo'); try{ _sheetRedo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); const s=JSON.parse(_sheetUndo.pop()); _sheetCurrent.columns=s.columns; _sheetCurrent.rows=s.rows; saveSheets(); renderSheetGrid(); }catch(_){} }
+function shRedo(){ if(!_sheetCurrent||!_sheetRedo.length)return toast('Nothing to redo'); try{ _sheetUndo.push(JSON.stringify({columns:_sheetCurrent.columns,rows:_sheetCurrent.rows})); const s=JSON.parse(_sheetRedo.pop()); _sheetCurrent.columns=s.columns; _sheetCurrent.rows=s.rows; saveSheets(); renderSheetGrid(); }catch(_){} }
+function shExportCSV(){ const s=_sheetCurrent; if(!s)return; const esc2=v=>{ v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+  const head=s.columns.map(c=>esc2(c.name)).join(',');
+  const lines=s.rows.map(r=>s.columns.map(c=>{ let v=(r.cells||{})[c.id]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); return esc2(v); }).join(','));
+  const blob=new Blob([[head].concat(lines).join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(s.title||'sheet')+'.csv'; a.click(); URL.revokeObjectURL(a.href); toast('⬇ CSV exported');
+}
+async function _loadSharedSheets(){
+  try{ if(typeof _trpc!=='function')return; _sharedSheetsLoaded=true;
+    const res=await _trpc('appData.sharedSheetsForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.sheets)){ D._sharedSheets=res.sheets.map((p,i)=>Object.assign({},p,{_idx:i,_shared:true})); if(_notesModeIsSheets()&&!_sheetCurrent)renderSheetsSection(); }
+  }catch(e){}
+}
+
+// ─── Reusable floating menu + colour picker ──────────────────────────────────
+function _shPopMenu(ev,items,width){
+  const old=document.getElementById('sh-popmenu'); if(old)old.remove();
+  const m=document.createElement('div'); m.id='sh-popmenu'; m.className='sh-popmenu'; if(width)m.style.minWidth=width+'px';
+  m.innerHTML=items.map((it,i)=>`<div class="sh-popmenu-item" data-i="${i}">${it.html||esc(it.label||'')}</div>`).join('');
+  document.body.appendChild(m);
+  const cx=(ev&&ev.clientX)||200, cy=(ev&&ev.clientY)||160;
+  const w=m.offsetWidth||200,h=m.offsetHeight||100;
+  m.style.left=Math.max(8,Math.min(cx,window.innerWidth-w-8))+'px';
+  m.style.top=Math.max(8,Math.min(cy,window.innerHeight-h-8))+'px';
+  m.querySelectorAll('.sh-popmenu-item').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); const it=items[Number(el.dataset.i)]; m.remove(); if(it&&it.onClick)it.onClick(); });
+  setTimeout(()=>document.addEventListener('click',function _c(){ const x=document.getElementById('sh-popmenu'); if(x)x.remove(); document.removeEventListener('click',_c); },{once:true}),30);
+}
+function _shColorMenu(ev,cb,allowNone){
+  const items=SHEET_PALETTE.map(c=>({html:`<span class="sh-dot" style="background:${c}"></span><span style="font-size:10px;color:var(--t3)">${c}</span>`,onClick:()=>cb(c)}));
+  items.unshift({html:'<span class="sh-dot" style="background:transparent;border:1px solid var(--bd2)"></span>None',onClick:()=>cb('')});
+  _shPopMenu(ev,items);
+}
+
+// Wrap renderNotes so switching to/returning to the Notes screen re-applies the
+// Notes⇄Sheets mode (and renders the sheets section) without editing app-part1.
+if(typeof window!=='undefined'&&!window._notesSheetsWrapped&&typeof window.renderNotes==='function'){
+  window._notesSheetsWrapped=true;
+  const _origRenderNotes=window.renderNotes;
+  window.renderNotes=function(){ const r=_origRenderNotes.apply(this,arguments); try{_applyNotesMode();}catch(_){} return r; };
 }
 
 /* ═════════════════════════════════════════════════════════════════════
