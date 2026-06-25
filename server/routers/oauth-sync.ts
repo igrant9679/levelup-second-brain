@@ -193,7 +193,7 @@ async function refreshGoogleToken(token: { refreshToken: string | null; userId: 
   return data.access_token;
 }
 
-async function getValidAccessToken(userId: number, provider: "microsoft" | "google"): Promise<string | null> {
+export async function getValidAccessToken(userId: number, provider: "microsoft" | "google"): Promise<string | null> {
   const token = await db.getOAuthToken(userId, provider);
   if (!token) return null;
   // If token expires within 5 minutes, refresh it

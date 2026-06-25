@@ -137,7 +137,22 @@ async function buildTransporter(
     );
   if (!tokenRows.length) return null;
   const token = tokenRows[0];
-  if (!token.accessToken || !token.email) return null;
+  if (!token.email) return null;
+
+  // Refresh the OAuth access token if it's expired / near-expiry. Google &
+  // Microsoft access tokens last ~1 hour, so WITHOUT this, system mail silently
+  // stops sending an hour after the last token refresh (the most common cause of
+  // "emails worked, then stopped"). getValidAccessToken refreshes via the stored
+  // refresh_token when needed. Falls back to the stored token if refresh fails.
+  let accessToken = token.accessToken;
+  try {
+    const { getValidAccessToken } = await import("../routers/oauth-sync");
+    const fresh = await getValidAccessToken(userId, provider);
+    if (fresh) accessToken = fresh;
+  } catch (e) {
+    console.warn("[sendEmail] OAuth token refresh failed, using stored token:", e);
+  }
+  if (!accessToken) return null;
 
   if (provider === "google") {
     const transporter = nodemailer.createTransport({
@@ -145,7 +160,7 @@ async function buildTransporter(
       auth: {
         type: "OAuth2",
         user: token.email,
-        accessToken: token.accessToken,
+        accessToken,
       },
     });
     return { transporter, from: `"LevelUp" <${token.email}>` };
@@ -158,7 +173,7 @@ async function buildTransporter(
       auth: {
         type: "OAuth2",
         user: token.email,
-        accessToken: token.accessToken,
+        accessToken,
       },
     });
     return { transporter, from: `"LevelUp" <${token.email}>` };

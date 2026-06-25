@@ -8326,18 +8326,22 @@ async function loadAdminDeliveryLog(page=1){
         <th style="text-align:left;padding:4px 6px;font-weight:600">Subject</th>
         <th style="text-align:left;padding:4px 6px;font-weight:600">User</th>
         <th style="text-align:left;padding:4px 6px;font-weight:600">Time</th>
+        <th style="text-align:left;padding:4px 6px;font-weight:600">Error</th>
       </tr></thead>
       <tbody>${entries.map((e)=>{
         const sc=statusColor(e.status);const si=statusIcon(e.status);
         const dt=new Date(e.createdAt).toLocaleString();
         const user=e.userName||(e.userEmail?e.userEmail.split('@')[0]:'System');
-        const errTip=e.errorMessage?' title="'+e.errorMessage.replace(/"/g,'&quot;')+'"':'';
+        const _err=e.errorMessage?String(e.errorMessage):'';
+        const _escFn=(typeof esc==='function')?esc:(s=>String(s||''));
+        const errTip=_err?' title="'+_err.replace(/"/g,'&quot;')+'"':'';
         return `<tr style="border-bottom:1px solid var(--brd)" ${errTip}>
           <td style="padding:4px 6px;color:${sc};font-weight:700">${si} ${e.status}</td>
           <td style="padding:4px 6px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.to}</td>
           <td style="padding:4px 6px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.subject}</td>
           <td style="padding:4px 6px;color:var(--t3)">${user}</td>
           <td style="padding:4px 6px;color:var(--t3);white-space:nowrap">${dt}</td>
+          <td style="padding:4px 6px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${e.status==='sent'?'var(--t3)':'var(--err,#ef4444)'}"${errTip}>${_escFn(_err)}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
