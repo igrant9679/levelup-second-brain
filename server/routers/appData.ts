@@ -505,10 +505,21 @@ export const appDataRouter = router({
     try {
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
-      // Tasks owned by OTHERS: assigned to me, or all of them if I'm admin.
+      // A task is "assigned to me" if I'm the relational primary (assigneeId)
+      // OR I'm in the multi-assignee array / primaryAssigneeId stored in raw.
+      const isMineAssigned = (r: any): boolean => {
+        if (r.assigneeId === ctx.user.id) return true;
+        try {
+          const t = JSON.parse(r.raw || '{}');
+          if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
+          if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
+        } catch {}
+        return false;
+      };
+      // Tasks owned by OTHERS: assigned to me (any assignee), or all if admin.
       const sharedRows = admin
         ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
-        : await db.select().from(tasksTable).where(and(eq(tasksTable.assigneeId, ctx.user.id), ne(tasksTable.userId, ctx.user.id)));
+        : (await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))).filter(isMineAssigned);
       // MY OWN tasks delegated to someone else (assignee set and != me; SQL
       // `!=` already excludes the null/unassigned rows).
       const delegatedRows = await db.select().from(tasksTable).where(and(eq(tasksTable.userId, ctx.user.id), ne(tasksTable.assigneeId, ctx.user.id)));
@@ -557,6 +568,9 @@ export const appDataRouter = router({
       const admin = isAdminUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
       const out: any[] = [];
+      const meId = ctx.user.id;
+      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
       for (const r of rows) {
         let arr: any;
         try { arr = JSON.parse(r.projects || '[]'); } catch { continue; }
@@ -568,7 +582,7 @@ export const appDataRouter = router({
             if (!p) continue;
             const assigneeName = p.assignee || p.assignedTo || '';
             const assignee = String(assigneeName).trim().toLowerCase();
-            if (assignee && !myKeys.has(assignee)) {
+            if ((assignee && !myKeys.has(assignee)) || assignedToOthers(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true, _delegated: true, _assigneeName: assigneeName });
             }
           }
@@ -577,7 +591,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee))) {
+            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -669,6 +683,10 @@ export const appDataRouter = router({
         due: z.string().max(32).optional(),
         notes: z.string().optional(),
         assignedTo: z.string().max(255).optional(),
+        // Multi-assignee model: full member list + the Primary Responsible.
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -679,7 +697,11 @@ export const appDataRouter = router({
           .where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.taskId))).limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
         const { isAdminUser } = await import("../_core/access");
-        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id;
+        // Authorized: admin, the relational primary assignee, the owner, OR any
+        // member listed in the item's multi-assignee array (parsed from raw).
+        let rawAssignees: number[] = [];
+        try { const rj = JSON.parse(row.raw || '{}'); if (Array.isArray(rj.assignees)) rawAssignees = rj.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
+        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id);
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
         const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);
@@ -697,13 +719,29 @@ export const appDataRouter = router({
             newAssigneeId = u ? u.id : null;
           }
         }
+        // Multi-assignee: derive the Primary Responsible's id + display name so
+        // the legacy single-assignee columns (assigneeId / assignedTo) keep
+        // pointing at the primary — existing relational queries still work.
+        let primaryId: number | null | undefined = newAssigneeId;
+        let primaryName: string | undefined = p.assignedTo ?? undefined;
+        if (p.primaryAssigneeId !== undefined) {
+          primaryId = p.primaryAssigneeId;
+          if (Array.isArray(p.assignees) && Array.isArray(p.assigneeNames) && p.primaryAssigneeId != null) {
+            const idx = p.assignees.indexOf(p.primaryAssigneeId);
+            if (idx >= 0) primaryName = p.assigneeNames[idx];
+          }
+        }
         const applyTo = (t: any) => {
           if (p.title != null) t.title = p.title;
           if (p.status != null) { t.status = p.status; t.completedAt = completedAt; }
           if (p.priority != null) t.priority = p.priority;
           if (p.due != null) t.due = p.due;
           if (p.notes != null) t.notes = p.notes;
-          if (p.assignedTo != null) t.assignedTo = p.assignedTo;
+          if (p.assignees != null) t.assignees = p.assignees;
+          if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
+          if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;
+          if (primaryName !== undefined) t.assignedTo = primaryName;
+          else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
         };
 
         // 1) Owner's blob (source of truth).
@@ -727,7 +765,10 @@ export const appDataRouter = router({
         if (p.status != null) { set.status = p.status.slice(0, 32); set.completedAt = completedAt ? completedAt.slice(0, 40) : null; }
         if (p.priority != null) set.priority = p.priority.slice(0, 16);
         if (p.due != null) set.due = p.due.slice(0, 32);
-        if (p.assignedTo != null) { set.assignedTo = p.assignedTo.slice(0, 255); set.assigneeId = newAssigneeId ?? null; }
+        // Keep the relational single-assignee columns synced to the Primary.
+        if (primaryName !== undefined) set.assignedTo = String(primaryName).slice(0, 255);
+        else if (p.assignedTo != null) set.assignedTo = p.assignedTo.slice(0, 255);
+        if (primaryId !== undefined) set.assigneeId = primaryId ?? null;
         await db.update(tasksTable).set(set).where(eq(tasksTable.id, row.id));
 
         return { ok: true as const };
@@ -750,6 +791,9 @@ export const appDataRouter = router({
         due: z.string().max(40).optional(),
         desc: z.string().optional(),
         assignedTo: z.string().max(255).optional(),
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -765,8 +809,10 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const proj = arr.find((x: any) => x && String(x.id) === input.projectId);
         if (!proj) return { ok: false as const, error: 'project not found' };
-        // Authorize: admin, owner, or current assignee (by name/email).
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id;
+        // Authorize: admin, owner, current assignee (by name/email), or any
+        // member in the multi-assignee array.
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+          || (Array.isArray(proj.assignees) && proj.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
           const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
@@ -780,7 +826,14 @@ export const appDataRouter = router({
         if (q.status != null) proj.status = q.status;
         if (q.due != null) proj.due = q.due;
         if (q.desc != null) proj.desc = q.desc;
-        if (q.assignedTo != null) proj.assignedTo = q.assignedTo;
+        if (q.assignees != null) proj.assignees = q.assignees;
+        if (q.assigneeNames != null) proj.assigneeNames = q.assigneeNames;
+        if (q.primaryAssigneeId !== undefined) proj.primaryAssigneeId = q.primaryAssigneeId;
+        // Keep legacy assignedTo pointed at the Primary Responsible's name.
+        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+          const idx = q.assignees.indexOf(q.primaryAssigneeId);
+          if (idx >= 0) proj.assignedTo = q.assigneeNames[idx];
+        } else if (q.assignedTo != null) proj.assignedTo = q.assignedTo;
         await db.update(userAppData).set({ projects: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
         return { ok: true as const };
       } catch (e: any) {
@@ -824,6 +877,59 @@ export const appDataRouter = router({
           await db.delete(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId)));
         }
         return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Admin: TAKE OWNERSHIP of a shared TASK or PROJECT — move the item out of the
+   * owner's blob into the admin's own workspace (admin becomes the owner of
+   * record). The previous owner is kept on the item's `assignees` so they retain
+   * access. For tasks, both users' relational mirrors are rebuilt. Non-destructive
+   * to the item's data; only its storage owner changes.
+   */
+  transferItemOwnership: adminProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      kind: z.enum(['tasks', 'projects']),
+      itemId: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
+      try {
+        const readArr = async (uid: number): Promise<any[]> => {
+          const sel = input.kind === 'tasks' ? { v: userAppData.tasks } : { v: userAppData.projects };
+          const [r] = await db.select(sel).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+          try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+        };
+        const writeArr = async (uid: number, arr: any[]) => {
+          const json = JSON.stringify(arr);
+          await db.update(userAppData).set(input.kind === 'tasks' ? { tasks: json } : { projects: json }).where(eq(userAppData.userId, uid));
+          return json;
+        };
+        const ownerArr = await readArr(input.ownerUserId);
+        const idx = ownerArr.findIndex((x: any) => x && String(x.id) === input.itemId);
+        if (idx < 0) return { ok: false as const, error: 'item not found' };
+        const item = ownerArr[idx];
+        ownerArr.splice(idx, 1);
+        // Keep the previous owner as an assignee so they retain access.
+        const prev: number[] = Array.isArray(item.assignees) ? item.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)) : [];
+        if (!prev.includes(input.ownerUserId)) prev.push(input.ownerUserId);
+        item.assignees = prev;
+        item._prevOwnerUserId = input.ownerUserId;
+        const adminArr = await readArr(ctx.user.id);
+        if (adminArr.some((x: any) => x && String(x.id) === input.itemId)) item.id = String(item.id) + '-' + ctx.user.id;
+        adminArr.push(item);
+        const ownerJson = await writeArr(input.ownerUserId, ownerArr);
+        const adminJson = await writeArr(ctx.user.id, adminArr);
+        if (input.kind === 'tasks') {
+          try { await mirrorTasksToRelational(db, input.ownerUserId, ownerJson); } catch {}
+          try { await mirrorTasksToRelational(db, ctx.user.id, adminJson); } catch {}
+        }
+        return { ok: true as const, newOwnerUserId: ctx.user.id };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
