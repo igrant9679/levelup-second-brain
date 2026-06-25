@@ -604,6 +604,114 @@ export const appDataRouter = router({
   }),
 
   /**
+   * Team-visibility for PROGRAMS (portfolio roll-ups; blob-only array, same model
+   * as projects). Returns programs assigned to me (any assignee / primary) — or,
+   * for admins, all other members' programs — plus my own delegated ones.
+   */
+  sharedProgramsForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, programs: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const me = users.find(u => u.id === ctx.user.id);
+      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = await db.select({ userId: userAppData.userId, programs: userAppData.programs }).from(userAppData);
+      const out: any[] = [];
+      const meId = ctx.user.id;
+      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
+      for (const r of rows) {
+        let arr: any;
+        try { arr = JSON.parse(r.programs || '[]'); } catch { continue; }
+        if (!Array.isArray(arr)) continue;
+        if (r.userId === ctx.user.id) {
+          for (const p of arr) {
+            if (!p) continue;
+            const assigneeName = p.assignedTo || '';
+            const assignee = String(assigneeName).trim().toLowerCase();
+            if ((assignee && !myKeys.has(assignee)) || assignedToOthers(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true, _delegated: true, _assigneeName: assigneeName });
+            }
+          }
+        } else {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+            }
+          }
+        }
+      }
+      return { ok: true as const, admin, programs: out };
+    } catch (e: any) {
+      return { ok: false as const, programs: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  /**
+   * Team-visibility: edit a shared/delegated PROGRAM. Admin / owner / assignee.
+   * Patch: name/status/description + multi-assignee + Primary Responsible.
+   */
+  updateSharedProgram: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      programId: z.string().min(1),
+      patch: z.object({
+        name: z.string().max(200).optional(),
+        status: z.string().max(40).optional(),
+        description: z.string().optional(),
+        assignedTo: z.string().max(255).optional(),
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const [appRow] = await db.select({ programs: userAppData.programs }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !appRow.programs) return { ok: false as const, error: 'program not found' };
+        let arr: any;
+        try { arr = JSON.parse(appRow.programs); } catch { return { ok: false as const, error: 'bad data' }; }
+        if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
+        const prog = arr.find((x: any) => x && String(x.id) === input.programId);
+        if (!prog) return { ok: false as const, error: 'program not found' };
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+          || (Array.isArray(prog.assignees) && prog.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
+        if (!allowed) {
+          const { adminListAllUsers } = await import("../db");
+          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
+          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const cur = String(prog.assignedTo || '').trim().toLowerCase();
+          allowed = !!cur && myKeys.includes(cur);
+        }
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const q = input.patch;
+        if (q.name != null) prog.name = q.name;
+        if (q.status != null) prog.status = q.status;
+        if (q.description != null) prog.description = q.description;
+        if (q.assignees != null) prog.assignees = q.assignees;
+        if (q.assigneeNames != null) prog.assigneeNames = q.assigneeNames;
+        if (q.primaryAssigneeId !== undefined) prog.primaryAssigneeId = q.primaryAssigneeId;
+        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+          const idx = q.assignees.indexOf(q.primaryAssigneeId);
+          if (idx >= 0) prog.assignedTo = q.assigneeNames[idx];
+        } else if (q.assignedTo != null) prog.assignedTo = q.assignedTo;
+        await db.update(userAppData).set({ programs: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
    * Team-visibility: let the ASSIGNEE (or an admin) change the STATUS of a task
    * that lives in another member's blob. Writes back to the owner's JSON blob
    * (source of truth) AND the relational mirror. Status-only — the assignee
@@ -848,7 +956,7 @@ export const appDataRouter = router({
   deleteSharedItem: protectedProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes']),
+      kind: z.enum(['tasks', 'projects', 'goals', 'ideas', 'notes', 'programs']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -892,7 +1000,7 @@ export const appDataRouter = router({
   transferItemOwnership: adminProcedure
     .input(z.object({
       ownerUserId: z.number().int(),
-      kind: z.enum(['tasks', 'projects']),
+      kind: z.enum(['tasks', 'projects', 'programs']),
       itemId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -900,14 +1008,15 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
       try {
+        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : userAppData.projects;
+        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : { projects: json };
         const readArr = async (uid: number): Promise<any[]> => {
-          const sel = input.kind === 'tasks' ? { v: userAppData.tasks } : { v: userAppData.projects };
-          const [r] = await db.select(sel).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+          const [r] = await db.select({ v: colOf(input.kind) }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
           try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
         };
         const writeArr = async (uid: number, arr: any[]) => {
           const json = JSON.stringify(arr);
-          await db.update(userAppData).set(input.kind === 'tasks' ? { tasks: json } : { projects: json }).where(eq(userAppData.userId, uid));
+          await db.update(userAppData).set(setObj(input.kind, json)).where(eq(userAppData.userId, uid));
           return json;
         };
         const ownerArr = await readArr(input.ownerUserId);

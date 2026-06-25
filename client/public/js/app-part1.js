@@ -3688,6 +3688,7 @@ function renderDrawer(type,item){
       <div class="field"><label>Owner</label><input class="inp" value="${esc(item.owner||'')}" id="dr-owner"></div>
     </div>
     <div class="field"><label>Description</label><textarea class="inp" id="dr-body" style="min-height:60px">${esc(item.description||'')}</textarea></div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-prog-ma',item)}</div>
     <div class="field"><label>Projects in this program (${(D.projects||[]).length} available)</label>
       <div style="max-height:220px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px;background:var(--s2)">
         ${(D.projects||[]).map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.projectIds||[]).includes(p.id)?'checked':''} data-prog-pid="${p.id}" class="prog-proj-cb"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block"></span> ${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</label>`).join('')}
@@ -4294,6 +4295,7 @@ function saveItem(type,id){
       prog.status=$('#dr-status').value;
       prog.owner=$('#dr-owner').value;
       prog.description=$('#dr-body').value;
+      if(typeof _maGet==='function'&&document.getElementById('dr-prog-ma-ma')){const ma=_maGet('dr-prog-ma');prog.assignees=ma.assignees;prog.assigneeNames=ma.assigneeNames;prog.primaryAssigneeId=ma.primaryAssigneeId;const pi=ma.assignees.indexOf(ma.primaryAssigneeId);prog.assignedTo=pi>=0?ma.assigneeNames[pi]:'';}
       prog.projectIds=Array.from(document.querySelectorAll('.prog-proj-cb:checked')).map(cb=>parseInt(cb.getAttribute('data-prog-pid'),10)).filter(Number.isFinite);
       save('programs');
       closeDrawer();
@@ -7363,7 +7365,7 @@ async function _takeOwnership(idx,kind){
 }
 // Admin/owner: delete a shared/delegated item from the owner's workspace.
 async function _deleteSharedItem(idx,kind){
-  const arr=kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
   const item=arr[idx];
   if(!item){toast('Could not delete — item not loaded. Refresh and try again.');return;}
   const label=item.title||item.name||'this item';
@@ -7374,14 +7376,16 @@ async function _deleteSharedItem(idx,kind){
     const res=await _trpc('appData.deleteSharedItem',{ownerUserId,kind,itemId},'mutation');
     if(res&&res.ok){
       // Drop it locally from the shared list AND (if it's my own delegated item) my list.
-      if(kind==='projects')D._sharedProjects=(D._sharedProjects||[]).filter((_,i)=>i!==idx);
+      if(kind==='programs')D._sharedPrograms=(D._sharedPrograms||[]).filter((_,i)=>i!==idx);
+      else if(kind==='projects')D._sharedProjects=(D._sharedProjects||[]).filter((_,i)=>i!==idx);
       else D._sharedTasks=(D._sharedTasks||[]).filter((_,i)=>i!==idx);
-      const ownKey=kind==='projects'?'projects':'tasks';
+      const ownKey=kind==='programs'?'programs':kind==='projects'?'projects':'tasks';
       if(Array.isArray(D[ownKey])){ const f=D[ownKey].filter(x=>String(x.id)!==itemId); if(f.length!==D[ownKey].length){ D[ownKey]=f; try{save(ownKey);}catch(_){} } }
       toast({type:'success',title:'Deleted',msg:"Removed from the owner's workspace.",duration:2200});
       document.getElementById('modal-capture')?.classList.remove('show');
       // Re-fetch to re-stamp the stable indexes cleanly, then re-render.
-      if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); else if(typeof renderProjects==='function')renderProjects(); }
+      if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); else if(typeof renderPrograms==='function')renderPrograms(); }
+      else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); else if(typeof renderProjects==='function')renderProjects(); }
       else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection(); }
     }else{
       toast({type:'error',title:'Could not delete',msg:(res&&res.error)||'Try again.'});
@@ -7504,6 +7508,94 @@ async function _saveSharedProject(idx){
     }else{
       toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
     }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
+// ── Shared PROGRAMS (portfolio roll-ups) — same model as shared projects. ──
+async function _loadSharedPrograms(){
+  try{
+    if(typeof _trpc!=='function')return;
+    const res=await _trpc('appData.sharedProgramsForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.programs)){
+      D._sharedPrograms=res.programs.map((p,i)=>({...p,_idx:i}));
+      if(typeof curScreen!=='undefined'&&curScreen==='programs'&&typeof renderPrograms==='function')renderPrograms();
+    }
+  }catch(e){ /* non-fatal */ }
+}
+function _renderSharedProgramsSection(){
+  const shared=Array.isArray(D._sharedPrograms)?D._sharedPrograms:[];
+  if(!shared.length)return '';
+  const open=!(D.prefs&&D.prefs.sharedProgSectionCollapsed);
+  return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:10px">
+    <div onclick="_toggleSharedProgSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
+      <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+    </div>
+    ${open?shared.map(_sharedProgramCard).join(''):''}
+  </div>`;
+}
+function _toggleSharedProgSection(){ D.prefs=D.prefs||{}; D.prefs.sharedProgSectionCollapsed=!D.prefs.sharedProgSectionCollapsed; try{save('prefs');}catch(_){} if(typeof renderPrograms==='function')renderPrograms(); }
+function _sharedProgramCard(p){
+  const delegated=!!p._delegated;
+  const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  return `<div onclick="_openSharedProgramView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${p.color||'var(--purp)'};border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared program — click to edit">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.icon?p.icon+' ':'')+(p.name||'Untitled'))}</span>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''} · ${sub}</div>
+  </div>`;
+}
+async function _openSharedProgramView(idx){
+  let p=(D._sharedPrograms||[])[idx];
+  if(!p&&typeof _loadSharedPrograms==='function'){ await _loadSharedPrograms(); p=(D._sharedPrograms||[])[idx]; }
+  if(!p){toast('Shared program not found — try refreshing.');return;}
+  const from=p._delegated?'you':_userNameById(p._sharedFromUserId);
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
+  const desc=String(p.description||'').replace(/<[^>]+>/g,' ');
+  const statusOpts=['Active','Paused','Completed'];
+  modal.innerHTML=`<div style="padding:16px;max-width:520px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+    </div>
+    <div class="field"><label>Name</label><input class="inp" id="sg-name" value="${esc(p.name||'')}"></div>
+    <div class="field"><label>Status</label><select class="inp" id="sg-status">${statusOpts.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sg-ma',p)}</div>
+    <div class="field"><label>Description</label><textarea class="inp" id="sg-desc" style="min-height:90px">${esc(desc)}</textarea></div>
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_saveSharedProgram(${Number(idx)||0})">Save</button>
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'programs')" title="Move this program into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'programs')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the program owner.'}</div>
+  </div>`;
+  bg.classList.add('show');
+}
+async function _saveSharedProgram(idx){
+  const p=(D._sharedPrograms||[])[idx];
+  if(!p){toast('Could not save — program not loaded. Refresh and try again.');return;}
+  const ownerUserId=Number(p._sharedFromUserId)||0; const programId=String(p.id);
+  const g=id=>document.getElementById(id);
+  const patch={ name:(g('sg-name')?.value||'').trim(), status:g('sg-status')?.value||'', description:g('sg-desc')?.value||'' };
+  if(typeof _maGet==='function'){ const ma=_maGet('sg-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
+  try{
+    const res=await _trpc('appData.updateSharedProgram',{ownerUserId,programId,patch},'mutation');
+    if(res&&res.ok){
+      Object.assign(p,patch);
+      const mine=(D.programs||[]).find(x=>String(x.id)===programId);
+      if(mine){ Object.assign(mine,patch); try{save('programs');}catch(_){} }
+      toast({type:'success',title:'Saved',msg:'Changes saved to the program owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
+      if(typeof _loadSharedPrograms==='function')_loadSharedPrograms();
+      else if(typeof renderPrograms==='function'&&curScreen==='programs')renderPrograms();
+    }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
 }
 function _sharedProjectCard(p){
@@ -14507,6 +14599,7 @@ function renderPrograms(){
   }).join('');
   const empty=programs.length?'':renderEmptyState({icon:'barChart',title:'No programs yet',hint:'Programs group your projects into a portfolio (one per company or strategic area).',ctaLabel:'+ New program',ctaFn:'_newProgram()'});
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Programs</h1><p style="font-size:12px;color:var(--t2)">Portfolio view — group projects under a strategic umbrella. ${programs.length} program${programs.length===1?'':'s'} · ${(D.projects||[]).length} project${(D.projects||[]).length===1?'':'s'} total.</p></div><div style="display:flex;gap:6px"><button class="btn btn-s" onclick="nav('command')" title="Open the Command Center">🎯 Command Center</button><button class="btn btn-p" onclick="_newProgram()">+ New program</button></div></div>
+    ${typeof _renderSharedProgramsSection==='function'?_renderSharedProgramsSection():''}
     ${programs.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${cards}</div>`:empty}
     ${(D.projects||[]).length?_renderPortfolioTimeline():''}`;
   if(r){
