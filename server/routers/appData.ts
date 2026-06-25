@@ -816,6 +816,161 @@ export const appDataRouter = router({
     }),
 
   /**
+   * Team-visibility for REPORTS (saved reports live nested in prefs.savedReports,
+   * not a top-level column — so these endpoints read/patch the prefs blob).
+   */
+  sharedReportsForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, reports: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const me = users.find(u => u.id === ctx.user.id);
+      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const { isAdminUser } = await import("../_core/access");
+      const admin = isAdminUser(ctx.user as any);
+      const rows = await db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
+      const out: any[] = [];
+      const meId = ctx.user.id;
+      const assignedToMe = (p: any) => (Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).includes(meId)) || (p.primaryAssigneeId != null && Number(p.primaryAssigneeId) === meId);
+      const assignedToOthers = (p: any) => Array.isArray(p.assignees) && p.assignees.map((x: any) => Number(x)).some((n: number) => n && n !== meId);
+      for (const r of rows) {
+        let prefs: any;
+        try { prefs = JSON.parse(r.prefs || '{}'); } catch { continue; }
+        const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
+        if (r.userId === ctx.user.id) {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if ((assignee && !myKeys.has(assignee)) || assignedToOthers(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true, _delegated: true, _assigneeName: p.assignedTo || '' });
+            }
+          }
+        } else {
+          for (const p of arr) {
+            if (!p) continue;
+            const assignee = String(p.assignedTo || '').trim().toLowerCase();
+            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
+            }
+          }
+        }
+      }
+      return { ok: true as const, admin, reports: out };
+    } catch (e: any) {
+      return { ok: false as const, reports: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  updateSharedReport: protectedProcedure
+    .input(z.object({
+      ownerUserId: z.number().int(),
+      reportId: z.string().min(1),
+      patch: z.object({
+        name: z.string().max(200).optional(),
+        assignedTo: z.string().max(255).optional(),
+        assignees: z.array(z.number().int()).optional(),
+        assigneeNames: z.array(z.string().max(255)).optional(),
+        primaryAssigneeId: z.number().int().nullable().optional(),
+      }),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !appRow.prefs) return { ok: false as const, error: 'report not found' };
+        let prefs: any;
+        try { prefs = JSON.parse(appRow.prefs); } catch { return { ok: false as const, error: 'bad data' }; }
+        const arr = Array.isArray(prefs.savedReports) ? prefs.savedReports : [];
+        const rep = arr.find((x: any) => x && String(x.id) === input.reportId);
+        if (!rep) return { ok: false as const, error: 'report not found' };
+        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
+          || (Array.isArray(rep.assignees) && rep.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
+        if (!allowed) {
+          const { adminListAllUsers } = await import("../db");
+          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
+          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const cur = String(rep.assignedTo || '').trim().toLowerCase();
+          allowed = !!cur && myKeys.includes(cur);
+        }
+        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        const q = input.patch;
+        if (q.name != null) rep.name = q.name;
+        if (q.assignees != null) rep.assignees = q.assignees;
+        if (q.assigneeNames != null) rep.assigneeNames = q.assigneeNames;
+        if (q.primaryAssigneeId !== undefined) rep.primaryAssigneeId = q.primaryAssigneeId;
+        if (q.primaryAssigneeId != null && Array.isArray(q.assignees) && Array.isArray(q.assigneeNames)) {
+          const idx = q.assignees.indexOf(q.primaryAssigneeId);
+          if (idx >= 0) rep.assignedTo = q.assigneeNames[idx];
+        } else if (q.assignedTo != null) rep.assignedTo = q.assignedTo;
+        prefs.savedReports = arr;
+        await db.update(userAppData).set({ prefs: JSON.stringify(prefs) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  transferReportOwnership: adminProcedure
+    .input(z.object({ ownerUserId: z.number().int(), reportId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this report.' };
+      try {
+        const readPrefs = async (uid: number): Promise<any> => {
+          const [r] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
+          try { return JSON.parse((r as any)?.prefs || '{}'); } catch { return {}; }
+        };
+        const ownerPrefs = await readPrefs(input.ownerUserId);
+        const ownerArr = Array.isArray(ownerPrefs.savedReports) ? ownerPrefs.savedReports : [];
+        const idx = ownerArr.findIndex((x: any) => x && String(x.id) === input.reportId);
+        if (idx < 0) return { ok: false as const, error: 'report not found' };
+        const item = ownerArr[idx];
+        ownerArr.splice(idx, 1);
+        const prev: number[] = Array.isArray(item.assignees) ? item.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)) : [];
+        if (!prev.includes(input.ownerUserId)) prev.push(input.ownerUserId);
+        item.assignees = prev;
+        item._prevOwnerUserId = input.ownerUserId;
+        ownerPrefs.savedReports = ownerArr;
+        const adminPrefs = await readPrefs(ctx.user.id);
+        const adminArr = Array.isArray(adminPrefs.savedReports) ? adminPrefs.savedReports : [];
+        if (adminArr.some((x: any) => x && String(x.id) === input.reportId)) item.id = String(item.id) + '-' + ctx.user.id;
+        adminArr.push(item);
+        adminPrefs.savedReports = adminArr;
+        await db.update(userAppData).set({ prefs: JSON.stringify(ownerPrefs) }).where(eq(userAppData.userId, input.ownerUserId));
+        await db.update(userAppData).set({ prefs: JSON.stringify(adminPrefs) }).where(eq(userAppData.userId, ctx.user.id));
+        return { ok: true as const, newOwnerUserId: ctx.user.id };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  deleteSharedReport: protectedProcedure
+    .input(z.object({ ownerUserId: z.number().int(), reportId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const { isAdminUser } = await import("../_core/access");
+        if (!(isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id)) return { ok: false as const, error: 'not authorized' };
+        const [appRow] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!appRow || !appRow.prefs) return { ok: true as const };
+        let prefs: any;
+        try { prefs = JSON.parse(appRow.prefs); } catch { return { ok: false as const, error: 'bad data' }; }
+        if (Array.isArray(prefs.savedReports)) {
+          prefs.savedReports = prefs.savedReports.filter((x: any) => !(x && String(x.id) === input.reportId));
+          await db.update(userAppData).set({ prefs: JSON.stringify(prefs) }).where(eq(userAppData.userId, input.ownerUserId));
+        }
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
    * Team-visibility: let the ASSIGNEE (or an admin) change the STATUS of a task
    * that lives in another member's blob. Writes back to the owner's JSON blob
    * (source of truth) AND the relational mirror. Status-only — the assignee

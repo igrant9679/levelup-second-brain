@@ -18512,6 +18512,130 @@ function renameSavedReport(id){
   _setSavedReports(_getSavedReports());
   renderReports();
 }
+// ── Report assignment + sharing (multi-assignee + Primary Responsible) ────
+function _openReportAssign(id){
+  const r=_getSavedReports().find(x=>String(x.id)===String(id)); if(!r){toast('Report not found');return;}
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Report</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc((r.emoji||'📊')+' '+(r.name||'Untitled'))}</div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('rep-assign-ma',r)}</div>
+    <div class="dr-actions" style="margin-top:14px">
+      <button class="btn btn-p" onclick="_saveReportAssign('${String(id)}')">Save</button>
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+  </div>`;
+  bg.classList.add('show');
+}
+function _saveReportAssign(id){
+  const arr=_getSavedReports(); const r=arr.find(x=>String(x.id)===String(id)); if(!r)return;
+  if(typeof _maGet==='function'){ const ma=_maGet('rep-assign-ma'); r.assignees=ma.assignees; r.assigneeNames=ma.assigneeNames; r.primaryAssigneeId=ma.primaryAssigneeId; const pi=ma.assignees.indexOf(ma.primaryAssigneeId); r.assignedTo=pi>=0?ma.assigneeNames[pi]:''; }
+  _setSavedReports(arr);
+  document.getElementById('modal-capture').classList.remove('show');
+  toast({type:'success',title:'Assigned',msg:r.assignedTo?('Primary: '+r.assignedTo):'Assignees updated.',duration:1800});
+  if(typeof renderReports==='function')renderReports();
+}
+async function _loadSharedReports(){
+  try{ if(typeof _trpc!=='function')return; const res=await _trpc('appData.sharedReportsForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.reports)){ D._sharedReports=res.reports.map((p,i)=>({...p,_idx:i})); if(typeof curScreen!=='undefined'&&curScreen==='reports'&&typeof renderReports==='function')renderReports(); }
+  }catch(e){ /* non-fatal */ }
+}
+function _renderSharedReportsSection(){
+  const shared=Array.isArray(D._sharedReports)?D._sharedReports:[];
+  if(!shared.length)return '';
+  const open=!(D.prefs&&D.prefs.sharedReportSectionCollapsed);
+  return `<div class="cd no-print" style="border-left:3px solid var(--purp);margin-bottom:14px">
+    <div onclick="_toggleSharedReportSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
+      <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated reports</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+    </div>
+    ${open?shared.map(_sharedReportCard).join(''):''}
+  </div>`;
+}
+function _toggleSharedReportSection(){ D.prefs=D.prefs||{}; D.prefs.sharedReportSectionCollapsed=!D.prefs.sharedReportSectionCollapsed; try{save('prefs');}catch(_){} if(typeof renderReports==='function')renderReports(); }
+function _sharedReportCard(p){
+  const delegated=!!p._delegated;
+  const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  return `<div onclick="_openSharedReportView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared report — click to edit">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.emoji||'📊')+' '+(p.name||'Untitled'))}</span>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${(p.widgets||[]).length} widget${(p.widgets||[]).length===1?'':'s'} · ${sub}</div>
+  </div>`;
+}
+async function _openSharedReportView(idx){
+  let p=(D._sharedReports||[])[idx];
+  if(!p&&typeof _loadSharedReports==='function'){ await _loadSharedReports(); p=(D._sharedReports||[])[idx]; }
+  if(!p){toast('Shared report not found — try refreshing.');return;}
+  const from=p._delegated?'you':_userNameById(p._sharedFromUserId);
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+    </div>
+    <div class="field"><label>Name</label><input class="inp" id="srp-name" value="${esc(p.name||'')}"></div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('srp-ma',p)}</div>
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_saveSharedReport(${Number(idx)||0})">Save</button>
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeReportOwnership(${Number(idx)||0})" title="Move this report into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedReportItem(${Number(idx)||0})">Delete</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the report config stays with the owner.':'Saved to the report owner.'}</div>
+  </div>`;
+  bg.classList.add('show');
+}
+async function _saveSharedReport(idx){
+  const p=(D._sharedReports||[])[idx]; if(!p){toast('Could not save — refresh and try again.');return;}
+  const ownerUserId=Number(p._sharedFromUserId)||0; const reportId=String(p.id);
+  const g=id=>document.getElementById(id);
+  const patch={ name:(g('srp-name')?.value||'').trim() };
+  if(typeof _maGet==='function'){ const ma=_maGet('srp-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
+  try{
+    const res=await _trpc('appData.updateSharedReport',{ownerUserId,reportId,patch},'mutation');
+    if(res&&res.ok){
+      Object.assign(p,patch);
+      toast({type:'success',title:'Saved',msg:'Changes saved to the report owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
+      if(typeof _loadSharedReports==='function')_loadSharedReports();
+      else if(typeof renderReports==='function')renderReports();
+    }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
+async function _takeReportOwnership(idx){
+  const it=(D._sharedReports||[])[idx]; if(!it){toast('Item not loaded — refresh and try again.');return;}
+  const ownerUserId=Number(it._sharedFromUserId)||0; const reportId=String(it.id);
+  if(!confirm('Take ownership of this report?\n\nIt moves into your workspace and you become the owner. The current owner stays on as an assignee.'))return;
+  try{
+    const res=await _trpc('appData.transferReportOwnership',{ownerUserId,reportId},'mutation');
+    if(res&&res.ok){
+      toast({type:'success',title:'Ownership taken',msg:'This report is now in your workspace.',duration:2600});
+      try{document.getElementById('modal-capture').classList.remove('show');}catch(_){}
+      if(typeof loadServerData==='function')loadServerData();
+      if(typeof _loadSharedReports==='function')_loadSharedReports();
+      if(typeof renderReports==='function'&&typeof curScreen!=='undefined'&&curScreen==='reports')renderReports();
+    }else{ toast({type:'error',title:'Could not take ownership',msg:(res&&res.error)||'Try again.'}); }
+  }catch(e){ toast({type:'error',title:'Failed',msg:String(e&&e.message||e)}); }
+}
+async function _deleteSharedReportItem(idx){
+  const it=(D._sharedReports||[])[idx]; if(!it){toast('Item not loaded — refresh and try again.');return;}
+  if(!confirm('Delete report "'+(it.name||'this report')+'" from the owner’s workspace? This can’t be undone.'))return;
+  const ownerUserId=Number(it._sharedFromUserId)||0; const reportId=String(it.id);
+  try{
+    const res=await _trpc('appData.deleteSharedReport',{ownerUserId,reportId},'mutation');
+    if(res&&res.ok){ D._sharedReports=(D._sharedReports||[]).filter((_,i)=>i!==idx); toast({type:'success',title:'Deleted',duration:1800}); document.getElementById('modal-capture')?.classList.remove('show'); if(typeof _loadSharedReports==='function')_loadSharedReports(); else if(typeof renderReports==='function')renderReports(); }
+    else toast({type:'error',title:'Could not delete',msg:(res&&res.error)||'Try again.'});
+  }catch(e){ toast({type:'error',title:'Failed',msg:String(e&&e.message||e)}); }
+}
 // Schedule email delivery for a saved report. Stored on the report itself
 // as r.schedule = {frequency:'off'|'daily'|'weekly'|'monthly', time:'08:00',
 // dow:0..6 (for weekly), dom:1..28 (for monthly), lastSentISO?:string}.
@@ -19035,10 +19159,12 @@ function renderReports(){
           ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:9px;background:rgba(34,197,94,.18);color:#86efac;padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
           <button onclick="event.stopPropagation();openReportSchedule(${r.id})" title="Schedule email" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">⏰</button>
           <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">✏</button>
+          <button onclick="event.stopPropagation();_openReportAssign(${r.id})" title="Assign to team members" style="background:none;border:none;color:${(r.assignedTo||(r.assignees||[]).length)?'var(--purp)':'var(--t3)'};cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">👥</button>
           <button onclick="event.stopPropagation();deleteSavedReport(${r.id})" title="Delete" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">×</button>
         </span>`).join('')}
       </div>`;
     })()}
+    ${typeof _renderSharedReportsSection==='function'?_renderSharedReportsSection():''}
 
     <!-- KPI tiles with sparklines -->
     ${(()=>{
