@@ -10113,6 +10113,7 @@ let _mmHistory = []; // M8: undo stack of mindmap snapshots
 let _mmHistoryIdx = -1;
 let _mmSearchQuery = ''; // M12
 let _mmMarquee = null; // M6: drag-rectangle selection state
+let _mmSelectedEdge = null; // M14: index of the currently-selected edge (connection)
 
 const MM_SHAPES = ['rect','pill','circle','diamond','hexagon','cloud'];
 const MM_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#64748b','#f97316'];
@@ -10447,7 +10448,7 @@ function renderMindmapCanvas(){
   </div>
   <div id="mm-context-menu" style="display:none;position:fixed;background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:9999;min-width:170px;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
   <div style="margin-top:8px;font-size:10px;color:var(--t3)">
-    💡 Double-click canvas to add · drag node to move · right-click for actions · click node to select · shift+click to multi-select · Tab=child · Enter=sibling · Delete=remove · /=search · scroll=zoom
+    💡 Double-click canvas to add · drag node to move · right-click for actions · click node to select · shift+click to multi-select · click a connection line to edit/delete it · Tab=child · Enter=sibling · Delete=remove · /=search · scroll=zoom
   </div>`;
   mmDrawNodes();
   mmDrawEdges();
@@ -10519,7 +10520,7 @@ function mmDrawEdges(){
   const defs=`<defs>${[...colors].map((c,i)=>`<marker id="mm-arr-${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('')}</defs>`;
   const colorIdx=Object.fromEntries([...colors].map((c,i)=>[c,i]));
   let paths = '';
-  mm.edges.forEach(e => {
+  mm.edges.forEach((e, ei) => {
     const from = mm.nodes.find(n=>n.id===e.from);
     const to = mm.nodes.find(n=>n.id===e.to);
     if(!from || !to) return;
@@ -10531,12 +10532,18 @@ function mmDrawEdges(){
     const mx = (x1+x2)/2;
     const my = (y1+y2)/2 - 20;
     const c=from.color||'#3b82f6';
+    const sel=_mmSelectedEdge===ei;
     const dash=(e.style==='dashed')?'6 4':'';
     const w=Math.max(1,Math.min(6,e.thickness||2));
     const arrow=e.arrow==='to'||e.arrow==='both'?` marker-end="url(#mm-arr-${colorIdx[c]})"`:'';
     const arrowStart=e.arrow==='both'?` marker-start="url(#mm-arr-${colorIdx[c]})"`:'';
-    paths += `<path d="M${x1},${y1} Q${mx},${my} ${x2},${y2}" fill="none" stroke="${c}" stroke-width="${w}" stroke-opacity="0.7"${dash?` stroke-dasharray="${dash}"`:''}${arrow}${arrowStart}/>`;
-    if(e.label){paths+=`<text x="${mx}" y="${my-4}" text-anchor="middle" font-size="10" fill="${c}" stroke="var(--bg)" stroke-width="3" paint-order="stroke">${esc(e.label)}</text>`;}
+    const d=`M${x1},${y1} Q${mx},${my} ${x2},${y2}`;
+    // Selected edge gets a soft glow halo underneath the line.
+    if(sel){paths += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w+8}" stroke-opacity="0.22" stroke-linecap="round" style="pointer-events:none"/>`;}
+    // Invisible fat hit-area so the thin line is easy to click / right-click.
+    paths += `<path d="${d}" fill="none" stroke="transparent" stroke-width="14" style="pointer-events:stroke;cursor:pointer" onclick="mmSelectEdge(event,${ei})" oncontextmenu="mmEdgeContext(event,${ei})"/>`;
+    paths += `<path d="${d}" fill="none" stroke="${c}" stroke-width="${sel?w+1:w}" stroke-opacity="${sel?'1':'0.7'}"${dash?` stroke-dasharray="${dash}"`:''}${arrow}${arrowStart} style="pointer-events:none"/>`;
+    if(e.label){paths+=`<text x="${mx}" y="${my-4}" text-anchor="middle" font-size="10" fill="${c}" stroke="var(--bg)" stroke-width="3" paint-order="stroke" style="pointer-events:none">${esc(e.label)}</text>`;}
   });
   svg.innerHTML = defs+paths;
 }
@@ -10590,6 +10597,8 @@ function _mmAttachTouchHandlers(){
 
 function mmCanvasMouseDown(e){
   if(e.target.closest('.mm-node')) return;
+  // M14: a mousedown on an edge hit-path shouldn't start a pan — let its click select it.
+  if(e.target.closest&&e.target.closest('#mm-svg')) return;
   if(e.button === 0){
     // M6: shift-drag = marquee select; plain drag = pan
     if(e.shiftKey){
@@ -10601,6 +10610,7 @@ function mmCanvasMouseDown(e){
       _mmPanStart = {x: e.clientX - _mmPan.x, y: e.clientY - _mmPan.y};
       e.currentTarget.style.cursor = 'grabbing';
       // Plain click on background clears selection.
+      if(_mmSelectedEdge!==null){_mmSelectedEdge=null;mmDrawEdges();}
       if(_mmSelectedSet.size||_mmSelected){_mmSelectedSet=new Set();_mmSelected=null;mmDrawNodes();mmRenderSidePanel();}
     }
   }
@@ -10717,6 +10727,7 @@ function mmNodeClick(e, id){
     toast('🔗 Connected');
     return;
   }
+  if(_mmSelectedEdge!==null){_mmSelectedEdge=null;mmDrawEdges();}
   // M6: shift/cmd for multi-select toggle, plain click = single-select
   if(e.shiftKey||e.metaKey||e.ctrlKey){
     if(_mmSelectedSet.has(id))_mmSelectedSet.delete(id);
@@ -10780,6 +10791,8 @@ function mmToggleCollapse(id){
 // M5: side panel for selected node (icon, shape, color, description, sub-items, edges)
 function mmRenderSidePanel(){
   const side=document.getElementById('mm-side');if(!side)return;
+  // M14: an edge is selected → show the connection editor instead of a node panel.
+  if(_mmSelectedEdge!==null){ mmRenderEdgePanel(); return; }
   const id=_mmSelectedSet.size===1?[..._mmSelectedSet][0]:_mmSelected;
   const node=id?(_mmCurrent.nodes.find(n=>n.id===id)):null;
   if(!node){side.classList.remove('open');side.innerHTML='';return;}
@@ -10816,7 +10829,7 @@ function mmRenderSidePanel(){
       ${(node.subItems||[]).map((s,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0"><span class="chk" style="width:13px;height:13px;border:1px solid var(--bd2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;${s.done?'background:var(--ac);color:#fff':''}" onclick="mmToggleSubItem(${node.id},${i})">${s.done?'✓':''}</span><span style="flex:1;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.text)}</span><span style="cursor:pointer;color:var(--red);font-size:11px;padding:0 4px" onclick="mmRemoveSubItem(${node.id},${i})">✕</span></div>`).join('')}
       <button class="btn btn-s" style="font-size:10px;height:22px;width:100%;margin-top:4px" onclick="mmAddSubItem(${node.id})">+ Add sub-item</button>
     </div>
-    ${outEdges.length?`<div class="mm-side-section"><div class="mm-side-section-h">Connections (${outEdges.length})</div>${outEdges.map(e=>{const other=_mmCurrent.nodes.find(n=>n.id===(e.from===node.id?e.to:e.from));if(!other)return '';return `<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="_mmSelectedSet=new Set([${other.id}]);_mmSelected=${other.id};mmDrawNodes();mmRenderSidePanel()">${e.from===node.id?'→':'←'} ${esc(other.text||'')}</span></div>`;}).join('')}</div>`:''}
+    ${outEdges.length?`<div class="mm-side-section"><div class="mm-side-section-h">Connections (${outEdges.length})</div>${outEdges.map(e=>{const other=_mmCurrent.nodes.find(n=>n.id===(e.from===node.id?e.to:e.from));if(!other)return '';const ei=_mmCurrent.edges.indexOf(e);return `<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:4px"><span style="flex:1;cursor:pointer;color:var(--ac);text-decoration:underline" onclick="_mmSelectedSet=new Set([${other.id}]);_mmSelected=${other.id};mmDrawNodes();mmRenderSidePanel()">${e.from===node.id?'→':'←'} ${esc(other.text||'')}</span><span title="Edit connection" style="cursor:pointer;color:var(--t3);padding:0 3px" onclick="mmSelectEdge(null,${ei})">✏</span><span title="Delete connection" style="cursor:pointer;color:var(--red);padding:0 3px" onclick="mmDeleteEdge(${ei})">✕</span></div>`;}).join('')}</div>`:''}
     <div class="mm-side-section">
       <div class="mm-side-section-h">Actions</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
@@ -10835,9 +10848,99 @@ function mmSidePanelShape(id,s){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!
 function mmSidePanelColor(id,c){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;_mmSnap();n.color=c;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawNodes();mmRenderSidePanel();}
 function mmSidePanelDesc(id,val){const n=_mmCurrent.nodes.find(x=>x.id===id);if(!n)return;if(n.description===val)return;_mmSnap();n.description=val||'';_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();}
 
+// ─── M14: Connection (edge) selection + editing ──────────────────────────────
+// Select an edge by its index. `e` may be a real event (stop propagation so the
+// canvas doesn't also start a pan) or null (when called from the side panel).
+function mmSelectEdge(e, idx){
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(!_mmCurrent||!_mmCurrent.edges[idx])return;
+  _mmSelectedEdge=idx;
+  _mmSelected=null;_mmSelectedSet=new Set();
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
+  mmDrawNodes();mmDrawEdges();mmRenderSidePanel();
+}
+function mmRenderEdgePanel(){
+  const side=document.getElementById('mm-side');if(!side)return;
+  const e=_mmCurrent.edges[_mmSelectedEdge];
+  if(!e){_mmSelectedEdge=null;side.classList.remove('open');side.innerHTML='';return;}
+  const from=_mmCurrent.nodes.find(n=>n.id===e.from);
+  const to=_mmCurrent.nodes.find(n=>n.id===e.to);
+  side.classList.add('open');
+  const arrowOpts=[['none','— none'],['to','→ to target'],['both','↔ both ends']];
+  const thick=Math.max(1,Math.min(6,e.thickness||2));
+  side.innerHTML=`
+    <div class="mm-side-h">
+      <span style="font-size:16px">🔗</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Connection</span>
+      <span class="mm-side-close" onclick="mmDeselectEdge()">✕</span>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Between</div>
+      <div style="font-size:11px;color:var(--t2);line-height:1.6">${esc(from?from.text:'?')}<br><span style="color:var(--t3)">↓</span><br>${esc(to?to.text:'?')}</div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Line style</div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${(e.style||'solid')==='solid'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('solid')">── Solid</button>
+        <button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${e.style==='dashed'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('dashed')">- - Dashed</button>
+      </div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Arrow</div>
+      <div style="display:flex;gap:4px">${arrowOpts.map(([k,l])=>`<button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${(e.arrow||'none')===k?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetArrow('${k}')">${l}</button>`).join('')}</div>
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Thickness (${thick})</div>
+      <input type="range" min="1" max="6" step="1" value="${thick}" style="width:100%" oninput="mmEdgeSetThickness(this.value)">
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Label</div>
+      <input type="text" placeholder="e.g. depends on, leads to…" value="${esc(e.label||'')}" onchange="mmEdgeSetLabel(this.value)">
+    </div>
+    <div class="mm-side-section">
+      <div class="mm-side-section-h">Actions</div>
+      <button class="btn btn-d" style="font-size:10px;height:26px;width:100%" onclick="mmDeleteEdge(${_mmSelectedEdge})">🗑 Delete connection</button>
+    </div>`;
+}
+function mmDeselectEdge(){_mmSelectedEdge=null;const s=document.getElementById('mm-side');if(s){s.classList.remove('open');s.innerHTML='';}mmDrawEdges();}
+function mmDeleteEdge(idx){
+  if(!_mmCurrent||!_mmCurrent.edges[idx])return;
+  _mmSnap();
+  _mmCurrent.edges.splice(idx,1);
+  _mmCurrent.updatedAt=new Date().toISOString();
+  _mmSelectedEdge=null;
+  saveMindmaps();
+  const ctx=document.getElementById('mm-context-menu');if(ctx)ctx.style.display='none';
+  mmDrawEdges();mmRenderSidePanel();
+  toast('🔗 Connection deleted');
+}
+function mmEdgeSetStyle(v){const e=_mmCurrent.edges[_mmSelectedEdge];if(!e)return;_mmSnap();e.style=v;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawEdges();mmRenderEdgePanel();}
+function mmEdgeSetArrow(v){const e=_mmCurrent.edges[_mmSelectedEdge];if(!e)return;_mmSnap();e.arrow=v;_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawEdges();mmRenderEdgePanel();}
+function mmEdgeSetThickness(v){const e=_mmCurrent.edges[_mmSelectedEdge];if(!e)return;_mmSnap();e.thickness=Math.max(1,Math.min(6,parseInt(v,10)||2));_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawEdges();mmRenderEdgePanel();}
+function mmEdgeSetLabel(v){const e=_mmCurrent.edges[_mmSelectedEdge];if(!e)return;if((e.label||'')===(v||''))return;_mmSnap();e.label=(v||'').trim();_mmCurrent.updatedAt=new Date().toISOString();saveMindmaps();mmDrawEdges();}
+function mmEdgeContext(e, idx){
+  e.preventDefault();e.stopPropagation();
+  if(!_mmCurrent||!_mmCurrent.edges[idx])return;
+  _mmSelectedEdge=idx;_mmSelected=null;_mmSelectedSet=new Set();
+  mmDrawNodes();mmDrawEdges();mmRenderSidePanel();
+  const edge=_mmCurrent.edges[idx];
+  const ctx=document.getElementById('mm-context-menu');if(!ctx)return;
+  ctx.innerHTML=`
+    <div style="padding:6px 10px;font-size:11px;font-weight:600;color:var(--t3);border-bottom:1px solid var(--bd1)">Connection</div>
+    <div class="mm-ctx-item" onclick="mmEdgeSetStyle('${(edge.style||'solid')==='dashed'?'solid':'dashed'}');document.getElementById('mm-context-menu').style.display='none'">${(edge.style||'solid')==='dashed'?'── Make solid':'- - Make dashed'}</div>
+    <div class="mm-ctx-item" onclick="mmEdgeSetArrow('${edge.arrow==='to'?'none':'to'}');document.getElementById('mm-context-menu').style.display='none'">${edge.arrow==='to'?'— Remove arrow':'→ Add arrow'}</div>
+    <div style="border-top:1px solid var(--bd1);margin:2px 0"></div>
+    <div class="mm-ctx-item" style="color:var(--red)" onclick="mmDeleteEdge(${idx})">🗑 Delete connection</div>`;
+  ctx.style.display='block';
+  ctx.style.left=e.clientX+'px';
+  ctx.style.top=e.clientY+'px';
+  setTimeout(()=>{document.addEventListener('click',function _c(){ctx.style.display='none';document.removeEventListener('click',_c);},{once:true});},50);
+}
+
 function mmNodeContext(e, id){
   e.preventDefault();
   e.stopPropagation();
+  _mmSelectedEdge = null;
   _mmSelected = id;
   const node = _mmCurrent.nodes.find(n=>n.id===id);
   if(!node) return;
@@ -10929,6 +11032,7 @@ function mmEditNode(id){
 
 function mmDeleteNode(id){
   _mmSnap();
+  _mmSelectedEdge = null; // edge indices shift when edges are pruned below
   // Delete every node in the multi-select if more than one is selected, else just this id.
   const ids = _mmSelectedSet.size>1?[..._mmSelectedSet]:[id];
   _mmCurrent.nodes = _mmCurrent.nodes.filter(n=>!ids.includes(n.id));
@@ -11041,10 +11145,11 @@ document.addEventListener('keydown',function(e){
   const id=_mmSelected||(_mmSelectedSet.size===1?[..._mmSelectedSet][0]:null);
   if(e.key==='Tab'&&id){e.preventDefault();mmAddChild(id);return;}
   if(e.key==='Enter'&&id&&!_mmInlineEditId){e.preventDefault();mmAddSibling(id);return;}
+  if((e.key==='Delete'||e.key==='Backspace')&&_mmSelectedEdge!==null){e.preventDefault();mmDeleteEdge(_mmSelectedEdge);return;}
   if(e.key==='Delete'&&(_mmSelectedSet.size||id)){e.preventDefault();mmDeleteNode(id);return;}
   if(e.key==='F2'&&id){e.preventDefault();mmStartInlineEdit(id);return;}
   if(e.key==='/'&&!_mmInlineEditId){e.preventDefault();const inp=document.getElementById('mm-search');if(inp){inp.focus();inp.select();}return;}
-  if(e.key==='Escape'){if(_mmInlineEditId){_mmInlineEditId=null;mmDrawNodes();}else if(_mmConnecting){_mmConnecting=null;renderMindmapCanvas();}else if(_mmSelectedSet.size||_mmSelected){mmCloseSidePanel();}return;}
+  if(e.key==='Escape'){if(_mmInlineEditId){_mmInlineEditId=null;mmDrawNodes();}else if(_mmConnecting){_mmConnecting=null;renderMindmapCanvas();}else if(_mmSelectedEdge!==null){mmDeselectEdge();}else if(_mmSelectedSet.size||_mmSelected){mmCloseSidePanel();}return;}
   // Arrow keys: move selection to nearest connected/closer node in that direction.
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)&&id){
     e.preventDefault();
