@@ -3543,7 +3543,7 @@ function renderDrawer(type,item){
       <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-assignee',item.assignedTo)}</div>
+      <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★=Primary</span></label>${buildMultiAssignee('dr-ma',item)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
     <div class="field">
@@ -3707,7 +3707,7 @@ function renderDrawer(type,item){
     <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div></div>
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
-    <div class="field"><label>Assigned To</label>${buildAssigneeDropdown('dr-proj-assignee',item.assignedTo)}</div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-proj-ma',item)}</div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
     <div class="field" style="margin-top:14px">
@@ -3971,6 +3971,55 @@ function _assigneeMembers(){
   }
   return out;
 }
+// ── Multi-assignee picker (assignees[] + Primary Responsible) ─────────────
+// Reusable across Task / Project / Program / Mind Map / Report editors.
+// buildMultiAssignee(id,item) seeds from item.assignees/assigneeNames/
+// primaryAssigneeId (falling back to legacy assignedTo) and renders chips with
+// a ★ to set Primary + × to remove, plus an "+ Add member" select. Read the
+// result with _maGet(id) → {assignees:[ids], assigneeNames:[names], primaryAssigneeId}.
+// Only real accounts (members with a userId) are assignable, since the server
+// keys cross-user visibility on userIds.
+let _maState={};
+function buildMultiAssignee(id,item){
+  const members=_assigneeMembers().filter(m=>m.userId!=null);
+  const seed=[];
+  if(item){
+    const ids=Array.isArray(item.assignees)?item.assignees.map(Number).filter(n=>!isNaN(n)):[];
+    const names=Array.isArray(item.assigneeNames)?item.assigneeNames:[];
+    if(ids.length){
+      ids.forEach((uid,i)=>{ const m=members.find(x=>x.userId===uid); seed.push({userId:uid,name:(names[i]||(m&&m.name)||('user '+uid)),primary:Number(item.primaryAssigneeId)===uid}); });
+    } else if(item.assignedTo){ const m=members.find(x=>x.name===item.assignedTo); if(m)seed.push({userId:m.userId,name:m.name,primary:true}); }
+  }
+  if(seed.length&&!seed.some(s=>s.primary))seed[0].primary=true;
+  _maState[id]={list:seed};
+  return _maRender(id);
+}
+function _maRender(id){
+  const st=_maState[id]||{list:[]};
+  const members=_assigneeMembers().filter(m=>m.userId!=null);
+  const chips=st.list.map(s=>{
+    const m=members.find(x=>x.userId===s.userId)||{};
+    const ini=String(s.name||'?').split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
+    const col=m.color||'#6366f1';
+    return `<span style="display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid ${s.primary?'var(--warn)':'var(--bd2)'};border-radius:999px;padding:2px 7px 2px 2px;margin:2px;font-size:11px">
+      <span style="width:18px;height:18px;border-radius:50%;background:${col};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0">${ini}</span>
+      <span>${esc(s.name)}</span>
+      <span title="${s.primary?'Primary Responsible':'Make Primary'}" onclick="_maSetPrimary('${id}',${s.userId})" style="cursor:pointer;color:${s.primary?'var(--warn)':'var(--t3)'}">★</span>
+      <span title="Remove" onclick="_maRemove('${id}',${s.userId})" style="cursor:pointer;color:var(--t3);font-weight:700;font-size:13px;line-height:1">×</span>
+    </span>`;
+  }).join('');
+  const avail=members.filter(m=>!st.list.some(s=>s.userId===m.userId));
+  const opts=['<option value="">+ Add member…</option>'].concat(avail.map(m=>`<option value="${m.userId}">${esc(m.name)}</option>`)).join('');
+  return `<div id="${id}-ma">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;min-height:24px">${chips||'<span style="font-size:11px;color:var(--t3)">No one assigned</span>'}</div>
+    <select class="inp" style="margin-top:4px;font-size:11px" onchange="_maAdd('${id}',this.value);this.value=''">${opts}</select>
+  </div>`;
+}
+function _maAdd(id,uidStr){ const uid=Number(uidStr); if(!uid)return; const st=_maState[id]; if(!st)return; if(st.list.some(s=>s.userId===uid))return; const m=_assigneeMembers().find(x=>x.userId===uid); const first=st.list.length===0; st.list.push({userId:uid,name:(m&&m.name)||('user '+uid),primary:first}); _maRefresh(id); }
+function _maRemove(id,uid){ const st=_maState[id]; if(!st)return; const wasPrimary=(st.list.find(s=>s.userId===uid)||{}).primary; st.list=st.list.filter(s=>s.userId!==uid); if(wasPrimary&&st.list.length)st.list[0].primary=true; _maRefresh(id); }
+function _maSetPrimary(id,uid){ const st=_maState[id]; if(!st)return; st.list.forEach(s=>s.primary=(s.userId===uid)); _maRefresh(id); }
+function _maRefresh(id){ const host=document.getElementById(id+'-ma'); if(host)host.outerHTML=_maRender(id); }
+function _maGet(id){ const st=_maState[id]||{list:[]}; const primary=st.list.find(s=>s.primary); return { assignees:st.list.map(s=>s.userId), assigneeNames:st.list.map(s=>s.name), primaryAssigneeId:primary?primary.userId:null }; }
 // Build a custom avatar+name assignee dropdown
 function buildAssigneeDropdown(id,currentValue){
   const members=_assigneeMembers();
@@ -4199,10 +4248,15 @@ function saveItem(type,id){
         t.notes=ntTa.value;
       }
     }
-    // Custom assignee dropdown stores value in a hidden input with id dr-assignee-val
-    const aHidden=document.getElementById('dr-assignee-val');
-    const aSel=document.getElementById('dr-assignee');
-    t.assignedTo=aHidden?aHidden.value||null:(aSel?aSel.value||null:t.assignedTo);
+    // Multi-assignee picker → assignees[] + Primary Responsible. Keep
+    // t.assignedTo pointed at the Primary's name for back-compat with every
+    // view/report/relational mirror that still reads the single assignee.
+    if(typeof _maGet==='function'&&document.getElementById('dr-ma-ma')){
+      const ma=_maGet('dr-ma');
+      t.assignees=ma.assignees; t.assigneeNames=ma.assigneeNames; t.primaryAssigneeId=ma.primaryAssigneeId;
+      const pi=ma.assignees.indexOf(ma.primaryAssigneeId);
+      t.assignedTo=pi>=0?ma.assigneeNames[pi]:null;
+    }
     // Persist linked items from the chip-based picker state (_drLinks).
     // Only writes if the picker host matches this task — avoids overwriting
     // when saving an unrelated drawer that didn't initialize the linker.
@@ -4250,7 +4304,9 @@ function saveItem(type,id){
   }
   if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.name=$('#dr-title').value;p.icon=document.getElementById('dr-proj-icon')?.value||'';p.color=$('#dr-color').value;p.status=$('#dr-status').value;p.due=$('#dr-due').value;const newPct=parseInt($('#dr-pct').value)||0;// Setting pct explicitly via the drawer locks it (pctManual=true). If user wants auto, they can clear via the value 0 + the auto-pct will resume showing computed value on cards.
     if(newPct!==(p.pct||0))p.pctManual=true;
-    p.pct=newPct;p.desc=$('#dr-body').value;p.assignedTo=document.getElementById('dr-proj-assignee-val')?.value||'';save('projects')}}
+    p.pct=newPct;p.desc=$('#dr-body').value;
+    if(typeof _maGet==='function'&&document.getElementById('dr-proj-ma-ma')){const ma=_maGet('dr-proj-ma');p.assignees=ma.assignees;p.assigneeNames=ma.assigneeNames;p.primaryAssigneeId=ma.primaryAssigneeId;const pi=ma.assignees.indexOf(ma.primaryAssigneeId);p.assignedTo=pi>=0?ma.assigneeNames[pi]:'';}
+    save('projects')}}
   if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){
     g.title=$('#dr-title').value;
     g.icon=$('#dr-icon').value;
@@ -7238,14 +7294,15 @@ async function _openSharedTaskView(idx){
       <div class="field"><label>Priority</label><select class="inp" id="st-pri">${priOpts.map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
     <div class="field"><label>Due</label><input class="inp" id="st-due" value="${esc(t.due||'')}" placeholder="YYYY-MM-DD"></div>
-    ${adminSh?`<div class="field"><label>Assigned To (reassign)</label>${buildAssigneeDropdown('st-assignee',t.assignedTo)}</div>`:''}
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('st-ma',t)}</div>
     <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
-    <div class="dr-actions" style="margin-top:14px">
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedTask(${Number(idx)||0})">Save</button>
+      ${adminSh&&!t._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'tasks')" title="Move this task into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'tasks','st')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign &amp; delete — saved to the owner.':('Saved to '+(t._delegated?'this task':esc(from)+"&#39;s copy")+'.')}</div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':('Saved to '+(t._delegated?'this task':esc(from)+"&#39;s copy")+'.')}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7263,9 +7320,8 @@ async function _saveSharedTask(idx){
     due:(g('st-due')?.value||'').trim(),
     notes:g('st-notes')?.value||'',
   };
-  // Admin-only reassignment field (present only when rendered for admins).
-  const assigneeEl=g('st-assignee-val');
-  if(assigneeEl)patch.assignedTo=assigneeEl.value||'';
+  // Multi-assignee: send the full list + Primary Responsible.
+  if(typeof _maGet==='function'){ const ma=_maGet('st-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
   try{
     const res=await _trpc('appData.updateSharedTask',{ownerUserId,taskId,patch},'mutation');
     if(res&&res.ok){
@@ -7275,14 +7331,35 @@ async function _saveSharedTask(idx){
       if(mine){ Object.assign(mine,patch); try{save('tasks');}catch(_){} }
       toast({type:'success',title:'Saved',msg:'Changes saved to the task owner.',duration:2200});
       document.getElementById('modal-capture').classList.remove('show');
-      // Reassignment changes who can see the task — re-pull the shared list.
-      if(patch.assignedTo!==undefined&&typeof _loadSharedTasks==='function')_loadSharedTasks();
+      // Assignment changes who can see the task — re-pull the shared list.
+      if(typeof _loadSharedTasks==='function')_loadSharedTasks();
       if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection();
       if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
     }else{
       toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
     }
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
+// Admin: take ownership of a shared TASK/PROJECT — move it into my workspace.
+async function _takeOwnership(idx,kind){
+  const arr=kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const it=arr[idx];
+  if(!it){toast('Item not loaded — refresh and try again.');return;}
+  const ownerUserId=Number(it._sharedFromUserId)||0;
+  const itemId=String(it.id);
+  if(!confirm('Take ownership of this '+(kind==='projects'?'project':'task')+'?\n\nIt moves into your workspace and you become the owner. The current owner stays on as an assignee so they keep access.'))return;
+  try{
+    const res=await _trpc('appData.transferItemOwnership',{ownerUserId,kind,itemId},'mutation');
+    if(res&&res.ok){
+      toast({type:'success',title:'Ownership taken',msg:'This '+(kind==='projects'?'project':'task')+' is now in your workspace.',duration:2600});
+      try{document.getElementById('modal-capture').classList.remove('show');}catch(_){}
+      if(typeof loadServerData==='function')loadServerData();
+      if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); if(typeof renderProjects==='function'&&typeof curScreen!=='undefined'&&curScreen==='projects')renderProjects(); }
+      else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof renderCurrentTaskView==='function'&&typeof curScreen!=='undefined'&&curScreen==='tasks')renderCurrentTaskView(); }
+    }else{
+      toast({type:'error',title:'Could not take ownership',msg:(res&&res.error)||'Try again.'});
+    }
+  }catch(e){ toast({type:'error',title:'Failed',msg:String(e&&e.message||e)}); }
 }
 // Admin/owner: delete a shared/delegated item from the owner's workspace.
 async function _deleteSharedItem(idx,kind){
@@ -7395,14 +7472,15 @@ async function _openSharedProjectView(idx){
       <div class="field"><label>Status</label><select class="inp" id="sp-status">${statusOpts.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Due</label><input class="inp" id="sp-due" value="${esc(p.due||'')}" placeholder="YYYY-MM-DD"></div>
     </div>
-    ${adminSh?`<div class="field"><label>Assigned To (reassign)</label>${buildAssigneeDropdown('sp-assignee',p.assignedTo||p.assignee)}</div>`:''}
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sp-ma',p)}</div>
     <div class="field"><label>Description</label><textarea class="inp" id="sp-desc" style="min-height:90px">${esc(desc)}</textarea></div>
-    <div class="dr-actions" style="margin-top:14px">
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedProject(${Number(idx)||0})">Save</button>
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'projects')" title="Move this project into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'projects')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign &amp; delete — saved to the owner.':'Saved to the project owner.'}</div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the project owner.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7412,7 +7490,7 @@ async function _saveSharedProject(idx){
   const ownerUserId=Number(p._sharedFromUserId)||0; const projectId=String(p.id);
   const g=id=>document.getElementById(id);
   const patch={ name:(g('sp-name')?.value||'').trim(), status:g('sp-status')?.value||'', due:(g('sp-due')?.value||'').trim(), desc:g('sp-desc')?.value||'' };
-  const aEl=g('sp-assignee-val'); if(aEl)patch.assignedTo=aEl.value||'';
+  if(typeof _maGet==='function'){ const ma=_maGet('sp-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
   try{
     const res=await _trpc('appData.updateSharedProject',{ownerUserId,projectId,patch},'mutation');
     if(res&&res.ok){
@@ -7421,7 +7499,7 @@ async function _saveSharedProject(idx){
       if(mine){ Object.assign(mine,patch); try{save('projects');}catch(_){} }
       toast({type:'success',title:'Saved',msg:'Changes saved to the project owner.',duration:2200});
       document.getElementById('modal-capture').classList.remove('show');
-      if(patch.assignedTo!==undefined&&typeof _loadSharedProjects==='function')_loadSharedProjects();
+      if(typeof _loadSharedProjects==='function')_loadSharedProjects();
       else if(typeof renderProjects==='function'&&curScreen==='projects')renderProjects();
     }else{
       toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'});
