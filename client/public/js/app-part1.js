@@ -7344,19 +7344,22 @@ async function _saveSharedTask(idx){
 }
 // Admin: take ownership of a shared TASK/PROJECT — move it into my workspace.
 async function _takeOwnership(idx,kind){
-  const arr=kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
   const it=arr[idx];
   if(!it){toast('Item not loaded — refresh and try again.');return;}
+  const noun=kind==='programs'?'program':kind==='mindmaps'?'mind map':kind==='projects'?'project':'task';
   const ownerUserId=Number(it._sharedFromUserId)||0;
   const itemId=String(it.id);
-  if(!confirm('Take ownership of this '+(kind==='projects'?'project':'task')+'?\n\nIt moves into your workspace and you become the owner. The current owner stays on as an assignee so they keep access.'))return;
+  if(!confirm('Take ownership of this '+noun+'?\n\nIt moves into your workspace and you become the owner. The current owner stays on as an assignee so they keep access.'))return;
   try{
     const res=await _trpc('appData.transferItemOwnership',{ownerUserId,kind,itemId},'mutation');
     if(res&&res.ok){
-      toast({type:'success',title:'Ownership taken',msg:'This '+(kind==='projects'?'project':'task')+' is now in your workspace.',duration:2600});
+      toast({type:'success',title:'Ownership taken',msg:'This '+noun+' is now in your workspace.',duration:2600});
       try{document.getElementById('modal-capture').classList.remove('show');}catch(_){}
       if(typeof loadServerData==='function')loadServerData();
-      if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); if(typeof renderProjects==='function'&&typeof curScreen!=='undefined'&&curScreen==='projects')renderProjects(); }
+      if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); if(typeof renderPrograms==='function'&&typeof curScreen!=='undefined'&&curScreen==='programs')renderPrograms(); }
+      else if(kind==='mindmaps'){ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); if(typeof renderMindmaps==='function'&&typeof curScreen!=='undefined'&&curScreen==='mindmaps')renderMindmaps(); }
+      else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); if(typeof renderProjects==='function'&&typeof curScreen!=='undefined'&&curScreen==='projects')renderProjects(); }
       else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof renderCurrentTaskView==='function'&&typeof curScreen!=='undefined'&&curScreen==='tasks')renderCurrentTaskView(); }
     }else{
       toast({type:'error',title:'Could not take ownership',msg:(res&&res.error)||'Try again.'});
@@ -7365,7 +7368,7 @@ async function _takeOwnership(idx,kind){
 }
 // Admin/owner: delete a shared/delegated item from the owner's workspace.
 async function _deleteSharedItem(idx,kind){
-  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
+  const arr=kind==='programs'?(D._sharedPrograms||[]):kind==='mindmaps'?(D._sharedMindMaps||[]):kind==='projects'?(D._sharedProjects||[]):(D._sharedTasks||[]);
   const item=arr[idx];
   if(!item){toast('Could not delete — item not loaded. Refresh and try again.');return;}
   const label=item.title||item.name||'this item';
@@ -7377,14 +7380,16 @@ async function _deleteSharedItem(idx,kind){
     if(res&&res.ok){
       // Drop it locally from the shared list AND (if it's my own delegated item) my list.
       if(kind==='programs')D._sharedPrograms=(D._sharedPrograms||[]).filter((_,i)=>i!==idx);
+      else if(kind==='mindmaps')D._sharedMindMaps=(D._sharedMindMaps||[]).filter((_,i)=>i!==idx);
       else if(kind==='projects')D._sharedProjects=(D._sharedProjects||[]).filter((_,i)=>i!==idx);
       else D._sharedTasks=(D._sharedTasks||[]).filter((_,i)=>i!==idx);
-      const ownKey=kind==='programs'?'programs':kind==='projects'?'projects':'tasks';
-      if(Array.isArray(D[ownKey])){ const f=D[ownKey].filter(x=>String(x.id)!==itemId); if(f.length!==D[ownKey].length){ D[ownKey]=f; try{save(ownKey);}catch(_){} } }
+      const ownKey=kind==='programs'?'programs':kind==='mindmaps'?'mindmaps':kind==='projects'?'projects':'tasks';
+      if(Array.isArray(D[ownKey])){ const f=D[ownKey].filter(x=>String(x.id)!==itemId); if(f.length!==D[ownKey].length){ D[ownKey]=f; try{ if(ownKey==='mindmaps'&&typeof saveMindmaps==='function')saveMindmaps(); else save(ownKey); }catch(_){} } }
       toast({type:'success',title:'Deleted',msg:"Removed from the owner's workspace.",duration:2200});
       document.getElementById('modal-capture')?.classList.remove('show');
       // Re-fetch to re-stamp the stable indexes cleanly, then re-render.
       if(kind==='programs'){ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); else if(typeof renderPrograms==='function')renderPrograms(); }
+      else if(kind==='mindmaps'){ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); else if(typeof renderMindmaps==='function')renderMindmaps(); }
       else if(kind==='projects'){ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); else if(typeof renderProjects==='function')renderProjects(); }
       else { if(typeof _loadSharedTasks==='function')_loadSharedTasks(); if(typeof _renderSharedTasksSection==='function')_renderSharedTasksSection(); }
     }else{

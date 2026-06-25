@@ -4307,6 +4307,7 @@ function doLoginSuccess(member){
   setTimeout(()=>{ if(typeof _loadSharedTasks==='function')_loadSharedTasks(); },1600);
   setTimeout(()=>{ if(typeof _loadSharedProjects==='function')_loadSharedProjects(); },1800);
   setTimeout(()=>{ if(typeof _loadSharedPrograms==='function')_loadSharedPrograms(); },2000);
+  setTimeout(()=>{ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); },2200);
   // Load the real workspace roster so assignment dropdowns include invited
   // members (e.g. new hires) that aren't in the local D.teams blob.
   setTimeout(()=>{ if(typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers(); },900);
@@ -10092,7 +10093,7 @@ if(!D.mindmaps) D.mindmaps = JSON.parse(localStorage.getItem('lu_mindmaps') || '
 
 function saveMindmaps(){ localStorage.setItem('lu_mindmaps', JSON.stringify(D.mindmaps)); _syncMindmapsDebounced(); }
 let _mmSyncTimer=null;
-function _syncMindmapsDebounced(){ clearTimeout(_mmSyncTimer); _mmSyncTimer=setTimeout(()=>{ if(typeof _trpc==='function') _trpc('appData.save',{ideas:JSON.stringify(D.mindmaps)},'mutation').catch(()=>{}); },2000); }
+function _syncMindmapsDebounced(){ clearTimeout(_mmSyncTimer); _mmSyncTimer=setTimeout(()=>{ if(typeof _trpc==='function') _trpc('appData.save',{mindmaps:JSON.stringify(D.mindmaps)},'mutation').catch(()=>{}); },2000); }
 
 let _mmCurrent = null; // currently open mindmap
 let _mmDrag = null;    // drag state
@@ -10191,6 +10192,7 @@ function renderMindmaps(){
       <button class="btn btn-p" onclick="mmCreate()">+ New Mind Map</button>
     </div>
   </div>
+  ${typeof _renderSharedMindMapsSection==='function'?_renderSharedMindMapsSection():''}
   ${maps.length === 0 ? `
     <div style="text-align:center;padding:60px 20px;color:var(--t3)">
       <div style="font-size:48px;margin-bottom:12px">🧠</div>
@@ -10210,8 +10212,10 @@ function renderMindmaps(){
             </div>
           </div>
           <div style="font-size:10px;color:var(--t3)">Updated ${timeAgo(m.updatedAt)}</div>
-          <div style="display:flex;gap:4px;margin-top:8px">
+          ${(m.assignedTo||((m.assignees||[]).length))?`<div style="font-size:9px;color:var(--purp);margin-top:4px">👥 ${esc(m.assignedTo||'')}${(m.assignees||[]).length>1?(' +'+((m.assignees||[]).length-1)):''}</div>`:''}
+          <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">
             <button class="btn btn-s" style="font-size:9px;height:22px" onclick="event.stopPropagation();mmRename(${m.id})">✏ Rename</button>
+            <button class="btn btn-s" style="font-size:9px;height:22px" onclick="event.stopPropagation();_openMindMapAssign(${m.id})">👥 Assign</button>
             <button class="btn btn-s" style="font-size:9px;height:22px" onclick="event.stopPropagation();mmDuplicate(${m.id})">📋 Clone</button>
             <button class="btn btn-s" style="font-size:9px;height:22px;color:var(--red)" onclick="event.stopPropagation();mmDelete(${m.id})">🗑</button>
           </div>
@@ -10221,6 +10225,108 @@ function renderMindmaps(){
   `}`;
 }
 
+// ── Mind-map assignment + sharing (multi-assignee + Primary Responsible) ──
+function _openMindMapAssign(id){
+  const mm=(D.mindmaps||[]).find(m=>m.id===id); if(!mm){toast('Mind map not found');return;}
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Mind Map</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(mm.title||mm.name||'Untitled')}</div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('mm-assign-ma',mm)}</div>
+    <div class="dr-actions" style="margin-top:14px">
+      <button class="btn btn-p" onclick="_saveMindMapAssign(${id})">Save</button>
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+  </div>`;
+  bg.classList.add('show');
+}
+function _saveMindMapAssign(id){
+  const mm=(D.mindmaps||[]).find(m=>m.id===id); if(!mm)return;
+  if(typeof _maGet==='function'){ const ma=_maGet('mm-assign-ma'); mm.assignees=ma.assignees; mm.assigneeNames=ma.assigneeNames; mm.primaryAssigneeId=ma.primaryAssigneeId; const pi=ma.assignees.indexOf(ma.primaryAssigneeId); mm.assignedTo=pi>=0?ma.assigneeNames[pi]:''; }
+  mm.updatedAt=new Date().toISOString();
+  if(typeof saveMindmaps==='function')saveMindmaps();
+  document.getElementById('modal-capture').classList.remove('show');
+  toast({type:'success',title:'Assigned',msg:mm.assignedTo?('Primary: '+mm.assignedTo):'Assignees updated.',duration:1800});
+  if(typeof renderMindmaps==='function')renderMindmaps();
+}
+async function _loadSharedMindMaps(){
+  try{ if(typeof _trpc!=='function')return; const res=await _trpc('appData.sharedMindMapsForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.mindmaps)){ D._sharedMindMaps=res.mindmaps.map((p,i)=>({...p,_idx:i})); if(typeof curScreen!=='undefined'&&curScreen==='mindmaps'&&typeof renderMindmaps==='function')renderMindmaps(); }
+  }catch(e){ /* non-fatal */ }
+}
+function _renderSharedMindMapsSection(){
+  const shared=Array.isArray(D._sharedMindMaps)?D._sharedMindMaps:[];
+  if(!shared.length)return '';
+  const open=!(D.prefs&&D.prefs.sharedMMSectionCollapsed);
+  return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:12px">
+    <div onclick="_toggleSharedMMSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
+      <span style="display:inline-block;font-size:9px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
+      <span style="font-size:9px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+    </div>
+    ${open?shared.map(_sharedMindMapCard).join(''):''}
+  </div>`;
+}
+function _toggleSharedMMSection(){ D.prefs=D.prefs||{}; D.prefs.sharedMMSectionCollapsed=!D.prefs.sharedMMSectionCollapsed; try{save('prefs');}catch(_){} if(typeof renderMindmaps==='function')renderMindmaps(); }
+function _sharedMindMapCard(p){
+  const delegated=!!p._delegated;
+  const who=delegated?(p._assigneeName||'someone'):(typeof _userNameById==='function'?_userNameById(p._sharedFromUserId):'a teammate');
+  const badge=delegated?'DELEGATED':'SHARED';
+  const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
+  return `<div onclick="_openSharedMindMapView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared mind map — click to edit">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:8px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.icon?p.icon+' ':'🧠 ')+(p.title||p.name||'Untitled'))}</span>
+    </div>
+    <div style="font-size:10px;color:var(--t3);margin-top:2px">${(p.nodes||[]).length} nodes · ${sub}</div>
+  </div>`;
+}
+async function _openSharedMindMapView(idx){
+  let p=(D._sharedMindMaps||[])[idx];
+  if(!p&&typeof _loadSharedMindMaps==='function'){ await _loadSharedMindMaps(); p=(D._sharedMindMaps||[])[idx]; }
+  if(!p){toast('Shared mind map not found — try refreshing.');return;}
+  const from=p._delegated?'you':(typeof _userNameById==='function'?_userNameById(p._sharedFromUserId):'a teammate');
+  const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!modal||!bg){toast('Editor not available');return;}
+  const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
+  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:8px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+    </div>
+    <div class="field"><label>Name</label><input class="inp" id="smm-name" value="${esc(p.title||p.name||'')}"></div>
+    <div class="field"><label>Assignees <span style="font-size:9px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('smm-ma',p)}</div>
+    <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="_saveSharedMindMap(${Number(idx)||0})">Save</button>
+      ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'mindmaps')" title="Move this mind map into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
+      ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'mindmaps')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
+    </div>
+    <div style="font-size:9px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the graph stays with the owner.':'Saved to the mind-map owner.'}</div>
+  </div>`;
+  bg.classList.add('show');
+}
+async function _saveSharedMindMap(idx){
+  const p=(D._sharedMindMaps||[])[idx]; if(!p){toast('Could not save — refresh and try again.');return;}
+  const ownerUserId=Number(p._sharedFromUserId)||0; const mindmapId=String(p.id);
+  const g=id=>document.getElementById(id);
+  const patch={ name:(g('smm-name')?.value||'').trim() };
+  if(typeof _maGet==='function'){ const ma=_maGet('smm-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
+  try{
+    const res=await _trpc('appData.updateSharedMindMap',{ownerUserId,mindmapId,patch},'mutation');
+    if(res&&res.ok){
+      Object.assign(p,patch); if(patch.name)p.title=patch.name;
+      const mine=(D.mindmaps||[]).find(x=>String(x.id)===mindmapId);
+      if(mine){ if(patch.name)mine.title=patch.name; mine.assignees=patch.assignees; mine.assigneeNames=patch.assigneeNames; mine.primaryAssigneeId=patch.primaryAssigneeId; try{if(typeof saveMindmaps==='function')saveMindmaps();}catch(_){} }
+      toast({type:'success',title:'Saved',msg:'Changes saved to the mind-map owner.',duration:2200});
+      document.getElementById('modal-capture').classList.remove('show');
+      if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps();
+      else if(typeof renderMindmaps==='function')renderMindmaps();
+    }else{ toast({type:'error',title:'Could not save',msg:(res&&res.error)||'Try again.'}); }
+  }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
+}
 function mmCreate(){
   // M11: route through the template picker instead of a bare prompt.
   if(typeof mmShowTemplates==='function')return mmShowTemplates();
