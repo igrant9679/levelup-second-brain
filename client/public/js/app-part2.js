@@ -11936,7 +11936,7 @@ async function _loadSharedSheets(){
 function _shPopMenu(ev,items,width){
   const old=document.getElementById('sh-popmenu'); if(old)old.remove();
   const m=document.createElement('div'); m.id='sh-popmenu'; m.className='sh-popmenu'; if(width)m.style.minWidth=width+'px';
-  m.innerHTML=items.map((it,i)=>`<div class="sh-popmenu-item" data-i="${i}">${it.html||esc(it.label||'')}</div>`).join('');
+  m.innerHTML=items.map((it,i)=>it.header?`<div style="padding:6px 8px 2px;cursor:default">${it.html||''}</div>`:`<div class="sh-popmenu-item" data-i="${i}">${it.html||esc(it.label||'')}</div>`).join('');
   document.body.appendChild(m);
   const cx=(ev&&ev.clientX)||200, cy=(ev&&ev.clientY)||160;
   const w=m.offsetWidth||200,h=m.offsetHeight||100;
@@ -11990,12 +11990,14 @@ const DECK_TEMPLATES=[
   {key:'title',name:'Title slide',icon:'🎬',desc:'Title + subtitle',build:()=>({title:'Presentation',icon:'🎬',color:'#8b5cf6',slides:[{bg:'',elements:[
     Object.assign(_dkText(10,32,80,18,'Your Big Idea',46,{bold:true,align:'center'})),
     _dkText(10,52,80,10,'A short, punchy subtitle goes here',20,{align:'center',color:'#64748b'})]}]})},
-  {key:'pitch',name:'Pitch deck',icon:'🚀',desc:'6 investor-ready slides',build:()=>({title:'Pitch deck',icon:'🚀',color:'#3b82f6',slides:[
+  {key:'pitch',name:'Pitch deck',icon:'🚀',desc:'Raise capital: problem → model → financials → ask',build:()=>({title:'Pitch deck',icon:'🚀',color:'#3b82f6',slides:[
     {bg:'',elements:[_dkText(10,34,80,16,'Company Name',46,{bold:true,align:'center'}),_dkText(10,52,80,8,'One line on what you do',19,{align:'center',color:'#64748b'})]},
     {bg:'',elements:[_dkText(7,7,86,10,'The Problem',30,{bold:true}),{type:'bullets',x:8,y:24,w:84,h:62,title:'',items:['Customers struggle with X today','Existing tools are slow and costly','The pain is growing'],color:'#ef4444'}]},
     {bg:'',elements:[_dkText(7,7,86,10,'Our Solution',30,{bold:true}),{type:'bullets',x:8,y:24,w:50,h:62,title:'',items:['One-click workflow','10x faster','Built for teams'],color:'#10b981'},{type:'metric',x:62,y:28,w:30,h:24,value:'10x',label:'faster than status quo',color:'#10b981'}]},
     {bg:'',elements:[_dkText(7,7,86,10,'Market',30,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'bar',title:'TAM / SAM / SOM ($B)',labels:['TAM','SAM','SOM'],series:[{name:'Market',color:'#3b82f6',data:[50,12,3]}]}]},
+    {bg:'',elements:[_dkText(7,7,86,10,'Business Model',30,{bold:true}),{type:'bullets',x:8,y:24,w:46,h:60,title:'',items:['SaaS subscription, billed annually','Three tiers: Starter / Pro / Enterprise','Expansion revenue from seats & add-ons'],color:'#3b82f6'},{type:'table',x:56,y:24,w:38,h:46,header:true,rows:[['Plan','Price/mo'],['Starter','$29'],['Pro','$99'],['Enterprise','Custom']]}]},
     {bg:'',elements:[_dkText(7,7,86,10,'Traction',30,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'line',title:'MRR growth',labels:['Q1','Q2','Q3','Q4'],series:[{name:'MRR',color:'#10b981',data:[8,14,26,41]}]}]},
+    {bg:'',elements:[_dkText(7,7,86,10,'Financial Projections',30,{bold:true}),{type:'chart',x:8,y:20,w:60,h:66,chart:'bar',title:'Revenue ($M)',labels:['Y1','Y2','Y3'],series:[{name:'Revenue',color:'#3b82f6',data:[0.5,2,5]}]},{type:'metric',x:70,y:26,w:24,h:22,value:'$5M',label:'ARR by Year 3',color:'#10b981'},{type:'metric',x:70,y:54,w:24,h:22,value:'80%',label:'gross margin',color:'#3b82f6'}]},
     {bg:'',elements:[_dkText(10,34,80,16,'The Ask',42,{bold:true,align:'center'}),_dkText(10,52,80,8,'Raising $1.5M to reach $5M ARR',20,{align:'center',color:'#64748b'})]}
   ]})},
   {key:'project',name:'Project review',icon:'📋',desc:'Status board + timeline + KPIs',build:()=>({title:'Project review',icon:'📋',color:'#06b6d4',slides:[
@@ -12008,6 +12010,84 @@ const DECK_TEMPLATES=[
     {bg:'',elements:[_dkText(10,36,80,14,'2026 Strategy',40,{bold:true,align:'center'})]},
     {bg:'',elements:[_dkText(7,6,86,10,'Objectives',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Grow activation to 45%','Reach $50k MRR','Ship mobile app'],color:'#8b5cf6'}]},
     {bg:'',elements:[_dkText(7,6,86,10,'KPIs',28,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'donut',title:'Effort by theme',labels:['Growth','Retention','Platform'],series:[{name:'Effort',color:'#8b5cf6',data:[40,35,25]}]}]}
+  ]})},
+  {key:'sales',name:'Sales deck',icon:'🏷',desc:'Win the deal: benefits, pricing, proof',build:()=>({title:'Sales deck',icon:'🏷',color:'#f59e0b',slides:[
+    {bg:'',elements:[_dkText(10,34,80,16,'Product Name',44,{bold:true,align:'center'}),_dkText(10,52,80,8,'The fastest way to <achieve outcome>',19,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'The challenge',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Teams waste hours on manual work','Tools do not talk to each other','Mistakes cost time and money'],color:'#ef4444'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'How we help',28,{bold:true}),{type:'bullets',x:8,y:22,w:50,h:64,title:'',items:['Automate the busywork','One source of truth','Set up in minutes'],color:'#10b981'},{type:'metric',x:62,y:24,w:30,h:22,value:'30%',label:'time saved',color:'#10b981'},{type:'metric',x:62,y:52,w:30,h:22,value:'2x',label:'faster delivery',color:'#f59e0b'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Pricing',28,{bold:true}),{type:'table',x:10,y:22,w:80,h:50,header:true,rows:[['Plan','Price','Best for'],['Starter','$29/mo','Individuals'],['Pro','$99/mo','Growing teams'],['Enterprise','Custom','Large orgs']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Proof',28,{bold:true}),_dkText(8,22,84,16,'“This cut our reporting time in half and paid for itself in a month.”',20,{italic:true,color:'#334155'}),_dkText(8,42,84,6,'— Happy Customer, VP Operations',14,{color:'#64748b'}),{type:'metric',x:20,y:56,w:26,h:24,value:'4.9/5',label:'customer rating',color:'#f59e0b'},{type:'metric',x:54,y:56,w:26,h:24,value:'120+',label:'teams onboard',color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(10,36,80,14,'Let’s get started',40,{bold:true,align:'center'}),_dkText(10,54,80,8,'Book a demo · hello@company.com',18,{align:'center',color:'#64748b'})]}
+  ]})},
+  {key:'company',name:'Company profile',icon:'🏢',desc:'Brand overview: mission, story, services',build:()=>({title:'Company profile',icon:'🏢',color:'#3b82f6',slides:[
+    {bg:'',elements:[_dkText(10,34,80,16,'Company Name',46,{bold:true,align:'center'}),_dkText(10,52,80,8,'Tagline that captures the brand',19,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Who we are',28,{bold:true}),_dkText(8,24,84,40,'We are a team on a mission to <change>. Founded in <year>, we help <audience> achieve <outcome> through <approach>.',20,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Our journey',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:48,header:true,rows:[['Year','Milestone'],['2021','Company founded'],['2023','Reached 1,000 customers'],['2025','Expanded internationally']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'What we do',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Core service one','Core service two','Core service three'],color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'By the numbers',28,{bold:true}),{type:'metric',x:6,y:30,w:26,h:26,value:'1,200+',label:'customers',color:'#3b82f6'},{type:'metric',x:37,y:30,w:26,h:26,value:'40',label:'team members',color:'#10b981'},{type:'metric',x:68,y:30,w:26,h:26,value:'12',label:'countries',color:'#f59e0b'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Our values',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Customer obsession','Move with purpose','Better together'],color:'#8b5cf6'}]}
+  ]})},
+  {key:'marketing',name:'Marketing plan',icon:'📣',desc:'Goals, audience, channels & budget',build:()=>({title:'Marketing plan',icon:'📣',color:'#ec4899',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'Marketing Plan',42,{bold:true,align:'center'}),_dkText(10,54,80,8,'<Quarter / campaign> overview',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Goals & KPIs',28,{bold:true}),{type:'bullets',x:8,y:22,w:50,h:62,title:'',items:['Grow qualified leads by 40%','Lift brand awareness','Improve conversion rate'],color:'#ec4899'},{type:'metric',x:62,y:24,w:30,h:22,value:'40%',label:'lead growth target',color:'#ec4899'},{type:'metric',x:62,y:52,w:30,h:22,value:'3.5%',label:'target conversion',color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Target audience',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:50,header:true,rows:[['Persona','Need','Channel'],['Founder','Save time','LinkedIn'],['Manager','Team visibility','Email'],['Analyst','Better data','Webinar']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Budget by channel',28,{bold:true}),{type:'chart',x:8,y:20,w:84,h:66,chart:'donut',title:'Spend mix',labels:['Paid search','Social','Content','Events'],series:[{name:'Spend',color:'#ec4899',data:[35,25,25,15]}]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Campaign timeline',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:50,header:true,rows:[['Phase','Timing','Owner'],['Launch','Month 1','Marketing'],['Nurture','Month 2','Lifecycle'],['Convert','Month 3','Sales']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Expected results',28,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'line',title:'Leads per month',labels:['M1','M2','M3','M4'],series:[{name:'Leads',color:'#ec4899',data:[120,180,260,340]}]}]}
+  ]})},
+  {key:'roadmap',name:'Product roadmap',icon:'🧭',desc:'Vision, now/next/later & milestones',build:()=>({title:'Product roadmap',icon:'🧭',color:'#06b6d4',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'Product Roadmap',42,{bold:true,align:'center'}),_dkText(10,54,80,8,'Where we are headed and why',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Vision',28,{bold:true}),_dkText(8,26,84,30,'In 12 months, <product> will be the default way teams <do the job>. We get there by focusing on <themes>.',22,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Now / Next / Later',28,{bold:true}),{type:'kanban',x:6,y:20,w:88,h:70,columns:[{title:'Now',color:'#06b6d4',cards:['Onboarding v2','Mobile beta']},{title:'Next',color:'#3b82f6',cards:['Integrations','Dashboards']},{title:'Later',color:'#8b5cf6',cards:['AI assist','Marketplace']}]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Quarterly plan',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Initiative','Quarter','Owner','Status'],['Onboarding v2','Q1','Product','On track'],['Integrations','Q2','Eng','Planned'],['AI assist','Q3','Eng','Idea']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Milestones',28,{bold:true}),{type:'progress',x:8,y:24,w:84,h:12,value:80,label:'Onboarding v2',color:'#06b6d4'},{type:'progress',x:8,y:44,w:84,h:12,value:45,label:'Integrations',color:'#3b82f6'},{type:'progress',x:8,y:64,w:84,h:12,value:15,label:'AI assist',color:'#8b5cf6'}]}
+  ]})},
+  {key:'portfolio',name:'Agency portfolio',icon:'🎨',desc:'Showcase work, case studies & team',build:()=>({title:'Agency portfolio',icon:'🎨',color:'#8b5cf6',slides:[
+    {bg:'',elements:[_dkText(10,34,80,16,'Agency Name',46,{bold:true,align:'center'}),_dkText(10,52,80,8,'Creative that drives results',19,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'About us',28,{bold:true}),_dkText(8,24,84,40,'We are a <type> agency helping brands <outcome>. Part strategy, part craft, all results.',22,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'What we do',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Brand strategy & identity','Campaign & content','Web & product design'],color:'#8b5cf6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Selected work',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Client','Project','Result'],['Brand A','Rebrand','+38% recall'],['Brand B','Launch','2M reach'],['Brand C','Web redesign','+25% signups']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Case study',28,{bold:true}),_dkText(8,22,84,14,'We helped Brand A relaunch and grew brand recall by 38% in one quarter.',20,{color:'#334155'}),{type:'metric',x:20,y:48,w:26,h:24,value:'+38%',label:'brand recall',color:'#8b5cf6'},{type:'metric',x:54,y:48,w:26,h:24,value:'6 wks',label:'to launch',color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(10,36,80,14,'Let’s create together',38,{bold:true,align:'center'}),_dkText(10,54,80,8,'hello@agency.com',18,{align:'center',color:'#64748b'})]}
+  ]})},
+  {key:'kickoff',name:'Project kickoff',icon:'🚀',desc:'Align on goals, scope, roles & timeline',build:()=>({title:'Project kickoff',icon:'🚀',color:'#10b981',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'Project Kickoff',42,{bold:true,align:'center'}),_dkText(10,54,80,8,'<Project name>',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Goals',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['What success looks like','Why this matters now','How we will measure it'],color:'#10b981'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Scope & deliverables',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Deliverable','Owner','Due'],['Discovery','Team A','Wk 2'],['Build','Team B','Wk 6'],['Launch','Team C','Wk 8']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Team & responsibilities',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Name','Role','Responsible for'],['Alex','Lead','Delivery'],['Sam','Design','Experience'],['Jo','Eng','Build']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Timeline',28,{bold:true}),{type:'kanban',x:6,y:20,w:88,h:70,columns:[{title:'Weeks 1-2',color:'#64748b',cards:['Kickoff','Discovery']},{title:'Weeks 3-6',color:'#3b82f6',cards:['Design','Build']},{title:'Weeks 7-8',color:'#10b981',cards:['QA','Launch']}]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Risks & next steps',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Risk: scope creep — weekly review','Risk: dependency delays — flag early','Next: confirm owners and dates'],color:'#f59e0b'}]}
+  ]})},
+  {key:'exec',name:'Executive briefing',icon:'📈',desc:'Insights, performance & recommendations',build:()=>({title:'Executive briefing',icon:'📈',color:'#3b82f6',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'Executive Briefing',40,{bold:true,align:'center'}),_dkText(10,54,80,8,'<Period> · prepared for leadership',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Executive summary',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Headline takeaway one','Headline takeaway two','Decision needed'],color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Performance',28,{bold:true}),{type:'metric',x:6,y:22,w:26,h:22,value:'$4.2M',label:'revenue',color:'#10b981'},{type:'metric',x:37,y:22,w:26,h:22,value:'+18%',label:'vs last period',color:'#3b82f6'},{type:'chart',x:6,y:48,w:88,h:44,chart:'bar',title:'Revenue by quarter ($M)',labels:['Q1','Q2','Q3','Q4'],series:[{name:'Revenue',color:'#3b82f6',data:[3.1,3.5,3.9,4.2]}]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Market & competition',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:50,header:true,rows:[['Player','Position','Trend'],['Us','Challenger','Up'],['Competitor A','Leader','Flat'],['Competitor B','Niche','Up']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Recommendations',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Invest in <area>','Pause <initiative>','Decision: approve <budget>'],color:'#10b981'}]}
+  ]})},
+  {key:'onboarding',name:'Onboarding / training',icon:'🎓',desc:'Welcome new hires: agenda, tools, people',build:()=>({title:'Onboarding',icon:'🎓',color:'#10b981',slides:[
+    {bg:'',elements:[_dkText(10,34,80,16,'Welcome to the team',42,{bold:true,align:'center'}),_dkText(10,52,80,8,'New hire onboarding',19,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Agenda',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['About the company','Your first week','Tools & systems','Who to ask for help'],color:'#10b981'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'About the company',28,{bold:true}),_dkText(8,24,84,36,'Our mission is <mission>. We value <values> and work as <how we work>.',22,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Your first week',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Day','Focus','Goal'],['Day 1','Setup & intros','Get access'],['Day 2-3','Shadowing','Learn the flow'],['Day 4-5','First task','Ship something small']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Tools & systems',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Email & calendar','Project tracker','Docs & wiki','Chat & meetings'],color:'#3b82f6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Getting help',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Your manager for priorities','Your buddy for day-to-day','IT for access issues'],color:'#8b5cf6'}]}
+  ]})},
+  {key:'instructional',name:'Instructional / how-to',icon:'📚',desc:'Teach a topic step by step',build:()=>({title:'How-to guide',icon:'📚',color:'#f59e0b',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'How to <do the thing>',40,{bold:true,align:'center'}),_dkText(10,54,80,8,'A step-by-step guide',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Learning objectives',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Understand <concept>','Be able to <task>','Avoid common mistakes'],color:'#f59e0b'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Overview',28,{bold:true}),_dkText(8,24,84,36,'Before we start: here is the big picture and why it matters.',22,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Step by step',28,{bold:true}),{type:'table',x:8,y:22,w:84,h:52,header:true,rows:[['Step','Action','Result'],['1','Do this first','You get X'],['2','Then do this','You get Y'],['3','Finally do this','Done']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Example',28,{bold:true}),{type:'image',x:8,y:22,w:84,h:60,src:'',fit:'contain'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Key takeaways',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Remember <point one>','Remember <point two>','Practice <skill>'],color:'#10b981'}]}
+  ]})},
+  {key:'webinar',name:'Webinar',icon:'🎥',desc:'Engage a remote audience & build authority',build:()=>({title:'Webinar',icon:'🎥',color:'#ec4899',slides:[
+    {bg:'',elements:[_dkText(10,32,80,18,'Webinar Title',44,{bold:true,align:'center'}),_dkText(10,52,80,8,'Presented by <Name>, <Title>',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Today’s agenda',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['The problem worth solving','3 key strategies','Live demo','Q&A'],color:'#ec4899'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'About your host',28,{bold:true}),{type:'image',x:8,y:22,w:30,h:54,src:'',fit:'cover'},_dkText(42,24,52,40,'<Name> has spent <years> helping <audience> achieve <result>.',20,{color:'#334155'})]},
+    {bg:'',elements:[_dkText(10,40,80,16,'Strategy 1',40,{bold:true,align:'center',color:'#ec4899'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Why it works',28,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'bar',title:'Results before vs after',labels:['Before','After'],series:[{name:'Outcome',color:'#ec4899',data:[30,75]}]}]},
+    {bg:'',elements:[_dkText(10,38,80,14,'Questions?',42,{bold:true,align:'center'}),_dkText(10,56,80,8,'Drop them in the chat · grab the free guide',18,{align:'center',color:'#64748b'})]}
   ]})}
 ];
 function _dkStampIds(deck){ let sid=1,eid=1; (deck.slides||[]).forEach(s=>{ s.id=sid++; (s.elements||[]).forEach(e=>{ e.id=eid++; }); }); return deck; }
@@ -12051,7 +12131,19 @@ function _dkSharedCard(d,i){
     <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
     <div class="sh-card-meta">${(d.slides||[]).length} slides · ${d._delegated?'➡ ':'👥 '}${tag}</div><div class="sh-card-bar"></div></div>`;
 }
-function dkNewDeckMenu(ev){ if(ev&&ev.stopPropagation)ev.stopPropagation(); _shPopMenu(ev||{clientX:200,clientY:160},DECK_TEMPLATES.map(t=>({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>dkCreateFromTemplate(t.key)})),260); }
+const DECK_CATS={blank:'Start',title:'Start',pitch:'Business & Sales',sales:'Business & Sales',company:'Business & Sales',marketing:'Marketing & Strategy',roadmap:'Marketing & Strategy',portfolio:'Marketing & Strategy',strategy:'Marketing & Strategy',project:'Internal & Operational',kickoff:'Internal & Operational',exec:'Internal & Operational',onboarding:'Internal & Operational',instructional:'Educational & Informational',webinar:'Educational & Informational'};
+function dkNewDeckMenu(ev){
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  const order=['Start','Business & Sales','Marketing & Strategy','Internal & Operational','Educational & Informational'];
+  const items=[];
+  order.forEach(cat=>{
+    const inCat=DECK_TEMPLATES.filter(t=>(DECK_CATS[t.key]||'Start')===cat);
+    if(!inCat.length)return;
+    items.push({header:true,html:`<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.5px">${esc(cat)}</div>`});
+    inCat.forEach(t=>items.push({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>dkCreateFromTemplate(t.key)}));
+  });
+  _shPopMenu(ev||{clientX:200,clientY:160},items,280);
+}
 function dkCreateFromTemplate(key){
   ensureDecks();
   const tpl=DECK_TEMPLATES.find(t=>t.key===key)||DECK_TEMPLATES[0];
