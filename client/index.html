@@ -2267,17 +2267,26 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 /* ─── Notes ⇄ Sheets mode toggle ─── */
 .notes-mode-seg button{height:28px;font-size:10px;padding:0 11px;background:transparent;border:none;color:var(--t2);cursor:pointer;font-weight:600}
 .notes-mode-seg button.on{background:var(--ac);color:#fff}
-#notes-sheets-section{display:none;grid-column:2/-1;grid-row:2;min-height:0;overflow:auto;margin:6px 16px 16px;flex-direction:column}
-.notes-only-sheets{display:none!important}
+#notes-sheets-section,#notes-slides-section{display:none;grid-column:2/-1;grid-row:2;min-height:0;overflow:auto;margin:6px 16px 16px;flex-direction:column}
+.notes-only-sheets,.notes-only-slides{display:none!important}
 body.notes-mode-sheets #s-notes .notes-nav,
 body.notes-mode-sheets #s-notes .notes-list,
 body.notes-mode-sheets #s-notes .notes-editor,
 body.notes-mode-sheets #s-notes .notes-rail,
 body.notes-mode-sheets #s-notes #notes-mobile-tabs,
-body.notes-mode-sheets #s-notes .notes-resize{display:none!important}
-body.notes-mode-sheets #s-notes .notes-only-notes{display:none!important}
+body.notes-mode-sheets #s-notes .notes-resize,
+body.notes-mode-slides #s-notes .notes-nav,
+body.notes-mode-slides #s-notes .notes-list,
+body.notes-mode-slides #s-notes .notes-editor,
+body.notes-mode-slides #s-notes .notes-rail,
+body.notes-mode-slides #s-notes #notes-mobile-tabs,
+body.notes-mode-slides #s-notes .notes-resize{display:none!important}
+body.notes-mode-sheets #s-notes .notes-only-notes,
+body.notes-mode-slides #s-notes .notes-only-notes{display:none!important}
 body.notes-mode-sheets #s-notes .notes-only-sheets{display:inline-flex!important}
+body.notes-mode-slides #s-notes .notes-only-slides{display:inline-flex!important}
 body.notes-mode-sheets #s-notes #notes-sheets-section{display:flex!important}
+body.notes-mode-slides #s-notes #notes-slides-section{display:flex!important}
 /* ─── Sheets gallery ─── */
 .sh-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .sh-card{position:relative;background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:14px 14px 16px;cursor:pointer;overflow:hidden;transition:transform .12s,box-shadow .12s,border-color .12s}
@@ -2369,7 +2378,54 @@ body.sh-resizing{user-select:none!important}
 .sh-popmenu-item:hover{background:var(--s3)}
 .sh-dot{display:inline-block;width:11px;height:11px;border-radius:50%;flex-shrink:0}
 @media (max-width:760px){.sh-body{flex-direction:column}.sh-side{width:auto}}
-@media (max-width:900px){#notes-sheets-section{grid-column:1/-1!important;margin:6px 12px 14px}}
+@media (max-width:900px){#notes-sheets-section,#notes-slides-section{grid-column:1/-1!important;margin:6px 12px 14px}}
+/* ─── Slides / presentations ─── */
+.dk-editor{display:flex;flex-direction:column;min-height:0;flex:1}
+.dk-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.dk-ed-title{font-size:16px;font-weight:700;background:transparent;border:none;color:var(--t1);min-width:140px;max-width:300px;padding:2px 4px;border-radius:6px}
+.dk-ed-title:focus{outline:none;background:var(--s2);box-shadow:0 0 0 1px var(--bd2)}
+.dk-body{display:flex;gap:10px;flex:1;min-height:0}
+.dk-slidelist{width:132px;flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px}
+.dk-thumb{position:relative;border:2px solid var(--bd2);border-radius:7px;overflow:hidden;cursor:pointer;background:#fff;aspect-ratio:16/9;flex-shrink:0;container-type:inline-size}
+.dk-thumb.on{border-color:var(--ac);box-shadow:0 0 0 2px color-mix(in srgb,var(--ac) 40%,transparent)}
+.dk-thumb-n{position:absolute;top:2px;left:3px;font-size:8px;font-weight:700;color:var(--t3);background:rgba(255,255,255,.7);border-radius:3px;padding:0 3px}
+.dk-thumb-inner{position:absolute;inset:0;transform-origin:top left}
+.dk-thumb-add{border:1px dashed var(--bd2);border-radius:7px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:18px;cursor:pointer;flex-shrink:0}
+.dk-thumb-add:hover{color:var(--ac);border-color:var(--ac)}
+.dk-stage-wrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:16px}
+.dk-canvas{position:relative;width:100%;max-width:920px;aspect-ratio:16/9;background:#fff;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.25);overflow:hidden;flex-shrink:0;container-type:inline-size}
+.dk-el{position:absolute;box-sizing:border-box;overflow:hidden;cursor:move}
+.dk-el.sel{outline:2px solid var(--ac);outline-offset:0}
+.dk-el-resize{position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;background:var(--ac);border:2px solid #fff;border-radius:3px;cursor:nwse-resize;z-index:5}
+.dk-el-del{position:absolute;right:-1px;top:-9px;width:18px;height:18px;background:var(--red);color:#fff;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;z-index:5}
+.dk-props{width:236px;flex-shrink:0;overflow-y:auto;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:12px}
+.dk-props-h{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.4px;margin:0 0 7px}
+.dk-prop-row{margin-bottom:10px}
+.dk-prop-row label{font-size:10px;color:var(--t2);display:block;margin-bottom:3px}
+.dk-prop-row input[type=text],.dk-prop-row input[type=number],.dk-prop-row textarea,.dk-prop-row select{width:100%;font-size:11px;padding:5px 7px;background:var(--s1);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)}
+.dk-addgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.dk-add-b{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border:1px solid var(--bd2);border-radius:8px;cursor:pointer;font-size:9px;color:var(--t2);background:var(--s1)}
+.dk-add-b:hover{border-color:var(--ac);color:var(--ac)}
+.dk-add-b span{font-size:16px}
+.dk-color-grid{display:flex;flex-wrap:wrap;gap:5px}
+.dk-color-sw{width:22px;height:22px;border-radius:5px;cursor:pointer;border:2px solid transparent}
+.dk-color-sw.on{border-color:var(--t1)}
+/* element internals */
+.dk-el-text{padding:6px 8px;outline:none;width:100%;height:100%}
+.dk-kanban{display:flex;gap:6px;width:100%;height:100%;padding:6px;box-sizing:border-box}
+.dk-kan-col{flex:1;background:rgba(0,0,0,.05);border-radius:6px;padding:5px;display:flex;flex-direction:column;min-width:0}
+.dk-kan-h{font-size:10px;font-weight:700;margin-bottom:5px;display:flex;align-items:center;gap:4px}
+.dk-kan-card{background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:5px;padding:4px 6px;font-size:10px;margin-bottom:4px;box-shadow:0 1px 2px rgba(0,0,0,.08);cursor:text}
+.dk-kan-add{font-size:9px;color:#3b82f6;cursor:pointer;padding:2px}
+.dk-tbl{width:100%;height:100%;border-collapse:collapse;font-size:11px}
+.dk-tbl td,.dk-tbl th{border:1px solid rgba(0,0,0,.15);padding:3px 6px}
+.dk-tbl th{background:rgba(0,0,0,.05);font-weight:700}
+.dk-present{position:fixed;inset:0;z-index:100000;background:#0b0d12;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.dk-present-canvas{position:relative;width:92vw;max-width:calc(92vh*1.7778);aspect-ratio:16/9;background:#fff;box-shadow:0 10px 60px rgba(0,0,0,.6);overflow:hidden;container-type:inline-size}
+.dk-present-nav{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;color:#fff;font-size:12px}
+.dk-present-nav button{background:rgba(255,255,255,.14);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:15px}
+.dk-present-x{position:fixed;top:16px;right:18px;background:rgba(255,255,255,.14);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:15px;z-index:1}
+@media (max-width:900px){.dk-body{flex-direction:column}.dk-slidelist{flex-direction:row;width:auto}.dk-thumb{width:120px}.dk-props{width:auto}}
 </style>
 <div class="scr" id="s-notes"><div class="bg" style="grid-template-columns:var(--side) 160px 240px 1fr 200px;grid-template-rows:auto 1fr;min-height:0">
 <nav class="sb" data-sb style="grid-row:1/-1"></nav>
@@ -2382,12 +2438,14 @@ body.sh-resizing{user-select:none!important}
     <div class="notes-mode-seg" style="display:inline-flex;border:1px solid var(--bd2);border-radius:8px;overflow:hidden;margin-right:6px">
       <button id="notes-mode-notes" class="on" onclick="setNotesMode('notes')" title="Notes">📝 Notes</button>
       <button id="notes-mode-sheets-btn" onclick="setNotesMode('sheets')" title="Spreadsheets">📊 Sheets</button>
+      <button id="notes-mode-slides-btn" onclick="setNotesMode('slides')" title="Presentations">🖼 Slides</button>
     </div>
     <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
     <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT">📥 Import Docs</button>
     <button class="btn btn-s notes-only-notes" style="height:28px;font-size:10px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
     <button class="btn btn-p notes-only-notes" onclick="openFA('note')">+ New Note</button>
     <button class="btn btn-p notes-only-sheets" onclick="shNewSheetMenu(event)">+ New Sheet</button>
+    <button class="btn btn-p notes-only-slides" onclick="dkNewDeckMenu(event)">+ New Deck</button>
   </div>
 </header>
 <!-- Mobile-only tab strip to switch between the four Notes panes. -->
@@ -2417,6 +2475,7 @@ body.sh-resizing{user-select:none!important}
 <div class="notes-editor" id="notes-editor-panel" style="padding:16px;overflow-y:auto;min-height:0"></div>
 <div class="notes-rail" id="notes-rail-panel" style="min-height:0"></div>
 <section id="notes-sheets-section"></section>
+<section id="notes-slides-section"></section>
 </div></div>
 
 <!-- ===== S-13 MAIL ===== -->
@@ -2769,7 +2828,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-06-25-107';
+  var APP_BUILD='2026-06-25-108';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

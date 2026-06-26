@@ -579,6 +579,7 @@ export const userAppData = mysqlTable('user_app_data', {
   atlasAnnotations: mediumtext('atlasAnnotations'), // JSON object — per-user notes/tags keyed by `{type}:{id}` (migration 0044)
   mindmaps: mediumtext('mindmaps'),   // JSON array of mind-map objects (migration 0046 — made shareable)
   sheets: mediumtext('sheets'),       // JSON array of spreadsheet/Smartsheet-like sheet objects (migration 0047 — shareable)
+  decks: mediumtext('decks'),         // JSON array of presentation/slide-deck objects (migration 0048 — shareable)
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),

@@ -9629,7 +9629,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -9973,7 +9973,7 @@ async function loadServerData(){
         if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
       }
     }else{
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks'];
     let changed=false;
     // Timestamp the server blob was last written. A local-only item is only
     // "rescued" if it's NEWER than this — i.e. a genuinely new local add the
@@ -11472,14 +11472,17 @@ function _shPushShared(sheet){
 
 // ─── Notes ⇄ Sheets section toggle ───────────────────────────────────────────
 function _notesModeIsSheets(){ return !!(D.prefs&&D.prefs.notesMode==='sheets'); }
-function setNotesMode(mode){ D.prefs=D.prefs||{}; D.prefs.notesMode=(mode==='sheets'?'sheets':'notes'); try{(window.save||save)('prefs');}catch(_){} _applyNotesMode(); }
+function _notesModeIsSlides(){ return !!(D.prefs&&D.prefs.notesMode==='slides'); }
+function setNotesMode(mode){ D.prefs=D.prefs||{}; D.prefs.notesMode=(mode==='sheets'||mode==='slides')?mode:'notes'; try{(window.save||save)('prefs');}catch(_){} _applyNotesMode(); }
 function _applyNotesMode(){
-  const sheets=_notesModeIsSheets();
   if(typeof document==='undefined')return;
-  document.body.classList.toggle('notes-mode-sheets',sheets);
-  const bn=document.getElementById('notes-mode-notes'),bs=document.getElementById('notes-mode-sheets-btn');
-  if(bn)bn.classList.toggle('on',!sheets); if(bs)bs.classList.toggle('on',sheets);
-  if(sheets)renderSheetsSection();
+  const m=(D.prefs&&D.prefs.notesMode)||'notes';
+  document.body.classList.toggle('notes-mode-sheets',m==='sheets');
+  document.body.classList.toggle('notes-mode-slides',m==='slides');
+  const bn=document.getElementById('notes-mode-notes'),bs=document.getElementById('notes-mode-sheets-btn'),bd=document.getElementById('notes-mode-slides-btn');
+  if(bn)bn.classList.toggle('on',m==='notes'); if(bs)bs.classList.toggle('on',m==='sheets'); if(bd)bd.classList.toggle('on',m==='slides');
+  if(m==='sheets')renderSheetsSection();
+  if(m==='slides'&&typeof renderDecksSection==='function')renderDecksSection();
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
@@ -11955,6 +11958,370 @@ if(typeof window!=='undefined'&&!window._notesSheetsWrapped&&typeof window.rende
   const _origRenderNotes=window.renderNotes;
   window.renderNotes=function(){ const r=_origRenderNotes.apply(this,arguments); try{_applyNotesMode();}catch(_){} return r; };
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   SLIDES / DECKS — PowerPoint-like presentations, a section inside Notes.
+   Data: D.decks (blob array, migration 0048). Slides hold absolutely-
+   positioned elements (text/shape/image/chart/table/kanban/bullets/metric/
+   progress) in % coords; fonts use cqw so everything scales across the
+   editor canvas, thumbnails and present mode. Team co-edit via
+   appData.sharedDecksForMe / updateSharedDeck. Reuses _shPopMenu,
+   SHEET_PALETTE, SHEET_ICONS, buildMultiAssignee from the Sheets module.
+   ═════════════════════════════════════════════════════════════════════ */
+let _deckCurrent=null, _deckSlide=0, _deckSelEl=null, _deckEditingText=null;
+let _deckUndo=[], _deckRedo=[], _deckDrag=null;
+let _sharedDecksLoaded=false, _deckSharedSyncTimer=null;
+let _deckPresent=false, _deckPresentIdx=0;
+
+function ensureDecks(){ if(!Array.isArray(D.decks))D.decks=[]; }
+function _deckNextId(){ ensureDecks(); const all=D.decks.concat(Array.isArray(D._sharedDecks)?D._sharedDecks:[]); let mx=Date.now(); all.forEach(d=>{const n=Number(d.id); if(!isNaN(n)&&n>=mx)mx=n+1;}); return mx; }
+function _dkNewElId(){ let mx=0; (_deckCurrent.slides||[]).forEach(s=>(s.elements||[]).forEach(e=>{ if(e.id>mx)mx=e.id; })); return mx+1; }
+function _dkNewSlideId(){ let mx=0; (_deckCurrent.slides||[]).forEach(s=>{ if(s.id>mx)mx=s.id; }); return mx+1; }
+function saveDecks(){ if(_deckCurrent)_deckCurrent.updatedAt=new Date().toISOString(); if(_deckCurrent&&_deckCurrent._shared){ _dkPushShared(_deckCurrent); } else { try{(window.save||save)('decks');}catch(_){ try{localStorage.setItem('lu_decks',JSON.stringify(D.decks));}catch(__){} } } }
+function _dkPushShared(deck){ clearTimeout(_deckSharedSyncTimer); _deckSharedSyncTimer=setTimeout(async()=>{ try{ await _trpc('appData.updateSharedDeck',{ownerUserId:Number(deck._sharedFromUserId)||0,deckId:String(deck.id),patch:{title:deck.title,icon:deck.icon,color:deck.color,theme:deck.theme,slides:deck.slides,assignees:deck.assignees,assigneeNames:deck.assigneeNames,primaryAssigneeId:deck.primaryAssigneeId,assignedTo:deck.assignedTo}},'mutation'); }catch(e){ if(typeof toast==='function')toast({type:'error',title:'Shared deck not synced',msg:String(e&&e.message||e).slice(0,120)}); } },1500); }
+function _dkSnap(){ if(!_deckCurrent)return; try{ _deckUndo.push(JSON.stringify(_deckCurrent.slides)); if(_deckUndo.length>50)_deckUndo.shift(); _deckRedo=[]; }catch(_){} }
+function dkUndo(){ if(!_deckCurrent||!_deckUndo.length)return toast('Nothing to undo'); _deckRedo.push(JSON.stringify(_deckCurrent.slides)); _deckCurrent.slides=JSON.parse(_deckUndo.pop()); if(_deckSlide>=_deckCurrent.slides.length)_deckSlide=Math.max(0,_deckCurrent.slides.length-1); _deckSelEl=null; saveDecks(); renderDecksSection(); }
+function dkRedo(){ if(!_deckCurrent||!_deckRedo.length)return toast('Nothing to redo'); _deckUndo.push(JSON.stringify(_deckCurrent.slides)); _deckCurrent.slides=JSON.parse(_deckRedo.pop()); _deckSelEl=null; saveDecks(); renderDecksSection(); }
+
+// ─── Templates ───────────────────────────────────────────────────────────────
+function _dkText(x,y,w,h,text,fontSize,extra){ return Object.assign({type:'text',x,y,w,h,text,fontSize:fontSize||20,bold:false,italic:false,align:'left',color:'#0f172a'},extra||{}); }
+const DECK_TEMPLATES=[
+  {key:'blank',name:'Blank deck',icon:'🖼',desc:'One empty slide',build:()=>({title:'Untitled deck',icon:'🖼',color:'#3b82f6',slides:[{bg:'',elements:[_dkText(8,8,84,14,'Click to add a title',34,{bold:true})]}]})},
+  {key:'title',name:'Title slide',icon:'🎬',desc:'Title + subtitle',build:()=>({title:'Presentation',icon:'🎬',color:'#8b5cf6',slides:[{bg:'',elements:[
+    Object.assign(_dkText(10,32,80,18,'Your Big Idea',46,{bold:true,align:'center'})),
+    _dkText(10,52,80,10,'A short, punchy subtitle goes here',20,{align:'center',color:'#64748b'})]}]})},
+  {key:'pitch',name:'Pitch deck',icon:'🚀',desc:'6 investor-ready slides',build:()=>({title:'Pitch deck',icon:'🚀',color:'#3b82f6',slides:[
+    {bg:'',elements:[_dkText(10,34,80,16,'Company Name',46,{bold:true,align:'center'}),_dkText(10,52,80,8,'One line on what you do',19,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,7,86,10,'The Problem',30,{bold:true}),{type:'bullets',x:8,y:24,w:84,h:62,title:'',items:['Customers struggle with X today','Existing tools are slow and costly','The pain is growing'],color:'#ef4444'}]},
+    {bg:'',elements:[_dkText(7,7,86,10,'Our Solution',30,{bold:true}),{type:'bullets',x:8,y:24,w:50,h:62,title:'',items:['One-click workflow','10x faster','Built for teams'],color:'#10b981'},{type:'metric',x:62,y:28,w:30,h:24,value:'10x',label:'faster than status quo',color:'#10b981'}]},
+    {bg:'',elements:[_dkText(7,7,86,10,'Market',30,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'bar',title:'TAM / SAM / SOM ($B)',labels:['TAM','SAM','SOM'],series:[{name:'Market',color:'#3b82f6',data:[50,12,3]}]}]},
+    {bg:'',elements:[_dkText(7,7,86,10,'Traction',30,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'line',title:'MRR growth',labels:['Q1','Q2','Q3','Q4'],series:[{name:'MRR',color:'#10b981',data:[8,14,26,41]}]}]},
+    {bg:'',elements:[_dkText(10,34,80,16,'The Ask',42,{bold:true,align:'center'}),_dkText(10,52,80,8,'Raising $1.5M to reach $5M ARR',20,{align:'center',color:'#64748b'})]}
+  ]})},
+  {key:'project',name:'Project review',icon:'📋',desc:'Status board + timeline + KPIs',build:()=>({title:'Project review',icon:'📋',color:'#06b6d4',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'Project Review',40,{bold:true,align:'center'}),_dkText(10,52,80,8,'Weekly status update',18,{align:'center',color:'#64748b'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Status board',28,{bold:true}),{type:'kanban',x:6,y:20,w:88,h:70,columns:[{title:'To do',color:'#64748b',cards:['Spec API','Wireframes']},{title:'In progress',color:'#3b82f6',cards:['Auth flow']},{title:'Done',color:'#10b981',cards:['Kickoff','Research']}]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Timeline',28,{bold:true}),{type:'table',x:6,y:20,w:88,h:60,header:true,rows:[['Milestone','Owner','Date','Status'],['Beta','Alex','Jul 15','On track'],['Launch','Sam','Aug 30','At risk']]}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'KPIs',28,{bold:true}),{type:'metric',x:8,y:24,w:24,h:26,value:'73%',label:'On-time delivery',color:'#10b981'},{type:'metric',x:38,y:24,w:24,h:26,value:'4',label:'Open risks',color:'#f59e0b'},{type:'progress',x:8,y:60,w:84,h:14,value:62,label:'Overall completion',color:'#3b82f6'}]}
+  ]})},
+  {key:'strategy',name:'Strategy / OKRs',icon:'🎯',desc:'Goals, roadmap & metrics',build:()=>({title:'Strategy',icon:'🎯',color:'#8b5cf6',slides:[
+    {bg:'',elements:[_dkText(10,36,80,14,'2026 Strategy',40,{bold:true,align:'center'})]},
+    {bg:'',elements:[_dkText(7,6,86,10,'Objectives',28,{bold:true}),{type:'bullets',x:8,y:22,w:84,h:64,title:'',items:['Grow activation to 45%','Reach $50k MRR','Ship mobile app'],color:'#8b5cf6'}]},
+    {bg:'',elements:[_dkText(7,6,86,10,'KPIs',28,{bold:true}),{type:'chart',x:8,y:22,w:84,h:64,chart:'donut',title:'Effort by theme',labels:['Growth','Retention','Platform'],series:[{name:'Effort',color:'#8b5cf6',data:[40,35,25]}]}]}
+  ]})}
+];
+function _dkStampIds(deck){ let sid=1,eid=1; (deck.slides||[]).forEach(s=>{ s.id=sid++; (s.elements||[]).forEach(e=>{ e.id=eid++; }); }); return deck; }
+
+// ─── Section render ──────────────────────────────────────────────────────────
+function renderDecksSection(){
+  const host=document.getElementById('notes-slides-section'); if(!host)return;
+  ensureDecks();
+  if(!_sharedDecksLoaded)_loadSharedDecks();
+  if(_deckCurrent){ host.innerHTML=_dkEditorHtml(); return; }
+  const own=D.decks.slice().sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+  const shared=Array.isArray(D._sharedDecks)?D._sharedDecks:[];
+  const totalSlides=D.decks.reduce((s,d)=>s+((d.slides||[]).length),0);
+  host.innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px">🖼 Slides</div>
+        <div style="font-size:11px;color:var(--t2)">${D.decks.length} deck${D.decks.length===1?'':'s'}${totalSlides?` · ${totalSlides} slide${totalSlides===1?'':'s'}`:''} · build presentations with charts, tables, kanban & visuals</div>
+      </div>
+      <span style="flex:1"></span>
+      <button class="btn btn-p" onclick="dkNewDeckMenu(event)">+ New deck</button>
+    </div>
+    ${own.length?`<div class="sh-gallery">${own.map(_dkCard).join('')}</div>`:`<div style="border:1px dashed var(--bd2);border-radius:12px;padding:34px;text-align:center;color:var(--t2)">
+      <div style="font-size:34px;margin-bottom:8px">🖼</div>
+      <div style="font-weight:600;margin-bottom:4px">No presentations yet</div>
+      <div style="font-size:12px;margin-bottom:14px">Build slide decks with editable charts, tables, kanban boards and visuals — then present full-screen.</div>
+      <button class="btn btn-p" onclick="dkNewDeckMenu(event)">+ New deck from template</button></div>`}
+    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated decks <span style="font-size:10px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((d,i)=>_dkSharedCard(d,i)).join('')}</div></div>`:''}
+  `;
+}
+function _dkCard(d){
+  const c=d.color||'#3b82f6'; const n=(d.slides||[]).length;
+  const assignBadge=(Array.isArray(d.assignees)&&d.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${d.assignees.length}</span>`:'';
+  return `<div class="sh-card" style="--c:${c}" onclick="dkOpen(${Number(d.id)})">
+    <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
+    <div class="sh-card-meta">${n} slide${n===1?'':'s'} ${assignBadge}</div><div class="sh-card-bar"></div></div>`;
+}
+function _dkSharedCard(d,i){
+  const c=d.color||'#8b5cf6'; const tag=d._delegated?`assigned to ${esc(d.assignedTo||'someone')}`:'shared with you';
+  return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="dkOpenShared(${i})">
+    <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
+    <div class="sh-card-meta">${(d.slides||[]).length} slides · ${d._delegated?'➡ ':'👥 '}${tag}</div><div class="sh-card-bar"></div></div>`;
+}
+function dkNewDeckMenu(ev){ if(ev&&ev.stopPropagation)ev.stopPropagation(); _shPopMenu(ev||{clientX:200,clientY:160},DECK_TEMPLATES.map(t=>({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>dkCreateFromTemplate(t.key)})),260); }
+function dkCreateFromTemplate(key){
+  ensureDecks();
+  const tpl=DECK_TEMPLATES.find(t=>t.key===key)||DECK_TEMPLATES[0];
+  const base=_dkStampIds(tpl.build());
+  const deck=Object.assign(base,{ id:_deckNextId(),templateKey:key,
+    theme:{bg:'#ffffff',accent:base.color||'#3b82f6'},
+    assignees:[],assigneeNames:[],primaryAssigneeId:null,assignedTo:'',
+    createdBy:(D.creds&&(D.creds.userName||D.creds.name))||'User',createdById:(D.creds&&D.creds.userId)||null,
+    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString() });
+  D.decks.push(deck); saveDecks(); _deckUndo=[];_deckRedo=[]; _deckCurrent=deck; _deckSlide=0; _deckSelEl=null;
+  renderDecksSection(); toast(`🖼 Created “${deck.title}”`);
+}
+function dkOpen(id){ ensureDecks(); const d=D.decks.find(x=>Number(x.id)===Number(id)); if(!d)return toast('Deck not found'); _deckCurrent=d; _deckSlide=0; _deckSelEl=null; _deckUndo=[];_deckRedo=[]; renderDecksSection(); }
+async function dkOpenShared(i){ let d=(D._sharedDecks||[])[i]; if(!d){ await _loadSharedDecks(); d=(D._sharedDecks||[])[i]; } if(!d)return toast('Shared deck unavailable'); _deckCurrent=d; _deckSlide=0; _deckSelEl=null; _deckUndo=[];_deckRedo=[]; renderDecksSection(); }
+function dkClose(){ _deckCurrent=null; _deckSelEl=null; renderDecksSection(); }
+function dkDeleteDeck(id){ if(!confirm('Delete this deck? This cannot be undone.'))return; ensureDecks(); D.decks=D.decks.filter(x=>Number(x.id)!==Number(id)); if(_deckCurrent&&Number(_deckCurrent.id)===Number(id))_deckCurrent=null; (window.save||save)('decks'); renderDecksSection(); toast('🗑 Deck deleted'); }
+async function _loadSharedDecks(){ try{ if(typeof _trpc!=='function')return; _sharedDecksLoaded=true; const res=await _trpc('appData.sharedDecksForMe',undefined,'query'); if(res&&res.ok&&Array.isArray(res.decks)){ D._sharedDecks=res.decks.map((p,i)=>Object.assign({},p,{_idx:i,_shared:true})); if(_notesModeIsSlides()&&!_deckCurrent)renderDecksSection(); } }catch(e){} }
+
+// ─── Editor shell ────────────────────────────────────────────────────────────
+function _dkSlide(){ return _deckCurrent&&_deckCurrent.slides[_deckSlide]; }
+function _dkEl(id){ const s=_dkSlide(); return s&&(s.elements||[]).find(e=>e.id===id); }
+function _dkBg(slide){ return (slide&&slide.bg)|| (_deckCurrent.theme&&_deckCurrent.theme.bg)||'#ffffff'; }
+function _dkEditorHtml(){
+  const d=_deckCurrent; const shared=d._shared?`<span class="sh-shared-tag">${d._delegated?'➡ delegated':'👥 shared'}</span>`:'';
+  return `<div class="dk-editor">
+    <div class="dk-toolbar">
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkClose()">← Decks</button>
+      <span style="font-size:18px">${esc(d.icon||'🖼')}</span>
+      <input class="dk-ed-title" value="${esc(d.title||'')}" onchange="dkSetTitle(this.value)" placeholder="Untitled deck">
+      ${shared}
+      <span style="flex:1"></span>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkUndo()" title="Undo">↶</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkRedo()" title="Redo">↷</button>
+      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkAddSlide()">+ Slide</button>
+      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="dkPresent()" title="Present full-screen">▶ Present</button>
+    </div>
+    <div class="dk-body">
+      <div class="dk-slidelist" id="dk-slidelist">${_dkThumbsHtml()}</div>
+      <div class="dk-stage-wrap"><div class="dk-canvas" id="dk-canvas" style="background:${_dkBg(_dkSlide())}" onmousedown="dkCanvasDown(event)">${_dkCanvasInner()}</div></div>
+      <aside class="dk-props" id="dk-props">${_dkPropsHtml()}</aside>
+    </div>
+  </div>`;
+}
+function dkSetTitle(v){ if(!_deckCurrent)return; _deckCurrent.title=(v||'').trim()||'Untitled deck'; saveDecks(); }
+function renderDeckCanvas(){ const c=document.getElementById('dk-canvas'); if(c){ c.style.background=_dkBg(_dkSlide()); c.innerHTML=_dkCanvasInner(); } }
+function renderDeckProps(){ const p=document.getElementById('dk-props'); if(p)p.innerHTML=_dkPropsHtml(); }
+function renderDeckThumbs(){ const l=document.getElementById('dk-slidelist'); if(l)l.innerHTML=_dkThumbsHtml(); }
+
+// ─── Thumbnails ──────────────────────────────────────────────────────────────
+function _dkThumbsHtml(){
+  return (_deckCurrent.slides||[]).map((s,i)=>`<div class="dk-thumb ${i===_deckSlide?'on':''}" style="background:${_dkBg(s)}" onclick="dkGotoSlide(${i})" oncontextmenu="dkSlideMenu(event,${i})" title="Slide ${i+1} — right-click for options"><span class="dk-thumb-n">${i+1}</span>${(s.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>`).join('')
+    +`<div class="dk-thumb-add" onclick="dkAddSlide()" title="Add slide">＋</div>`;
+}
+function dkGotoSlide(i){ _deckSlide=Math.max(0,Math.min(_deckCurrent.slides.length-1,i)); _deckSelEl=null; _deckEditingText=null; renderDecksSection(); }
+function dkAddSlide(){ if(!_deckCurrent)return; _dkSnap(); _deckCurrent.slides.splice(_deckSlide+1,0,{id:_dkNewSlideId(),bg:'',elements:[]}); _deckSlide++; _deckSelEl=null; saveDecks(); renderDecksSection(); }
+function dkSlideMenu(e,i){ e.preventDefault(); e.stopPropagation(); _shPopMenu(e,[
+  {html:'⧉ Duplicate slide',onClick:()=>{ _dkSnap(); const cp=JSON.parse(JSON.stringify(_deckCurrent.slides[i])); cp.id=_dkNewSlideId(); let eid=_dkNewElId(); (cp.elements||[]).forEach(el=>el.id=eid++); _deckCurrent.slides.splice(i+1,0,cp); _deckSlide=i+1; saveDecks(); renderDecksSection(); }},
+  {html:'⬆ Move up',onClick:()=>{ if(i<=0)return; _dkSnap(); const s=_deckCurrent.slides.splice(i,1)[0]; _deckCurrent.slides.splice(i-1,0,s); _deckSlide=i-1; saveDecks(); renderDecksSection(); }},
+  {html:'⬇ Move down',onClick:()=>{ if(i>=_deckCurrent.slides.length-1)return; _dkSnap(); const s=_deckCurrent.slides.splice(i,1)[0]; _deckCurrent.slides.splice(i+1,0,s); _deckSlide=i+1; saveDecks(); renderDecksSection(); }},
+  {html:'<span style="color:var(--red)">🗑 Delete slide</span>',onClick:()=>dkDeleteSlide(i)}
+]); }
+function dkDeleteSlide(i){ if(_deckCurrent.slides.length<=1)return toast('A deck needs at least one slide'); _dkSnap(); _deckCurrent.slides.splice(i,1); _deckSlide=Math.max(0,Math.min(_deckSlide,_deckCurrent.slides.length-1)); _deckSelEl=null; saveDecks(); renderDecksSection(); }
+
+// ─── Canvas + element rendering ──────────────────────────────────────────────
+function _dkCanvasInner(){ const s=_dkSlide(); if(!s)return ''; return (s.elements||[]).map(e=>_dkElHtml(e,true,_deckEditingText===e.id)).join(''); }
+function _dkElInner(el,editing){
+  const ce=editing?'contenteditable="true"':'';
+  switch(el.type){
+    case 'text': return `<div class="dk-el-text" style="font-size:${(el.fontSize||20)/9.6}cqw;font-weight:${el.bold?700:400};font-style:${el.italic?'italic':'normal'};text-align:${el.align||'left'};color:${el.color||'#0f172a'};white-space:pre-wrap;pointer-events:${editing?'auto':'none'}" ${ce} ${editing?`onblur="dkTextCommit(${el.id},this)" onmousedown="event.stopPropagation()"`:''}>${esc(el.text||'')}</div>`;
+    case 'shape':{ const sh=el.shape||'rect'; if(sh==='line')return `<div style="width:100%;height:100%;display:flex;align-items:center"><div style="width:100%;height:${el.stroke||3}px;background:${el.fill||'#3b82f6'}"></div></div>`; return `<div style="width:100%;height:100%;background:${el.fill||'#3b82f6'};border-radius:${sh==='ellipse'?'50%':(el.radius||6)+'px'};${el.stroke2?`border:2px solid ${el.stroke2}`:''}"></div>`; }
+    case 'image': return el.src?`<img src="${esc(el.src)}" style="width:100%;height:100%;object-fit:${el.fit||'contain'};pointer-events:none" alt="">`:`<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#94a3b8;font-size:1.6cqw">no image</div>`;
+    case 'chart': return _dkChartSVG(el);
+    case 'metric': return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center"><div style="font-size:${(el.size||52)/9.6}cqw;font-weight:800;color:${el.color||'#3b82f6'};line-height:1">${esc(el.value||'')}</div><div style="font-size:1.7cqw;color:#64748b;margin-top:0.4cqw">${esc(el.label||'')}</div></div>`;
+    case 'progress':{ const p=Math.max(0,Math.min(100,Number(el.value)||0)); return `<div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;gap:0.6cqw"><div style="display:flex;justify-content:space-between;font-size:1.6cqw;color:#475569"><span>${esc(el.label||'')}</span><span style="font-weight:700;color:${el.color||'#3b82f6'}">${p}%</span></div><div style="height:1.6cqw;background:#e2e8f0;border-radius:20px;overflow:hidden"><div style="width:${p}%;height:100%;background:${el.color||'#3b82f6'};border-radius:20px"></div></div></div>`; }
+    case 'bullets':{ const items=(el.items||[]).map(it=>`<li style="margin-bottom:0.8cqw">${esc(it)}</li>`).join(''); return `<div style="width:100%;height:100%;padding:0.5cqw">${el.title?`<div style="font-size:2.4cqw;font-weight:700;color:#0f172a;margin-bottom:1cqw">${esc(el.title)}</div>`:''}<ul style="font-size:2cqw;color:#1e293b;padding-left:3cqw;margin:0;list-style:disc;--mk:${el.color||'#3b82f6'}">${items}</ul></div>`; }
+    case 'table': return _dkTableHtml(el,editing);
+    case 'kanban': return _dkKanbanHtml(el,editing);
+    default: return '';
+  }
+}
+function _dkElHtml(el,interactive,editing){
+  const sel=interactive&&_deckSelEl===el.id;
+  const handles=sel?`<div class="dk-el-resize" onmousedown="dkElMouseDown(event,${el.id},'resize')"></div><div class="dk-el-del" onmousedown="event.stopPropagation()" onclick="dkDeleteEl(event,${el.id})" title="Delete">×</div>`:'';
+  const ev=interactive?`onmousedown="dkElMouseDown(event,${el.id},'move')" onclick="dkSelectEl(event,${el.id})" ondblclick="dkEditEl(event,${el.id})"`:'';
+  return `<div class="dk-el ${sel?'sel':''}" data-id="${el.id}" style="left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;cursor:${interactive?(editing?'default':'move'):'default'}" ${ev}>${_dkElInner(el,editing)}${handles}</div>`;
+}
+function _dkTableHtml(el,editing){
+  const rows=el.rows||[[ '' ]]; const hdr=el.header!==false;
+  let html='<table class="dk-tbl">';
+  rows.forEach((row,ri)=>{ html+='<tr>'; row.forEach((cell,ci)=>{ const tag=(hdr&&ri===0)?'th':'td'; const ce=editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkTblCommit(${el.id},${ri},${ci},this)"`:''; html+=`<${tag} style="font-size:1.7cqw" ${ce}>${esc(cell==null?'':String(cell))}</${tag}>`; }); html+='</tr>'; });
+  html+='</table>'; return html;
+}
+function _dkKanbanHtml(el,editing){
+  const cols=el.columns||[];
+  return `<div class="dk-kanban">${cols.map((col,ci)=>`<div class="dk-kan-col"><div class="dk-kan-h" style="color:${col.color||'#475569'}"><span style="width:1.4cqw;height:1.4cqw;border-radius:50%;background:${col.color||'#94a3b8'};display:inline-block"></span>${esc(col.title||'')}</div>${(col.cards||[]).map((c,di)=>`<div class="dk-kan-card" ${editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkKanCommit(${el.id},${ci},${di},this)"`:''}>${esc(c)}</div>`).join('')}${editing?`<div class="dk-kan-add" onmousedown="event.stopPropagation()" onclick="dkKanAddCard(${el.id},${ci})">＋ card</div>`:''}</div>`).join('')}</div>`;
+}
+
+// ─── Element interactions ────────────────────────────────────────────────────
+function dkCanvasDown(e){ if(e.target.id==='dk-canvas'){ _deckSelEl=null; _deckEditingText=null; renderDeckCanvas(); renderDeckProps(); } }
+function dkSelectEl(e,id){ if(e&&e.stopPropagation)e.stopPropagation(); if(_deckEditingText&&_deckEditingText!==id)_deckEditingText=null; if(_deckSelEl!==id){ _deckSelEl=id; renderDeckCanvas(); renderDeckProps(); } }
+function dkEditEl(e,id){ if(e)e.stopPropagation(); const el=_dkEl(id); if(!el)return; if(['shape','image','chart','metric','progress'].includes(el.type)){ dkSelectEl(e,id); return; } _deckSelEl=id; _deckEditingText=id; renderDeckCanvas(); setTimeout(()=>{ const node=document.querySelector('.dk-el[data-id="'+id+'"] [contenteditable]'); if(node){ node.focus(); try{const r=document.createRange();r.selectNodeContents(node);const s=getSelection();s.removeAllRanges();s.addRange(r);}catch(_){} } },20); }
+function dkDeleteEl(e,id){ if(e)e.stopPropagation(); const s=_dkSlide(); if(!s)return; _dkSnap(); s.elements=(s.elements||[]).filter(x=>x.id!==id); if(_deckSelEl===id)_deckSelEl=null; _deckEditingText=null; saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
+function dkTextCommit(id,node){ const el=_dkEl(id); if(!el)return; const v=node.innerText.replace(/ /g,' '); if((el.text||'')!==v){ _dkSnap(); el.text=v; saveDecks(); renderDeckThumbs(); } _deckEditingText=null; }
+function dkTblCommit(id,ri,ci,node){ const el=_dkEl(id); if(!el||!el.rows[ri])return; const v=node.innerText.trim(); if(String(el.rows[ri][ci]==null?'':el.rows[ri][ci])!==v){ _dkSnap(); el.rows[ri][ci]=v; saveDecks(); renderDeckThumbs(); } }
+function dkKanCommit(id,ci,di,node){ const el=_dkEl(id); if(!el||!el.columns[ci])return; const v=node.innerText.trim(); if(!v){ el.columns[ci].cards.splice(di,1); _dkSnap(); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); return; } if(el.columns[ci].cards[di]!==v){ _dkSnap(); el.columns[ci].cards[di]=v; saveDecks(); renderDeckThumbs(); } }
+function dkKanAddCard(id,ci){ const el=_dkEl(id); if(!el||!el.columns[ci])return; _dkSnap(); el.columns[ci].cards=el.columns[ci].cards||[]; el.columns[ci].cards.push('New card'); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkElMouseDown(e,id,mode){ if(_deckEditingText===id)return; e.stopPropagation(); const el=_dkEl(id); if(!el)return; if(_deckEditingText&&_deckEditingText!==id)_deckEditingText=null; if(_deckSelEl!==id){ _deckSelEl=id; renderDeckCanvas(); renderDeckProps(); } const canvas=document.getElementById('dk-canvas'); if(!canvas)return; const rect=canvas.getBoundingClientRect(); _deckDrag={id,mode,rect,sx:e.clientX,sy:e.clientY,ox:el.x,oy:el.y,ow:el.w,oh:el.h,moved:false,snap:JSON.stringify(_deckCurrent.slides)}; document.addEventListener('mousemove',_dkDragMove); document.addEventListener('mouseup',_dkDragEnd); }
+function _dkDragMove(e){ if(!_deckDrag)return; const d=_deckDrag; const el=_dkEl(d.id); if(!el)return; const dxp=(e.clientX-d.sx)/d.rect.width*100, dyp=(e.clientY-d.sy)/d.rect.height*100; if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>2)d.moved=true; if(d.mode==='move'){ el.x=Math.max(0,Math.min(100-el.w,d.ox+dxp)); el.y=Math.max(0,Math.min(100-el.h,d.oy+dyp)); } else { el.w=Math.max(4,Math.min(100-el.x,d.ow+dxp)); el.h=Math.max(4,Math.min(100-el.y,d.oh+dyp)); } const node=document.querySelector('.dk-el[data-id="'+d.id+'"]'); if(node){ node.style.left=el.x+'%';node.style.top=el.y+'%';node.style.width=el.w+'%';node.style.height=el.h+'%'; } }
+function _dkDragEnd(){ document.removeEventListener('mousemove',_dkDragMove); document.removeEventListener('mouseup',_dkDragEnd); if(_deckDrag&&_deckDrag.moved){ _deckUndo.push(_deckDrag.snap); if(_deckUndo.length>50)_deckUndo.shift(); _deckRedo=[]; saveDecks(); renderDeckThumbs(); renderDeckProps(); } _deckDrag=null; }
+
+// ─── Add elements ────────────────────────────────────────────────────────────
+function dkAddElement(type){
+  const s=_dkSlide(); if(!s)return; _dkSnap(); s.elements=s.elements||[];
+  const id=_dkNewElId(); let el;
+  switch(type){
+    case 'title': el=_dkText(8,8,84,14,'Title',34,{bold:true}); break;
+    case 'text': el=_dkText(10,40,50,12,'Add your text',18); break;
+    case 'bullets': el={type:'bullets',x:10,y:24,w:60,h:50,title:'',items:['First point','Second point','Third point'],color:s&&_deckCurrent.theme?_deckCurrent.theme.accent:'#3b82f6'}; break;
+    case 'chart': el={type:'chart',x:14,y:20,w:60,h:55,chart:'bar',title:'Chart',labels:['A','B','C','D'],series:[{name:'Series 1',color:_deckCurrent.theme.accent||'#3b82f6',data:[4,7,3,6]}]}; break;
+    case 'table': el={type:'table',x:12,y:24,w:70,h:40,header:true,rows:[['Column 1','Column 2','Column 3'],['','',''],['','','']]}; break;
+    case 'kanban': el={type:'kanban',x:6,y:24,w:88,h:60,columns:[{title:'To do',color:'#64748b',cards:['Card']},{title:'Doing',color:'#3b82f6',cards:[]},{title:'Done',color:'#10b981',cards:[]}]}; break;
+    case 'metric': el={type:'metric',x:20,y:30,w:24,h:24,value:'42%',label:'Metric label',color:_deckCurrent.theme.accent||'#3b82f6'}; break;
+    case 'progress': el={type:'progress',x:14,y:44,w:60,h:12,value:60,label:'Progress',color:_deckCurrent.theme.accent||'#3b82f6'}; break;
+    case 'shape': el={type:'shape',x:30,y:30,w:24,h:24,shape:'rect',fill:_deckCurrent.theme.accent||'#3b82f6',radius:8}; break;
+    case 'image':{ const url=prompt('Image URL (https://…):'); if(!url)return; el={type:'image',x:20,y:20,w:40,h:40,src:url.trim(),fit:'contain'}; break; }
+    default: return;
+  }
+  el.id=id; s.elements.push(el); _deckSelEl=id; saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs();
+}
+
+// ─── Properties panel ────────────────────────────────────────────────────────
+function _dkPropsHtml(){
+  const insert=`<div class="dk-props-h">Insert</div><div class="dk-addgrid">
+    ${[['title','🅣','Title'],['text','📝','Text'],['bullets','•','Bullets'],['chart','📊','Chart'],['table','▦','Table'],['kanban','🗂','Kanban'],['metric','①','Metric'],['progress','▬','Progress'],['shape','⬛','Shape'],['image','🖼','Image']].map(a=>`<div class="dk-add-b" onclick="dkAddElement('${a[0]}')"><span>${a[1]}</span>${a[2]}</div>`).join('')}
+  </div>`;
+  const el=_deckSelEl?_dkEl(_deckSelEl):null;
+  let body;
+  if(el){ body=`<div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:12px">${_dkElPropsHtml(el)}</div>`; }
+  else { const d=_deckCurrent; const th=d.theme||{};
+    body=`<div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:12px">
+      <div class="dk-props-h">Slide background</div>
+      <div class="dk-color-grid"><div class="dk-color-sw ${!_dkSlide().bg?'on':''}" style="background:#ffffff;border:1px solid var(--bd2)" onclick="dkSetSlideBg('')"></div>${['#0f172a','#1e293b','#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#f1f5f9'].map(c=>`<div class="dk-color-sw ${_dkSlide().bg===c?'on':''}" style="background:${c}" onclick="dkSetSlideBg('${c}')"></div>`).join('')}</div>
+      <div class="dk-props-h" style="margin-top:14px">Deck accent</div>
+      <div class="dk-color-grid">${SHEET_PALETTE.map(c=>`<div class="dk-color-sw ${d.color===c?'on':''}" style="background:${c}" onclick="dkSetDeckColor('${c}')"></div>`).join('')}</div>
+      <div class="dk-props-h" style="margin-top:14px">Deck icon</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${SHEET_ICONS.map(ic=>`<div class="dk-add-b" style="padding:4px;min-width:26px" onclick="dkSetIcon('${ic}')">${ic}</div>`).join('')}</div>
+      <div class="dk-props-h" style="margin-top:14px">👥 Share with team</div>
+      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this deck.</div>
+      ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('deck-ma',d):''}
+      <button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:6px" onclick="dkSaveAssign()">Save sharing</button>
+      <button class="btn btn-d" style="height:26px;font-size:10px;width:100%;margin-top:10px" onclick="dkDeleteDeck(${Number(d.id)})" ${d._shared?'disabled':''}>🗑 Delete deck</button>
+    </div>`;
+  }
+  return insert+body;
+}
+function _dkElPropsHtml(el){
+  const row=(label,inner)=>`<div class="dk-prop-row"><label>${label}</label>${inner}</div>`;
+  const colorSwatches=(key,cur,extra)=>`<div class="dk-color-grid">${(extra||[]).concat(SHEET_PALETTE).map(c=>`<div class="dk-color-sw ${cur===c?'on':''}" style="background:${c}${c==='#ffffff'?';border:1px solid var(--bd2)':''}" onclick="dkSetProp(${el.id},'${key}','${c}')"></div>`).join('')}</div>`;
+  let specific='';
+  if(el.type==='text'){
+    specific=row('Font size',`<input type="number" value="${el.fontSize||20}" min="8" max="120" onchange="dkSetProp(${el.id},'fontSize',Number(this.value))">`)
+      +`<div class="dk-prop-row" style="display:flex;gap:5px"><button class="btn btn-s" style="flex:1;height:26px;${el.bold?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'bold')"><b>B</b></button><button class="btn btn-s" style="flex:1;height:26px;${el.italic?'background:var(--ac);color:#fff':''}" onclick="dkToggleProp(${el.id},'italic')"><i>I</i></button>${['left','center','right'].map(a=>`<button class="btn btn-s" style="flex:1;height:26px;${(el.align||'left')===a?'background:var(--ac);color:#fff':''}" onclick="dkSetProp(${el.id},'align','${a}')">${a==='left'?'⯇':a==='center'?'≡':'⯈'}</button>`).join('')}</div>`
+      +row('Colour',colorSwatches('color',el.color,['#0f172a','#ffffff']));
+  } else if(el.type==='shape'){
+    specific=row('Shape',`<select onchange="dkSetProp(${el.id},'shape',this.value)">${['rect','ellipse','line'].map(s=>`<option ${el.shape===s?'selected':''}>${s}</option>`).join('')}</select>`)+row('Fill',colorSwatches('fill',el.fill));
+  } else if(el.type==='image'){
+    specific=row('Image URL',`<input type="text" value="${esc(el.src||'')}" onchange="dkSetProp(${el.id},'src',this.value)">`)+row('Fit',`<select onchange="dkSetProp(${el.id},'fit',this.value)"><option ${el.fit==='contain'?'selected':''}>contain</option><option ${el.fit==='cover'?'selected':''}>cover</option></select>`);
+  } else if(el.type==='metric'){
+    specific=row('Value',`<input type="text" value="${esc(el.value||'')}" onchange="dkSetProp(${el.id},'value',this.value)">`)+row('Label',`<input type="text" value="${esc(el.label||'')}" onchange="dkSetProp(${el.id},'label',this.value)">`)+row('Colour',colorSwatches('color',el.color));
+  } else if(el.type==='progress'){
+    specific=row('Percent',`<input type="number" min="0" max="100" value="${Number(el.value)||0}" onchange="dkSetProp(${el.id},'value',Math.max(0,Math.min(100,Number(this.value))))">`)+row('Label',`<input type="text" value="${esc(el.label||'')}" onchange="dkSetProp(${el.id},'label',this.value)">`)+row('Colour',colorSwatches('color',el.color));
+  } else if(el.type==='bullets'){
+    specific=row('Title (optional)',`<input type="text" value="${esc(el.title||'')}" onchange="dkSetProp(${el.id},'title',this.value)">`)+row('Items (one per line)',`<textarea rows="5" onchange="dkSetBullets(${el.id},this.value)">${esc((el.items||[]).join('\n'))}</textarea>`);
+  } else if(el.type==='chart'){
+    specific=row('Type',`<select onchange="dkSetProp(${el.id},'chart',this.value)">${['bar','line','area','pie','donut'].map(c=>`<option ${el.chart===c?'selected':''}>${c}</option>`).join('')}</select>`)
+      +row('Title',`<input type="text" value="${esc(el.title||'')}" onchange="dkSetProp(${el.id},'title',this.value)">`)
+      +`<div class="dk-props-h" style="margin-top:6px">Data</div>${_dkChartDataHtml(el)}`;
+  } else if(el.type==='table'){
+    specific=`<div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblAdd(${el.id},'row')">+ Row</button><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblAdd(${el.id},'col')">+ Col</button></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblDel(${el.id},'row')">− Row</button><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblDel(${el.id},'col')">− Col</button></div><div style="font-size:10px;color:var(--t3);margin-top:6px">Double-click the table to edit cells.</div>`;
+  } else if(el.type==='kanban'){
+    specific=`<button class="btn btn-s" style="height:26px;font-size:10px;width:100%" onclick="dkKanAddCol(${el.id})">+ Column</button><button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:5px" onclick="dkKanDelCol(${el.id})">− Last column</button><div style="font-size:10px;color:var(--t3);margin-top:6px">Double-click the board to add/edit cards.</div>`;
+  }
+  return `<div class="dk-props-h">${el.type} element</div>${specific}
+    <div class="dk-prop-row" style="display:flex;gap:5px;margin-top:8px">
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkZOrder(${el.id},1)" title="Bring forward">⬆ Front</button>
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkZOrder(${el.id},-1)" title="Send back">⬇ Back</button>
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkDupEl(${el.id})">⧉</button>
+    </div>
+    <button class="btn btn-d" style="height:26px;font-size:10px;width:100%" onclick="dkDeleteEl(null,${el.id})">🗑 Delete element</button>`;
+}
+function _dkChartDataHtml(el){
+  const labels=el.labels||[]; const series=el.series||[];
+  let html='<table style="width:100%;font-size:10px;border-collapse:collapse"><tr><th style="text-align:left">Label</th>'+series.map((s,si)=>`<th style="color:${s.color}">S${si+1}</th>`).join('')+'</tr>';
+  labels.forEach((l,i)=>{ html+=`<tr><td><input type="text" value="${esc(l)}" style="width:100%;font-size:10px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartLabel(${el.id},${i},this.value)"></td>`+series.map((s,si)=>`<td><input type="number" value="${Number((s.data||[])[i])||0}" style="width:46px;font-size:10px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartVal(${el.id},${si},${i},this.value)"></td>`).join('')+'</tr>'; });
+  html+='</table><div style="display:flex;gap:4px;margin-top:5px"><button class="btn btn-s" style="height:24px;font-size:9px;flex:1" onclick="dkChartAddRow(${el.id})">+ Row</button><button class="btn btn-s" style="height:24px;font-size:9px;flex:1" onclick="dkChartAddSeries(${el.id})">+ Series</button></div>';
+  return html;
+}
+
+// ─── Property setters ────────────────────────────────────────────────────────
+function dkSetProp(id,key,val){ const el=_dkEl(id); if(!el)return; _dkSnap(); el[key]=val; saveDecks(); renderDeckCanvas(); renderDeckThumbs(); if(key==='chart'||key==='shape'||key==='fit')renderDeckProps(); }
+function dkToggleProp(id,key){ const el=_dkEl(id); if(!el)return; _dkSnap(); el[key]=!el[key]; saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
+function dkSetBullets(id,val){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.items=val.split('\n').map(s=>s.trim()).filter(Boolean); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkSetSlideBg(c){ const s=_dkSlide(); if(!s)return; _dkSnap(); s.bg=c; saveDecks(); renderDeckCanvas(); renderDeckThumbs(); renderDeckProps(); }
+function dkSetDeckColor(c){ if(!_deckCurrent)return; _deckCurrent.color=c; _deckCurrent.theme=_deckCurrent.theme||{}; _deckCurrent.theme.accent=c; saveDecks(); renderDeckProps(); }
+function dkSetIcon(ic){ if(!_deckCurrent)return; _deckCurrent.icon=ic; saveDecks(); renderDecksSection(); }
+function dkZOrder(id,dir){ const s=_dkSlide(); const i=s.elements.findIndex(e=>e.id===id); if(i<0)return; _dkSnap(); if(dir>0){ if(i<s.elements.length-1){ const e=s.elements.splice(i,1)[0]; s.elements.push(e); } } else { if(i>0){ const e=s.elements.splice(i,1)[0]; s.elements.unshift(e); } } saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkDupEl(id){ const s=_dkSlide(); const el=_dkEl(id); if(!el)return; _dkSnap(); const cp=JSON.parse(JSON.stringify(el)); cp.id=_dkNewElId(); cp.x=Math.min(80,cp.x+4); cp.y=Math.min(80,cp.y+4); s.elements.push(cp); _deckSelEl=cp.id; saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
+function dkTblAdd(id,what){ const el=_dkEl(id); if(!el)return; _dkSnap(); if(what==='row'){ const cols=el.rows[0]?el.rows[0].length:1; el.rows.push(new Array(cols).fill('')); } else { el.rows.forEach(r=>r.push('')); } saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkTblDel(id,what){ const el=_dkEl(id); if(!el)return; _dkSnap(); if(what==='row'){ if(el.rows.length>1)el.rows.pop(); } else { if(el.rows[0]&&el.rows[0].length>1)el.rows.forEach(r=>r.pop()); } saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkKanAddCol(id){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.columns=el.columns||[]; el.columns.push({title:'New',color:SHEET_PALETTE[el.columns.length%SHEET_PALETTE.length],cards:[]}); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkKanDelCol(id){ const el=_dkEl(id); if(!el||!el.columns||el.columns.length<=1)return; _dkSnap(); el.columns.pop(); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkChartLabel(id,i,v){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.labels[i]=v; saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkChartVal(id,si,i,v){ const el=_dkEl(id); if(!el||!el.series[si])return; _dkSnap(); el.series[si].data=el.series[si].data||[]; el.series[si].data[i]=Number(v)||0; saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkChartAddRow(id){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.labels=el.labels||[]; el.labels.push('New'); el.series.forEach(s=>{ s.data=s.data||[]; s.data.push(0); }); saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
+function dkChartAddSeries(id){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.series=el.series||[]; el.series.push({name:'Series '+(el.series.length+1),color:SHEET_PALETTE[el.series.length%SHEET_PALETTE.length],data:new Array((el.labels||[]).length).fill(0)}); saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
+function dkSaveAssign(){ if(!_deckCurrent)return; let g=null; try{ if(typeof _maGet==='function')g=_maGet('deck-ma'); }catch(_){}
+  if(g){ _deckCurrent.assignees=g.assignees||[]; _deckCurrent.assigneeNames=g.assigneeNames||[]; _deckCurrent.primaryAssigneeId=g.primaryAssigneeId||null; if(g.primaryAssigneeId!=null&&Array.isArray(g.assignees)){ const i=g.assignees.indexOf(g.primaryAssigneeId); _deckCurrent.assignedTo=(i>=0&&g.assigneeNames)?g.assigneeNames[i]:(_deckCurrent.assignedTo||''); } }
+  saveDecks(); toast('👥 Sharing saved'); }
+
+// ─── Chart SVG renderer ──────────────────────────────────────────────────────
+function _dkChartSVG(el){
+  const W=320,H=200,pad=26;
+  const labels=(el.labels&&el.labels.length)?el.labels:['A','B','C'];
+  const series=(el.series&&el.series.length)?el.series:[{name:'S1',color:SHEET_PALETTE[0],data:[3,5,4]}];
+  const type=el.chart||'bar';
+  const title=el.title?`<text x="${W/2}" y="14" text-anchor="middle" font-size="12" font-weight="700" fill="#334155">${esc(el.title)}</text>`:'';
+  const top=el.title?28:12; const plotH=H-top-pad, plotW=W-pad-10, x0=pad, y0=top;
+  let maxV=0; series.forEach(s=>(s.data||[]).forEach(v=>{ maxV=Math.max(maxV,Number(v)||0); })); if(maxV<=0)maxV=1;
+  const yOf=v=>y0+plotH-(Number(v)||0)/maxV*plotH;
+  let body='';
+  if(type==='pie'||type==='donut'){
+    const data=series[0].data||[]; const sum=data.reduce((s,v)=>s+(Number(v)||0),0)||1;
+    const cx=W*0.4,cy=top+plotH/2,rO=Math.min(plotH,plotW*0.7)/2,rI=type==='donut'?rO*0.55:0; let ang=-Math.PI/2;
+    data.forEach((v,i)=>{ const frac=(Number(v)||0)/sum; const a2=ang+frac*Math.PI*2; const col=SHEET_PALETTE[i%SHEET_PALETTE.length]; const large=frac>0.5?1:0;
+      const x1=cx+rO*Math.cos(ang),y1=cy+rO*Math.sin(ang),x2=cx+rO*Math.cos(a2),y2=cy+rO*Math.sin(a2);
+      if(rI>0){ const xi1=cx+rI*Math.cos(a2),yi1=cy+rI*Math.sin(a2),xi2=cx+rI*Math.cos(ang),yi2=cy+rI*Math.sin(ang); body+=`<path d="M${x1} ${y1} A${rO} ${rO} 0 ${large} 1 ${x2} ${y2} L${xi1} ${yi1} A${rI} ${rI} 0 ${large} 0 ${xi2} ${yi2} Z" fill="${col}"/>`; }
+      else body+=`<path d="M${cx} ${cy} L${x1} ${y1} A${rO} ${rO} 0 ${large} 1 ${x2} ${y2} Z" fill="${col}"/>`;
+      ang=a2; });
+    body+=labels.map((l,i)=>`<g transform="translate(${W*0.72},${top+i*15})"><rect width="9" height="9" rx="2" fill="${SHEET_PALETTE[i%SHEET_PALETTE.length]}"/><text x="13" y="8.5" font-size="9" fill="#475569">${esc(l)}</text></g>`).join('');
+  } else if(type==='line'||type==='area'){
+    body+=`<line x1="${x0}" y1="${y0+plotH}" x2="${x0+plotW}" y2="${y0+plotH}" stroke="#cbd5e1"/>`;
+    const n=labels.length; const xOf=i=>x0+(n<=1?plotW/2:i/(n-1)*plotW);
+    series.forEach((s,si)=>{ const col=s.color||SHEET_PALETTE[si%SHEET_PALETTE.length]; const pts=(s.data||[]).map((v,i)=>`${xOf(i)},${yOf(v)}`).join(' ');
+      if(type==='area')body+=`<polygon points="${x0},${y0+plotH} ${pts} ${x0+plotW},${y0+plotH}" fill="${col}" fill-opacity="0.18"/>`;
+      body+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.5"/>`;
+      (s.data||[]).forEach((v,i)=>{ body+=`<circle cx="${xOf(i)}" cy="${yOf(v)}" r="3" fill="${col}"/>`; }); });
+    body+=labels.map((l,i)=>`<text x="${xOf(i)}" y="${y0+plotH+13}" text-anchor="middle" font-size="9" fill="#64748b">${esc(l)}</text>`).join('');
+  } else {
+    body+=`<line x1="${x0}" y1="${y0+plotH}" x2="${x0+plotW}" y2="${y0+plotH}" stroke="#cbd5e1"/>`;
+    const n=labels.length, groups=series.length, gw=plotW/Math.max(n,1), bw=Math.max(2,Math.min(gw*0.7/groups,28));
+    labels.forEach((l,i)=>{ series.forEach((s,si)=>{ const v=(s.data||[])[i]; const col=s.color||SHEET_PALETTE[si%SHEET_PALETTE.length]; const bx=x0+i*gw+(gw-bw*groups)/2+si*bw; const by=yOf(v); body+=`<rect x="${bx}" y="${by}" width="${Math.max(1,bw-2)}" height="${y0+plotH-by}" fill="${col}" rx="2"/>`; });
+      body+=`<text x="${x0+i*gw+gw/2}" y="${y0+plotH+13}" text-anchor="middle" font-size="9" fill="#64748b">${esc(l)}</text>`; });
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;pointer-events:none">${title}${body}</svg>`;
+}
+
+// ─── Present mode ────────────────────────────────────────────────────────────
+function dkPresent(){ if(!_deckCurrent||!_deckCurrent.slides.length)return; _deckPresent=true; _deckPresentIdx=_deckSlide||0; _dkRenderPresent(); document.addEventListener('keydown',_dkPresentKey); }
+function _dkRenderPresent(){
+  const old=document.getElementById('dk-present'); if(old)old.remove();
+  const slide=_deckCurrent.slides[_deckPresentIdx]; if(!slide)return;
+  const ov=document.createElement('div'); ov.id='dk-present'; ov.className='dk-present';
+  ov.innerHTML=`<button class="dk-present-x" onclick="dkPresentExit()" title="Exit (Esc)">✕</button>
+    <div class="dk-present-canvas" style="background:${_dkBg(slide)}">${(slide.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>
+    <div class="dk-present-nav"><button onclick="dkPresentNav(-1)">‹</button><span>${_deckPresentIdx+1} / ${_deckCurrent.slides.length}</span><button onclick="dkPresentNav(1)">›</button></div>`;
+  document.body.appendChild(ov);
+}
+function dkPresentNav(d){ if(!_deckPresent)return; _deckPresentIdx=Math.max(0,Math.min(_deckCurrent.slides.length-1,_deckPresentIdx+d)); _dkRenderPresent(); }
+function dkPresentExit(){ _deckPresent=false; const o=document.getElementById('dk-present'); if(o)o.remove(); document.removeEventListener('keydown',_dkPresentKey); }
+function _dkPresentKey(e){ if(!_deckPresent)return; if(e.key==='ArrowRight'||e.key===' '||e.key==='PageDown'){ e.preventDefault(); dkPresentNav(1); } else if(e.key==='ArrowLeft'||e.key==='PageUp'){ e.preventDefault(); dkPresentNav(-1); } else if(e.key==='Escape'){ dkPresentExit(); } }
 
 /* ═════════════════════════════════════════════════════════════════════
    ATLAS (CFResourcePlanner) — one-way sync, read-only mirror.
