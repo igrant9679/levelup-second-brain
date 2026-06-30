@@ -410,14 +410,14 @@ export async function getAllSmtpAccounts() {
  * List all users (admin-only consumer in the router layer). Returns minimal
  * fields needed by the admin UI for configuring per-user notification senders.
  */
-export async function adminListAllUsers(): Promise<Array<{ id: number; name: string | null; email: string | null; role: string; hasSmtp: boolean }>> {
+export async function adminListAllUsers(): Promise<Array<{ id: number; name: string | null; email: string | null; role: string; hasSmtp: boolean; lastSignedIn: Date | null }>> {
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users);
+  const rows = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, lastSignedIn: users.lastSignedIn }).from(users);
   // Find which users have an SMTP/IMAP row
   const smtpRows = await db.select({ userId: smtpImapAccounts.userId }).from(smtpImapAccounts);
   const smtpUserIds = new Set(smtpRows.map(r => r.userId));
-  return rows.map(r => ({ id: r.id, name: r.name as string | null, email: r.email as string | null, role: r.role as string, hasSmtp: smtpUserIds.has(r.id) }));
+  return rows.map(r => ({ id: r.id, name: r.name as string | null, email: r.email as string | null, role: r.role as string, hasSmtp: smtpUserIds.has(r.id), lastSignedIn: (r as any).lastSignedIn ?? null }));
 }
 
 // Get a user's SMTP/IMAP account row (full credentials) — used by sendEmail to build a transporter.

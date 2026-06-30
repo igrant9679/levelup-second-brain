@@ -13,7 +13,7 @@ export const teamRouter = router({
    */
   listMembers: protectedProcedure.query(async () => {
     const users = await db.adminListAllUsers();
-    return users.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role }));
+    return users.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, lastSignedIn: u.lastSignedIn ? new Date(u.lastSignedIn).toISOString() : null }));
   }),
 
   /**

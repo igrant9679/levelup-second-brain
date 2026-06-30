@@ -22686,7 +22686,7 @@ function renderTeam(){
       if(!u||!u.name)continue;
       const k=u.name.trim().toLowerCase(); if(seen.has(k))continue; seen.add(k);
       const b=byName.get(k)||{};
-      out.push({...b,id:u.id,userId:u.id,name:u.name,email:u.email||b.email,role:b.role||u.role||'member',color:b.color||'#6366f1',avatar:b.avatar});
+      out.push({...b,id:u.id,userId:u.id,name:u.name,email:u.email||b.email,role:b.role||u.role||'member',color:b.color||'#6366f1',avatar:b.avatar,lastSignedIn:u.lastSignedIn||null});
     }
     for(const m of blob){
       if(!m||!m.name)continue;
@@ -22721,8 +22721,14 @@ function renderTeam(){
     const memberFeedData=_activityFeedData.filter(a=>a.userName===m.name||a.userId===m.id);
     const sevenDaysAgo=new Date(Date.now()-7*24*60*60*1000);
     const weekActivity=memberFeedData.filter(a=>new Date(a.createdAt)>=sevenDaysAgo).length;
+    // "Last seen" = the account's real last sign-in (updated on every login),
+    // falling back to the most recent activity-feed entry, then "Never". The
+    // feed alone missed pure logins, so an active user showed "Never".
     const lastActivityDate=memberFeedData.length?new Date(memberFeedData[0].createdAt):null;
-    const lastSeenStr=lastActivityDate?timeAgo(lastActivityDate.toISOString()):'Never';
+    let lastSeenAt=null;
+    if(m.lastSignedIn){const d=new Date(m.lastSignedIn);if(!isNaN(d))lastSeenAt=d;}
+    if(lastActivityDate&&!isNaN(lastActivityDate)&&(!lastSeenAt||lastActivityDate>lastSeenAt))lastSeenAt=lastActivityDate;
+    const lastSeenStr=lastSeenAt?timeAgo(lastSeenAt.toISOString()):'Never';
     const activityBadge=weekActivity>0?`<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
     const avatarHtml=m.avatar
       ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
