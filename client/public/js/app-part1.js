@@ -7259,6 +7259,7 @@ async function _loadSharedTasks(){
       D._sharedTasks=res.tasks.filter(t=>!_extOrigin(t)).map((t,i)=>({...t,_shared:true,_readOnly:true,_idx:i}));
       _sharedTasksLoaded=true;
       if(typeof curScreen!=='undefined'&&curScreen==='tasks'&&typeof renderCurrentTaskView==='function')renderCurrentTaskView();
+      if(typeof curScreen!=='undefined'&&curScreen==='team'&&typeof renderTeam==='function')renderTeam();
     }
   }catch(e){ /* non-fatal — just show my own tasks */ }
 }
@@ -22669,6 +22670,9 @@ function renderTeam(){
   // If the real workspace roster hasn't loaded yet, fetch it (it re-renders the
   // Team page on arrival) so invited accounts like new hires show up.
   if((!_workspaceMembers||!_workspaceMembers.length)&&typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers();
+  // Other members' task stats come from the admin/owner shared pool — load it if
+  // it hasn't loaded yet (it re-renders the Team page on arrival).
+  if(!_sharedTasksLoaded&&typeof _loadSharedTasks==='function')_loadSharedTasks();
   // Merge the REAL accounts (from team.listMembers) with any local blob members,
   // deduped by name — so invited members (e.g. Lucas) appear, not just the
   // demo/blob roster. Real accounts win for id/email/role; blob supplies
@@ -22693,15 +22697,25 @@ function renderTeam(){
   })();
   const today=_todayStr; // local — was UTC toISOString()
   function memberCard(m){
-    const tasks=D.tasks.filter(t=>t.createdBy===m.name);
+    // Per-member ownership. In the per-user blob model every task in a user's
+    // blob belongs to that user, so the current user's tasks are ALL of D.tasks
+    // (matching by createdBy name dropped tasks whose name string differed), and
+    // other members' tasks come from the admin/owner shared pool D._sharedTasks
+    // (tagged with _sharedFromUserId). Filtering only D.tasks by name is why
+    // every other member showed 0 and the owner's card never matched the totals.
+    const _meId=Number(D.creds&&D.creds.userId);
+    const _isMe=(m.userId&&Number(m.userId)===_meId)||(m.name===(D.creds&&D.creds.userName));
+    const tasks=_isMe?(Array.isArray(D.tasks)?D.tasks:[])
+      :(m.userId&&Array.isArray(D._sharedTasks))?D._sharedTasks.filter(t=>!t._delegated&&Number(t._sharedFromUserId)===Number(m.userId))
+      :_taskPool().filter(t=>t.createdBy===m.name);
     const done=tasks.filter(t=>t.status==='Done').length;
     const overdue=tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
-    const habits=D.habits.filter(h=>h.createdBy===m.name);
+    const habits=_isMe?(Array.isArray(D.habits)?D.habits:[]):D.habits.filter(h=>h.createdBy===m.name);
     const dailyHabits=habits.filter(h=>h.cadence==='Daily');
     const habitsDone=dailyHabits.filter(h=>h.doneToday).length;
     const topStreak=habits.reduce((max,h)=>Math.max(max,h.streak||0),0);
-    const goals=D.goals.filter(g=>g.createdBy===m.name);
-    const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+g.pct,0)/goals.length):null;
+    const goals=_isMe?(Array.isArray(D.goals)?D.goals:[]):D.goals.filter(g=>g.createdBy===m.name);
+    const avgGoalPct=goals.length?Math.round(goals.reduce((s,g)=>s+(g.pct||0),0)/goals.length):null;
     const initials=m.name.split(' ').map(w=>w[0]).join('');
     // Last seen + 7-day activity badge from activity feed data
     const memberFeedData=_activityFeedData.filter(a=>a.userName===m.name||a.userId===m.id);
@@ -22737,7 +22751,7 @@ function renderTeam(){
       ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
       ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
       <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
-      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:8px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:9px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
       ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
@@ -22779,9 +22793,13 @@ function renderTeam(){
       </div>
     </div>
     </div>`;
-  const totalTasks=D.tasks.length;
-  const doneTasks=D.tasks.filter(t=>t.status==='Done').length;
-  const overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
+  // Team-wide totals = own tasks + every other member's tasks from the shared
+  // pool (exclude _delegated: those are the current user's own tasks assigned
+  // out, already present in D.tasks). Keeps the rail consistent with the cards.
+  const _teamPool=(Array.isArray(D.tasks)?D.tasks:[]).concat((Array.isArray(D._sharedTasks)?D._sharedTasks:[]).filter(t=>!t._delegated));
+  const totalTasks=_teamPool.length;
+  const doneTasks=_teamPool.filter(t=>t.status==='Done').length;
+  const overdueTasks=_teamPool.filter(t=>t.status!=='Done'&&t.due&&t.due<today).length;
   const habitsDoneToday=D.habits.filter(h=>h.doneToday&&h.cadence==='Daily').length;
   $('team-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:8px">📊 Team Stats</div>
   <div class="stat"><div class="stat-n">${allMembers.length}</div><div class="stat-l">Members</div></div>
