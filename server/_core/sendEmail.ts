@@ -181,22 +181,64 @@ async function buildTransporter(
 }
 
 /**
- * Send an email using the configured system notification sender.
- * Returns true on success, false if no sender is configured or send fails.
- * Every attempt is recorded in email_delivery_log.
+ * Build the ordered list of sender candidates to try:
+ *   1. the explicitly configured notification sender (or SMTP fallback),
+ *   2. every other configured SMTP/IMAP secondary account (lowest userId first),
+ *   3. every connected Google/Microsoft OAuth account that has an email +
+ *      refresh token.
+ * One revoked credential (expired refresh token, revoked Gmail app-password)
+ * used to take down ALL system mail — password resets, invites, digests —
+ * because only the single resolved sender was ever tried. Now each candidate
+ * is tried in order until one sends.
+ */
+async function resolveSenderCandidates(): Promise<Array<{
+  provider: "google" | "microsoft" | "smtp";
+  userId: number;
+}>> {
+  const out: Array<{ provider: "google" | "microsoft" | "smtp"; userId: number }> = [];
+  const seen = new Set<string>();
+  const push = (provider: "google" | "microsoft" | "smtp", userId: number) => {
+    const k = provider + ":" + userId;
+    if (!seen.has(k)) { seen.add(k); out.push({ provider, userId }); }
+  };
+  const primary = await resolveNotificationSender();
+  if (primary) push(primary.provider, primary.userId);
+  try {
+    const { getAllSmtpAccounts } = await import("../db");
+    const accounts = await getAllSmtpAccounts();
+    accounts.slice().sort((a, b) => a.userId - b.userId).forEach(a => push("smtp", a.userId));
+  } catch { /* non-fatal */ }
+  try {
+    const db = await getDb();
+    if (db) {
+      const tokens = await db.select().from(oauthTokens);
+      for (const t of tokens) {
+        if ((t.provider === "google" || t.provider === "microsoft") && t.email && t.refreshToken) {
+          push(t.provider, t.userId);
+        }
+      }
+    }
+  } catch { /* non-fatal */ }
+  return out;
+}
+
+/**
+ * Send an email using the configured system notification sender, falling back
+ * to every other configured sender (SMTP secondary accounts, connected OAuth
+ * accounts) if the primary fails. Returns true on success, false if no sender
+ * is configured or all candidates fail. Every attempt-chain is recorded in
+ * email_delivery_log (the errorMessage carries the per-candidate trail).
  */
 export async function sendEmail(payload: EmailPayload): Promise<boolean> {
   const logUserId = payload.senderUserId ?? null;
 
   try {
     // Admin-shared model: ALL system mail (Team invites, reports, notifications)
-    // goes out from the one configured secondary email — the system notification
-    // sender. The per-user `recipientUserId` override was removed so a recipient's
-    // own SMTP account can never redirect system mail away from the secondary
-    // email. (recipientUserId is still accepted for backward compat but ignored.)
-    const sender = await resolveNotificationSender();
-    if (!sender) {
-      // No sender configured — log as skipped
+    // goes out from the configured secondary email — the system notification
+    // sender — with automatic fallback to any other configured sender so one
+    // dead credential can't silence all system mail.
+    const candidates = await resolveSenderCandidates();
+    if (!candidates.length) {
       console.warn(
         "[sendEmail] No system notification sender configured. Email not sent:",
         payload.subject
@@ -211,42 +253,55 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
       return false;
     }
 
-    const transport = await buildTransporter(sender.provider, sender.userId);
-    if (!transport) {
-      const msg = "Could not build transporter — no OAuth token found for sender.";
-      console.warn("[sendEmail]", msg);
-      await insertEmailDeliveryLog({
-        userId: logUserId,
-        to: payload.to,
-        subject: payload.subject,
-        status: "failed",
-        errorMessage: msg,
-      });
-      return false;
-    }
-
     // Wrap the body in the shared branded template unless it already contains <!DOCTYPE
     const rawHtml = payload.html;
     const wrappedHtml = rawHtml.trimStart().toLowerCase().startsWith("<!doctype")
       ? rawHtml
       : emailTemplate({ subject: payload.subject, body: rawHtml });
 
-    await transport.transporter.sendMail({
-      from: transport.from,
-      to: payload.to,
-      subject: payload.subject,
-      html: wrappedHtml,
-      text: payload.text ?? rawHtml.replace(/<[^>]+>/g, ""),
-    });
+    const errors: string[] = [];
+    for (const cand of candidates) {
+      const label = `${cand.provider}:${cand.userId}`;
+      try {
+        const transport = await buildTransporter(cand.provider, cand.userId);
+        if (!transport) {
+          errors.push(`${label}: could not build transporter (missing token/account)`);
+          continue;
+        }
+        await transport.transporter.sendMail({
+          from: transport.from,
+          to: payload.to,
+          subject: payload.subject,
+          html: wrappedHtml,
+          text: payload.text ?? rawHtml.replace(/<[^>]+>/g, ""),
+        });
+        await insertEmailDeliveryLog({
+          userId: logUserId,
+          to: payload.to,
+          subject: payload.subject,
+          status: "sent",
+          // Surface that a fallback was used so the admin can fix the primary.
+          errorMessage: errors.length ? `sent via fallback ${label}; earlier: ${errors.join(" | ")}`.slice(0, 900) : null,
+        });
+        if (errors.length) console.warn(`[sendEmail] Sent via fallback ${label}; earlier failures:`, errors.join(" | "));
+        return true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${label}: ${msg}`);
+        console.warn(`[sendEmail] Candidate ${label} failed:`, msg);
+      }
+    }
 
+    const errorMessage = errors.join(" | ").slice(0, 900) || "All sender candidates failed";
+    console.error("[sendEmail] Failed to send email — all candidates failed:", errorMessage);
     await insertEmailDeliveryLog({
       userId: logUserId,
       to: payload.to,
       subject: payload.subject,
-      status: "sent",
+      status: "failed",
+      errorMessage,
     });
-
-    return true;
+    return false;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("[sendEmail] Failed to send email:", err);
