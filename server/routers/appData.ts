@@ -1,8 +1,38 @@
-import { eq, and, ne, isNull } from "drizzle-orm";
+import { eq, and, ne, isNull, asc } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { userAppData, tasksTable, notesTable, ideasTable, externalTasks } from "../../drizzle/schema";
+import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users } from "../../drizzle/schema";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+
+/**
+ * Full visibility ("see every member's items") in the shared-workspace read
+ * endpoints is reserved for the WORKSPACE OWNER — the configured OWNER_OPEN_ID
+ * account or, failing that, the first registered user (same rule as the
+ * auth.me owner-promotion). Plain admins keep their edit/take-ownership powers
+ * but only SEE items actually assigned to them — otherwise inviting a teammate
+ * as Admin exposed the owner's entire workspace (tasks/notes/projects/…) as
+ * "shared with them". Min-user-id lookup cached ~60s.
+ */
+let _minUserIdCache: { id: number | null; at: number } | null = null;
+async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Promise<boolean> {
+  try {
+    const { ENV } = await import("../_core/env");
+    if (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) return true;
+  } catch {}
+  const now = Date.now();
+  if (!_minUserIdCache || now - _minUserIdCache.at > 60000) {
+    let id: number | null = null;
+    try {
+      const db = await getDb();
+      if (db) {
+        const first = await db.select({ id: users.id }).from(users).orderBy(asc(users.id)).limit(1);
+        id = first.length ? first[0].id : null;
+      }
+    } catch {}
+    _minUserIdCache = { id, at: now };
+  }
+  return _minUserIdCache.id != null && user.id === _minUserIdCache.id;
+}
 
 // Keys that can be saved/loaded
 const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks'] as const;
@@ -494,9 +524,11 @@ export const appDataRouter = router({
   /**
    * Team-visibility read augmentation (Phase 1, step 2c). Tasks this user
    * should SEE but does not OWN (they live in another member's blob):
-   *   - regular member → tasks ASSIGNED to them by someone else (assigneeId==me,
-   *     owned by another user);
-   *   - admin / owner   → every other member's tasks (full visibility).
+   *   - regular member / admin → tasks ASSIGNED to them by someone else
+   *     (assigneeId==me, owned by another user);
+   *   - WORKSPACE OWNER only  → every other member's tasks (full visibility).
+   *     (Was any-admin; that exposed the owner's whole workspace to invited
+   *     admins — see isOwnerCtxUser.)
    * The user's OWN tasks come through the normal appData.load path. Each row is
    * tagged `_sharedFromUserId` + `_readOnly` so the client renders it read-only
    * and excludes it from the user's own blob on save. Resilient: any failure
@@ -508,6 +540,7 @@ export const appDataRouter = router({
     try {
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       // A task is "assigned to me" if I'm the relational primary (assigneeId)
       // OR I'm in the multi-assignee array / primaryAssigneeId stored in raw.
       const isMineAssigned = (r: any): boolean => {
@@ -519,8 +552,8 @@ export const appDataRouter = router({
         } catch {}
         return false;
       };
-      // Tasks owned by OTHERS: assigned to me (any assignee), or all if admin.
-      const sharedRows = admin
+      // Tasks owned by OTHERS: assigned to me (any assignee), or all if OWNER.
+      const sharedRows = owner
         ? await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))
         : (await db.select().from(tasksTable).where(ne(tasksTable.userId, ctx.user.id))).filter(isMineAssigned);
       // MY OWN tasks delegated to someone else (assignee set and != me; SQL
@@ -569,6 +602,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, projects: userAppData.projects }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -594,7 +628,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignee || p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -621,6 +655,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, programs: userAppData.programs }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -643,7 +678,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -728,6 +763,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, mindmaps: userAppData.mindmaps }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -749,7 +785,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -834,6 +870,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, sheets: userAppData.sheets }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -855,7 +892,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false });
             }
           }
@@ -949,6 +986,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, decks: userAppData.decks }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -970,7 +1008,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false });
             }
           }
@@ -1060,6 +1098,7 @@ export const appDataRouter = router({
       const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const owner = await isOwnerCtxUser(ctx.user as any);
       const rows = await db.select({ userId: userAppData.userId, prefs: userAppData.prefs }).from(userAppData);
       const out: any[] = [];
       const meId = ctx.user.id;
@@ -1081,7 +1120,7 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (admin || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
               out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: true });
             }
           }
@@ -1202,8 +1241,9 @@ export const appDataRouter = router({
     }),
 
   /**
-   * Team-visibility for NOTES (relational table like tasks). A member sees notes
-   * where they're any assignee; admin sees all; plus my own delegated notes.
+   * Team-visibility for NOTES (relational table like tasks). A member (incl.
+   * admins) sees notes where they're any assignee; only the WORKSPACE OWNER
+   * sees all; plus my own delegated notes.
    */
   sharedNotesForMe: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
@@ -1220,7 +1260,8 @@ export const appDataRouter = router({
         } catch {}
         return false;
       };
-      const sharedRows = admin
+      const owner = await isOwnerCtxUser(ctx.user as any);
+      const sharedRows = owner
         ? await db.select().from(notesTable).where(ne(notesTable.userId, ctx.user.id))
         : (await db.select().from(notesTable).where(ne(notesTable.userId, ctx.user.id))).filter(isMineAssigned);
       const delegatedRows = await db.select().from(notesTable).where(and(eq(notesTable.userId, ctx.user.id), ne(notesTable.assigneeId, ctx.user.id)));
