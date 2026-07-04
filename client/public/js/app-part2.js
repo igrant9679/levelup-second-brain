@@ -4023,7 +4023,11 @@ document.addEventListener('keydown',e=>{
     if(e.key==='Escape'){closeModal();closeDrawer();document.getElementById('ai-panel').classList.remove('show');closeSearch();if(typeof _tourOverlayActive!=='undefined'&&_tourOverlayActive)exitTour();if(typeof _helpDrawerOpen!=='undefined'&&_helpDrawerOpen)closeHelpDrawer();}
     return;
   }
-  if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
+  // Single-letter navigation — plain keypresses only. Without the modifier
+  // guard these hijacked Ctrl+F (find), Ctrl+P (print), Ctrl/Cmd+D (bookmark).
+  if(!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(e.key==='d')nav('myday');if(e.key==='w')nav('myweek');if(e.key==='y')nav('myyear');if(e.key==='p')nav('process');if(e.key==='i')nav('ideas');if(e.key==='f')nav('focus');
+  }
   if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette()}
   if((e.ctrlKey||e.metaKey)&&e.key==='j'){e.preventDefault();toggleAIPanel()}
   // Cmd/Ctrl + / opens the Ask LevelUp universal Q&A overlay. Different
@@ -4037,9 +4041,10 @@ document.addEventListener('keydown',e=>{
     if(!typing){e.preventDefault();openShortcuts();}
   }
   if((e.ctrlKey||e.metaKey)&&e.key==='n'){e.preventDefault();openFA('task')}
-  // Help shortcuts
-  if(e.key==='?'){e.preventDefault();nav('help');}
-  if((e.ctrlKey||e.metaKey)&&e.key==='/'){e.preventDefault();openHelpDrawer();}
+  // NOTE: '?' and Ctrl/Cmd+/ were each bound TWICE in this handler — '?' opened
+  // the shortcuts overlay AND navigated to Help; Ctrl+/ opened Ask LevelUp AND
+  // the Help drawer, all on one keypress. The shortcuts overlay and Ask LevelUp
+  // (both bound above) win; Help stays reachable via sidebar + command palette.
   if(e.key==='Escape'){
     closeModal();closeDrawer();
     document.getElementById('ai-panel').classList.remove('show');
@@ -4993,17 +4998,17 @@ function renderFANote(){
       </label>
       <!-- RTE Toolbar -->
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('fa-note-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
       </div>
       <div id="fa-note-rte" contenteditable="true" spellcheck="true"
         style="min-height:180px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
@@ -5123,16 +5128,16 @@ function renderFAGoal(){
         <span id="fa-goal-rte-wc" style="font-size:9px;color:var(--t3)">0 words</span>
       </label>
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('fa-goal-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
       </div>
       <div id="fa-goal-rte" contenteditable="true" spellcheck="true"
         style="min-height:140px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
@@ -5252,20 +5257,20 @@ function renderFAJournal(){
     </div>
     <!-- RTE Toolbar -->
     <div id="fa-jrnl-rte-bar" style="display:flex;flex-wrap:wrap;gap:3px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-weight:700" onclick="document.execCommand('bold')" title="Bold"><b>B</b></button>
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-style:italic" onclick="document.execCommand('italic')" title="Italic"><i>I</i></button>
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;text-decoration:underline" onclick="document.execCommand('underline')" title="Underline"><u>U</u></button>
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
+      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
       <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
       <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('justifyLeft')" title="Align left">⇤</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('justifyCenter')" title="Centre">↔</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('justifyLeft')" title="Align left">⇤</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('justifyCenter')" title="Centre">↔</button>
       <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('createLink',false,prompt('URL:'))" title="Insert link">🔗</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
       <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="luRTE_insertImage('fa-jrnl-rte')" title="Insert image (file or URL)">🖼</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
       <div style="flex:1"></div>
       <span id="fa-jrnl-rte-wordcount" style="font-size:9px;color:var(--t3);align-self:center">0 words</span>
     </div>
