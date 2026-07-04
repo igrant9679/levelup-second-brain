@@ -150,6 +150,15 @@ body:not(.compact-mode){font-size:15px}
 .md-body h1,.md-body h2,.md-body h3,.md-body h4,.md-body h5,.md-body h6{color:var(--t1)}
 .md-body ul,.md-body ol{margin:6px 0 6px 18px;padding:0}
 .md-body li{margin:2px 0}
+/* Lists inside ANY contenteditable surface (note drawer Free-form Body,
+   journal/goal/idea editors, task notes, …). The global *{margin:0;padding:0}
+   reset zeroes ul/ol padding, which pushes the disc/number markers outside the
+   editable's overflow clip box — lists were inserted but invisible. The luRTE
+   .rte-body rules (injected at runtime, later in the cascade) still win inside
+   the main editor. */
+[contenteditable="true"] ul{list-style:disc outside;padding-left:22px;margin:6px 0}
+[contenteditable="true"] ol{list-style:decimal outside;padding-left:26px;margin:6px 0}
+[contenteditable="true"] li{margin:2px 0}
 .md-body a{color:var(--ac);text-decoration:underline;word-break:break-word}
 .md-body code{background:var(--s3);padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:.92em}
 .md-body pre{background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin:8px 0;overflow-x:auto}
@@ -2828,7 +2837,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-06-25-114';
+  var APP_BUILD='2026-06-25-115';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
