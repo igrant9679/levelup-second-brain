@@ -45,36 +45,10 @@ function luRTE_render(opts={}){
   const val=opts.value||'';
   const allowHtmlPaste=opts.allowHtmlPaste?'true':'false';
   const initHtml=luRTE_mdToHtml(val);
+  // Font family/size + text/highlight colour now ship on EVERY luRTE toolbar
+  // via _rteFontTools() in the main toolbar; mail compose keeps its extra
+  // align buttons here.
   const extraToolbar=opts.allowHtmlPaste?`
-  <div class="rte-sep"></div>
-  <select class="rte-sel" title="Font" style="width:90px" onchange="document.execCommand('fontName',false,this.value);document.getElementById('${id}').focus()">
-    <option value="">Font</option>
-    <option value="Arial">Arial</option>
-    <option value="Georgia">Georgia</option>
-    <option value="Courier New">Courier New</option>
-    <option value="Times New Roman">Times New Roman</option>
-    <option value="Trebuchet MS">Trebuchet</option>
-    <option value="Verdana">Verdana</option>
-  </select>
-  <select class="rte-sel" title="Size" style="width:52px" onchange="document.execCommand('fontSize',false,this.value);document.getElementById('${id}').focus()">
-    <option value="">Size</option>
-    <option value="1">8pt</option>
-    <option value="2">10pt</option>
-    <option value="3">12pt</option>
-    <option value="4">14pt</option>
-    <option value="5">18pt</option>
-    <option value="6">24pt</option>
-    <option value="7">36pt</option>
-  </select>
-  <div class="rte-sep"></div>
-  <label title="Text colour" style="display:inline-flex;align-items:center;cursor:pointer">
-    <span style="font-size:11px;font-weight:600;color:var(--t1)">A</span>
-    <input type="color" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;background:transparent" onmousedown="luRTE_saveSel('${id}')" oninput="luRTE_applyColor('foreColor','${id}',this.value)" onchange="luRTE_applyColor('foreColor','${id}',this.value)" title="Text colour">
-  </label>
-  <label title="Highlight" style="display:inline-flex;align-items:center;cursor:pointer">
-    <span style="font-size:11px;font-weight:600;background:yellow;color:#000;padding:0 2px">H</span>
-    <input type="color" value="#ffff00" style="width:18px;height:18px;border:none;padding:0;cursor:pointer;background:transparent" onmousedown="luRTE_saveSel('${id}')" oninput="luRTE_applyColor('hiliteColor','${id}',this.value)" onchange="luRTE_applyColor('hiliteColor','${id}',this.value)" title="Highlight colour">
-  </label>
   <div class="rte-sep"></div>
   <button class="rte-btn" title="Align Left" onmousedown="event.preventDefault();document.execCommand('justifyLeft');document.getElementById('${id}').focus()">⇐</button>
   <button class="rte-btn" title="Align Center" onmousedown="event.preventDefault();document.execCommand('justifyCenter');document.getElementById('${id}').focus()">☰</button>
@@ -108,6 +82,7 @@ function luRTE_render(opts={}){
   <div class="rte-sep"></div>
   <button class="rte-btn" title="Undo (Ctrl+Z)" onmousedown="event.preventDefault();luRTE_cmd('undo','${id}')">↩</button>
   <button class="rte-btn" title="Redo (Ctrl+Y)" onmousedown="event.preventDefault();luRTE_cmd('redo','${id}')">↪</button>
+  ${_rteFontTools()}
   ${extraToolbar}
 </div>
 <div class="rte-body" id="${id}" contenteditable="true" data-placeholder="${ph}" style="min-height:${h}"
@@ -135,6 +110,74 @@ function luRTE_cmd(cmd,id){
   }
   document.execCommand(cmd,false,null);
   luRTE_updateCharCount(id);
+}
+
+// ─── Generic helpers for the bespoke (non-luRTE) toolbars ────────────────────
+// Every bespoke toolbar (drawer note/journal/goal/task-notes, FA modals, idea
+// editors) is a toolbar <div> whose contenteditable sits as a following
+// sibling. These helpers discover that editable from any control inside the
+// toolbar, so one set of markup works for every surface.
+function _rteFindEd(el){
+  let n=el;
+  for(let i=0;i<5&&n;i++){
+    let sib=n.nextElementSibling;
+    while(sib){
+      if(sib.getAttribute&&sib.getAttribute('contenteditable')==='true')return sib;
+      const inner=sib.querySelector&&sib.querySelector('[contenteditable="true"]');
+      if(inner)return inner;
+      sib=sib.nextElementSibling;
+    }
+    n=n.parentElement;
+  }
+  return null;
+}
+// Run a command against this toolbar's editable, placing the caret inside it
+// first if the selection is elsewhere (otherwise execCommand silently no-ops).
+function _rteExec(ev,cmd,val){
+  const src=(ev&&(ev.currentTarget||ev.target))||null;
+  const ed=src?_rteFindEd(src):null;
+  if(!ed)return;
+  ed.focus();
+  const sel=window.getSelection();
+  if(!sel.rangeCount||!ed.contains(sel.getRangeAt(0).commonAncestorContainer)){
+    const r=document.createRange();
+    r.selectNodeContents(ed);r.collapse(false);
+    sel.removeAllRanges();sel.addRange(r);
+  }
+  document.execCommand(cmd,false,val==null?null:val);
+}
+// Font / colour controls need the selection captured on mousedown (opening a
+// <select> or native colour dialog steals it) and restored before applying.
+let _rteSel={ed:null,range:null};
+function _rteSaveSel(el){
+  const ed=_rteFindEd(el);
+  _rteSel.ed=ed;_rteSel.range=null;
+  const s=window.getSelection();
+  if(ed&&s&&s.rangeCount){
+    const r=s.getRangeAt(0);
+    if(ed.contains(r.commonAncestorContainer))_rteSel.range=r.cloneRange();
+  }
+}
+function _rteApply(el,cmd,val){
+  if(!val)return;
+  const ed=_rteSel.ed||_rteFindEd(el);
+  if(!ed)return;
+  ed.focus();
+  const s=window.getSelection();
+  if(_rteSel.range){s.removeAllRanges();s.addRange(_rteSel.range);}
+  else{const r=document.createRange();r.selectNodeContents(ed);r.collapse(false);s.removeAllRanges();s.addRange(r);}
+  try{document.execCommand('styleWithCSS',false,true);}catch(_){}
+  document.execCommand(cmd,false,val);
+}
+// Shared font-family / font-size / text-colour / highlight controls, appended
+// to every RTE toolbar (bespoke + luRTE). Target editable is auto-discovered.
+function _rteFontTools(){
+  const fonts=['Arial','Georgia','Verdana','Tahoma','Trebuchet MS','Times New Roman','Courier New','system-ui'];
+  return `<div style="width:1px;background:var(--bd1);margin:2px 2px"></div>`+
+    `<select title="Font style" style="height:22px;font-size:10px;max-width:88px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontName',this.value);this.selectedIndex=0"><option value="">Font</option>${fonts.map(f=>`<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('')}</select>`+
+    `<select title="Font size" style="height:22px;font-size:10px;width:54px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontSize',this.value);this.selectedIndex=0"><option value="">Size</option><option value="1">8</option><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option><option value="7">36</option></select>`+
+    `<label title="Text colour" style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;padding:0 2px"><span style="font-size:11px;font-weight:700;color:var(--t1)">A</span><input type="color" style="width:18px;height:18px;border:none;padding:0;background:transparent;cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'foreColor',this.value)"></label>`+
+    `<label title="Highlight colour" style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;padding:0 2px"><span style="font-size:10px;font-weight:700;background:#ff0;color:#000;padding:0 3px;border-radius:2px">H</span><input type="color" value="#ffff00" style="width:18px;height:18px;border:none;padding:0;background:transparent;cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'hiliteColor',this.value)"></label>`;
 }
 
 // Notion-style auto-format: typing "- " / "* " at the start of a line turns it
@@ -3540,11 +3583,11 @@ function renderDrawer(type,item){
         </div>
         <div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)">
           <div style="display:flex;flex-wrap:wrap;gap:2px;padding:3px 5px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:5px 5px 0 0">
-            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-weight:700" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('bold')"><b>B</b></button>
-            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-style:italic" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('italic')"><i>I</i></button>
-            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;text-decoration:underline" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('underline')"><u>U</u></button>
-            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('insertUnorderedList')">• List</button>
-            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onclick="document.getElementById('st-rte-${item.id}-${si}').focus();document.execCommand('removeFormat')">Tx</button>
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')"><b>B</b></button>
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')"><i>I</i></button>
+            <button type="button" class="btn btn-s" style="height:20px;min-width:20px;padding:0 4px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')"><u>U</u></button>
+            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')">• List</button>
+            <button type="button" class="btn btn-s" style="height:20px;padding:0 4px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')">Tx</button>
           </div>
           <div id="st-rte-${item.id}-${si}" contenteditable="true" spellcheck="true"
             style="min-height:60px;max-height:200px;overflow-y:auto;padding:7px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 5px 5px;font-size:11px;line-height:1.6;color:var(--t1);outline:none"
@@ -3614,16 +3657,16 @@ function renderDrawer(type,item){
       </label>
       <!-- Drawer RTE Toolbar (Task Notes) -->
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-notes-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
       </div>
       <div id="dr-notes-rte" contenteditable="true" spellcheck="true"
         style="min-height:120px;max-height:360px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.65;color:var(--t1);outline:none"
@@ -3681,16 +3724,16 @@ function renderDrawer(type,item){
       </label>
       <!-- Note Drawer RTE Toolbar -->
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-note-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
       </div>
       <div id="dr-note-rte" contenteditable="true" spellcheck="true"
         style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
@@ -3801,16 +3844,16 @@ function renderDrawer(type,item){
         <span id="dr-goal-rte-wc" style="font-size:9px;color:var(--t3)">0 words</span>
       </label>
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-goal-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
       </div>
       <div id="dr-goal-rte" contenteditable="true" spellcheck="true"
         style="min-height:140px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
@@ -3837,16 +3880,16 @@ function renderDrawer(type,item){
       </label>
       <!-- Drawer RTE Toolbar -->
       <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
         <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
         <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-diary-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
       </div>
       <div id="dr-diary-rte" contenteditable="true" spellcheck="true"
         style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
@@ -20764,12 +20807,12 @@ function openNewIdeaModal(){
     <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Full Description <span style="font-size:9px;font-weight:400;text-transform:none;color:var(--t3)">(rich text — describe your idea in full detail)</span></label>
     <!-- RTE Toolbar -->
     <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--brd);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
       <div style="flex:1"></div>
       <span id="ni-rte-wc" style="font-size:9px;color:var(--t3);align-self:center">0 words</span>
     </div>
@@ -20926,16 +20969,16 @@ function renderIdeaDetail(idea){
       <div style="padding:0">
         <!-- RTE Toolbar -->
         <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 8px;background:var(--s1);border-top:1px solid var(--bd1);border-bottom:1px solid var(--bd1)">
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();document.execCommand('bold')" title="Bold"><b>B</b></button>
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();document.execCommand('italic')" title="Italic"><i>I</i></button>
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();document.execCommand('underline')" title="Underline"><u>U</u></button>
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
+          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
           <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('formatBlock','false','h3')" title="Heading">H</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertUnorderedList')" title="Bullet list">• List</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('insertOrderedList')" title="Numbered list">1. List</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(){var u=prompt('URL:');if(u)document.execCommand('createLink',false,u);})()" title="Insert link">🔗</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
           <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('idea-body-rte-${idea.id}')" title="Insert image (file or URL)">🖼</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="Clear formatting">Tx</button>
+          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
           <div style="flex:1"></div>
           <button type="button" class="btn btn-p" style="height:22px;padding:0 8px;font-size:10px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
         </div>
