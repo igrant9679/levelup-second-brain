@@ -439,14 +439,22 @@ function luRTE_setValue(id,val){
   luRTE_updateCharCount(id);
 }
 
+// A body already contains real HTML (RTE / contenteditable output, or an
+// imported document) if it has any recognizable tag ANYWHERE — not just at the
+// start. contenteditable produces mixed bodies like "Govwin<br><ul><li>…" that
+// begin with plain text; the old startsWith('<') check missed those, and the
+// markdown converter below then HTML-escaped their <ul>/<li> into literal
+// "&lt;ul&gt;" text, destroying every saved list on reopen. Plain-markdown
+// bodies contain no such tags and still fall through to the converter.
+function _luRTE_isHtml(text){
+  return /<\/?(?:ul|ol|li|p|div|br|h[1-6]|strong|b|em|i|u|s|a|img|blockquote|pre|code|span|hr|font|table|tr|td)\b[^>]*>/i.test(text);
+}
 // Convert stored markdown/HTML body to display HTML
 function luRTE_mdToHtml(text){
   if(!text)return'';
-  // If it already looks like HTML, return as-is
-  if(text.trim().startsWith('<'))return text;
-  // Mixed content: RTE saves of plain typing produce "line<br>line" bodies that
-  // DON'T start with '<'. Treat <br>s as newlines here — previously they were
-  // HTML-escaped and showed as literal "&lt;br&gt;" text in the note.
+  // Already HTML anywhere in the string → return as-is (never re-escape it).
+  if(_luRTE_isHtml(text))return text;
+  // Otherwise it's plain text / markdown. Normalise any stray <br> to newlines.
   let s=text.replace(/<br\s*\/?>/gi,'\n');
   s=s
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -481,8 +489,10 @@ function renderMd(text){
   if(text==null)return '';
   let s=String(text);
   if(!s.trim())return '';
-  // Already HTML? Return as-is so existing rich content is preserved.
-  if(/^\s*</.test(s))return s;
+  // Already HTML anywhere (RTE / contenteditable output, imported docs)? Return
+  // as-is — re-escaping would turn saved <ul>/<li> etc. into literal text. The
+  // old /^\s*</ start-only check missed mixed "text<br><ul>…" bodies.
+  if(_luRTE_isHtml(s))return s;
   // 1. Pull out fenced code blocks first so their contents survive escaping
   const codeBlocks=[];
   s=s.replace(/```([\s\S]*?)```/g,(_,c)=>{
