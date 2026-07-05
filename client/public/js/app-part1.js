@@ -70,8 +70,8 @@ function luRTE_render(opts={}){
     <option value="blockquote">Quote</option>
   </select>
   <div class="rte-sep"></div>
-  <button class="rte-btn" title="Bullet List" onmousedown="event.preventDefault();luRTE_cmd('insertUnorderedList','${id}')">≡</button>
-  <button class="rte-btn" title="Numbered List" onmousedown="event.preventDefault();luRTE_cmd('insertOrderedList','${id}')">1.</button>
+  <button class="rte-btn" title="Bullet list (dots)" onmousedown="event.preventDefault();luRTE_cmd('insertUnorderedList','${id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+  <button class="rte-btn" title="Numbered list" onmousedown="event.preventDefault();luRTE_cmd('insertOrderedList','${id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/><text x="1.5" y="8.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="20.5" font-size="8" font-weight="700" fill="currentColor" stroke="none">2</text></svg></button>
   <button class="rte-btn" title="Outdent" onmousedown="event.preventDefault();luRTE_cmd('outdent','${id}')">⇤</button>
   <button class="rte-btn" title="Indent" onmousedown="event.preventDefault();luRTE_cmd('indent','${id}')">⇥</button>
   <div class="rte-sep"></div>
