@@ -2308,7 +2308,11 @@ body.notes-mode-slides #s-notes #notes-slides-section{display:flex!important}
 .sh-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .sh-card{position:relative;background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:14px 14px 16px;cursor:pointer;overflow:hidden;transition:transform .12s,box-shadow .12s,border-color .12s}
 .sh-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.22);border-color:var(--c)}
-.sh-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.sh-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding-right:22px}
+.sh-card-del{position:absolute;top:7px;right:7px;font-size:12px;line-height:1;padding:4px;border-radius:6px;cursor:pointer;opacity:0;transition:opacity .12s,background .12s;z-index:2}
+.sh-card:hover .sh-card-del{opacity:.75}
+.sh-card-del:hover{opacity:1!important;background:var(--reds)}
+@media (pointer:coarse){.sh-card-del{opacity:.6}} /* always visible on touch — no hover there */
 .sh-card-ic{font-size:20px}
 .sh-card-title{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-card-meta{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:6px}
@@ -2845,7 +2849,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-121';
+  var APP_BUILD='2026-07-05-122';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

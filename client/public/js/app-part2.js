@@ -11494,6 +11494,7 @@ function _shCard(s){
   const c=s.color||'#3b82f6';
   const assignBadge=(Array.isArray(s.assignees)&&s.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${s.assignees.length}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="shOpen(${Number(s.id)})">
+    <span class="sh-card-del" title="Delete sheet" onclick="event.stopPropagation();shDeleteSheet(${Number(s.id)})">🗑</span>
     <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
     <div class="sh-card-meta">${rows} row${rows===1?'':'s'} · ${cols} col${cols===1?'':'s'} ${assignBadge}</div>
     <div class="sh-card-bar"></div>
@@ -12062,6 +12063,7 @@ function _dkCard(d){
   const c=d.color||'#3b82f6'; const n=(d.slides||[]).length;
   const assignBadge=(Array.isArray(d.assignees)&&d.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${d.assignees.length}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="dkOpen(${Number(d.id)})">
+    <span class="sh-card-del" title="Delete deck" onclick="event.stopPropagation();dkDeleteDeck(${Number(d.id)})">🗑</span>
     <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
     <div class="sh-card-meta">${n} slide${n===1?'':'s'} ${assignBadge}</div><div class="sh-card-bar"></div></div>`;
 }
