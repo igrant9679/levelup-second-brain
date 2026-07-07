@@ -20774,22 +20774,7 @@ function openNewIdeaModal(){
   <!-- Rich Text Editor for full idea description -->
   <div style="margin-bottom:10px">
     <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Full Description <span style="font-size:10px;font-weight:400;text-transform:none;color:var(--t3)">(rich text — describe your idea in full detail)</span></label>
-    <!-- RTE Toolbar -->
-    <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--brd);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-      <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-      <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      <div style="flex:1"></div>
-      <span id="ni-rte-wc" style="font-size:10px;color:var(--t3);align-self:center">0 words</span>
-    </div>
-    <div id="ni-body-rte" contenteditable="true" spellcheck="true"
-      style="min-height:160px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--brd);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-      data-placeholder="Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?"
-      oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('ni-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
-    ></div>
+    ${luRTE_render({id:'ni-body-rte', placeholder:'Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?', value:'', height:'160px'})}
     <!-- AI Assistance -->
     <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)">
       <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -20936,26 +20921,10 @@ function renderIdeaDetail(idea){
         </span>
       </div>
       <div style="padding:0">
-        <!-- RTE Toolbar -->
-        <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 8px;background:var(--s1);border-top:1px solid var(--bd1);border-bottom:1px solid var(--bd1)">
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-          <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-          <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('idea-body-rte-${idea.id}')" title="Insert image (file or URL)">🖼</button>
-          <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-          <div style="flex:1"></div>
-          <button type="button" class="btn btn-p" style="height:22px;padding:0 8px;font-size:10px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
+        ${luRTE_render({id:`idea-body-rte-${idea.id}`, placeholder:'Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?', value:(idea.bodyHtml||''), height:'140px'})}
+        <div style="display:flex;justify-content:flex-end;padding:6px 8px;background:var(--s1);border-top:1px solid var(--bd1)">
+          <button type="button" class="btn btn-p" style="height:24px;padding:0 10px;font-size:10px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
         </div>
-        <div id="idea-body-rte-${idea.id}" contenteditable="true" spellcheck="true"
-          style="min-height:140px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-          data-placeholder="Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?"
-          oninput="(function(el,id){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('idea-rte-wc-'+id);if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this,${idea.id})"
-        >${idea.bodyHtml||''}</div>
         <!-- AI Assistance -->
         <div style="padding:8px;background:var(--s2);border-top:1px solid var(--bd1)">
           <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
