@@ -4992,29 +4992,8 @@ function renderFANote(){
     </div>
     <!-- Rich Text Body -->
     <div class="fa-field" style="margin-top:12px">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span>
-        <span id="fa-note-rte-wc" style="font-size:10px;color:var(--t3)">0 words</span>
-      </label>
-      <!-- RTE Toolbar -->
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('fa-note-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="fa-note-rte" contenteditable="true" spellcheck="true"
-        style="min-height:180px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-        data-placeholder="Write your full note here — no structure required. Use the toolbar to format as you go..."
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('fa-note-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');_faHasChanges=true;})(this)"
-      ></div>
+      <label><span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span></label>
+      ${luRTE_render({id:'fa-note-rte', placeholder:'Write your full note here — no structure required. Use the toolbar to format as you go...', value:'', height:'180px'})}
       <!-- AI Assistance -->
       <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -5024,7 +5003,7 @@ function renderFANote(){
           <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('link')">🔗 Link Concepts</button>
           <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('autotag')">🏷 Auto-tag</button>
           <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('questions')">❓ Key Questions</button>
-          <button type="button" class="btn btn-d" style="height:24px;font-size:10px" onclick="document.getElementById('fa-note-rte').innerHTML='';document.getElementById('fa-note-rte-wc').textContent='0 words'">🗑 Clear</button>
+          <button type="button" class="btn btn-d" style="height:24px;font-size:10px" onclick="document.getElementById('fa-note-rte').innerHTML='';luRTE_updateCharCount('fa-note-rte')">🗑 Clear</button>
           ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="fa-note-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
@@ -5123,27 +5102,8 @@ function renderFAGoal(){
       <span class="err" id="fa-title-err">Title is required</span>
     </div>
     <div class="fa-field" style="margin-bottom:10px">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, success criteria</span></span>
-        <span id="fa-goal-rte-wc" style="font-size:10px;color:var(--t3)">0 words</span>
-      </label>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('fa-goal-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="fa-goal-rte" contenteditable="true" spellcheck="true"
-        style="min-height:140px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-        data-placeholder="Why does this goal matter? Describe milestones, success criteria…"
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('fa-goal-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');_faHasChanges=true;})(this)"
-      ></div>
+      <label><span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, success criteria</span></span></label>
+      ${luRTE_render({id:'fa-goal-rte', placeholder:'Why does this goal matter? Describe milestones, success criteria…', value:'', height:'140px'})}
       <textarea class="fa-inp" id="fa-desc" style="display:none"></textarea>
     </div>
     ${faCommonScope()}
@@ -5255,32 +5215,7 @@ function renderFAJournal(){
       <span>📓 Free-form Diary Entry</span>
       <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — write freely, format as you go</span>
     </div>
-    <!-- RTE Toolbar -->
-    <div id="fa-jrnl-rte-bar" style="display:flex;flex-wrap:wrap;gap:3px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0">
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-      <button type="button" class="btn btn-s" style="height:24px;min-width:24px;padding:0 6px;font-size:11px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-      <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-      <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'justifyLeft')" title="Align left">⇤</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'justifyCenter')" title="Centre">↔</button>
-      <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onclick="luRTE_insertImage('fa-jrnl-rte')" title="Insert image (file or URL)">🖼</button>
-      <button type="button" class="btn btn-s" style="height:24px;padding:0 6px;font-size:11px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      <div style="flex:1"></div>
-      <span id="fa-jrnl-rte-wordcount" style="font-size:10px;color:var(--t3);align-self:center">0 words</span>
-    </div>
-    <!-- Editable area -->
-    <div id="fa-jrnl-rte" contenteditable="true" spellcheck="true"
-      style="min-height:200px;max-height:500px;overflow-y:auto;padding:12px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:13px;line-height:1.7;color:var(--t1);outline:none"
-      data-placeholder="Write freely here — this is your private diary. No prompts, no structure. Just your thoughts..."
-      oninput="(function(el){const text=el.innerText||'';const words=text.trim()?text.trim().split(/\\s+/).length:0;const wc=document.getElementById('fa-jrnl-rte-wordcount');if(wc)wc.textContent=words+' word'+(words===1?'':'s');_faHasChanges=true;})(this)"
-      onfocus="if(!this.innerText.trim())this.innerHTML=''"
-    ></div>
+    ${luRTE_render({id:'fa-jrnl-rte', placeholder:'Write freely here — this is your private diary. No prompts, no structure. Just your thoughts...', value:'', height:'200px'})}
     <!-- AI Assistance -->
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:6px">✨ AI Assistance</div>
@@ -5290,7 +5225,7 @@ function renderFAJournal(){
         <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('summarise')">📌 Summarise</button>
         <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('mood')">🟡 Mood Analysis</button>
         <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('questions')">❓ Prompt Me</button>
-        <button type="button" class="btn btn-d" style="height:26px;font-size:10px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';document.getElementById('fa-jrnl-rte-wordcount').textContent='0 words'">🗑 Clear</button>
+        <button type="button" class="btn btn-d" style="height:26px;font-size:10px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';luRTE_updateCharCount('fa-jrnl-rte')">🗑 Clear</button>
         ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       </div>
       <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
@@ -11810,8 +11745,8 @@ function _shCellHtml(s,row,col){
   switch(col.type){
     case 'checkbox':{ const on=!!raw&&raw!=='false'; return `<div class="sh-chk ${on?'on':''}" onclick="shToggleCheck(${row.id},${col.id})">${on?'✓':''}</div>`; }
     case 'rating':{ const v=Math.max(0,Math.min(5,Math.round(_shNum(raw)||0))); let st=''; for(let i=1;i<=5;i++)st+=`<span class="sh-star ${i<=v?'on':''}" onclick="shSetRating(${row.id},${col.id},${i})">★</span>`; return `<div class="sh-rating">${st}</div>`; }
-    case 'progress':{ const p=Math.max(0,Math.min(100,Math.round(_shNum(typeof raw==='string'&&raw.charAt(0)==='='?_shEval(s,raw,0):raw)||0))); const cc=p>=100?'#10b981':p>=50?'#3b82f6':'#f59e0b'; return `<div class="sh-prog" onclick="shEditProgress(${row.id},${col.id})" title="Click to set %"><div class="sh-prog-bar" style="width:${p}%;background:${cc}"></div><span class="sh-prog-n">${p}%</span></div>`; }
-    case 'select':{ const opt=(col.options||[]).find(o=>o.label===raw); const bg=opt?opt.color:'#64748b'; return raw?`<div class="sh-pill" style="background:${bg};color:#fff" onclick="shOpenSelect(event,${row.id},${col.id})">${esc(String(raw))}<span class="sh-pill-ch">▾</span></div>`:`<div class="sh-pill sh-pill-empty" onclick="shOpenSelect(event,${row.id},${col.id})">— select —<span class="sh-pill-ch">▾</span></div>`; }
+    case 'progress':{ const p=Math.max(0,Math.min(100,Math.round(_shNum(typeof raw==='string'&&raw.charAt(0)==='='?_shEval(s,raw,0):raw)||0))); const cc=p>=100?'var(--color-status-ok)':p>=50?'var(--ac)':'var(--color-status-warn)'; return `<div class="sh-prog" onclick="shEditProgress(${row.id},${col.id})" title="Click to set %"><div class="sh-prog-bar" style="width:${p}%;background:${cc}"></div><span class="sh-prog-n">${p}%</span></div>`; }
+    case 'select':{ const opt=(col.options||[]).find(o=>o.label===raw); const bg=opt?opt.color:'var(--t3)'; return raw?`<div class="sh-pill" style="background:${bg};color:#fff" onclick="shOpenSelect(event,${row.id},${col.id})">${esc(String(raw))}<span class="sh-pill-ch">▾</span></div>`:`<div class="sh-pill sh-pill-empty" onclick="shOpenSelect(event,${row.id},${col.id})">— select —<span class="sh-pill-ch">▾</span></div>`; }
     case 'person':{ return raw?`<div class="sh-pill sh-person" onclick="shOpenPerson(event,${row.id},${col.id})"><span class="sh-avatar">${esc((String(raw)[0]||'?').toUpperCase())}</span>${esc(String(raw))}</div>`:`<div class="sh-pill sh-pill-empty" onclick="shOpenPerson(event,${row.id},${col.id})">— assign —</div>`; }
     default:{ const disp=_shCellDisplay(s,row,col); const isF=typeof raw==='string'&&raw.charAt(0)==='='; return `<div class="sh-cell-edit ${isF?'sh-formula':''}" contenteditable="true" data-row="${row.id}" data-col="${col.id}" data-raw="${esc(raw==null?'':String(raw))}" onfocus="shCellFocus(this)" onblur="shCellBlur(this)" onkeydown="shCellKey(event,this)" spellcheck="false" title="${isF?esc(String(raw)):''}">${disp}</div>`; }
   }

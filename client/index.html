@@ -2204,11 +2204,19 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
      wouldn't break anything either, but this is belt-and-suspenders). -->
 <button id="topbar-token-refresh" style="display:none!important" aria-hidden="true" tabindex="-1"></button>
 <button class="bn" onclick="openModal('capture')">+ New</button>
-<button class="tbtn" id="topbar-ask-btn" onclick="aiAskLevelup()" aria-label="Ask LevelUp about your workspace (Ctrl/Cmd + /)" title="Ask LevelUp anything about your workspace (Ctrl/Cmd + /)" style="color:#8b5cf6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/></svg></button>
+<!-- Single AI entry point: Ask (one-shot Q&A) + Chat (persistent panel) live in
+     one ✨ menu instead of two near-identical topbar icons. -->
+<div style="position:relative;display:inline-flex">
+  <button class="tbtn" id="topbar-ask-btn" onclick="event.stopPropagation();togglePopMenu('topbar-ai-menu')" aria-label="AI tools — Ask LevelUp (Ctrl+/) or AI Chat (Ctrl+J)" title="AI tools" style="color:#8b5cf6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"/><circle cx="18" cy="6" r="1.5" fill="currentColor"/><circle cx="6" cy="18" r="1.5" fill="currentColor"/></svg></button>
+  <div id="topbar-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:38px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:5px;z-index:var(--z-dropdown);min-width:230px;box-shadow:0 10px 32px rgba(0,0,0,.45)">
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');aiAskLevelup()">✨ Ask LevelUp <span style="margin-left:auto;font-size:10px;color:var(--t3)">Ctrl+/</span></button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');toggleAIPanel()">⚡ AI Chat <span style="margin-left:auto;font-size:10px;color:var(--t3)">Ctrl+J</span></button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:32px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-ai-menu');openCommandPalette()">⌘ Command Palette <span style="margin-left:auto;font-size:10px;color:var(--t3)">Ctrl+K</span></button>
+  </div>
+</div>
 <button class="tbtn" id="topbar-sync-btn" onclick="_topbarSyncNow()" aria-label="Sync external sources (Smartsheet + NiftyPM)" title="Sync external sources (Smartsheet + NiftyPM)" style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span id="topbar-sync-dot" style="display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--ok)"></span></button>
 <span id="topbar-sync-label" style="font-size:10px;color:var(--t3);align-self:center;cursor:pointer;display:none" onclick="nav('command')" title="Open Command Center"></span>
 <button id="topbar-push-btn" onclick="_pushPendingNow()" style="display:none;background:#f59e0b;color:#fff;border:none;height:30px;padding:0 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer" title="Push queued status changes to source">⬆ Push <span data-pcount>0</span></button>
-<button class="tbtn" onclick="toggleAIPanel()" aria-label="Open AI assistant (Ctrl/Cmd + J)" title="AI Assistant"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" role="button" tabindex="0" aria-label="Account and settings" onclick="nav('settings')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('settings')}">IG</div>
 </div>
@@ -2837,7 +2845,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-119';
+  var APP_BUILD='2026-07-05-120';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

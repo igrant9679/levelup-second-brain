@@ -391,6 +391,8 @@ function luRTE_onInput(id){
     const el=document.getElementById(id);
     if(el)noteWikiInput(el);
   }
+  // FA modals track a dirty flag for their unsaved-changes guard.
+  try{ if(id&&id.slice(0,3)==='fa-'&&typeof _faHasChanges!=='undefined')_faHasChanges=true; }catch(_){}
 }
 
 function luRTE_onPaste(e,id){
@@ -3664,29 +3666,9 @@ function renderDrawer(type,item){
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         Notes
-        <span style="display:flex;align-items:center;gap:6px">
-          <span id="dr-notes-wc" style="font-size:10px;color:var(--t3)">${(()=>{const t=(item.notesHtml?item.notesHtml.replace(/<[^>]*>/g,' '):(item.notes||'')).trim();const w=t?t.split(/\s+/).length:0;return w+' word'+(w===1?'':'s');})()}</span>
-          <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
-        </span>
+        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
       </label>
-      <!-- Drawer RTE Toolbar (Task Notes) -->
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-notes-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="dr-notes-rte" contenteditable="true" spellcheck="true"
-        style="min-height:120px;max-height:360px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.65;color:var(--t1);outline:none"
-        data-placeholder="Notes, context, decisions…"
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-notes-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
-      >${item.notesHtml||(item.notes?(typeof renderMd==='function'?renderMd(item.notes):esc(item.notes)):'')}</div>
+      ${luRTE_render({id:'dr-notes-rte', placeholder:'Notes, context, decisions…', value:(item.notesHtml||item.notes||''), height:'120px'})}
     </div>
     <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
@@ -3732,28 +3714,8 @@ function renderDrawer(type,item){
     </div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span>
-        <span id="dr-note-rte-wc" style="font-size:10px;color:var(--t3)">0 words</span>
-      </label>
-      <!-- Note Drawer RTE Toolbar -->
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-note-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="dr-note-rte" contenteditable="true" spellcheck="true"
-        style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-        data-placeholder="Continue your note here…"
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-note-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
-      >${item.bodyHtml||''}</div>
+      <label><span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
+      ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:(item.bodyHtml||''), height:'160px'})}
       <!-- AI Assistance in Note Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -3853,27 +3815,8 @@ function renderDrawer(type,item){
       <div class="field"><label>Due Date</label><input class="inp" type="date" value="${esc(item.dueDate||'')}" id="dr-due"></div>
     </div>
     <div class="field" style="margin-top:8px">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, etc.</span></span>
-        <span id="dr-goal-rte-wc" style="font-size:10px;color:var(--t3)">0 words</span>
-      </label>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-goal-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="dr-goal-rte" contenteditable="true" spellcheck="true"
-        style="min-height:140px;max-height:400px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-        data-placeholder="Describe the goal in detail — why it matters, milestones, success criteria…"
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-goal-rte-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
-      >${item.descriptionHtml||''}</div>
+      <label><span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, etc.</span></span></label>
+      ${luRTE_render({id:'dr-goal-rte', placeholder:'Describe the goal in detail — why it matters, milestones, success criteria…', value:(item.descriptionHtml||''), height:'140px'})}
     </div>
     <div class="field"><label>Linked Tasks</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px">${D.tasks.map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.linkedTaskIds||[]).includes(t.id)?'checked':''} data-tid="${t.id}" class="goal-task-cb"> ${esc(t.title)}</label>`).join('')}</div></div>
     <div class="dr-actions">
@@ -3888,28 +3831,8 @@ function renderDrawer(type,item){
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:10px">
-      <label style="display:flex;justify-content:space-between;align-items:center">
-        <span>📓 Diary Entry <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span>
-        <span id="dr-jrnl-wc" style="font-size:10px;color:var(--t3)">0 words</span>
-      </label>
-      <!-- Drawer RTE Toolbar -->
-      <div style="display:flex;flex-wrap:wrap;gap:3px;padding:5px 7px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:6px 6px 0 0;margin-top:4px">
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-weight:700" onmousedown="event.preventDefault();_rteExec(event,'bold')" title="Bold"><b>B</b></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;font-style:italic" onmousedown="event.preventDefault();_rteExec(event,'italic')" title="Italic"><i>I</i></button>
-        <button type="button" class="btn btn-s" style="height:22px;min-width:22px;padding:0 5px;font-size:10px;text-decoration:underline" onmousedown="event.preventDefault();_rteExec(event,'underline')" title="Underline"><u>U</u></button>
-        <div style="width:1px;background:var(--bd1);margin:2px 2px"></div>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'formatBlock','h3')" title="Heading">H</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertUnorderedList')" title="Bullet list">• List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'insertOrderedList')" title="Numbered list">1. List</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();(function(ev){var u=prompt('URL:');if(u)_rteExec(ev,'createLink',u);})(event)" title="Insert link">🔗</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onclick="luRTE_insertImage('dr-diary-rte')" title="Insert image (file or URL)">🖼</button>
-        <button type="button" class="btn btn-s" style="height:22px;padding:0 5px;font-size:10px" onmousedown="event.preventDefault();_rteExec(event,'removeFormat')" title="Clear formatting">Tx</button>${_rteFontTools()}
-      </div>
-      <div id="dr-diary-rte" contenteditable="true" spellcheck="true"
-        style="min-height:160px;max-height:450px;overflow-y:auto;padding:10px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 6px 6px;font-size:12px;line-height:1.7;color:var(--t1);outline:none"
-        data-placeholder="Continue your diary entry here…"
-        oninput="(function(el){const t=el.innerText||'';const w=t.trim()?t.trim().split(/\\s+/).length:0;const wc=document.getElementById('dr-jrnl-wc');if(wc)wc.textContent=w+' word'+(w===1?'':'s');})(this)"
-      >${item.diaryBody||''}</div>
+      <label><span>📓 Diary Entry <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
+      ${luRTE_render({id:'dr-diary-rte', placeholder:'Continue your diary entry here…', value:(item.diaryBody||''), height:'160px'})}
       <!-- AI Assistance in Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
@@ -6764,6 +6687,38 @@ function renderHome(){
       </div>`).join('')}
     </div>
   </div>
+  ${(()=>{
+    // ── Today's Plan strip (unified-landing v1): actionable My Day tasks,
+    // today's schedule and habit check-offs directly on Home, so the day can
+    // be worked without bouncing between Home / My Day / Command Center.
+    const myday=D.tasks.filter(t=>t.myDay&&t.status!=='Done').slice(0,6);
+    const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===_todayStr)
+      .sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,6);
+    const daily=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,8);
+    const col=(icon,title,navRoute,inner)=>`<div class="cd" style="padding:12px;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:700">${icon} ${title}</span>
+        <span style="font-size:10px;color:var(--ac);cursor:pointer" onclick="nav('${navRoute}')">Open →</span>
+      </div>${inner}</div>`;
+    const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
+        <div class="chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderHome,80)" title="Mark done"></div>
+        <span class="rt" style="font-size:12px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">${esc(t.title)}</span>
+        ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
+      </div>`).join('')
+      :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No My Day tasks yet — star tasks into My Day to plan your day.</div>`;
+    const evRows=evs.length?evs.map(e=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--bd1)">
+        <span style="font-size:10px;font-weight:700;color:var(--ac);min-width:38px">${esc((e.start||'').slice(11,16)||'—')}</span>
+        <span style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title||e.subject||'(untitled)')}</span>
+      </div>`).join('')
+      :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No events scheduled today.</div>`;
+    const habitChips=daily.length?`<div style="display:flex;flex-wrap:wrap;gap:5px">${daily.map(h=>`<span onclick="toggleHabit(${h.id});setTimeout(renderHome,80)" style="cursor:pointer;font-size:11px;padding:4px 10px;border-radius:14px;font-weight:600;${h.doneToday?'background:var(--oks);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent)':'background:transparent;color:var(--t2);border:1px solid var(--bd2)'}">${h.doneToday?'✓ ':''}${esc(h.name||h.title||'Habit')}</span>`).join('')}</div>`
+      :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No daily habits yet.</div>`;
+    return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px">
+      ${col('☀️',"Today's Plan",'myday',taskRows)}
+      ${col('📅','Schedule','calendar',evRows)}
+      ${col('✅',`Habits ${daily.length?`<span style="font-size:10px;color:var(--t3);font-weight:400">${daily.filter(h=>h.doneToday).length}/${daily.length}</span>`:''}`,'habits',habitChips)}
+    </div>`;
+  })()}
   <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">${_icon('zap',15,'var(--page-accent)')} Quick Add</span>
   ${[['Task','#22c55e'],['Note','#f97316'],['Project','#a855f7'],['Goal','#dc2626'],['Journal','#f43f5e'],['Habit','#10b981']].map(([t,c])=>`<span style="font-size:11px;color:${c};cursor:pointer;padding:4px 10px;border-radius:6px;border:1px solid color-mix(in srgb,${c} 25%,var(--bd2));background:color-mix(in srgb,${c} 8%,transparent);font-weight:500;transition:filter .12s,transform .1s" onmouseover="this.style.filter='brightness(1.2)';this.style.transform='translateY(-1px)'" onmouseout="this.style.filter='';this.style.transform=''" onclick="openFA('${t.toLowerCase()}')">+ ${t}</span>`).join('')}</div>
   ${(()=>{
