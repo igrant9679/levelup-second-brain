@@ -120,6 +120,11 @@ async function buildTransporter(
       requireTLS: account.smtpEncryption === "tls",
       auth: { user: account.smtpUsername, pass: account.smtpPassword },
       tls: { rejectUnauthorized: false },
+      // Fail fast with a crisp error instead of hanging ~2min on a blocked
+      // port / wrong host — the delivery log then shows ETIMEDOUT etc. clearly.
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
     const fromName = account.displayName || "LevelUp";
     return { transporter, from: `"${fromName}" <${account.email}>` };
