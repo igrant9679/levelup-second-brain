@@ -113,11 +113,19 @@ async function buildTransporter(
     const { getSmtpImapAccountFull } = await import("../db");
     const account = await getSmtpImapAccountFull(userId);
     if (!account) return null;
+    // Port-aware TLS mode: 465 is ALWAYS implicit TLS and 587 is ALWAYS
+    // STARTTLS, regardless of the stored encryption label. Providers describe
+    // implicit-TLS-on-465 as "TLS: true", so users legitimately pick our
+    // "TLS" (STARTTLS) option for a 465 endpoint — nodemailer then waits for
+    // a plaintext greeting the server will never send ("Greeting never
+    // received"). Trust the port; the label only decides for other ports.
+    const port = Number(account.smtpPort) || 587;
+    const secure = port === 465 ? true : port === 587 ? false : account.smtpEncryption === "ssl";
     const transporter = nodemailer.createTransport({
       host: account.smtpHost,
-      port: account.smtpPort,
-      secure: account.smtpEncryption === "ssl",
-      requireTLS: account.smtpEncryption === "tls",
+      port,
+      secure,
+      requireTLS: !secure && account.smtpEncryption !== "none",
       auth: { user: account.smtpUsername, pass: account.smtpPassword },
       tls: { rejectUnauthorized: false },
       // Fail fast with a crisp error instead of hanging ~2min on a blocked

@@ -34,12 +34,17 @@ async function testSmtpConnection(input: {
   smtpUsername: string;
   smtpPassword: string;
 }): Promise<{ success: true }> {
+  // Port-aware TLS mode (must match sendEmail's buildTransporter): 465 is
+  // ALWAYS implicit TLS and 587 ALWAYS STARTTLS regardless of the stored
+  // label — providers describe implicit TLS as "TLS: true", so users pick
+  // our "TLS" option for 465 endpoints and got "Greeting never received".
+  const port = Number(input.smtpPort) || 587;
+  const secure = port === 465 ? true : port === 587 ? false : input.smtpEncryption === 'ssl';
   const transporter = nodemailer.createTransport({
     host: input.smtpHost,
-    port: input.smtpPort,
-    // ssl = implicit TLS (port 465); tls = STARTTLS (port 587); none = plain
-    secure: input.smtpEncryption === 'ssl',
-    requireTLS: input.smtpEncryption === 'tls', // force STARTTLS upgrade on port 587
+    port,
+    secure,
+    requireTLS: !secure && input.smtpEncryption !== 'none',
     auth: {
       user: input.smtpUsername,
       pass: input.smtpPassword,
@@ -998,11 +1003,15 @@ export const oauthSyncRouter = router({
             message: "No SMTP/IMAP account configured. Please add one in Settings \u2192 Accounts.",
           });
         }
+        // Port-aware TLS mode — see testSmtpConnection: 465 = implicit TLS,
+        // 587 = STARTTLS, regardless of the stored encryption label.
+        const smtpPort = Number(account.smtpPort) || 587;
+        const smtpSecure = smtpPort === 465 ? true : smtpPort === 587 ? false : account.smtpEncryption === 'ssl';
         const transporter = nodemailer.createTransport({
           host: account.smtpHost,
-          port: account.smtpPort,
-          secure: account.smtpEncryption === 'ssl',
-          requireTLS: account.smtpEncryption === 'tls',
+          port: smtpPort,
+          secure: smtpSecure,
+          requireTLS: !smtpSecure && account.smtpEncryption !== 'none',
           auth: { user: account.smtpUsername, pass: account.smtpPassword },
           tls: { rejectUnauthorized: false },
           connectionTimeout: 15000,
