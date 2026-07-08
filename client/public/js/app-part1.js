@@ -9,7 +9,7 @@ const luRTE_CSS=`
 .rte-btn:hover{background:var(--s3)}
 .rte-btn.active{background:var(--acs);color:var(--ac)}
 .rte-sep{width:1px;height:18px;background:var(--bd1);margin:0 3px}
-.rte-sel{height:24px;font-size:10px;padding:0 4px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer}
+.rte-sel{height:24px;font-size:11px;padding:0 4px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer}
 .rte-body{min-height:160px;padding:10px 12px;font-size:13px;line-height:1.7;color:var(--t1);outline:none;overflow-y:auto;word-break:break-word}
 .rte-body:empty:before{content:attr(data-placeholder);color:var(--t3);pointer-events:none}
 .rte-body h1{font-size:20px;font-weight:700;margin:12px 0 6px}
@@ -24,7 +24,7 @@ const luRTE_CSS=`
 .rte-body a{color:var(--ac);text-decoration:underline}
 .rte-body hr{border:none;border-top:1px solid var(--bd1);margin:10px 0}
 .rte-body img{max-width:100%;border-radius:4px;margin:4px 0}
-.rte-char-count{font-size:10px;color:var(--t3);padding:3px 8px;text-align:right;background:var(--s2);border-top:1px solid var(--bd1)}
+.rte-char-count{font-size:11px;color:var(--t3);padding:3px 8px;text-align:right;background:var(--s2);border-top:1px solid var(--bd1)}
 `;
 
 function luRTE_injectCSS(){
@@ -174,10 +174,10 @@ function _rteApply(el,cmd,val){
 function _rteFontTools(){
   const fonts=['Arial','Georgia','Verdana','Tahoma','Trebuchet MS','Times New Roman','Courier New','system-ui'];
   return `<div style="width:1px;background:var(--bd1);margin:2px 2px"></div>`+
-    `<select title="Font style" style="height:22px;font-size:10px;max-width:88px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontName',this.value);this.selectedIndex=0"><option value="">Font</option>${fonts.map(f=>`<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('')}</select>`+
-    `<select title="Font size" style="height:22px;font-size:10px;width:54px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontSize',this.value);this.selectedIndex=0"><option value="">Size</option><option value="1">8</option><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option><option value="7">36</option></select>`+
+    `<select title="Font style" style="height:22px;font-size:11px;max-width:88px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontName',this.value);this.selectedIndex=0"><option value="">Font</option>${fonts.map(f=>`<option value="${f}" style="font-family:'${f}'">${f}</option>`).join('')}</select>`+
+    `<select title="Font size" style="height:22px;font-size:11px;width:54px;padding:0 3px;border:1px solid var(--bd1);border-radius:4px;background:var(--s1);color:var(--t1);cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'fontSize',this.value);this.selectedIndex=0"><option value="">Size</option><option value="1">8</option><option value="2">10</option><option value="3">12</option><option value="4">14</option><option value="5">18</option><option value="6">24</option><option value="7">36</option></select>`+
     `<label title="Text colour" style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;padding:0 2px"><span style="font-size:11px;font-weight:700;color:var(--t1)">A</span><input type="color" style="width:18px;height:18px;border:none;padding:0;background:transparent;cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'foreColor',this.value)"></label>`+
-    `<label title="Highlight colour" style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;padding:0 2px"><span style="font-size:10px;font-weight:700;background:#ff0;color:#000;padding:0 3px;border-radius:2px">H</span><input type="color" value="#ffff00" style="width:18px;height:18px;border:none;padding:0;background:transparent;cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'hiliteColor',this.value)"></label>`;
+    `<label title="Highlight colour" style="display:inline-flex;align-items:center;gap:2px;cursor:pointer;padding:0 2px"><span style="font-size:11px;font-weight:700;background:#ff0;color:#000;padding:0 3px;border-radius:2px">H</span><input type="color" value="#ffff00" style="width:18px;height:18px;border:none;padding:0;background:transparent;cursor:pointer" onmousedown="_rteSaveSel(this)" onchange="_rteApply(this,'hiliteColor',this.value)"></label>`;
 }
 
 // Notion-style auto-format: typing "- " / "* " at the start of a line turns it
@@ -305,7 +305,7 @@ function luRTE_insertImage(id){
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Upload from computer
       </button>
-      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em"><div style="flex:1;height:1px;background:var(--bd1)"></div>or<div style="flex:1;height:1px;background:var(--bd1)"></div></div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.08em"><div style="flex:1;height:1px;background:var(--bd1)"></div>or<div style="flex:1;height:1px;background:var(--bd1)"></div></div>
       <div class="field"><label>Paste an image URL</label><input id="lu-img-url" class="inp" placeholder="https://… or data:image/png;base64,…" autofocus></div>
       <button type="button" class="btn btn-s" id="lu-img-url-btn" style="height:32px;font-size:11px">Insert URL</button>
     </div>
@@ -601,7 +601,7 @@ function _aiLengthChip(){
   const lvl=_aiLength();
   const labels={short:'Short',medium:'Medium',long:'Long'};
   const next={short:'medium',medium:'long',long:'short'};
-  return `<button type="button" class="btn btn-s" data-ai-length-chip style="height:24px;font-size:10px;padding:0 8px;margin-left:auto;color:var(--t2)" onclick="_aiSetLength('${next[lvl]}')" title="Click to cycle Short → Medium → Long. Affects all AI buttons on this page.">Length: ${labels[lvl]}</button>`;
+  return `<button type="button" class="btn btn-s" data-ai-length-chip style="height:24px;font-size:11px;padding:0 8px;margin-left:auto;color:var(--t2)" onclick="_aiSetLength('${next[lvl]}')" title="Click to cycle Short → Medium → Long. Affects all AI buttons on this page.">Length: ${labels[lvl]}</button>`;
 }
 
 // Convert RTE HTML back to plain text / markdown for storage
@@ -2063,17 +2063,17 @@ function renderKnowledgeGraph(){
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgFreezeLayout()" title="Stop the auto-layout so nodes hold position">⏸ Freeze</button>
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_kgToggleGuide()" title="What am I looking at?">❔ Guide</button>
         <div id="kg-settings-pop" style="display:none;position:absolute;top:34px;right:0;width:248px;background:var(--s1);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.45);z-index:30;padding:12px;font-size:11.5px;color:var(--t2)">
-          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Connection types</div>
-          ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];return `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0"><input type="checkbox" ${cfg.edges[t]?'checked':''} onchange="_kgSetEdge('${t}',this.checked)"><svg width="26" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="26" y2="4" stroke="rgba(${s.c},.9)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg><span style="flex:1">${esc(s.label)}</span><span style="color:var(--t3);font-size:10px">${typeCounts[t]||0}</span></label>`;}).join('')}
-          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Colour nodes by</div>
+          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Connection types</div>
+          ${KG_TYPE_ORDER.map(t=>{const s=KG_EDGE_STYLE[t];return `<label style="display:flex;align-items:center;gap:7px;cursor:pointer;padding:3px 0"><input type="checkbox" ${cfg.edges[t]?'checked':''} onchange="_kgSetEdge('${t}',this.checked)"><svg width="26" height="8" style="flex-shrink:0"><line x1="0" y1="4" x2="26" y2="4" stroke="rgba(${s.c},.9)" stroke-width="${s.w}" ${s.dash?`stroke-dasharray="${s.dash}"`:''}/></svg><span style="flex:1">${esc(s.label)}</span><span style="color:var(--t3);font-size:11px">${typeCounts[t]||0}</span></label>`;}).join('')}
+          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Colour nodes by</div>
           <select onchange="_kgSetColorBy(this.value)" class="inp" style="width:100%;height:26px;font-size:11px;padding:0 6px">
             ${[['palette','Note colour / auto'],['tag','First tag'],['folder','Folder'],['color','Manual colour tag']].map(([v,l])=>`<option value="${v}" ${cfg.colorBy===v?'selected':''}>${l}</option>`).join('')}
           </select>
-          <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Cluster layout by</div>
+          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">Cluster layout by</div>
           <select onchange="_kgSetCluster(this.value)" class="inp" style="width:100%;height:26px;font-size:11px;padding:0 6px">
             ${[['none','None (free-floating)'],['tag','First tag'],['folder','Folder'],['color','Colour']].map(([v,l])=>`<option value="${v}" ${cfg.cluster===v?'selected':''}>${l}</option>`).join('')}
           </select>
-          <button class="btn btn-s" style="width:100%;height:26px;font-size:10px;margin-top:10px" onclick="_kgToggleSettingsPop()">Close</button>
+          <button class="btn btn-s" style="width:100%;height:26px;font-size:11px;margin-top:10px" onclick="_kgToggleSettingsPop()">Close</button>
         </div>
       </div>
     </div>
@@ -2198,14 +2198,14 @@ function _kgRenderInfo(){
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--bd1)">
       <div style="min-width:0">
         <div style="font-size:12.5px;font-weight:700;color:var(--t1);word-break:break-word">${esc(node.title)}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${node.degree} connection${node.degree===1?'':'s'}${node.starred?' · ★ starred':''}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${node.degree} connection${node.degree===1?'':'s'}${node.starred?' · ★ starred':''}</div>
       </div>
       <button class="btn btn-s" style="height:22px;width:22px;padding:0;font-size:12px;flex-shrink:0" onclick="_kgClearSelection()" title="Close">✕</button>
     </div>
     <div style="padding:10px 12px;line-height:1.55">
       ${snippet?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">${snippet}${snippet.length>=160?'…':''}</div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px;font-style:italic">No body text.</div>'}
-      ${tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${tags.map(t=>`<span style="font-size:10px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:8px">#${esc(t)}</span>`).join('')}</div>`:''}
-      ${neigh.length?`<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Connected notes (${neigh.length})</div><div style="max-height:150px;overflow-y:auto">${neigh.map(x=>{const rt=relOf[x.id];const st=KG_EDGE_STYLE[rt]||{c:'148,163,184',label:rt};return `<div class="lr" style="cursor:pointer;padding:4px 4px" onclick="_kgFocusNode(${x.id})" title="${esc(st.label)} — click to jump"><span style="width:7px;height:7px;border-radius:50%;background:${x.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(x.title)}</span><span style="font-size:9px;color:rgb(${st.c});flex-shrink:0;border:1px solid rgba(${st.c},.5);border-radius:7px;padding:0 5px">${esc(rt)}</span></div>`;}).join('')}</div>`:'<div style="font-size:10.5px;color:var(--t3)">No connections with the current ⚙ View settings.</div>'}
+      ${tags.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">${tags.map(t=>`<span style="font-size:11px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:8px">#${esc(t)}</span>`).join('')}</div>`:''}
+      ${neigh.length?`<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Connected notes (${neigh.length})</div><div style="max-height:150px;overflow-y:auto">${neigh.map(x=>{const rt=relOf[x.id];const st=KG_EDGE_STYLE[rt]||{c:'148,163,184',label:rt};return `<div class="lr" style="cursor:pointer;padding:4px 4px" onclick="_kgFocusNode(${x.id})" title="${esc(st.label)} — click to jump"><span style="width:7px;height:7px;border-radius:50%;background:${x.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(x.title)}</span><span style="font-size:9px;color:rgb(${st.c});flex-shrink:0;border:1px solid rgba(${st.c},.5);border-radius:7px;padding:0 5px">${esc(rt)}</span></div>`;}).join('')}</div>`:'<div style="font-size:10.5px;color:var(--t3)">No connections with the current ⚙ View settings.</div>'}
       ${convertible?`<button class="btn btn-s" style="width:100%;height:26px;font-size:10.5px;margin-top:8px" onclick="_kgMaterializeMentions(${id})" title="Wrap the ${convertible} note title${convertible===1?'':'s'} mentioned in this note's text with [[ ]] so they become permanent links">🔗 Convert ${convertible} mention${convertible===1?'':'s'} to [[links]]</button>`:''}
       <button class="btn btn-p" style="width:100%;height:28px;font-size:11px;margin-top:8px" onclick="_kgOpenNote(${id})">✎ Open note</button>
     </div>`;
@@ -2289,7 +2289,7 @@ function _kgRenderLegend(){
   const rows=[...groups.entries()].sort((a,b)=>b[1]-a[1]).slice(0,9)
     .map(([color,n])=>`<div style="display:flex;align-items:center;gap:6px;padding:1px 0"><span style="width:9px;height:9px;border-radius:50%;background:${color};flex-shrink:0"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(labelFor(color))}</span><span style="color:var(--t3)">${n}</span></div>`).join('');
   el.style.display='block';
-  el.innerHTML=`<div style="font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-size:10px;margin-bottom:4px">Colour: ${cb==='tag'?'first tag':cb==='folder'?'folder':'manual colour'}</div>${rows}`;
+  el.innerHTML=`<div style="font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-size:11px;margin-bottom:4px">Colour: ${cb==='tag'?'first tag':cb==='folder'?'folder':'manual colour'}</div>${rows}`;
 }
 function _kgPaintNodes(){
   const layer=document.getElementById('kg-nodes-layer');if(!layer||!_kgState)return;
@@ -2398,7 +2398,7 @@ function _kgWireEvents(){
       const node=_kgState.nodes.find(n=>n.id===nid);
       const n=D.notes.find(x=>x.id===nid);
       if(node&&n){
-        tip.innerHTML=`<div style="font-weight:600;margin-bottom:2px">${esc(node.title)}</div><div style="font-size:10px;color:var(--t3)">${node.degree} connection${node.degree===1?'':'s'}${(n.tags||[]).length?' · '+(n.tags||[]).slice(0,3).map(t=>'#'+t).join(' '):''}</div>`;
+        tip.innerHTML=`<div style="font-weight:600;margin-bottom:2px">${esc(node.title)}</div><div style="font-size:11px;color:var(--t3)">${node.degree} connection${node.degree===1?'':'s'}${(n.tags||[]).length?' · '+(n.tags||[]).slice(0,3).map(t=>'#'+t).join(' '):''}</div>`;
         const rect=wrap.getBoundingClientRect();
         tip.style.left=(e.clientX-rect.left+12)+'px';
         tip.style.top=(e.clientY-rect.top+12)+'px';
@@ -2703,7 +2703,7 @@ async function aiAskLevelup(prefillQuery){
     </div>
     <div id="ask-lu-suggest" style="padding:10px 16px;border-bottom:1px solid var(--bd1);font-size:11px;color:var(--t3);display:flex;flex-wrap:wrap;gap:6px">
       <span style="font-weight:600;color:var(--t2)">Try:</span>
-      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What is blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:10px;padding:2px 8px;height:22px" onclick="_askLuPrefill('${_jsAttr(s)}')">${esc(s)}</button>`).join('')}
+      ${['What did I decide about hiring?','Summarize my open Air Force opportunities.','What recurring themes are in my recent journal entries?','What is blocking my goals this week?','What are my unfinished follow-ups from notes?'].map(s=>`<button class="btn btn-s" style="font-size:11px;padding:2px 8px;height:22px" onclick="_askLuPrefill('${_jsAttr(s)}')">${esc(s)}</button>`).join('')}
     </div>
     <div id="ask-lu-body" style="flex:1;overflow:auto;padding:16px;font-size:13px;line-height:1.6;color:var(--t2)">
       <div style="text-align:center;color:var(--t3);padding:30px 20px">
@@ -2765,10 +2765,10 @@ async function aiAskLevelup(prefillQuery){
       }).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
       body.innerHTML = `<div style="margin-bottom:16px">${answerHtml}</div>
         <div style="border-top:1px solid var(--bd1);padding-top:12px;margin-top:12px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:6px;font-weight:600">Sources (${hits.length}) — click any [n] in the answer above</div>
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--t3);margin-bottom:6px;font-weight:600">Sources (${hits.length}) — click any [n] in the answer above</div>
           <div style="display:flex;flex-direction:column;gap:6px">${hits.map((h,i)=>`<div style="font-size:11px;padding:6px 8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1);cursor:pointer" onclick="document.getElementById('ask-lu-ov')?.remove();setTimeout(()=>{${h.openFn}},80)" title="Open">
-            <div style="display:flex;align-items:center;gap:6px"><span style="background:var(--s3);color:var(--t2);padding:1px 5px;border-radius:8px;font-weight:600">${i+1}</span><span>${h.icon}</span><span style="font-weight:600;color:var(--t1)">${esc(h.title)}</span>${h.meta?`<span style="color:var(--t3);font-size:10px;margin-left:auto">${esc(h.meta)}</span>`:''}</div>
-            <div style="color:var(--t3);margin-top:3px;font-size:10px;line-height:1.4">${esc(h.snippet.slice(0,200))}${h.snippet.length>200?'…':''}</div>
+            <div style="display:flex;align-items:center;gap:6px"><span style="background:var(--s3);color:var(--t2);padding:1px 5px;border-radius:8px;font-weight:600">${i+1}</span><span>${h.icon}</span><span style="font-weight:600;color:var(--t1)">${esc(h.title)}</span>${h.meta?`<span style="color:var(--t3);font-size:11px;margin-left:auto">${esc(h.meta)}</span>`:''}</div>
+            <div style="color:var(--t3);margin-top:3px;font-size:11px;line-height:1.4">${esc(h.snippet.slice(0,200))}${h.snippet.length>200?'…':''}</div>
           </div>`).join('')}</div>
         </div>`;
     } catch(err){
@@ -2865,37 +2865,37 @@ function _renderNoteDeepInsight(noteId, insight){
     return;
   }
   if(insight.error){
-    host.innerHTML = `<div style="padding:12px;color:var(--red);background:rgba(239,68,68,0.08);border-radius:6px;font-size:11px">⚠ ${esc(insight.error)}<br><button class="btn btn-s" style="font-size:10px;margin-top:6px" onclick="aiNoteDeepInsight(${noteId},{force:true})">Retry</button></div>`;
+    host.innerHTML = `<div style="padding:12px;color:var(--red);background:rgba(239,68,68,0.08);border-radius:6px;font-size:11px">⚠ ${esc(insight.error)}<br><button class="btn btn-s" style="font-size:11px;margin-top:6px" onclick="aiNoteDeepInsight(${noteId},{force:true})">Retry</button></div>`;
     return;
   }
   const cachedAge = insight.cachedAt ? Math.round((Date.now() - new Date(insight.cachedAt).getTime()) / 60000) : 0;
   host.innerHTML = `<div style="padding:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">${_icon('brain',16,'currentColor')} AI Deep Insight</div>
-      <div style="display:flex;gap:6px;align-items:center;font-size:10px;color:var(--t3)">
+      <div style="display:flex;gap:6px;align-items:center;font-size:11px;color:var(--t3)">
         ${cachedAge<60?`${cachedAge}m ago`:`${Math.round(cachedAge/60)}h ago`}
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="aiNoteDeepInsight(${noteId},{force:true})" title="Regenerate">↻</button>
       </div>
     </div>
     ${insight.summary?`<div style="padding:8px 10px;background:var(--s2);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px;font-size:12px;line-height:1.5;font-style:italic">${esc(insight.summary)}</div>`:''}
     ${insight.keyPoints && insight.keyPoints.length?`<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('target',14,'currentColor')} Key points</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('target',14,'currentColor')} Key points</div>
       <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6">${insight.keyPoints.map(k=>`<li>${esc(k)}</li>`).join('')}</ul>
     </div>`:''}
     ${insight.actionItems && insight.actionItems.length?`<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('zap',14,'currentColor')} Suggested action items</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">${_icon('zap',14,'currentColor')} Suggested action items</div>
       <div style="display:flex;flex-direction:column;gap:4px">${insight.actionItems.map((a,i)=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:6px 8px;background:var(--s2);border-radius:4px;font-size:11px">
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;flex-shrink:0;background:#16a34a;color:#fff;border-color:#15803d" onclick="_aiInsightCreateTask(${noteId},${i})" title="Create as task linked to this note">+ Task</button>
-        <div style="flex:1"><div style="color:var(--t1);font-weight:500">${esc(a.title)}</div>${a.why?`<div style="color:var(--t3);font-size:10px;margin-top:2px">${esc(a.why)}</div>`:''}</div>
+        <div style="flex:1"><div style="color:var(--t1);font-weight:500">${esc(a.title)}</div>${a.why?`<div style="color:var(--t3);font-size:11px;margin-top:2px">${esc(a.why)}</div>`:''}</div>
       </div>`).join('')}</div>
     </div>`:''}
     ${insight.openQuestions && insight.openQuestions.length?`<div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">❓ Open questions</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">❓ Open questions</div>
       <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.6;color:var(--t2)">${insight.openQuestions.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
     </div>`:''}
     ${insight.related && insight.related.length?`<div>
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">🔗 Related across workspace</div>
-      <div style="display:flex;flex-direction:column;gap:4px">${insight.related.map(r=>`<div style="font-size:11px;padding:5px 8px;background:var(--s2);border-radius:4px;cursor:pointer" onclick="${r.openFn}" title="${esc(r.snippet.slice(0,200))}"><span style="margin-right:5px">${r.icon}</span><span style="font-weight:500">${esc(r.title)}</span>${r.meta?`<span style="color:var(--t3);margin-left:6px;font-size:10px">${esc(r.meta)}</span>`:''}</div>`).join('')}</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">🔗 Related across workspace</div>
+      <div style="display:flex;flex-direction:column;gap:4px">${insight.related.map(r=>`<div style="font-size:11px;padding:5px 8px;background:var(--s2);border-radius:4px;cursor:pointer" onclick="${r.openFn}" title="${esc(r.snippet.slice(0,200))}"><span style="margin-right:5px">${r.icon}</span><span style="font-weight:500">${esc(r.title)}</span>${r.meta?`<span style="color:var(--t3);margin-left:6px;font-size:11px">${esc(r.meta)}</span>`:''}</div>`).join('')}</div>
     </div>`:''}
   </div>`;
 }
@@ -2911,7 +2911,7 @@ function _openNoteInsightPanel(noteId){
   side.style.cssText = 'position:fixed;top:56px;right:0;width:380px;max-width:95vw;height:calc(100vh - 56px);background:var(--s1);border-left:1px solid var(--bd2);box-shadow:-4px 0 20px rgba(0,0,0,0.25);z-index:200;overflow-y:auto;padding:14px;display:flex;flex-direction:column;animation:slideInRight 200ms ease-out';
   side.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
     <div style="font-size:13px;font-weight:600;color:var(--t1)">${_icon('brain',15,'currentColor')} Deep Insight</div>
-    <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 6px" onclick="document.getElementById('note-insight-side')?.remove()" title="Close">✕</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 6px" onclick="document.getElementById('note-insight-side')?.remove()" title="Close">✕</button>
   </div>
   <div id="note-ai-insight-panel" style="flex:1"></div>`;
   document.body.appendChild(side);
@@ -3088,16 +3088,16 @@ function _renderDailyFocusAISection(){
   const picks=Array.isArray(cache.picks)?cache.picks:[];
   const hasAIConfig=(()=>{try{const {apiKey,provider}=_getAIConfig();return !!apiKey||provider==='manus';}catch{return false;}})();
   if(!hasAIConfig){
-    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3);text-align:center">Add an AI key in Settings → AI Features to see Daily Focus picks.</div>`;
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3);text-align:center">Add an AI key in Settings → AI Features to see Daily Focus picks.</div>`;
   }
   const today=new Date().toISOString().slice(0,10);
   const stale=!cache.date||cache.date!==today;
   if(cache.pending){
-    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3);text-align:center">✨ Thinking about today's focus…</div>`;
+    return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3);text-align:center">✨ Thinking about today's focus…</div>`;
   }
   if(!picks.length||stale){
     return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div style="font-size:10px;color:var(--t3)">✨ ${stale?'Refresh':'Generate'} AI Daily Focus picks${cache.error?` <span style="color:var(--red)" title="${esc(cache.error)}">(error — click to retry)</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t3)">✨ ${stale?'Refresh':'Generate'} AI Daily Focus picks${cache.error?` <span style="color:var(--red)" title="${esc(cache.error)}">(error — click to retry)</span>`:''}</div>
       <button class="btn btn-s" style="font-size:10px;padding:0 8px;height:20px" onclick="_refreshDailyFocusAI({force:true})">${stale&&picks.length?'↻':'✨ Pick'}</button>
     </div>`;
   }
@@ -3110,13 +3110,13 @@ function _renderDailyFocusAISection(){
       <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:14px;flex-shrink:0">${i+1}.</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:500;line-height:1.35;display:flex;align-items:center;gap:4px;flex-wrap:wrap">${badge}<span style="overflow:hidden;text-overflow:ellipsis">${esc(p.title)}</span></div>
-        ${p.reason?`<div style="font-size:10px;color:var(--t3);line-height:1.4;margin-top:2px;font-style:italic">${esc(p.reason)}</div>`:''}
+        ${p.reason?`<div style="font-size:11px;color:var(--t3);line-height:1.4;margin-top:2px;font-style:italic">${esc(p.reason)}</div>`:''}
       </div>
     </div>`;
   }).join('');
   return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <span style="font-size:10px;font-weight:600;color:var(--t2)">✨ AI Daily Focus</span>
+      <span style="font-size:11px;font-weight:600;color:var(--t2)">✨ AI Daily Focus</span>
       <button class="btn btn-s" style="font-size:10px;padding:0 5px;height:18px" title="Regenerate" onclick="_refreshDailyFocusAI({force:true})">↻</button>
     </div>
     ${rows}
@@ -3258,7 +3258,7 @@ function _hydrateSidebarGroupsCollapsed(){
 // Collapses a calendar header's AI actions into one "✨ AI ▾" dropdown
 // (matches the Goals/Projects AI menus) so the header isn't a long button row.
 function _calAIMenu(id,items){
-  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('${id}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${it.c};background:transparent;border:none;text-align:left" onclick="closePopMenu('${id}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
+  return `<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('${id}')" title="AI calendar tools">✨ AI ▾</button><div id="${id}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:190px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${items.map(it=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:${it.c};background:transparent;border:none;text-align:left" onclick="closePopMenu('${id}');${it.fn}">${it.label}</button>`).join('')}</div></div>`;
 }
 function _focusViewTabs(active){
   const tabs=[['myday','Day'],['myweek','Week'],['myyear','Year']];
@@ -3583,7 +3583,7 @@ function openDrawer(type,item){
 }
 function closeDrawer(){document.getElementById('drawer-ov').classList.remove('show')}
 function renderDrawer(type,item){
-  const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:10px;margin-right:4px" onclick="togglePin('${t}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
+  const pinBtn=(t,id)=>{const pinned=D.prefs.pinned&&D.prefs.pinned.some(p=>p.type===t&&p.id===id);return `<button class="btn btn-s" style="height:22px;padding:0 7px;font-size:11px;margin-right:4px" onclick="togglePin('${t}',${id})" title="${pinned?'Unpin from Home':'Pin to Home'}">${pinned?'📌 Pinned':'📌 Pin'}</button>`;};
   const cb=`<button class="close" onclick="closeDrawer()">✕</button>`;
   if(type==='task'){
     const subs=item.subtasks||[];
@@ -3595,7 +3595,7 @@ function renderDrawer(type,item){
           <div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div>
           <span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span>
           <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()" title="Toggle description">${hasDesc?'📝':'+ desc'}</button>
-          <span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px" title="Delete subtask">✕</span>
+          <span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px" title="Delete subtask">✕</span>
         </div>
         <div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)">
           <div style="display:flex;flex-wrap:wrap;gap:2px;padding:3px 5px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:5px 5px 0 0">
@@ -3616,7 +3616,7 @@ function renderDrawer(type,item){
     return `<h2>${_icon('list',18,'currentColor')} Edit Task ${pinBtn('task',item.id)}${cb}</h2>
     <div class="field-row" style="align-items:flex-end">
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
-      <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
+      <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
           ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
           <input type="color" id="dr-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
@@ -3644,33 +3644,33 @@ function renderDrawer(type,item){
       <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Recurring<button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_toggleRecurrenceAdvanced(${item.id})" title="Advanced: weekday picker, end date, count">⚙ Advanced</button></label><select class="inp" id="dr-recurring" onchange="_onRecurringChange(${item.id})"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option><option ${item.recurring==='Yearly'?'selected':''}>Yearly</option></select>
         <div id="dr-recurring-adv" style="display:none;margin-top:6px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px">
           ${(()=>{const r=_parseRecurrenceRule(item.recurrenceRule);const days=['S','M','T','W','T','F','S'];return `
-          <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Fine-tune the recurrence rule (writes <code>recurrenceRule</code> JSON for the server-side generator).</div>
-          <div style="display:flex;gap:6px;margin-bottom:6px"><label style="font-size:10px;color:var(--t2);flex:1">Every <input type="number" id="dr-rec-interval" class="inp" min="1" max="365" value="${r.interval||1}" style="width:60px;font-size:11px;padding:2px 4px"></label></div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Fine-tune the recurrence rule (writes <code>recurrenceRule</code> JSON for the server-side generator).</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px"><label style="font-size:11px;color:var(--t2);flex:1">Every <input type="number" id="dr-rec-interval" class="inp" min="1" max="365" value="${r.interval||1}" style="width:60px;font-size:11px;padding:2px 4px"></label></div>
           <div id="dr-rec-byday" style="margin-bottom:6px">
-            <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Weekdays (Weekly/Bi-weekly only)</div>
-            <div style="display:flex;gap:3px">${days.map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;font-size:10px;padding:3px 5px;background:${(r.byDay||[]).includes(i)?'var(--ac)':'var(--s3)'};color:${(r.byDay||[]).includes(i)?'#fff':'var(--t2)'};border-radius:3px;cursor:pointer" onclick="(function(lbl){setTimeout(()=>{const cb=lbl.querySelector('input');const on=cb.checked;lbl.style.background=on?'var(--ac)':'var(--s3)';lbl.style.color=on?'#fff':'var(--t2)';},0)})(this)"><input type="checkbox" data-rec-day="${i}" ${(r.byDay||[]).includes(i)?'checked':''} style="display:none">${d}</label>`).join('')}</div>
+            <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Weekdays (Weekly/Bi-weekly only)</div>
+            <div style="display:flex;gap:3px">${days.map((d,i)=>`<label style="display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:3px 5px;background:${(r.byDay||[]).includes(i)?'var(--ac)':'var(--s3)'};color:${(r.byDay||[]).includes(i)?'#fff':'var(--t2)'};border-radius:3px;cursor:pointer" onclick="(function(lbl){setTimeout(()=>{const cb=lbl.querySelector('input');const on=cb.checked;lbl.style.background=on?'var(--ac)':'var(--s3)';lbl.style.color=on?'#fff':'var(--t2)';},0)})(this)"><input type="checkbox" data-rec-day="${i}" ${(r.byDay||[]).includes(i)?'checked':''} style="display:none">${d}</label>`).join('')}</div>
           </div>
-          <div style="display:flex;gap:8px"><label style="font-size:10px;color:var(--t2);flex:1">Until <input type="date" id="dr-rec-until" class="inp" value="${r.until||''}" style="font-size:11px;padding:2px 4px"></label><label style="font-size:10px;color:var(--t2);flex:1">Max count <input type="number" id="dr-rec-count" class="inp" min="0" placeholder="∞" value="${r.count||''}" style="font-size:11px;padding:2px 4px"></label></div>`;})()}
+          <div style="display:flex;gap:8px"><label style="font-size:11px;color:var(--t2);flex:1">Until <input type="date" id="dr-rec-until" class="inp" value="${r.until||''}" style="font-size:11px;padding:2px 4px"></label><label style="font-size:11px;color:var(--t2);flex:1">Max count <input type="number" id="dr-rec-count" class="inp" min="0" placeholder="∞" value="${r.count||''}" style="font-size:11px;padding:2px 4px"></label></div>`;})()}
         </div>
       </div>
-      <div class="field"><label>Est. Time (min)<span id="dr-actual-line" style="font-size:10px;color:var(--t3);margin-left:6px"></span></label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
+      <div class="field"><label>Est. Time (min)<span id="dr-actual-line" style="font-size:11px;color:var(--t3);margin-left:6px"></span></label><input class="inp" type="number" value="${item.estimatedMins||''}" id="dr-estmins" min="0"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Energy</label><select class="inp" id="dr-energy"><option ${item.energy==='high'?'selected':''}>high</option><option ${item.energy==='medium'?'selected':''}>medium</option><option ${item.energy==='low'?'selected':''}>low</option></select></div>
       <div class="field"><label>Linked Goal</label><select class="inp" id="dr-goal"><option value="">None</option>${D.goals.map(g=>`<option value="${g.id}" ${item.linkedGoalId===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★=Primary</span></label>${buildMultiAssignee('dr-ma',item)}</div>
+      <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary</span></label>${buildMultiAssignee('dr-ma',item)}</div>
       <div class="field"><label>Created By</label><input class="inp" value="${esc(item.createdBy||D.creds.userName||'Idris Grant')}" id="dr-createdby" readonly style="background:var(--s2);color:var(--t3)"></div>
     </div>
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         Notes
-        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
+        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
       </label>
       ${luRTE_render({id:'dr-notes-rte', placeholder:'Notes, context, decisions…', value:(item.notesHtml||item.notes||''), height:'120px'})}
     </div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:10px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:11px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
     <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
     ${_renderRealSubtasksSection(item)}
@@ -3678,11 +3678,11 @@ function renderDrawer(type,item){
     <!-- Linked Items — chip-based picker so it's obvious what's actually
          linked vs. just visible in a multi-select. Initialized below via
          _drInitLinks(item) which reads item.linkedXxxIds into _drLinks. -->
-    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:10px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
+    <div class="field" style="margin-top:8px"><label>🔗 Linked Items <span style="font-size:11px;font-weight:400;color:var(--t3)">Pick from the dropdown to link · click ✕ on a chip to unlink · saves with Save Changes</span></label>
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="field"><label>Comments / Activity</label>
-    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:10px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:10px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
+    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
     <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
     </div>
     <div class="dr-actions">
@@ -3695,7 +3695,7 @@ function renderDrawer(type,item){
     <div class="field-row" style="align-items:flex-end">
       <div class="field" style="flex:0 0 auto"><label>Icon</label>${_iconPickBtn('dr-note-icon',item.icon||'','Pick\u2026')}</div>
       <div class="field" style="flex:1"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
-      <div class="field" style="flex:0 0 auto"><label style="font-size:10px;color:var(--t2)">Title Color</label>
+      <div class="field" style="flex:0 0 auto"><label style="font-size:11px;color:var(--t2)">Title Color</label>
         <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
           ${['','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#06b6d4'].map(c=>c?`<span onclick="document.getElementById('dr-note-title-color').value='${c}';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${c};cursor:pointer;${(item.titleColor||'')=== c?'outline:2px solid var(--ac);outline-offset:1px':''}"></span>`:`<span onclick="document.getElementById('dr-note-title-color').value='';this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.outlineOffset='1px'" style="display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--s3);cursor:pointer;border:1px dashed var(--bd2);${!(item.titleColor)?'outline:2px solid var(--ac);outline-offset:1px':''}" title="Default"></span>`).join('')}
           <input type="color" id="dr-note-title-color" value="${item.titleColor||'#4f46e5'}" style="width:22px;height:22px;border:none;background:none;cursor:pointer;padding:0" title="Custom color">
@@ -3714,16 +3714,16 @@ function renderDrawer(type,item){
     </div>
     <div class="field"><label>Content (Markdown)</label><textarea class="inp" style="min-height:120px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:8px">
-      <label><span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
+      <label><span>📝 Free-form Body <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
       ${luRTE_render({id:'dr-note-rte', placeholder:'Continue your note here…', value:(item.bodyHtml||''), height:'160px'})}
       <!-- AI Assistance in Note Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('link')">🔗 Link Concepts</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drNoteAI('autotag')">${_icon('tag',12,'currentColor')} Auto-tag</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drNoteAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drNoteAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drNoteAI('link')">🔗 Link Concepts</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drNoteAI('autotag')">${_icon('tag',12,'currentColor')} Auto-tag</button>
         </div>
         <div id="dr-note-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
@@ -3736,7 +3736,7 @@ function renderDrawer(type,item){
     <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Linked Items</span>
-        <span style="font-size:10px;color:var(--t3);font-weight:400">Pick from each dropdown · click ✕ on a chip to unlink · saves with Save Changes</span>
+        <span style="font-size:11px;color:var(--t3);font-weight:400">Pick from each dropdown · click ✕ on a chip to unlink · saves with Save Changes</span>
       </div>
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
     </div>
@@ -3744,7 +3744,7 @@ function renderDrawer(type,item){
     <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Related Bookmarks</span>
-        <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${item.id})">+ Link</button>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${item.id})">+ Link</button>
       </div>
       <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
     </div>
@@ -3765,7 +3765,7 @@ function renderDrawer(type,item){
       <div class="field"><label>Owner</label><input class="inp" value="${esc(item.owner||'')}" id="dr-owner"></div>
     </div>
     <div class="field"><label>Description</label><textarea class="inp" id="dr-body" style="min-height:60px">${esc(item.description||'')}</textarea></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-prog-ma',item)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-prog-ma',item)}</div>
     <div class="field"><label>Projects in this program (${(D.projects||[]).length} available)</label>
       <div style="max-height:220px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px;background:var(--s2)">
         ${(D.projects||[]).map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.projectIds||[]).includes(p.id)?'checked':''} data-prog-pid="${p.id}" class="prog-proj-cb"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};display:inline-block"></span> ${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</label>`).join('')}
@@ -3785,13 +3785,13 @@ function renderDrawer(type,item){
     <div class="field"><label>Status</label><select class="inp" id="dr-status"><option>Active</option><option>On Hold</option><option>Completed</option></select></div></div>
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-proj-ma',item)}</div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-proj-ma',item)}</div>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
     <div class="field" style="margin-top:14px">
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Custom Fields</span>
-        <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openCustomFieldEditor(${item.id})">+ Add field</button>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openCustomFieldEditor(${item.id})">+ Add field</button>
       </label>
       <div id="proj-custom-fields-list" style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;font-size:11px;color:var(--t3)">Loading…</div>
     </div>
@@ -3807,15 +3807,15 @@ function renderDrawer(type,item){
     <div class="field-row">
       <div class="field"><label>Icon</label>${_iconPickBtn('dr-icon',item.icon||'🎯','Pick…')}</div>
       <div class="field"><label>Category</label><select class="inp" id="dr-category"><option ${(item.category||'')==='Work'?'selected':''}>Work</option><option ${item.category==='Learning'?'selected':''}>Learning</option><option ${item.category==='Health'?'selected':''}>Health</option><option ${item.category==='Personal Brand'?'selected':''}>Personal Brand</option><option ${item.category==='Finance'?'selected':''}>Finance</option><option ${item.category==='Personal'?'selected':''}>Personal</option></select></div>
-      <div class="field"><label>Progress %${item.pctManual?` <span style="font-size:10px;color:var(--warn);font-weight:600">(manual)</span>`:''}</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"><div style="font-size:10px;color:var(--t3);margin-top:3px">${item.pctManual?'Manual override active — auto-calculation from linked tasks &amp; milestones is paused. <a style="color:var(--ac);cursor:pointer" onclick="event.stopPropagation();document.getElementById(\'dr-pct\').dataset.resetAuto=\'1\';this.textContent=\'✓ will reset on Save\'">↺ Reset to auto</a>':'Auto-calculated from linked tasks &amp; milestones. Edit to lock to a manual value.'}</div></div>
+      <div class="field"><label>Progress %${item.pctManual?` <span style="font-size:11px;color:var(--warn);font-weight:600">(manual)</span>`:''}</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"><div style="font-size:11px;color:var(--t3);margin-top:3px">${item.pctManual?'Manual override active — auto-calculation from linked tasks &amp; milestones is paused. <a style="color:var(--ac);cursor:pointer" onclick="event.stopPropagation();document.getElementById(\'dr-pct\').dataset.resetAuto=\'1\';this.textContent=\'✓ will reset on Save\'">↺ Reset to auto</a>':'Auto-calculated from linked tasks &amp; milestones. Edit to lock to a manual value.'}</div></div>
     </div>
-    <div class="field"><label>Target <span style="font-size:10px;color:var(--t3);font-weight:400">(short summary, e.g. "5 of 12 done")</span></label><input class="inp" value="${esc(item.target||'')}" id="dr-target"></div>
+    <div class="field"><label>Target <span style="font-size:11px;color:var(--t3);font-weight:400">(short summary, e.g. "5 of 12 done")</span></label><input class="inp" value="${esc(item.target||'')}" id="dr-target"></div>
     <div class="field-row">
       <div class="field"><label>Start Date</label><input class="inp" type="date" value="${esc(item.startDate||'')}" id="dr-startdate"></div>
       <div class="field"><label>Due Date</label><input class="inp" type="date" value="${esc(item.dueDate||'')}" id="dr-due"></div>
     </div>
     <div class="field" style="margin-top:8px">
-      <label><span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, etc.</span></span></label>
+      <label><span>Description <span style="font-size:11px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, etc.</span></span></label>
       ${luRTE_render({id:'dr-goal-rte', placeholder:'Describe the goal in detail — why it matters, milestones, success criteria…', value:(item.descriptionHtml||''), height:'140px'})}
     </div>
     <div class="field"><label>Linked Tasks</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px">${D.tasks.map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.linkedTaskIds||[]).includes(t.id)?'checked':''} data-tid="${t.id}" class="goal-task-cb"> ${esc(t.title)}</label>`).join('')}</div></div>
@@ -3831,17 +3831,17 @@ function renderDrawer(type,item){
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:10px">
-      <label><span>📓 Diary Entry <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
+      <label><span>📓 Diary Entry <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — edit freely</span></span></label>
       ${luRTE_render({id:'dr-diary-rte', placeholder:'Continue your diary entry here…', value:(item.diaryBody||''), height:'160px'})}
       <!-- AI Assistance in Drawer -->
       <div style="margin-top:6px;padding:7px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="drJrnlAI('mood')">${_icon('activity',12,'currentColor')} Mood</button>
-          <button type="button" class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('reflect')">🧘 Reflect</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('summarise')">${_icon('list',12,'currentColor')} Summarise</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="drJrnlAI('mood')">${_icon('activity',12,'currentColor')} Mood</button>
+          <button type="button" class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick="drJrnlAI('react')">💬 React</button>
           ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
@@ -3952,10 +3952,10 @@ function openExportPicker(){
         <span style="font-size:18px;width:24px;text-align:center">${s.icon}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${s.label}</div>
-          <div style="font-size:10px;color:var(--t3)">${s.count} item${s.count===1?'':'s'}</div>
+          <div style="font-size:11px;color:var(--t3)">${s.count} item${s.count===1?'':'s'}</div>
         </div>
-        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="closeModal();${s.fn}('csv')">CSV</button>
-        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="closeModal();${s.fn}('html')">HTML</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="closeModal();${s.fn}('csv')">CSV</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="closeModal();${s.fn}('html')">HTML</button>
       </div>`).join('')}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>
   </div>`;
@@ -4077,7 +4077,7 @@ function buildAssigneeDropdown(id,currentValue){
       const avatarEl=m.avatar
         ?`<img src="${esc(m.avatar)}" class="ca-avatar" style="object-fit:cover">`
         :`<div class="ca-avatar" style="background:${col}">${ini}</div>`;
-      return `<div class="ca-item ${currentValue===m.name?'selected':''}" onclick="_caSelect('${id}','${esc(m.name)}')">${avatarEl}<span>${esc(m.name)}<span style="font-size:10px;color:var(--t3);margin-left:4px">${esc(m.role)}</span></span></div>`;
+      return `<div class="ca-item ${currentValue===m.name?'selected':''}" onclick="_caSelect('${id}','${esc(m.name)}')">${avatarEl}<span>${esc(m.name)}<span style="font-size:11px;color:var(--t3);margin-left:4px">${esc(m.role)}</span></span></div>`;
     }));
   return `<div class="ca-wrap" id="${id}-wrap">
     <input type="hidden" id="${id}-val" value="${esc(currentValue||'')}">
@@ -4239,12 +4239,12 @@ function _drRenderTaskLinks(containerId){
     const linkedItems=linkedIds.map(id=>all.find(x=>x.id===id)).filter(Boolean);
     const available=all.filter(x=>!linkedIds.includes(x.id)).slice(0,200);
     const chips=linkedItems.length
-      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:10px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${c.key}',${x.id})">✕</span></span>`).join('')
-      :`<span style="font-size:10px;color:var(--t3);font-style:italic">None linked</span>`;
+      ?linkedItems.map(x=>`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--acs);color:var(--ac);border:1px solid color-mix(in srgb,var(--ac) 35%,var(--bd2));border-radius:12px;padding:2px 4px 2px 8px;font-size:11px;margin:2px 3px 2px 0;max-width:100%"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${esc(c.labelOf(x))}</span><span style="cursor:pointer;padding:0 4px;border-radius:8px;line-height:1;font-weight:600" title="Unlink" onclick="_drRemoveLink('${c.key}',${x.id})">✕</span></span>`).join('')
+      :`<span style="font-size:11px;color:var(--t3);font-style:italic">None linked</span>`;
     const dropdown=available.length
-      ?`<select class="inp" style="height:26px;font-size:10px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${c.key}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>`<option value="${x.id}">${esc(c.labelOf(x))}</option>`).join('')}</select>`
-      :`<div style="font-size:10px;color:var(--t3);margin-top:6px">No more ${esc(c.label.toLowerCase())} to add.</div>`;
-    return `<div><label style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:10px;color:${linkedItems.length?'var(--ac)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
+      ?`<select class="inp" style="height:26px;font-size:11px;padding:0 6px;margin-top:6px;width:100%" onchange="_drAddLink('${c.key}',this.value);this.value=''"><option value="">+ Add ${esc(c.label.toLowerCase())}…</option>${available.map(x=>`<option value="${x.id}">${esc(c.labelOf(x))}</option>`).join('')}</select>`
+      :`<div style="font-size:11px;color:var(--t3);margin-top:6px">No more ${esc(c.label.toLowerCase())} to add.</div>`;
+    return `<div><label style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;display:flex;align-items:center;gap:4px">${c.icon} ${esc(c.label)}<span style="margin-left:auto;font-size:11px;color:${linkedItems.length?'var(--ac)':'var(--t3)'}">${linkedItems.length?linkedItems.length+' linked':''}</span></label><div style="margin-top:4px;display:flex;flex-wrap:wrap;align-items:center;min-height:22px">${chips}</div>${dropdown}</div>`;
   }).join('');
 }
 function saveItem(type,id){
@@ -4401,7 +4401,7 @@ function addSubtask(taskId){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
   inp.value='';
   inp.focus();
@@ -4414,7 +4414,7 @@ function toggleSubtask(taskId,idx){
   save('tasks');
   // Update drawer subtask list if open
   const list=document.getElementById('subtask-list');
-  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');}
+  if(list){const subs=t.subtasks;list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');}
   // Update exec list if on My Day
   const execList=document.getElementById('md-exec-list');
   if(execList){const activeTab=document.querySelector('#md-e .tab.on');const filter=activeTab?activeTab.textContent.toLowerCase().replace(' priority','').replace(' ',''):'all';execList.innerHTML=renderMdExecList(filter==='highpriority'?'high':filter);}
@@ -4427,7 +4427,7 @@ function deleteSubtask(taskId,idx){
   const list=document.getElementById('subtask-list');
   if(list){
     const subs=t.subtasks;
-    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:10px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
+    list.innerHTML=subs.map((s,si)=>{const descId=`st-desc-${taskId}-${si}`;const hasDesc=!!(s.descHtml&&s.descHtml.trim());return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden"><div class="lr" style="padding:4px 6px;background:var(--s2)"><div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${taskId},${si})"></div><span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span><button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()">${hasDesc?'📝':'+ desc'}</button><span onclick="deleteSubtask(${taskId},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px">✕</span></div><div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)"><div id="st-rte-${taskId}-${si}" contenteditable="true" spellcheck="true" style="min-height:40px;max-height:150px;overflow-y:auto;padding:6px;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;font-size:11px;line-height:1.6;color:var(--t1);outline:none" oninput="(function(el){const t=D.tasks.find(x=>x.id===${taskId});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)">${s.descHtml||''}</div></div></div>`;}).join('');
   }
 }
 
@@ -4839,11 +4839,11 @@ function taskRow(t,showActs=true){
     const pred=D.tasks.find(x=>x.id===pid);
     return pred&&pred.status!=='Done';
   });
-  const blockedLabel=isBlocked?`<span style="font-size:10px;color:var(--red);white-space:nowrap;font-weight:600" title="Blocked by incomplete predecessor tasks">🔒 Blocked</span>`:'';
+  const blockedLabel=isBlocked?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600" title="Blocked by incomplete predecessor tasks">🔒 Blocked</span>`:'';
   const isTimerActive=_timerTaskId===t.id;
   const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
-  const timeLabel=t.timeSpent?`<span style="font-size:10px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
-    (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:10px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
+  const timeLabel=t.timeSpent?`<span style="font-size:11px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
+    (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:11px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
   const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
   const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
   // K: subtask progress chip
@@ -4852,7 +4852,7 @@ function taskRow(t,showActs=true){
   const _subChip=_subs.length?`<span class="lu-subtask-chip ${_subDone===_subs.length?'done':''}" title="${_subDone} of ${_subs.length} subtask${_subs.length===1?'':'s'} done">☑ ${_subDone}/${_subs.length}</span>`:'';
   // E: clickable priority + status pills with inline picker
   const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')">${t.priority}</span>`;
-  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:10px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:10px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
+  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -4867,7 +4867,7 @@ function addTaskComment(taskId){
   inp.value='';
   // Re-render comments panel inline
   const panel=document.getElementById('task-comments');
-  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:10px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:10px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
+  if(panel)panel.innerHTML=(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(t.comments);
   toast('💬 Comment added');
 }
 function editTaskComment(taskId,ci){
@@ -4887,12 +4887,12 @@ function editTaskComment(taskId,ci){
       return comments.map((c,ci)=>{
         const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');
         return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)">`
-          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);margin-bottom:2px">`
+          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px">`
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}${c.edited?' (edited)':''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:10px" title="Edit">✏</span>`
-          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:10px" title="Delete">✕</span>`:'')
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`
           +`</div>`;
@@ -4913,12 +4913,12 @@ function deleteTaskComment(taskId,ci){
       ?t.comments.map((c,ci)=>{
         const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');
         return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)">`
-          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--t3);margin-bottom:2px">`
+          +`<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px">`
           +`<span>${esc(c.author||'Idris')}</span>`
           +`<div style="display:flex;gap:4px;align-items:center">`
           +`<span>${c.ts||''}</span>`
-          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:10px" title="Edit">✏</span>`
-          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:10px" title="Delete">✕</span>`:'')
+          +(isOwn?`<span onclick="editTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span>`
+          +`<span onclick="deleteTaskComment(${taskId},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:'')
           +`</div></div>`
           +`<div style="font-size:11px">${esc(c.text)}</div>`
           +`</div>`;
@@ -4976,7 +4976,7 @@ function aiDecomposeGoal(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Task Decomposition</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Goal: <strong>${esc(g)}</strong></div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Select tasks to add (all selected by default):</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Select tasks to add (all selected by default):</div>
   <div id="decomp-list" style="max-height:260px;overflow-y:auto">${subtasks.slice(0,8).map((s,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:12px"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac)"> ${esc(s)}</label>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="(function(){
@@ -5021,8 +5021,8 @@ function aiDeadlineRisk(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">⚠️ Deadline Risk Report</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${risks.length} task${risks.length!==1?'s':''} at risk:</div>
   <div style="max-height:300px;overflow-y:auto">${risks.map(r=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;border-left:3px solid ${riskColors[r.risk]};background:var(--s2)">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:10px;font-weight:700;color:${riskColors[r.risk]}">${riskLabels[r.risk]}</span><span style="font-size:11px;font-weight:600">${esc(r.t.title)}</span></div>
-    <div style="font-size:10px;color:var(--t3)">${r.daysLeft<0?Math.abs(r.daysLeft)+' days overdue':r.daysLeft+' day'+( r.daysLeft!==1?'s':'')+' left'} · ${Math.round(r.pct*100)}% complete · ~${r.hoursNeeded.toFixed(1)}h estimated</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:11px;font-weight:700;color:${riskColors[r.risk]}">${riskLabels[r.risk]}</span><span style="font-size:11px;font-weight:600">${esc(r.t.title)}</span></div>
+    <div style="font-size:11px;color:var(--t3)">${r.daysLeft<0?Math.abs(r.daysLeft)+' days overdue':r.daysLeft+' day'+( r.daysLeft!==1?'s':'')+' left'} · ${Math.round(r.pct*100)}% complete · ~${r.hoursNeeded.toFixed(1)}h estimated</div>
   </div>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="closeModal()">Got it</button>
@@ -5138,7 +5138,7 @@ async function aiSuggestSubtasks(id){
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Suggested Subtasks</h2>
       <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Task: <strong>${esc(t.title)}</strong></div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
       <div id="ai-sub-list" style="max-height:300px;overflow-y:auto">${arr.map((s,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span>${esc(s)}</span></label>`).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-p" onclick="_applyAISubtasks(${id})">Add Selected</button>
@@ -5215,7 +5215,7 @@ function _aiComposePreview(entityType,entityId,text,targetTextareaId,regenFnName
   const m=document.getElementById('modal-content');
   if(!m)return;
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">✨ AI ${entityType==='task'?'Task Notes':'Project Description'} Preview</h2>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Review the rendered output, then choose to insert it into the description field. Markdown formatting will display correctly when the ${entityType} is viewed.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Review the rendered output, then choose to insert it into the description field. Markdown formatting will display correctly when the ${entityType} is viewed.</div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;font-size:12px;line-height:1.65;max-height:380px;overflow-y:auto;margin-bottom:10px">${html}</div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_aiComposeInsert('${targetTextareaId}',${argText})">⬇ Insert</button>
@@ -5280,8 +5280,8 @@ async function aiSuggestProjectTasks(id){
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Suggested Tasks</h2>
       <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Project: <strong>${esc(p.name)}</strong></div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
-      <div id="ai-proj-task-list" style="max-height:340px;overflow-y:auto">${arr.map((t,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span><strong>${esc(t.title||'')}</strong> <span style="font-size:10px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;margin-left:4px">${esc(t.priority||'Medium')}</span></span></label>`).join('')}</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Pick which to add (all selected by default):</div>
+      <div id="ai-proj-task-list" style="max-height:340px;overflow-y:auto">${arr.map((t,i)=>`<label style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;cursor:pointer;font-size:12px;line-height:1.4"><input type="checkbox" checked data-idx="${i}" style="accent-color:var(--ac);margin-top:3px"><span><strong>${esc(t.title||'')}</strong> <span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;margin-left:4px">${esc(t.priority||'Medium')}</span></span></label>`).join('')}</div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-p" onclick="_applyAIProjectTasks(${id})">Add Selected</button>
         <button class="btn btn-s" onclick="closeModal()">Cancel</button>
@@ -5328,11 +5328,11 @@ function aiSuggestDelegate(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🤖 AI Delegation Suggestion</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Task: <strong>${esc(t.title)}</strong></div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Recommended based on role match and current workload:</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Recommended based on role match and current workload:</div>
   ${top.map(({m:member,score,workload,matches})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);display:flex;align-items:center;gap:10px">
     <div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${member.name.split(' ').map(w=>w[0]).join('').slice(0,2)}</div>
-    <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
-    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${member.name}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
+    <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(member.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(member.role)} · ${workload} active task${workload!==1?'s':''} · ${matches} keyword match${matches!==1?'es':''}</div></div>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="D.tasks.find(x=>x.id===${id}).assignedTo='${member.name}';save('tasks');renderScreen(curScreen);closeModal();toast('✓ Delegated to ${member.name}')">Assign</button>
   </div>`).join('')}
   <button class="btn btn-s" style="margin-top:8px" onclick="closeModal()">Cancel</button>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -5591,7 +5591,7 @@ function _renderDowOverrideGrid(){
     const isOff=o&&o.nonWorking;
     const label=isOff?'OFF':isOverride?`${String(o.start).padStart(2,'0')}–${String(o.end).padStart(2,'0')}`:'default';
     const color=isOff?'#ef4444':isOverride?'#3b82f6':'var(--t3)';
-    return `<button class="btn btn-s" style="height:auto;padding:6px 4px;font-size:10px;display:flex;flex-direction:column;align-items:center;gap:2px;border-color:${isOverride?color:'var(--bd2)'};color:${color}" onclick="_openDowOverride(${dow})" title="Click to set working hours for ${nm}"><span style="font-weight:600">${nm}</span><span style="font-size:10px">${label}</span></button>`;
+    return `<button class="btn btn-s" style="height:auto;padding:6px 4px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px;border-color:${isOverride?color:'var(--bd2)'};color:${color}" onclick="_openDowOverride(${dow})" title="Click to set working hours for ${nm}"><span style="font-weight:600">${nm}</span><span style="font-size:11px">${label}</span></button>`;
   }).join('');
 }
 function _openDowOverride(dow){
@@ -5772,15 +5772,15 @@ function _openCapacityDetail(){
   const c=_dayCapacityCheck();
   const m=document.getElementById('modal-content');
   if(!m)return;
-  const tasksList=c.tasks.length?c.tasks.map(t=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'')}</span><span style="color:var(--t3);font-size:10px;flex-shrink:0">${_fmtHm(t.estimatedMins||30)}</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No tasks for today.</li>';
-  const eventsList=c.events.length?c.events.map(e=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</span><span style="color:var(--t3);font-size:10px;flex-shrink:0">${String(e.hour||0).padStart(2,'0')}:00 – ${String(e.endHour||e.hour+1).padStart(2,'0')}:00</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No calendar events today.</li>';
+  const tasksList=c.tasks.length?c.tasks.map(t=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title||'')}</span><span style="color:var(--t3);font-size:11px;flex-shrink:0">${_fmtHm(t.estimatedMins||30)}</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No tasks for today.</li>';
+  const eventsList=c.events.length?c.events.map(e=>`<li style="font-size:11px;color:var(--t1);padding:4px 0;display:flex;align-items:center;gap:8px"><span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</span><span style="color:var(--t3);font-size:11px;flex-shrink:0">${String(e.hour||0).padStart(2,'0')}:00 – ${String(e.endHour||e.hour+1).padStart(2,'0')}:00</span></li>`).join(''):'<li style="font-size:11px;color:var(--t3);font-style:italic">No calendar events today.</li>';
   m.innerHTML=`<div style="padding:14px 16px;max-width:560px">
     <h2 style="font-size:14px;font-weight:650;margin:0 0 4px">📊 Capacity for ${esc(new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}))}</h2>
     <p style="font-size:11px;color:var(--t3);margin:0 0 12px">Working hours: ${c.workingHoursStart}:00 – ${c.workingHoursEnd}:00 (${_fmtHm(c.workingMins)}). Adjust in Settings → General.</p>
     ${_renderCapacityIndicator(c)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
-      <div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📋 Tasks (${c.tasks.length})</div><ul style="margin:0;padding:0;list-style:none">${tasksList}</ul></div>
-      <div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📅 Events (${c.events.length})</div><ul style="margin:0;padding:0;list-style:none">${eventsList}</ul></div>
+      <div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📋 Tasks (${c.tasks.length})</div><ul style="margin:0;padding:0;list-style:none">${tasksList}</ul></div>
+      <div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">📅 Events (${c.events.length})</div><ul style="margin:0;padding:0;list-style:none">${eventsList}</ul></div>
     </div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1)">
       <button class="btn btn-s" onclick="closeModal();aiSmartSchedule()" style="color:var(--purp);border-color:var(--purp)">🧠 AI Smart Plan</button>
@@ -5944,9 +5944,9 @@ function _renderSmartScheduleModal(record){
       <span style="font-size:11px;color:var(--ac);font-weight:600;min-width:96px">${fmtMins(b.startMins)} → ${fmtMins(b.startMins+dur)}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</div>
-        ${b.reason?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(b.reason)}</div>`:''}
+        ${b.reason?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(b.reason)}</div>`:''}
       </div>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${_fmtHm(dur)}</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">${_fmtHm(dur)}</span>
     </div>`;
   }).join('')||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:12px">No blocks scheduled.</div>';
   const unschedRows=(record.unscheduled||[]).slice(0,6).map(u=>{
@@ -5957,12 +5957,12 @@ function _renderSmartScheduleModal(record){
   m.innerHTML=`<div style="padding:16px;max-width:640px;max-height:80vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <h2 style="font-size:15px;font-weight:650;margin:0">${_icon('brain',16,'currentColor')} Today's Plan</h2>
-      <span style="font-size:10px;color:var(--t3)">Generated ${esc(ago)}</span>
+      <span style="font-size:11px;color:var(--t3)">Generated ${esc(ago)}</span>
     </div>
     ${record.summary?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--ac) 10%,transparent);border-left:3px solid var(--ac);border-radius:4px;margin-bottom:10px">"${esc(record.summary)}"</div>`:''}
-    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">⏱ Time-blocked schedule (${blocks.length} block${blocks.length===1?'':'s'})</div>
+    <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px">⏱ Time-blocked schedule (${blocks.length} block${blocks.length===1?'':'s'})</div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;overflow:hidden">${blockRows}</div>
-    ${unschedRows?`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 4px">📥 Couldn't fit (${(record.unscheduled||[]).length})</div>${unschedRows}`:''}
+    ${unschedRows?`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 4px">📥 Couldn't fit (${(record.unscheduled||[]).length})</div>${unschedRows}`:''}
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1);flex-wrap:wrap">
       <button class="btn btn-s" onclick="aiSmartSchedule({force:true})" title="Regenerate with current data">↻ Refresh</button>
       <button class="btn btn-s" onclick="_copyScheduleToClipboard()" title="Copy as markdown">📋 Copy</button>
@@ -6187,7 +6187,7 @@ async function aiTodaysPlan(){
     // Render as a modal so the user can read + dismiss.
     const m=document.getElementById('modal-content');
     if(m){
-      m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🧭 Today's Plan</h2><div style="font-size:10px;color:var(--t3);margin-bottom:10px">AI-suggested order for your ${tasks.length} task${tasks.length===1?'':'s'} today.</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;max-height:400px;overflow-y:auto;font-size:12px;line-height:1.6;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()" style="font-size:11px">Close</button></div>`;
+      m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🧭 Today's Plan</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">AI-suggested order for your ${tasks.length} task${tasks.length===1?'':'s'} today.</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;max-height:400px;overflow-y:auto;font-size:12px;line-height:1.6;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()" style="font-size:11px">Close</button></div>`;
       document.getElementById('modal-capture').classList.add('show');
     }
   }catch(e){
@@ -6409,28 +6409,28 @@ function openHomeDashCustomize(){
       <input type="checkbox" id="hc-ai-brief" ${_aiBriefOn?'checked':''} onchange="toggleHeroAIBrief(this.checked)">
       ✨ AI greeting line in hero
     </label>
-    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Replace the rotating quote with a daily AI brief tailored to your workspace. Uses your AI key from Settings.</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:4px;margin-left:24px">Replace the rotating quote with a daily AI brief tailored to your workspace. Uses your AI key from Settings.</div>
   </div>
   <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:8px;background:var(--s2)">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
       <input type="checkbox" id="hc-tod-layout" ${_todLayoutOn?'checked':''} onchange="toggleHomeTimeOfDayLayout(this.checked)">
       🕓 Reorder cards by time of day
     </label>
-    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Morning surfaces habits + agenda; afternoon prioritises tasks + focus; evening lifts reflection cards. Manual order is preserved as a fallback.</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:4px;margin-left:24px">Morning surfaces habits + agenda; afternoon prioritises tasks + focus; evening lifts reflection cards. Manual order is preserved as a fallback.</div>
   </div>
   <div style="padding:8px 10px;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px;background:var(--s2)">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:600">
       <input type="checkbox" id="hc-mini-week" ${_miniWeekOn?'checked':''} onchange="toggleMiniWeekStrip(this.checked)">
       🗓 Mini-week strip in right rail
     </label>
-    <div style="font-size:10px;color:var(--t3);margin-top:4px;margin-left:24px">Shows today + the next 6 days with task and event indicators. Visible on every page with a right rail.</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:4px;margin-left:24px">Shows today + the next 6 days with task and event indicators. Visible on every page with a right rail.</div>
   </div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Toggle cards on/off or drag to reorder (use ↑↓ buttons).</div>
   <div id="home-cust-list">${sorted.map((p,i)=>{
     const def=_homeCardDefs.find(c=>c.id===p.id);
     const modes=_homeCardModes[p.id];
     const cur=modes?getHomeCardMode(p.id):'';
-    const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:10px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+    const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
     return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="display:flex;flex-direction:column;gap:1px">
@@ -6520,7 +6520,7 @@ function homeCardMove(id,dir){
       const def=_homeCardDefs.find(c=>c.id===p.id);
       const modes=_homeCardModes[p.id];
       const cur=modes?getHomeCardMode(p.id):'';
-      const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:10px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
+      const modeRow=modes?`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-left:24px"><span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0">Show</span><select class="inp" style="font-size:11px;height:22px;padding:0 4px;flex:1" onchange="setHomeCardMode('${p.id}',this.value)">${modes.map(m=>`<option value="${esc(m.id)}" ${m.id===cur?'selected':''}>${esc(m.label)}</option>`).join('')}</select></div>`:'';
       return `<div style="padding:7px 8px;border-radius:6px;border:1px solid var(--bd1);margin-bottom:5px;background:var(--s2)" data-card-id="${p.id}">
         <div style="display:flex;align-items:center;gap:8px">
           <div style="display:flex;flex-direction:column;gap:1px">
@@ -6634,7 +6634,7 @@ function renderHome(){
   const _myDayTasks=D.tasks.filter(t=>t.myDay&&t.status!=='Done').slice(0,5);
   const _habitsList=(D.habits||[]).slice(0,5);
   const _topStreaks=(D.habits||[]).filter(h=>(Number(h.streak)||0)>0).sort((a,b)=>(b.streak||0)-(a.streak||0)).slice(0,5);
-  const popList=(arr,empty)=>arr.length?arr.map(t=>`<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">• ${esc(t.title||t.name||'(untitled)')}</div>`).join(''):`<div style="font-size:10px;color:rgba(226,232,240,.55);padding:3px 0">${esc(empty||'Nothing here.')}</div>`;
+  const popList=(arr,empty)=>arr.length?arr.map(t=>`<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">• ${esc(t.title||t.name||'(untitled)')}</div>`).join(''):`<div style="font-size:11px;color:rgba(226,232,240,.55);padding:3px 0">${esc(empty||'Nothing here.')}</div>`;
   const popText=t=>`<div style="font-size:11px;color:rgba(226,232,240,.85);padding:2px 0">${esc(t)}</div>`;
   const _tiles=[];
   // Tile 1 — Tasks Today, or Done Today if nothing scheduled.
@@ -6667,7 +6667,7 @@ function renderHome(){
     <div class="home-hero-noise"></div>
     <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
-        <div style="display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:10px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;backdrop-filter:blur(8px)">
+        <div style="display:inline-flex;align-items:center;gap:8px;padding:3px 10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:20px;font-size:11px;color:#fff;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;backdrop-filter:blur(8px)">
           <span style="width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:pulse 2s infinite"></span>
           ${_todayLabel}
         </div>
@@ -6682,7 +6682,7 @@ function renderHome(){
         <div style="width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,${s.color} 28%,rgba(0,0,0,.25));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;border:1px solid color-mix(in srgb,${s.color} 35%,transparent)">${s.icon}</div>
         <div style="min-width:0;flex:1">
           <div style="font-size:18px;font-weight:800;color:${s.color};line-height:1;text-shadow:0 1px 8px color-mix(in srgb,${s.color} 35%,transparent)">${s.val}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">${s.label}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.78);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px">${s.label}</div>
         </div>
       </div>`).join('')}
     </div>
@@ -6698,7 +6698,7 @@ function renderHome(){
     const col=(icon,title,navRoute,inner)=>`<div class="cd" style="padding:12px;min-width:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <span style="font-size:12px;font-weight:700">${icon} ${title}</span>
-        <span style="font-size:10px;color:var(--ac);cursor:pointer" onclick="nav('${navRoute}')">Open →</span>
+        <span style="font-size:11px;color:var(--ac);cursor:pointer" onclick="nav('${navRoute}')">Open →</span>
       </div>${inner}</div>`;
     const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
         <div class="chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderHome,80)" title="Mark done"></div>
@@ -6707,7 +6707,7 @@ function renderHome(){
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No My Day tasks yet — star tasks into My Day to plan your day.</div>`;
     const evRows=evs.length?evs.map(e=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--bd1)">
-        <span style="font-size:10px;font-weight:700;color:var(--ac);min-width:38px">${esc((e.start||'').slice(11,16)||'—')}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--ac);min-width:38px">${esc((e.start||'').slice(11,16)||'—')}</span>
         <span style="font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.title||e.subject||'(untitled)')}</span>
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No events scheduled today.</div>`;
@@ -6716,7 +6716,7 @@ function renderHome(){
     return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px">
       ${col('☀️',"Today's Plan",'myday',taskRows)}
       ${col('📅','Schedule','calendar',evRows)}
-      ${col('✅',`Habits ${daily.length?`<span style="font-size:10px;color:var(--t3);font-weight:400">${daily.filter(h=>h.doneToday).length}/${daily.length}</span>`:''}`,'habits',habitChips)}
+      ${col('✅',`Habits ${daily.length?`<span style="font-size:11px;color:var(--t3);font-weight:400">${daily.filter(h=>h.doneToday).length}/${daily.length}</span>`:''}`,'habits',habitChips)}
     </div>`;
   })()}
   <div class="cd" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;align-items:center"><span style="font-size:12px;font-weight:600;color:var(--ac);margin-right:4px">${_icon('zap',15,'var(--page-accent)')} Quick Add</span>
@@ -6786,9 +6786,9 @@ function renderHome(){
         const activeFocusTask=D.tasks.find(t=>t.id===(_focusTaskId||null));
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Focus</div><span class="cd-a" onclick="nav('focus')">Open Focus</span></div>
           <div style="display:flex;gap:16px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd1);margin-bottom:10px">
-            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todaySessions}</div><div style="font-size:10px;color:var(--t3)">Sessions</div></div>
-            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todayMins}</div><div style="font-size:10px;color:var(--t3)">Minutes Today</div></div>
-            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--t2)">${weekMins}</div><div style="font-size:10px;color:var(--t3)">This Week</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todaySessions}</div><div style="font-size:11px;color:var(--t3)">Sessions</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--ac)">${todayMins}</div><div style="font-size:11px;color:var(--t3)">Minutes Today</div></div>
+            <div style="text-align:center"><div style="font-size:24px;font-weight:700;color:var(--t2)">${weekMins}</div><div style="font-size:11px;color:var(--t3)">This Week</div></div>
           </div>
           ${activeFocusTask?`<div style="font-size:11px;color:var(--t2);margin-bottom:8px">Current: <strong>${esc(activeFocusTask.title)}</strong></div>`:'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No task selected</div>'}
           <button class="btn btn-p" style="width:100%;height:30px;font-size:11px" onclick="nav('focus')">▶ Start Focus Session</button>
@@ -6804,7 +6804,7 @@ function renderHome(){
         const counts=days.map(d=>{const k=d.toISOString().slice(0,10);return (D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
         const maxC=Math.max(...counts,1);
         const totalC=counts.reduce((a,b)=>a+b,0);
-        const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:10px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
+        const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
         // Goal progress (avg)
         const gs=D.goals||[];
         const avgGoal=gs.length?Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length):0;
@@ -6822,20 +6822,20 @@ function renderHome(){
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#3b82f6')} Reports & Insights</div><span class="cd-a" onclick="openExportPicker()">Export</span></div>
           <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start">
             <div>
-              <div style="font-size:10px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ac)">(${totalC} total)</strong></div>
+              <div style="font-size:11px;color:var(--t3);margin-bottom:18px">Tasks completed — last 7 days <strong style="color:var(--ac)">(${totalC} total)</strong></div>
               <div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px">
               <div style="display:flex;align-items:center;gap:10px">
                 <div style="${ringStyle}"><div style="width:48px;height:48px;background:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--ok)">${donePct}%</div></div>
-                <div><div style="font-size:11px;font-weight:600">All-time done</div><div style="font-size:10px;color:var(--t3)">${totalDone} of ${totalAll} tasks</div></div>
+                <div><div style="font-size:11px;font-weight:600">All-time done</div><div style="font-size:11px;color:var(--t3)">${totalDone} of ${totalAll} tasks</div></div>
               </div>
               <div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>Goals avg</span><strong style="color:var(--ac)">${avgGoal}%</strong></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Goals avg</span><strong style="color:var(--ac)">${avgGoal}%</strong></div>
                 <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${avgGoal}%;background:var(--ac);border-radius:3px"></div></div>
               </div>
               <div>
-                <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>Habits today</span><strong style="color:${hbsPct===100?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length||0}</strong></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>Habits today</span><strong style="color:${hbsPct===100?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length||0}</strong></div>
                 <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${hbsPct}%;background:${hbsPct===100?'var(--ok)':'var(--warn)'};border-radius:3px"></div></div>
               </div>
             </div>
@@ -6849,9 +6849,9 @@ function renderHome(){
         const cells=days.map(k=>{const total=habits.length;const done=habits.filter(h=>(h.completedDates||[]).includes(k)).length;const pct=total?done/total:0;const c=pct===0?'var(--s3)':(pct<.34?'rgba(34,197,94,.25)':(pct<.67?'rgba(34,197,94,.55)':'rgba(34,197,94,.95)'));return `<div title="${k}: ${done}/${total}" style="width:14px;height:14px;background:${c};border-radius:3px"></div>`;}).join('');
         const totalCompletions=habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>days.includes(d)).length,0);
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('flame',15,'#ef4444')} Habit Heatmap</div><span class="cd-a" onclick="nav('habits')">All habits</span></div>
-          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 30 days · ${totalCompletions} completion${totalCompletions===1?'':'s'} across ${habits.length} habit${habits.length===1?'':'s'}</div>
+          <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Last 30 days · ${totalCompletions} completion${totalCompletions===1?'':'s'} across ${habits.length} habit${habits.length===1?'':'s'}</div>
           <div style="display:grid;grid-template-columns:repeat(15,1fr);gap:4px">${cells}</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--t3)"><span>Less</span><div style="width:10px;height:10px;background:var(--s3);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.25);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.55);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.95);border-radius:2px"></div><span>More</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--t3)"><span>Less</span><div style="width:10px;height:10px;background:var(--s3);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.25);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.55);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.95);border-radius:2px"></div><span>More</span></div>
         </div>`;
       })(),
       // ── 14-day Mood Trend (from journal) ──
@@ -6867,8 +6867,8 @@ function renderHome(){
         const dots=points.map(p=>p.y!==null?`<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="var(--ac)"><title>${p.date}: ${p.mood} (${p.score}/5)</title></circle>`:'').join('');
         const avgScore=validPts.length?(validPts.reduce((s,p)=>s+p.score,0)/validPts.length).toFixed(1):'—';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('activity',15,'#14b8a6')} Mood Trend</div><span class="cd-a" onclick="nav('journal')">Open journal</span></div>
-          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 14 days · avg ${avgScore}/5 from ${validPts.length} entr${validPts.length===1?'y':'ies'}</div>
-          ${validPts.length?`<svg viewBox="0 0 100 60" style="width:100%;height:80px;overflow:visible" preserveAspectRatio="none"><path d="${path}" stroke="var(--ac)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>${dots}</svg>`:'<div style="font-size:10px;color:var(--t3);padding:14px;text-align:center">Write journal entries with a mood to see your trend.</div>'}
+          <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Last 14 days · avg ${avgScore}/5 from ${validPts.length} entr${validPts.length===1?'y':'ies'}</div>
+          ${validPts.length?`<svg viewBox="0 0 100 60" style="width:100%;height:80px;overflow:visible" preserveAspectRatio="none"><path d="${path}" stroke="var(--ac)" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"/>${dots}</svg>`:'<div style="font-size:11px;color:var(--t3);padding:14px;text-align:center">Write journal entries with a mood to see your trend.</div>'}
         </div>`;
       })(),
       // ── Recent Mind Maps ──
@@ -6910,7 +6910,7 @@ function renderHome(){
         }
         items.sort((a,b)=>a.date.localeCompare(b.date));
         const top=items.slice(0,8);
-        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:10px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
+        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
         const subLabel=tasksOnly?`Tasks · next ${horizonDays} days`:`Next ${horizonDays} days`;
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Upcoming Deadlines</div><span class="cd-a">${subLabel}</span></div>${body}</div>`;
       })(),
@@ -6936,7 +6936,7 @@ function renderHome(){
             </div>
             <div style="flex:1">
               <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--t2)">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:var(--t2)">
                 <div>✓ Tasks done: <strong>${tDone}</strong></div>
                 <div>${_icon('flame',12,'#ef4444')} Habits:<strong>${habsDone}/${dailyHabits.length}</strong></div>
                 <div>⏱ Focus: <strong>${focusMins}m</strong></div>
@@ -6961,7 +6961,7 @@ function renderHome(){
       weekAhead:(()=>{
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
         const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:10px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:10px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:10px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:10px;color:var(--t3)">—</div>':''}</div>`;}).join('');
+        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('calendar',15,'#6366f1')} Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
       })(),
       // ── Ideas Pipeline (counts by stage) ──
@@ -6970,7 +6970,7 @@ function renderHome(){
         const stages=[{k:'spark',label:'💥 Spark',c:'var(--warn)'},{k:'develop',label:'🌱 Develop',c:'var(--ac)'},{k:'stress_test',label:'🧪 Stress Test',c:'var(--purp)'},{k:'promoted',label:'🚀 Promoted',c:'var(--ok)'},{k:'parked',label:'⏸ Parked',c:'var(--t3)'},{k:'graveyard',label:'🪦 Graveyard',c:'var(--t3)'}];
         const counts=stages.map(s=>({...s,c2:s.c,n:ideas.filter(i=>i.stage===s.k).length}));
         const max=Math.max(...counts.map(c=>c.n),1);
-        const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${c.c}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
+        const body=ideas.length?counts.filter(c=>c.n>0).map(c=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${c.label}</span><strong style="color:${c.c}">${c.n}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${c.n/max*100}%;background:${c.c};border-radius:3px"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No ideas yet.<br><span style="color:var(--ac);cursor:pointer" onclick="nav(\'ideas\')">Capture one →</span></div>';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('lightbulb',15,'#eab308')} Ideas Pipeline</div><span class="cd-a" onclick="nav('ideas')">All ideas</span></div>${body}</div>`;
       })(),
       // ── Task Velocity (this week vs last week) ──
@@ -6987,8 +6987,8 @@ function renderHome(){
         const dColor=delta>0?'var(--ok)':delta<0?'var(--red)':'var(--t3)';
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('zap',15,'#ef4444')} Task Velocity</div><span class="cd-a" onclick="nav('reports')">Reports</span></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center">
-            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${thisWeek}</div><div style="font-size:10px;color:var(--t3)">This week</div></div>
-            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--t2)">${lastWeek}</div><div style="font-size:10px;color:var(--t3)">Last week</div></div>
+            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--ac)">${thisWeek}</div><div style="font-size:11px;color:var(--t3)">This week</div></div>
+            <div style="background:var(--s2);border-radius:8px;padding:14px"><div style="font-size:24px;font-weight:700;color:var(--t2)">${lastWeek}</div><div style="font-size:11px;color:var(--t3)">Last week</div></div>
           </div>
           <div style="text-align:center;margin-top:10px;font-size:13px;color:${dColor};font-weight:600">${arrow} ${Math.abs(delta)} task${Math.abs(delta)===1?'':'s'} ${delta>0?'more':delta<0?'less':'same'} than last week</div>
         </div>`;
@@ -7010,7 +7010,7 @@ function renderHome(){
         const cached=(D.prefs&&D.prefs.weatherCache)||null;
         const fresh=cached&&(Date.now()-cached.ts<30*60*1000);
         if(!loc){
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('cloud',15,'#38bdf8')} Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center"><div style="margin-bottom:6px">Set your city to see the forecast.</div><input id="home-weather-loc" class="inp" placeholder="e.g. New York" style="font-size:11px;margin-bottom:6px" onkeydown="if(event.key==='Enter')_setWeatherLoc(this.value)"><button class="btn btn-p" style="font-size:10px;height:24px" onclick="_setWeatherLoc(document.getElementById('home-weather-loc').value)">Save</button></div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('cloud',15,'#38bdf8')} Weather</div></div><div style="padding:10px 4px;font-size:11px;color:var(--t3);text-align:center"><div style="margin-bottom:6px">Set your city to see the forecast.</div><input id="home-weather-loc" class="inp" placeholder="e.g. New York" style="font-size:11px;margin-bottom:6px" onkeydown="if(event.key==='Enter')_setWeatherLoc(this.value)"><button class="btn btn-p" style="font-size:11px;height:24px" onclick="_setWeatherLoc(document.getElementById('home-weather-loc').value)">Save</button></div></div>`;
         }
         if(fresh&&cached.data){
           const w=cached.data;
@@ -7020,7 +7020,7 @@ function renderHome(){
               <div style="flex:1">
                 <div style="font-size:28px;font-weight:800;line-height:1">${esc(w.temp||'?')}°</div>
                 <div style="font-size:11px;color:var(--t2);margin-top:2px">${esc(w.desc||'')}</div>
-                <div style="font-size:10px;color:var(--t3);margin-top:4px">Feels ${esc(w.feels||'?')}° · 💧 ${esc(w.humidity||'0')}% · 💨 ${esc(w.wind||'0')} mph</div>
+                <div style="font-size:11px;color:var(--t3);margin-top:4px">Feels ${esc(w.feels||'?')}° · 💧 ${esc(w.humidity||'0')}% · 💨 ${esc(w.wind||'0')} mph</div>
               </div>
             </div></div>`;
         }
@@ -7080,7 +7080,7 @@ function renderHome(){
         items.sort((a,b)=>b.year-a.year);
         if(!items.length){return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('camera',15,'#f472b6')} On this day</div></div><div style="padding:12px 4px;font-size:11px;color:var(--t3);text-align:center">Nothing yet from previous years — come back next year!</div></div>`;}
         const ICONS={task:'✓',journal:'✏',note:'📝'};
-        const body=items.slice(0,5).map(it=>`<div class="lr" style="padding:4px 2px"><span style="font-size:11px;flex-shrink:0">${ICONS[it.type]}</span><span class="rt" style="font-size:11px;color:var(--t1)">${esc(it.title||'(untitled)')}</span><span style="font-size:10px;color:var(--t3);white-space:nowrap">${thisYear-it.year}y ago</span></div>`).join('');
+        const body=items.slice(0,5).map(it=>`<div class="lr" style="padding:4px 2px"><span style="font-size:11px;flex-shrink:0">${ICONS[it.type]}</span><span class="rt" style="font-size:11px;color:var(--t1)">${esc(it.title||'(untitled)')}</span><span style="font-size:11px;color:var(--t3);white-space:nowrap">${thisYear-it.year}y ago</span></div>`).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('camera',15,'#f472b6')} On this day</div><span class="cd-a">${items.length} memor${items.length===1?'y':'ies'}</span></div>${body}</div>`;
       })(),
       // 🧠 AI Insight — cached daily, calls ai.assist with a workspace snapshot.
@@ -7089,7 +7089,7 @@ function renderHome(){
         const today=new Date().toISOString().slice(0,10);
         const fresh=cache&&cache.date===today&&cache.text;
         if(fresh){
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:10px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:11px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
         }
         if(!cache||cache.date!==today)setTimeout(_refreshAIInsight,800);
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div></div><div style="padding:14px 4px;font-size:11px;color:var(--t3);text-align:center">⏳ Generating today's insight…</div></div>`;
@@ -7102,15 +7102,15 @@ function renderHome(){
         if(!hours.length){
           // Fall back to total focus across days
           const total=Object.values(fl).reduce((a,b)=>a+(Number(b)||0),0);
-          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div><div style="padding:8px 4px;font-size:11px;color:var(--t3);text-align:center">Use the Focus timer for a few sessions and we'll surface your most productive hours here.<br><span style="display:block;margin-top:6px;font-size:10px">${total} minutes logged so far.</span></div></div>`;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div><div style="padding:8px 4px;font-size:11px;color:var(--t3);text-align:center">Use the Focus timer for a few sessions and we'll surface your most productive hours here.<br><span style="display:block;margin-top:6px;font-size:11px">${total} minutes logged so far.</span></div></div>`;
         }
         const fmt=h=>{const n=Number(h);const ap=n>=12?'pm':'am';const h12=((n%12)||12);return h12+ap;};
         const top=hours[0];
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#ef4444')} Peak Focus Hour</div></div>
           <div style="padding:4px;font-size:12px;color:var(--t1);line-height:1.55">
             Your peak focus is around <strong style="color:var(--page-accent)">${fmt(top[0])}</strong> — ${top[1]} minutes logged in this hour across all sessions.
-            <div style="font-size:10px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
-            <button class="btn btn-s" style="margin-top:8px;font-size:10px;height:24px" onclick="nav('focus')">Start a focus session →</button>
+            <div style="font-size:11px;color:var(--t3);margin-top:8px">Other strong hours: ${hours.slice(1).map(h=>fmt(h[0])+' ('+h[1]+'m)').join(' · ')||'(none yet)'}</div>
+            <button class="btn btn-s" style="margin-top:8px;font-size:11px;height:24px" onclick="nav('focus')">Start a focus session →</button>
           </div></div>`;
       })(),
       // 🧹 Stale Content (#11) — surfaces notes / open tasks / goals untouched
@@ -7137,7 +7137,7 @@ function renderHome(){
         const rows=top.map(it=>`<div class="lr" style="cursor:pointer;align-items:center;gap:6px" onclick="_staleOpen('${it.type}',${it.id})" title="Open ${it.type}">
           <span style="font-size:13px;flex-shrink:0">${it.icon}</span>
           <span class="rt" style="font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.title)}</span>
-          <span style="font-size:10px;color:var(--t3);flex-shrink:0">${it.ago}d</span>
+          <span style="font-size:11px;color:var(--t3);flex-shrink:0">${it.ago}d</span>
           <button class="btn btn-s" style="height:18px;width:22px;padding:0;font-size:10px;flex-shrink:0" onclick="event.stopPropagation();_staleTouch('${it.type}',${it.id})" title="Mark as still relevant — hide for 30 more days">✓</button>
         </div>`).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('trash',15,'#f59e0b')} Stale Content</div><span class="cd-a">${stale.length} item${stale.length===1?'':'s'} >30d old</span></div>${rows}</div>`;
@@ -7151,14 +7151,14 @@ function renderHome(){
     const pinned=(D.prefs&&D.prefs.homePinnedWidgets)||[];
     let pinnedHtml='';
     if(pinned.length&&typeof _renderWidget==='function'){
-      pinnedHtml=`<div style="margin-top:14px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px">📌 Pinned widgets <span style="font-size:10px;font-weight:400;color:var(--t3)">— pinned from Reports</span></div><div style="display:grid;grid-template-columns:repeat(12,1fr);gap:10px">${pinned.map((w,i)=>{
+      pinnedHtml=`<div style="margin-top:14px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:flex;align-items:center;gap:6px">📌 Pinned widgets <span style="font-size:11px;font-weight:400;color:var(--t3)">— pinned from Reports</span></div><div style="display:grid;grid-template-columns:repeat(12,1fr);gap:10px">${pinned.map((w,i)=>{
         // Save the original widget context, render via the widget engine,
         // then inject an Unpin button after the title row.
         const saved=_reportWidgets;_reportWidgets=pinned;
         let html=_renderWidget(w,i);
         _reportWidgets=saved;
         // Replace the report-context toolbar with a smaller Unpin-only toolbar
-        html=html.replace(/<div class="no-print"[\s\S]*?<\/div>\s*<\/div>/, `<div class="no-print" style="display:flex;gap:3px"><button class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick="nav('reports')" title="Edit in Reports">✏</button><button class="btn btn-d" style="height:22px;font-size:10px" onclick="unpinHomeWidget(${w.id})" title="Unpin">✕</button></div></div>`);
+        html=html.replace(/<div class="no-print"[\s\S]*?<\/div>\s*<\/div>/, `<div class="no-print" style="display:flex;gap:3px"><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick="nav('reports')" title="Edit in Reports">✏</button><button class="btn btn-d" style="height:22px;font-size:11px" onclick="unpinHomeWidget(${w.id})" title="Unpin">✕</button></div></div>`);
         // Make pinned widgets non-draggable on Home (drag handlers reference _reportWidgets which would be wrong).
         html=html.replace(/draggable="true"[^>]*?ondragstart="[^"]*"[^>]*?ondragover="[^"]*"[^>]*?ondragleave="[^"]*"[^>]*?ondrop="[^"]*"[^>]*?ondragend="[^"]*"/,'draggable="false"');
         return html;
@@ -7168,7 +7168,7 @@ function renderHome(){
     // handle is on a tiny ⋮⋮ pill in the top-right of each card. Reorder
     // persists to D.prefs.homeCards via _moveHomeCard().
     const wrapped=visCards.map((id,i)=>`<div class="home-card-wrap" data-home-id="${esc(id)}" draggable="true" ondragstart="_homeDragStart(event,'${esc(id)}')" ondragover="_homeDragOver(event,'${esc(id)}')" ondragleave="_homeDragLeave(event)" ondrop="_homeDrop(event,'${esc(id)}')" ondragend="_homeDragEnd(event)" style="position:relative">
-      <span class="home-card-drag" title="Drag to reorder" style="position:absolute;top:6px;right:8px;font-size:10px;color:var(--t3);background:var(--s3);border-radius:4px;padding:2px 5px;cursor:grab;opacity:0;transition:opacity .12s;z-index:5">⋮⋮</span>
+      <span class="home-card-drag" title="Drag to reorder" style="position:absolute;top:6px;right:8px;font-size:11px;color:var(--t3);background:var(--s3);border-radius:4px;padding:2px 5px;cursor:grab;opacity:0;transition:opacity .12s;z-index:5">⋮⋮</span>
       ${cardHtml[id]}
     </div>`).join('');
     return `<div class="g3" id="home-grid">${wrapped}</div>${pinnedHtml}`;
@@ -7180,15 +7180,15 @@ function renderHome(){
   const _chartVals=_chartDays.map(d=>_focusLog[d.toISOString().split('T')[0]]||0);
   const _chartMax=Math.max(..._chartVals,1);
   const _todayIdx=6;
-  const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:10px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:9px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
+  const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:11px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:9px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
   // Daily cross-source command-center card — Today across CF / LSI / Personal.
   // Always rendered on Home; collapses to a single line when external sources
   // aren't configured yet (still useful as a personal-tasks-today summary).
   const dailyCommandCenterHtml=_renderDailyCommandCenterCard();
   r.innerHTML=dailyCommandCenterHtml+focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
-  ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:10px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:10px;color:var(--t3)">'+range+'</div></div><span style="font-size:10px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
+  ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:11px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:11px;color:var(--t3)">'+range+'</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
   <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
-  ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
+  ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
   ${(()=>{
     const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
     const typeColor={task:'var(--ac)',note:'var(--ok)',project:'var(--warn)',goal:'var(--red)',journal:'#a78bfa',habit:'#fb923c'};
@@ -7202,7 +7202,7 @@ function renderHome(){
     const top=recent.slice(0,7);
     if(!top.length)return '';
     const fmtTs=ts=>{const d=new Date(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
-    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id===${r.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:10px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id===${r.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
   })()}
   ${(()=>{
     if(!D.prefs.pinned||!D.prefs.pinned.length)return '';
@@ -7213,7 +7213,7 @@ function renderHome(){
       const item=arr&&arr.find(x=>x.id===p.id);
       if(!item)return '';
       const label=item.title||item.name||'Untitled';
-      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id===${p.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:10px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
+      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id===${p.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:11px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
     }).filter(Boolean).join('');
     if(!rows)return '';
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">📌 Pinned</span></div>${rows}</div>`;
@@ -7359,7 +7359,7 @@ async function _openSharedTaskView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${t._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${t._delegated?('assigned to '+esc(t._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${t._delegated?('assigned to '+esc(t._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Title</label><input class="inp" id="st-title" value="${esc(t.title||'')}"></div>
     <div class="field-row">
@@ -7367,7 +7367,7 @@ async function _openSharedTaskView(idx){
       <div class="field"><label>Priority</label><select class="inp" id="st-pri">${priOpts.map(s=>`<option ${t.priority===s?'selected':''}>${s}</option>`).join('')}</select></div>
     </div>
     <div class="field"><label>Due</label><input class="inp" id="st-due" value="${esc(t.due||'')}" placeholder="YYYY-MM-DD"></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('st-ma',t)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('st-ma',t)}</div>
     <div class="field"><label>Notes</label><textarea class="inp" id="st-notes" style="min-height:90px">${esc(notes)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedTask(${Number(idx)||0})">Save</button>
@@ -7375,7 +7375,7 @@ async function _openSharedTaskView(idx){
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'tasks','st')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':('Saved to '+(t._delegated?'this task':esc(from)+"&#39;s copy")+'.')}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':('Saved to '+(t._delegated?'this task':esc(from)+"&#39;s copy")+'.')}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7486,11 +7486,11 @@ function _renderSharedTasksSection(){
   const open=!(D.prefs&&D.prefs.sharedSectionCollapsed);
   el.innerHTML=`<div class="cd" style="border-left:3px solid var(--purp)">
     <div onclick="_toggleSharedSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open&&items.length?'margin-bottom:8px':''}">
-      <span style="display:inline-block;transition:transform .2s;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;transition:transform .2s;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${items.length}</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${items.length}</span>
       <span style="flex:1"></span>
-      <span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?(items.length?items.map(_sharedTaskCard).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing matches the current filter.</div>'):''}
   </div>`;
@@ -7520,10 +7520,10 @@ function _renderSharedProjectsSection(){
   const open=!(D.prefs&&D.prefs.sharedProjSectionCollapsed);
   return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:10px">
     <div onclick="_toggleSharedProjSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
-      <span style="display:inline-block;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedProjectCard).join(''):''}
   </div>`;
@@ -7548,14 +7548,14 @@ async function _openSharedProjectView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Name</label><input class="inp" id="sp-name" value="${esc(p.name||'')}"></div>
     <div class="field-row">
       <div class="field"><label>Status</label><select class="inp" id="sp-status">${statusOpts.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Due</label><input class="inp" id="sp-due" value="${esc(p.due||'')}" placeholder="YYYY-MM-DD"></div>
     </div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sp-ma',p)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sp-ma',p)}</div>
     <div class="field"><label>Description</label><textarea class="inp" id="sp-desc" style="min-height:90px">${esc(desc)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedProject(${Number(idx)||0})">Save</button>
@@ -7563,7 +7563,7 @@ async function _openSharedProjectView(idx){
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'projects')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the project owner.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the project owner.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7606,10 +7606,10 @@ function _renderSharedProgramsSection(){
   const open=!(D.prefs&&D.prefs.sharedProgSectionCollapsed);
   return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:10px">
     <div onclick="_toggleSharedProgSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
-      <span style="display:inline-block;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedProgramCard).join(''):''}
   </div>`;
@@ -7625,7 +7625,7 @@ function _sharedProgramCard(p){
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.icon?p.icon+' ':'')+(p.name||'Untitled'))}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''} · ${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''} · ${sub}</div>
   </div>`;
 }
 async function _openSharedProgramView(idx){
@@ -7641,11 +7641,11 @@ async function _openSharedProgramView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Name</label><input class="inp" id="sg-name" value="${esc(p.name||'')}"></div>
     <div class="field"><label>Status</label><select class="inp" id="sg-status">${statusOpts.map(s=>`<option ${p.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sg-ma',p)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('sg-ma',p)}</div>
     <div class="field"><label>Description</label><textarea class="inp" id="sg-desc" style="min-height:90px">${esc(desc)}</textarea></div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedProgram(${Number(idx)||0})">Save</button>
@@ -7653,7 +7653,7 @@ async function _openSharedProgramView(idx){
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'programs')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the program owner.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: full edit, reassign, take ownership &amp; delete — saved to the owner.':'Saved to the program owner.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7685,7 +7685,7 @@ function _openNoteAssign(id){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Note</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(n.title||'Untitled')}</div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('note-assign-ma',n)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('note-assign-ma',n)}</div>
     <div class="dr-actions" style="margin-top:14px">
       <button class="btn btn-p" onclick="_saveNoteAssign('${String(id)}')">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
@@ -7713,10 +7713,10 @@ function _renderSharedNotesSection(){
   const open=!(D.prefs&&D.prefs.sharedNotesSectionCollapsed);
   return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:12px">
     <div onclick="_toggleSharedNotesSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
-      <span style="display:inline-block;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated notes</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedNoteCard).join(''):''}
   </div>`;
@@ -7732,7 +7732,7 @@ function _sharedNoteCard(p){
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||'Untitled')}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${sub}</div>
   </div>`;
 }
 async function _openSharedNoteView(idx){
@@ -7747,18 +7747,18 @@ async function _openSharedNoteView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Title</label><input class="inp" id="snt-title" value="${esc(p.title||'')}"></div>
     ${snippet?`<div style="font-size:11px;color:var(--t3);background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:8px;margin-bottom:8px;max-height:80px;overflow:hidden">${esc(snippet)}…</div>`:''}
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedNote(${Number(idx)||0})">Save</button>
       ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'notes')" title="Move this note into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'notes')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The note body stays with the owner.':'The note body stays with the owner; you can update its assignment here.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The note body stays with the owner.':'The note body stays with the owner; you can update its assignment here.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -7791,9 +7791,9 @@ function _sharedProjectCard(p){
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name||'Untitled')}</span>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${p.pct!=null?esc(String(p.pct))+'%':''}</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">${p.pct!=null?esc(String(p.pct))+'%':''}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''}${p.due?' · due '+esc(p.due):''} · ${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${p.status?esc(p.status):''}${p.due?' · due '+esc(p.due):''} · ${sub}</div>
   </div>`;
 }
 // Read-only card for a task shared with me (assigned to me / admin view).
@@ -7810,7 +7810,7 @@ function _sharedTaskCard(t){
       <span style="flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${badge}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title||'Untitled')}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(pri)}${t.status?' · '+esc(t.status):''}${t.due?' · due '+esc(t.due):''} · ${sub}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(pri)}${t.status?' · '+esc(t.status):''}${t.due?' · due '+esc(t.due):''} · ${sub}</div>
       </div>
     </div>
   </div>`;
@@ -7841,19 +7841,19 @@ function _renderRealSubtasksSection(parent){
     return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(c.taskId||c.id)}))),120)">
       <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${esc(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(parent.taskId||parent.id)}))),120)"></div>
       <span class="rt" style="font-size:12px;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(c.title||'(untitled)')}</span>
-      ${c.priority?`<span class="pill ${pillClass(c.priority)}" style="font-size:10px">${c.priority}</span>`:''}
-      ${c.due?`<span style="font-size:10px;color:${od?'var(--red)':'var(--t3)'}">${esc(c.due)}</span>`:''}
+      ${c.priority?`<span class="pill ${pillClass(c.priority)}" style="font-size:11px">${c.priority}</span>`:''}
+      ${c.due?`<span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'}">${esc(c.due)}</span>`:''}
       <span style="font-size:11px;color:var(--t3)">›</span>
     </div>`;
   }).join('');
   const promoteBtn=(!legacyPromoted&&legacyCount>0)
-    ?`<button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" title="Convert the ${legacyCount} legacy subtask${legacyCount===1?'':'s'} above into real task rows with full fields (assignee, due date, priority, etc.)" onclick="_promoteLegacySubtasks()">↑ Promote ${legacyCount} legacy</button>`
+    ?`<button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" title="Convert the ${legacyCount} legacy subtask${legacyCount===1?'':'s'} above into real task rows with full fields (assignee, due date, priority, etc.)" onclick="_promoteLegacySubtasks()">↑ Promote ${legacyCount} legacy</button>`
     :'';
   const childCount=children.length;
   const childDone=children.filter(c=>c.status==='Done').length;
   const heading=childCount
-    ?`Subtasks (rich) <span style="font-size:10px;color:var(--t3);font-weight:400">(${childDone}/${childCount} done)</span>`
-    :`Subtasks (rich) <span style="font-size:10px;color:var(--t3);font-weight:400">— full task fields per subtask</span>`;
+    ?`Subtasks (rich) <span style="font-size:11px;color:var(--t3);font-weight:400">(${childDone}/${childCount} done)</span>`
+    :`Subtasks (rich) <span style="font-size:11px;color:var(--t3);font-weight:400">— full task fields per subtask</span>`;
   return `<div style="margin-top:14px;padding-top:10px;border-top:1px dashed var(--bd1)">
     <label style="display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">
       <span>${heading}</span>
@@ -7862,7 +7862,7 @@ function _renderRealSubtasksSection(parent){
     ${childRows}
     <div style="display:flex;gap:6px;margin-top:6px">
       <input class="inp" id="new-real-subtask" placeholder="+ Add subtask as full task (Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})}">
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})">+ Add</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})">+ Add</button>
     </div>
   </div>`;
 }
@@ -7947,7 +7947,7 @@ function _renderSourceFilterChips(){
   const lsiCount=ext.filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
   // Hide CF/LSI chips when those sources have no data — keeps the UI clean
   // for users who haven't connected them.
-  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${key}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
+  const chip=(on,active,color,label,count,key)=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${active?color:'transparent'};color:${active?'#fff':'var(--t2)'};border:1px solid ${active?color:'var(--bd2)'};border-radius:11px" onclick="toggleSourceFilter('${key}')" title="${active?'Click to hide':'Click to show'} ${label}">${label}${count?` <span style="opacity:.85">${count}</span>`:''}</button>`;
   const personalCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&t.status!=='Someday').length;
   // CF fold-all chip — only appears when there's at least one CF
   // project group on the Tasks list (i.e. at least one orphan-subtask
@@ -7971,10 +7971,10 @@ function _renderSourceFilterChips(){
     if(allCollapsed){ label='⤢ Expand all CF'; fn='_expandAllCfProjects()'; }
     else if(anyCollapsed){ label=`⤢ Expand all (${collapsedCount}/${totalLabels} folded)`; fn='_expandAllCfProjects()'; }
     else { label='⤡ Fold all CF'; fn='_foldAllCfProjects()'; }
-    return `<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:transparent;color:#1f6feb;border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
+    return `<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:transparent;color:#1f6feb;border:1px solid color-mix(in srgb,#1f6feb 35%,transparent);border-radius:11px;margin-left:4px" onclick="${fn}" title="${allCollapsed?'Expand every CF project section':(anyCollapsed?'Expand all currently-folded CF project sections':'Fold every CF project section')}">${label}</button>`;
   })();
   return `<div style="display:flex;align-items:center;gap:6px;margin:6px 0;flex-wrap:wrap">
-    <span style="font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
+    <span style="font-size:11px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Sources</span>
     ${chip(true,f.personal,'var(--ac)','Personal',personalCount,'personal')}
     ${cfCount?chip(true,f.smartsheet,'#1f6feb','CF',cfCount,'smartsheet'):''}
     ${lsiCount?chip(true,f.nifty,'#9333ea','LSI',lsiCount,'nifty'):''}
@@ -8256,11 +8256,11 @@ function renderTaskList(){
     });
   }
   // J: group toolbar
-  const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:10px;color:var(--t3)">
+  const groupBar=`<div style="display:flex;align-items:center;gap:6px;padding:6px 0;margin-bottom:4px;font-size:11px;color:var(--t3)">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
-    ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
+    ${[['none','None'],['project','Project'],['due','Due'],['assignee','Assignee'],['status','Status']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_taskListGroupBy===k?'var(--ac)':'transparent'};color:${_taskListGroupBy===k?'#fff':'var(--t2)'}" onclick="setTaskListGroupBy('${k}')">${l}</button>`).join('')}
     <span style="margin-left:auto;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Sort:</span>
-    <select class="inp" style="height:22px;font-size:10px;padding:0 4px" onchange="setTaskListSortValue(this.value)">
+    <select class="inp" style="height:22px;font-size:11px;padding:0 4px" onchange="setTaskListSortValue(this.value)">
       ${[['','Manual (drag)'],['title','Title'],['priority','Priority'],['status','Status'],['start','Start date'],['end','Due date'],['created','Created'],['source','Source']].map(([v,l])=>`<option value="${v}" ${_taskListSortBy===v?'selected':''}>${l}</option>`).join('')}
     </select>
     ${_taskListSortBy?`<button class="btn btn-s" style="height:22px;width:24px;padding:0;font-size:11px" onclick="toggleTaskListSortDir()" title="Sort direction">${_taskListSortDir==='asc'?'↑':'↓'}</button>`:''}
@@ -8284,7 +8284,7 @@ function renderTaskList(){
     const active=_taskListSortBy===c.sort;
     return `<div class="tl-hc" style="position:relative;cursor:pointer;user-select:none;color:${active?'var(--ac)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="setTaskListSort('${c.sort}')" title="Click to sort · drag right edge to resize">${c.label}${arrow(c.sort)}<span class="tl-resizer" title="Drag to resize column" onpointerdown="_tlResizeStart(event,'${c.k}')" onclick="event.stopPropagation()"></span></div>`;
   };
-  const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;min-width:${rowMinW}px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
+  const header=`<div class="tl-row tl-head" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:8px 12px;min-width:${rowMinW}px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;align-items:center;position:sticky;top:0;z-index:5">
     ${_TASK_COLS.map(headCell).join('')}
   </div>`;
   function rowFor(t){
@@ -8310,21 +8310,21 @@ function renderTaskList(){
       ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
         <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
-        ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:10px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
+        ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
       </div>
-      <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
-      <span class="lu-pill-clickable" title="Click to change status" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;width:fit-content">${status}</span>
-      <span style="font-size:10px;color:var(--t3)">${startDate?fmtDate(startDate):'—'}</span>
-      <span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t3)'};font-weight:${isOverdue?'600':'400'}">${endDate?fmtDate(endDate):'—'}</span>
+      <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
+      <span class="lu-pill-clickable" title="Click to change status" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;width:fit-content">${status}</span>
+      <span style="font-size:11px;color:var(--t3)">${startDate?fmtDate(startDate):'—'}</span>
+      <span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t3)'};font-weight:${isOverdue?'600':'400'}">${endDate?fmtDate(endDate):'—'}</span>
       <span style="display:flex;align-items:center;gap:4px;min-width:0">
         ${projColor?`<span style="width:6px;height:6px;border-radius:2px;background:${projColor};flex-shrink:0"></span>`:''}
-        <span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${projName?'var(--t2)':'var(--t3)'}">${projName?esc(projName):'—'}</span>
+        <span style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${projName?'var(--t2)':'var(--t3)'}">${projName?esc(projName):'—'}</span>
       </span>
       <span style="display:flex;align-items:center;gap:5px;min-width:0">
         ${initials?`<span style="width:18px;height:18px;border-radius:50%;background:var(--acs);color:var(--ach);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">${initials}</span>`:''}
-        <span style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${assigned?'var(--t2)':'var(--t3)'}">${assigned?esc(assigned.split(' ')[0]):'—'}</span>
+        <span style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:${assigned?'var(--t2)':'var(--t3)'}">${assigned?esc(assigned.split(' ')[0]):'—'}</span>
       </span>
-      <span style="font-size:10px;color:var(--t3)" title="${createdISO?esc(createdISO):''}">${createdStr}</span>
+      <span style="font-size:11px;color:var(--t3)" title="${createdISO?esc(createdISO):''}">${createdStr}</span>
       <span style="font-size:14px;color:var(--t3);text-align:center" title="Open">›</span>
     </div>`;
   }
@@ -8376,18 +8376,18 @@ function renderTaskList(){
       const indent=isSubtask?'margin-left:24px;border-left:2px dotted var(--bd2);padding-left:8px':'';
       let breadcrumb='';
       if(isSubtaskByParent){
-        breadcrumb=`<span style="font-size:10px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`;
+        breadcrumb=`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent task" onclick="event.stopPropagation();_openExternalAnnotateModal('${esc(t._source)}','${esc(pid)}')">↳ ${esc((parentRow.title||'').slice(0,40))}</span>`;
       } else if(isCfSubtaskByKind){
         // Find the LevelUp project (auto-created from this projectLabel) so
         // the breadcrumb clicks open that project's drawer.
         const projMatch=(D.projects||[]).find(p=>(p.name||'').toLowerCase()===(t._projectLabel||'').toLowerCase());
         const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id===${projMatch.id}))`:`nav('projects')`;
-        breadcrumb=`<span style="font-size:10px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">${_icon('folder',12,'currentColor')} ${esc((t._projectLabel||'').slice(0,48))}</span>`;
+        breadcrumb=`<span style="font-size:11px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">${_icon('folder',12,'currentColor')} ${esc((t._projectLabel||'').slice(0,48))}</span>`;
       }
       return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
         <div style="width:18px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:2px">
           <div class="tlc-chk ${doneExt?'on':''}" style="cursor:pointer" onclick="event.stopPropagation();_extToggleCompleted('${esc(t._source)}','${esc(t._externalId)}',${doneExt?'false':'true'})" title="${doneExt?'Reopen in source':'Mark complete in source'}"></div>
-          <div style="font-size:10px">${_extSourceBadge(t._source)}</div>
+          <div style="font-size:11px">${_extSourceBadge(t._source)}</div>
         </div>
         <div class="tlc-body">
           <div class="tlc-t" style="${doneExt?'text-decoration:line-through;color:var(--t3)':''}">${isSubtask?'<span style="color:var(--t3);margin-right:4px" title="Subtask">↳</span>':''}<a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:${doneExt?'var(--t3)':'var(--t1)'};text-decoration:none">${esc(t.title||'Untitled')}</a>${myDay&&!doneExt?' <span title="My Day" style="color:#f59e0b">☀</span>':''} ${breadcrumb}</div>
@@ -8457,8 +8457,8 @@ function renderTaskList(){
     return `<div class="cf-proj-header" data-cf-project="${esc(label)}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin:10px 0 4px;background:linear-gradient(to right,rgba(31,111,235,.10),rgba(31,111,235,.02));border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);border-left:3px solid #1f6feb;border-radius:6px;cursor:pointer;user-select:none" onclick="_toggleCfProjectCollapsed('${safe}')" title="Click to ${collapsed?'expand':'collapse'} this project">
       <span style="font-size:13px;color:#1f6feb;width:14px;display:inline-flex;align-items:center;justify-content:center">${collapsed?'▸':'▾'}</span>
       <span style="font-size:12px;font-weight:600;color:var(--t1);flex:1">${_icon('folder',12,'currentColor')} ${projName}</span>
-      <span style="font-size:10px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
-      ${projectId?`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${projectId}))" title="Open this project's LevelUp page">→</button>`:''}
+      <span style="font-size:11px;color:var(--t3)">${count} task${count===1?'':'s'}${doneCount?` · ${doneCount} done`:''}</span>
+      ${projectId?`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${projectId}))" title="Open this project's LevelUp page">→</button>`:''}
     </div>`;
   };
   const _collapsedSet=new Set(((D.prefs&&D.prefs.cfCollapsedProjects)||[]).map(s=>String(s).toLowerCase()));
@@ -8716,24 +8716,24 @@ function renderTaskCards(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${titleStyle}">${esc(t.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
-            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priBg[pri]};color:${pc};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
-            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
-            ${t.due?`<span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(t.due)}</span>`:''}
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
+            ${t.due?`<span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(t.due)}</span>`:''}
           </div>
         </div>
       </div>
       ${subs.length?`<div style="border-top:1px dashed var(--bd1);padding-top:8px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
           <div style="flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="width:${Math.round(subDone/subs.length*100)}%;height:100%;background:${pc};transition:width .3s"></div></div>
-          <span style="font-size:10px;color:var(--t3);font-weight:600">${subDone}/${subs.length}</span>
+          <span style="font-size:11px;color:var(--t3);font-weight:600">${subDone}/${subs.length}</span>
         </div>
         ${subs.slice(0,6).map((s,si)=>`<div class="lr" style="padding:2px 0;gap:6px" onclick="event.stopPropagation()">
           <div class="chk ${s.done?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="toggleSubtask(${t.id},${si});setTimeout(renderCurrentTaskView,80)"></div>
           <span style="font-size:11px;line-height:1.35;${s.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(s.title)}</span>
         </div>`).join('')}
-        ${subs.length>6?`<div style="font-size:10px;color:var(--t3);margin-top:3px;padding-left:18px">+ ${subs.length-6} more…</div>`:''}
+        ${subs.length>6?`<div style="font-size:11px;color:var(--t3);margin-top:3px;padding-left:18px">+ ${subs.length-6} more…</div>`:''}
       </div>`:''}
-      <div style="display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3)">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3)">
         ${projName?`<span style="display:inline-flex;align-items:center;gap:3px;min-width:0;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};flex-shrink:0"></i>`:''}${esc(projName)}</span>`:'<span>—</span>'}
         ${assigned?`<span style="flex-shrink:0">· 👤 ${esc(assigned.split(' ')[0])}</span>`:''}
         <span style="flex:1"></span>
@@ -8753,14 +8753,14 @@ function renderTaskCards(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(c.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
-            <span style="background:${priBg[pri]};color:${pc};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
-            <span style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:10px;font-weight:600;padding:1px 7px;border-radius:8px">${esc(c._rawStatus||status)}</span>
-            ${c.due?`<span style="font-size:10px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(c.due)}</span>`:''}
+            <span style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${esc(c._rawStatus||status)}</span>
+            ${c.due?`<span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(c.due)}</span>`:''}
           </div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:10px;color:var(--t3)">
-        <span style="background:color-mix(in srgb,${sourceColor} 12%,transparent);color:${sourceColor};font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;flex-shrink:0">${sourceLabel}</span>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:6px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3)">
+        <span style="background:color-mix(in srgb,${sourceColor} 12%,transparent);color:${sourceColor};font-size:11px;font-weight:700;padding:1px 6px;border-radius:6px;flex-shrink:0">${sourceLabel}</span>
         ${c.project?`<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.project)}</span>`:''}
         ${c.assignedTo?`<span style="flex-shrink:0">· 👤 ${esc(c.assignedTo.split(' ')[0])}</span>`:''}
         <span style="flex:1"></span>
@@ -8771,7 +8771,7 @@ function renderTaskCards(){
   const cards=nativeTasks.map(nativeCard).concat(extCards.map(extCard));
   const addBtn=`<div onclick="openFA('task')" style="background:transparent;border:1.5px dashed var(--bd2);border-radius:10px;padding:24px 14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:12px;min-height:120px;transition:border-color .15s,color .15s" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t3)'">+ Add Task</div>`;
   const emptyMsg='<div style="text-align:center;padding:48px 20px;color:var(--t3)"><div style="font-size:42px;margin-bottom:10px">🎴</div><div style="font-size:15px;font-weight:600;color:var(--t1);margin-bottom:4px">No tasks in this view</div><div style="font-size:12px">Try switching tabs or clearing the priority filter.</div></div>';
-  const countLabel=cards.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:10px">${nativeTasks.length} task${nativeTasks.length===1?'':'s'}${extCards.length?` · ${extCards.length} external`:''}</div>`:'';
+  const countLabel=cards.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:10px">${nativeTasks.length} task${nativeTasks.length===1?'':'s'}${extCards.length?` · ${extCards.length} external`:''}</div>`:'';
   // Layout: CSS multi-column flow (masonry-like) instead of CSS grid. Grid
   // uses uniform row heights, so a 4-subtask card next to a 0-subtask card
   // leaves a giant gap below the short one. Columns pack each card flush
@@ -8821,9 +8821,9 @@ function renderTaskBoard(){
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
-           ${t.due?`<span style="font-size:10px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:10px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:10px;color:var(--red);font-weight:600">🔒</span>`:''}
-          ${t.assignedTo?`<span style="font-size:10px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
-          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:10px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+           ${t.due?`<span style="font-size:11px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:11px;color:var(--red);font-weight:600">🔒</span>`:''}
+          ${t.assignedTo?`<span style="font-size:11px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${t.id})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
@@ -8843,7 +8843,7 @@ function renderTaskBoard(){
           ${_extSourceBadge(et.source)}
           <a ${_extOpenAttrs(url)} title="Open in ${et.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:11px;font-weight:500;line-height:1.3;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(et.title)}</a>
         </div>
-        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:10px;color:var(--t3)">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;color:var(--t3)">
           ${et.status?`<span>${esc(et.status)}</span>`:''}
           ${due?`<span>📅 ${fmtDate(due)}</span>`:''}
           ${et.projectLabel?`<span>${_icon('folder',12,'currentColor')} ${esc(et.projectLabel)}</span>`:''}
@@ -8859,15 +8859,15 @@ function renderTaskBoard(){
       </div>`;
     }).join('');
     const totalInCol=colTasks.length+extInCol.length;
-    const extCount=extInCol.length?`<span style="font-size:10px;color:var(--t3);margin-left:4px" title="${extInCol.length} from Smartsheet/Nifty">+${extInCol.length} ext</span>`:'';
+    const extCount=extInCol.length?`<span style="font-size:11px;color:var(--t3);margin-left:4px" title="${extInCol.length} from Smartsheet/Nifty">+${extInCol.length} ext</span>`:'';
     return `<div style="flex:1;min-width:160px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid ${col.color}">
         <span style="font-size:11px;font-weight:700;color:${col.color}">${col.label}</span>
-        <span style="font-size:10px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${totalInCol}</span>
+        <span style="font-size:11px;color:var(--t3);background:var(--s3);border-radius:10px;padding:1px 6px">${totalInCol}</span>
         ${extCount}
       </div>
       ${cards}${extCards}
-      <div style="text-align:center;padding:6px;font-size:10px;color:var(--t3);cursor:pointer;border:1px dashed var(--bd2);border-radius:5px" onclick="openFA('task')">+ Add</div>
+      <div style="text-align:center;padding:6px;font-size:11px;color:var(--t3);cursor:pointer;border:1px dashed var(--bd2);border-radius:5px" onclick="openFA('task')">+ Add</div>
     </div>`;
   }).join('');
   list.innerHTML=`<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;height:100%;align-items:flex-start">${colHtml}</div>`;
@@ -8924,8 +8924,8 @@ function renderTaskMatrix(){
           </div>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
             <span class="pill ${pillClass(pri)}" style="font-size:9px">${pri}</span>
-            ${t.status?`<span style="font-size:10px;color:var(--t3)">${esc(t.status)}</span>`:''}
-            ${t.projectLabel?`<span style="font-size:10px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.projectLabel)}</span>`:''}
+            ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
+            ${t.projectLabel?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.projectLabel)}</span>`:''}
             ${_extAnnotationChips(t.override)}
             <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px;margin-left:auto" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
             <button class="btn btn-s" style="height:16px;font-size:9px;padding:0 4px" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
@@ -8936,20 +8936,20 @@ function renderTaskMatrix(){
         <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
-          <span style="font-size:10px;color:var(--t3)">${t.estimatedMins||30}m</span>
-          ${t.project?`<span style="font-size:10px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
-          ${t.due?`<span style="font-size:10px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
-          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:10px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+          <span style="font-size:11px;color:var(--t3)">${t.estimatedMins||30}m</span>
+          ${t.project?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
+          ${t.due?`<span style="font-size:11px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
       </div>`;
     }).join('');
     return `<div class="mtx-quad" data-quad="${k}" data-target-priority="${q.targetPriority}" data-target-mins="${q.targetMins}" ondragover="_mtxDragOver(event)" ondragleave="_mtxDragLeave(event)" ondrop="_mtxDrop(event,'${q.targetPriority}',${q.targetMins})" style="flex:1;min-width:220px;background:${q.bg};border:1px solid var(--bd1);border-radius:10px;padding:12px;transition:outline .15s,background .15s">
       <div style="margin-bottom:6px">
         <div style="font-size:13px;font-weight:700;color:${q.color}">${q.label}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${q.sub} · ${q.tasks.length} task${q.tasks.length!==1?'s':''}</div>
-        <div style="font-size:10px;color:var(--t2);margin-top:4px;line-height:1.4">${q.hint}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${q.sub} · ${q.tasks.length} task${q.tasks.length!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4">${q.hint}</div>
       </div>
-      <div style="max-height:340px;overflow-y:auto;min-height:60px">${cards||`<div style="font-size:10px;color:var(--t3);text-align:center;padding:18px;border:1px dashed var(--bd1);border-radius:6px">Drop tasks here</div>`}</div>
+      <div style="max-height:340px;overflow-y:auto;min-height:60px">${cards||`<div style="font-size:11px;color:var(--t3);text-align:center;padding:18px;border:1px dashed var(--bd1);border-radius:6px">Drop tasks here</div>`}</div>
     </div>`;
   }).join('');
   list.innerHTML=`<div style="margin-bottom:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;font-size:11px;color:var(--t2);line-height:1.55">
@@ -9045,7 +9045,7 @@ function renderTaskGantt(){
     const isToday=d.toDateString()===today.toDateString();
     const dayNum=d.getDate();
     const isMonStart=dayNum===1;
-    headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:10px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
+    headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
   }
   // Build task rows
   const priorityColors={High:'var(--err)',Medium:'var(--ac)',Low:'var(--ok)'};
@@ -9094,14 +9094,14 @@ function renderTaskGantt(){
     <div style="min-width:${200+totalW}px">
       <!-- Header (sticky so it stays visible while scrolling rows) -->
       <div style="display:flex;border-bottom:2px solid var(--bd2);background:var(--s2);position:sticky;top:0;z-index:3">
-        <div style="width:200px;min-width:200px;padding:4px 8px;font-size:10px;font-weight:600;color:var(--t2);background:var(--s2);position:sticky;left:0;z-index:4">Task</div>
+        <div style="width:200px;min-width:200px;padding:4px 8px;font-size:11px;font-weight:600;color:var(--t2);background:var(--s2);position:sticky;left:0;z-index:4">Task</div>
         <div style="display:flex;flex:1">${headerCells}</div>
       </div>
       <!-- Rows -->
       ${rows}
     </div>
   </div>
-  <div style="margin-top:10px;display:flex;gap:12px;font-size:10px;color:var(--t3);align-items:center;flex-wrap:wrap">
+  <div style="margin-top:10px;display:flex;gap:12px;font-size:11px;color:var(--t3);align-items:center;flex-wrap:wrap">
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--err);border-radius:2px;margin-right:3px"></span>Overdue / High</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ac);border-radius:2px;margin-right:3px"></span>Medium</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ok);border-radius:2px;margin-right:3px"></span>Low</span>
@@ -9267,13 +9267,13 @@ function renderTaskCalendar(){
   const header=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px 6px 0 0">
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px" onclick="_shiftTaskCal(-1)">‹</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_taskCalToday()">Today</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_taskCalToday()">Today</button>
       <button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px" onclick="_shiftTaskCal(1)">›</button>
     </div>
     <div style="font-size:13px;font-weight:600;color:var(--t1)">${monthName}</div>
-    <div style="font-size:10px;color:var(--t3)">${filtered.length} tasks</div>
+    <div style="font-size:11px;color:var(--t3)">${filtered.length} tasks</div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(7,1fr);background:var(--s2);border:1px solid var(--bd1);border-top:none;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">${dows.map(d=>`<div style="padding:6px 8px;text-align:center;border-right:1px solid var(--bd1)">${d}</div>`).join('')}</div>`;
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);background:var(--s2);border:1px solid var(--bd1);border-top:none;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">${dows.map(d=>`<div style="padding:6px 8px;text-align:center;border-right:1px solid var(--bd1)">${d}</div>`).join('')}</div>`;
   const grid=`<div style="display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(96px,auto);border:1px solid var(--bd1);border-top:none;border-radius:0 0 6px 6px;overflow:hidden">${cells.map((c,i)=>{
     const k=fmt(c.date);
     const isToday=k===_todayStr;
@@ -9281,17 +9281,17 @@ function renderTaskCalendar(){
     const dim=c.inMonth?1:.4;
     const bg=isToday?'rgba(99,102,241,0.10)':'transparent';
     return `<div style="border-right:1px solid var(--bd1);border-bottom:1px solid var(--bd1);padding:4px 6px;opacity:${dim};background:${bg};min-height:96px;cursor:pointer" onclick="openFA('task');setTimeout(()=>{const i=document.getElementById('fa-due');if(i)i.value='${k}';},50)">
-      <div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
+      <div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t2)'};font-weight:${isToday?'700':'500'};margin-bottom:2px">${c.date.getDate()}</div>
       ${items.slice(0,4).map(t=>{
         if(t._source&&t._source!=='local'){
           const url=t._url||'#';
           const badgeColor=t._source==='smartsheet'?'#1f6feb':'#9333ea';
           const badgeText=t._source==='smartsheet'?'CF':'LSI';
-          return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
+          return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
         }
-        return `<div style="font-size:10px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
+        return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
       }).join('')}
-      ${items.length>4?`<div style="font-size:10px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
+      ${items.length>4?`<div style="font-size:11px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
     </div>`;
   }).join('')}</div>`;
   list.innerHTML=header+grid;
@@ -9369,7 +9369,7 @@ function renderTaskClusters(){
     <div style="font-size:11px;color:var(--t1);background:rgba(59,130,246,0.15);padding:5px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap">
       <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>Grouped by Cluster
     </div>
-    <span style="font-size:10px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
+    <span style="font-size:11px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
   </div>`;
 
   function taskRow(t){
@@ -9397,8 +9397,8 @@ function renderTaskClusters(){
       ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
       ${checkboxHtml}
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
-      <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
-      ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:10px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+      <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
+      ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
     </div>`;
   }
@@ -9425,12 +9425,12 @@ function renderTaskClusters(){
           <div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cl.name)}</div>
           <div style="font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subtitle}</div>
         </div>
-        <div title="${esc(cl.owner||'')}" style="width:24px;height:24px;border-radius:50%;background:${accent}33;color:${accent};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${ownerInitials}</div>
+        <div title="${esc(cl.owner||'')}" style="width:24px;height:24px;border-radius:50%;background:${accent}33;color:${accent};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${ownerInitials}</div>
         <div style="width:120px;flex-shrink:0">
           <div style="height:4px;background:var(--s3);border-radius:999px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:${progressColor};border-radius:999px;transition:width .3s"></div>
           </div>
-          <div style="font-size:10px;color:${progressTextColor};text-align:right;margin-top:3px">${pct}%</div>
+          <div style="font-size:11px;color:${progressTextColor};text-align:right;margin-top:3px">${pct}%</div>
         </div>
         <button title="Edit cluster" style="height:24px;width:24px;padding:0;font-size:14px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();openClusterModal(${cl.id})">⋯</button>
       </div>
@@ -9516,19 +9516,19 @@ function _renderExternalClusterCards(){
       const dueLabel=due?_relDue(due):'';
       const depth=Math.min(depthOf(t,null),4);
       const indent=56+depth*16;
-      const hierBadge=depth>0?`<span title="Subtask depth ${depth}" style="font-size:10px;color:var(--t3);margin-right:2px">↳</span>`:'';
+      const hierBadge=depth>0?`<span title="Subtask depth ${depth}" style="font-size:11px;color:var(--t3);margin-right:2px">↳</span>`:'';
       return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px ${indent}px;border-top:1px solid var(--bd1);background:rgba(${src.key==='smartsheet'?'31,111,235':'147,51,234'},${(0.04+depth*0.02).toFixed(2)})">
         ${hierBadge}<span style="flex:0 0 auto">${_extSourceBadge(t.source)}</span>
         <a ${_extOpenAttrs(url)} title="Open in ${src.key==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;font-size:12px;font-weight:${depth?400:500};color:var(--t1);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</a>
         ${_extAnnotationChips(t.override)}
-        ${t.status?`<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
+        ${t.status?`<span style="font-size:11px;padding:2px 6px;border-radius:3px;background:var(--s3);color:var(--t2);font-weight:600;flex-shrink:0;cursor:pointer" title="Click to change status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">${esc(t.status)}</span>`:`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Set status…" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙ Status</button>`}
         <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
         <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
         <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;flex-shrink:0" title="${myDay?'Remove from My Day':'Add to My Day'}" onclick="_toggleExternalMyDay('${t.source}','${esc(t.externalId)}',${myDay?0:1})">${myDay?'☀':'+☀'}</button>
         <span style="font-size:11px;${overdueRow?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
       </div>`;
     }).join('');
-    const tooMany=open.length>40?`<div style="padding:8px 14px 8px 56px;font-size:10px;color:var(--t3);border-top:1px solid var(--bd1);font-style:italic">… and ${open.length-40} more. Open the source to see all.</div>`:'';
+    const tooMany=open.length>40?`<div style="padding:8px 14px 8px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1);font-style:italic">… and ${open.length-40} more. Open the source to see all.</div>`:'';
     return `<div class="cl-card" style="background:var(--s2);border:1px solid var(--bd1);border-left:4px solid ${src.accent};border-radius:10px;margin-bottom:10px;overflow:hidden">
       <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;user-select:none" onclick="_clusterCollapsed['${collapseKey}']=!_clusterCollapsed['${collapseKey}'];renderTaskClusters()">
         <span style="font-size:14px;color:var(--t2);transition:transform .2s;display:inline-block;transform:rotate(${collapsed?'-90':'0'}deg);width:14px;text-align:center;flex-shrink:0">▾</span>
@@ -9541,7 +9541,7 @@ function _renderExternalClusterCards(){
           <div style="height:4px;background:var(--s3);border-radius:999px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:${src.accent};border-radius:999px;transition:width .3s"></div>
           </div>
-          <div style="font-size:10px;color:var(--t3);text-align:right;margin-top:3px">${pct}%</div>
+          <div style="font-size:11px;color:var(--t3);text-align:right;margin-top:3px">${pct}%</div>
         </div>
         <button title="Refresh from source" style="height:24px;width:24px;padding:0;font-size:12px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();refreshExternalTasksNow()">↻</button>
       </div>
@@ -9560,7 +9560,7 @@ function openClusterModal(id){
   const taskOptions=allTasks.map(t=>{
     const checked=cl&&t.clusterId===cl.id;
     const projOwned=t.projectId&&selProjs.has(t.projectId);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':''}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${esc(t.title)}${projOwned?' <span style="font-size:10px;color:var(--t3)">(via project)</span>':''}</label>`;
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':''}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${esc(t.title)}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
   }).join('');
   const html=`<div style="padding:16px;max-width:540px">
     <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>
@@ -9570,10 +9570,10 @@ function openClusterModal(id){
       <div class="field"><label>Color</label><input id="cl-color" type="color" value="${cl?.color||'#3B82F6'}" style="width:60px;height:32px;padding:2px;border:1px solid var(--bd2);border-radius:6px"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Projects <span style="font-size:10px;color:var(--t3);font-weight:400">all their tasks join automatically</span></label>
+      <div class="field"><label>Projects <span style="font-size:11px;color:var(--t3);font-weight:400">all their tasks join automatically</span></label>
         <div style="max-height:200px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${projOptions||'<span style="font-size:11px;color:var(--t3)">No projects yet</span>'}</div>
       </div>
-      <div class="field"><label>Individual tasks <span style="font-size:10px;color:var(--t3);font-weight:400">attach single tasks not in any picked project</span></label>
+      <div class="field"><label>Individual tasks <span style="font-size:11px;color:var(--t3);font-weight:400">attach single tasks not in any picked project</span></label>
         <div style="max-height:200px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:6px">${taskOptions||'<span style="font-size:11px;color:var(--t3)">No active tasks</span>'}</div>
       </div>
     </div>
@@ -9817,10 +9817,10 @@ function renderTaskRailHTML(){
 
   const widgets={
     quickStats:`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px">
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:10px;color:var(--t3)">Done today</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:10px;color:var(--t3)">My Day</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:10px;color:var(--t3)">Overdue</div></div>
-      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:10px;color:var(--t3)">Focus</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ok)">${doneToday}</div><div style="font-size:11px;color:var(--t3)">Done today</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--ac)">${myDay}</div><div style="font-size:11px;color:var(--t3)">My Day</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:${overdue.length>0?'var(--red)':'var(--t3)'}">${overdue.length}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px;text-align:center;border:1px solid var(--bd1)"><div style="font-size:20px;font-weight:700;color:var(--purp)">${focusMins}m</div><div style="font-size:11px;color:var(--t3)">Focus</div></div>
     </div>`,
     last7Days:(()=>{
       const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
@@ -9828,41 +9828,41 @@ function renderTaskRailHTML(){
       const counts7=days7.map(d=>{const k=d.toISOString().slice(0,10);return allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
       const max7=Math.max(...counts7,1);
       const total7=counts7.reduce((a,b)=>a+b,0);
-      const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:10px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div><div style="font-size:10px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div><div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div></div>`;
+      const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">📈 Last 7 Days</div><div style="font-size:11px;color:var(--t3);margin-bottom:14px">${total7} task${total7===1?'':'s'} completed</div><div style="display:flex;align-items:flex-end;gap:5px;height:64px">${bars}</div></div>`;
     })(),
     statusDonut:(()=>{
       const sCounts={Done:allTasks.filter(t=>t.status==='Done').length,'In Progress':allTasks.filter(t=>t.status==='In Progress').length,'Not Started':allTasks.filter(t=>t.status==='Not Started').length,Someday:allTasks.filter(t=>t.status==='Someday').length};
       const sTotal=Object.values(sCounts).reduce((a,b)=>a+b,0)||1;
       const sColors={'Done':'var(--ok)','In Progress':'var(--ac)','Not Started':'var(--t3)','Someday':'var(--warn)'};
       let acc=0;const stops=Object.entries(sCounts).map(([k,v])=>{const start=acc/sTotal*100;acc+=v;const end=acc/sTotal*100;return `${sColors[k]} ${start}% ${end}%`;}).join(',');
-      const legend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:10px;color:var(--t3)">No tasks yet.</div>'}</div>`;
+      const legend=Object.entries(sCounts).filter(([,v])=>v>0).map(([k,v])=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px"><span style="width:8px;height:8px;border-radius:2px;background:${sColors[k]};flex-shrink:0"></span><span style="color:var(--t2);flex:1">${k}</span><strong>${v}</strong></div>`).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🍩 Status Breakdown</div>${sTotal>0?`<div style="display:flex;gap:10px;align-items:center"><div style="background:conic-gradient(${stops});width:80px;height:80px;border-radius:50%;flex-shrink:0"></div><div style="flex:1;display:flex;flex-direction:column;gap:3px">${legend}</div></div>`:'<div style="font-size:11px;color:var(--t3)">No tasks yet.</div>'}</div>`;
     })(),
     priorityBars:(()=>{
       const active=allTasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
       const pCounts={High:active.filter(t=>t.priority==='High').length,Medium:active.filter(t=>t.priority==='Medium').length,Low:active.filter(t=>t.priority==='Low').length};
       const pMax=Math.max(...Object.values(pCounts),1);
       const pColors={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};
-      const bars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('zap',14,'currentColor')} Active by Priority</div>${active.length?bars:'<div style="font-size:10px;color:var(--t3)">No active tasks.</div>'}</div>`;
+      const bars=Object.entries(pCounts).map(([k,v])=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t2);margin-bottom:2px"><span>${k}</span><strong style="color:${pColors[k]}">${v}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${v/pMax*100}%;background:${pColors[k]};border-radius:3px;transition:width .4s"></div></div></div>`).join('');
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('zap',14,'currentColor')} Active by Priority</div>${active.length?bars:'<div style="font-size:11px;color:var(--t3)">No active tasks.</div>'}</div>`;
     })(),
     todaySchedule:(()=>{
-      const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:10px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:10px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No meetings today.</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">${_icon('calendar',14,'currentColor')} Today's Schedule</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
+      const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:11px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:11px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">No meetings today.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">${_icon('calendar',14,'currentColor')} Today's Schedule</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
     })(),
     topOverdue:(()=>{
-      const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(t.title)}</span><span style="font-size:10px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
+      const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⚠ Top Overdue</div>${body}</div>`;
     })(),
     todayHabits:(()=>{
       const habs=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,6);
-      const body=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:10px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:10px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
+      const body=habs.length?habs.map(h=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="toggleHabit(${h.id});setTimeout(()=>renderTasks(),200)"><div class="chk ${h.doneToday?'on':''}" style="width:13px;height:13px"></div><span class="rt" style="font-size:11px">${h.icon||'•'} ${esc(h.title)}</span>${h.streak?`<span style="font-size:11px;color:var(--warn);flex-shrink:0">🔥${h.streak}</span>`:''}</div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">No daily habits yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">✓ Today's Habits</div>${body}</div>`;
     })(),
     goalsSnapshot:(()=>{
       const gs=(D.goals||[]).slice(0,5);
-      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No goals yet.</div>';
+      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No goals yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('target',14,'currentColor')} Goals Snapshot</div>${body}</div>`;
     })(),
     projectVelocity:(()=>{
@@ -9871,14 +9871,14 @@ function renderTaskRailHTML(){
       allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'')>=wkKey&&t.projectId).forEach(t=>{if(byProj[t.projectId])byProj[t.projectId].count++;});
       const arr=Object.values(byProj).filter(p=>p.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
       const max=Math.max(...arr.map(p=>p.count),1);
-      const body=arr.length?arr.map(p=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${esc(p.name)}</span><strong style="color:var(--ac)">${p.count}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${p.count/max*100}%;background:var(--ac)"></div></div></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No completions this week.</div>';
-      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">🚀 Project Velocity</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">Tasks done by project · last 7 days</div>${body}</div>`;
+      const body=arr.length?arr.map(p=>`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(p.name)}</span><strong style="color:var(--ac)">${p.count}</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${p.count/max*100}%;background:var(--ac)"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No completions this week.</div>';
+      return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">🚀 Project Velocity</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Tasks done by project · last 7 days</div>${body}</div>`;
     })(),
     topTags:(()=>{
       const freq={};allTasks.forEach(t=>(t.tags||[]).forEach(tag=>{freq[tag]=(freq[tag]||0)+1;}));
       const arr=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,15);
       const max=arr.length?arr[0][1]:1;const min=arr.length?arr[arr.length-1][1]:1;const range=Math.max(max-min,1);
-      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${esc(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:10px;color:var(--t3)">No tags yet.</div>';
+      const body=arr.length?arr.map(([t,c])=>{const sz=Math.round(9+(c-min)/range*4);return `<span style="display:inline-block;padding:2px 7px;margin:2px 3px 2px 0;background:var(--s3);border-radius:10px;font-size:${sz}px;color:var(--ac);cursor:pointer" onclick="toast('Tag: ${esc(t)} (${c})')">#${esc(t)}</span>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No tags yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('tag',14,'currentColor')} Top Tags</div>${body}</div>`;
     })(),
     recentActivity:(()=>{
@@ -9888,7 +9888,7 @@ function renderTaskRailHTML(){
       (D.journal||[]).forEach(j=>{if(j.createdAt)recent.push({type:'📔',t:'Journal: '+(j.title||'(entry)'),when:j.createdAt});});
       recent.sort((a,b)=>(b.when||'').localeCompare(a.when||''));
       const top=recent.slice(0,8);
-      const body=top.length?top.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;font-size:10px"><span style="flex-shrink:0">${r.type}</span><span style="flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.t)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No activity yet.</div>';
+      const body=top.length?top.map(r=>`<div style="display:flex;gap:6px;align-items:flex-start;padding:3px 0;font-size:11px"><span style="flex-shrink:0">${r.type}</span><span style="flex:1;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.t)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No activity yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🕐 Recent Activity</div>${body}</div>`;
     })(),
     productivityScore:(()=>{
@@ -9905,10 +9905,10 @@ function renderTaskRailHTML(){
         <div style="font-size:36px;font-weight:700;color:${grade.c};line-height:1">${score}</div>
         <div style="font-size:18px;color:${grade.c};font-weight:600;margin-bottom:8px">${grade.l}</div>
         <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${score}%;background:${grade.c};border-radius:4px;transition:width .6s"></div></div>
-        <div style="font-size:10px;color:var(--t3);margin-top:8px">Tasks ${doneToday} · Habits ${habsDone}/${dailyHabits.length} · Focus ${focusMins}m</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:8px">Tasks ${doneToday} · Habits ${habsDone}/${dailyHabits.length} · Focus ${focusMins}m</div>
       </div>`;
     })(),
-    reportsLink:`<div style="text-align:center;margin-top:6px"><button class="btn btn-s" style="font-size:10px" onclick="nav('reports')">📊 Open full Reports →</button></div>`
+    reportsLink:`<div style="text-align:center;margin-top:6px"><button class="btn btn-s" style="font-size:11px" onclick="nav('reports')">📊 Open full Reports →</button></div>`
   };
   const prefs=getTaskRailPrefs().sort((a,b)=>a.order-b.order);
   const visibleHTML=prefs.filter(p=>p.visible).map(p=>widgets[p.id]||'').join('');
@@ -9918,7 +9918,7 @@ function renderTaskRailHTML(){
   const externalWidget=_renderExternalTasksRailWidget();
   return `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:700">${_icon('barChart',14,'currentColor')} Insights</div>
-    <button class="btn btn-s" style="font-size:10px;padding:0 8px;height:22px" onclick="openTaskRailCustomize()">⚙ Customize</button>
+    <button class="btn btn-s" style="font-size:11px;padding:0 8px;height:22px" onclick="openTaskRailCustomize()">⚙ Customize</button>
   </div>${externalWidget}${visibleHTML}`;
 }
 
@@ -9956,11 +9956,11 @@ function _renderExternalTasksRailWidget(){
     const dueLabel=due?(due===today?'Today':(overdue?'Overdue · '+due:due)):'';
     const url=t.externalUrl||'#';
     const myDay=t.override&&t.override.myDay;
-    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:10px">
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px">
       ${_extSourceBadge(t.source)}
       <a ${_extOpenAttrs(url)} title="Open in ${t.source==='smartsheet'?'Smartsheet':'NiftyPM'}" style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
       ${_extAnnotationChips(t.override)}
-      <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:10px">${dueLabel}</span>
+      <span style="color:${overdue?'var(--red)':'var(--t3)'};white-space:nowrap;font-size:11px">${dueLabel}</span>
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Set status in source" onclick="_externalSetStatus('${t.source}','${esc(t.externalId)}',event)">⚙</button>
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Snooze…" onclick="_externalSnoozeMenu('${t.source}','${esc(t.externalId)}',event)">⏰</button>
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" title="Annotate" onclick="_openExternalAnnotateModal('${t.source}','${esc(t.externalId)}')">✎</button>
@@ -9982,7 +9982,7 @@ function _renderExternalTasksRailWidget(){
         <button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px" onclick="refreshExternalTasksNow()" title="Refresh from Smartsheet + NiftyPM">↻</button>
       </div>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${summary}${relevant.length>12?` · showing 12 of ${relevant.length}`:''}</div>
     ${rows}
   </div>`;
 }
@@ -9999,7 +9999,7 @@ function _extBulkStatusMenu(event){
   const pop=document.createElement('div');
   pop.setAttribute('data-ext-bulk-status-pop','1');
   pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-260)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:240px`;
-  pop.innerHTML='<div style="font-size:10px;color:var(--t3);padding:2px 6px 6px">Loading…</div>';
+  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px">Loading…</div>';
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
   (async()=>{
@@ -10029,8 +10029,8 @@ function _extBulkStatusMenu(event){
     const nfCommon=nfOpts.length?nfOpts.reduce((a,b)=>a.filter(v=>b.includes(v))):[];
     // Build menu sections per source.
     const sections=[];
-    if(ssCommon.length){sections.push(`<div style="font-size:10px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">CF · Set ${visible.filter(t=>t.source==='smartsheet').length} Smartsheet row${visible.filter(t=>t.source==='smartsheet').length===1?'':'s'} to:</div>`+ssCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="smartsheet" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
-    if(nfCommon.length){sections.push(`<div style="font-size:10px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">LSI · Set ${visible.filter(t=>t.source==='nifty').length} Nifty task${visible.filter(t=>t.source==='nifty').length===1?'':'s'} to:</div>`+nfCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="nifty" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(ssCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">CF · Set ${visible.filter(t=>t.source==='smartsheet').length} Smartsheet row${visible.filter(t=>t.source==='smartsheet').length===1?'':'s'} to:</div>`+ssCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="smartsheet" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
+    if(nfCommon.length){sections.push(`<div style="font-size:11px;color:var(--t3);padding:6px 6px 2px;text-transform:uppercase;letter-spacing:.4px">LSI · Set ${visible.filter(t=>t.source==='nifty').length} Nifty task${visible.filter(t=>t.source==='nifty').length===1?'':'s'} to:</div>`+nfCommon.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:24px;font-size:11px;padding:0 8px;background:transparent;border:none;cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-source="nifty" data-status="${esc(v)}">${esc(v)}</button>`).join(''));}
     if(!sections.length){pop.innerHTML='<div style="padding:8px;font-size:11px;color:var(--warn)">No common status options found across the visible items\' source watches. Configure the statusColumn on each watch first.</div>';return;}
     pop.innerHTML=sections.join('');
     pop.querySelectorAll('button[data-status]').forEach(b=>{
@@ -10126,9 +10126,9 @@ function _renderDailyCommandCenterCard(){
       ?`<span style="color:var(--red)">${c.overdue} overdue</span>`
       :(c.today>0?`${c.total} open total`:(c.total>0?'no due dates':'on track'));
     return `<div style="background:var(--s3);border-radius:6px;padding:8px;text-align:center">
-      <div style="font-size:10px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
+      <div style="font-size:11px;font-weight:600;color:${color};letter-spacing:.4px">${label}</div>
       <div style="font-size:18px;font-weight:700;margin-top:2px">${headline}</div>
-      <div style="font-size:10px;color:var(--t3)">${sub}</div>
+      <div style="font-size:11px;color:var(--t3)">${sub}</div>
     </div>`;
   };
   return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:14px">
@@ -10141,7 +10141,7 @@ function _renderDailyCommandCenterCard(){
       ${cell('CF',(noExternal?'var(--t3)':'#1f6feb'),ss)}
       ${cell('LSI',(noExternal?'var(--t3)':'#9333ea'),nf)}
     </div>
-    ${noExternal?`<div style="font-size:10px;color:var(--t3);margin-top:8px;text-align:center">Connect Smartsheet + NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
+    ${noExternal?`<div style="font-size:11px;color:var(--t3);margin-top:8px;text-align:center">Connect Smartsheet + NiftyPM in Settings → Integrations to pull CF/LSI tasks.</div>`:''}
     ${_renderDailyFocusAISection()}
   </div>`;
 }
@@ -10210,7 +10210,7 @@ function _extPendingPill(ov){
   if(!ov||!ov.pendingStatus)return '';
   const err=ov.pendingError;
   const color=err?'#dc2626':'#f59e0b';
-  return `<span title="${err?'Push failed: '+esc(err).slice(0,200):'Queued — will push to source on next Push'}" style="font-size:10px;padding:1px 5px;border-radius:3px;background:${err?'rgba(220,38,38,.15)':'rgba(245,158,11,.18)'};color:${color};font-weight:600;cursor:help">${err?'⚠ ':''}→ ${esc(ov.pendingStatus)}</span>`;
+  return `<span title="${err?'Push failed: '+esc(err).slice(0,200):'Queued — will push to source on next Push'}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:${err?'rgba(220,38,38,.15)':'rgba(245,158,11,.18)'};color:${color};font-weight:600;cursor:help">${err?'⚠ ':''}→ ${esc(ov.pendingStatus)}</span>`;
 }
 
 // Write-back: change external task status in the source (Smartsheet/Nifty).
@@ -10226,7 +10226,7 @@ async function _externalSetStatus(source,externalId,event){
   const pop=document.createElement('div');
   pop.setAttribute('data-ext-status-pop','1');
   pop.style.cssText=`position:fixed;left:${Math.min(rect.left,window.innerWidth-220)}px;top:${rect.bottom+4}px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.3);min-width:200px`;
-  pop.innerHTML='<div style="font-size:10px;color:var(--t3);padding:2px 6px 6px">Loading statuses…</div>';
+  pop.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 6px 6px">Loading statuses…</div>';
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click',()=>pop.remove(),{once:true}),0);
   // Find which watch this task belongs to so we can fetch its allowed statuses.
@@ -10242,7 +10242,7 @@ async function _externalSetStatus(source,externalId,event){
       return;
     }
     const isDoneVal=v=>{const x=(v||'').toLowerCase();return /(done|complete|closed|cancell?ed|resolved|shipped)/i.test(x);};
-    pop.innerHTML=`<div style="font-size:10px;color:var(--t3);padding:2px 6px 4px;text-transform:uppercase;letter-spacing:.4px">Set ${source==='smartsheet'?'Smartsheet':'NiftyPM'} status</div>${opts.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:26px;font-size:11px;padding:0 8px;background:transparent;border:none;color:${isDoneVal(v)?'var(--ok)':'var(--t1)'};border-radius:3px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-status="${esc(v)}">${isDoneVal(v)?'✓ ':''}${esc(v)}</button>`).join('')}`;
+    pop.innerHTML=`<div style="font-size:11px;color:var(--t3);padding:2px 6px 4px;text-transform:uppercase;letter-spacing:.4px">Set ${source==='smartsheet'?'Smartsheet':'NiftyPM'} status</div>${opts.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:26px;font-size:11px;padding:0 8px;background:transparent;border:none;color:${isDoneVal(v)?'var(--ok)':'var(--t1)'};border-radius:3px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-status="${esc(v)}">${isDoneVal(v)?'✓ ':''}${esc(v)}</button>`).join('')}`;
     pop.querySelectorAll('button[data-status]').forEach(b=>{
       b.onclick=async(e)=>{
         e.stopPropagation();
@@ -10367,9 +10367,9 @@ function _openExternalAnnotateModal(source,externalId){
   const sourceLabel=source==='smartsheet'?'Smartsheet':'NiftyPM';
   const externalUrl=et.externalUrl||et._url||'';
   modal.innerHTML=`<div style="padding:14px;max-width:560px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:10px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:10px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">${badge}<span style="font-size:11px;color:var(--t3)">${sourceLabel}</span>${externalUrl?`<a href="${esc(externalUrl)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:11px;color:var(--ac);text-decoration:none">Open in ${sourceLabel} ↗</a>`:''}</div>
     <div style="font-size:14px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(et.title||'(untitled)')}</div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${et.projectLabel?esc(et.projectLabel)+' · ':''}${et.status?esc(et.status):''}${et.due?' · due '+esc(et.due):''}${et.assignee?' · '+esc(et.assignee):''}</div>
     ${(function(){
       // Subtask awareness — if this row's parentExternalId points at another
       // tracked external task, surface a "view parent" breadcrumb at the top
@@ -10392,7 +10392,7 @@ function _openExternalAnnotateModal(source,externalId){
         :`<button class="btn btn-p" style="font-size:11px;height:28px;background:#16a34a;border-color:#15803d" onclick="_extToggleCompleted('${source}','${esc(externalId)}',true)" title="Mark this task done in ${sourceLabel}.">✓ Mark Done in ${sourceLabel}</button>`}
       <button class="btn" style="font-size:11px;height:28px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_extHideFromModal(${et.id||'null'})" title="Hide this row in LevelUp without touching the source.">🚫 Hide in LevelUp</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px;padding:6px;background:var(--s3);border-radius:4px">Local annotations below are <strong>your personal overlay</strong> — they don't write back to ${sourceLabel}. Source fields (title, status, due, assignee) stay authoritative.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div>
         <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local priority</div>
@@ -10402,7 +10402,7 @@ function _openExternalAnnotateModal(source,externalId){
         </select>
       </div>
       <div>
-        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local due date <span style="color:var(--t3);font-size:10px">(overrides ${et.due?esc(et.due):'(none)'})</span></div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Local due date <span style="color:var(--t3);font-size:11px">(overrides ${et.due?esc(et.due):'(none)'})</span></div>
         <input id="ext-ann-due" type="date" class="inp" style="width:100%;font-size:11px" value="${esc(ov.localDue||'')}">
       </div>
     </div>
@@ -10422,7 +10422,7 @@ function _openExternalAnnotateModal(source,externalId){
       <textarea id="ext-ann-note" class="inp" style="width:100%;font-size:11px;min-height:80px;resize:vertical;font-family:inherit" placeholder="Why this matters, what you're waiting on, who you talked to…">${esc(ov.localNote||'')}</textarea>
     </div>
     <div style="display:flex;gap:6px;justify-content:space-between;align-items:center">
-      <button class="btn" style="font-size:10px" onclick="_clearExternalAnnotations('${source}','${esc(externalId)}')" title="Clear all overrides (keeps My Day flag)">Clear overrides</button>
+      <button class="btn" style="font-size:11px" onclick="_clearExternalAnnotations('${source}','${esc(externalId)}')" title="Clear all overrides (keeps My Day flag)">Clear overrides</button>
       <div style="display:flex;gap:6px">
         <button class="btn" onclick="closeModal()">Cancel</button>
         <button class="btn btn-p" onclick="_saveExternalAnnotations('${source}','${esc(externalId)}')">Save</button>
@@ -10540,7 +10540,7 @@ function _extAnnotationChips(ov){
   if(!ov)return '';
   const bits=[];
   if(ov.pendingStatus)bits.push(_extPendingPill(ov));
-  if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:10px;color:var(--ac);cursor:help">📝</span>`);
+  if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:11px;color:var(--ac);cursor:help">📝</span>`);
   if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:9px" title="Local priority override">${ov.localPriority}</span>`);
   if(ov.localTags){
     const tags=String(ov.localTags).split(',').map(t=>t.trim()).filter(Boolean).slice(0,3);
@@ -10585,7 +10585,7 @@ function renderTasks(){
   }else if(!_taskTabDefs.some(td=>td.filter===_taskFilter)){
     _taskFilter=_taskTabDefs[0].filter;_taskFilterTabIdx=0;
   }
-  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(_taskInWeek).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
+  $('tasks-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Tasks & Planning</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const a=D.tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday').length;const o=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;const w=D.tasks.filter(_taskInWeek).length;return `${a} active${o?` · <span style="color:var(--red);font-weight:600">${o} overdue</span>`:''}${w?` · ${w} this week`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="tasks-scope-my" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_taskMyOnly?'var(--ac)':'transparent'};color:${_taskMyOnly?'#fff':'var(--t2)'};border:none" onclick="setTaskScope(true)">My Items</button><button id="tasks-scope-all" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_taskMyOnly?'transparent':'var(--ac)'};color:${_taskMyOnly?'var(--t2)':'#fff'};border:none" onclick="setTaskScope(false)">All Items</button></div>${(()=>{
     // B: visible 3 most-used views + a More dropdown for the rest
     const visible=[{k:'focus',icon:'⚡',label:'Focus'},{k:'cards',icon:'🎴',label:'Cards'},{k:'clusters',icon:'⬡',label:'Clusters'},{k:'list',icon:'☰',label:'List'},{k:'board',icon:'🗂',label:'Board'}];
     const overflow=[{k:'matrix',icon:'⊞',label:'Matrix'},{k:'gantt',icon:'📅',label:'Gantt'},{k:'calendar',icon:'🗓',label:'Calendar'}];
@@ -10594,21 +10594,21 @@ function renderTasks(){
     const inOverflow=overflow.some(v=>v.k===_taskView);
     const seg=visible.map(v=>{const isOn=_taskView===v.k;return `<button id="tasks-view-${v.k}" class="btn" title="${v.label} view" style="border-radius:0;height:28px;width:36px;padding:0;font-size:14px;background:${isOn?'var(--ac)':'transparent'};color:${isOn?'#fff':'var(--t2)'};border:none" onclick="setTaskView('${v.k}')">${v.icon}</button>`;}).join('');
     const moreLabel=inOverflow?`${cur.icon} ${cur.label} ▾`:'⋯ More ▾';
-    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${v.k}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
-  })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
+    return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${seg}</div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;padding:0 8px;background:${inOverflow?'var(--ac)':''};color:${inOverflow?'#fff':''}" onclick="event.stopPropagation();togglePopMenu('tasks-more-views')">${moreLabel}</button><div id="tasks-more-views" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,.35)">${overflow.map(v=>`<button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left;color:${_taskView===v.k?'var(--ac)':'var(--t1)'}" onclick="closePopMenu('tasks-more-views');setTaskView('${v.k}')">${v.icon} ${v.label}${_taskView===v.k?' ✓':''}</button>`).join('')}</div></div>`;
+  })()}<div style="position:relative;display:inline-block"><button id="bulk-toggle-btn" class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();toggleTaskAIMenu(event)" title="Tools menu">🛠 Tools ▾</button><div id="task-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();toggleBulkMode()">☑ Bulk Select Mode</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();window._syncDiagnose&&window._syncDiagnose()">🩺 Diagnose sync</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDecomposeGoal()">🧩 Decompose Goal</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiDeadlineRisk()">⚠️ Risk Check</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();aiAutoPriority()">✨ Auto-Priority</button><div style="height:1px;background:var(--bd1);margin:4px 2px"></div><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('csv')">⬇ Export CSV</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closeTaskAIMenu();exportTasks('html')">📄 Export HTML (Word-ready)</button></div></div><button class="btn btn-p" onclick="openFA('task')">+ Full Add Task</button></div></div>
   <div id="bulk-action-bar" style="display:none;align-items:center;gap:6px;padding:6px 0;margin-bottom:6px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:6px 10px">
     <span id="bulk-count" style="font-size:11px;color:var(--ac);font-weight:600;flex:1">0 selected</span>
-    <button class="btn btn-p" style="height:24px;font-size:10px" onclick="bulkAction('done')">✓ Done</button>
-    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('someday')">💤 Someday</button>
-    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
-    <button class="btn btn-d" style="height:24px;font-size:10px" onclick="bulkAction('delete')">${_icon('trash',12,'currentColor')} Delete</button>
-    <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toggleBulkMode()">✕ Cancel</button>
+    <button class="btn btn-p" style="height:24px;font-size:11px" onclick="bulkAction('done')">✓ Done</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('someday')">💤 Someday</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px" onclick="bulkAction('delete')">${_icon('trash',12,'currentColor')} Delete</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
   <div class="tabs" id="tasks-tabs" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">${_taskTabDefs.map((td,i)=>`<div class="tab ${i===_taskFilterTabIdx?'on':''}" onclick="setTaskTabIdx(${i})">${td.label}${td.badge?` <span class="tc">${td.badge}</span>`:''}</div>`).join('')}${(()=>{
     // C: render saved views as additional tabs
     const saved=(D.prefs&&D.prefs.taskSavedViews)||[];
-    if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
-    return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
+    if(!saved.length)return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;color:var(--t3);margin-left:6px" onclick="saveCurrentTaskView()" title="Save the current filter + view as a tab">⭐ Save view</button>`;
+    return `<div style="width:1px;height:18px;background:var(--bd2);margin:0 4px"></div>`+saved.map(v=>`<span class="task-saved-view" onclick="applySavedTaskView(${v.id})" title="Apply saved view">⭐ ${esc(v.name)}<span class="x" onclick="deleteSavedTaskView(${v.id},event)" title="Delete view">✕</span></span>`).join('')+`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;color:var(--ac);margin-left:6px" onclick="saveCurrentTaskView()" title="Save current filter as a view">⭐ +</button>`;
   })()}</div>
   ${_renderSourceFilterChips()}
   ${(_taskProjectFilter||_taskAssigneeFilter||_taskKindFilter)?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
@@ -10626,7 +10626,7 @@ function renderTasks(){
     if(!isToday)return '';
     const todayCount=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr||t.myDay)).length;
     if(!todayCount)return '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:10px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin:6px 0;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">🧭</span><div style="flex:1"><div style="font-size:11px;font-weight:600">Want a plan for today?</div><div style="font-size:11px;color:var(--t3)">AI ranks your ${todayCount} task${todayCount===1?'':'s'} by impact + energy + deadlines.</div></div><button id="ai-today-plan-btn" class="btn btn-p" style="font-size:11px;height:28px" onclick="aiTodaysPlan()">🧭 Today's Plan</button></div>`;
   })()}
   <div id="task-quick-add" style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;margin-bottom:6px">
     <span style="font-size:14px;color:var(--ac)">+</span>
@@ -10639,13 +10639,13 @@ function renderTasks(){
     <input type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0">
     <input type="password" name="password" autocomplete="current-password" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0">
     <input id="task-quick-input" class="inp" name="lu-task-${Date.now()}" type="search" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" style="flex:1;height:28px;font-size:12px;border:none;background:transparent;outline:none;padding:0" placeholder="Quick add… try: Buy milk !high tomorrow #shopping @groceries" onkeydown="handleQuickAdd(event)">
-    <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:10px;width:88px;padding:0 4px" onchange="setTaskPriorityFilter(this.value)">
+    <select id="task-priority-filter" class="inp" title="Filter by priority" style="height:28px;font-size:11px;width:88px;padding:0 4px" onchange="setTaskPriorityFilter(this.value)">
       <option value="All"${_taskPriorityFilter==='All'?' selected':''}>All Pri</option>
       <option value="High"${_taskPriorityFilter==='High'?' selected':''}>High</option>
       <option value="Medium"${_taskPriorityFilter==='Medium'?' selected':''}>Medium</option>
       <option value="Low"${_taskPriorityFilter==='Low'?' selected':''}>Low</option>
     </select>
-    <button class="btn btn-p" style="height:28px;font-size:10px;padding:0 8px" onclick="quickAddTask()">Add</button>
+    <button class="btn btn-p" style="height:28px;font-size:11px;padding:0 8px" onclick="quickAddTask()">Add</button>
   </div>
   <div id="shared-tasks-section" style="margin-bottom:8px"></div>
   <div class="cd" id="tasks-list"></div>`;
@@ -10878,14 +10878,14 @@ function _populateMailRail(){
   r.innerHTML=`
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('barChart',14,'currentColor')} Inbox at a glance</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${inbox.length}</div><div style="font-size:10px;color:var(--t3)">Total</div></div>
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${unread?'var(--warn)':'var(--ok)'}">${unread}</div><div style="font-size:10px;color:var(--t3)">Unread</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${inbox.length}</div><div style="font-size:11px;color:var(--t3)">Total</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${unread?'var(--warn)':'var(--ok)'}">${unread}</div><div style="font-size:11px;color:var(--t3)">Unread</div></div>
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Today's events</div>
-    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="nav('cal')"><span style="font-size:10px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:10px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events today.</div>'}
+    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="nav('cal')"><span style="font-size:11px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:11px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events today.</div>'}
   </div>
-  ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:10px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:10px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
+  ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:11px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:11px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openComposeModal()">✏ Compose</button>
     <button class="btn btn-s" style="font-size:11px" onclick="syncOAuthMail('microsoft')">☁ Sync now</button>
@@ -10902,11 +10902,11 @@ function _populateCalRail(){
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('list',14,'currentColor')} Today + 7 days</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">✓ Tasks for today</div>
-    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:10px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||'M'}</span><span class="rt" style="font-size:10px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Nothing scheduled.</div>'}
+    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||'M'}</span><span class="rt" style="font-size:11px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing scheduled.</div>'}
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Upcoming events</div>
-    ${upcoming.length?upcoming.map(o=>`<div class="lr" style="padding:4px 0;font-size:10px"><span style="width:54px;flex-shrink:0;font-size:10px;color:var(--t3)">${esc(o.dateLabel)} ${esc(_calEventTimeLabel(o.e))}</span><span class="rt" style="font-size:10px">${esc(o.e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No events in the next 7 days.</div>'}
+    ${upcoming.length?upcoming.map(o=>`<div class="lr" style="padding:4px 0;font-size:11px"><span style="width:54px;flex-shrink:0;font-size:11px;color:var(--t3)">${esc(o.dateLabel)} ${esc(_calEventTimeLabel(o.e))}</span><span class="rt" style="font-size:11px">${esc(o.e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events in the next 7 days.</div>'}
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openNewCalEventModal()">+ New event</button>
@@ -10932,10 +10932,10 @@ function _populateClustersRail(){
   r.innerHTML=`
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">⬡ Cluster Insights</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${cls.length}</div><div style="font-size:10px;color:var(--t3)">Clusters</div></div>
-    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${overdue?'var(--red)':'var(--ok)'}">${overdue}</div><div style="font-size:10px;color:var(--t3)">Overdue</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${cls.length}</div><div style="font-size:11px;color:var(--t3)">Clusters</div></div>
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;color:${overdue?'var(--red)':'var(--ok)'}">${overdue}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
   </div>
-  ${ranked.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Needs attention</div>${ranked.slice(0,5).map(r=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${esc(r.cl.icon||'📁')} ${esc(r.cl.name||r.cl.title||'(unnamed)')}</span><strong style="color:${r.ovd?'var(--red)':r.pct>=70?'var(--ok)':'var(--ac)'}">${r.ovd?r.ovd+' overdue':r.pct+'%'}</strong></div><div class="pb"><div class="f" style="width:${r.pct}%;background:${r.pct>=70?'var(--ok)':'var(--ac)'}"></div></div></div>`).join('')}</div>`:''}
+  ${ranked.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Needs attention</div>${ranked.slice(0,5).map(r=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${esc(r.cl.icon||'📁')} ${esc(r.cl.name||r.cl.title||'(unnamed)')}</span><strong style="color:${r.ovd?'var(--red)':r.pct>=70?'var(--ok)':'var(--ac)'}">${r.ovd?r.ovd+' overdue':r.pct+'%'}</strong></div><div class="pb"><div class="f" style="width:${r.pct}%;background:${r.pct>=70?'var(--ok)':'var(--ac)'}"></div></div></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
     <button class="btn btn-p" style="font-size:11px" onclick="openClusterModal(null)">+ New cluster</button>
     <button class="btn btn-s" style="font-size:11px" onclick="nav('tasks');setTaskView('clusters')">⬡ Open Cluster view</button>
@@ -11151,11 +11151,11 @@ function _renderNotesBacklinkRail(id){
 }
 function renderNotesGraph(id){
   const n=D.notes.find(x=>x.id===id);
-  if(!n)return '<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>';
+  if(!n)return '<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">Select a note</div>';
   const backlinks=buildNoteBacklinks(id);
   const outlinks=buildNoteOutlinks(n);
   const all=[...backlinks,...outlinks];
-  if(!all.length)return '<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">No links. Use [[Note Title]] to link.</div>';
+  if(!all.length)return '<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">No links. Use [[Note Title]] to link.</div>';
   const cx=80,cy=50,r=30;
   const nodes=[{id,title:n.title,x:cx,y:cy,main:true}];
   const links=[];
@@ -11389,7 +11389,7 @@ function setNoteType(id,t){
   if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
 }
 function _noteStatusPickerHTML(id,cur){
-  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${s.id}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:10px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  return _NOTE_STATUSES.map(s=>`<div class="nsp-i" onclick="event.stopPropagation();setNoteStatus(${id},'${s.id}');closePopMenu('nsp-${id}')" style="display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;border-radius:6px;font-size:11px;${cur===s.id?'background:var(--acs)':''}"><span style="font-size:13px">${s.icon}</span><div style="flex:1"><div style="font-weight:600;color:${s.color}">${s.label}</div><div style="font-size:11px;color:var(--t3)">${s.hint}</div></div>${cur===s.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
 }
 // Extract the first inline image URL from a note's body (markdown or HTML).
 // Returns '' if no image is present.
@@ -11724,14 +11724,14 @@ function applyNotesFilters(){
       else{tags.forEach(t=>{(groups[t]=groups[t]||[]).push(n);});}
     });
     html=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).map(([grp,gnotes])=>
-      `<div style="padding:5px 8px 2px;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">#${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
+      `<div style="padding:5px 8px 2px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">#${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
       +gnotes.map((n,i)=>noteCard(n,i)).join('')
     ).join('');
   } else if(_notesGroupBy==='source'){
     const groups={};
     notes.forEach(n=>{const s=n.source||'Manual';(groups[s]=groups[s]||[]).push(n);});
     html=Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0])).map(([grp,gnotes])=>
-      `<div style="padding:5px 8px 2px;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
+      `<div style="padding:5px 8px 2px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${gnotes.length})</span></div>`
       +gnotes.map((n,i)=>noteCard(n,i)).join('')
     ).join('');
   } else if(_notesGroupBy==='date'){
@@ -11745,7 +11745,7 @@ function applyNotesFilters(){
     });
     const order=['Today','Yesterday','This week','This month','This year','Older'];
     html=order.filter(g=>groups[g]).map(grp=>
-      `<div style="padding:5px 8px 2px;font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${groups[grp].length})</span></div>`
+      `<div style="padding:5px 8px 2px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;background:var(--s2);border-bottom:1px solid var(--bd1)">${esc(grp)} <span style="font-weight:400">(${groups[grp].length})</span></div>`
       +groups[grp].map((n,i)=>noteCard(n,i)).join('')
     ).join('');
   } else {
@@ -11763,7 +11763,7 @@ function applyNotesFilters(){
   const _banner=(_clamped&&_total>0&&notes.length<_total)
     ?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--warns);border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:11px;color:var(--t1)">
         <span>Showing <b>${notes.length}</b> of <b>${_total}</b> notes — a filter is active.</span>
-        <button class="btn btn-p" style="height:24px;font-size:10px;padding:0 10px;margin-left:auto" onclick="clearNotesFilters()">Show all notes</button>
+        <button class="btn btn-p" style="height:24px;font-size:11px;padding:0 10px;margin-left:auto" onclick="clearNotesFilters()">Show all notes</button>
       </div>`
     :'';
   const _sharedNotesHtml=(typeof _renderSharedNotesSection==='function')?_renderSharedNotesSection():'';
@@ -11786,7 +11786,7 @@ function applyNotesFilters(){
       else{
         const span=document.createElement('span');
         span.className='nf-active-count';
-        span.style.cssText='font-size:10px;color:var(--t3);margin-left:4px';
+        span.style.cssText='font-size:11px;color:var(--t3);margin-left:4px';
         span.textContent=countText;
         summaryEl.appendChild(span);
       }
@@ -11932,17 +11932,17 @@ function exportNotesPDF(){
   if(!notes.length){toast('No notes to export.');return;}
   let notesHtml='';
   notes.forEach((n,idx)=>{
-    const tagBadges=(n.tags||[]).map(t=>`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px;margin-right:3px">#${t}</span>`).join('');
+    const tagBadges=(n.tags||[]).map(t=>`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px;margin-right:3px">#${t}</span>`).join('');
     const titleColor=n.titleColor?`color:${n.titleColor}`:'color:#111';
     const bodyHtml=n.body?`<div style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0;white-space:pre-wrap">${n.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`:'';
-    const richHtml=n.bodyHtml?`<div style="margin-top:8px;padding:8px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 5px 5px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:5px">Rich Text Body</div><div style="font-size:11px;color:#374151;line-height:1.7">${n.bodyHtml}</div></div>`:'';
+    const richHtml=n.bodyHtml?`<div style="margin-top:8px;padding:8px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 5px 5px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:5px">Rich Text Body</div><div style="font-size:11px;color:#374151;line-height:1.7">${n.bodyHtml}</div></div>`:'';
     notesHtml+=`<div style="page-break-inside:avoid;margin-bottom:20px;padding-bottom:16px;${idx<notes.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px">
         <h2 style="font-size:14px;font-weight:700;margin:0;${titleColor}">${n.title||'Untitled'}</h2>
-        <div style="font-size:10px;color:#9ca3af;white-space:nowrap;margin-left:8px">${fmtNoteDate(n.updated)}</div>
+        <div style="font-size:11px;color:#9ca3af;white-space:nowrap;margin-left:8px">${fmtNoteDate(n.updated)}</div>
       </div>
       ${tagBadges?`<div style="margin-bottom:6px">${tagBadges}</div>`:''}
-      ${n.source?`<div style="font-size:10px;color:#9ca3af;margin-bottom:6px">Source: ${n.source}</div>`:''}
+      ${n.source?`<div style="font-size:11px;color:#9ca3af;margin-bottom:6px">Source: ${n.source}</div>`:''}
       ${bodyHtml}${richHtml}
     </div>`;
   });
@@ -11952,7 +11952,7 @@ function exportNotesPDF(){
     <div style="font-size:12px;color:#6b7280">${notes.length} note${notes.length===1?'':'s'} \u2022 Exported ${new Date().toLocaleDateString()}</div>
   </div>
   ${notesHtml}
-  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
 </body></html>`;
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -12245,7 +12245,7 @@ function openDocImportReview(){
   const ov=_docImportOverlay();
   ov.onclick=e=>{if(e.target===ov)closeDocImportReview();};
   const warnHtml=_docImportWarnings.length
-    ?`<div style="background:var(--warn-bg,#fffbeb);border:1px solid var(--warn,#f59e0b);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:10px;color:var(--t2);max-height:96px;overflow-y:auto">
+    ?`<div style="background:var(--warn-bg,#fffbeb);border:1px solid var(--warn,#f59e0b);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:11px;color:var(--t2);max-height:96px;overflow-y:auto">
         <div style="font-weight:700;margin-bottom:3px">⚠ ${_docImportWarnings.length} warning${_docImportWarnings.length===1?'':'s'}</div>
         ${_docImportWarnings.map(w=>`<div>• ${esc(w)}</div>`).join('')}
       </div>`
@@ -12259,14 +12259,14 @@ function openDocImportReview(){
       ${warnHtml}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;gap:6px">
-          <button class="btn btn-s" style="font-size:10px;height:24px" onclick="docImportSelectAll(true)">Select all</button>
-          <button class="btn btn-s" style="font-size:10px;height:24px" onclick="docImportSelectAll(false)">Deselect all</button>
+          <button class="btn btn-s" style="font-size:11px;height:24px" onclick="docImportSelectAll(true)">Select all</button>
+          <button class="btn btn-s" style="font-size:11px;height:24px" onclick="docImportSelectAll(false)">Deselect all</button>
         </div>
-        <div id="doc-import-dupinfo" style="font-size:10px;color:var(--t3)"></div>
+        <div id="doc-import-dupinfo" style="font-size:11px;color:var(--t3)"></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px">
-        <span style="font-size:10px;font-weight:600;color:var(--t2);white-space:nowrap">Duplicate handling:</span>
-        <select id="doc-import-dup-mode" class="inp" style="height:24px;font-size:10px;flex:1" onchange="_renderDocImportRows()">
+        <span style="font-size:11px;font-weight:600;color:var(--t2);white-space:nowrap">Duplicate handling:</span>
+        <select id="doc-import-dup-mode" class="inp" style="height:24px;font-size:11px;flex:1" onchange="_renderDocImportRows()">
           <option value="skip">Skip duplicates (keep existing)</option>
           <option value="overwrite">Overwrite duplicates</option>
           <option value="rename">Import as new (rename with suffix)</option>
@@ -12303,14 +12303,14 @@ function _renderDocImportRows(){
     const isDup=_docImportIsDup(n.title);
     if(isDup)dupCount++;
     const dupTag=isDup
-      ?`<span style="margin-left:6px;font-size:10px;background:var(--warn,#f59e0b);color:#fff;padding:1px 6px;border-radius:8px">duplicate · ${dupMode}</span>`
+      ?`<span style="margin-left:6px;font-size:11px;background:var(--warn,#f59e0b);color:#fff;padding:1px 6px;border-radius:8px">duplicate · ${dupMode}</span>`
       :'';
     const plain=String(n.body||(n.bodyHtml||'').replace(/<[^>]+>/g,' ')).replace(/\s+/g,' ').trim().slice(0,90);
     return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;${i<_docImportStaged.length-1?'border-bottom:1px solid var(--bd1)':''}">
       <input type="checkbox" id="doc-import-chk-${i}" ${wasChecked[i]?'checked':''} style="margin-top:2px;flex-shrink:0;accent-color:var(--ac)">
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.title)}${dupTag}</div>
-        <div style="font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.fileName)}${plain?' · '+esc(plain):''}</div>
+        <div style="font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.fileName)}${plain?' · '+esc(plain):''}</div>
       </div>
     </div>`;
   }).join('');
@@ -12399,7 +12399,7 @@ function openNoteTemplates(){
   <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Select a template to create a new note with pre-filled structure.</div>
   ${_noteTemplates.map((tmpl,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--bd1);margin-bottom:6px" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''" onclick="applyNoteTemplate(${i})">
     <span style="font-size:20px">${tmpl.icon}</span>
-    <div><div style="font-size:12px;font-weight:600">${tmpl.label}</div><div style="font-size:10px;color:var(--t3)">${(tmpl.tags||[]).map(t=>'#'+t).join(' ')}</div></div>
+    <div><div style="font-size:12px;font-weight:600">${tmpl.label}</div><div style="font-size:11px;color:var(--t3)">${(tmpl.tags||[]).map(t=>'#'+t).join(' ')}</div></div>
   </div>`).join('')}
   </div>`;
   document.body.appendChild(ov);
@@ -12448,16 +12448,16 @@ function renderNotes(){
   const nav=$('notes-nav-panel');
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
   ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
-  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Lifecycle</div>
+  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Lifecycle</div>
   ${(()=>{
     const _u=D.notes.filter(n=>!n.folderId);
     return _NOTE_STATUSES.map(s=>{
       const c=_u.filter(n=>_noteStatus(n)===s.id).length;
       const on=_notesFilterStatus===s.id;
-      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${s.id}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:10px;color:var(--t3)">${c}</span></div>`;
+      return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${s.id}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
     }).join('');
   })()}
-  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Smart Folders</div>
+  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Smart Folders</div>
   ${(()=>{
     const now=new Date(); const todayStr=now.toISOString().slice(0,10);
     const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
@@ -12492,9 +12492,9 @@ function renderNotes(){
       {icon:'⭐',label:'Most-linked',count:mostLinked,filter:'smart_mostlinked'},
       {icon:'🧹',label:'Stale (>90d)',count:staleNotes,filter:'smart_stale'},
     ];
-    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:10px;color:var(--t3)">${sf.count}</span></div>`).join('');
+    return smartFolders.map(sf=>`<div class="nn" onclick="filterNotesBySmart('${sf.filter}',this)" style="display:flex;align-items:center;gap:5px">${sf.icon} ${sf.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${sf.count}</span></div>`).join('');
   })()}
-  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
+  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;display:flex;align-items:center;justify-content:space-between">
     <span>${_icon('folder',12,'currentColor')} Folders</span>
     <span style="cursor:pointer;color:var(--ac);font-size:13px;font-weight:700;padding:0 3px;line-height:1" onclick="addNoteFolder(null)" title="New top-level folder">+</span>
   </div>
@@ -12509,7 +12509,7 @@ function renderNotes(){
         return `<div class="nn nn-folder ${isActive?'on':''}" style="padding-left:${4+indent}px;display:flex;align-items:center;gap:4px;position:relative" data-folder-id="${f.id}" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,${f.id})" onclick="setNotesFolderFilter(${f.id})">
           <span style="color:${f.color||'var(--ac)'};font-size:12px;width:14px;text-align:center">${esc(f.icon||'📁')}</span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span>
-          <span style="font-size:10px;color:var(--t3);flex-shrink:0">${count}</span>
+          <span style="font-size:11px;color:var(--t3);flex-shrink:0">${count}</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();addNoteFolder(${f.id})" title="Add subfolder">+</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();changeNoteFolderIcon(${f.id})" title="Change icon">🎨</span>
           <span class="nn-folder-act" onclick="event.stopPropagation();renameNoteFolder(${f.id})" title="Rename">✏</span>
@@ -12518,15 +12518,15 @@ function renderNotes(){
       }).join('');
     };
     const tree=renderTree(null,0);
-    const allDrop=`<div class="nn nn-folder ${_notesFilterFolder===null?'':'nn-no-folder'}" style="padding-left:4px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t3)" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,null)" onclick="clearNotesFolderFilter()" title="Drop here to remove from folder">↩ No folder · ${D.notes.filter(n=>!n.folderId).length}</div>`;
-    return tree?(tree+allDrop):`<div style="font-size:10px;color:var(--t3);padding:4px 8px;line-height:1.5">No folders. Click + above to add one.<br>Drag any note onto a folder to assign.</div>${allDrop}`;
+    const allDrop=`<div class="nn nn-folder ${_notesFilterFolder===null?'':'nn-no-folder'}" style="padding-left:4px;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t3)" ondragover="_folderDragOver(event)" ondragleave="_folderDragLeave(event)" ondrop="_folderDrop(event,null)" onclick="clearNotesFolderFilter()" title="Drop here to remove from folder">↩ No folder · ${D.notes.filter(n=>!n.folderId).length}</div>`;
+    return tree?(tree+allDrop):`<div style="font-size:11px;color:var(--t3);padding:4px 8px;line-height:1.5">No folders. Click + above to add one.<br>Drag any note onto a folder to assign.</div>${allDrop}`;
   })()}
-  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tag Cloud</div>
+  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Tag Cloud</div>
   <div style="padding:0 4px" id="notes-tag-cloud">${(()=>{
     const freq={};
     D.notes.forEach(n=>(n.tags||[]).forEach(t=>{freq[t]=(freq[t]||0)+1;}));
     const tags=Object.entries(freq).sort((a,b)=>b[1]-a[1]);
-    if(!tags.length)return '<span style="font-size:10px;color:var(--t3)">No tags yet</span>';
+    if(!tags.length)return '<span style="font-size:11px;color:var(--t3)">No tags yet</span>';
     const maxF=tags[0][1];
     const minF=tags[tags.length-1][1];
     const range=Math.max(maxF-minF,1);
@@ -12537,7 +12537,7 @@ function renderNotes(){
       return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:hsl(${hue},55%,62%);cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${tag}',this)" title="${count} note${count>1?'s':''}">#${tag}</span>`;
     }).join('');
   })()}</div>
-  <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
+  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
   ${(()=>{
     // (#I) Wire PARA categories to real tag-based counts. Click a row to filter
     // the list to notes carrying that tag. Tag name lookup is case-insensitive
@@ -12550,11 +12550,11 @@ function renderNotes(){
     ];
     return paraCats.map(p=>{
       const count=D.notes.filter(n=>(n.tags||[]).some(t=>p.tags.includes((t||'').toLowerCase()))).length;
-      return `<div class="nn" onclick="filterNotesByTag('${p.tags[0]}',this);" style="display:flex;align-items:center;gap:5px" title="Filter to notes tagged #${p.tags[0]}">${p.icons} ${p.label}<span style="margin-left:auto;font-size:10px;color:var(--t3)">${count}</span></div>`;
+      return `<div class="nn" onclick="filterNotesByTag('${p.tags[0]}',this);" style="display:flex;align-items:center;gap:5px" title="Filter to notes tagged #${p.tags[0]}">${p.icons} ${p.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${count}</span></div>`;
     }).join('');
   })()}
   <div style="margin-top:auto;padding:8px 4px 0">
-    <button class="btn btn-p" style="width:100%;height:28px;font-size:10px" onclick="openFA('note')">+ New Note</button>
+    <button class="btn btn-p" style="width:100%;height:28px;font-size:11px" onclick="openFA('note')">+ New Note</button>
   </div>`;
 
   // Populate Notes list panel
@@ -12566,7 +12566,7 @@ function renderNotes(){
   <!-- Header row -->
   <div style="padding:8px 8px 4px;border-bottom:1px solid var(--bd1);flex-shrink:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-      <div style="font-size:12px;font-weight:600">Notes <span id="notes-filter-count" style="font-size:10px;color:var(--t3);font-weight:400">${D.notes.length} notes</span></div>
+      <div style="font-size:12px;font-weight:600">Notes <span id="notes-filter-count" style="font-size:11px;color:var(--t3);font-weight:400">${D.notes.length} notes</span></div>
       <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
         <input type="file" id="md-import-input" accept=".md,.markdown,.txt" multiple style="display:none" onchange="importMarkdownFiles(this.files)">
         <input type="file" id="doc-import-input" accept=".pdf,.docx,.doc,.txt,.rtf" multiple style="display:none" onchange="importDocumentsBatch(this.files)">
@@ -12577,8 +12577,8 @@ function renderNotes(){
         </div>
         <!-- Scope segment -->
         <div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:5px;overflow:hidden">
-          <button id="notes-scope-my" class="btn" style="height:22px;font-size:10px;padding:0 6px;border:none;background:${_notesMyOnly?'var(--ac)':'transparent'};color:${_notesMyOnly?'#fff':'var(--t2)'}" onclick="setNotesScope(true)">Mine</button>
-          <button id="notes-scope-all" class="btn" style="height:22px;font-size:10px;padding:0 6px;border:none;background:${_notesMyOnly?'transparent':'var(--ac)'};color:${_notesMyOnly?'var(--t2)':'#fff'}" onclick="setNotesScope(false)">All</button>
+          <button id="notes-scope-my" class="btn" style="height:22px;font-size:11px;padding:0 6px;border:none;background:${_notesMyOnly?'var(--ac)':'transparent'};color:${_notesMyOnly?'#fff':'var(--t2)'}" onclick="setNotesScope(true)">Mine</button>
+          <button id="notes-scope-all" class="btn" style="height:22px;font-size:11px;padding:0 6px;border:none;background:${_notesMyOnly?'transparent':'var(--ac)'};color:${_notesMyOnly?'var(--t2)':'#fff'}" onclick="setNotesScope(false)">All</button>
         </div>
         <!-- Overflow menu (#B) — collects infrequent actions -->
         <div style="position:relative;display:inline-block">
@@ -12601,7 +12601,7 @@ function renderNotes(){
     <!-- Search + Filter toggle row -->
     <div style="display:flex;gap:4px;align-items:center">
       <input id="notes-search" class="inp" placeholder="🔍 Search notes…" style="flex:1;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
-      <button id="notes-filter-toggle" class="btn btn-s" style="height:26px;font-size:10px;padding:0 7px;flex-shrink:0;white-space:nowrap" onclick="_notesFilterPanelOpen=!_notesFilterPanelOpen;document.getElementById('notes-filter-panel').style.display=_notesFilterPanelOpen?'block':'none';this.style.background=_notesFilterPanelOpen?'var(--ac)':'';this.style.color=_notesFilterPanelOpen?'#fff':'';" title="Toggle filters">⚙ Filter</button>
+      <button id="notes-filter-toggle" class="btn btn-s" style="height:26px;font-size:11px;padding:0 7px;flex-shrink:0;white-space:nowrap" onclick="_notesFilterPanelOpen=!_notesFilterPanelOpen;document.getElementById('notes-filter-panel').style.display=_notesFilterPanelOpen?'block':'none';this.style.background=_notesFilterPanelOpen?'var(--ac)':'';this.style.color=_notesFilterPanelOpen?'#fff':'';" title="Toggle filters">⚙ Filter</button>
     </div>
     <!-- Active filter summary bar -->
     <div id="notes-filter-summary" style="display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px">
@@ -12612,8 +12612,8 @@ function renderNotes(){
   <div id="notes-filter-panel" style="display:none;padding:8px;border-bottom:1px solid var(--bd1);background:var(--s2);flex-shrink:0;overflow-y:auto;max-height:260px">
     <!-- Sort + Group By -->
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-      <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
-      <select id="nf-sort-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="setNotesSort(this.value)">
+      <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
+      <select id="nf-sort-select" class="inp" style="height:22px;font-size:11px;flex:1" onchange="setNotesSort(this.value)">
         <option value="newest">Newest first</option>
         <option value="oldest">Oldest first</option>
         <option value="az">A → Z</option>
@@ -12623,8 +12623,8 @@ function renderNotes(){
       </select>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
-      <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Group</span>
-      <select id="nf-group-select" class="inp" style="height:22px;font-size:10px;flex:1" onchange="setNotesGroupBy(this.value)">
+      <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Group</span>
+      <select id="nf-group-select" class="inp" style="height:22px;font-size:11px;flex:1" onchange="setNotesGroupBy(this.value)">
         <option value="">None</option>
         <option value="tag">By Tag</option>
         <option value="source">By Source</option>
@@ -12633,26 +12633,26 @@ function renderNotes(){
     </div>
     <!-- Tag facet -->
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Tags <span style="font-weight:400;color:var(--t3)">(multi-select, AND)</span></div>
+      <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Tags <span style="font-weight:400;color:var(--t3)">(multi-select, AND)</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
-        ${_allNoteTags.map(tag=>`<span class="nf-tag-chip" style="font-size:10px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterTag('${esc(tag)}',this)">#${esc(tag)}</span>`).join('')}
-        ${_allNoteTags.length===0?'<span style="font-size:10px;color:var(--t3)">No tags yet</span>':''}
+        ${_allNoteTags.map(tag=>`<span class="nf-tag-chip" style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterTag('${esc(tag)}',this)">#${esc(tag)}</span>`).join('')}
+        ${_allNoteTags.length===0?'<span style="font-size:11px;color:var(--t3)">No tags yet</span>':''}
       </div>
     </div>
     <!-- Source facet -->
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Source <span style="font-weight:400;color:var(--t3)">(multi-select, OR)</span></div>
+      <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Source <span style="font-weight:400;color:var(--t3)">(multi-select, OR)</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
         ${_allNoteSources.map(src=>{
           const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖'};
           const icon=icons[src]||'📝';
-          return `<span class="nf-src-chip" style="font-size:10px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
+          return `<span class="nf-src-chip" style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
         }).join('')}
       </div>
     </div>
     <!-- Date range facet -->
     <div>
-      <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Date modified</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Date modified</div>
       <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">
         ${['today','week','month','year','custom'].map(p=>{
           const labels={today:'Today',week:'This week',month:'This month',year:'This year',custom:'Custom…'};
@@ -12660,9 +12660,9 @@ function renderNotes(){
         }).join('')}
       </div>
       <div id="nf-custom-date-row" style="display:none;gap:4px;align-items:center">
-        <input type="date" id="nf-date-from" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesFilterDateFrom=this.value;applyNotesFilters()">
-        <span style="font-size:10px;color:var(--t3)">to</span>
-        <input type="date" id="nf-date-to" class="inp" style="height:22px;font-size:10px;flex:1" onchange="_notesFilterDateTo=this.value;applyNotesFilters()">
+        <input type="date" id="nf-date-from" class="inp" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateFrom=this.value;applyNotesFilters()">
+        <span style="font-size:11px;color:var(--t3)">to</span>
+        <input type="date" id="nf-date-to" class="inp" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateTo=this.value;applyNotesFilters()">
       </div>
     </div>
   </div>
@@ -12679,11 +12679,11 @@ function renderNotes(){
   // Populate Notes rail panel
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:10px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:11px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
-  ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:10px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:10px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
+  ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
-  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:10px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
+  <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
   <div id="notes-backlinks-panel">${D.notes.length?_renderNotesBacklinkRail(D.notes[0].id):''}</div>`;
   // Apply persisted column widths + (re-)attach the resize handles. Each
   // panel's innerHTML wipe above destroys the previous handle children.
@@ -12829,7 +12829,7 @@ function _renderNoteVersionSparkline(n){
   // "Now" marker at far right.
   const nowMark=`<line x1="${W-pad}" y1="${H/2-5}" x2="${W-pad}" y2="${H/2+5}" stroke="var(--t3)" stroke-width="1.2"/>`;
   return `<div style="display:inline-flex;align-items:center;gap:8px;padding:4px 10px;background:var(--s2);border:1px solid var(--bd1);border-radius:14px;cursor:default" title="Edit timeline — click any dot to view that revision">
-    <span style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">🕐 ${versions.length} edit${versions.length===1?'':'s'}</span>
+    <span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;font-weight:600">🕐 ${versions.length} edit${versions.length===1?'':'s'}</span>
     <svg width="${W}" height="${H}" style="display:block">
       <line x1="${pad}" y1="${H/2}" x2="${W-pad}" y2="${H/2}" stroke="var(--bd2)" stroke-width="1"/>
       ${nowMark}
@@ -12858,9 +12858,9 @@ function openNoteHistory(id){
     return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;background:var(--s1)" onclick="previewNoteVersion(${id},${i})">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:11px;font-weight:600;color:var(--t1)">${esc(v.title)}</span>
-        <span style="font-size:10px;color:var(--t3)">${label}</span>
+        <span style="font-size:11px;color:var(--t3)">${label}</span>
       </div>
-      <div style="font-size:10px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${preview||'(empty)'}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${preview||'(empty)'}</div>
     </div>`;
   }).join('')}</div>
   <button class="btn btn-s" onclick="closeModal()" style="margin-top:8px;font-size:11px">Close</button>`;
@@ -12882,7 +12882,7 @@ function previewNoteVersion(noteId,versionIdx){
   }).join('')+newLines.filter(l=>!oldLines.includes(l)).map(l=>`<div style="background:rgba(34,197,94,.12);color:var(--ok);font-size:11px;padding:1px 4px;font-family:monospace">+ ${esc(l)||'&nbsp;'}</div>`).join('');
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🕐 Version: ${esc(v.title)}</h2>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Saved ${label} &mdash; diff vs. current version</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Saved ${label} &mdash; diff vs. current version</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:8px;max-height:260px;overflow-y:auto;margin-bottom:12px">${diffHtml||'<div style="font-size:11px;color:var(--t3)">No differences</div>'}</div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-p" style="font-size:11px" onclick="restoreNoteVersion(${noteId},${versionIdx})">↩ Restore this version</button>
@@ -13013,15 +13013,15 @@ function renderNoteEditor(n){
   if(isEditing){
     return `<button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
   <div style="display:flex;gap:6px">
-    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="saveNoteInlineEdit(${n.id})">💾 Save</button>
-    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_noteInlineEditId=null;showNoteInEditor(${n.id})">✕ Cancel</button>
-    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full Edit</button>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="saveNoteInlineEdit(${n.id})">💾 Save</button>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_noteInlineEditId=null;showNoteInEditor(${n.id})">✕ Cancel</button>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full Edit</button>
   </div>
-  <span style="font-size:10px;color:var(--ac)">Editing</span>
+  <span style="font-size:11px;color:var(--ac)">Editing</span>
   </div>
   <input id="nie-title" class="inp" style="font-size:16px;font-weight:600;margin-bottom:8px;width:100%" value="${esc(n.title)}" placeholder="Note title...">
-  <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:10px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Rich text editor — Ctrl/Cmd+S to save</div>
+  <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px">${(n.tags||[]).map(t=>`<span style="font-size:11px;color:var(--ac);background:var(--acs);padding:2px 6px;border-radius:3px">#${t}</span>`).join('')}</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Source: ${n.source||'Manual'} · Rich text editor — Ctrl/Cmd+S to save</div>
   ${luRTE_render({id:'nie-body', placeholder:'Write your note...', value:(n.bodyHtml||n.body||''), height:'300px'})}
   <div id="wiki-autocomplete" style="display:none;position:absolute;z-index:200;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.18);min-width:220px;max-height:200px;overflow-y:auto"></div>`;
   }
@@ -13035,15 +13035,15 @@ function renderNoteEditor(n){
   return `<div class="note-doc"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
   <div class="note-toolbar" style="margin-bottom:14px">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${n.id})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="moveNoteToFolder(${n.id})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="openNoteHistory(${n.id})" title="Version history">🕐${(n.versions||[]).length?` ${(n.versions||[]).length}`:''}</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="exportNotePDF(${n.id})" title="Export PDF">📄</button>
+      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${n.id})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${n.id})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openNoteHistory(${n.id})" title="Version history">🕐${(n.versions||[]).length?` ${(n.versions||[]).length}`:''}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="exportNotePDF(${n.id})" title="Export PDF">📄</button>
       <div style="position:relative;display:inline-block">
-        <button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${n.id})">✨ Summarize into bullets</button>
@@ -13053,8 +13053,8 @@ function renderNoteEditor(n){
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiExpandToDoc(${n.id})">📄 Expand to full doc</button>
         </div>
       </div>
-      <button class="btn btn-s" style="height:26px;font-size:10px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${n.id})" title="Assign to team members">👥</button>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${n.id})" title="Assign to team members">👥</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑</button>
     </div>
     <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
@@ -13082,7 +13082,7 @@ function renderNoteEditor(n){
   <!-- Chip-based linker — Projects / Goals / Tasks / Other Notes / Bookmarks /
        Journal. Hydrated by showNoteInEditor() so it persists across re-renders. -->
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--bd1)">
-    <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:8px">🔗 Linked Items <span style="font-size:10px;color:var(--t3);font-weight:400">Pick from each dropdown to link · click ✕ on a chip to unlink · auto-saves</span></div>
+    <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:8px">🔗 Linked Items <span style="font-size:11px;color:var(--t3);font-weight:400">Pick from each dropdown to link · click ✕ on a chip to unlink · auto-saves</span></div>
     <div id="note-inline-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
   </div>
   </div>`;
@@ -13196,9 +13196,9 @@ function _renderProjRail(){
       <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span style="flex:1">At Risk</span><strong style="color:var(--red)">${byHealth['At Risk']}</strong></div>
     </div>
   </div>
-  ${due30.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span><span style="font-size:10px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
-  ${onDeck.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
-  ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:10px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
+  ${due30.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
+  ${onDeck.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
+  ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
 }
 
 // ─── Project Health helper ──────────────────────────────────────────────────
@@ -13280,7 +13280,7 @@ function _renderHealthStrip(h){
   const burnLabel=h.burn>0?'+'+h.burn:String(h.burn);
   const riskColor=h.risk>=50?'var(--red)':h.risk>=25?'var(--warn)':'var(--ok)';
   const eta=h.etaWeeks==null?'—':h.etaWeeks>52?'>1y':h.etaWeeks+'w';
-  const stat=(v,l,c)=>`<div style="flex:1;min-width:0;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${v}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">${l}</div></div>`;
+  const stat=(v,l,c)=>`<div style="flex:1;min-width:0;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${v}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px">${l}</div></div>`;
   return `<div style="display:flex;gap:6px;margin:8px 0">
     ${stat(h.velocity+'/wk '+trendArrow,'Velocity','var(--ac)')}
     ${stat(burnLabel,'Burn (14d)',burnColor)}
@@ -13406,7 +13406,7 @@ function renderCommandCenter(){
     return `<div class="cd cc-proj-tile" style="padding:11px 13px;border-left:3px solid ${accent};cursor:pointer;transition:transform .12s ease,background .12s ease" onclick="_ccDrillIntoProject('${_jsAttr(name)}','${_jsAttr(src)}')" title="Click to open these tasks in the Tasks view">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">
         <div style="font-size:12px;font-weight:600;color:var(--t1);min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
-        <span style="font-size:10px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
+        <span style="font-size:11px;font-weight:600;letter-spacing:.04em;color:#fff;background:${accent};padding:2px 6px;border-radius:3px">${rows[0]?(rows[0].sourceLabel||'').toUpperCase():''}</span>
       </div>
       <div style="display:flex;gap:10px;font-size:11px;color:var(--t2);margin-bottom:6px">
         <span><strong style="color:var(--t1)">${rows.length}</strong> open</span>
@@ -13422,7 +13422,7 @@ function renderCommandCenter(){
     const srcBadge=t.source==='smartsheet'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#1f6feb;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">CF</span>':t.source==='nifty'?'<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#9333ea;color:#fff;font-size:9px;font-weight:600;letter-spacing:.4px">LSI</span>':'';
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
-    const kindBadge=`<span style="color:${kindMeta.c};font-size:10px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${kind}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
+    const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${kind}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
     const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
@@ -13431,16 +13431,16 @@ function renderCommandCenter(){
       <span style="width:6px;height:6px;border-radius:50%;background:${pcolor};flex-shrink:0"></span>
       ${srcBadge}
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(t.project||'')}</span>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0;min-width:48px;text-align:right">${dueLabel}</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">${esc(t.project||'')}</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0;min-width:48px;text-align:right">${dueLabel}</span>
       ${kindBadge}
     </div>`;
   };
   const atRiskBody = (()=>{
     const sections=[];
-    if(overdue.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Overdue (${overdue.length})</div>`+overdue.slice(0,8).map(t=>atRiskRow(t,'overdue')).join(''));
-    if(dueToday.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Due today (${dueToday.length})</div>`+dueToday.slice(0,8).map(t=>atRiskRow(t,'today')).join(''));
-    if(stalled.length)sections.push(`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Stalled (${stalled.length})</div>`+stalled.slice(0,6).map(t=>atRiskRow(t,'stalled')).join(''));
+    if(overdue.length)sections.push(`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Overdue (${overdue.length})</div>`+overdue.slice(0,8).map(t=>atRiskRow(t,'overdue')).join(''));
+    if(dueToday.length)sections.push(`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Due today (${dueToday.length})</div>`+dueToday.slice(0,8).map(t=>atRiskRow(t,'today')).join(''));
+    if(stalled.length)sections.push(`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px 4px;background:var(--s3)">Stalled (${stalled.length})</div>`+stalled.slice(0,6).map(t=>atRiskRow(t,'stalled')).join(''));
     return sections.length?sections.join(''):renderEmptyState({icon:'checkCircle',title:'Nothing at risk',hint:'No overdue, due-today, or stalled tasks in this context.'});
   })();
 
@@ -13452,10 +13452,10 @@ function renderCommandCenter(){
     const overdueN=rows.filter(t=>t.due&&t.due<today).length;
     const initials=(name||'?').split(/\s+/).map(s=>s[0]).filter(Boolean).join('').slice(0,2).toUpperCase()||'?';
     return `<div class="lr cc-assignee-row" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;cursor:pointer" onclick="_ccDrillIntoAssignee('${_jsAttr(name)}')" title="Click to filter Tasks to this assignee">
-      <span style="width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</span>
+      <span style="width:24px;height:24px;border-radius:50%;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${esc(initials)}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</span>
       <span style="font-size:11px;color:var(--t2)"><strong>${rows.length}</strong> open</span>
-      ${overdueN?`<span style="font-size:10px;color:var(--red)">${overdueN} late</span>`:''}
+      ${overdueN?`<span style="font-size:11px;color:var(--red)">${overdueN} late</span>`:''}
     </div>`;
   }).join(''):'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No assignees in scope.</div>';
 
@@ -13467,7 +13467,7 @@ function renderCommandCenter(){
       <span style="font-size:13px;color:var(--ok);flex-shrink:0">✓</span>
       ${srcBadge}
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${when}</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">${when}</span>
     </div>`;
   }).join(''):renderEmptyState({icon:'zap',title:'Nothing shipped yet this week',hint:'Tasks marked Done in the last 7 days will appear here — push some over the line.'});
 
@@ -13477,7 +13477,7 @@ function renderCommandCenter(){
     return `<div class="lr" style="padding:7px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
       ${badge}
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title)}</span>
-      <span style="font-size:10px;color:var(--warn)">${esc(ov.pendingStatus||'')}</span>
+      <span style="font-size:11px;color:var(--warn)">${esc(ov.pendingStatus||'')}</span>
     </div>`;
   }).join(''):'';
 
@@ -13492,10 +13492,10 @@ function renderCommandCenter(){
 
   // Saved views row (only when at least one)
   const savedViews=(D.prefs&&D.prefs.savedCCViews)||[];
-  const savedRow=savedViews.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:10px;color:var(--t3)">
+  const savedRow=savedViews.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:11px;color:var(--t3)">
     <span style="text-transform:uppercase;letter-spacing:.05em">Saved views:</span>
-    ${savedViews.slice(0,8).map(v=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 9px;border-radius:11px" onclick="_applySavedCCView(${v.id})" title="Apply view (${esc(v.hat||'all').toUpperCase()})">⭐ ${esc(v.name)}</button>`).join('')}
-    <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openSavedCCViews()">Manage</button>
+    ${savedViews.slice(0,8).map(v=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 9px;border-radius:11px" onclick="_applySavedCCView(${v.id})" title="Apply view (${esc(v.hat||'all').toUpperCase()})">⭐ ${esc(v.name)}</button>`).join('')}
+    <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openSavedCCViews()">Manage</button>
   </div>`:'';
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div style="flex:1;min-width:0">
@@ -13515,12 +13515,12 @@ function renderCommandCenter(){
 
   <!-- KPI strip -->
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444;cursor:pointer" onclick="_ccDrillIntoKind('overdue')" title="Click to see all overdue tasks in this hat"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b;cursor:pointer" onclick="_ccDrillIntoKind('today')" title="Click to see all due-today tasks in this hat"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b;cursor:pointer" onclick="_ccDrillIntoKind('stalled')" title="Click to see all stalled tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #ef4444;cursor:pointer" onclick="_ccDrillIntoKind('overdue')" title="Click to see all overdue tasks in this hat"><div style="font-size:22px;font-weight:750;color:#ef4444;line-height:1">${overdue.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Overdue</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b;cursor:pointer" onclick="_ccDrillIntoKind('today')" title="Click to see all due-today tasks in this hat"><div style="font-size:22px;font-weight:750;color:#f59e0b;line-height:1">${dueToday.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Due Today</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #64748b;cursor:pointer" onclick="_ccDrillIntoKind('stalled')" title="Click to see all stalled tasks in this hat"><div style="font-size:22px;font-weight:750;color:var(--t2);line-height:1">${stalled.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Stalled (7d+)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:22px;font-weight:750;color:#10b981;line-height:1">${shipped.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Shipped (7d)</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #06b6d4"><div style="font-size:22px;font-weight:750;color:#06b6d4;line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Total</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #0ea5e9" title="Sum of timer minutes in the last 7 days (current hat)"><div style="font-size:22px;font-weight:750;color:#0ea5e9;line-height:1">${timeLabel}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Time Tracked (7d)</div></div>
     ${(function(){
       // Capacity tile — only visible on All Hats / Personal where today's tasks live.
       if(hat==='cf'||hat==='lsi')return '';
@@ -13528,9 +13528,9 @@ function renderCommandCenter(){
       if(!c.taskCount)return '';
       const cColor=c.deltaMins>15?'#ef4444':c.deltaMins<-15?'#10b981':'#f59e0b';
       const cVerdict=c.deltaMins>15?'over':c.deltaMins<-15?'on track':'tight';
-      return `<div class="cd" style="padding:12px;text-align:center;border-left:3px solid ${cColor};cursor:pointer" onclick="_openCapacityDetail()" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) vs ${_fmtHm(c.freeMins)} free in working hours — click for details"><div style="font-size:18px;font-weight:750;color:${cColor};line-height:1">${_fmtHm(c.plannedMins)}/${_fmtHm(c.freeMins)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Capacity · ${cVerdict}</div></div>`;
+      return `<div class="cd" style="padding:12px;text-align:center;border-left:3px solid ${cColor};cursor:pointer" onclick="_openCapacityDetail()" title="${c.taskCount} task${c.taskCount===1?'':'s'} (${_fmtHm(c.plannedMins)}) vs ${_fmtHm(c.freeMins)} free in working hours — click for details"><div style="font-size:18px;font-weight:750;color:${cColor};line-height:1">${_fmtHm(c.plannedMins)}/${_fmtHm(c.freeMins)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Capacity · ${cVerdict}</div></div>`;
     })()}
-    ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
+    ${pendingRows.length?`<div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f97316;cursor:pointer" onclick="openPushQueueDrawer()" title="Click to preview"><div style="font-size:22px;font-weight:750;color:#f97316;line-height:1">${pendingRows.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pending Push</div></div>`:''}
   </div>
 
   ${_renderBriefingCard()}
@@ -13539,29 +13539,29 @@ function renderCommandCenter(){
   <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start;margin-top:${(D.prefs&&D.prefs.briefings&&D.prefs.briefings.length)?'14px':'0'}" id="cc-grid">
     <!-- At-risk -->
     <div class="cd" style="padding:0;overflow:hidden">
-      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">⚠ At Risk</div><div style="font-size:10px;color:var(--t3)">${overdue.length+dueToday.length+stalled.length} items</div></div>
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">⚠ At Risk</div><div style="font-size:11px;color:var(--t3)">${overdue.length+dueToday.length+stalled.length} items</div></div>
       <div style="max-height:520px;overflow-y:auto">${atRiskBody}</div>
     </div>
     <!-- Stakeholders -->
     <div class="cd" style="padding:0;overflow:hidden">
-      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">👥 By Stakeholder</div><div style="font-size:10px;color:var(--t3)">${Object.keys(byAssignee).length} owners</div></div>
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">👥 By Stakeholder</div><div style="font-size:11px;color:var(--t3)">${Object.keys(byAssignee).length} owners</div></div>
       <div style="max-height:280px;overflow-y:auto">${stakeholderBody}</div>
     </div>
     <!-- Projects -->
     <div class="cd" style="padding:11px 13px;grid-column:1/-1">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;font-weight:600">📁 By Project (open work)</div><div style="font-size:10px;color:var(--t3)">top ${Object.keys(byProj).length>12?12:Object.keys(byProj).length} of ${Object.keys(byProj).length}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:12px;font-weight:600">📁 By Project (open work)</div><div style="font-size:11px;color:var(--t3)">top ${Object.keys(byProj).length>12?12:Object.keys(byProj).length} of ${Object.keys(byProj).length}</div></div>
       ${projCards?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${projCards}</div>`:renderEmptyState({icon:'folder',title:'No open work',hint:'No active projects in this context.'})}
     </div>
     <!-- Shipped -->
     <div class="cd" style="padding:0;overflow:hidden">
-      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">🚀 Recently Shipped (7d)</div><div style="font-size:10px;color:var(--t3)">${shipped.length}</div></div>
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">🚀 Recently Shipped (7d)</div><div style="font-size:11px;color:var(--t3)">${shipped.length}</div></div>
       <div style="max-height:380px;overflow-y:auto">${shippedBody}</div>
     </div>
     <!-- Pending push -->
     ${pendingRows.length?`<div class="cd" style="padding:0;overflow:hidden;border-left:3px solid #f97316">
       <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:12px;font-weight:600">⬆ Pending Push to Source</div>
-        <button class="btn btn-s" style="height:22px;font-size:10px;background:#f97316;color:#fff;border:none" onclick="openPushQueueDrawer()">Preview</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px;background:#f97316;color:#fff;border:none" onclick="openPushQueueDrawer()">Preview</button>
       </div>
       <div style="max-height:380px;overflow-y:auto">${pendingPushBody}</div>
     </div>`:`<div class="cd" style="padding:14px;text-align:center;color:var(--t3);font-size:11px"><div style="font-size:18px;margin-bottom:6px">📥</div>Push queue clear — every status change is live on the source.</div>`}
@@ -13601,7 +13601,7 @@ function renderCommandCenter(){
     </div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px">
       <div style="font-size:11px;font-weight:600;margin-bottom:6px">💡 Tip</div>
-      <div style="font-size:10px;color:var(--t3);line-height:1.6">Pin a project here by linking its <em>defaultProjectId</em> in <a href="#" onclick="nav('settings');return false" style="color:var(--ac)">Settings → Integrations</a>. Pending pushes show up automatically when queue mode is on.</div>
+      <div style="font-size:11px;color:var(--t3);line-height:1.6">Pin a project here by linking its <em>defaultProjectId</em> in <a href="#" onclick="nav('settings');return false" style="color:var(--ac)">Settings → Integrations</a>. Pending pushes show up automatically when queue mode is on.</div>
     </div>`;
   }
 }
@@ -13637,11 +13637,11 @@ function renderStandup(){
       return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
         ${srcBadge}
         <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
-        ${t.project?`<span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(t.project)}</span>`:''}
+        ${t.project?`<span style="font-size:11px;color:var(--t3);flex-shrink:0">${esc(t.project)}</span>`:''}
       </div>`;
     }).join(''):`<div style="padding:18px;text-align:center;color:var(--t3);font-size:11px">${empty}</div>`;
     return `<div class="cd" style="padding:0;overflow:hidden;border-top:3px solid ${color}">
-      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">${emoji} ${title}</div><div style="font-size:10px;color:var(--t3)">${rows.length}</div></div>
+      <div style="padding:11px 13px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:600">${emoji} ${title}</div><div style="font-size:11px;color:var(--t3)">${rows.length}</div></div>
       <div style="max-height:520px;overflow-y:auto">${body}</div>
     </div>`;
   };
@@ -13661,7 +13661,7 @@ function renderStandup(){
     return lines.join('\n');
   };
   const hat=_ccHat();
-  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${key}');renderStandup()" style="height:24px;padding:0 10px;font-size:10px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
+  const chip=(key,label,color)=>{const on=hat===key;return `<button class="btn btn-s" onclick="setCcContext('${key}');renderStandup()" style="height:24px;padding:0 10px;font-size:11px;border:1px solid ${on?color:'var(--bd2)'};background:${on?color:'transparent'};color:${on?'#fff':'var(--t2)'};border-radius:12px;font-weight:${on?600:500}">${label}</button>`;};
   m.innerHTML=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('list',22,'var(--page-accent)')}Daily Standup</h1>
@@ -13683,7 +13683,7 @@ function renderStandup(){
     ${renderColumn('Blockers','🚧',blockers,'No blockers — clear runway.','#ef4444')}
   </div>
   <div class="cd" style="padding:11px 13px;border-left:3px solid var(--page-accent)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:12px;font-weight:600">📝 Standup summary (markdown)</div><span style="font-size:10px;color:var(--t3)">Click "Copy summary" to copy this</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:12px;font-weight:600">📝 Standup summary (markdown)</div><span style="font-size:11px;color:var(--t3)">Click "Copy summary" to copy this</span></div>
     <pre id="standup-md" style="font-size:11px;color:var(--t2);background:var(--s3);padding:10px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;font-family:'SF Mono',Menlo,monospace;line-height:1.55">${esc(summary())}</pre>
   </div>`;
   if(!document.getElementById('standup-resp-css')){
@@ -13756,10 +13756,10 @@ function renderPipeline(){
   </div>`;
   // KPI strip.
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_fmtMoney(totalPipelineValue)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${_fmtMoney(weighted)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Weighted Forecast</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_fmtMoney(totalPipelineValue)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${_fmtMoney(weighted)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Weighted Forecast</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
   </div>`;
   let body='';
   if(_pipelineView==='kanban'){
@@ -13783,18 +13783,18 @@ function renderPipeline(){
         const taskN=_opportunityTaskCount(o.id);
         return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;border-left:3px solid ${s.color};cursor:pointer" onclick="openOpportunityDetail(${o.id})">
           <div style="font-size:12px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</div>
-          ${o.accountName?`<div style="font-size:10px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.accountName)}</div>`:''}
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px">
+          ${o.accountName?`<div style="font-size:11px;color:var(--t3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.accountName)}</div>`:''}
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px">
             <span style="color:var(--t2);font-weight:600">${_fmtMoney(o.value||0)}</span>
             <span style="color:var(--t3)">${closeLabel}</span>
           </div>
-          ${taskN?`<div style="font-size:10px;color:var(--ac);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
+          ${taskN?`<div style="font-size:11px;color:var(--ac);margin-top:3px">📋 ${taskN} active task${taskN===1?'':'s'}</div>`:''}
         </div>`;
-      }).join('')||'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:8px 0;text-align:center">empty</div>';
+      }).join('')||'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px 0;text-align:center">empty</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;min-height:300px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${s.color}"></span><span style="font-size:11px;font-weight:700;color:var(--t1)">${esc(s.label)}</span></div>
-          <div style="font-size:10px;color:var(--t3)">${stageOpps.length} · ${_fmtMoney(stageValue)}</div>
+          <div style="font-size:11px;color:var(--t3)">${stageOpps.length} · ${_fmtMoney(stageValue)}</div>
         </div>
         ${cards}
       </div>`;
@@ -13818,7 +13818,7 @@ function renderPipeline(){
     }).join('');
     body=`<div class="cd" style="padding:0;overflow:hidden">
       <table style="width:100%;border-collapse:collapse">
-        <thead><tr style="background:var(--s2);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+        <thead><tr style="background:var(--s2);font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
           <th style="padding:8px 10px;text-align:left">Opportunity</th>
           <th style="padding:8px 10px;text-align:left">Account</th>
           <th style="padding:8px 10px;text-align:left">Stage</th>
@@ -13881,11 +13881,11 @@ function renderPipeline(){
     </div>
     ${overdue.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px;border-left:3px solid var(--red)">
       <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--red)">⚠ ${overdue.length} past close date</div>
-      ${overdue.slice(0,5).map(o=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:10px">${esc(o.name)}</span><span style="color:var(--t3);font-size:10px">${esc(o.closeDate)}</span></div>`).join('')}
+      ${overdue.slice(0,5).map(o=>`<div class="lr" style="font-size:11px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:11px">${esc(o.name)}</span><span style="color:var(--t3);font-size:11px">${esc(o.closeDate)}</span></div>`).join('')}
     </div>`:''}
     ${recentWon.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px">
       <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--ok)">🎉 Recent wins</div>
-      ${recentWon.map(o=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:10px">${esc(o.name)}</span><span style="color:var(--ok);font-size:10px;font-weight:600">${_fmtMoney(o.value||0)}</span></div>`).join('')}
+      ${recentWon.map(o=>`<div class="lr" style="font-size:11px;padding:3px 0;cursor:pointer" onclick="openOpportunityDetail(${o.id})"><span class="rt" style="font-size:11px">${esc(o.name)}</span><span style="color:var(--ok);font-size:11px;font-weight:600">${_fmtMoney(o.value||0)}</span></div>`).join('')}
     </div>`:''}`;
   }
 }
@@ -13940,10 +13940,10 @@ function _reportByCustomer(opps,open,won,lost){
     </tr>`;
   }).join(''):'<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--t3);font-size:11px">No opportunities to group.</td></tr>';
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid #3b82f6">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🏢 By Customer / Agency</div><div style="font-size:10px;color:var(--t3)">${rows.length} account${rows.length===1?'':'s'} · sorted by total open</div></div>
-    <p style="font-size:10px;color:var(--t3);margin:0 0 8px">Where your pipeline lives. Win rate shown when at least one deal has closed.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🏢 By Customer / Agency</div><div style="font-size:11px;color:var(--t3)">${rows.length} account${rows.length===1?'':'s'} · sorted by total open</div></div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 8px">Where your pipeline lives. Win rate shown when at least one deal has closed.</p>
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:var(--s2);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+      <thead><tr style="background:var(--s2);font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
         <th style="padding:5px 8px;text-align:left">Account</th>
         <th style="padding:5px 8px;text-align:right">Open</th>
         <th style="padding:5px 8px;text-align:right">Total $</th>
@@ -13976,7 +13976,7 @@ function _reportStageAging(open){
       <td style="padding:5px 8px;font-size:11px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${def.color};margin-right:6px"></span>${esc(def.label)}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${b.count}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${ageBadge}</td>
-      <td style="padding:5px 8px;font-size:10px;color:var(--t3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.oldest?esc(b.oldest.opp.name):''}</td>
+      <td style="padding:5px 8px;font-size:11px;color:var(--t3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.oldest?esc(b.oldest.opp.name):''}</td>
     </tr>`;
   }).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No open opportunities.</td></tr>';
   // Stalled list: open opps not updated in 60+ days. Cap to top 8.
@@ -13985,22 +13985,22 @@ function _reportStageAging(open){
     const d=daysSince(o.updatedAt);
     return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openOpportunityDetail(${o.id})">
       <span style="font-size:11px;color:var(--t1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'')}</span>
-      <span style="font-size:10px;color:${d>=120?'var(--red)':'var(--warn)'};font-weight:600;flex-shrink:0">${d}d</span>
-      <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(o.stage||'')}</span>
+      <span style="font-size:11px;color:${d>=120?'var(--red)':'var(--warn)'};font-weight:600;flex-shrink:0">${d}d</span>
+      <span style="font-size:11px;color:var(--t3);flex-shrink:0">${esc(o.stage||'')}</span>
     </div>`;
-  }).join(''):'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:8px 0">No stalled deals — every open opp updated within 60 days.</div>';
+  }).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px 0">No stalled deals — every open opp updated within 60 days.</div>';
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid #f59e0b">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">⏱ Stage Aging</div><div style="font-size:10px;color:var(--t3)">Avg days at current stage</div></div>
-    <p style="font-size:10px;color:var(--t3);margin:0 0 8px">Where deals get stuck. Aging measured as days since last update (proxy for stage entry).</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">⏱ Stage Aging</div><div style="font-size:11px;color:var(--t3)">Avg days at current stage</div></div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 8px">Where deals get stuck. Aging measured as days since last update (proxy for stage entry).</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:10px">
-      <thead><tr style="background:var(--s2);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
+      <thead><tr style="background:var(--s2);font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">
         <th style="padding:5px 8px;text-align:left">Stage</th>
         <th style="padding:5px 8px;text-align:right">Count</th>
         <th style="padding:5px 8px;text-align:right">Avg</th>
         <th style="padding:5px 8px;text-align:left">Oldest</th>
       </tr></thead><tbody>${stageRows}</tbody>
     </table>
-    <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🚨 Stalled (60d+) · ${stalled.length}</div>
+    <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🚨 Stalled (60d+) · ${stalled.length}</div>
     ${stalledBody}
   </div>`;
 }
@@ -14036,13 +14036,13 @@ function _reportQuarterlyBooking(open){
       </div>
       <div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:#10b981;border-radius:4px"></div></div>
     </div>`;
-  }).join(''):'<div style="font-size:10px;color:var(--t3);font-style:italic;padding:20px;text-align:center">No open deals with close dates in the next 90 days. Set close dates on your opportunities to populate this forecast.</div>';
+  }).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:20px;text-align:center">No open deals with close dates in the next 90 days. Set close dates on your opportunities to populate this forecast.</div>';
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid #10b981">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">📅 Quarterly Booking (next 90d)</div><div style="font-size:10px;color:var(--t3)">${totalCount} deal${totalCount===1?'':'s'}</div></div>
-    <p style="font-size:10px;color:var(--t3);margin:0 0 10px">Open deals closing in the next 90 days. Use this as your Q forecast — weighted is the expected commit.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">📅 Quarterly Booking (next 90d)</div><div style="font-size:11px;color:var(--t3)">${totalCount} deal${totalCount===1?'':'s'}</div></div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 10px">Open deals closing in the next 90 days. Use this as your Q forecast — weighted is the expected commit.</p>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;background:color-mix(in srgb,#10b981 10%,transparent);border-radius:6px;margin-bottom:10px">
       <div style="font-size:11px;color:var(--t2)">Q forecast</div>
-      <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#10b981">${_fmtMoney(totalWeighted)}</div><div style="font-size:10px;color:var(--t3)">weighted · ${_fmtMoney(totalValue)} unweighted</div></div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#10b981">${_fmtMoney(totalWeighted)}</div><div style="font-size:11px;color:var(--t3)">weighted · ${_fmtMoney(totalValue)} unweighted</div></div>
     </div>
     ${bars}
   </div>`;
@@ -14065,20 +14065,20 @@ function _reportCoverage(open){
     </div>`
     :`<div style="text-align:center;margin-bottom:12px">
       <div style="font-size:28px;font-weight:800;color:${statusColor};line-height:1">${coverage.toFixed(1)}x</div>
-      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px">coverage · target ${target}x · ${esc(statusLabel)}</div>
+      <div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:3px">coverage · target ${target}x · ${esc(statusLabel)}</div>
     </div>
     <div style="height:10px;background:var(--s3);border-radius:5px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:${gaugePct}%;background:${statusColor};border-radius:5px"></div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px">
-      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.04em">${esc(q.periodLabel)} Target</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(q.amount)}</div></div>
-      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Pipeline</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(totalOpen)}</div></div>
-      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Weighted</div><div style="font-size:14px;font-weight:700;color:var(--ok);margin-top:2px">${_fmtMoney(totalWeighted)}</div></div>
-      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:10px;text-transform:uppercase;letter-spacing:.04em">Weighted Cov.</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${weightedCoverage!=null?weightedCoverage.toFixed(1)+'x':'—'}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">${esc(q.periodLabel)} Target</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(q.amount)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Pipeline</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${_fmtMoney(totalOpen)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Weighted</div><div style="font-size:14px;font-weight:700;color:var(--ok);margin-top:2px">${_fmtMoney(totalWeighted)}</div></div>
+      <div style="padding:8px;background:var(--s3);border-radius:5px"><div style="color:var(--t3);font-size:11px;text-transform:uppercase;letter-spacing:.04em">Weighted Cov.</div><div style="font-size:14px;font-weight:700;color:var(--t1);margin-top:2px">${weightedCoverage!=null?weightedCoverage.toFixed(1)+'x':'—'}</div></div>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:10px;text-align:center">${target}x is the industry rule of thumb for healthy B2B sales pipeline.</div>
-    <div style="margin-top:8px;text-align:center"><button class="btn btn-s" style="font-size:10px" onclick="_openPipelineQuotaSettings()">⚙ Adjust quota</button></div>`;
+    <div style="font-size:11px;color:var(--t3);margin-top:10px;text-align:center">${target}x is the industry rule of thumb for healthy B2B sales pipeline.</div>
+    <div style="margin-top:8px;text-align:center"><button class="btn btn-s" style="font-size:11px" onclick="_openPipelineQuotaSettings()">⚙ Adjust quota</button></div>`;
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid ${statusColor}">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:10px;color:${statusColor};font-weight:600">${esc(statusLabel)}</div></div>
-    <p style="font-size:10px;color:var(--t3);margin:0 0 10px">Total open pipeline value divided by your revenue quota. The 3x rule of thumb assumes you'll win roughly a third of your pipeline.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:600">🎯 Pipeline Coverage</div><div style="font-size:11px;color:${statusColor};font-weight:600">${esc(statusLabel)}</div></div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 10px">Total open pipeline value divided by your revenue quota. The 3x rule of thumb assumes you'll win roughly a third of your pipeline.</p>
     ${body}
   </div>`;
 }
@@ -14089,11 +14089,11 @@ function _openPipelineQuotaSettings(){
   m.innerHTML=`<div style="padding:16px;max-width:420px">
     <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">🎯 Pipeline Quota</h2>
     <p style="font-size:11px;color:var(--t3);margin:0 0 14px">Sets the revenue target the Pipeline Coverage report compares against.</p>
-    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Target amount ($)</div><input class="inp" id="quota-amt" type="number" value="${q.amount||''}" placeholder="e.g. 5000000" style="font-size:12px"></div>
-    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Period label</div><select class="inp" id="quota-period" style="font-size:12px">
+    <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Target amount ($)</div><input class="inp" id="quota-amt" type="number" value="${q.amount||''}" placeholder="e.g. 5000000" style="font-size:12px"></div>
+    <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Period label</div><select class="inp" id="quota-period" style="font-size:12px">
       ${['Annual','Quarterly','Monthly','Half-Year'].map(p=>`<option value="${p}" ${q.periodLabel===p?'selected':''}>${p}</option>`).join('')}
     </select></div>
-    <div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Coverage target (default 3x)</div><input class="inp" id="quota-cov" type="number" step="0.5" min="1" max="10" value="${q.coverageTarget||3}" style="font-size:12px"></div>
+    <div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">Coverage target (default 3x)</div><input class="inp" id="quota-cov" type="number" step="0.5" min="1" max="10" value="${q.coverageTarget||3}" style="font-size:12px"></div>
     <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1)">
       <button class="btn btn-s" onclick="closeModal()">Cancel</button>
       <button class="btn btn-p" onclick="_savePipelineQuota()">💾 Save</button>
@@ -14152,18 +14152,18 @@ function openOpportunityDetail(oppId,opts){
   const taskRow=t=>`<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===${t.id})),120)">
     <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'Not Started':'Done';if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(D.tasks.find(x=>x.id===${t.id}));save('tasks');openOpportunityDetail(${o.id})"></div>
     <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
-    <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:10px">${esc(t.priority||'')}</span>
-    <span style="font-size:10px;color:var(--t3)">${esc(t.due||'')}</span>
+    <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:11px">${esc(t.priority||'')}</span>
+    <span style="font-size:11px;color:var(--t3)">${esc(t.due||'')}</span>
   </div>`;
   // Stage progression buttons — quick-advance through non-terminal stages.
   const stageButtons=_PIPELINE_STAGES.map(s=>{
     const active=s.key===o.stage;
-    return `<button class="btn btn-s" style="height:24px;font-size:10px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${s.key}')">${esc(s.label)}</button>`;
+    return `<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 9px;background:${active?s.color:'transparent'};color:${active?'#fff':s.color};border-color:${s.color}" onclick="_setOpportunityStage(${o.id},'${s.key}')">${esc(s.label)}</button>`;
   }).join('');
   // Form fields — always editable inline.
   const field=(label,id,type,value,extra)=>{
-    if(type==='textarea')return `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><textarea class="inp" id="${id}" style="min-height:60px;font-size:12px" ${extra||''}>${esc(value||'')}</textarea></div>`;
-    return `<div style="margin-bottom:10px"><div style="font-size:10px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><input class="inp" id="${id}" type="${type}" style="font-size:12px" value="${esc(value??'')}" ${extra||''}></div>`;
+    if(type==='textarea')return `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><textarea class="inp" id="${id}" style="min-height:60px;font-size:12px" ${extra||''}>${esc(value||'')}</textarea></div>`;
+    return `<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--t3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em">${esc(label)}</div><input class="inp" id="${id}" type="${type}" style="font-size:12px" value="${esc(value??'')}" ${extra||''}></div>`;
   };
   d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px;margin:0 0 6px"><span style="width:11px;height:11px;border-radius:3px;background:${stage.color}"></span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(o.name||'(unnamed)')}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -14171,7 +14171,7 @@ function openOpportunityDetail(oppId,opts){
       <span style="font-size:11px;color:var(--t2);align-self:center;font-weight:600">💰 ${_fmtMoney(o.value||0)}</span>
       <span style="font-size:11px;color:var(--ok);align-self:center">⚖ ${_fmtMoney(_weightedValue(o))} weighted</span>
       ${o.closeDate?`<span style="font-size:11px;color:var(--t3);align-self:center">📅 ${esc(o.closeDate)}</span>`:''}
-      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:10px" title="Auto-synced from Smartsheet">📊 Synced</span>`:''}
+      ${o.source==='smartsheet'?`<span class="pill" style="background:color-mix(in srgb,#1f6feb 16%,transparent);color:#1f6feb;font-weight:600;font-size:11px" title="Auto-synced from Smartsheet">📊 Synced</span>`:''}
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Stage</div>
     <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px">${stageButtons}</div>
@@ -14194,7 +14194,7 @@ function openOpportunityDetail(oppId,opts){
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Tasks to win this opportunity (${linkedOpen.length})</div>
     ${linkedOpen.length?linkedOpen.map(taskRow).join(''):'<p style="font-size:11px;color:var(--t3);padding:6px 0;font-style:italic">No active tasks linked yet — click below to add one.</p>'}
-    ${linkedDone.length?`<div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px">Done (${linkedDone.length})</div>${linkedDone.map(taskRow).join('')}`:''}
+    ${linkedDone.length?`<div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:10px 0 5px">Done (${linkedDone.length})</div>${linkedDone.map(taskRow).join('')}`:''}
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_newTaskForOpportunity(${o.id})">+ New task for this opportunity</button>
       <button class="btn btn-s" onclick="_aiOpportunityNextSteps(${o.id})" style="color:var(--purp)" title="AI-suggested next 3 actions for advancing this deal">✨ AI: Next steps</button>
@@ -14292,9 +14292,9 @@ Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (men
     const mm=raw.match(/\{[\s\S]*\}/);if(!mm)throw new Error('AI returned no JSON');
     const out=JSON.parse(mm[0]);
     const actionRows=(out.actions||[]).slice(0,3).map((a,i)=>`<div style="padding:9px 11px;background:var(--s3);border-radius:6px;margin-bottom:6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:10px;color:var(--ac)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
-      ${a.owner?`<div style="font-size:10px;color:var(--t3);margin-top:2px">👤 ${esc(a.owner)}</div>`:''}
-      ${a.why?`<div style="font-size:10px;color:var(--t2);margin-top:3px">${esc(a.why)}</div>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px"><div style="font-size:12px;color:var(--t1);font-weight:600">${i+1}. ${esc(a.title||'')}</div><button class="btn btn-s" style="height:22px;font-size:11px;color:var(--ac)" onclick='_addAiActionToOpp(${oppId},${JSON.stringify(a).replace(/"/g,"&quot;")})'>+ Add task</button></div>
+      ${a.owner?`<div style="font-size:11px;color:var(--t3);margin-top:2px">👤 ${esc(a.owner)}</div>`:''}
+      ${a.why?`<div style="font-size:11px;color:var(--t2);margin-top:3px">${esc(a.why)}</div>`:''}
     </div>`).join('');
     m.innerHTML=`<div style="padding:16px;max-width:560px">
       <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">✨ Next steps · ${esc(o.name)}</h2>
@@ -14379,17 +14379,17 @@ function openPushQueueDrawer(){
     const checked=_pushQueueSel.has(key);
     return `<div class="lr" style="padding:9px 11px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;${checked?'background:color-mix(in srgb,var(--ac) 8%,transparent)':''}">
       <div class="chk ${checked?'on':''}" style="flex-shrink:0" onclick="_togglePushQueueRow('${_jsAttr(key)}');this.classList.toggle('on');this.parentElement.style.background=this.classList.contains('on')?'color-mix(in srgb,var(--ac) 8%,transparent)':''"></div>
-      <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:10px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
+      <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
       <span style="flex:1;font-size:12px;color:var(--t1);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'')}</span>
       <span style="font-size:11px;color:var(--t3)">${esc(et.status||'')}</span>
       <span style="font-size:11px;color:var(--ac);font-weight:600">→ ${esc(ovr.pendingStatus||'')}</span>
-      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_dropPushItem('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Drop from queue">✕</button>
+      <button class="btn btn-s" style="height:22px;font-size:11px" onclick="_dropPushItem('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Drop from queue">✕</button>
     </div>`;
   }).join(''):`<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No pending pushes — every status change has been delivered.</div>`;
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">⬆ Push Queue (${rows.length})</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div>
     <p style="font-size:11px;color:var(--t2);margin-top:4px">Status changes saved locally, waiting to be written back to the source. Tick rows to push a subset, or use "Push all" to flush everything. Click ✕ to drop a row without pushing.</p>
-    ${rows.length?`<div style="display:flex;gap:6px;margin-top:6px;font-size:10px"><button class="btn btn-s" style="height:22px;font-size:10px" onclick="_pushQueueSelectAll()">☑ Select all</button><button class="btn btn-s" style="height:22px;font-size:10px" onclick="_pushQueueSelectClear()">☐ Clear selection</button></div>`:''}
+    ${rows.length?`<div style="display:flex;gap:6px;margin-top:6px;font-size:11px"><button class="btn btn-s" style="height:22px;font-size:11px" onclick="_pushQueueSelectAll()">☑ Select all</button><button class="btn btn-s" style="height:22px;font-size:11px" onclick="_pushQueueSelectClear()">☐ Clear selection</button></div>`:''}
   </div>
   <div style="overflow-y:auto;max-height:60vh">${body}</div>
   ${rows.length?`<div id="push-queue-footer" style="padding:12px 16px;border-top:1px solid var(--bd1);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
@@ -14520,10 +14520,10 @@ function _openSavedCCViews(){
       <span style="font-size:14px;flex-shrink:0" title="${hasFilters?'View captures drill-through filters':'View captures the hat only'}">${icon}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);font-weight:600">${esc(v.name)}</div>
-        <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${detail}</div>
+        <div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${detail}</div>
       </div>
-      <button class="btn btn-s" style="height:22px;font-size:10px" onclick="event.stopPropagation();_renameSavedCCView(${v.id})" title="Rename">✏</button>
-      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="event.stopPropagation();_deleteSavedCCView(${v.id})" title="Delete">✕</button>
+      <button class="btn btn-s" style="height:22px;font-size:11px" onclick="event.stopPropagation();_renameSavedCCView(${v.id})" title="Rename">✏</button>
+      <button class="btn btn-d" style="height:22px;font-size:11px" onclick="event.stopPropagation();_deleteSavedCCView(${v.id})" title="Delete">✕</button>
     </div>`;
   }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No saved views yet. Pick a hat + drill into a project / assignee, then click ⭐ Save view to capture it.</div>';
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)">
@@ -14625,23 +14625,23 @@ function _renderBriefingCard(){
   const hatBadge=latest.hat==='all'?'All hats':latest.hat==='cf'?'CF':latest.hat==='lsi'?'LSI':'Personal';
   const sec=(emoji,title,items,opts)=>{
     if(!items||!items.length)return '';
-    return `<div style="margin-top:10px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,5).map(it=>{
+    return `<div style="margin-top:10px"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,5).map(it=>{
       if(typeof it==='string')return `<li style="font-size:12px;color:var(--t1);padding:4px 8px;background:var(--s3);border-radius:4px">${esc(it)}</li>`;
-      const sub=opts==='risk'?(it.action?`<div style="font-size:10px;color:var(--ac);margin-top:2px">→ ${esc(it.action)}</div>`:''):'';
-      const srcBadge=it.source?` <span style="font-size:10px;color:var(--t3)">[${esc(it.source)}]</span>`:'';
-      return `<li style="font-size:12px;color:var(--t1);padding:5px 8px;background:var(--s3);border-radius:4px"><div style="font-weight:600">${esc(it.title||'')}${srcBadge}</div>${it.why?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}${sub}</li>`;
+      const sub=opts==='risk'?(it.action?`<div style="font-size:11px;color:var(--ac);margin-top:2px">→ ${esc(it.action)}</div>`:''):'';
+      const srcBadge=it.source?` <span style="font-size:11px;color:var(--t3)">[${esc(it.source)}]</span>`:'';
+      return `<li style="font-size:12px;color:var(--t1);padding:5px 8px;background:var(--s3);border-radius:4px"><div style="font-weight:600">${esc(it.title||'')}${srcBadge}</div>${it.why?`<div style="font-size:11px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}${sub}</li>`;
     }).join('')}</ul></div>`;
   };
   return `<div class="cd" style="padding:13px 15px;border-left:3px solid var(--page-accent);grid-column:1/-1">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px">✨ Weekly Portfolio Briefing <span style="font-size:10px;color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${esc(hatBadge)}</span></div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Generated ${ago}${latest.emailed?' · ✉ emailed':''}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:8px">✨ Weekly Portfolio Briefing <span style="font-size:11px;color:var(--t3);background:var(--s3);padding:2px 6px;border-radius:3px">${esc(hatBadge)}</span></div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">Generated ${ago}${latest.emailed?' · ✉ emailed':''}</div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="aiPortfolioBriefing()" title="Regenerate from current data">↻ Refresh</button>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_emailLatestBriefing()" title="Email this briefing to yourself">✉ Email</button>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_openBriefingHistory()" title="See past briefings">📚 History (${list.length})</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiPortfolioBriefing()" title="Regenerate from current data">↻ Refresh</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_emailLatestBriefing()" title="Email this briefing to yourself">✉ Email</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_openBriefingHistory()" title="See past briefings">📚 History (${list.length})</button>
       </div>
     </div>
     ${b.headline?`<div style="font-size:13px;color:var(--t1);font-style:italic;padding:9px 11px;background:color-mix(in srgb,var(--page-accent) 12%,transparent);border-radius:6px;line-height:1.55">"${esc(b.headline)}"</div>`:''}
@@ -14701,13 +14701,13 @@ function _openBriefingHistory(){
     const hatLabel=rec.hat==='all'?'All':rec.hat.toUpperCase();
     const head=(rec.briefing&&rec.briefing.headline)||'(no headline)';
     return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:flex-start;gap:9px;cursor:pointer" onclick="_loadBriefing(${rec.id})">
-      <span style="font-size:10px;color:var(--t3);min-width:80px">${dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-      <span style="font-size:10px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:3px;font-weight:600">${esc(hatLabel)}</span>
+      <span style="font-size:11px;color:var(--t3);min-width:80px">${dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+      <span style="font-size:11px;background:var(--s3);color:var(--t2);padding:2px 6px;border-radius:3px;font-weight:600">${esc(hatLabel)}</span>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;color:var(--t1);line-height:1.45">${esc(head)}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${rec.emailed?'✉ emailed · ':''}${(rec.snapshot&&rec.snapshot.counts)?`${rec.snapshot.counts.open} open · ${rec.snapshot.counts.shipped7d} shipped`:''}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${rec.emailed?'✉ emailed · ':''}${(rec.snapshot&&rec.snapshot.counts)?`${rec.snapshot.counts.open} open · ${rec.snapshot.counts.shipped7d} shipped`:''}</div>
       </div>
-      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="event.stopPropagation();_deleteBriefing(${rec.id})">✕</button>
+      <button class="btn btn-d" style="height:22px;font-size:11px" onclick="event.stopPropagation();_deleteBriefing(${rec.id})">✕</button>
     </div>`;
   }).join(''):'<div style="padding:24px;text-align:center;color:var(--t3);font-size:12px">No briefings yet — generate one from Command Center.</div>';
   d.innerHTML=`<div style="padding:14px 16px;border-bottom:1px solid var(--bd1)"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:16px;font-weight:650">📚 Briefing History</h2><button class="btn btn-s" onclick="closeDrawer()">✕</button></div><p style="font-size:11px;color:var(--t2);margin-top:4px">Last ${list.length} briefings · click one to load it back into Command Center.</p></div><div style="overflow-y:auto;max-height:70vh">${rows}</div>`;
@@ -14779,7 +14779,7 @@ function renderPrograms(){
       <div class="pc-foot">
         <span>${prog.owner?'👤 '+esc(prog.owner.split(' ')[0]):''}</span>
         <span class="pc-acts">
-          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('program',D.programs.find(x=>x.id===${prog.id}))" title="Edit">✏</button>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('program',D.programs.find(x=>x.id===${prog.id}))" title="Edit">✏</button>
         </span>
       </div>
     </div>`;
@@ -14802,7 +14802,7 @@ function renderPrograms(){
         Tasks: <strong>${_topLevelTasks(D.tasks).filter(t=>t.status!=='Done'&&t.status!=='Someday').length}</strong> open
       </div>
     </div>
-    ${orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🗂 Unassigned projects (${orphans.length})</div><div style="font-size:10px;color:var(--t3);margin-bottom:8px">Edit a program to link them.</div>${orphans.slice(0,15).map(p=>`<div class="lr" style="font-size:10px;padding:3px 0;cursor:pointer" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:10px">${esc(p.name)}</span></div>`).join('')}</div>`:''}`;
+    ${orphans.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">🗂 Unassigned projects (${orphans.length})</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Edit a program to link them.</div>${orphans.slice(0,15).map(p=>`<div class="lr" style="font-size:11px;padding:3px 0;cursor:pointer" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}`;
   }
 }
 
@@ -14890,7 +14890,7 @@ function _renderPortfolioTimeline(){
       <div style="width:180px;padding:6px 9px;font-size:11px;color:var(--t1);flex-shrink:0;border-right:1px solid var(--bd1);background:var(--s2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="openProjectDetail(${project.id})">
         <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${project.color};margin-right:6px;vertical-align:middle"></span>
         ${esc(project.name)}
-        <span style="font-size:10px;color:var(--t3);margin-left:4px">${tasks.length}</span>
+        <span style="font-size:11px;color:var(--t3);margin-left:4px">${tasks.length}</span>
       </div>
       <div style="position:relative;flex:1;min-height:30px;background:repeating-linear-gradient(90deg,transparent,transparent ${dayPx-1}px,var(--bd1) ${dayPx-1}px,var(--bd1) ${dayPx}px);width:${totalW}px">
         ${bars}
@@ -14906,9 +14906,9 @@ function _renderPortfolioTimeline(){
   return `<div class="cd" style="padding:11px 13px;margin-top:18px;overflow:hidden">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">📅 Portfolio Timeline</div>
-      <div style="font-size:10px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ac)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
+      <div style="font-size:11px;color:var(--t3)">${projIds.length} project${projIds.length===1?'':'s'} on chart${hiddenN?` · <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--ac)" onclick="_drillIntoDatelessTasks()" title="Filter Tasks to dateless rows so you can add dates in batch">${hiddenN} hidden (no dates)</span>`:''}</div>
     </div>
-    <div style="display:flex;gap:10px;font-size:10px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
+    <div style="display:flex;gap:10px;font-size:11px;color:var(--t3);margin-bottom:6px;flex-wrap:wrap">
       <span><span style="display:inline-block;width:10px;height:10px;background:#1f6feb;border-radius:2px;vertical-align:middle"></span> Smartsheet</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#9333ea;border-radius:2px;vertical-align:middle"></span> NiftyPM</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#10b981;border-radius:2px;vertical-align:middle"></span> Native</span>
@@ -14916,7 +14916,7 @@ function _renderPortfolioTimeline(){
     </div>
     <div style="overflow:auto;max-height:calc(100vh - 460px);border:1px solid var(--bd1);border-radius:6px;background:var(--s1);position:relative">
       <div style="display:flex;position:sticky;top:0;z-index:5;background:var(--s2);border-bottom:1px solid var(--bd1)">
-        <div style="width:180px;font-size:10px;padding:6px 9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;flex-shrink:0;border-right:1px solid var(--bd1)">Project</div>
+        <div style="width:180px;font-size:11px;padding:6px 9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;flex-shrink:0;border-right:1px solid var(--bd1)">Project</div>
         <div style="position:relative;flex:1;width:${totalW}px;height:18px">${axisCells.join('')}</div>
       </div>
       <div style="position:relative">
@@ -14944,7 +14944,7 @@ function openProgramDetail(pid){
   const totalN=nativeTasks.length+extLinked.length;
   const pct=totalN?Math.round(doneN/totalN*100):0;
   const overdueN=nativeTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
-  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
   const projRows=projs.length?projs.map(p=>{
     const pt=_topLevelTasks(D.tasks).filter(t=>t.projectId===p.id);
     const pdone=pt.filter(t=>t.status==='Done').length;
@@ -14953,7 +14953,7 @@ function openProgramDetail(pid){
     return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openProjectDetail(${p.id}),120)">
       <span style="width:8px;height:8px;border-radius:2px;background:${p.color};flex-shrink:0"></span>
       <span class="rt" style="font-size:12px;font-weight:500">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span>
-      <span style="font-size:10px;color:var(--t3)">${pdone}/${ptotal}</span>
+      <span style="font-size:11px;color:var(--t3)">${pdone}/${ptotal}</span>
       <div style="width:60px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden;flex-shrink:0"><div style="height:100%;width:${ppct}%;background:${p.color};border-radius:3px"></div></div>
       <span style="font-size:11px;color:var(--t3)">›</span>
     </div>`;
@@ -15002,7 +15002,7 @@ function renderProjects(){
   const dn=ps.filter(p=>!p.archived&&(p.status==='Completed'||p.status==='Done')).length;
   const ar=ps.filter(p=>p.archived).length;
   const subtitle=`${a} active${oh?` · ${oh} on hold`:''}${dn?` · ${dn} completed`:''}${ar?` · ${ar} archived`:''}`||`${ps.length} project${ps.length!==1?'s':''}`;
-  const aiMenu=`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('proj-ai-menu')" title="AI tools">✨ AI ▾</button><div id="proj-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
+  const aiMenu=`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('proj-ai-menu')" title="AI tools">✨ AI ▾</button><div id="proj-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectHealth()">🩺 Health Summary</button>
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectNextMilestone()">🎯 Suggest Next Milestone</button>
     <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--red);background:transparent;border:none;text-align:left" onclick="closePopMenu('proj-ai-menu');aiProjectRisks()">⚠️ Identify Risks</button>
@@ -15023,8 +15023,8 @@ function renderProjects(){
     </select>`;
   const filterRow=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
     <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setProjFilter('search',this.value)">
-    ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
-    ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:10px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
+    ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
+    ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:11px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
   </div>`;
   const header=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('folder',22,'var(--page-accent)')}Projects</h1><p style="font-size:12px;color:var(--t2)">${subtitle}</p></div><div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center"><button class="btn ${projView==='list'?'btn-p':'btn-s'}" onclick="setProjView('list')">${_icon('list',13,'currentColor')} List</button><button class="btn ${projView==='kanban'?'btn-p':'btn-s'}" onclick="setProjView('kanban')">${_icon('columns',13,'currentColor')} Kanban</button><button class="btn ${projView==='gantt'?'btn-p':'btn-s'}" onclick="setProjView('gantt')">${_icon('barChart',13,'currentColor')} Gantt</button><button class="btn ${projView==='workload'?'btn-p':'btn-s'}" onclick="setProjView('workload')" title="Tasks grouped by assignee — workload across people">${_icon('users',13,'currentColor')} Workload</button><span style="width:1px;height:20px;background:var(--bd2);margin:0 2px"></span>${headerFilters}${aiMenu}<button class="btn btn-p" onclick="openFA('project')">+ New Project</button></div></div>${filterRow}`;
   if(projView==='list') renderProjectsList(header);
@@ -15042,19 +15042,19 @@ function renderProjectsTeamKanban(header){
     const done=D.tasks.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
     return`<div style="flex:1;min-width:200px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">
-        <div style="width:22px;height:22px;border-radius:50%;background:${col.color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
+        <div style="width:22px;height:22px;border-radius:50%;background:${col.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
         <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
-        <span style="font-size:10px;color:var(--t3)">${tasks.length} active · ${done} done</span>
+        <span style="font-size:11px;color:var(--t3)">${tasks.length} active · ${done} done</span>
       </div>
       ${tasks.map(t=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
         <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
-        <div style="display:flex;gap:6px;font-size:10px;color:var(--t3)">
+        <div style="display:flex;gap:6px;font-size:11px;color:var(--t3)">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
           ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span>📅 ${fmtDate(t.due)}</span>`:''}        </div>
-        ${(t.subtasks||[]).length?`<div style="font-size:10px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
+        ${(t.subtasks||[]).length?`<div style="font-size:11px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
       </div>`).join('')}
-      ${tasks.length===0?`<div style="font-size:10px;color:var(--t3);padding:8px;text-align:center">No active tasks</div>`:''}
+      ${tasks.length===0?`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No active tasks</div>`:''}
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Tasks grouped by assignee. Click any card to edit assignment.</div><div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
@@ -15098,10 +15098,10 @@ function _projPortfolioStrip(){
 function renderProjectsList(header){
   const filtered=_filteredProjects();
   // P5: group-by toolbar
-  const groupBar=`<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--t3);margin-bottom:8px">
+  const groupBar=`<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3);margin-bottom:8px">
     <span style="font-weight:600;text-transform:uppercase;letter-spacing:.05em">Group:</span>
-    ${[['none','None'],['status','Status'],['owner','Owner'],['quarter','Quarter'],['health','Health']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_projGroupBy===k?'var(--ac)':'transparent'};color:${_projGroupBy===k?'#fff':'var(--t2)'}" onclick="setProjFilter('groupBy','${k}')">${l}</button>`).join('')}
-    <span style="margin-left:auto;font-size:10px;color:var(--t3)">Drag the ⋮⋮ handle to reorder · 📌 to pin</span>
+    ${[['none','None'],['status','Status'],['owner','Owner'],['quarter','Quarter'],['health','Health']].map(([k,l])=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_projGroupBy===k?'var(--ac)':'transparent'};color:${_projGroupBy===k?'#fff':'var(--t2)'}" onclick="setProjFilter('groupBy','${k}')">${l}</button>`).join('')}
+    <span style="margin-left:auto;font-size:11px;color:var(--t3)">Drag the ⋮⋮ handle to reorder · 📌 to pin</span>
   </div>`;
   function projCard(p){
     const pts=D.tasks.filter(t=>t.projectId===p.id);
@@ -15141,7 +15141,7 @@ function renderProjectsList(header){
       <div class="pc-mid">
         <div class="pc-ring" style="${ring}"><div class="pc-ring-in">${pct}%</div></div>
         <div class="pc-stats">
-          <div>${totalTasks?`<b>${done}</b>/${totalTasks} tasks done${extLinked.length?` <span style="font-size:10px;color:var(--t3)" title="${extLinked.length} from external sources">(+${extLinked.length} ext)</span>`:''}`:'<span style="color:var(--t3)">No linked tasks</span>'}</div>
+          <div>${totalTasks?`<b>${done}</b>/${totalTasks} tasks done${extLinked.length?` <span style="font-size:11px;color:var(--t3)" title="${extLinked.length} from external sources">(+${extLinked.length} ext)</span>`:''}`:'<span style="color:var(--t3)">No linked tasks</span>'}</div>
           <div><b>${subs.filter(s=>s.done).length}</b>/${subs.length} subtasks</div>
           ${ms.length?`<div><b>${msDone}</b>/${ms.length} milestones</div>`:'<div style="color:var(--t3)">No milestones</div>'}
         </div>
@@ -15151,8 +15151,8 @@ function renderProjectsList(header){
         <span>${p.owner?'👤 '+esc(p.owner.split(' ')[0]):''}</span>
         <span class="${dueOverdue?'pc-od':''}">${p.due&&p.due!=='TBD'?'📅 '+esc(p.due):'No due date'}</span>
         <span class="pc-acts">
-          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))" title="Edit">✏</button>
-          <button class="btn btn-s" style="font-size:10px;padding:2px 7px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))" title="Edit">✏</button>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
         </span>
       </div>
     </div>`;
@@ -15218,13 +15218,13 @@ function openProjectDetail(pid){
   const pct=p.pctManual?Math.max(0,Math.min(100,p.pct||0)):(autoPct!==null?autoPct:Math.max(0,Math.min(100,p.pct||0)));
   const goalIds=[...new Set(pts.map(t=>t.linkedGoalId).filter(Boolean))];
   const goals=(D.goals||[]).filter(g=>goalIds.includes(g.id)||g.projectId===pid);
-  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
+  const statChip=(n,l,c)=>`<div style="flex:1;min-width:64px;background:var(--s2);border:1px solid var(--bd1);border-radius:9px;padding:9px;text-align:center"><div style="font-size:18px;font-weight:750;color:${c||'var(--t1)'};line-height:1">${n}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;margin-top:3px">${l}</div></div>`;
   const msRows=ms.length?ms.map((m,i)=>{
     const od=!m.done&&(m.date||m.due)&&(m.date||m.due)<_todayStr;
     return `<div class="lr" style="padding:7px 0;border-bottom:1px solid var(--bd1);align-items:center">
       <div class="chk ${m.done?'on':''}" style="flex-shrink:0" onclick="event.stopPropagation();(D.projects.find(x=>x.id===${pid}).milestones||[])[${i}].done=!(D.projects.find(x=>x.id===${pid}).milestones||[])[${i}].done;save('projects');openProjectDetail(${pid})"></div>
       <span class="rt" style="font-size:12px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title||m.name||'Milestone')}</span>
-      ${(m.date||m.due)?`<span style="font-size:10px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${esc(m.date||m.due)}</span>`:''}
+      ${(m.date||m.due)?`<span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${esc(m.date||m.due)}</span>`:''}
     </div>`;}).join(''):'<p style="font-size:11px;color:var(--t3);padding:4px 0">No milestones yet — add them in ✏ Edit Project.</p>';
   const taskRows=pts.slice().sort((a,b)=>(a.status==='Done')-(b.status==='Done')||(a.due||'9999').localeCompare(b.due||'9999')).map(t=>{
     const sb=t.subtasks||[];const sd=sb.filter(s=>s.done).length;
@@ -15233,10 +15233,10 @@ function openProjectDetail(pid){
       <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="cursor:pointer">
         <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
         <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
-        <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
-        <span style="font-size:10px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${t.due||''}</span>
+        <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
+        <span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${t.due||''}</span>
       </div>
-      ${sb.length?`<div style="padding-left:24px;font-size:10px;color:var(--t3)">${sd}/${sb.length} subtasks</div>`:''}
+      ${sb.length?`<div style="padding-left:24px;font-size:11px;color:var(--t3)">${sd}/${sb.length} subtasks</div>`:''}
     </div>`}).join('');
   d.innerHTML=`<h2 style="display:flex;align-items:center;gap:8px"><span style="width:11px;height:11px;border-radius:3px;background:${p.color}"></span>${p.icon?`<span style="font-size:18px;flex-shrink:0">${esc(p.icon)}</span>`:''}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span><button class="close" onclick="closeDrawer()">✕</button></h2>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
@@ -15247,7 +15247,7 @@ function openProjectDetail(pid){
       const label=src==='nifty'?'LSI · NiftyPM':'CF · Smartsheet';
       const color=src==='nifty'?'#9333ea':'#1f6feb';
       const sheetName=(p.autoSyncSource&&p.autoSyncSource.sheetName)?` · ${esc(p.autoSyncSource.sheetName)}`:'';
-      return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color};font-weight:600;font-size:10px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
+      return `<span class="pill" style="background:color-mix(in srgb,${color} 16%,transparent);color:${color};font-weight:600;font-size:11px" title="Auto-synced from ${esc(label)}${sheetName}">📊 Auto-synced${sheetName}</span>`;
     })():''}
     ${p.owner?`<span style="font-size:11px;color:var(--t3);align-self:center">👤 ${esc(p.owner)}</span>`:''}
     <span style="font-size:11px;color:${p.due&&p.due!=='TBD'&&p.due<_todayStr?'var(--red)':'var(--t3)'};align-self:center">📅 ${esc(p.due||'No due date')}</span>
@@ -15269,7 +15269,7 @@ function openProjectDetail(pid){
   <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px">Milestones (${msDone}/${ms.length})</div>
   ${ms.length?`<div class="pb" style="margin-bottom:8px"><div class="f" style="width:${ms.length?Math.round(msDone/ms.length*100):0}%;background:${p.color}"></div></div>`:''}
   ${msRows}
-  ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
+  ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
   <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Tasks (${pts.length}) · ${subs.filter(s=>s.done).length}/${subs.length} subtasks</div>
   ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
   ${_renderLinkedExternalTasksSection(pid)}
@@ -15366,9 +15366,9 @@ Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in b
     const hc=healthColors[coach.health]||'var(--t3)';
     const sec=(emoji,title,items)=>{
       if(!items||!items.length)return '';
-      return `<div style="margin-top:12px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,4).map(it=>{
+      return `<div style="margin-top:12px"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${emoji} ${title}</div><ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px">${items.slice(0,4).map(it=>{
         if(typeof it==='string')return `<li style="font-size:12px;color:var(--t1);padding:5px 9px;background:var(--s3);border-radius:5px">${esc(it)}</li>`;
-        return `<li style="font-size:12px;color:var(--t1);padding:6px 9px;background:var(--s3);border-radius:5px"><div style="font-weight:600">${esc(it.title||'')}</div>${it.why?`<div style="font-size:10px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}</li>`;
+        return `<li style="font-size:12px;color:var(--t1);padding:6px 9px;background:var(--s3);border-radius:5px"><div style="font-weight:600">${esc(it.title||'')}</div>${it.why?`<div style="font-size:11px;color:var(--t2);margin-top:2px">${esc(it.why)}</div>`:''}</li>`;
       }).join('')}</ul></div>`;
     };
     const freshness=_relTime(p.aiCoach&&p.aiCoach.dateISO);
@@ -15376,14 +15376,14 @@ Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in b
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
         <div>
           <h2 style="font-size:15px;font-weight:650;margin:0">🩺 AI Coach · ${esc(p.name||'')}</h2>
-          ${freshness?`<div style="font-size:10px;color:var(--t3);margin-top:2px">Generated ${esc(freshness)}</div>`:''}
+          ${freshness?`<div style="font-size:11px;color:var(--t3);margin-top:2px">Generated ${esc(freshness)}</div>`:''}
         </div>
-        <span style="font-size:10px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${hc};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
+        <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:11px;background:color-mix(in srgb,${hc} 18%,transparent);color:${hc};text-transform:uppercase;letter-spacing:.05em">${esc(coach.health||'unknown')}</span>
       </div>
       <div style="font-size:13px;color:var(--t1);font-style:italic;padding:10px 12px;background:color-mix(in srgb,${hc} 10%,transparent);border-left:3px solid ${hc};border-radius:4px;margin-bottom:10px">"${esc(coach.headline||'')}"</div>
       <div style="font-size:12px;color:var(--t2);line-height:1.6">${esc(coach.summary||'')}</div>
       ${sec('🚧','Blockers',coach.blockers||[])}
-      ${coach.nextMilestone?`<div style="margin-top:12px"><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🎯 Suggested next milestone</div><div style="font-size:12px;color:var(--t1);padding:7px 10px;background:color-mix(in srgb,var(--ac) 12%,transparent);border-radius:5px;font-weight:500">${esc(coach.nextMilestone)}</div></div>`:''}
+      ${coach.nextMilestone?`<div style="margin-top:12px"><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">🎯 Suggested next milestone</div><div style="font-size:12px;color:var(--t1);padding:7px 10px;background:color-mix(in srgb,var(--ac) 12%,transparent);border-radius:5px;font-weight:500">${esc(coach.nextMilestone)}</div></div>`:''}
       ${sec('⚡','Recommended focus this week',coach.recommendedFocus||[])}
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:14px;padding-top:10px;border-top:1px solid var(--bd1)">
         <button class="btn btn-s" onclick="_copyCoachToClipboard(${pid})" title="Copy as markdown">📋 Copy</button>
@@ -15478,7 +15478,7 @@ Tone: factual, exec-ready, no fluff. Reference real task titles. No more than 25
     modal.innerHTML=`<div style="padding:14px;max-width:680px;max-height:80vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="font-size:13px;font-weight:600">✨ Status Update — ${esc(p.name)}</div>
-        <button class="btn btn-s" style="font-size:10px" onclick="navigator.clipboard.writeText(document.getElementById('ai-status-text').innerText);toast({type:'success',title:'Copied to clipboard'})">📋 Copy</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="navigator.clipboard.writeText(document.getElementById('ai-status-text').innerText);toast({type:'success',title:'Copied to clipboard'})">📋 Copy</button>
       </div>
       <div id="ai-status-text" style="flex:1;overflow-y:auto;padding:12px;background:var(--s2);border-radius:6px;font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(text)}</div>
       <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:10px">
@@ -15508,7 +15508,7 @@ async function _hydrateProjectCustomFieldsList(pid){
       const optLabel=Array.isArray(opts)&&opts.length?` · options: ${opts.join(' / ')}`:'';
       return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
         <span style="font-size:11px;font-weight:500;flex:1">${esc(f.name)}</span>
-        <span style="font-size:10px;color:var(--t3)">${esc(f.type)}${esc(optLabel)}</span>
+        <span style="font-size:11px;color:var(--t3)">${esc(f.type)}${esc(optLabel)}</span>
         <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="_editCustomField(${f.id},${pid})" title="Edit">✎</button>
         <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px;color:var(--red)" onclick="_deleteCustomField(${f.id},${pid})" title="Delete">✕</button>
       </div>`;
@@ -15592,7 +15592,7 @@ async function _hydrateTaskCustomFields(t){
     const section=document.createElement('div');
     section.className='field';
     section.style.cssText='margin-top:14px;padding-top:10px;border-top:1px dashed var(--bd1)';
-    section.innerHTML=`<label style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block">Custom Fields <span style="font-size:10px;color:var(--t3);font-weight:400">(from project)</span></label>
+    section.innerHTML=`<label style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:block">Custom Fields <span style="font-size:11px;color:var(--t3);font-weight:400">(from project)</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${defs.map(f=>{
         const v=values[String(f.id)]||'';
         const opts=f.options?(()=>{try{return JSON.parse(f.options);}catch{return [];}})():[];
@@ -15609,7 +15609,7 @@ async function _hydrateTaskCustomFields(t){
         }else{
           input=`<input class="inp" value="${esc(v)}" data-cf-id="${f.id}" data-cf-task="${esc(taskId)}" style="font-size:11px;height:28px" onblur="_setCustomFieldValue(this)">`;
         }
-        return `<div><div style="font-size:10px;color:var(--t2);margin-bottom:3px">${esc(f.name)}</div>${input}</div>`;
+        return `<div><div style="font-size:11px;color:var(--t2);margin-bottom:3px">${esc(f.name)}</div>${input}</div>`;
       }).join('')}</div>`;
     acts.parentNode.insertBefore(section,acts);
   }catch{ /* silent — custom fields are optional */ }
@@ -15639,7 +15639,7 @@ function _renderProjectEditTasksSection(pid){
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px">
       <span style="flex:1;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
       ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
-      ${t.due?`<span style="font-size:10px;color:var(--t3)">${esc(t.due)}</span>`:''}
+      ${t.due?`<span style="font-size:11px;color:var(--t3)">${esc(t.due)}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unassign from project" onclick="_unassignNativeFromProject(${t.id},${pid})">✕</button>
     </div>`;
   }).join('');
@@ -15648,7 +15648,7 @@ function _renderProjectEditTasksSection(pid){
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px;background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
       ${_extSourceBadge(t.source)}
       <a ${_extOpenAttrs(url)} style="flex:1;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
-      ${t.status?`<span style="font-size:10px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unlink from project" onclick="_unlinkExternalFromProjectFromEdit('${t.source}','${esc(t.externalId)}',${pid})">✕</button>
     </div>`;
   }).join('');
@@ -15656,12 +15656,12 @@ function _renderProjectEditTasksSection(pid){
   return `<div class="field" style="margin-top:14px">
     <label style="display:flex;align-items:center;justify-content:space-between">
       <span>Tasks (${total})</span>
-      <button type="button" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px" onclick="_openExternalTaskPicker(${pid})" title="Link external tasks from Smartsheet / NiftyPM">🔗 Link external</button>
+      <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openExternalTaskPicker(${pid})" title="Link external tasks from Smartsheet / NiftyPM">🔗 Link external</button>
     </label>
     <div style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px">
       <div style="display:flex;gap:6px;margin-bottom:8px">
         <input id="proj-edit-newtask" class="inp" placeholder="+ Add a new task to this project (press Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addNativeTaskToProjectFromEdit(${pid})}">
-        <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_addNativeTaskToProjectFromEdit(${pid})">+ Add</button>
+        <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_addNativeTaskToProjectFromEdit(${pid})">+ Add</button>
       </div>
       <div style="max-height:220px;overflow-y:auto">
         ${nativeRows}${extRows}
@@ -15740,8 +15740,8 @@ function _renderLinkedExternalTasksSection(pid){
     return `<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);background:rgba(${t.source==='smartsheet'?'31,111,235':'147,51,234'},0.04)">
       ${_extSourceBadge(t.source)}
       <a ${_extOpenAttrs(url)} title="Open in source" style="flex:1;font-size:12px;color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
-      ${t.status?`<span style="font-size:10px;color:var(--t3)">${esc(t.status)}</span>`:''}
-      ${due?`<span style="font-size:10px;color:var(--t3);flex-shrink:0">${due}</span>`:''}
+      ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${due?`<span style="font-size:11px;color:var(--t3);flex-shrink:0">${due}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" onclick="_unlinkExternalFromProject('${t.source}','${esc(t.externalId)}',${pid})" title="Unlink from this project">✕</button>
     </div>`;
   }).join('');
@@ -15794,16 +15794,16 @@ function _renderExtPickerHTML(){
       <input type="checkbox" data-ext-pick-key="${esc(key)}" data-source="${t.source}" data-external-id="${esc(t.externalId)}" ${linked?'checked':''}>
       ${_extSourceBadge(t.source)}
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
-      ${t.status?`<span style="font-size:10px;color:var(--t3)">${esc(t.status)}</span>`:''}
-      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:10px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
+      ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:11px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
     </label>`;
   }).join('');
-  const tooMany=filtered.length>300?`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">… showing first 300 of ${filtered.length}. Use search to narrow.</div>`:'';
+  const tooMany=filtered.length>300?`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">… showing first 300 of ${filtered.length}. Use search to narrow.</div>`:'';
   return `<div style="padding:14px;max-width:680px;max-height:80vh;display:flex;flex-direction:column">
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">Link external tasks to <em>${esc(p?p.name:'project')}</em></div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Check tasks to include them on this project's page. Unchecking removes the link (the task itself stays in its source).</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Check tasks to include them on this project's page. Unchecking removes the link (the task itself stays in its source).</div>
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:10px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${s}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
+      ${['all','smartsheet','nifty'].map(s=>`<button class="btn btn-s" style="font-size:11px;background:${_extPickerSourceFilter===s?'var(--ac)':'transparent'};color:${_extPickerSourceFilter===s?'#fff':'var(--t2)'}" onclick="_extPickerSourceFilter='${s}';document.getElementById('modal-content').innerHTML=_renderExtPickerHTML()">${s==='all'?'All':(s==='smartsheet'?'CF only':'LSI only')}</button>`).join('')}
       <input id="ext-pick-search" class="inp" placeholder="Search title…" style="flex:1;font-size:11px;height:26px" value="${esc(_extPickerSearch)}" oninput="_extPickerSearch=this.value;document.getElementById('ext-pick-results').innerHTML=_renderExtPickerRows();setTimeout(()=>document.getElementById('ext-pick-search').focus(),0)">
     </div>
     <div id="ext-pick-results" style="flex:1;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;margin-bottom:10px">${rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>'}${tooMany}</div>
@@ -15833,8 +15833,8 @@ function _renderExtPickerRows(){
       <input type="checkbox" data-ext-pick-key="${esc(key)}" data-source="${t.source}" data-external-id="${esc(t.externalId)}" ${linked?'checked':''}>
       ${_extSourceBadge(t.source)}
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
-      ${t.status?`<span style="font-size:10px;color:var(--t3)">${esc(t.status)}</span>`:''}
-      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:10px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
+      ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
+      ${otherProj?`<span title="Already linked to: ${esc(otherProjName)}" style="font-size:11px;color:var(--warn)">↪ ${esc(otherProjName.slice(0,16))}</span>`:''}
     </label>`;
   }).join('');
   return rows||'<div style="padding:14px;text-align:center;color:var(--t3);font-size:11px">No matching external tasks.</div>';
@@ -15884,13 +15884,13 @@ function renderProjectsKanban(header){
   const colHtml=cols.map(col=>{
     const ps=filtered.filter(p=>(colMap[p.status]||p.status)===col);
     return`<div style="flex:1;min-width:180px;max-width:260px">
-      <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:10px;color:var(--t3)">(${ps.length})</span></div>
+      <div style="font-size:11px;font-weight:600;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">${col} <span style="font-size:11px;color:var(--t3)">(${ps.length})</span></div>
       ${ps.map(p=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${p.color};${p.archived?'opacity:.55':''}" onclick="openProjectDetail(${p.id})">
         <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="cursor:pointer;font-size:13px;${p.pinned?'color:var(--warn)':'color:var(--t3)'}" onclick="_projToggleStar(${p.id},event)">${p.pinned?'★':'☆'}</span><span style="font-size:12px;font-weight:500;flex:1">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span></div>
-        <div style="font-size:10px;color:var(--t3)">Due ${p.due||'—'} · ${p.pct||0}%</div>
+        <div style="font-size:11px;color:var(--t3)">Due ${p.due||'—'} · ${p.pct||0}%</div>
         <div class="pb" style="margin-top:4px"><div class="f" style="width:${p.pct||0}%;background:${p.color}"></div></div>
       </div>`).join('')}
-      <div class="add-c" onclick="openModal('capture')" style="font-size:10px">+ Add project</div>
+      <div class="add-c" onclick="openModal('capture')" style="font-size:11px">+ Add project</div>
     </div>`}).join('');
   $('proj-main').innerHTML=header+`<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
@@ -15912,7 +15912,7 @@ function renderProjectsGantt(header){
   if(zoom==='week'){for(let w=0;w<Math.ceil(totalDays/7);w++){const d=new Date(minDate);d.setDate(minDate.getDate()+w*7);markers.push({label:`W${w+1}`,p:pct(d)});}}
   else if(zoom==='month'){const cur=new Date(minDate.getFullYear(),minDate.getMonth(),1);while(cur<=maxDate){markers.push({label:cur.toLocaleDateString(undefined,{month:'short',year:'2-digit'}),p:pct(cur)});cur.setMonth(cur.getMonth()+1);}}
   else{const cur=new Date(minDate.getFullYear(),Math.floor(minDate.getMonth()/3)*3,1);while(cur<=maxDate){const q=Math.floor(cur.getMonth()/3)+1;markers.push({label:`Q${q} '${String(cur.getFullYear()).slice(-2)}`,p:pct(cur)});cur.setMonth(cur.getMonth()+3);}}
-  const markerHtml=markers.map(m=>`<div style="position:absolute;left:${m.p}%;top:0;bottom:0;width:1px;background:var(--bd1)"></div><div style="position:absolute;left:${m.p}%;top:-18px;transform:translateX(-50%);font-size:10px;color:var(--t3);white-space:nowrap">${esc(m.label)}</div>`).join('');
+  const markerHtml=markers.map(m=>`<div style="position:absolute;left:${m.p}%;top:0;bottom:0;width:1px;background:var(--bd1)"></div><div style="position:absolute;left:${m.p}%;top:-18px;transform:translateX(-50%);font-size:11px;color:var(--t3);white-space:nowrap">${esc(m.label)}</div>`).join('');
   const rows=filtered.map(p=>{
     const due=parseDate(p.due);
     const start=parseDate(p.startDate)||new Date(today.getTime()-14*86400000);
@@ -15939,13 +15939,13 @@ function renderProjectsGantt(header){
       <div style="flex:1;position:relative;height:22px;background:var(--s3);border-radius:6px;overflow:hidden">
         ${markerHtml}
         <div style="position:absolute;left:${startPct}%;width:${barW}%;height:100%;background:color-mix(in srgb,${p.color} 22%,transparent);border-radius:6px;z-index:1"></div>
-        <div style="position:absolute;left:${startPct}%;width:${filledW}%;height:100%;background:linear-gradient(90deg,${p.color},color-mix(in srgb,${p.color} 70%,#fff));border-radius:6px;display:flex;align-items:center;padding:0 6px;z-index:2;box-shadow:0 1px 6px color-mix(in srgb,${p.color} 45%,transparent)"><span style="font-size:10px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.4)">${p.pct||0}%</span></div>
+        <div style="position:absolute;left:${startPct}%;width:${filledW}%;height:100%;background:linear-gradient(90deg,${p.color},color-mix(in srgb,${p.color} 70%,#fff));border-radius:6px;display:flex;align-items:center;padding:0 6px;z-index:2;box-shadow:0 1px 6px color-mix(in srgb,${p.color} 45%,transparent)"><span style="font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-shadow:0 1px 2px rgba(0,0,0,.4)">${p.pct||0}%</span></div>
         ${msMarks}
         <div style="position:absolute;left:${pct(today)}%;top:0;bottom:0;width:2px;background:var(--warn);box-shadow:0 0 6px var(--warn);z-index:4"></div>
       </div>
-      <div style="width:70px;flex-shrink:0;font-size:10px;color:${due&&p.due<_todayStr?'var(--red)':'var(--t3)'};text-align:right">${p.due||'—'}</div>
+      <div style="width:70px;flex-shrink:0;font-size:11px;color:${due&&p.due<_todayStr?'var(--red)':'var(--t3)'};text-align:right">${p.due||'—'}</div>
     </div>`}).join('');
-  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${z}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
+  $('proj-main').innerHTML=header+`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:11px;color:var(--t3)">Zoom:</span>${['week','month','quarter'].map(z=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${zoom===z?'var(--ac)':'transparent'};color:${zoom===z?'#fff':'var(--t2)'}" onclick="setProjFilter('ganttZoom','${z}')">${z[0].toUpperCase()+z.slice(1)}</button>`).join('')}<span style="margin-left:auto;font-size:11px;color:var(--t3)">Yellow line = today · circles = milestones (filled = done)</span></div><div style="padding-top:22px">${rows||'<p style="font-size:11px;color:var(--t3);padding:16px">No projects match your filters.</p>'}</div>`;
 }
 
 // ====== GOALS AI ======
@@ -15979,7 +15979,7 @@ function aiGoalProgress(){
       </div>
       <div style="background:var(--s3);border-radius:3px;height:4px;margin-bottom:6px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
       <div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(narrative)}</div>
-      ${daysLeft!==null?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${daysLeft>0?daysLeft+' days remaining':daysLeft===0?'Due today!':'Overdue by '+Math.abs(daysLeft)+' days'}</div>`:''}
+      ${daysLeft!==null?`<div style="font-size:11px;color:var(--t3);margin-top:3px">${daysLeft>0?daysLeft+' days remaining':daysLeft===0?'Due today!':'Overdue by '+Math.abs(daysLeft)+' days'}</div>`:''}
     </div>`;
   }).join('')}</div>
   <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
@@ -16011,26 +16011,26 @@ function aiWeeklyReview(){
   const activeGoals=D.goals.filter(g=>g.pct<100);
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📅 Weekly Review</h2>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">${weekDates[0]} – ${weekDates[6]}</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">${weekDates[0]} – ${weekDates[6]}</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
     <div style="padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:18px;font-weight:700;color:var(--grn)">${tasksDone.length}</div>
-      <div style="font-size:10px;color:var(--t3)">Tasks Completed</div>
+      <div style="font-size:11px;color:var(--t3)">Tasks Completed</div>
     </div>
     <div style="padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:18px;font-weight:700;color:var(--ac)">${habitScore}%</div>
-      <div style="font-size:10px;color:var(--t3)">Habit Score</div>
+      <div style="font-size:11px;color:var(--t3)">Habit Score</div>
     </div>
     <div style="padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:18px;font-weight:700;color:var(--purp)">${journalEntries.length}</div>
-      <div style="font-size:10px;color:var(--t3)">Journal Entries</div>
+      <div style="font-size:11px;color:var(--t3)">Journal Entries</div>
     </div>
     <div style="padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:18px;font-weight:700;color:${avgMood?avgMood>=4?'var(--grn)':avgMood>=3?'var(--ac)':'var(--warn)':'var(--t3)'}">${avgMood?avgMood.toFixed(1)+'/5':'N/A'}</div>
-      <div style="font-size:10px;color:var(--t3)">Avg Mood</div>
+      <div style="font-size:11px;color:var(--t3)">Avg Mood</div>
     </div>
   </div>
-  ${tasksDone.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Wins this week</div>${tasksDone.slice(0,5).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}${tasksDone.length>5?`<div style="font-size:10px;color:var(--t3)">+${tasksDone.length-5} more</div>`:''}</div>`:''}
+  ${tasksDone.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Wins this week</div>${tasksDone.slice(0,5).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}${tasksDone.length>5?`<div style="font-size:11px;color:var(--t3)">+${tasksDone.length-5} more</div>`:''}</div>`:''}
   ${overdueTasks.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ Overdue tasks (${overdueTasks.length})</div>${overdueTasks.slice(0,3).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)} (due ${fmtDate(t.due)})</div>`).join('')}</div>`:''}
   ${activeGoals.length?`<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Active Goals</div>${activeGoals.slice(0,4).map(g=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0"><span>${esc(g.title)}</span><span style="color:var(--ac);font-weight:600">${g.pct||0}%</span></div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;margin-top:10px">
@@ -16060,22 +16060,22 @@ function aiOKRAlignment(){
   <div style="display:flex;gap:8px;margin-bottom:12px">
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:${alignmentPct>=70?'var(--grn)':alignmentPct>=40?'var(--warn)':'var(--red)'}">${alignmentPct}%</div>
-      <div style="font-size:10px;color:var(--t3)">Tasks Aligned to Goals</div>
+      <div style="font-size:11px;color:var(--t3)">Tasks Aligned to Goals</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--ac)">${objectives.length}</div>
-      <div style="font-size:10px;color:var(--t3)">Objectives</div>
+      <div style="font-size:11px;color:var(--t3)">Objectives</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--purp)">${keyResults.length}</div>
-      <div style="font-size:10px;color:var(--t3)">Key Results</div>
+      <div style="font-size:11px;color:var(--t3)">Key Results</div>
     </div>
   </div>
   ${untaggedTasks.length?`<div style="margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px;border-left:3px solid var(--warn)">
     <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--warn)">⚠️ ${untaggedTasks.length} task${untaggedTasks.length!==1?'s':''} not linked to any goal</div>
     ${untaggedTasks.slice(0,4).map(t=>`<div style="font-size:11px;color:var(--t2);padding:2px 0">• ${esc(t.title)}</div>`).join('')}
-    ${untaggedTasks.length>4?`<div style="font-size:10px;color:var(--t3)">+${untaggedTasks.length-4} more</div>`:''}
-    <div style="font-size:10px;color:var(--t3);margin-top:4px">Add a goal: tag to link these tasks to objectives</div>
+    ${untaggedTasks.length>4?`<div style="font-size:11px;color:var(--t3)">+${untaggedTasks.length-4} more</div>`:''}
+    <div style="font-size:11px;color:var(--t3);margin-top:4px">Add a goal: tag to link these tasks to objectives</div>
   </div>`:''}
   ${objectivesWithoutKRs.length?`<div style="margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px;border-left:3px solid var(--red)">
     <div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--red)">🚨 ${objectivesWithoutKRs.length} objective${objectivesWithoutKRs.length!==1?'s':''} with no Key Results</div>
@@ -16168,9 +16168,9 @@ function renderGoals(){
       el.innerHTML=allMembers.map(member=>{
         const mGoals=D.goals.filter(g=>(g.createdBy||'Idris Grant')===member);
         const avgPct=mGoals.length?Math.round(mGoals.reduce((s,g)=>s+g.pct,0)/mGoals.length):0;
-        return`<div class="cd"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${member.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div style="font-size:13px;font-weight:600">${esc(member)}</div><div style="font-size:10px;color:var(--t3)">${mGoals.length} goal${mGoals.length!==1?'s':''} · avg ${avgPct}%</div></div></div>${mGoals.map(g=>{
+        return`<div class="cd"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:32px;height:32px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">${member.split(' ').map(w=>w[0]).join('').slice(0,2)}</div><div><div style="font-size:13px;font-weight:600">${esc(member)}</div><div style="font-size:11px;color:var(--t3)">${mGoals.length} goal${mGoals.length!==1?'s':''} · avg ${avgPct}%</div></div></div>${mGoals.map(g=>{
           const ms=g.milestones||[];const msDone=ms.filter(m=>m.done).length;
-          return`<div style="padding:6px;border-radius:6px;background:var(--s2);margin-bottom:5px;cursor:pointer" onclick="openGoalDetail(${g.id})"><div style="display:flex;align-items:center;gap:6px"><span>${g.icon}</span><span style="font-size:12px;font-weight:500;flex:1">${esc(g.title)}</span><span style="font-size:11px;font-weight:700;color:var(--ac)">${g.pct}%</span></div><div class="pb" style="margin-top:4px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>${ms.length?`<div style="font-size:10px;color:var(--t3);margin-top:2px">🏁 ${msDone}/${ms.length} milestones</div>`:''}</div>`}).join('')}</div>`;
+          return`<div style="padding:6px;border-radius:6px;background:var(--s2);margin-bottom:5px;cursor:pointer" onclick="openGoalDetail(${g.id})"><div style="display:flex;align-items:center;gap:6px"><span>${g.icon}</span><span style="font-size:12px;font-weight:500;flex:1">${esc(g.title)}</span><span style="font-size:11px;font-weight:700;color:var(--ac)">${g.pct}%</span></div><div class="pb" style="margin-top:4px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div>${ms.length?`<div style="font-size:11px;color:var(--t3);margin-top:2px">🏁 ${msDone}/${ms.length} milestones</div>`:''}</div>`}).join('')}</div>`;
       }).join('');
       return;
     }
@@ -16188,7 +16188,7 @@ function renderGoals(){
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:var(--s2);border-radius:8px;border-left:4px solid var(--ac)">
             <div style="flex:1">
               <div style="font-size:14px;font-weight:700">${esc(cat)}</div>
-              <div style="font-size:10px;color:var(--t3)">${catGoals.length} Objective${catGoals.length!==1?'s':''} · avg ${catAvg}%</div>
+              <div style="font-size:11px;color:var(--t3)">${catGoals.length} Objective${catGoals.length!==1?'s':''} · avg ${catAvg}%</div>
             </div>
             <div style="font-size:16px;font-weight:700;color:var(--ac)">${catAvg}%</div>
           </div>
@@ -16201,23 +16201,23 @@ function renderGoals(){
                 <span style="font-size:18px">${g.icon}</span>
                 <div style="flex:1">
                   <div style="font-size:12px;font-weight:600">${esc(g.title)}</div>
-                  <div style="font-size:10px;color:var(--t3)">${esc(g.target)} · ${g.pct}% complete</div>
+                  <div style="font-size:11px;color:var(--t3)">${esc(g.target)} · ${g.pct}% complete</div>
                 </div>
                 <div style="display:flex;gap:4px">
-                  <button class="btn btn-s" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓</button>
-                  <button class="btn btn-s" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏</button>
+                  <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓</button>
+                  <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏</button>
                 </div>
               </div>
               <div class="pb" style="height:4px;border-radius:0;margin:0"><div class="f" style="width:${g.pct}%;background:var(--ac);height:4px;border-radius:0"></div></div>
               ${krs.length?`<div style="padding:8px 12px;background:var(--s0)">
-                <div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Key Results (${krsDone}/${krs.length})</div>
+                <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Key Results (${krsDone}/${krs.length})</div>
                 ${krs.map((kr,ki)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
                   <input type="checkbox" ${kr.done?'checked':''} onchange="const g3=D.goals.find(x=>x.id===${g.id});if(g3){g3.milestones[${ki}].done=this.checked;autoCalcGoalPct(g3);save('goals');renderGoalCards();}" style="width:14px;height:14px;accent-color:var(--ac)">
                   <span style="font-size:11px;flex:1;${kr.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(kr.title)}</span>
-                  ${kr.target?`<span style="font-size:10px;color:var(--t3)">${esc(kr.target)}</span>`:''}
+                  ${kr.target?`<span style="font-size:11px;color:var(--t3)">${esc(kr.target)}</span>`:''}
                 </div>`).join('')}
               </div>`:''}
-              ${linkedTasks.length?`<div style="padding:6px 12px;background:var(--s0);border-top:1px solid var(--bd1)"><span style="font-size:10px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length!==1?'s':''}</span></div>`:''}
+              ${linkedTasks.length?`<div style="padding:6px 12px;background:var(--s0);border-top:1px solid var(--bd1)"><span style="font-size:11px;color:var(--t3)">📋 ${linkedTasks.length} linked task${linkedTasks.length!==1?'s':''}</span></div>`:''}
             </div>`;
           }).join('')}
         </div>`;
@@ -16247,32 +16247,32 @@ function renderGoals(){
         <span style="font-size:22px">${g.icon}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600">${esc(g.title)}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(g.category||'')}${g.category?' · ':''}${esc(g.target||'')}</div>
+          <div style="font-size:11px;color:var(--t3)">${esc(g.category||'')}${g.category?' · ':''}${esc(g.target||'')}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">
           <span style="font-size:13px;font-weight:700;color:${health.color}">${g.pct}%</span>
-          <span style="font-size:10px;color:${health.color};font-weight:600;white-space:nowrap" title="Health: ${health.label}">${health.icon} ${health.label}</span>
+          <span style="font-size:11px;color:${health.color};font-weight:600;white-space:nowrap" title="Health: ${health.label}">${health.icon} ${health.label}</span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <div class="pb" style="flex:1;margin:0"><div class="f" style="width:${g.pct}%;background:${health.color}"></div></div>
         ${spark}
       </div>
-      ${ms.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">🏁 Milestones: ${msDone}/${ms.length} done${nextMs?` · Next: ${esc(nextMs.title)}`:''}</div>`:''}
-      ${linkedTasks.length?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="event.stopPropagation();_goalToggleTaskExpand(${g.id})">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''} ${expanded?'▴':'▾'}</span></div>${expanded?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:6px">${linkedTasks.slice(0,8).map(t=>`<div class="lr" style="padding:3px 0;font-size:10px;cursor:pointer" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0"></span><span class="rt" style="font-size:10px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span><span style="font-size:10px;color:var(--t3)">${t.due||''}</span></div>`).join('')}${linkedTasks.length>8?`<div style="font-size:10px;color:var(--t3);padding:3px 0">+${linkedTasks.length-8} more</div>`:''}</div>`:''}`:''}
-      ${last?`<div style="font-size:10px;color:${dueCheckIn?'var(--warn)':'var(--t3)'};margin-bottom:4px">${dueCheckIn?'⚠ ':'🗓 '}Last check-in: ${last.daysAgo===0?'today':last.daysAgo+'d ago'}${dueCheckIn?' · check-in due':''}</div>`:`<div style="font-size:10px;color:var(--warn);margin-bottom:4px">⚠ No check-ins yet</div>`}
+      ${ms.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px">🏁 Milestones: ${msDone}/${ms.length} done${nextMs?` · Next: ${esc(nextMs.title)}`:''}</div>`:''}
+      ${linkedTasks.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="event.stopPropagation();_goalToggleTaskExpand(${g.id})">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''} ${expanded?'▴':'▾'}</span></div>${expanded?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:6px">${linkedTasks.slice(0,8).map(t=>`<div class="lr" style="padding:3px 0;font-size:11px;cursor:pointer" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0"></span><span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}${linkedTasks.length>8?`<div style="font-size:11px;color:var(--t3);padding:3px 0">+${linkedTasks.length-8} more</div>`:''}</div>`:''}`:''}
+      ${last?`<div style="font-size:11px;color:${dueCheckIn?'var(--warn)':'var(--t3)'};margin-bottom:4px">${dueCheckIn?'⚠ ':'🗓 '}Last check-in: ${last.daysAgo===0?'today':last.daysAgo+'d ago'}${dueCheckIn?' · check-in due':''}</div>`:`<div style="font-size:11px;color:var(--warn);margin-bottom:4px">⚠ No check-ins yet</div>`}
       <div style="margin-top:6px;display:flex;gap:4px">
-        <button class="btn btn-s" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
-        <button class="btn btn-s" style="font-size:10px;padding:2px 8px;color:${dueCheckIn?'var(--warn)':'var(--ac)'}" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in${dueCheckIn?' (due)':''}</button>
+        <button class="btn btn-s" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
+        <button class="btn btn-s" style="font-size:11px;padding:2px 8px;color:${dueCheckIn?'var(--warn)':'var(--ac)'}" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in${dueCheckIn?' (due)':''}</button>
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('target',22,'var(--page-accent)')}Goals</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const gs=D.goals||[];if(!gs.length)return 'No goals yet — add one to get started.';const avg=Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length);const dn=gs.filter(g=>(g.pct||0)===100).length;return `${gs.length} goal${gs.length!==1?'s':''} · ${avg}% avg progress${dn?` · ${dn} complete`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:10px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:10px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:10px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button>${_goalsView==='grid'?`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();togglePopMenu('goals-filter-menu')" title="Filters & sort">🔍 Filter${(()=>{const n=(_goalsSearch?1:0)+(_goalsCategory!=='All'?1:0)+(_goalsStatusFilter!=='All'?1:0)+(_goalsHealthFilter!=='All'?1:0)+(_goalsSort!=='order'?1:0);return n?` • ${n}`:'';})()} ▾</button><div id="goals-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:280px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><input class="inp" placeholder="🔍 Search goals…" value="${esc(_goalsSearch)}" style="width:100%;height:28px;font-size:11px;margin-bottom:6px;box-sizing:border-box" oninput="setGoalsFilter('search',this.value)"><div style="display:flex;gap:6px;margin-bottom:6px"><select class="inp" style="flex:1;min-width:0;height:28px;font-size:10px;padding:0 6px" onchange="setGoalsFilter('status',this.value)">${['All','Active','At risk','Done'].map(s=>`<option ${_goalsStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select><select class="inp" style="flex:1;min-width:0;height:28px;font-size:10px;padding:0 6px" onchange="setGoalsFilter('health',this.value)">${['All','On Track','Needs Attention','At Risk','Overdue','Done'].map(s=>`<option ${_goalsHealthFilter===s?'selected':''}>${s}</option>`).join('')}</select></div><select class="inp" style="width:100%;height:28px;font-size:10px;padding:0 6px;margin-bottom:6px;box-sizing:border-box" onchange="setGoalsFilter('sort',this.value)"><option value="order" ${_goalsSort==='order'?'selected':''}>Default order</option><option value="pctDesc" ${_goalsSort==='pctDesc'?'selected':''}>% high → low</option><option value="pctAsc" ${_goalsSort==='pctAsc'?'selected':''}>% low → high</option><option value="dueAsc" ${_goalsSort==='dueAsc'?'selected':''}>Due soon</option><option value="az" ${_goalsSort==='az'?'selected':''}>A → Z</option></select>${(_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All'||_goalsSort!=='order')?`<button class="btn btn-s" style="width:100%;height:26px;font-size:10px;color:var(--warn)" onclick="clearGoalsFilters()">✕ Clear all filters</button>`:''}</div></div>`:''}<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('goals-ai-menu')" title="AI tools">✨ AI ▾</button><div id="goals-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiGoalProgress()">${_icon('sparkles',14,'currentColor')} Progress Narrative</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiWeeklyReview()">${_icon('calendar',14,'currentColor')} Weekly Review</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiOKRAlignment()">${_icon('link',14,'currentColor')} OKR Alignment</button></div></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('target',22,'var(--page-accent)')}Goals</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const gs=D.goals||[];if(!gs.length)return 'No goals yet — add one to get started.';const avg=Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length);const dn=gs.filter(g=>(g.pct||0)===100).length;return `${gs.length} goal${gs.length!==1?'s':''} · ${avg}% avg progress${dn?` · ${dn} complete`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:11px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:11px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:11px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:11px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button>${_goalsView==='grid'?`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();togglePopMenu('goals-filter-menu')" title="Filters & sort">🔍 Filter${(()=>{const n=(_goalsSearch?1:0)+(_goalsCategory!=='All'?1:0)+(_goalsStatusFilter!=='All'?1:0)+(_goalsHealthFilter!=='All'?1:0)+(_goalsSort!=='order'?1:0);return n?` • ${n}`:'';})()} ▾</button><div id="goals-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:280px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><input class="inp" placeholder="🔍 Search goals…" value="${esc(_goalsSearch)}" style="width:100%;height:28px;font-size:11px;margin-bottom:6px;box-sizing:border-box" oninput="setGoalsFilter('search',this.value)"><div style="display:flex;gap:6px;margin-bottom:6px"><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('status',this.value)">${['All','Active','At risk','Done'].map(s=>`<option ${_goalsStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('health',this.value)">${['All','On Track','Needs Attention','At Risk','Overdue','Done'].map(s=>`<option ${_goalsHealthFilter===s?'selected':''}>${s}</option>`).join('')}</select></div><select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:6px;box-sizing:border-box" onchange="setGoalsFilter('sort',this.value)"><option value="order" ${_goalsSort==='order'?'selected':''}>Default order</option><option value="pctDesc" ${_goalsSort==='pctDesc'?'selected':''}>% high → low</option><option value="pctAsc" ${_goalsSort==='pctAsc'?'selected':''}>% low → high</option><option value="dueAsc" ${_goalsSort==='dueAsc'?'selected':''}>Due soon</option><option value="az" ${_goalsSort==='az'?'selected':''}>A → Z</option></select>${(_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All'||_goalsSort!=='order')?`<button class="btn btn-s" style="width:100%;height:26px;font-size:11px;color:var(--warn)" onclick="clearGoalsFilters()">✕ Clear all filters</button>`:''}</div></div>`:''}<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('goals-ai-menu')" title="AI tools">✨ AI ▾</button><div id="goals-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiGoalProgress()">${_icon('sparkles',14,'currentColor')} Progress Narrative</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiWeeklyReview()">${_icon('calendar',14,'currentColor')} Weekly Review</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiOKRAlignment()">${_icon('link',14,'currentColor')} OKR Alignment</button></div></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   ${(()=>{
     if(_goalsView!=='grid')return '';
     const cats=['All',...[...new Set(D.goals.map(g=>g.category||'').filter(Boolean))].sort()];
     if(cats.length<=2)return '';
-    return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${cats.map(c=>`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;background:${_goalsCategory===c?'var(--ac)':'var(--s2)'};color:${_goalsCategory===c?'#fff':'var(--t2)'};border-color:var(--bd2)" onclick="setGoalsFilter('category','${esc(c).replace(/'/g,'&#39;')}')">${esc(c)}</button>`).join('')}</div>`;
+    return `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">${cats.map(c=>`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;background:${_goalsCategory===c?'var(--ac)':'var(--s2)'};color:${_goalsCategory===c?'#fff':'var(--t2)'};border-color:var(--bd2)" onclick="setGoalsFilter('category','${esc(c).replace(/'/g,'&#39;')}')">${esc(c)}</button>`).join('')}</div>`;
   })()}
   ${(()=>{
     // G3: stale goals strip
@@ -16294,26 +16294,26 @@ function openGoalCheckIn(gid){
   <div style="font-size:12px;color:var(--t2);margin-bottom:12px">${esc(g.icon)} ${esc(g.title)} &nbsp;·&nbsp; ${today}</div>
   <div style="display:flex;gap:10px;margin-bottom:12px">
     <div style="flex:1">
-      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Progress this week</label>
+      <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Progress this week</label>
       <textarea id="ci-progress" class="inp" style="width:100%;height:70px;font-size:12px;margin-top:4px;resize:vertical" placeholder="What progress did you make toward this goal?"></textarea>
     </div>
     <div style="flex:1">
-      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Blockers / challenges</label>
+      <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Blockers / challenges</label>
       <textarea id="ci-blockers" class="inp" style="width:100%;height:70px;font-size:12px;margin-top:4px;resize:vertical" placeholder="Any obstacles or challenges?"></textarea>
     </div>
   </div>
   <div style="margin-bottom:12px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Next week’s focus</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Next week’s focus</label>
     <textarea id="ci-next" class="inp" style="width:100%;height:60px;font-size:12px;margin-top:4px;resize:vertical" placeholder="What will you focus on next week?"></textarea>
   </div>
   <div style="margin-bottom:12px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Update progress % (current: ${g.pct}%)</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Update progress % (current: ${g.pct}%)</label>
     <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
       <input id="ci-pct" type="range" min="0" max="100" value="${g.pct}" style="flex:1" oninput="document.getElementById('ci-pct-val').textContent=this.value+'%'">
       <span id="ci-pct-val" style="font-size:13px;font-weight:700;color:var(--ac);min-width:36px">${g.pct}%</span>
     </div>
   </div>
-  ${prevCheckins.length?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Previous check-ins</div>${prevCheckins.reverse().map(ci=>`<div style="background:var(--s3);border-radius:5px;padding:6px 8px;margin-bottom:4px;font-size:11px"><div style="font-weight:600;color:var(--t3);margin-bottom:2px">${ci.date}</div><div style="color:var(--t2)">${esc(ci.progress)}</div></div>`).join('')}</div>`:''}
+  ${prevCheckins.length?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Previous check-ins</div>${prevCheckins.reverse().map(ci=>`<div style="background:var(--s3);border-radius:5px;padding:6px 8px;margin-bottom:4px;font-size:11px"><div style="font-weight:600;color:var(--t3);margin-bottom:2px">${ci.date}</div><div style="color:var(--t2)">${esc(ci.progress)}</div></div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;flex-wrap:wrap">
   <button class="btn btn-p" onclick="
     const progress=document.getElementById('ci-progress').value.trim();
@@ -16364,16 +16364,16 @@ function openGoalDetail(gid){
       }).join('')}
     </div>
   </div>
-  <div id="ms-list" style="display:block">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:10px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
+  <div id="ms-list" style="display:block">${ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:11px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${gid},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${gid},${mi})">✕</button></span></div>`).join('')}</div>`;
   const msHtml=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0">
     <div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${gid},${mi})"></div>
     <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span>
-    <span style="font-size:10px;color:var(--t3)">${m.due||''}</span>
+    <span style="font-size:11px;color:var(--t3)">${m.due||''}</span>
   </div>`).join('');
   const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
     <div class="chk ${t.status==='Done'?'on':''}"></div>
     <span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
-    <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
+    <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
   </div>`).join('');
   d.innerHTML=`<h2>${g.icon} ${esc(g.title)} <button class="close" onclick="closeDrawer()">✕</button></h2>
   <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(g.category||'')} · ${esc(g.target)}</div>
@@ -16393,7 +16393,7 @@ function toggleMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:10px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:11px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   toast(g.milestones[idx].done?'🏁 Milestone complete!':'Milestone unmarked');
 }
@@ -16425,7 +16425,7 @@ function editMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m2,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m2.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m2.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m2.title)}</span><span style="font-size:10px;color:var(--t3)">${m2.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m2,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m2.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m2.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m2.title)}</span><span style="font-size:11px;color:var(--t3)">${m2.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   toast('Milestone updated');
 }
@@ -16439,7 +16439,7 @@ function deleteMilestone(goalId,idx){
   const list=document.getElementById('ms-list');
   if(list){
     const ms=g.milestones;
-    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:10px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
+    list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:11px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
   renderGoalCards();
   toast('Milestone deleted');
@@ -16523,7 +16523,7 @@ function renderJournalList(){
     el.innerHTML=renderEmptyState({icon:'bookOpen',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
     return;
   }
-  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:10px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
+  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:11px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
 }
 // J3: month-grid calendar view of journal entries
 function renderJournalCalendar(){
@@ -16640,10 +16640,10 @@ function renderJournal(){
   const rotated=Array.from({length:6},(_,i)=>pool[(doy*6+i)%pool.length]);
   const prompts=useCached?promptsCache.prompts:rotated;
   $('jrnl-rail').innerHTML=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Writing Streak</div><div style="font-size:20px;font-weight:700;color:var(--ac)">${streak} day${streak!==1?'s':''} 🔥</div></div>
-  ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:10px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><span style="font-size:10px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:10px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
+  ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><span style="font-size:11px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:11px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
   <div style="margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-size:12px;font-weight:600">Prompts</div><button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;color:var(--ac)" onclick="refreshJournalPromptsAI()" title="Generate fresh AI prompts based on your recent entries">✨ Refresh</button></div>
-  <p style="font-size:10px;color:var(--t3);margin-bottom:6px">${useCached?'AI-generated for today':'Rotates daily'}</p>
-  ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${esc(p.title).replace(/'/g,'&#39;')}','${esc(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:10px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
+  <p style="font-size:11px;color:var(--t3);margin-bottom:6px">${useCached?'AI-generated for today':'Rotates daily'}</p>
+  ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${esc(p.title).replace(/'/g,'&#39;')}','${esc(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
 }
 
 function _getMailItems(){
@@ -16724,23 +16724,23 @@ function openMailItem(id){
     :`<div style="font-size:11px;color:var(--t3);margin-top:2px">From: ${esc(mail.from||'')} ${mail.fromEmail?'&lt;'+esc(mail.fromEmail)+'&gt;':''}</div>`;
   const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
   det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-  <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:10px;color:var(--t3)">${dateStr}</div></div>
-   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:10px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:10px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})">Forward</button>`:''}</div>
+  <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:11px;color:var(--t3)">${dateStr}</div></div>
+   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})">Forward</button>`:''}</div>
   </div>
   <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?mail.body:esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
   ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
-  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Archived')">Archive</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="toast('Flagged')">Flag</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openFA('task')">Create Task</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--purp)" onclick="aiSummarizeThread('${id}')">✨ Summarize</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--grn)" onclick="aiFollowUpReminder('${id}')">⏰ Follow-up</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Archived')">Archive</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Flagged')">Flag</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openFA('task')">Create Task</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--purp)" onclick="aiSummarizeThread('${id}')">✨ Summarize</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--grn)" onclick="aiFollowUpReminder('${id}')">⏰ Follow-up</button>
   </div>
   <div id="inline-reply-${id}" style="display:none;margin-top:12px;border:1px solid var(--bd1);border-radius:8px;padding:12px;background:var(--s2)">
     <div style="font-size:11px;font-weight:600;margin-bottom:8px">↩ Reply to ${esc(mail.from||mail.fromEmail||'')}</div>
     <div id="inline-reply-rte-${id}" style="min-height:100px;border:1px solid var(--bd1);border-radius:6px;background:var(--s1);padding:8px;font-size:12px;outline:none" contenteditable="true" placeholder="Write your reply..."></div>
     <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end">
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="document.getElementById('inline-reply-${id}').style.display='none'">Cancel</button>
-      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="sendInlineReply('${id}')">Send Reply</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="document.getElementById('inline-reply-${id}').style.display='none'">Cancel</button>
+      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="sendInlineReply('${id}')">Send Reply</button>
     </div>
   </div>`:''}`;
 }
@@ -16751,7 +16751,7 @@ function renderMailInboxList(q=''){
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.receivedDateTime);
-    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:10px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:${m.read?'transparent':'var(--ac)'};flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:${m.read?400:600}">${esc(m.from||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
 function renderMailSentList(q=''){
@@ -16761,7 +16761,7 @@ function renderMailSentList(q=''){
   return items.map(m=>{
     const sel=_selectedMail===m.id;
     const dt=_fmtMailDate(m.date||m.sentDateTime);
-    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:400">To: ${esc(m.to||m.toEmail||'')}</div><div style="font-size:10px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:10px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
+    return `<div class="lr" style="cursor:pointer;background:${sel?'var(--s3)':'transparent'};border-radius:6px;padding:6px 8px" onclick="openMailItem('${m.id}')" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='${sel?'var(--s3)':'transparent'}'"><span style="width:6px;height:6px;border-radius:50%;background:transparent;flex-shrink:0;margin-top:2px"></span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:400">To: ${esc(m.to||m.toEmail||'')}</div><div style="font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</div></div><span style="font-size:11px;color:var(--t3);white-space:nowrap">${dt}</span></div>`;
   }).join('');
 }
 async function syncSentMail(){
@@ -16828,8 +16828,8 @@ function aiSummarizeThread(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Thread Summary</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${esc(mail.subject)} · from ${esc(mail.from)}</div>
-  <div style="margin-bottom:10px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">KEY POINTS</div>${keyPoints.map(p=>`<div style="font-size:12px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;display:flex;gap:6px"><span style="color:var(--ac)">•</span><span>${esc(p)}</span></div>`).join('')}</div>
-  ${actions.length?`<div><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">ACTION ITEMS</div>${actions.map(a=>`<div style="font-size:12px;padding:4px 8px;background:var(--acs);border-left:2px solid var(--ac);border-radius:4px;margin-bottom:3px">${esc(a)}</div>`).join('')}</div>`:''}
+  <div style="margin-bottom:10px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">KEY POINTS</div>${keyPoints.map(p=>`<div style="font-size:12px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;display:flex;gap:6px"><span style="color:var(--ac)">•</span><span>${esc(p)}</span></div>`).join('')}</div>
+  ${actions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">ACTION ITEMS</div>${actions.map(a=>`<div style="font-size:12px;padding:4px 8px;background:var(--acs);border-left:2px solid var(--ac);border-radius:4px;margin-bottom:3px">${esc(a)}</div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;margin-top:12px">
   <button class="btn btn-p" onclick="closeModal()">Got it</button>
   </div>`;
@@ -16865,7 +16865,7 @@ function aiTriageMail(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ AI Inbox Triage</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Classified ${_getMailItems().length} emails:</div>
-  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:10px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:10px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem('${ml.id}')">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:10px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
+  ${Object.entries(groups).map(([cat,mails])=>`<div style="margin-bottom:10px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:11px;font-weight:700;color:${catColors[cat]}">${cat}</span><span style="font-size:11px;color:var(--t3)">(${mails.length})</span></div>${mails.length?mails.map(ml=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:2px;cursor:pointer" onclick="closeModal();openMailItem('${ml.id}')">${esc(ml.from)} · ${esc(ml.subject)}</div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:2px 8px">None</div>'}</div>`).join('')}
   <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
 }
@@ -16874,7 +16874,7 @@ function _renderMailInboxPanel(){
   const unread=_getMailItems().filter(m=>!m.read).length;
   return `<div style="display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--bd1);border-radius:8px;overflow:hidden;min-height:400px">
 <div style="border-right:1px solid var(--bd1);overflow-y:auto">
-<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span>${unread?`<span style="font-size:10px;color:var(--ac)">${unread} unread</span>`:''}<button class="btn btn-s" style="font-size:10px;height:20px;padding:0 6px" onclick="syncOAuthMail('microsoft')">Sync</button></div>
+<div style="padding:8px;border-bottom:1px solid var(--bd1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600">Inbox</span>${unread?`<span style="font-size:11px;color:var(--ac)">${unread} unread</span>`:''}<button class="btn btn-s" style="font-size:10px;height:20px;padding:0 6px" onclick="syncOAuthMail('microsoft')">Sync</button></div>
 <div id="mail-inbox-list" style="padding:4px">${renderMailInboxList()}</div>
 </div>
 <div id="mail-detail" style="padding:16px;overflow-y:auto"><div style="text-align:center;padding:40px 0;color:var(--t3);font-size:12px">📧 Select an email to read</div></div>
@@ -16927,7 +16927,7 @@ async function openComposeModal(opts={}){
   <div class="cmp-hd">
     <span style="font-size:16px">✉</span>
     <h2>New Message</h2>
-    <button class="btn btn-s" style="font-size:10px;padding:3px 8px" onclick="closeModal()">✕ Discard</button>
+    <button class="btn btn-s" style="font-size:11px;padding:3px 8px" onclick="closeModal()">✕ Discard</button>
   </div>
   <div class="cmp-body-wrap">
     <div class="cmp-field"><label>From</label><select id="cmp-from" style="flex:1;font-size:11px;background:var(--s2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;color:var(--t1)">${accountOptions}</select></div>
@@ -16946,9 +16946,9 @@ async function openComposeModal(opts={}){
   <div class="cmp-ft">
     <button class="btn btn-p" onclick="sendComposedMail()">✉ Send</button>
     <button class="btn btn-s" onclick="saveCmpDraft()">Save Draft</button>
-    <button class="btn btn-s" id="cmp-suggest-btn" onclick="suggestFollowUps()" style="font-size:10px">✨ Suggest Follow-ups</button>
+    <button class="btn btn-s" id="cmp-suggest-btn" onclick="suggestFollowUps()" style="font-size:11px">✨ Suggest Follow-ups</button>
     <div style="flex:1"></div>
-    <span style="font-size:10px;color:var(--t3)" id="cmp-status"></span>
+    <span style="font-size:11px;color:var(--t3)" id="cmp-status"></span>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
   document.body.style.overflow='hidden';
@@ -16980,7 +16980,7 @@ async function suggestFollowUps(){
     const suggestions=res?.suggestions||[];
     if(!suggestions.length){toast('No suggestions returned');return;}
     chipsEl.style.display='flex';
-    chipsEl.innerHTML=suggestions.map((s,i)=>`<div class="chip" style="cursor:pointer;background:var(--s3);border:1px solid var(--bd);border-radius:12px;padding:4px 10px;font-size:10px;max-width:100%;white-space:normal;line-height:1.4" onclick="_insertFollowUp(${i})" title="Click to insert">${esc(s)}</div>`).join('');
+    chipsEl.innerHTML=suggestions.map((s,i)=>`<div class="chip" style="cursor:pointer;background:var(--s3);border:1px solid var(--bd);border-radius:12px;padding:4px 10px;font-size:11px;max-width:100%;white-space:normal;line-height:1.4" onclick="_insertFollowUp(${i})" title="Click to insert">${esc(s)}</div>`).join('');
     // Store suggestions for insertion
     window._followUpSuggestions=suggestions;
   }catch(e){
@@ -17066,8 +17066,8 @@ function switchMailTab(el,tab){
     const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
     const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
     const weekDateStrs=days.map((_,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
-    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:10px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calEvents.filter(e=>e.day===d&&e.hour===h),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:10px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
-    body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:10px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:10px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
+    const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calEvents.filter(e=>e.day===d&&e.hour===h),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
+    body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:11px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:11px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
   } else {
     body.innerHTML=`<div style="padding:40px;text-align:center;color:var(--t3)"><div style="font-size:32px;margin-bottom:8px">📁</div><div style="font-size:12px">Files integration coming soon</div></div>`;
   }
@@ -17180,7 +17180,7 @@ function openCalEvent(id){
   const dateDisplay=ev.dateStr||'This week';
   const timeDisplay=(ev.start||ev.time||'')+' – '+(ev.end||'');
   const actions=isSynced
-    ?`<span style="font-size:10px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
+    ?`<span style="font-size:11px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
     :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
       <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>`;
   m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -17188,11 +17188,11 @@ function openCalEvent(id){
     <div style="display:flex;gap:6px;align-items:center">${actions}</div>
   </div>
   <div style="display:flex;flex-direction:column;gap:10px">
-  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:10px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
+  <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🕒</span><div><div style="font-size:12px;font-weight:500">${esc(timeDisplay)}</div><div style="font-size:11px;color:var(--t3)">${esc(dateDisplay)}</div></div></div>
   <div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">📍</span><div style="font-size:12px">${esc(ev.location||'No location')}</div></div>
   <div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">📝</span><div style="font-size:12px;color:var(--t2);line-height:1.5">${esc(ev.desc||ev.description||'No description')}</div></div>
   ${ev.recurrence&&ev.recurrence!=='none'?`<div style="display:flex;gap:8px;align-items:center"><span style="font-size:16px">🔁</span><div style="font-size:12px;color:var(--t2)">${{'daily':'Daily','weekly':'Weekly','biweekly':'Every 2 weeks','monthly':'Monthly','yearly':'Yearly'}[ev.recurrence]||ev.recurrence}</div></div>`:''}
-  ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
+  ${ev.attendees&&ev.attendees.length?`<div style="display:flex;gap:8px;align-items:flex-start"><span style="font-size:16px">👥</span><div><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Attendees</div><div style="display:flex;flex-wrap:wrap;gap:4px">${ev.attendees.map(a=>`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px">${esc(a)}</span>`).join('')}</div></div></div>`:''}
   </div>
   <div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end">
   ${ev.meetingUrl||ev.onlineMeeting?`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="window.open('${esc(ev.meetingUrl||ev.onlineMeeting||'')}','_blank')">Join Meeting</button>`:''}
@@ -17486,7 +17486,7 @@ function renderCalWeek(){
     return{label:`${d} ${dt.getDate()}`,isToday,dt};
   });
   const weekDayStrs=weekDays.map(wd=>wd.dt.toISOString().split('T')[0]);
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button>${_calAIMenu('cal-ai-week',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'}])}<button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button>${_calAIMenu('cal-ai-week',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'}])}<button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
@@ -17518,9 +17518,9 @@ function renderCalDay(){
         ondragstart="calDayDragStart(event,${e.id})"
         title="Drag to reschedule">
         <strong>${esc(e.title)}</strong>
-        ${e.time?`<span style="color:var(--t3);font-size:10px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
-        ${e.location?`<span style="color:var(--t3);font-size:10px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
-        <span style="float:right;font-size:10px;color:var(--t3);opacity:.6" title="Drag to move">↕</span>
+        ${e.time?`<span style="color:var(--t3);font-size:11px;margin-left:6px">${e.time}${e.end?' – '+e.end:''}</span>`:''}
+        ${e.location?`<span style="color:var(--t3);font-size:11px;margin-left:6px">📍 ${esc(e.location)}</span>`:''}
+        <span style="float:right;font-size:11px;color:var(--t3);opacity:.6" title="Drag to move">↕</span>
         <div
           class="cal-resize-handle"
           style="position:absolute;bottom:0;left:0;right:0;height:8px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s"
@@ -17540,14 +17540,14 @@ function renderCalDay(){
       ondragover="event.preventDefault();this.style.background='var(--acs)'"
       ondragleave="this.style.background=''"
       ondrop="calDayDrop(event,${h},${dayOfWeek},'${dayStr}');this.style.background=''">
-      <div style="font-size:10px;color:${isNowHour?'var(--ac)':'var(--t3)'};font-weight:${isNowHour?700:400};padding:6px 8px 0 0;text-align:right;padding-top:4px">${label}</div>
+      <div style="font-size:11px;color:${isNowHour?'var(--ac)':'var(--t3)'};font-weight:${isNowHour?700:400};padding:6px 8px 0 0;text-align:right;padding-top:4px">${label}</div>
       <div style="padding:4px 8px;position:relative">
         ${isNowHour?`<div style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac);border-radius:1px"></div>`:''}
         ${evHtml||`<div style="height:44px;cursor:pointer;border-radius:4px" onclick="openNewCalEventModal(${dayOfWeek},${h})" title="Click to add event"></div>`}
       </div>
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button>${_calAIMenu('cal-ai-day',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'},{label:'✓ Extract Actions',fn:'aiExtractActions()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-day" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button>${_calAIMenu('cal-ai-day',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'},{label:'✓ Extract Actions',fn:'aiExtractActions()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-day" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
@@ -17653,16 +17653,16 @@ function renderCalMonth(){
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
     const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d)];
-    const evDots=evs.slice(0,3).map(e=>`<div style="font-size:10px;background:${e.color}22;border-left:2px solid ${e.color};padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="event.stopPropagation();openCalEvent(${e.id})">${esc(e.title)}</div>`).join('');
+    const evDots=evs.slice(0,3).map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="event.stopPropagation();openCalEvent(${e.id})">${esc(e.title)}</div>`).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
       <div style="font-size:11px;font-weight:${isTodayCell?700:400};color:${isTodayCell?'var(--ac)':isThisMonth?'var(--t1)':'var(--t3)'};margin-bottom:3px">${d.getDate()}</div>
       ${evDots}${moreCount}
     </div>`;
   }).join('');
-  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:10px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button>${_calAIMenu('cal-ai-month',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-month" style="height:28px;font-size:10px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
+  $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${monthLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset--;renderCal()" title="Previous month">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calMonthOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calMonthOffset++;renderCal()" title="Next month">›</button>${_calAIMenu('cal-ai-month',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-month" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">
-  ${dayNames.map(d=>`<div style="text-align:center;font-size:10px;font-weight:600;color:var(--t3);padding:4px 0">${d}</div>`).join('')}
+  ${dayNames.map(d=>`<div style="text-align:center;font-size:11px;font-weight:600;color:var(--t3);padding:4px 0">${d}</div>`).join('')}
   ${cellsHtml}
 </div>`;
 }
@@ -17718,11 +17718,11 @@ function aiCalNLP(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">💬 Natural Language Event</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:12px">Parsed from: <em>${esc(input)}</em></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Title</div><input id="nlp-title" class="inp" value="${esc(title)}" style="font-size:12px"></div>
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Date</div><input id="nlp-date" class="inp" type="date" value="${dateStr}" style="font-size:12px"></div>
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Start</div><input id="nlp-start" class="inp" value="${startStr}" style="font-size:12px"></div>
-    <div><div style="font-size:10px;color:var(--t3);margin-bottom:3px">End</div><input id="nlp-end" class="inp" value="${endStr}" style="font-size:12px"></div>
-    <div style="grid-column:1/-1"><div style="font-size:10px;color:var(--t3);margin-bottom:3px">Location</div><input id="nlp-loc" class="inp" value="${esc(location)}" style="font-size:12px" placeholder="Optional"></div>
+    <div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Title</div><input id="nlp-title" class="inp" value="${esc(title)}" style="font-size:12px"></div>
+    <div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Date</div><input id="nlp-date" class="inp" type="date" value="${dateStr}" style="font-size:12px"></div>
+    <div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Start</div><input id="nlp-start" class="inp" value="${startStr}" style="font-size:12px"></div>
+    <div><div style="font-size:11px;color:var(--t3);margin-bottom:3px">End</div><input id="nlp-end" class="inp" value="${endStr}" style="font-size:12px"></div>
+    <div style="grid-column:1/-1"><div style="font-size:11px;color:var(--t3);margin-bottom:3px">Location</div><input id="nlp-loc" class="inp" value="${esc(location)}" style="font-size:12px" placeholder="Optional"></div>
   </div>
   <div style="display:flex;gap:8px">
   <button class="btn btn-p" onclick="(function(){
@@ -17799,12 +17799,12 @@ function aiMeetingPrepBrief(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📝 Meeting Prep Brief</h2>
   <div style="background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:8px 10px;margin-bottom:10px">
     <div style="font-size:13px;font-weight:600">${esc(ev.title)}</div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${ev.dateStr} at ${ev.start||ev.hour+':00'}${ev.location?' · '+esc(ev.location):''}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${ev.dateStr} at ${ev.start||ev.hour+':00'}${ev.location?' · '+esc(ev.location):''}</div>
     ${ev.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px">${esc(ev.desc)}</div>`:''}
   </div>
-  ${linkedNotes.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">RELATED NOTES (${linkedNotes.length})</div>${linkedNotes.slice(0,3).map(n=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">${esc(n.title)}</div>`).join('')}</div>`:''}
-  ${linkedTasks.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">OPEN TASKS (${linkedTasks.length})</div>${linkedTasks.slice(0,3).map(t=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(t.title)} <span style="color:var(--t3)">· ${t.priority}</span></div>`).join('')}</div>`:''}
-  ${linkedContacts.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:4px">ATTENDEES</div>${linkedContacts.slice(0,4).map(c=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(c.name)} · ${esc(c.role||c.company||'')}</div>`).join('')}</div>`:''}
+  ${linkedNotes.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">RELATED NOTES (${linkedNotes.length})</div>${linkedNotes.slice(0,3).map(n=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">${esc(n.title)}</div>`).join('')}</div>`:''}
+  ${linkedTasks.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">OPEN TASKS (${linkedTasks.length})</div>${linkedTasks.slice(0,3).map(t=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(t.title)} <span style="color:var(--t3)">· ${t.priority}</span></div>`).join('')}</div>`:''}
+  ${linkedContacts.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">ATTENDEES</div>${linkedContacts.slice(0,4).map(c=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(c.name)} · ${esc(c.role||c.company||'')}</div>`).join('')}</div>`:''}
   ${!linkedNotes.length&&!linkedTasks.length&&!linkedContacts.length?'<div style="font-size:11px;color:var(--t3);padding:10px 0">No linked notes, tasks, or contacts found. Add notes or tasks mentioning this event to build a richer brief.</div>':''}
   <div style="display:flex;gap:8px;margin-top:8px">
   <button class="btn btn-p" onclick="closeModal()">Close</button>
@@ -18243,7 +18243,7 @@ function _renderWidget(w,idx){
   }else if(w.viz==='table'){
     const rows=(data.rows||[]).slice(0,10);
     if(w.source==='tasks'){
-      body=`<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="color:var(--t3);text-transform:uppercase;font-size:10px;letter-spacing:.05em"><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Title</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Priority</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Project</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Due</th></tr></thead><tbody>${rows.map(r=>`<tr><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)">${esc(r.title||'')}</td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)"><span class="pill ${pillClass?pillClass(r.priority):''}">${esc(r.priority||'')}</span></td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1);color:var(--t2)">${esc(r.project||'')}</td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1);color:var(--t2)">${esc(r.due||'')}</td></tr>`).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3)">No matching rows</td></tr>'}</tbody></table>`;
+      body=`<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="color:var(--t3);text-transform:uppercase;font-size:11px;letter-spacing:.05em"><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Title</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Priority</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Project</th><th style="text-align:left;padding:4px 6px;border-bottom:1px solid var(--bd1)">Due</th></tr></thead><tbody>${rows.map(r=>`<tr><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)">${esc(r.title||'')}</td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)"><span class="pill ${pillClass?pillClass(r.priority):''}">${esc(r.priority||'')}</span></td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1);color:var(--t2)">${esc(r.project||'')}</td><td style="padding:4px 6px;border-bottom:1px solid var(--bd1);color:var(--t2)">${esc(r.due||'')}</td></tr>`).join('')||'<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--t3)">No matching rows</td></tr>'}</tbody></table>`;
     }else{
       body=`<table style="width:100%;font-size:11px"><tbody>${rows.map(r=>`<tr><td style="padding:4px 6px;border-bottom:1px solid var(--bd1)">${esc(r.title||r.name||'(unnamed)')}</td></tr>`).join('')||'<tr><td style="padding:14px;text-align:center;color:var(--t3)">No data</td></tr>'}</tbody></table>`;
     }
@@ -18261,7 +18261,7 @@ function _renderWidget(w,idx){
       <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:600;stroke-dashoffset:600;animation:sparkDraw 1.1s ease forwards"/>
       ${pts.map((p,i)=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" fill="${color}"><title>${esc(data.labels[i]||'')}: ${vals[i]}</title></circle>`).join('')}
     </svg>
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:4px"><span>${esc(data.labels[0]||'')}</span><span>${esc(data.labels[data.labels.length-1]||'')}</span></div>`;
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:4px"><span>${esc(data.labels[0]||'')}</span><span>${esc(data.labels[data.labels.length-1]||'')}</span></div>`;
     if(data.total===0)body=`<div style="font-size:11px;color:var(--t3);text-align:center;padding:30px">No matching data in range</div>`;
   }else if(w.viz==='heatmap'){
     // Square grid coloured by intensity. Best for date-grouped data.
@@ -18272,7 +18272,7 @@ function _renderWidget(w,idx){
       const bgC=v===0?'var(--s3)':`color-mix(in srgb, ${color} ${Math.round(15+intensity*85)}%, transparent)`;
       return `<div style="width:14px;height:14px;border-radius:3px;background:${bgC}" title="${esc(data.labels[i]||'')}: ${v}"></div>`;
     }).join('')}</div>
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:6px"><span>Less</span><div style="display:flex;gap:3px">${[.15,.4,.65,.9].map(i=>`<div style="width:10px;height:10px;border-radius:2px;background:color-mix(in srgb,${color} ${i*100}%,transparent)"></div>`).join('')}</div><span>More</span></div>`;
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-top:6px"><span>Less</span><div style="display:flex;gap:3px">${[.15,.4,.65,.9].map(i=>`<div style="width:10px;height:10px;border-radius:2px;background:color-mix(in srgb,${color} ${i*100}%,transparent)"></div>`).join('')}</div><span>More</span></div>`;
   }else if(w.viz==='sparkline'){
     // Compact inline trendline with the total as a big number on the left.
     const vals=data.values.map(v=>Number(v)||0);
@@ -18302,15 +18302,15 @@ function _renderWidget(w,idx){
       </div>
       <div class="no-print" style="display:flex;gap:3px;flex-shrink:0">
         <div style="position:relative">
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="_toggleSizeMenu(${idx},event)" title="Resize">⤢ ${span}</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="_toggleSizeMenu(${idx},event)" title="Resize">⤢ ${span}</button>
           <div id="lu-size-menu-${idx}" data-pop-menu="1" style="display:none;position:absolute;right:0;top:24px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:3px;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.4)">
-            ${[3,4,6,8,12].map(n=>`<button class="btn btn-s" style="display:block;width:48px;height:22px;font-size:10px;background:${span===n?'var(--ac)':'transparent'};color:${span===n?'#fff':'var(--t1)'};border:none;margin:1px 0" onclick="setWidgetSize(${idx},${n})">${n} col</button>`).join('')}
+            ${[3,4,6,8,12].map(n=>`<button class="btn btn-s" style="display:block;width:48px;height:22px;font-size:11px;background:${span===n?'var(--ac)':'transparent'};color:${span===n?'#fff':'var(--t1)'};border:none;margin:1px 0" onclick="setWidgetSize(${idx},${n})">${n} col</button>`).join('')}
           </div>
         </div>
-        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="editReportWidget(${idx})" title="Edit">✏</button>
-        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="duplicateReportWidget(${idx})" title="Duplicate">⎘</button>
-        <button class="btn btn-s" style="height:22px;font-size:10px;color:var(--page-accent)" onclick="pinWidgetToHome(${idx})" title="Pin to Home dashboard">📌</button>
-        <button class="btn btn-d" style="height:22px;font-size:10px" onclick="deleteReportWidget(${idx})" title="Delete">✕</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px" onclick="editReportWidget(${idx})" title="Edit">✏</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px" onclick="duplicateReportWidget(${idx})" title="Duplicate">⎘</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--page-accent)" onclick="pinWidgetToHome(${idx})" title="Pin to Home dashboard">📌</button>
+        <button class="btn btn-d" style="height:22px;font-size:11px" onclick="deleteReportWidget(${idx})" title="Delete">✕</button>
       </div>
     </div>
     ${body}
@@ -18396,7 +18396,7 @@ function openAIWidgetBuilder(){
     <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Describe what you want to see — the AI will pick the right source, group, metric, viz and filter for you.</p>
     <textarea id="aiwb-prompt" class="inp" style="min-height:80px;font-size:12px;line-height:1.5" placeholder="e.g. &quot;Overdue tasks by project from the last 30 days, as a donut&quot;&#10;&quot;Daily focus minutes this week as a line chart&quot;&#10;&quot;Top 10 open High-priority tasks as a table&quot;&#10;&quot;Habit streaks longer than 5 days&quot;"></textarea>
     <div id="aiwb-examples" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">
-      ${['Overdue tasks count','Tasks done last 7 days line chart','Goals progress as bars','Top 10 open tasks','Journal mood trend','Focus minutes heatmap','Ideas by stage donut','Habits completed today'].map(s=>`<button class="btn btn-s" style="height:22px;font-size:10px" onclick="document.getElementById('aiwb-prompt').value='${esc(s)}'">${esc(s)}</button>`).join('')}
+      ${['Overdue tasks count','Tasks done last 7 days line chart','Goals progress as bars','Top 10 open tasks','Journal mood trend','Focus minutes heatmap','Ideas by stage donut','Habits completed today'].map(s=>`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="document.getElementById('aiwb-prompt').value='${esc(s)}'">${esc(s)}</button>`).join('')}
     </div>
     <div id="aiwb-result" style="display:none;margin-top:10px;padding:10px;background:var(--s3);border-radius:6px;font-size:11px;font-family:ui-monospace,monospace;max-height:160px;overflow-y:auto"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -18509,9 +18509,9 @@ function _renderWidgetEditor(){
     ${isNew?`<div style="margin-bottom:14px;padding:10px;background:var(--s3);border-radius:8px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📚 Start from a template</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:160px;overflow-y:auto">
-        ${WIDGET_TEMPLATES.map(t=>`<button class="btn btn-s" style="height:auto;padding:6px 10px;font-size:10px;text-align:left;justify-content:flex-start" onclick="applyWidgetTemplate('${t.id}')">${esc(t.label)}</button>`).join('')}
+        ${WIDGET_TEMPLATES.map(t=>`<button class="btn btn-s" style="height:auto;padding:6px 10px;font-size:11px;text-align:left;justify-content:flex-start" onclick="applyWidgetTemplate('${t.id}')">${esc(t.label)}</button>`).join('')}
       </div>
-      <div style="font-size:10px;color:var(--t3);text-align:center;margin-top:8px">— or configure manually below —</div>
+      <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:8px">— or configure manually below —</div>
     </div>`:''}
     <div style="display:grid;grid-template-columns:1fr 100px;gap:10px;margin-bottom:8px">
       <div class="field"><label>Title</label><input class="inp" id="wf-title" value="${esc(w.title||'')}" oninput="window._weDraft.title=this.value"></div>
@@ -18532,7 +18532,7 @@ function _renderWidgetEditor(){
       <div class="field"><label>Visualisation</label><select class="inp" id="wf-viz" onchange="window._weDraft.viz=this.value">
         ${[['kpi','KPI tile'],['bar','Bar chart'],['line','Line chart'],['donut','Donut'],['heatmap','Heatmap'],['sparkline','Sparkline + total'],['progress','Progress bars'],['table','Table']].map(([k,l])=>`<option value="${k}" ${w.viz===k?'selected':''}>${esc(l)}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Date Range <span style="font-size:10px;color:var(--t3)">overrides report range</span></label><select class="inp" id="wf-range" onchange="window._weDraft.range=this.value">
+      <div class="field"><label>Date Range <span style="font-size:11px;color:var(--t3)">overrides report range</span></label><select class="inp" id="wf-range" onchange="window._weDraft.range=this.value">
         ${[['','Use report range'],['7d','Last 7 days'],['30d','Last 30 days'],['90d','Last 90 days'],['365d','Last year'],['all','All time']].map(([k,l])=>`<option value="${k}" ${(w.range||'')===k?'selected':''}>${esc(l)}</option>`).join('')}
       </select></div>
       <div class="field"><label>Width (3–12)</label><input type="number" class="inp" id="wf-size" min="3" max="12" value="${w.sizeW||6}" oninput="window._weDraft.sizeW=Math.max(3,Math.min(12,Number(this.value)||6))"></div>
@@ -18540,7 +18540,7 @@ function _renderWidgetEditor(){
     <div style="margin-bottom:10px;padding:10px;background:var(--s3);border-radius:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div style="font-size:11px;font-weight:600;color:var(--t2)">🔎 Filter (all conditions must match)</div>
-        <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_weAddFilterRow()">+ Add condition</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px" onclick="_weAddFilterRow()">+ Add condition</button>
       </div>
       <div id="we-filter-rows" style="display:flex;flex-direction:column;gap:4px">${_weRenderFilterRows()}</div>
     </div>
@@ -18614,7 +18614,7 @@ function _weChangeSource(src){
 function _weRenderFilterRows(){
   const w=window._weDraft;
   const fields=FILTER_FIELDS[w.source]||[];
-  if(!w.filter.length)return '<div style="font-size:10px;color:var(--t3);font-style:italic">No filters — all rows from this source are included.</div>';
+  if(!w.filter.length)return '<div style="font-size:11px;color:var(--t3);font-style:italic">No filters — all rows from this source are included.</div>';
   return w.filter.map((c,i)=>{
     const needsValue=!['empty','notempty','overdue','has_mood'].includes(c.op||'eq');
     const isSpecial=c.op==='overdue'||c.op==='has_mood';
@@ -18628,7 +18628,7 @@ function _weRenderFilterRows(){
           ${FILTER_OPS.map(o=>`<option value="${o.v}" ${(c.op||'eq')===o.v?'selected':''}>${esc(o.label)}</option>`).join('')}
         </select>
         ${needsValue?`<input class="inp" style="height:26px;font-size:11px" value="${esc(c.value==null?'':c.value)}" placeholder="value" oninput="window._weDraft.filter[${i}].value=this.value">`:'<div></div>'}`}
-      <button class="btn btn-d" style="height:22px;font-size:10px" onclick="_weDelFilter(${i})">✕</button>
+      <button class="btn btn-d" style="height:22px;font-size:11px" onclick="_weDelFilter(${i})">✕</button>
     </div>`;
   }).join('');
 }
@@ -18702,7 +18702,7 @@ function _openReportAssign(id){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Report</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc((r.emoji||'📊')+' '+(r.name||'Untitled'))}</div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('rep-assign-ma',r)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('rep-assign-ma',r)}</div>
     <div class="dr-actions" style="margin-top:14px">
       <button class="btn btn-p" onclick="_saveReportAssign('${String(id)}')">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
@@ -18729,10 +18729,10 @@ function _renderSharedReportsSection(){
   const open=!(D.prefs&&D.prefs.sharedReportSectionCollapsed);
   return `<div class="cd no-print" style="border-left:3px solid var(--purp);margin-bottom:14px">
     <div onclick="_toggleSharedReportSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
-      <span style="display:inline-block;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated reports</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedReportCard).join(''):''}
   </div>`;
@@ -18748,7 +18748,7 @@ function _sharedReportCard(p){
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.emoji||'📊')+' '+(p.name||'Untitled'))}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${(p.widgets||[]).length} widget${(p.widgets||[]).length===1?'':'s'} · ${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${(p.widgets||[]).length} widget${(p.widgets||[]).length===1?'':'s'} · ${sub}</div>
   </div>`;
 }
 async function _openSharedReportView(idx){
@@ -18762,17 +18762,17 @@ async function _openSharedReportView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Name</label><input class="inp" id="srp-name" value="${esc(p.name||'')}"></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('srp-ma',p)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('srp-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedReport(${Number(idx)||0})">Save</button>
       ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeReportOwnership(${Number(idx)||0})" title="Move this report into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedReportItem(${Number(idx)||0})">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the report config stays with the owner.':'Saved to the report owner.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the report config stays with the owner.':'Saved to the report owner.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -18985,7 +18985,7 @@ function _renderDeltaChip(cur,prev,opts){
   if(d.label==='·'&&!o.showFlat)return '';
   const goodIsUp=o.goodIsUp!==false;
   const color=d.label==='flat'?'var(--t3)':((d.arrow==='▲')===goodIsUp?'var(--ok)':'var(--err)');
-  return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:600;color:${color};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:${color};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
 }
 // ─── R6: simple linear forecast ───────────────────────────────────────
 function _reportForecast(series,days){
@@ -19061,7 +19061,7 @@ async function aiReportNarrative(force){
     const user=`Period: ${ctx.p.curStart} → ${ctx.p.curEnd} (${ctx.p.days} days). Previous: ${ctx.p.prevStart} → ${ctx.p.prevEnd}.\nThis period vs previous:\n- Tasks done: ${ctx.cur.done} vs ${ctx.prev.done}\n- Tasks created: ${ctx.cur.created} vs ${ctx.prev.created}\n- Focus minutes: ${ctx.cur.focus} vs ${ctx.prev.focus}\n- Journal entries: ${ctx.cur.journal} vs ${ctx.prev.journal}\n- Habit completions: ${ctx.cur.habitsDone} vs ${ctx.prev.habitsDone}\n- Overdue tasks now: ${ctx.cur.overdue}\n- Active goals: ${ctx.goals.length} (avg ${ctx.goals.length?Math.round(ctx.goals.reduce((s,g)=>s+(g.pct||0),0)/ctx.goals.length):0}%)\nFilters: project="${_reportProjectFilter||'(all)'}", tag="${_reportTagFilter||'(none)'}"`;
     const text=await _reportAICall(sys,user);
     _reportNarrativeCache={key,text};
-    if(sec)sec.innerHTML=`<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-s" style="font-size:10px" onclick="aiReportNarrative(true)">↻ Regenerate</button><span style="font-size:10px;color:var(--t3);align-self:center">cached for this filter combo</span></div>`;
+    if(sec)sec.innerHTML=`<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-s" style="font-size:11px" onclick="aiReportNarrative(true)">↻ Regenerate</button><span style="font-size:11px;color:var(--t3);align-self:center">cached for this filter combo</span></div>`;
   }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Narrative failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 async function aiReportAskQuestion(){
@@ -19121,7 +19121,7 @@ async function aiReportRecommendWidgets(){
     if(!Array.isArray(parsed.widgets))throw new Error('Bad response');
     window._reportRecCache=parsed.widgets;
     const m=document.getElementById('modal-content');
-    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">✨ Recommended Widgets</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Click any to add it to your report.</div>${parsed.widgets.map((w,i)=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;padding:10px" onclick="addRecommendedWidget(${i})" id="recw-${i}"><div style="font-size:12px;font-weight:600;margin-bottom:3px">📊 ${esc(w.title||'')}</div><div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(w.source||'')} → ${esc(w.viz||'')} (group: ${esc(w.groupBy||'')}, metric: ${esc(w.metric||'')})</div><div style="font-size:11px;color:var(--t2);font-style:italic">${esc(w.why||'')}</div></div>`).join('')}<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">✨ Recommended Widgets</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Click any to add it to your report.</div>${parsed.widgets.map((w,i)=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;padding:10px" onclick="addRecommendedWidget(${i})" id="recw-${i}"><div style="font-size:12px;font-weight:600;margin-bottom:3px">📊 ${esc(w.title||'')}</div><div style="font-size:11px;color:var(--t3);margin-bottom:4px">${esc(w.source||'')} → ${esc(w.viz||'')} (group: ${esc(w.groupBy||'')}, metric: ${esc(w.metric||'')})</div><div style="font-size:11px;color:var(--t2);font-style:italic">${esc(w.why||'')}</div></div>`).join('')}<div style="display:flex;gap:6px;margin-top:8px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Recommendation failed',msg:String(e.message||e).slice(0,200),duration:5000});}
 }
@@ -19129,7 +19129,7 @@ function addRecommendedWidget(i){
   const w=window._reportRecCache?.[i];if(!w)return;
   const widget={id:Date.now(),title:w.title||'AI widget',source:WIDGET_SOURCES[w.source]?w.source:'tasks',groupBy:w.groupBy||'_total',metric:w.metric||'count',viz:['kpi','bar','line','donut','heatmap','sparkline','progress','table'].includes(w.viz)?w.viz:'kpi',color:'#3b82f6',sizeW:6,filter:[]};
   _reportWidgets.push(widget);_saveReportWidgets();
-  const card=document.getElementById('recw-'+i);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML+='<div style="font-size:10px;color:var(--ok);margin-top:4px">✓ Added</div>';}
+  const card=document.getElementById('recw-'+i);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML+='<div style="font-size:11px;color:var(--ok);margin-top:4px">✓ Added</div>';}
   toast(`📊 "${widget.title}" added`);
 }
 // ─── R10: drill-down on common widget cells ─────────────────────────
@@ -19142,7 +19142,7 @@ function reportDrillDown(kind,key){
   else return;
   if(!items.length){toast('No items in this slice');return;}
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(title)}</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${items.length} item${items.length===1?'':'s'} — click to open</div><div style="max-height:400px;overflow-y:auto">${items.map(t=>`<div class="lr" style="cursor:pointer;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--bd1)" onclick="closeModal();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority||''}</span><span style="font-size:10px;color:var(--t3)">${t.due||''}</span></div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(title)}</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${items.length} item${items.length===1?'':'s'} — click to open</div><div style="max-height:400px;overflow-y:auto">${items.map(t=>`<div class="lr" style="cursor:pointer;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--bd1)" onclick="closeModal();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority||''}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
   document.getElementById('modal-capture').classList.add('show');
 }
 
@@ -19282,22 +19282,22 @@ function renderReports(){
           <option value="custom" ${_reportRange==='custom'?'selected':''}>Custom range…</option>
         </select>
         <div style="position:relative;display:inline-block">
-          <button class="btn btn-s no-print" style="height:30px;font-size:10px" onclick="event.stopPropagation();togglePopMenu('rep-filter-menu')" title="Filter by project / tag">🔍 Filter${(_reportProjectFilter||_reportTagFilter)?` • ${(_reportProjectFilter?1:0)+(_reportTagFilter?1:0)}`:''} ▾</button>
+          <button class="btn btn-s no-print" style="height:30px;font-size:11px" onclick="event.stopPropagation();togglePopMenu('rep-filter-menu')" title="Filter by project / tag">🔍 Filter${(_reportProjectFilter||_reportTagFilter)?` • ${(_reportProjectFilter?1:0)+(_reportTagFilter?1:0)}`:''} ▾</button>
           <div id="rep-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:240px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-            <div style="font-size:10px;color:var(--t3);font-weight:600;margin-bottom:4px">Project</div>
+            <div style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:4px">Project</div>
             <select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:8px;box-sizing:border-box" onchange="setReportProjectFilter(this.value)">
               ${allProjOpts.map(p=>`<option value="${esc(p.id)}" ${_reportProjectFilter===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}
             </select>
-            <div style="font-size:10px;color:var(--t3);font-weight:600;margin-bottom:4px">Tag</div>
+            <div style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:4px">Tag</div>
             <select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:8px;box-sizing:border-box" onchange="setReportTagFilter(this.value)">
               <option value="" ${!_reportTagFilter?'selected':''}>All tags</option>
               ${allTagList.map(t=>`<option value="${esc(t)}" ${_reportTagFilter===t?'selected':''}>#${esc(t)}</option>`).join('')}
             </select>
-            ${(_reportProjectFilter||_reportTagFilter)?`<button class="btn btn-s" style="width:100%;height:26px;font-size:10px;color:var(--warn)" onclick="setReportProjectFilter('');setReportTagFilter('')">✕ Clear filters</button>`:''}
+            ${(_reportProjectFilter||_reportTagFilter)?`<button class="btn btn-s" style="width:100%;height:26px;font-size:11px;color:var(--warn)" onclick="setReportProjectFilter('');setReportTagFilter('')">✕ Clear filters</button>`:''}
           </div>
         </div>
         <div style="position:relative;display:inline-block">
-          <button class="btn btn-s no-print" style="height:30px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
+          <button class="btn btn-s no-print" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('rep-ai-menu')">✨ AI ▾</button>
           <div id="rep-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportNarrative(true)">📰 Refresh narrative</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('rep-ai-menu');aiReportAnomalies(true)">🔍 Detect anomalies</button>
@@ -19310,7 +19310,7 @@ function renderReports(){
         <button class="btn btn-p no-print" style="font-size:11px" onclick="saveCurrentReport()" title="Save the current range + sections as a named report">💾 Save</button>
       </div>
     </div>
-    ${_reportRange==='custom'?`<div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:var(--t3);font-weight:600">Custom range:</span><input id="rep-from" type="date" class="inp" value="${esc(_reportCustomFrom)}" style="height:26px;font-size:11px;padding:0 6px"><span style="font-size:11px;color:var(--t3)">to</span><input id="rep-to" type="date" class="inp" value="${esc(_reportCustomTo)}" style="height:26px;font-size:11px;padding:0 6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="setReportCustomRange()">Apply</button></div>`:''}
+    ${_reportRange==='custom'?`<div class="cd no-print" style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;flex-wrap:wrap"><span style="font-size:11px;color:var(--t3);font-weight:600">Custom range:</span><input id="rep-from" type="date" class="inp" value="${esc(_reportCustomFrom)}" style="height:26px;font-size:11px;padding:0 6px"><span style="font-size:11px;color:var(--t3)">to</span><input id="rep-to" type="date" class="inp" value="${esc(_reportCustomTo)}" style="height:26px;font-size:11px;padding:0 6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="setReportCustomRange()">Apply</button></div>`:''}
     <!-- R1: AI Narrative Summary -->
     <div style="margin-bottom:14px">
       <div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px;margin-bottom:6px">📰 What this report says</div>
@@ -19338,11 +19338,11 @@ function renderReports(){
         ${saved.map(r=>`<span style="display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--page-accent) 12%,var(--s2));border:1px solid color-mix(in srgb,var(--page-accent) 28%,var(--bd2));border-radius:14px;padding:3px 4px 3px 10px;font-size:11px;cursor:pointer;transition:transform .1s,filter .1s" onclick="loadSavedReport(${r.id})" onmouseover="this.style.transform='translateY(-1px)';this.style.filter='brightness(1.1)'" onmouseout="this.style.transform='';this.style.filter=''" title="${r.schedule?`Scheduled: ${esc(r.schedule.frequency)} at ${esc(r.schedule.time||'08:00')}`:`Range: ${esc(({'7d':'7 days','30d':'30 days','90d':'90 days','365d':'1 year','all':'All time'})[r.range]||r.range)}`}">
           <span style="font-size:13px">${esc(r.emoji||'📊')}</span>
           <span style="font-weight:500">${esc(r.name)}</span>
-          ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:10px;background:rgba(34,197,94,.18);color:#86efac;padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
-          <button onclick="event.stopPropagation();openReportSchedule(${r.id})" title="Schedule email" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">⏰</button>
-          <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">✏</button>
-          <button onclick="event.stopPropagation();_openReportAssign(${r.id})" title="Assign to team members" style="background:none;border:none;color:${(r.assignedTo||(r.assignees||[]).length)?'var(--purp)':'var(--t3)'};cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">👥</button>
-          <button onclick="event.stopPropagation();deleteSavedReport(${r.id})" title="Delete" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:10px;padding:2px 4px;border-radius:3px">×</button>
+          ${r.schedule&&r.schedule.frequency&&r.schedule.frequency!=='off'?`<span style="font-size:11px;background:rgba(34,197,94,.18);color:#86efac;padding:1px 5px;border-radius:8px" title="Auto-email enabled">⏰</span>`:''}
+          <button onclick="event.stopPropagation();openReportSchedule(${r.id})" title="Schedule email" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">⏰</button>
+          <button onclick="event.stopPropagation();renameSavedReport(${r.id})" title="Rename" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">✏</button>
+          <button onclick="event.stopPropagation();_openReportAssign(${r.id})" title="Assign to team members" style="background:none;border:none;color:${(r.assignedTo||(r.assignees||[]).length)?'var(--purp)':'var(--t3)'};cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">👥</button>
+          <button onclick="event.stopPropagation();deleteSavedReport(${r.id})" title="Delete" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:2px 4px;border-radius:3px">×</button>
         </span>`).join('')}
       </div>`;
     })()}
@@ -19361,22 +19361,22 @@ function renderReports(){
       // R6: forecast chips on top KPIs
       const fcDone=_reportForecast(completionByDay.slice(-Math.min(14,completionByDay.length)),7);
       const fcFocus=_reportForecast(focusByDay.slice(-Math.min(14,focusByDay.length)),7);
-      const fcChip=(fc,label)=>fc?`<span style="display:inline-block;font-size:10px;padding:2px 6px;border-radius:8px;background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ac);margin-top:4px" title="Linear projection from your last 14 days">📈 next 7d: ${fc.total}${label||''}</span>`:'';
+      const fcChip=(fc,label)=>fc?`<span style="display:inline-block;font-size:11px;padding:2px 6px;border-radius:8px;background:color-mix(in srgb,var(--ac) 14%,transparent);color:var(--ac);margin-top:4px" title="Linear projection from your last 14 days">📈 next 7d: ${fc.total}${label||''}</span>`:'';
       return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:18px">
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks completed</div>${_renderDeltaChip(tasksDoneRange.length,prevDone)}</div>${_sparkline(sparkDone,'#22c55e')}<div>${fcChip(fcDone,'')}</div></div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Tasks created</div>${_renderDeltaChip(tasksCreatedRange.length,prevCreated,{goodIsUp:false})}</div>${_sparkline(sparkCreated,'#3b82f6')}</div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:10px;color:var(--t3);font-weight:500">Focus time</div>${_renderDeltaChip(focusTotal,prevFocus)}</div>${_sparkline(sparkFocus,'#a855f7')}<div>${fcChip(fcFocus,'m')}</div></div>
-        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
-        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:10px;color:var(--t3);font-weight:500">Avg mood / 5</div>${_renderDeltaChip(journalRange.length,prevJournal,{goodIsUp:true})}</div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
-        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ok);line-height:1">${tasksDoneRange.length}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Tasks completed</div>${_renderDeltaChip(tasksDoneRange.length,prevDone)}</div>${_sparkline(sparkDone,'#22c55e')}<div>${fcChip(fcDone,'')}</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--ac);line-height:1">${tasksCreatedRange.length}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Tasks created</div>${_renderDeltaChip(tasksCreatedRange.length,prevCreated,{goodIsUp:false})}</div>${_sparkline(sparkCreated,'#3b82f6')}</div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:var(--purp);line-height:1">${focusTotal}m</div><div style="font-size:11px;color:var(--t3);font-weight:500">Focus time</div>${_renderDeltaChip(focusTotal,prevFocus)}</div>${_sparkline(sparkFocus,'#a855f7')}<div>${fcChip(fcFocus,'m')}</div></div>
+        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:var(--warn)">${avgGoalPct}%</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Avg goal progress</div></div>
+        <div class="cd" style="padding:14px"><div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap"><div style="font-size:28px;font-weight:800;color:#f43f5e;line-height:1">${avgMood}</div><div style="font-size:11px;color:var(--t3);font-weight:500">Avg mood / 5</div>${_renderDeltaChip(journalRange.length,prevJournal,{goodIsUp:true})}</div>${_sparkline(sparkMood.filter(v=>v>0).length>1?sparkMood:[0,0],'#f43f5e')}</div>
+        <div class="cd" style="text-align:center;padding:14px"><div style="font-size:28px;font-weight:800;color:#fb7185">🔥${topStreak.streak||0}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">Top streak${topStreak.title&&topStreak.title!=='—'?': '+esc(topStreak.title):''}</div></div>
       </div>`;
     })()}
 
     <!-- Custom widgets — phase-1 report builder -->
     <div class="cd no-print" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--page-accent) 12%,var(--s2)),var(--s2));gap:8px;flex-wrap:wrap">
       <div>
-        <div style="font-size:12px;font-weight:600;color:var(--t1)">🧱 Custom widgets <span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:4px">drag ⋮⋮ to reorder · ⤢ to resize</span></div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${_reportWidgets.length?_reportWidgets.length+' widget'+(_reportWidgets.length===1?'':'s')+' on this report.':'Build your own report — pick a source, group, metric and viz, or just describe what you want.'}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--t1)">🧱 Custom widgets <span style="font-size:11px;color:var(--t3);font-weight:400;margin-left:4px">drag ⋮⋮ to reorder · ⤢ to resize</span></div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${_reportWidgets.length?_reportWidgets.length+' widget'+(_reportWidgets.length===1?'':'s')+' on this report.':'Build your own report — pick a source, group, metric and viz, or just describe what you want.'}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button class="btn btn-s" style="font-size:11px;height:28px;color:#a855f7" onclick="openAIWidgetBuilder()" title="Describe what you want and AI builds the widget">✨ AI Build</button>
@@ -19390,7 +19390,7 @@ function renderReports(){
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">✓ Tasks Performance</h2>
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
         <div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:6px"><span>Completion trend (${barData.length} ${barStep===1?'days':'periods'})</span><span style="color:var(--t3);font-size:10px">click any bar to drill in</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:6px"><span>Completion trend (${barData.length} ${barStep===1?'days':'periods'})</span><span style="color:var(--t3);font-size:11px">click any bar to drill in</span></div>
           <div style="display:flex;align-items:flex-end;gap:3px;height:64px;padding:4px 0">${tasksBars}</div>
           <div style="display:flex;gap:3px;margin-top:2px">${tasksBarLabels}</div>
         </div>
@@ -19398,12 +19398,12 @@ function renderReports(){
           <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Status breakdown (${sTotal} total)</div>
           <div style="display:flex;gap:10px;align-items:center">
             <div style="background:conic-gradient(${donutStops});width:70px;height:70px;border-radius:50%;flex-shrink:0"></div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:10px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskstatus','${k}')"`:''}><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px;font-size:11px">${Object.entries(tasksByStatus).map(([k,v])=>`<div style="display:flex;align-items:center;gap:4px;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskstatus','${k}')"`:''}><span style="width:8px;height:8px;background:${sColors[k]};border-radius:2px"></span><span style="flex:1;color:var(--t2)">${k}</span><strong>${v}</strong></div>`).join('')}</div>
           </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">
-        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${k}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:10px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
+        ${Object.entries(tasksByPriority).map(([k,v])=>{const c={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'}[k];return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:10px;text-align:center;cursor:${v?'pointer':'default'}" ${v?`onclick="reportDrillDown('taskpriority','${k}')"`:''}><div style="font-size:18px;font-weight:700;color:${c}">${v}</div><div style="font-size:11px;color:var(--t3)">Active ${k}</div></div>`;}).join('')}
       </div>
     </div>`:''}
 
@@ -19411,11 +19411,11 @@ function renderReports(){
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">🎯 Goals Progress</h2>
       ${goals.length?`
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${goals.length}</div><div style="font-size:10px;color:var(--t3)">Total goals</div></div>
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${goalsOnTrack}</div><div style="font-size:10px;color:var(--t3)">On track (≥50%)</div></div>
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">${goalsBehind}</div><div style="font-size:10px;color:var(--t3)">Behind (&lt;30%)</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${goals.length}</div><div style="font-size:11px;color:var(--t3)">Total goals</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${goalsOnTrack}</div><div style="font-size:11px;color:var(--t3)">On track (≥50%)</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">${goalsBehind}</div><div style="font-size:11px;color:var(--t3)">Behind (&lt;30%)</div></div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));const pace=_goalPaceCheck(g);return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;gap:6px;flex-wrap:wrap"><span>${g.icon||'🎯'} ${esc(g.title)}</span><span style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:${pace.color};font-weight:600" title="Projected completion">${esc(pace.label)}</span><strong style="color:${c}">${pct}%</strong></span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">${goals.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':(pct>=20?'var(--warn)':'var(--red)'));const pace=_goalPaceCheck(g);return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;gap:6px;flex-wrap:wrap"><span>${g.icon||'🎯'} ${esc(g.title)}</span><span style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:${pace.color};font-weight:600" title="Projected completion">${esc(pace.label)}</span><strong style="color:${c}">${pct}%</strong></span></div><div style="height:8px;background:var(--s3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:4px"></div></div></div>`;}).join('')}</div>
       `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No goals yet.</div>'}
     </div>`:''}
 
@@ -19423,11 +19423,11 @@ function renderReports(){
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">🔥 Habits Consistency</h2>
       ${dailyHabits.length?`
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${dailyHabits.length}</div><div style="font-size:10px;color:var(--t3)">Daily habits</div></div>
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${totalHabitCompletions}</div><div style="font-size:10px;color:var(--t3)">Completions in range</div></div>
-          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">🔥 ${topStreak.streak||0}</div><div style="font-size:10px;color:var(--t3)">Top streak</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700">${dailyHabits.length}</div><div style="font-size:11px;color:var(--t3)">Daily habits</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--ok)">${totalHabitCompletions}</div><div style="font-size:11px;color:var(--t3)">Completions in range</div></div>
+          <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--warn)">🔥 ${topStreak.streak||0}</div><div style="font-size:11px;color:var(--t3)">Top streak</div></div>
         </div>
-        <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Heatmap (${Math.min(days,90)} days, color = % of habits done)</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Heatmap (${Math.min(days,90)} days, color = % of habits done)</div>
         <div style="display:grid;grid-template-columns:repeat(15,1fr);gap:4px">${habitCells}</div>
       `:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No daily habits yet.</div>'}
     </div>`:''}
@@ -19435,9 +19435,9 @@ function renderReports(){
     ${_reportSections.focus?`
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">⏱ Focus Time</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--purp)">${focusTotal}m</div><div style="font-size:10px;color:var(--t3)">Total minutes</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${(focusTotal/60).toFixed(1)}h</div><div style="font-size:10px;color:var(--t3)">Total hours</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${days?Math.round(focusTotal/days):0}m</div><div style="font-size:10px;color:var(--t3)">Daily average</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--purp)">${focusTotal}m</div><div style="font-size:11px;color:var(--t3)">Total minutes</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${(focusTotal/60).toFixed(1)}h</div><div style="font-size:11px;color:var(--t3)">Total hours</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${days?Math.round(focusTotal/days):0}m</div><div style="font-size:11px;color:var(--t3)">Daily average</div></div>
       </div>
       <div style="display:flex;align-items:flex-end;gap:3px;height:60px">${focusBars}</div>
     </div>`:''}
@@ -19445,18 +19445,18 @@ function renderReports(){
     ${_reportSections.journal?`
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📔 Journal & Mood</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalRange.length}</div><div style="font-size:10px;color:var(--t3)">Entries in range</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#f43f5e">${avgMood}/5</div><div style="font-size:10px;color:var(--t3)">Average mood</div></div>
-        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalScored.length}</div><div style="font-size:10px;color:var(--t3)">Mood-tagged</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalRange.length}</div><div style="font-size:11px;color:var(--t3)">Entries in range</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700;color:#f43f5e">${avgMood}/5</div><div style="font-size:11px;color:var(--t3)">Average mood</div></div>
+        <div style="text-align:center"><div style="font-size:22px;font-weight:700">${journalScored.length}</div><div style="font-size:11px;color:var(--t3)">Mood-tagged</div></div>
       </div>
     </div>`:''}
 
     ${_reportSections.projects?`
     <div class="cd" style="margin-bottom:14px"><h2 style="font-size:14px;font-weight:700;margin-bottom:10px">📁 Projects</h2>
-      ${projects.length?`<div style="display:flex;flex-direction:column;gap:6px">${projects.slice(0,12).map(p=>{const pct=p.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':'var(--warn)');return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${esc(p.name)} <span style="color:var(--t3);font-size:10px">${esc(p.status||'')}</span></span><strong style="color:${c}">${pct}%</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:3px"></div></div></div>`;}).join('')}</div>`:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects yet.</div>'}
+      ${projects.length?`<div style="display:flex;flex-direction:column;gap:6px">${projects.slice(0,12).map(p=>{const pct=p.pct||0;const c=pct>=70?'var(--ok)':(pct>=40?'var(--ac)':'var(--warn)');return `<div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>${esc(p.name)} <span style="color:var(--t3);font-size:11px">${esc(p.status||'')}</span></span><strong style="color:${c}">${pct}%</strong></div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c};border-radius:3px"></div></div></div>`;}).join('')}</div>`:'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects yet.</div>'}
     </div>`:''}
 
-    <div class="no-print" style="text-align:center;color:var(--t3);font-size:10px;margin:24px 0 12px">Generated ${new Date().toLocaleString()} · LevelUp Second Brain</div>
+    <div class="no-print" style="text-align:center;color:var(--t3);font-size:11px;margin:24px 0 12px">Generated ${new Date().toLocaleString()} · LevelUp Second Brain</div>
   </div>`;
   // Auto-fetch AI panels (cached per filter combo so this is cheap on re-renders)
   setTimeout(()=>{aiReportNarrative();aiReportAnomalies();},150);
@@ -19507,7 +19507,7 @@ function renderArchive(){
   const fmt=d=>{if(!d)return '';try{const dt=new Date(d);return isNaN(dt)?'':dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}};
   const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
   const rows=items.length?items.map(i=>`<div class="lr">
-    <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
+    <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
     <span class="rt" style="cursor:pointer" onclick="archiveRestore('${i.restore}',${i.id})" title="Open / restore">${esc(i.title)}</span>
     <span class="rm">${fmt(i.date)||'<span style="color:var(--t3)">—</span>'}</span>
     <span class="acts"><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 8px" onclick="archiveRestore('${i.restore}',${i.id})">${i.type==='Goal'?'Open':'↩ Restore'}</button></span>
@@ -19523,23 +19523,23 @@ function renderMyDay(){
 const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
 $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
-<div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:10px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:10px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
+<div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:11px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:11px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
 <div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
     <div id="pomo-timer" style="font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ac);letter-spacing:1px">25:00</div>
-    <div id="pomo-label" style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Focus</div>
+    <div id="pomo-label" style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Focus</div>
   </div>
   <div style="flex:1;min-width:120px">
     <div id="pomo-task-name" style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:3px">No task selected</div>
     <div style="background:var(--s3);border-radius:3px;height:4px;overflow:hidden"><div id="pomo-progress" style="background:var(--ac);height:100%;width:0%;transition:width 1s linear"></div></div>
-    <div id="pomo-sessions" style="font-size:10px;color:var(--t3);margin-top:2px">Session 1 of 4</div>
+    <div id="pomo-sessions" style="font-size:11px;color:var(--t3);margin-top:2px">Session 1 of 4</div>
   </div>
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button class="btn btn-p" id="pomo-btn" onclick="pomoToggle()" style="min-width:64px">▶ Start</button>
     <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
-    <select class="inp" id="pomo-mode" onchange="pomoSetMode(this.value)" style="font-size:10px;padding:2px 6px;height:26px">
+    <select class="inp" id="pomo-mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
       <option value="25">25 min Focus</option>
       <option value="50">50 min Deep Work</option>
       <option value="5">5 min Break</option>
@@ -19558,11 +19558,11 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
 </div>
 <div class="cd">
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📝 Daily Reflection</div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">What went well today?</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:4px">What went well today?</div>
   <textarea class="inp" id="wrapup-wins" placeholder="Wins, breakthroughs, things to celebrate..." style="height:56px;margin-bottom:8px"></textarea>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">What could be improved?</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:4px">What could be improved?</div>
   <textarea class="inp" id="wrapup-improve" placeholder="Challenges, blockers, lessons learned..." style="height:56px;margin-bottom:8px"></textarea>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Top priority for tomorrow?</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:4px">Top priority for tomorrow?</div>
   <textarea class="inp" id="wrapup-tomorrow" placeholder="One thing that will make tomorrow great..." style="height:40px;margin-bottom:10px"></textarea>
   <button class="btn btn-p" style="width:100%" onclick="saveWrapUp()">Save as Journal Entry</button>
 </div></div>`;
@@ -19596,9 +19596,9 @@ function _populateMyDayRail(){
   const upNextHtml=upNext.length?upNext.map(t=>{
     const colors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
     const dot=`<span style="width:6px;height:6px;border-radius:50%;background:${colors[t.priority]||'var(--t3)'};flex-shrink:0"></span>`;
-    const time=t.startTime?`<span style="font-size:10px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
+    const time=t.startTime?`<span style="font-size:11px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
     return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${t.id});mdSec(document.querySelector('#s-myday .sn:nth-child(2)'),'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
-  }).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
+  }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
   // Today's meetings
   const meetings=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
   const now=new Date();
@@ -19608,15 +19608,15 @@ function _populateMyDayRail(){
     const mins=Math.floor((s-now)/60000);
     const rel=mins<-15?'past':mins<0?'now':mins<60?`in ${mins}m`:`in ${Math.floor(mins/60)}h${mins%60?' '+(mins%60)+'m':''}`;
     const isPast=mins<-15;
-    return `<div class="lr" style="padding:5px 6px;${isPast?'opacity:.55':''}"><span style="font-size:13px;flex-shrink:0">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</div><div style="font-size:10px;color:var(--t3)">${fmtT(s)}</div></div><span style="font-size:10px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach);flex-shrink:0">${rel}</span></div>`;
-  }).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">No meetings today.</div>`;
+    return `<div class="lr" style="padding:5px 6px;${isPast?'opacity:.55':''}"><span style="font-size:13px;flex-shrink:0">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t3)">${fmtT(s)}</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach);flex-shrink:0">${rel}</span></div>`;
+  }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No meetings today.</div>`;
   // Quick wins (≤15 min, not done, on My Day or due/scheduled today)
   const wins=D.tasks.filter(t=>t.status!=='Done'&&(Number(t.estimatedMins)||999)<=15&&(t.myDay||t.due===today||t.startDate===today)).slice(0,5);
-  const winsHtml=wins.length?wins.map(t=>`<div class="lr" style="cursor:pointer;padding:4px 6px" onclick="toggleTask(${t.id});setTimeout(()=>renderScreen('myday'),100)" title="Click to mark done"><span style="font-size:11px;flex-shrink:0">⚡</span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:10px;color:var(--t3);flex-shrink:0">${t.estimatedMins||'?'}m</span></div>`).join(''):`<div style="font-size:10px;color:var(--t3);padding:6px;text-align:center">No quick wins — set 'Estimated mins' on tasks to see them here.</div>`;
+  const winsHtml=wins.length?wins.map(t=>`<div class="lr" style="cursor:pointer;padding:4px 6px" onclick="toggleTask(${t.id});setTimeout(()=>renderScreen('myday'),100)" title="Click to mark done"><span style="font-size:11px;flex-shrink:0">⚡</span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${t.estimatedMins||'?'}m</span></div>`).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No quick wins — set 'Estimated mins' on tasks to see them here.</div>`;
   // Habits today snapshot
   const hbs=(D.habits||[]).filter(h=>h.cadence==='Daily');
   const hbsDone=hbs.filter(h=>h.doneToday).length;
-  const habitsHtml=hbs.length?`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><strong style="color:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length}</strong> habits done<div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${hbs.length?Math.round(hbsDone/hbs.length*100):0}%;background:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'};border-radius:3px"></div></div></div>`:`<div style="font-size:10px;color:var(--t3)">No daily habits set up.</div>`;
+  const habitsHtml=hbs.length?`<div style="display:flex;align-items:center;gap:6px;font-size:11px"><strong style="color:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'}">${hbsDone}/${hbs.length}</strong> habits done<div style="flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${hbs.length?Math.round(hbsDone/hbs.length*100):0}%;background:${hbsDone===hbs.length?'var(--ok)':'var(--warn)'};border-radius:3px"></div></div></div>`:`<div style="font-size:11px;color:var(--t3)">No daily habits set up.</div>`;
   rail.innerHTML=`
   <div class="cd" style="margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">📊 Day at a Glance</div>
@@ -19645,8 +19645,8 @@ function _populateMyDayRail(){
     <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">✏ Quick Capture</div>
     <textarea id="md-rail-cap" class="inp" placeholder="Brain dump — Enter to save as task" style="font-size:11px;height:54px;margin-bottom:6px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_mdRailCapture();}"></textarea>
     <div style="display:flex;gap:5px">
-      <button class="btn btn-p" style="flex:1;font-size:10px;height:24px" onclick="_mdRailCapture()">+ Task</button>
-      <button class="btn btn-s" style="flex:1;font-size:10px;height:24px" onclick="_mdRailCaptureNote()">+ Note</button>
+      <button class="btn btn-p" style="flex:1;font-size:11px;height:24px" onclick="_mdRailCapture()">+ Task</button>
+      <button class="btn btn-s" style="flex:1;font-size:11px;height:24px" onclick="_mdRailCaptureNote()">+ Note</button>
     </div>
   </div>`;
 }
@@ -19717,14 +19717,14 @@ function getMdExecSummary(filter){
   const hrs=Math.floor(total/60),mins=total%60;
   const timeStr=total?`⏱ ${hrs?hrs+'h ':''}${mins?mins+'m':''} estimated`:'⏱ No estimates set';
   const pct=tasks.length?Math.round(done/tasks.length*100):0;
-  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s2);border-radius:6px;margin-bottom:8px;font-size:10px;color:var(--t2);flex-wrap:wrap">
+  return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s2);border-radius:6px;margin-bottom:8px;font-size:11px;color:var(--t2);flex-wrap:wrap">
     <span style="color:var(--t3)">${timeStr}</span>
     <span style="color:var(--t3)">·</span>
     <span>${done} done</span>
     <span style="color:var(--t3)">·</span>
     <span>${pending} pending</span>
     <div style="flex:1;min-width:60px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--ok,#10B981);border-radius:2px;transition:width .3s"></div></div>
-    <span style="font-size:10px;color:var(--t3)">${pct}%</span>
+    <span style="font-size:11px;color:var(--t3)">${pct}%</span>
   </div>`;
 }
 function renderMdExecList(filter){
@@ -19745,12 +19745,12 @@ function renderMdExecList(filter){
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
             <span id="exec-title-${t.id}" style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}" onclick="startInlineEdit(${t.id})" title="Click to edit">${esc(t.title)}</span>
-            <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
-            ${t.context?`<span style="font-size:10px;color:var(--t3)">${esc(t.context)}</span>`:''}
-            ${t.startTime?`<span style="font-size:10px;color:var(--t2)">⏰ ${t.startTime}${t.endTime?' – '+t.endTime:''}</span>`:''}
+            <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
+            ${t.context?`<span style="font-size:11px;color:var(--t3)">${esc(t.context)}</span>`:''}
+            ${t.startTime?`<span style="font-size:11px;color:var(--t2)">⏰ ${t.startTime}${t.endTime?' – '+t.endTime:''}</span>`:''}
           </div>
-          ${t.due?`<div style="font-size:10px;color:var(--t3);margin-top:2px">📅 Due ${fmtDate(t.due)}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:10px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:10px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
-          ${t.notes?`<div style="font-size:10px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
+          ${t.due?`<div style="font-size:11px;color:var(--t3);margin-top:2px">📅 Due ${fmtDate(t.due)}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:11px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
+          ${t.notes?`<div style="font-size:11px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
           <button class="btn btn-p" style="font-size:10px;padding:1px 6px;height:20px" title="Focus on this task" onclick="pomoSelectTask(${t.id});toast('🎯 Focusing on: '+esc(D.tasks.find(x=>x.id===${t.id})?.title||''))">⏱</button>
@@ -19915,11 +19915,11 @@ function renderMyWeek(){
     const isToday=d.toDateString()===today;
     const pts=tasksForDay(d);
     return`<div class="wk-col" id="wkcol-${ds}" data-date="${ds}" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="dropTaskOnDay(event,'${ds}')" style="flex:1;min-width:0;background:var(--s2);border-radius:6px;padding:6px;border:2px solid ${isToday?'var(--ac)':'transparent'};transition:border-color .15s">
-      <div style="font-size:10px;font-weight:600;text-align:center;margin-bottom:5px;color:${isToday?'var(--ac)':'var(--t2)'}">${label(d)}${isToday?' • Today':''}</div>
+      <div style="font-size:11px;font-weight:600;text-align:center;margin-bottom:5px;color:${isToday?'var(--ac)':'var(--t2)'}">${label(d)}${isToday?' • Today':''}</div>
       <div id="wkday-${ds}" style="min-height:60px">
         ${pts.map(t=>weekTaskChip(t)).join('')}
       </div>
-      <div style="font-size:10px;color:var(--t3);text-align:center;margin-top:4px;cursor:pointer" onclick="quickAddToDay('${ds}')">+ Add</div>
+      <div style="font-size:11px;color:var(--t3);text-align:center;margin-top:4px;cursor:pointer" onclick="quickAddToDay('${ds}')">+ Add</div>
     </div>`;
   }).join('');
   $('myweek-main').innerHTML=`
@@ -19935,12 +19935,12 @@ function renderMyWeek(){
   ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
   <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">${colHtml}</div>
   ${unscheduled.length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">📥 Unscheduled (drag to a day)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${unscheduled.map(t=>weekTaskChip(t,true)).join('')}</div></div>`:''}
-  ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:10px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:10px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:10px;color:var(--err)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:10px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
+  ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:11px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--err)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:11px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
   `;
 }
 function weekTaskChip(t,draggable=true){
   const colors={High:'var(--err,#EF4444)',Medium:'var(--warn,#F59E0B)',Low:'var(--ok,#10B981)'};
-  return`<div draggable="true" ondragstart="dragTaskStart(event,${t.id})" style="background:var(--s3);border-left:3px solid ${colors[t.priority]||'var(--bd2)'};border-radius:3px;padding:4px 6px;margin-bottom:3px;cursor:grab;font-size:10px;display:flex;align-items:center;gap:4px" title="${esc(t.title)}">
+  return`<div draggable="true" ondragstart="dragTaskStart(event,${t.id})" style="background:var(--s3);border-left:3px solid ${colors[t.priority]||'var(--bd2)'};border-radius:3px;padding:4px 6px;margin-bottom:3px;cursor:grab;font-size:11px;display:flex;align-items:center;gap:4px" title="${esc(t.title)}">
     <div class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${t.id})"></div>
     <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     ${t.startTime?`<span style="font-size:9px;color:var(--t3);flex-shrink:0">${t.startTime}</span>`:''}
@@ -20024,16 +20024,16 @@ function renderMyYear(){
   </div>
 
   <div style="background:var(--s2);border-radius:8px;padding:8px 14px;margin-bottom:12px">
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-bottom:4px"><span>Jan</span><span>Mar</span><span>Jun</span><span>Sep</span><span>Dec</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:4px"><span>Jan</span><span>Mar</span><span>Jun</span><span>Sep</span><span>Dec</span></div>
     <div style="position:relative;height:6px;background:var(--s3);border-radius:3px;margin-bottom:4px">
       <div style="position:absolute;left:0;top:0;height:100%;width:${yearPct}%;background:var(--ac);border-radius:3px"></div>
       <div style="position:absolute;top:-3px;left:${yearPct}%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;background:var(--ac);border:2px solid var(--bg)"></div>
     </div>
-    <div style="font-size:10px;color:var(--t3);text-align:right">${yearPct}% of year elapsed</div>
+    <div style="font-size:11px;color:var(--t3);text-align:right">${yearPct}% of year elapsed</div>
   </div>
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-    ${[{l:'Tasks Done',v:doneTasks+'/'+totalTasks,c:'var(--ok)'},{l:'Notes',v:notesCount,c:'var(--ac)'},{l:'Journal Entries',v:journalCount,c:'var(--warn)'},{l:'Top Streak',v:topStreak.streak+'🔥',c:'var(--warn)'},{l:'Focus Hours',v:Math.round(totalFocusMins/60)+'h',c:'var(--ac)'}].map(s=>`<div style="flex:1;min-width:80px;background:var(--s2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${s.c}">${s.v}</div><div style="font-size:10px;color:var(--t3);margin-top:2px">${s.l}</div></div>`).join('')}
+    ${[{l:'Tasks Done',v:doneTasks+'/'+totalTasks,c:'var(--ok)'},{l:'Notes',v:notesCount,c:'var(--ac)'},{l:'Journal Entries',v:journalCount,c:'var(--warn)'},{l:'Top Streak',v:topStreak.streak+'🔥',c:'var(--warn)'},{l:'Focus Hours',v:Math.round(totalFocusMins/60)+'h',c:'var(--ac)'}].map(s=>`<div style="flex:1;min-width:80px;background:var(--s2);border-radius:8px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:${s.c}">${s.v}</div><div style="font-size:11px;color:var(--t3);margin-top:2px">${s.l}</div></div>`).join('')}
   </div>
 
   <div class="sec-h">🎯 Goal Timeline</div>
@@ -20041,7 +20041,7 @@ function renderMyYear(){
     <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:8px"><span>Jan</span><span>Apr</span><span>Jul</span><span>Oct</span><span>Dec</span></div>
     ${goalTimeline.map(({g,left,width})=>`
     <div style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">
         <span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span>
       </div>
       <div style="position:relative;height:14px;background:var(--s3);border-radius:3px">
@@ -20058,9 +20058,9 @@ function renderMyYear(){
       const pct=total?Math.round(done/total*100):0;
       const isCur=Math.floor((now.getMonth())/3)===i;
       return `<div style="flex:1;min-width:100px;background:${isCur?'var(--acs)':'var(--s2)'};border:${isCur?'1px solid var(--ac)':'1px solid transparent'};border-radius:8px;padding:10px">
-        <div style="font-size:10px;font-weight:600;margin-bottom:4px">${q}${isCur?' <span style="font-size:9px;color:var(--ac)">← Now</span>':''}</div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">${q}${isCur?' <span style="font-size:9px;color:var(--ac)">← Now</span>':''}</div>
         <div style="font-size:16px;font-weight:700;color:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--t2)'}">${pct}%</div>
-        <div style="font-size:10px;color:var(--t3)">${done}/${total} tasks</div>
+        <div style="font-size:11px;color:var(--t3)">${done}/${total} tasks</div>
         <div class="pb" style="margin-top:4px"><div class="f" style="width:${pct}%;background:${pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)'}"></div></div>
       </div>`;
     }).join('')}
@@ -20071,7 +20071,7 @@ function renderMyYear(){
     <div style="display:flex;gap:2px;flex-wrap:wrap">
       ${heatDays.map(d=>`<div style="width:10px;height:10px;border-radius:2px;background:${heatColor(heatLog[d]||0)}" title="${d}: ${heatLog[d]||0}m"></div>`).join('')}
     </div>
-    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:10px;color:var(--t3)">
+    <div style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:11px;color:var(--t3)">
       <span>Less</span>
       ${['var(--s3)','#1e3a5f','#1d5fa8','#2b7de9','var(--ac)'].map(c=>`<div style="width:10px;height:10px;border-radius:2px;background:${c}"></div>`).join('')}
       <span>More</span>
@@ -20079,13 +20079,13 @@ function renderMyYear(){
   </div>
 
   <div class="sec-h">📊 Annual Goals</div>
-  <div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">${g.icon}<span class="rt">${esc(g.title)}</span><span style="font-size:10px;color:var(--t3);margin-right:6px">${g.dueDate||''}</span><div class="pb" style="width:60px"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div><span class="rm">${g.pct}%</span></div>`).join('')}</div>
+  <div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">${g.icon}<span class="rt">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3);margin-right:6px">${g.dueDate||''}</span><div class="pb" style="width:60px"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div><span class="rm">${g.pct}%</span></div>`).join('')}</div>
   `;
   $('myyear-rail').innerHTML=`
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📌 Year Priorities</div>
-  ${D.goals.filter(g=>g.pct<100).slice(0,5).map((g,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:18px;height:18px;border-radius:50%;background:var(--ac);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.icon} ${esc(g.title)}</div><div class="pb" style="margin-top:3px"><div class="f" style="width:${g.pct}%"></div></div></div><span style="font-size:10px;color:var(--t3)">${g.pct}%</span></div>`).join('')}
+  ${D.goals.filter(g=>g.pct<100).slice(0,5).map((g,i)=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:18px;height:18px;border-radius:50%;background:var(--ac);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.icon} ${esc(g.title)}</div><div class="pb" style="margin-top:3px"><div class="f" style="width:${g.pct}%"></div></div></div><span style="font-size:11px;color:var(--t3)">${g.pct}%</span></div>`).join('')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">📈 Year Stats</div>
-  <div style="font-size:10px;color:var(--t2);line-height:1.8">
+  <div style="font-size:11px;color:var(--t2);line-height:1.8">
     <div>📋 Tasks done: <strong>${doneTasks}</strong></div>
     <div>📝 Notes: <strong>${notesCount}</strong></div>
     <div>📓 Journal entries: <strong>${journalCount}</strong></div>
@@ -20178,7 +20178,7 @@ ${tabBarG}
 <div class="cd" style="padding:6px">${bucketTasks.length?bucketTasks.map(gtdRow).join(''):`<div style="text-align:center;padding:34px 18px;color:var(--t3);font-size:12px">${emptyMsg}</div>`}</div>`;
   const ideasHtml=sparkIdeas.length===0
     ?`<div style="text-align:center;padding:40px 20px;color:var(--t3)">🎉 No ideas in Spark stage — all caught up!</div>`
-    :`<div style="font-size:10px;color:var(--t2);margin-bottom:10px">Triage each Spark idea: <strong>Develop</strong> to move forward, <strong>Park</strong> for later, or <strong>Kill</strong> to discard.</div>
+    :`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Triage each Spark idea: <strong>Develop</strong> to move forward, <strong>Park</strong> for later, or <strong>Kill</strong> to discard.</div>
     ${sparkIdeas.map(idea=>{
       const ice=Math.round((idea.ice_impact+idea.ice_confidence+idea.ice_ease)/3);
       return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:12px;margin-bottom:8px">
@@ -20188,16 +20188,16 @@ ${tabBarG}
             <div style="font-size:13px;font-weight:600;margin-bottom:2px">${esc(idea.title)}</div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(idea.description||'')}</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">ICE ${ice}/10</span>
-              <span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">${IDEA_TYPE_LABELS[idea.idea_type]||'General'}</span>
-              ${idea.goal_id?`<span style="font-size:10px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--ac)">🎯 ${esc((D.goals.find(g=>g.id===idea.goal_id)||{}).title||'Goal')}</span>`:''}
+              <span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">ICE ${ice}/10</span>
+              <span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--t2)">${IDEA_TYPE_LABELS[idea.idea_type]||'General'}</span>
+              ${idea.goal_id?`<span style="font-size:11px;background:var(--s3);padding:2px 6px;border-radius:10px;color:var(--ac)">🎯 ${esc((D.goals.find(g=>g.id===idea.goal_id)||{}).title||'Goal')}</span>`:''}
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-            <button class="btn btn-p" style="font-size:10px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
-            <button class="btn btn-s" style="font-size:10px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
-            <button class="btn btn-s" style="font-size:10px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='parked';D.ideas.find(x=>x.id===${idea.id}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
-            <button class="btn btn-s" style="font-size:10px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
+            <button class="btn btn-p" style="font-size:11px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='parked';D.ideas.find(x=>x.id===${idea.id}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
           </div>
         </div>
       </div>`;
@@ -20258,7 +20258,7 @@ function renderFocus(){
     <button class="btn btn-s" onclick="_focusSecsLeft=25*60;renderFocus()">25 min</button>
   </div>
   <div style="margin-bottom:20px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Focusing on task</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Focusing on task</label>
     <select class="inp" style="width:100%;margin-top:4px" onchange="_focusTaskId=parseInt(this.value)||null">
       <option value="">— No specific task —</option>
       ${taskOpts}
@@ -20279,16 +20279,16 @@ function renderFocus(){
       const d=new Date(ds+'T00:00');
       const lbl=dayLabels[d.getDay()===0?6:d.getDay()-1];
       return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
-        <div style="font-size:10px;color:var(--t3)">${dayMins[i]?dayMins[i]+'m':''}</div>
+        <div style="font-size:11px;color:var(--t3)">${dayMins[i]?dayMins[i]+'m':''}</div>
         <div style="width:100%;background:var(--s3);border-radius:4px 4px 0 0;height:80px;display:flex;align-items:flex-end">
           <div style="width:100%;height:${h}px;background:${isToday?'var(--ac)':'var(--ac-muted,#6366f1aa)'};border-radius:4px 4px 0 0;transition:height .3s"></div>
         </div>
-        <div style="font-size:10px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?700:400}">${lbl}</div>
+        <div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?700:400}">${lbl}</div>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:20px"><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:10px">📊 7-Day Focus History</div><div style="display:flex;gap:4px;align-items:flex-end">${bars}</div></div>`;
   })()}
-  ${todaySessions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px">Today\'s sessions</div>${todaySessions.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:16px">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.taskTitle||'Free focus'}</div><div style="font-size:10px;color:var(--t3)">${s.time} &middot; ${s.mins} min</div></div></div>`).join('')}</div>`:''}
+  ${todaySessions.length?`<div><div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px">Today\'s sessions</div>${todaySessions.map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:16px">🍅</span><div style="flex:1"><div style="font-size:12px;font-weight:500">${s.taskTitle||'Free focus'}</div><div style="font-size:11px;color:var(--t3)">${s.time} &middot; ${s.mins} min</div></div></div>`).join('')}</div>`:''}
   `;
 }
 function toggleFocusTimer(){
@@ -20623,7 +20623,7 @@ function ideaDaysInStage(idea){
 function ideaStagePill(stage,outcome){
   const label=outcome?({killed:'Killed',parked:'Parked',promoted:'Promoted'}[outcome]||IDEA_STAGE_LABELS[stage]):IDEA_STAGE_LABELS[stage];
   const color=outcome?({killed:'var(--err)',parked:'#8B5CF6',promoted:'var(--ok)'}[outcome]||IDEA_STAGE_COLORS[stage]):IDEA_STAGE_COLORS[stage];
-  return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:10px;font-weight:600">${label}</span>`;
+  return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600">${label}</span>`;
 }
 
 let _ideasView='active';
@@ -20654,14 +20654,14 @@ function renderIdeasLeaderboard(){
           <div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden;margin-bottom:3px">
             <div style="height:100%;width:${barW}%;background:var(--ac);border-radius:2px;transition:width .3s"></div>
           </div>
-          <div style="display:flex;gap:8px;font-size:10px;color:var(--t3)">
+          <div style="display:flex;gap:8px;font-size:11px;color:var(--t3)">
             ${ideaStagePill(idea.stage,idea.verdict_outcome)}
             <span>ICE <strong style="color:var(--ac)">${r.ice}</strong></span>
             <span>Votes <strong style="color:var(--ok)">${r.votes}</strong></span>
             <span>Score <strong style="color:var(--t1)">${r.score.toFixed(1)}</strong></span>
           </div>
         </div>
-        <button class="btn btn-s" style="font-size:10px;padding:3px 8px;flex-shrink:0" onclick="event.stopPropagation();openIdeaVote(${idea.id})">👍 Vote</button>
+        <button class="btn btn-s" style="font-size:11px;padding:3px 8px;flex-shrink:0" onclick="event.stopPropagation();openIdeaVote(${idea.id})">👍 Vote</button>
       </div>`;
     }).join('')}
     </div>
@@ -20704,9 +20704,9 @@ function renderIdeas(){
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input id="ideas-search" placeholder="🔍 Search ideas…" value="${esc(_ideasSearch)}" style="height:30px;font-size:11px;width:170px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="setIdeasSearch(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();aiIdeasSemanticSearch();}">
-      <button class="btn btn-s" style="height:30px;font-size:10px;color:var(--ac)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
       <div style="position:relative;display:inline-block">
-        <button class="btn btn-s" style="height:30px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="ideas-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:34px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:220px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');openAIIdeaGenerator()">✨ Generate sparks</button>
           <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('ideas-ai-menu');aiClusterIdeas()">🧩 Cluster by theme</button>
@@ -20719,12 +20719,12 @@ function renderIdeas(){
       <button class="btn btn-p" onclick="openNewIdeaModal()">+ New Idea</button>
     </div>
   </div>
-  ${showDigestBanner?`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:10px;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">📅</span><div style="flex:1"><div style="font-size:11px;font-weight:600">It's Monday — want a digest?</div><div style="font-size:10px;color:var(--t3)">AI will summarize top ICE, stale items, and parked-due-for-review.</div></div><button class="btn btn-p" style="font-size:11px;height:28px" onclick="aiIdeasWeeklyDigest()">📅 Show digest</button></div>`:''}
-  ${_ideasSemanticIds?`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;font-size:11px"><span>✨ Semantic search · ${filtered.length} match${filtered.length===1?'':'es'}</span><button class="btn btn-s" style="margin-left:auto;font-size:10px;height:22px" onclick="setIdeasSearch('')">✕ Clear</button></div>`:''}
+  ${showDigestBanner?`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-bottom:10px;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 14%,transparent),color-mix(in srgb,var(--purp) 14%,transparent));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:8px"><span style="font-size:18px">📅</span><div style="flex:1"><div style="font-size:11px;font-weight:600">It's Monday — want a digest?</div><div style="font-size:11px;color:var(--t3)">AI will summarize top ICE, stale items, and parked-due-for-review.</div></div><button class="btn btn-p" style="font-size:11px;height:28px" onclick="aiIdeasWeeklyDigest()">📅 Show digest</button></div>`:''}
+  ${_ideasSemanticIds?`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;background:var(--acs);border:1px solid var(--ac);border-radius:6px;font-size:11px"><span>✨ Semantic search · ${filtered.length} match${filtered.length===1?'':'es'}</span><button class="btn btn-s" style="margin-left:auto;font-size:11px;height:22px" onclick="setIdeasSearch('')">✕ Clear</button></div>`:''}
   <div style="display:flex;gap:0;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden;margin-bottom:16px;width:fit-content">
     ${viewTabs.map(v=>{
       const cnt=filterIdeas(v).length;
-      return `<button class="btn" style="border-radius:0;height:28px;font-size:10px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
+      return `<button class="btn" style="border-radius:0;height:28px;font-size:11px;border:none;${_ideasView===v?'background:var(--ac);color:#fff':'background:transparent;color:var(--t2)'}" onclick="_ideasView='${v}';renderIdeas()">${viewLabels[v]}${cnt?` (${cnt})`:''}</button>`;
     }).join('')}
   </div>
   ${_ideasView==='leaderboard'?renderIdeasLeaderboard():filtered.length===0?renderEmptyState({icon:'lightbulb',title:_ideasSearch?'No matches for your search':_ideasView==='active'?'No ideas in flight':_ideasView==='parked'?'No parked ideas':_ideasView==='graveyard'?'Graveyard is empty':_ideasView==='promoted'?'No promoted ideas yet':'No ideas captured',hint:_ideasSearch?'Try the ✨ Semantic button for an AI-powered intent search.':_ideasView==='active'?'Every project starts as a spark. Capture one and develop it.':_ideasView==='all'?'Capture ideas the moment they appear — develop them later.':'Switch to another view or capture a new idea.',ctaLabel:_ideasSearch?'Clear search':'+ Capture an idea',ctaFn:_ideasSearch?"setIdeasSearch('')":'openNewIdeaModal()'}):`
@@ -20744,16 +20744,16 @@ function renderIdeas(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           ${ideaStagePill(idea.stage,idea.verdict_outcome)}
-          <span style="font-size:10px;color:var(--t3)">${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}</span>
-          ${stale?`<span style="font-size:10px;color:var(--err);font-weight:600">⚠ ${days}d stale</span>`:`<span style="font-size:10px;color:var(--t3)">${days}d in stage</span>`}
+          <span style="font-size:11px;color:var(--t3)">${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}</span>
+          ${stale?`<span style="font-size:11px;color:var(--err);font-weight:600">⚠ ${days}d stale</span>`:`<span style="font-size:11px;color:var(--t3)">${days}d in stage</span>`}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;gap:4px;align-items:center">
-            <span style="font-size:10px;color:var(--t3)">ICE</span>
+            <span style="font-size:11px;color:var(--t3)">ICE</span>
             <span style="font-size:12px;font-weight:700;color:var(--ac)">${ice}</span>
           </div>
-          ${goalName?`<span style="font-size:10px;background:var(--ac)22;color:var(--ac);border-radius:4px;padding:1px 6px">🎯 ${esc(goalName.slice(0,20))}</span>`:''}
-          ${idea.collaborators&&idea.collaborators.length?`<span style="font-size:10px;color:var(--t3)">👥 ${idea.collaborators.length}</span>`:''}
+          ${goalName?`<span style="font-size:11px;background:var(--ac)22;color:var(--ac);border-radius:4px;padding:1px 6px">🎯 ${esc(goalName.slice(0,20))}</span>`:''}
+          ${idea.collaborators&&idea.collaborators.length?`<span style="font-size:11px;color:var(--t3)">👥 ${idea.collaborators.length}</span>`:''}
         </div>
       </div>`;
     }).join('')}
@@ -20764,26 +20764,26 @@ function openNewIdeaModal(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">💡 New Idea</h2>
   <div style="margin-bottom:10px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Title *</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Title *</label>
     <input id="ni-title" class="inp" style="width:100%;margin-top:4px" placeholder="What is the idea?">
   </div>
   <div style="margin-bottom:10px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">One-line description</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">One-line description</label>
     <input id="ni-desc" class="inp" style="width:100%;margin-top:4px" placeholder="In one sentence…">
   </div>
   <!-- Rich Text Editor for full idea description -->
   <div style="margin-bottom:10px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Full Description <span style="font-size:10px;font-weight:400;text-transform:none;color:var(--t3)">(rich text — describe your idea in full detail)</span></label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Full Description <span style="font-size:11px;font-weight:400;text-transform:none;color:var(--t3)">(rich text — describe your idea in full detail)</span></label>
     ${luRTE_render({id:'ni-body-rte', placeholder:'Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?', value:'', height:'160px'})}
     <!-- AI Assistance -->
     <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('validate')">✅ Validate</button>
-        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('premortem')">⚠ Pre-mortem</button>
-        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('ice')">🎯 ICE Score</button>
-        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('expand')">💡 Expand</button>
-        <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteIdeaAI('competitors')">🔍 Competitors</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteIdeaAI('validate')">✅ Validate</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteIdeaAI('premortem')">⚠ Pre-mortem</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteIdeaAI('ice')">🎯 ICE Score</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteIdeaAI('expand')">💡 Expand</button>
+        <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteIdeaAI('competitors')">🔍 Competitors</button>
         ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       </div>
       <div id="ni-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
@@ -20791,13 +20791,13 @@ function openNewIdeaModal(){
   </div>
   <div style="display:flex;gap:10px;margin-bottom:10px">
     <div style="flex:1">
-      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Idea type *</label>
+      <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Idea type *</label>
       <select id="ni-type" class="inp" style="width:100%;margin-top:4px">
         ${Object.entries(IDEA_TYPE_LABELS).map(([k,v])=>`<option value="${k}">${IDEA_TYPE_ICONS[k]} ${v}</option>`).join('')}
       </select>
     </div>
     <div style="flex:1">
-      <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Link to goal</label>
+      <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Link to goal</label>
       <select id="ni-goal" class="inp" style="width:100%;margin-top:4px">
         <option value="">— None —</option>
         ${D.goals.map(g=>`<option value="${g.id}">${g.icon} ${esc(g.title)}</option>`).join('')}
@@ -20861,7 +20861,7 @@ function renderIdeaDetail(idea){
   el.innerHTML=`
   <div style="max-width:900px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <button class="btn btn-s" style="font-size:10px" onclick="renderIdeas()">← Ideas</button>
+      <button class="btn btn-s" style="font-size:11px" onclick="renderIdeas()">← Ideas</button>
     </div>
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
       <div style="flex:1">
@@ -20871,12 +20871,12 @@ function renderIdeaDetail(idea){
       <div style="display:flex;gap:6px;align-items:center">
         <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:4px 10px;text-align:center">
           <div style="font-size:16px;font-weight:700;color:var(--ac)">${ice}</div>
-          <div style="font-size:10px;color:var(--t3)">ICE</div>
+          <div style="font-size:11px;color:var(--t3)">ICE</div>
         </div>
-        <button class="btn btn-s" style="font-size:10px" onclick="openIdeaShare(${idea.id})">👥 Share</button>
-        <button class="btn btn-s" style="font-size:10px" onclick="exportIdeaMarkdown(${idea.id})" title="Export as Markdown">⬇ MD</button>
-        <button class="btn btn-s" style="font-size:10px" onclick="exportIdeaPDF(${idea.id})" title="Export as PDF">🖨 PDF</button>
-        <button class="btn btn-s" style="font-size:10px;color:var(--err)" onclick="if(confirm('Delete this idea?')){D.ideas=D.ideas.filter(x=>x.id!==${idea.id});save('ideas');renderIdeas();toast('Idea deleted.');}">🗑</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="openIdeaShare(${idea.id})">👥 Share</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="exportIdeaMarkdown(${idea.id})" title="Export as Markdown">⬇ MD</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="exportIdeaPDF(${idea.id})" title="Export as PDF">🖨 PDF</button>
+        <button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="if(confirm('Delete this idea?')){D.ideas=D.ideas.filter(x=>x.id!==${idea.id});save('ideas');renderIdeas();toast('Idea deleted.');}">🗑</button>
       </div>
     </div>
 
@@ -20888,24 +20888,24 @@ function renderIdeaDetail(idea){
         const color=active?'var(--ac)':past?'var(--ok)':'var(--t3)';
         const bg=active?'var(--ac)22':past?'var(--ok)11':'transparent';
         return `<div style="flex:1;padding:8px 4px;text-align:center;background:${bg};cursor:pointer;border-right:1px solid var(--bd1)" onclick="moveIdeaToStage(${idea.id},'${s}')">
-          <div style="font-size:10px;font-weight:600;color:${color}">${IDEA_STAGE_LABELS[s]}</div>
+          <div style="font-size:11px;font-weight:600;color:${color}">${IDEA_STAGE_LABELS[s]}</div>
           ${active?`<div style="width:6px;height:6px;background:var(--ac);border-radius:50%;margin:3px auto 0"></div>`:''}
         </div>`;
       }).join('')}
       <div style="flex:1;padding:8px 4px;text-align:center;cursor:pointer" onclick="openVerdictModal(${idea.id})">
-        <div style="font-size:10px;font-weight:600;color:${idea.stage==='verdict'?'var(--ok)':'var(--t3)'}">Verdict</div>
-        ${idea.verdict_outcome?`<div style="font-size:10px;color:var(--t3)">${idea.verdict_outcome}</div>`:''}
+        <div style="font-size:11px;font-weight:600;color:${idea.stage==='verdict'?'var(--ok)':'var(--t3)'}">Verdict</div>
+        ${idea.verdict_outcome?`<div style="font-size:11px;color:var(--t3)">${idea.verdict_outcome}</div>`:''}
       </div>
     </div>
 
     <!-- AI mode toggle -->
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px">
       <span style="font-size:11px;color:var(--t2)">AI mode:</span>
-      <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">😈 Devil's Advocate</button>
-      <button class="btn btn-s" style="font-size:10px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">🏆 Champion</button>
-      <button class="btn btn-s" style="font-size:10px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
-      ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:10px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
-      ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:10px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
+      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">😈 Devil's Advocate</button>
+      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">🏆 Champion</button>
+      <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
+      ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
+      ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:11px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
     </div>
 
     <!-- Free-form body RTE -->
@@ -20913,26 +20913,26 @@ function renderIdeaDetail(idea){
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--s2);cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:13px;font-weight:600">📝 Full Description</span>
-          <span style="font-size:10px;color:var(--t3)">Rich text — edit freely</span>
+          <span style="font-size:11px;color:var(--t3)">Rich text — edit freely</span>
         </div>
         <span style="display:flex;align-items:center;gap:8px">
-          <span id="idea-rte-wc-${idea.id}" style="font-size:10px;color:var(--t3)">${idea.bodyHtml?(idea.bodyHtml.replace(/<[^>]+>/g,'').trim().split(/\s+/).filter(Boolean).length+' words'):'0 words'}</span>
+          <span id="idea-rte-wc-${idea.id}" style="font-size:11px;color:var(--t3)">${idea.bodyHtml?(idea.bodyHtml.replace(/<[^>]+>/g,'').trim().split(/\s+/).filter(Boolean).length+' words'):'0 words'}</span>
           <span style="font-size:12px;color:var(--t3)">▾</span>
         </span>
       </div>
       <div style="padding:0">
         ${luRTE_render({id:`idea-body-rte-${idea.id}`, placeholder:'Describe your idea in full… What problem does it solve? Who is it for? What makes it unique?', value:(idea.bodyHtml||''), height:'140px'})}
         <div style="display:flex;justify-content:flex-end;padding:6px 8px;background:var(--s1);border-top:1px solid var(--bd1)">
-          <button type="button" class="btn btn-p" style="height:24px;padding:0 10px;font-size:10px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
+          <button type="button" class="btn btn-p" style="height:24px;padding:0 10px;font-size:11px" onclick="saveIdeaBodyHtml(${idea.id})">✓ Save</button>
         </div>
         <!-- AI Assistance -->
         <div style="padding:8px;background:var(--s2);border-top:1px solid var(--bd1)">
-          <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+          <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'validate')">✅ Validate</button>
-            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'premortem')">💥 Pre-mortem</button>
-            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
-            <button type="button" class="btn btn-s" style="height:22px;font-size:10px" onclick="ideaDetailAI(${idea.id},'competitors')">🔭 Competitors</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="ideaDetailAI(${idea.id},'validate')">✅ Validate</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="ideaDetailAI(${idea.id},'premortem')">💥 Pre-mortem</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="ideaDetailAI(${idea.id},'expand')">${_icon('sparkles',12,'currentColor')} Expand</button>
+            <button type="button" class="btn btn-s" style="height:22px;font-size:11px" onclick="ideaDetailAI(${idea.id},'competitors')">🔭 Competitors</button>
           </div>
           <div id="idea-detail-ai-result-${idea.id}" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
         </div>
@@ -20957,13 +20957,13 @@ function renderIdeaDetail(idea){
             return `<div style="margin-bottom:16px">
               <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px">
                 <label style="font-size:12px;font-weight:600;flex:1">${esc(q.prompt)}</label>
-                <button class="btn btn-s" style="font-size:10px;padding:2px 6px;white-space:nowrap" onclick="ideaAISparkle(${idea.id},'${s}','${q.key}',this)">✨ AI</button>
+                <button class="btn btn-s" style="font-size:11px;padding:2px 6px;white-space:nowrap" onclick="ideaAISparkle(${idea.id},'${s}','${q.key}',this)">✨ AI</button>
               </div>
-              ${q.help?`<div style="font-size:10px;color:var(--t3);margin-bottom:6px;font-style:italic">${esc(q.help)}</div>`:''}
+              ${q.help?`<div style="font-size:11px;color:var(--t3);margin-bottom:6px;font-style:italic">${esc(q.help)}</div>`:''}
               <textarea class="inp" style="width:100%;min-height:80px;font-size:12px;resize:vertical" placeholder="Your answer…" onblur="saveIdeaAnswer(${idea.id},'${s}','${q.key}',this.value)">${esc(ans?.body||'')}</textarea>
             </div>`;
           }).join('')}
-          <button class="btn btn-s" style="font-size:10px;margin-top:4px" onclick="ideaWhyStuck(${idea.id},'${s}')">🤔 Why I'm stuck</button>
+          <button class="btn btn-s" style="font-size:11px;margin-top:4px" onclick="ideaWhyStuck(${idea.id},'${s}')">🤔 Why I'm stuck</button>
         </div>
       </div>`;
     }).join('')}
@@ -20983,17 +20983,17 @@ function renderIdeaDetail(idea){
     <div style="padding:14px">
       <!-- Goal link -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Linked goal</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Linked goal</div>
         <select class="inp" style="width:100%;font-size:12px" onchange="updateIdeaGoal(${idea.id},parseInt(this.value)||null)">
           <option value="">— None —</option>
           ${D.goals.map(g=>`<option value="${g.id}" ${idea.goal_id===g.id?'selected':''}>${g.icon} ${esc(g.title)}</option>`).join('')}
         </select>
-        ${!linkedGoal?`<div style="font-size:10px;color:var(--t3);margin-top:4px;font-style:italic">Ideas without a goal link tend to drift. Pick one, or note this is exploratory.</div>`:''}
+        ${!linkedGoal?`<div style="font-size:11px;color:var(--t3);margin-top:4px;font-style:italic">Ideas without a goal link tend to drift. Pick one, or note this is exploratory.</div>`:''}
       </div>
 
       <!-- ICE score -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">ICE score</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">ICE score</div>
         ${[['ice_impact','Impact'],['ice_confidence','Confidence'],['ice_ease','Ease']].map(([k,l])=>`
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${l}</span><span style="font-weight:700;color:var(--ac)">${idea[k]||5}</span></div>
@@ -21001,30 +21001,30 @@ function renderIdeaDetail(idea){
         </div>`).join('')}
         <div style="text-align:center;margin:8px 0">
           <div style="font-size:20px;font-weight:700;color:var(--ac)">${ice}</div>
-          <div style="font-size:10px;color:var(--t3)">ICE average</div>
+          <div style="font-size:11px;color:var(--t3)">ICE average</div>
         </div>
-        ${idea.ai_ice_rationale?`<div style="background:var(--s3);border-radius:6px;padding:8px;font-size:11px;color:var(--t2);margin-top:6px"><div style="font-weight:600;margin-bottom:4px">AI suggestion: ${idea.ai_ice_impact}/${idea.ai_ice_confidence}/${idea.ai_ice_ease}</div>${esc(idea.ai_ice_rationale)}<br><button class="btn btn-s" style="font-size:10px;margin-top:6px" onclick="useAIIceScore(${idea.id})">Use AI score</button></div>`:`<button class="btn btn-s" style="width:100%;font-size:10px;margin-top:4px" onclick="requestAIIceScore(${idea.id})">✨ Get AI score</button>`}
+        ${idea.ai_ice_rationale?`<div style="background:var(--s3);border-radius:6px;padding:8px;font-size:11px;color:var(--t2);margin-top:6px"><div style="font-weight:600;margin-bottom:4px">AI suggestion: ${idea.ai_ice_impact}/${idea.ai_ice_confidence}/${idea.ai_ice_ease}</div>${esc(idea.ai_ice_rationale)}<br><button class="btn btn-s" style="font-size:11px;margin-top:6px" onclick="useAIIceScore(${idea.id})">Use AI score</button></div>`:`<button class="btn btn-s" style="width:100%;font-size:11px;margin-top:4px" onclick="requestAIIceScore(${idea.id})">✨ Get AI score</button>`}
       </div>
 
       <!-- Similar ideas -->
       ${similar.length?`<div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Similar ideas</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Similar ideas</div>
         ${similar.map(s=>`<div style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="openIdeaDetail(${s.id})">
           <div style="font-size:11px;font-weight:500">${esc(s.title)}</div>
-          <div style="display:flex;gap:4px;margin-top:2px">${ideaStagePill(s.stage,s.verdict_outcome)}${s.kill_reason?`<span style="font-size:10px;color:var(--t3)">${esc(s.kill_reason.slice(0,30))}</span>`:''}</div>
+          <div style="display:flex;gap:4px;margin-top:2px">${ideaStagePill(s.stage,s.verdict_outcome)}${s.kill_reason?`<span style="font-size:11px;color:var(--t3)">${esc(s.kill_reason.slice(0,30))}</span>`:''}</div>
         </div>`).join('')}
       </div>`:''}
 
       <!-- Collaborators -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Collaborators</div>
-        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:10px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:10px;color:var(--err)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
-        <button class="btn btn-s" style="width:100%;font-size:10px;margin-top:6px" onclick="openIdeaInvite(${idea.id})">+ Invite</button>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Collaborators</div>
+        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:11px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
+        <button class="btn btn-s" style="width:100%;font-size:11px;margin-top:6px" onclick="openIdeaInvite(${idea.id})">+ Invite</button>
       </div>
 
       <!-- Activity log -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Activity</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Activity</div>
         <div style="font-size:11px;color:var(--t3)">
           <div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
           ${idea.develop_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Develop ${new Date(idea.develop_at).toLocaleDateString()}</div>`:''}
@@ -21036,8 +21036,8 @@ function renderIdeaDetail(idea){
       <!-- Related Bookmarks -->
       <div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">🔗 Related Bookmarks</div>
-          <button class="btn btn-s" style="font-size:10px;padding:2px 6px" onclick="showLinkBookmarkPanel('idea',${idea.id})">+ Link</button>
+          <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">🔗 Related Bookmarks</div>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="showLinkBookmarkPanel('idea',${idea.id})">+ Link</button>
         </div>
         <div id="related-bk-idea-${idea.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
       </div>
@@ -21210,7 +21210,7 @@ function saveAIGeneratedSpark(idx){
   const i=cache.ideas[idx];
   const idea={id:nextId(D.ideas),title:i.title,description:i.description,bodyHtml:'',idea_type:cache.type||'general',stage:'spark',goal_id:cache.goalId||null,ice_impact:5,ice_confidence:5,ice_ease:5,ai_ice_impact:null,ai_ice_confidence:null,ai_ice_ease:null,ai_ice_rationale:null,kill_reason:null,parked_review_date:null,promoted_project_id:null,verdict_outcome:null,spark_at:new Date().toISOString(),develop_at:null,stress_test_at:null,verdict_at:null,answers:[],collaborators:[],comments:[],votes:[],checkIns:[],createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),ai_generated:true};
   D.ideas.push(idea);save('ideas');
-  const card=document.getElementById('aig-card-'+idx);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML=card.innerHTML+'<div style="font-size:10px;color:var(--ok);margin-top:4px">✓ Saved</div>';}
+  const card=document.getElementById('aig-card-'+idx);if(card){card.style.opacity='.4';card.style.pointerEvents='none';card.innerHTML=card.innerHTML+'<div style="font-size:11px;color:var(--ok);margin-top:4px">✓ Saved</div>';}
   toast(`💡 "${i.title}" saved`);
 }
 // I2: AI Promote-to-Project
@@ -21231,9 +21231,9 @@ async function aiIdeaPromoteToProject(id){
       <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:10px">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(p.name)}</div>
         <div style="font-size:11px;color:var(--t2);line-height:1.5;margin-bottom:8px;overflow-wrap:anywhere;word-break:break-word">${esc(p.desc||'')}</div>
-        ${(p.milestones||[]).length?`<div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Milestones</div>${p.milestones.map(ms=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">🏁 ${esc(ms.title||'')} <span style="color:var(--t3);font-size:10px">(in ${ms.due_offset_days||30}d)</span></div>`).join('')}`:''}
-        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">First 5 tasks</div>
-        ${p.tasks.map(t=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">📋 ${esc(t.title||'')} <span style="color:var(--t3);font-size:10px">[${esc(t.priority||'Medium')}, ~${t.est_minutes||30}m]</span></div>`).join('')}
+        ${(p.milestones||[]).length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Milestones</div>${p.milestones.map(ms=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">🏁 ${esc(ms.title||'')} <span style="color:var(--t3);font-size:11px">(in ${ms.due_offset_days||30}d)</span></div>`).join('')}`:''}
+        <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 4px">First 5 tasks</div>
+        ${p.tasks.map(t=>`<div style="font-size:11px;padding:2px 0;color:var(--t1)">📋 ${esc(t.title||'')} <span style="color:var(--t3);font-size:11px">[${esc(t.priority||'Medium')}, ~${t.est_minutes||30}m]</span></div>`).join('')}
       </div>
       <div style="display:flex;gap:6px"><button class="btn btn-p" onclick="confirmAIPromotion(${id})" style="font-size:11px">✓ Create project + tasks</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>`;
     window._aigPromote={ideaId:id,plan:p};
@@ -21296,7 +21296,7 @@ function _aiBriefAppendToIdea(id){
   const briefHtml=idea.decisionBriefHtml||(typeof renderMd==='function'?renderMd(idea.decisionBrief||''):'');
   if(!briefHtml)return toast('No brief content to append');
   const stamp=new Date().toLocaleDateString();
-  const block=`<hr style="border:none;border-top:1px solid var(--bd1);margin:10px 0"><div style="font-size:10px;color:var(--t3);margin-bottom:4px">📋 Decision Brief · ${stamp}</div>${briefHtml}`;
+  const block=`<hr style="border:none;border-top:1px solid var(--bd1);margin:10px 0"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">📋 Decision Brief · ${stamp}</div>${briefHtml}`;
   idea.descriptionHtml=prev?prev+block:block;
   // Keep .description in sync as a plain-text fallback for older renderers.
   idea.description=(idea.description||'')+(idea.description?'\n\n':'')+'--- Decision Brief ('+stamp+') ---\n'+(idea.decisionBrief||'');
@@ -21315,7 +21315,7 @@ function openAIRoadmap(){
   if(!active.length)return toast('No active ideas to roadmap');
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🗺 AI Roadmap Generator</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick the ideas to bundle into Now / Next / Later phases. AI will propose phasing and rationale.</div>
-    <div style="max-height:280px;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;padding:6px;margin-bottom:10px">${active.map(i=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 4px;cursor:pointer;font-size:11px"><input type="checkbox" value="${i.id}" checked style="width:14px;height:14px"><span style="flex:1">${IDEA_TYPE_ICONS[i.idea_type]||'💡'} ${esc(i.title)}</span><span style="font-size:10px;color:var(--t3)">ICE ${ideaICE(i)}</span></label>`).join('')}</div>
+    <div style="max-height:280px;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px;padding:6px;margin-bottom:10px">${active.map(i=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 4px;cursor:pointer;font-size:11px"><input type="checkbox" value="${i.id}" checked style="width:14px;height:14px"><span style="flex:1">${IDEA_TYPE_ICONS[i.idea_type]||'💡'} ${esc(i.title)}</span><span style="font-size:11px;color:var(--t3)">ICE ${ideaICE(i)}</span></label>`).join('')}</div>
     <div style="display:flex;gap:6px"><button class="btn btn-p" onclick="aiGenerateRoadmap()">🗺 Generate roadmap</button><button class="btn btn-s" onclick="closeModal()">Cancel</button></div>
     <div id="airm-results" style="margin-top:10px"></div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -21331,7 +21331,7 @@ async function aiGenerateRoadmap(){
     const sys=`You are a strategic planner. Bundle the user's ideas into a phased roadmap (Now = 0-30 days, Next = 30-90 days, Later = 90+ days). Reply with strict JSON: {"now":[{"title":"…","why":"…"}, …],"next":[…],"later":[…],"strategy":"1-2 sentence overall theme"}`;
     const text=String(await _ideaAICall(`${sys}\n\nIdeas:\n${lines}\n\nBuild the roadmap.`,true)||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
     const r=JSON.parse(text);
-    const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:10px;color:var(--t3)">(empty)</div>'}</div>`;
+    const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">(empty)</div>'}</div>`;
     document.getElementById('airm-results').innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:8px;padding:8px;background:var(--acs);border-radius:6px">🧭 ${esc(r.strategy||'')}</div>${phase('🟢 Now (0-30d)',r.now,'var(--ok)')}${phase('🟡 Next (30-90d)',r.next,'var(--warn)')}${phase('🔵 Later (90d+)',r.later,'var(--ac)')}`;
   }catch(e){document.getElementById('airm-results').innerHTML=`<div style="color:var(--err);font-size:11px">${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
@@ -21415,7 +21415,7 @@ function ideaAISparkle(id,stage,key,btn){
     const pop=document.createElement('div');
     pop.className='ai-popover';
     pop.style.cssText='background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:10px;font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5';
-    pop.innerHTML=`<div style="font-size:10px;font-weight:600;color:${mode==='devil'?'var(--err)':'var(--ok)'};margin-bottom:4px">${mode==='devil'?'😈 Devil\'s Advocate':'🏆 Champion'}</div>${esc(text)}<button class="btn btn-s" style="font-size:10px;margin-top:6px;display:block" onclick="this.parentElement.remove()">Dismiss</button>`;
+    pop.innerHTML=`<div style="font-size:11px;font-weight:600;color:${mode==='devil'?'var(--err)':'var(--ok)'};margin-bottom:4px">${mode==='devil'?'😈 Devil\'s Advocate':'🏆 Champion'}</div>${esc(text)}<button class="btn btn-s" style="font-size:11px;margin-top:6px;display:block" onclick="this.parentElement.remove()">Dismiss</button>`;
     btn.parentElement.appendChild(pop);
   }).catch(()=>{btn.textContent='✨ AI';btn.disabled=false;toast('AI unavailable.');});
 }
@@ -21461,7 +21461,7 @@ function runIdeaPremortem(id){
     save('ideas');
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:4px">🧨 Premortem: ${esc(idea.title)}</h2>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:12px">If this fails in 12 months, here’s why:</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:12px">If this fails in 12 months, here’s why:</div>
     <div style="font-size:12px;color:var(--t2);line-height:1.75;white-space:pre-wrap;background:var(--s2);border-radius:8px;padding:12px;border:1px solid var(--bd2)">${esc(text)}</div>
     <div style="display:flex;gap:8px;margin-top:14px">
       <button class="btn btn-p" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied!');" style="font-size:11px">📋 Copy</button>
@@ -21574,18 +21574,18 @@ function exportIdeaPDF(id){
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${idea.title}</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
     <div><h1 style="font-size:22px;font-weight:800;margin:0 0 6px">${idea.title}</h1><div style="font-size:12px;color:#6b7280">${typeLabel} &bull; ${stageLabel} &bull; Created ${new Date(idea.createdAt).toLocaleDateString()}</div></div>
-    <div style="text-align:center;background:#eef2ff;border-radius:8px;padding:8px 16px"><div style="font-size:24px;font-weight:800;color:#4f46e5">${ice}</div><div style="font-size:10px;color:#6b7280">ICE Score</div></div>
+    <div style="text-align:center;background:#eef2ff;border-radius:8px;padding:8px 16px"><div style="font-size:24px;font-weight:800;color:#4f46e5">${ice}</div><div style="font-size:11px;color:#6b7280">ICE Score</div></div>
   </div>
   <div style="display:flex;gap:16px;margin-bottom:16px">
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_impact||5}</div><div style="font-size:10px;color:#6b7280">Impact</div></div>
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_confidence||5}</div><div style="font-size:10px;color:#6b7280">Confidence</div></div>
-    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_ease||5}</div><div style="font-size:10px;color:#6b7280">Ease</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_impact||5}</div><div style="font-size:11px;color:#6b7280">Impact</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_confidence||5}</div><div style="font-size:11px;color:#6b7280">Confidence</div></div>
+    <div style="flex:1;background:#f9fafb;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#4f46e5">${idea.ice_ease||5}</div><div style="font-size:11px;color:#6b7280">Ease</div></div>
   </div>
   ${idea.description?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Description</h3><p style="font-size:11px;color:#374151;line-height:1.6">${idea.description}</p></div>`:''}
   ${idea.bodyHtml?`<div style="margin-bottom:16px"><h3 style="font-size:13px;font-weight:700;margin:0 0 6px">Full Description</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:10px;background:#f9fafb;border-radius:6px;border-left:3px solid #4f46e5">${idea.bodyHtml}</div></div>`:''}
   ${answersHtml}
   ${pmHtml}
-  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
 </body></html>`;
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -21661,7 +21661,7 @@ function exportSingleJournalPDF(id){
     ${metaBadges?`<div>${metaBadges}</div>`:''}
   </div>
   ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
-  <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
+  <div style="margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div>
 </body></html>`;
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -21725,19 +21725,19 @@ function _exportJournalPDFEntries(entries){
   let entriesHtml='';
   sorted.forEach((j,idx)=>{
     const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
-    const metaBadges=[j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px">${j.energy}</span>`:'',j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:10px">${j.type}</span>`:''].filter(Boolean).join(' ');
+    const metaBadges=[j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${j.energy}</span>`:'',j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${j.type}</span>`:''].filter(Boolean).join(' ');
     const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
-    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:6px">\ud83d\udcd3 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
-    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#d97706;margin-bottom:4px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
-    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
-    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">\ud83d\udcd3 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">\ud83d\ude4f Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${g}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">\ud83c\udf1f Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${w}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">\ud83d\udd04 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">\u2022 ${i}</div>`).join('')}</div>`:'';
     entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:center;margin-bottom:8px"><h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2><div style="font-size:11px;color:#6b7280">${j.date||''}</div></div>
       ${metaBadges?`<div style="margin-bottom:8px">${metaBadges}</div>`:''}
       ${bodyHtml}${diaryHtml}${gratHtml}${winsHtml}${improvHtml}
     </div>`;
   });
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body><div style="margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #4f46e5"><h1 style="font-size:24px;font-weight:800;margin:0 0 4px">\u270f\ufe0f Journal Export</h1><div style="font-size:12px;color:#6b7280">${sorted.length} entr${sorted.length===1?'y':'ies'} \u2022 Exported ${new Date().toLocaleDateString()}</div></div>${entriesHtml}<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Journal Export</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body><div style="margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #4f46e5"><h1 style="font-size:24px;font-weight:800;margin:0 0 4px">\u270f\ufe0f Journal Export</h1><div style="font-size:12px;color:#6b7280">${sorted.length} entr${sorted.length===1?'y':'ies'} \u2022 Exported ${new Date().toLocaleDateString()}</div></div>${entriesHtml}<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain \u2022 ${new Date().toLocaleDateString()}</div></body></html>`;
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
   toast('\ud83d\udda8 Opening print dialog\u2026 ('+sorted.length+' entries)');
@@ -21785,14 +21785,14 @@ function exportJournalPDF(){
   sorted.forEach((j,idx)=>{
     const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
     const metaBadges=[
-      j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:10px">${j.energy}</span>`:'',
-      j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:10px">${j.type}</span>`:'',
+      j.energy?`<span style="background:#eef2ff;color:#4f46e5;border-radius:10px;padding:1px 8px;font-size:11px">${j.energy}</span>`:'',
+      j.type?`<span style="background:#f0fdf4;color:#16a34a;border-radius:10px;padding:1px 8px;font-size:11px">${j.type}</span>`:'',
     ].filter(Boolean).join(' ');
     const bodyHtml=j.body?`<p style="font-size:11px;color:#374151;line-height:1.7;margin:8px 0">${j.body.replace(/\n/g,'<br>')}</p>`:'';
-    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:6px">📓 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
-    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#d97706;margin-bottom:4px">🙏 Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${g}</div>`).join('')}</div>`:'';
-    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#16a34a;margin-bottom:4px">🌟 Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${w}</div>`).join('')}</div>`:'';
-    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:4px">🔄 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${i}</div>`).join('')}</div>`:'';
+    const diaryHtml=j.diaryBody?`<div style="margin-top:10px;padding:10px;background:#f9fafb;border-left:3px solid #4f46e5;border-radius:0 6px 6px 0"><div style="font-size:11px;font-weight:700;color:#4f46e5;margin-bottom:6px">📓 Diary Entry</div><div style="font-size:11px;color:#374151;line-height:1.7">${j.diaryBody}</div></div>`:'';
+    const gratHtml=(j.gratitude||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:4px">🙏 Gratitude</div>${j.gratitude.filter(Boolean).map(g=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${g}</div>`).join('')}</div>`:'';
+    const winsHtml=(j.wins||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:4px">🌟 Wins</div>${j.wins.filter(Boolean).map(w=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${w}</div>`).join('')}</div>`:'';
+    const improvHtml=(j.improvements||[]).filter(Boolean).length?`<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:4px">🔄 Improvements</div>${j.improvements.filter(Boolean).map(i=>`<div style="font-size:11px;color:#374151;padding:2px 0">• ${i}</div>`).join('')}</div>`:'';
     entriesHtml+=`<div style="page-break-inside:avoid;margin-bottom:24px;padding-bottom:20px;${idx<sorted.length-1?'border-bottom:1px solid #e5e7eb':''}">
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <h2 style="font-size:15px;font-weight:700;margin:0;flex:1">${j.title||'Untitled Entry'}${moodBadge}</h2>
@@ -21808,7 +21808,7 @@ function exportJournalPDF(){
     <div style="font-size:12px;color:#6b7280">${sorted.length} entr${sorted.length===1?'y':'ies'} &bull; Exported ${new Date().toLocaleDateString()}</div>
   </div>
   ${entriesHtml}
-  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:10px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
+  <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">Generated by LevelUp Second Brain &bull; ${new Date().toLocaleDateString()}</div>
 </body></html>`;
   const w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -21821,7 +21821,7 @@ function openVerdictModal(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:12px">⚖ Verdict: ${esc(idea.title)}</h2>
   <div style="margin-bottom:12px">
-    <label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Outcome *</label>
+    <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Outcome *</label>
     <div style="display:flex;gap:8px;margin-top:6px">
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="killed" onchange="showVerdictFields('killed')" style="margin-right:4px"><span style="font-size:12px;color:var(--err)">🪦 Kill</span></label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="parked" onchange="showVerdictFields('parked')" style="margin-right:4px"><span style="font-size:12px;color:#8B5CF6">🅿 Park</span></label>
@@ -21839,11 +21839,11 @@ function showVerdictFields(outcome){
   const el=document.getElementById('verdict-fields');
   if(!el)return;
   if(outcome==='killed'){
-    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Kill reason *</label><textarea id="vf-kill" class="inp" style="width:100%;height:80px;margin-top:4px;font-size:12px" placeholder="Why are you killing this idea?"></textarea></div>`;
+    el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Kill reason *</label><textarea id="vf-kill" class="inp" style="width:100%;height:80px;margin-top:4px;font-size:12px" placeholder="Why are you killing this idea?"></textarea></div>`;
   } else if(outcome==='parked'){
-    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Review date *</label><input id="vf-date" type="date" class="inp" style="width:100%;margin-top:4px" value="${new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0]}"></div>`;
+    el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Review date *</label><input id="vf-date" type="date" class="inp" style="width:100%;margin-top:4px" value="${new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0]}"></div>`;
   } else if(outcome==='promoted'){
-    el.innerHTML=`<div><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">New project name</label><input id="vf-proj" class="inp" style="width:100%;margin-top:4px" placeholder="Project name (leave blank to skip)"></div>`;
+    el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">New project name</label><input id="vf-proj" class="inp" style="width:100%;margin-top:4px" placeholder="Project name (leave blank to skip)"></div>`;
   }
 }
 function confirmVerdict(id){
@@ -21888,10 +21888,10 @@ function openIdeaInvite(id){
   if(!idea)return;
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">👥 Invite Collaborator</h2>
-  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Email *</label><input id="inv-email" class="inp" style="width:100%;margin-top:4px" type="email" placeholder="collaborator@example.com"></div>
-  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Role</label><select id="inv-role" class="inp" style="width:100%;margin-top:4px"><option value="reviewer">Reviewer (read + comment + vote)</option><option value="collaborator">Collaborator (read + comment + edit Develop)</option><option value="observer">Observer (read only)</option></select></div>
-  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Expires after (days)</label><input id="inv-expires" class="inp" style="width:100%;margin-top:4px" type="number" value="30" min="1" max="365"></div>
-  <div style="margin-bottom:10px"><label style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Personal message (optional)</label><textarea id="inv-msg" class="inp" style="width:100%;height:60px;margin-top:4px;font-size:12px" placeholder="Hi! I'd love your input on this idea…"></textarea></div>
+  <div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Email *</label><input id="inv-email" class="inp" style="width:100%;margin-top:4px" type="email" placeholder="collaborator@example.com"></div>
+  <div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Role</label><select id="inv-role" class="inp" style="width:100%;margin-top:4px"><option value="reviewer">Reviewer (read + comment + vote)</option><option value="collaborator">Collaborator (read + comment + edit Develop)</option><option value="observer">Observer (read only)</option></select></div>
+  <div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Expires after (days)</label><input id="inv-expires" class="inp" style="width:100%;margin-top:4px" type="number" value="30" min="1" max="365"></div>
+  <div style="margin-bottom:10px"><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Personal message (optional)</label><textarea id="inv-msg" class="inp" style="width:100%;height:60px;margin-top:4px;font-size:12px" placeholder="Hi! I'd love your input on this idea…"></textarea></div>
   <div style="display:flex;gap:8px">
     <button class="btn btn-p" onclick="sendIdeaInvite(${id})">Send Invite</button>
     <button class="btn btn-s" onclick="closeModal()">Cancel</button>
@@ -21936,7 +21936,7 @@ function openIdeaShare(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:12px">🔗 Share Idea</h2>
   <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:12px;margin-bottom:12px">
-    <div style="font-size:10px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Public Read-Only Link</div>
+    <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Public Read-Only Link</div>
     <div style="font-size:11px;color:var(--t1);word-break:break-all;background:var(--s3);border-radius:4px;padding:8px;margin-bottom:8px;font-family:monospace">${publicUrl}</div>
     <div style="display:flex;gap:6px">
       <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${publicUrl}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
@@ -22027,7 +22027,7 @@ function aiHabitCorrelation(){
         <strong>${esc(h.name)}</strong>
         <span style="color:${color};font-weight:600">${icon} ${neutral?'No effect':positive?'+'+diff.toFixed(1)+' mood':''+diff.toFixed(1)+' mood'}</span>
       </div>
-      <div style="font-size:10px;color:var(--t3);margin-top:2px">Done days: avg mood ${avgDone?.toFixed(1)||'N/A'} · Skipped days: avg mood ${avgNotDone?.toFixed(1)||'N/A'} · ${countDone} data points</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Done days: avg mood ${avgDone?.toFixed(1)||'N/A'} · Skipped days: avg mood ${avgNotDone?.toFixed(1)||'N/A'} · ${countDone} data points</div>
     </div>`;
   }).join('')}</div>
   <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Got it</button>`;
@@ -22059,24 +22059,24 @@ function aiWellbeingReport(){
   const gradeColor=overallScore>=80?'var(--grn)':overallScore>=60?'var(--ac)':overallScore>=40?'var(--warn)':'var(--red)';
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📊 Weekly Wellbeing Report</h2>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">${weekDates[0]} to ${weekDates[6]}</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">${weekDates[0]} to ${weekDates[6]}</div>
   <div style="text-align:center;padding:12px;background:var(--s2);border-radius:8px;margin-bottom:12px">
     <div style="font-size:36px;font-weight:700;color:${gradeColor}">${overallScore}</div>
     <div style="font-size:12px;font-weight:600;color:${gradeColor}">${grade}</div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">Overall Wellbeing Score</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">Overall Wellbeing Score</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
     <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--ac)">${habitScore}%</div>
-      <div style="font-size:10px;color:var(--t3)">Habit Score</div>
+      <div style="font-size:11px;color:var(--t3)">Habit Score</div>
     </div>
     <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--purp)">${avgMood?avgMood.toFixed(1)+'/5':'N/A'}</div>
-      <div style="font-size:10px;color:var(--t3)">Avg Mood</div>
+      <div style="font-size:11px;color:var(--t3)">Avg Mood</div>
     </div>
     <div style="text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--grn)">${weekTasksDone}</div>
-      <div style="font-size:10px;color:var(--t3)">Tasks Done</div>
+      <div style="font-size:11px;color:var(--t3)">Tasks Done</div>
     </div>
   </div>
   <div style="font-size:11px;color:var(--t2);padding:8px 10px;background:var(--s2);border-radius:6px">
@@ -22110,18 +22110,18 @@ function aiJournalSentiment(){
   <div style="display:flex;gap:12px;margin-bottom:12px">
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:var(--ac)">${avg.toFixed(1)}/5</div>
-      <div style="font-size:10px;color:var(--t3)">Avg Sentiment</div>
+      <div style="font-size:11px;color:var(--t3)">Avg Sentiment</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--s2);border-radius:6px">
       <div style="font-size:20px;font-weight:700;color:${trend>0?'var(--grn)':trend<0?'var(--red)':'var(--t3)'}">${trend>0?'⬆':trend<0?'⬇':'↔'} ${Math.abs(trend).toFixed(1)}</div>
-      <div style="font-size:10px;color:var(--t3)">Trend (last 14 days)</div>
+      <div style="font-size:11px;color:var(--t3)">Trend (last 14 days)</div>
     </div>
   </div>
   <div style="max-height:220px;overflow-y:auto">${scored.map(s=>{
     const bar=Math.round(s.score/5*80);
     const color=s.score>=4?'var(--grn)':s.score>=3?'var(--ac)':s.score>=2?'var(--warn)':'var(--red)';
     return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <div style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">${s.date.slice(5)}</div>
+      <div style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">${s.date.slice(5)}</div>
       <div style="flex:1;background:var(--s3);border-radius:3px;height:12px;overflow:hidden"><div style="width:${bar}%;height:100%;background:${color};border-radius:3px"></div></div>
       <div style="font-size:12px;width:20px">${s.mood||''}</div>
     </div>`;
@@ -22163,7 +22163,7 @@ function aiJournalThemes(){
     return`<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;margin-bottom:3px">
         <span style="font-size:12px;font-weight:500">${t.name}</span>
-        <span style="font-size:10px;color:var(--t3)">${t.count} mentions</span>
+        <span style="font-size:11px;color:var(--t3)">${t.count} mentions</span>
       </div>
       <div style="background:var(--s3);border-radius:3px;height:8px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
     </div>`;
@@ -22247,7 +22247,7 @@ function renderHabits(){
   const done=todayHabits.filter(h=>h.doneToday).length;
   const total=todayHabits.length;
   const pct=total?Math.round(done/total*100):0;
-  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('checkCircle',22,'var(--page-accent)')}Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:10px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
+  $('habits-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('checkCircle',22,'var(--page-accent)')}Habits</h1><p style="font-size:12px;color:var(--t2)">${done} of ${total} done today</p></div><div style="display:flex;gap:6px;align-items:center"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="habits-scope-my" title="Show only habits you created (or that have no creator on record)" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_habitsMyOnly?'var(--ac)':'transparent'};color:${_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=true;renderHabits()">My Habits</button><button id="habits-scope-all" title="Show every team member's habits, including yours" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${!_habitsMyOnly?'var(--ac)':'transparent'};color:${!_habitsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_habitsMyOnly=false;renderHabits()">All Habits</button></div><div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('habits-ai-menu')" title="AI tools">✨ AI ▾</button><div id="habits-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCoach()">✨ Habit Coach</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiHabitCorrelation()">📈 Mood Correlation</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('habits-ai-menu');aiWellbeingReport()">📊 Wellbeing Report</button></div></div><button class="btn btn-p" onclick="openFA('habit')">+ New Habit</button></div></div>
   ${visibleHabits.length===0?renderEmptyState({icon:'checkCircle',title:_habitsMyOnly?'No habits yet':'No team habits',hint:_habitsMyOnly?'Small daily reps compound. Start with one habit you can stick to.':'Switch to "My Habits" or add one to get the team going.',ctaLabel:'+ Start your first habit',ctaFn:"openFA('habit')"}):`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">${visibleHabits.map(h=>{
     const lt=h.linkedTaskId?D.tasks.find(t=>t.id===h.linkedTaskId):null;
     return`<div class="cd" style="cursor:pointer;border:1.5px solid ${h.doneToday?'var(--ok)':'var(--brd)'};transition:border-color .2s" onclick="openHabitDrawer(${h.id})">
@@ -22255,22 +22255,22 @@ function renderHabits(){
         <span style="font-size:20px">${h.icon}</span>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:500">${esc(h.title)}</div>
-          <div style="font-size:10px;color:var(--t3)">${h.cadence}${h.startTime?' · ⏰ '+h.startTime:''}</div>
-          ${h.category?`<div style="font-size:10px;color:var(--ac);margin-top:1px">${h.category}</div>`:''}
+          <div style="font-size:11px;color:var(--t3)">${h.cadence}${h.startTime?' · ⏰ '+h.startTime:''}</div>
+          ${h.category?`<div style="font-size:11px;color:var(--ac);margin-top:1px">${h.category}</div>`:''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
         <div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${h.id})"></div>
-        <span style="font-size:10px;color:${h.doneToday?'var(--ok)':h.skippedToday?'var(--purp)':'var(--t3)'}">${h.doneToday?'✓ Done today':h.skippedToday?'⏭ Skipped today':'Pending'}</span>
+        <span style="font-size:11px;color:${h.doneToday?'var(--ok)':h.skippedToday?'var(--purp)':'var(--t3)'}">${h.doneToday?'✓ Done today':h.skippedToday?'⏭ Skipped today':'Pending'}</span>
         <span style="font-size:11px;color:var(--warn);margin-left:auto" title="${h.cadence} streak">🔥 ${h.streak}${h.cadence==='Daily'?'d':(h.cadence&&h.cadence.includes('/week'))?'w':'d'}</span>
       </div>
       ${!h.doneToday&&!h.skippedToday?`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px;margin-bottom:4px" onclick="event.stopPropagation();skipHabitToday(${h.id})" title="Skip today without breaking streak">⏭ Skip Today</button>`:''}
-      ${lt?`<div style="font-size:10px;color:var(--t2);margin-bottom:4px">📋 Linked: ${esc(lt.title)}</div>`:''}
+      ${lt?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px">📋 Linked: ${esc(lt.title)}</div>`:''}
       <div class="hm">${genHM(h.streak,h.skippedDates,h.completedDates)}</div>
       ${genHeatmapMonth(h)}
     </div>`}).join('')}</div>`}
   <div class="cd" style="margin-top:12px;padding:10px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Progress</div><div style="background:var(--s3);border-radius:4px;height:8px;overflow:hidden"><div style="background:var(--ok);height:100%;width:${pct}%;transition:width .4s"></div></div><div style="font-size:11px;color:var(--t2);margin-top:4px">${pct}% complete — ${done} of ${total} habits done</div></div>`;
-  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
+  $('habits-rail').innerHTML=`<div style="font-size:12px;font-weight:600;margin-bottom:6px">Today's Habits</div>${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="margin-top:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Today's Rate</div><div class="stat"><div class="stat-n" style="color:var(--ok)">${pct}%</div><div class="stat-l">${done}/${total} done</div></div></div>`;
 }
 function genHM(s,skippedDates,completedDates){
@@ -22317,7 +22317,7 @@ function genHeatmapMonth(h){
   }
   const monthName=today.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   return `<div style="margin-top:8px;border-top:1px solid var(--bd1);padding-top:6px">
-    <div style="font-size:10px;color:var(--t3);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:11px;color:var(--t3);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center">
       <span>${monthName}</span>
       <span style="display:flex;gap:6px;align-items:center">
         <span style="display:inline-block;width:8px;height:8px;border-radius:1px;background:var(--ok);vertical-align:middle"></span><span>Done</span>
@@ -22419,7 +22419,7 @@ async function aiCoachDailyBrief(force){
     if(sec)sec.innerHTML=_coachBriefHtml(text);
   }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Brief generation failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
-function _coachBriefHtml(text){return `<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-s" style="font-size:10px" onclick="aiCoachDailyBrief(true)">↻ Regenerate</button><span style="font-size:10px;color:var(--t3);align-self:center">Cached for today · regenerate after a major change</span></div>`;}
+function _coachBriefHtml(text){return `<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-s" style="font-size:11px" onclick="aiCoachDailyBrief(true)">↻ Regenerate</button><span style="font-size:11px;color:var(--t3);align-self:center">Cached for today · regenerate after a major change</span></div>`;}
 // C2: Coach chat panel — persistent thread per day
 function _coachThreadKey(){return new Date().toISOString().slice(0,10);}
 function aiCoachChatRender(){
@@ -22427,8 +22427,8 @@ function aiCoachChatRender(){
   const key=_coachThreadKey();
   const thread=(D.prefs&&D.prefs.coachThread&&D.prefs.coachThread.date===key)?(D.prefs.coachThread.messages||[]):[];
   sec.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:10px">
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:600">💬 Talk to your coach <span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:auto">${thread.length} message${thread.length===1?'':'s'} today</span></div>
-    <div id="coach-chat-thread" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px">${thread.map(m=>`<div style="display:flex;gap:6px;align-items:flex-start"><span style="font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</span><div style="flex:1;font-size:11px;line-height:1.5;background:${m.role==='user'?'var(--acs)':'var(--s3)'};padding:6px 10px;border-radius:8px;white-space:pre-wrap">${esc(m.text||'')}</div></div>`).join('')||'<div style="font-size:10px;color:var(--t3);padding:8px;text-align:center">Ask anything: try &quot;how should I structure today?&quot;, &quot;I am stuck on X&quot;, or &quot;help me decide between A and B&quot;</div>'}</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:12px;font-weight:600">💬 Talk to your coach <span style="font-size:11px;color:var(--t3);font-weight:400;margin-left:auto">${thread.length} message${thread.length===1?'':'s'} today</span></div>
+    <div id="coach-chat-thread" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px">${thread.map(m=>`<div style="display:flex;gap:6px;align-items:flex-start"><span style="font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</span><div style="flex:1;font-size:11px;line-height:1.5;background:${m.role==='user'?'var(--acs)':'var(--s3)'};padding:6px 10px;border-radius:8px;white-space:pre-wrap">${esc(m.text||'')}</div></div>`).join('')||'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">Ask anything: try &quot;how should I structure today?&quot;, &quot;I am stuck on X&quot;, or &quot;help me decide between A and B&quot;</div>'}</div>
     <div style="display:flex;gap:6px"><input id="coach-chat-input" class="inp" style="flex:1;height:30px;font-size:11px" placeholder="Ask your coach…" onkeydown="if(event.key==='Enter'){event.preventDefault();aiCoachChatSend();}"><button class="btn btn-p" style="height:30px;font-size:11px;padding:0 12px" onclick="aiCoachChatSend()">Send</button>${thread.length?`<button class="btn btn-s" style="height:30px;font-size:11px" onclick="aiCoachChatClear()" title="Clear today's thread">🗑</button>`:''}</div>
   </div>`;
 }
@@ -22474,7 +22474,7 @@ async function aiCoachWeeklyReview(){
     const ctx=`Week ${ws} → ${we}\nDone (${doneWeek.length}):\n${doneWeek.slice(0,12).map(t=>'- '+t.title).join('\n')||'(none)'}\nSlipped past due (${slipped.length}):\n${slipped.slice(0,8).map(t=>`- ${t.title} (was due ${t.due})`).join('\n')||'(none)'}\nFocus minutes: ${focusWeek}m total\nDaily habit completion rate: ${habitsRate}%\nRecent journal moods: ${journalEntries.map(j=>j.mood||'').join(' ')||'(none logged)'}`;
     const text=await _coachAICall(sys,ctx);
     const m=document.getElementById('modal-content');
-    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Review</h2><div style="font-size:10px;color:var(--t3);margin-bottom:10px">Week of ${ws} → ${we}</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Review</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Week of ${ws} → ${we}</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Weekly review failed',msg:String(e.message||e).slice(0,200),duration:5000});}
 }
@@ -22509,14 +22509,14 @@ function aiCoachFocusPattern(){
   m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">⏱ Focus Pattern</h2><div style="font-size:11px;color:var(--t2);line-height:1.65">
     <p style="margin:0 0 10px"><strong>${totalMin}m</strong> of focus time logged total.</p>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top focus hours</div>
-      ${peaks.length?peaks.map(([h,m])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ac)">${fmt(h)}</strong></span><span>${m}m logged</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Use the Focus timer for a few sessions to build this picture.</div>'}
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top focus hours</div>
+      ${peaks.length?peaks.map(([h,m])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ac)">${fmt(h)}</strong></span><span>${m}m logged</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Use the Focus timer for a few sessions to build this picture.</div>'}
     </div>
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top completion hours</div>
-      ${compPeaks.length?compPeaks.map(([h,c])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ok)">${fmt(h)}</strong></span><span>${c} task${c===1?'':'s'} done</span></div>`).join(''):'<div style="font-size:10px;color:var(--t3)">Complete tasks to build this picture.</div>'}
+      <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Top completion hours</div>
+      ${compPeaks.length?compPeaks.map(([h,c])=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0"><span><strong style="color:var(--ok)">${fmt(h)}</strong></span><span>${c} task${c===1?'':'s'} done</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Complete tasks to build this picture.</div>'}
     </div>
-    <p style="margin:10px 0 0;color:var(--t3);font-size:10px">💡 Schedule deep work in your top focus hours and admin / meetings in the lulls.</p>
+    <p style="margin:10px 0 0;color:var(--t3);font-size:11px">💡 Schedule deep work in your top focus hours and admin / meetings in the lulls.</p>
   </div>
   <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -22536,7 +22536,7 @@ async function aiCoachGoalTaskAudit(){
     const pairs=Array.isArray(p.pairings)?p.pairings:[];
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Goal-Task Alignment</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${orphans.length} task${orphans.length===1?'':'s'} not linked to any goal. AI suggested pairings:</div>
-      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:10px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:10px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:10px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id===${t.id}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
+      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:11px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:11px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:11px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id===${t.id}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
       <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Audit failed',msg:String(e.message||e).slice(0,200),duration:5000});}
@@ -22630,10 +22630,10 @@ function renderCoach(){
 
   // Daily nudges based on time of day
   const hr=now.getHours();
-  if(hr<10)nudges.push({t:'Morning Ritual',b:'Start with your top 3 priorities. What\'s the one thing that would make today a win?',a:`<button class="btn btn-p" style="height:22px;font-size:10px" onclick="nav('myday')">Open My Day</button>`});
-  else if(hr<13)nudges.push({t:'Mid-Morning Check-in',b:`You have ${pendingTasks.filter(t=>t.myDay).length} tasks on My Day. Stay in deep work mode.`,a:`<button class="btn btn-p" style="height:22px;font-size:10px" onclick="nav('myday')">Execute</button>`});
-  else if(hr<17)nudges.push({t:'Afternoon Focus',b:'Energy typically dips after 2 PM. Consider a 5-min break or a Pomodoro sprint.',a:`<button class="btn btn-p" style="height:22px;font-size:10px" onclick="nav('myday')">Start Timer</button>`});
-  else nudges.push({t:'Evening Wrap-Up',b:'Great time to complete your daily reflection and plan tomorrow\'s top 3.',a:`<button class="btn btn-p" style="height:22px;font-size:10px" onclick="nav('myday')">Wrap Up</button>`});
+  if(hr<10)nudges.push({t:'Morning Ritual',b:'Start with your top 3 priorities. What\'s the one thing that would make today a win?',a:`<button class="btn btn-p" style="height:22px;font-size:11px" onclick="nav('myday')">Open My Day</button>`});
+  else if(hr<13)nudges.push({t:'Mid-Morning Check-in',b:`You have ${pendingTasks.filter(t=>t.myDay).length} tasks on My Day. Stay in deep work mode.`,a:`<button class="btn btn-p" style="height:22px;font-size:11px" onclick="nav('myday')">Execute</button>`});
+  else if(hr<17)nudges.push({t:'Afternoon Focus',b:'Energy typically dips after 2 PM. Consider a 5-min break or a Pomodoro sprint.',a:`<button class="btn btn-p" style="height:22px;font-size:11px" onclick="nav('myday')">Start Timer</button>`});
+  else nudges.push({t:'Evening Wrap-Up',b:'Great time to complete your daily reflection and plan tomorrow\'s top 3.',a:`<button class="btn btn-p" style="height:22px;font-size:11px" onclick="nav('myday')">Wrap Up</button>`});
 
   function insCard(items,cls){return items.map(i=>`<div class="ins ${cls}" style="margin-bottom:8px"><div style="font-size:12px;font-weight:500;margin-bottom:3px">${i.t}</div><div style="font-size:11px;color:var(--t2);line-height:1.5">${i.b}</div>${i.a?`<div style="margin-top:6px">${i.a}</div>`:''}</div>`).join('');}
 
@@ -22660,15 +22660,15 @@ function renderCoach(){
       <button class="btn btn-s" onclick="renderCoach()">🔄 Refresh</button>
     </div>
   </div>
-  ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--err)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:10px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
-  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:10px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
+  ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--err)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
+  <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:11px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
   <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--purp)">💬 Coach Chat</div><div id="coach-chat"></div></div>
   <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${completionRate}%</div><div style="font-size:10px;color:var(--t3)">Week Tasks</div></div>
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${habitRate}%</div><div style="font-size:10px;color:var(--t3)">Habits Today</div></div>
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--warn)">${overdueTasks.length}</div><div style="font-size:10px;color:var(--t3)">Overdue</div></div>
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${focusToday}m</div><div style="font-size:10px;color:var(--t3)">Focus Today</div></div>
-    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${topStreak.streak}🔥</div><div style="font-size:10px;color:var(--t3)">Top Streak</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${completionRate}%</div><div style="font-size:11px;color:var(--t3)">Week Tasks</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${habitRate}%</div><div style="font-size:11px;color:var(--t3)">Habits Today</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--warn)">${overdueTasks.length}</div><div style="font-size:11px;color:var(--t3)">Overdue</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ac)">${focusToday}m</div><div style="font-size:11px;color:var(--t3)">Focus Today</div></div>
+    <div style="text-align:center"><div style="font-size:20px;font-weight:700;color:var(--ok)">${topStreak.streak}🔥</div><div style="font-size:11px;color:var(--t3)">Top Streak</div></div>
   </div>
   ${nudges.length?`<div class="sec-h" style="color:var(--ac)">💡 Right Now</div>${insCard(nudges,'obs')}`:''}
   <div class="sec-h">📊 Observations</div>${insCard(observations,'obs')}
@@ -22680,11 +22680,11 @@ function renderCoach(){
   if(!briefFresh)setTimeout(()=>aiCoachDailyBrief(),200);
   $('coach-rail').innerHTML=`
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">🎯 Daily Priorities</div>
-  ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:10px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:10px;color:var(--t3)">All tasks done! 🎉</p>')}
+  ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:11px;color:var(--t3)">All tasks done! 🎉</p>')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">✅ Habit Check-In</div>
-  ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:10px">${h.icon} ${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
+  ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">${_icon('target',14,'currentColor')} Goals Snapshot</div>
-  ${D.goals.slice(0,4).map(g=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span></div><div class="pb"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div></div>`).join('')}
+  ${D.goals.slice(0,4).map(g=>`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon} ${esc(g.title)}</span><span style="color:var(--t3)">${g.pct}%</span></div><div class="pb"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div></div>`).join('')}
   `;
 }
 
@@ -22770,7 +22770,7 @@ function renderTeam(){
     if(m.lastSignedIn){const d=new Date(m.lastSignedIn);if(!isNaN(d))lastSeenAt=d;}
     if(lastActivityDate&&!isNaN(lastActivityDate)&&(!lastSeenAt||lastActivityDate>lastSeenAt))lastSeenAt=lastActivityDate;
     const lastSeenStr=lastSeenAt?timeAgo(lastSeenAt.toISOString()):'Never';
-    const activityBadge=weekActivity>0?`<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
+    const activityBadge=weekActivity>0?`<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
     const avatarHtml=m.avatar
       ?`<img src="${m.avatar}" alt="${esc(m.name)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid var(--bd2)">`
       :`<div style="width:40px;height:40px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;
@@ -22784,10 +22784,10 @@ function renderTeam(){
         </div>
         <div style="flex:1">
           <div style="font-size:14px;font-weight:600">${esc(m.name)}${activityBadge}</div>
-          <div style="font-size:10px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
-          <div style="font-size:10px;color:var(--t3);margin-top:2px">🕐 Last seen: ${lastSeenStr}</div>
+          <div style="font-size:11px;color:var(--t3)">${m.role} · ${esc(m.email)}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">🕐 Last seen: ${lastSeenStr}</div>
         </div>
-        ${(()=>{const r=(m.role||'').toLowerCase();const cfg=r==='owner'?{bg:'var(--purps)',c:'var(--purp)',label:'Owner'}:r==='admin'?{bg:'var(--acs)',c:'var(--ac)',label:'Admin'}:r==='viewer'?{bg:'rgba(100,116,139,.15)',c:'var(--t3)',label:'Viewer'}:{bg:'rgba(100,116,139,.12)',c:'var(--t2)',label:'Member'};return`<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${cfg.bg};color:${cfg.c};font-weight:600;letter-spacing:.3px">${cfg.label}</span>`;})()}
+        ${(()=>{const r=(m.role||'').toLowerCase();const cfg=r==='owner'?{bg:'var(--purps)',c:'var(--purp)',label:'Owner'}:r==='admin'?{bg:'var(--acs)',c:'var(--ac)',label:'Admin'}:r==='viewer'?{bg:'rgba(100,116,139,.15)',c:'var(--t3)',label:'Viewer'}:{bg:'rgba(100,116,139,.12)',c:'var(--t2)',label:'Member'};return`<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${cfg.bg};color:${cfg.c};font-weight:600;letter-spacing:.3px">${cfg.label}</span>`;})()}
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px">
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--ac)">${tasks.length}</div><div style="font-size:9px;color:var(--t3)">Tasks</div></div>
@@ -22795,12 +22795,12 @@ function renderTeam(){
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:${overdue?'var(--red)':'var(--t3)'}">${overdue}</div><div style="font-size:9px;color:var(--t3)">Overdue</div></div>
         <div style="text-align:center;padding:6px;background:var(--s2);border-radius:6px"><div style="font-size:16px;font-weight:700;color:var(--warn)">🔥${topStreak}</div><div style="font-size:9px;color:var(--t3)">Streak</div></div>
       </div>
-      ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
-      ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
-      <div style="font-size:10px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
-      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:10px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:10px;color:var(--t3);padding:4px 0">No active tasks</div>'}
-      ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:10px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:10px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
-      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
+      ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
+      ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
+      <div style="font-size:11px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
+      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+      ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:11px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
+      ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
   }
   const teamName=D.teams[0]?D.teams[0].name:'Team';
@@ -22816,9 +22816,9 @@ function renderTeam(){
         <button class="btn btn-s" style="height:26px;font-size:11px" onclick="document.getElementById('invite-panel').style.display='none'">× Close</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-bottom:16px">
-        <div class="field" style="margin:0"><label style="font-size:10px">Email</label><input class="inp" id="inv-email" placeholder="colleague@company.com" style="height:32px"></div>
-        <div class="field" style="margin:0"><label style="font-size:10px">Name (optional)</label><input class="inp" id="inv-name" placeholder="Jane Smith" style="height:32px"></div>
-        <div class="field" style="margin:0"><label style="font-size:10px">Role</label><select class="inp" id="inv-role" style="height:32px"><option value="user">Member</option><option value="admin">Admin</option></select></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">Email</label><input class="inp" id="inv-email" placeholder="colleague@company.com" style="height:32px"></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">Name (optional)</label><input class="inp" id="inv-name" placeholder="Jane Smith" style="height:32px"></div>
+        <div class="field" style="margin:0"><label style="font-size:11px">Role</label><select class="inp" id="inv-role" style="height:32px"><option value="user">Member</option><option value="admin">Admin</option></select></div>
         <button class="btn btn-p" style="height:32px;font-size:12px;white-space:nowrap" onclick="sendInvite()">✉️ Send Invite</button>
       </div>
       <div id="invite-list-wrap"><div style="font-size:11px;color:var(--t3)">Loading invites...</div></div>
@@ -22855,9 +22855,9 @@ function renderTeam(){
   <div class="stat"><div class="stat-n" style="color:var(--ok)">${habitsDoneToday}</div><div class="stat-l">Habits Today</div></div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">📊 Task Completion</div>
   <div class="pb"><div class="f" style="width:${totalTasks?Math.round(doneTasks/totalTasks*100):0}%;background:var(--ok)"></div></div>
-  <div style="font-size:10px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
+  <div style="font-size:11px;color:var(--t2);margin-top:3px">${doneTasks} of ${totalTasks} tasks done</div>
   <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:6px">👥 Members</div>
-  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:10px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
+  ${allMembers.map(m=>{const initials=m.name.split(' ').map(w=>w[0]).join('');const av=m.avatar?`<img src="${m.avatar}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0">`:`<div style="width:24px;height:24px;border-radius:50%;background:${m.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>`;return`<div class="lr" style="padding:4px 0">${av}<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${esc(m.name)}</div><div style="font-size:11px;color:var(--t3)">${m.role}</div></div></div>`}).join('')}`;
   // Auto-load activity feed for admins
   if(D.creds.role==="Admin"||D.creds.role==="Owner"||D.creds.role==="admin")setTimeout(loadActivityFeed,100);
 }
@@ -22941,16 +22941,16 @@ function renderActivityFeed(items) {
       const entityHtml = item.entityTitle ? '<span style="color:var(--t2);font-style:italic"> — ' + esc(item.entityTitle) + '</span>' : '';
       const timeStr = timeAgo(item.createdAt);
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd1)">' +
-        '<div style="width:28px;height:28px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--ac);flex-shrink:0">' + initials + '</div>' +
+        '<div style="width:28px;height:28px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ac);flex-shrink:0">' + initials + '</div>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:12px;font-weight:500">' + esc(item.userName || 'Unknown') + '</div>' +
           '<div style="font-size:11px;color:var(--t2)">' + icon + ' ' + actionLabel + entityHtml + '</div>' +
         '</div>' +
-        '<div style="font-size:10px;color:var(--t3);white-space:nowrap;flex-shrink:0">' + timeStr + '</div>' +
+        '<div style="font-size:11px;color:var(--t3);white-space:nowrap;flex-shrink:0">' + timeStr + '</div>' +
       '</div>';
     }).join('');
     return '<div style="margin-bottom:8px">' +
-      '<div style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.05em;padding:6px 0;border-bottom:2px solid var(--bd2);margin-bottom:4px">' + label + '</div>' +
+      '<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.05em;padding:6px 0;border-bottom:2px solid var(--bd2);margin-bottom:4px">' + label + '</div>' +
       rows +
     '</div>';
   }).join('');
@@ -23008,18 +23008,18 @@ async function loadInviteList(){
     const now=Date.now();
     const rows=invites.map(inv=>{
       const expired=new Date(inv.expiresAt).getTime()<now;
-      const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:10px">✓ Accepted</span>'
-        :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:10px">Expired</span>'
-        :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:10px">Pending</span>';
+      const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">✓ Accepted</span>'
+        :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:11px">Expired</span>'
+        :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:11px">Pending</span>';
       const inviteUrl=inv.inviteUrl||(window.location.origin+'/invite/'+inv.token);
       const actions=inv.accepted?''
-        :`<button class="btn btn-s" style="height:22px;font-size:10px" onclick="copyInviteLink('${inv.token}')" title="Copy invite link">📋 Copy Link</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;color:var(--red)" onclick="revokeInvite(${inv.id})" title="Revoke invite">🗑️ Revoke</button>`;
+        :`<button class="btn btn-s" style="height:22px;font-size:11px" onclick="copyInviteLink('${inv.token}')" title="Copy invite link">📋 Copy Link</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px" onclick="resendInvite(${inv.id})" title="Regenerate token and extend expiry">🔄 Resend</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;color:var(--red)" onclick="revokeInvite(${inv.id})" title="Revoke invite">🗑️ Revoke</button>`;
       return`<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500">${esc(inv.email)}</div>
-          <div style="font-size:10px;color:var(--t3)">${inv.name?esc(inv.name)+' · ':''}<span style="text-transform:capitalize">${inv.role}</span> · Expires ${new Date(inv.expiresAt).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">${inv.name?esc(inv.name)+' · ':''}<span style="text-transform:capitalize">${inv.role}</span> · Expires ${new Date(inv.expiresAt).toLocaleDateString()}</div>
         </div>
         ${status}
         <div style="display:flex;gap:4px;flex-shrink:0">${actions}</div>
@@ -23282,7 +23282,7 @@ function renderClustersDashboard(){
         <div style="width:8px;height:8px;border-radius:2px;background:${p.color||'#3B82F6'};flex-shrink:0"></div>
         <span style="flex:1;font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</span>
         <div style="width:60px;height:3px;background:var(--s3);border-radius:2px"><div style="height:3px;border-radius:2px;background:${p.color||'#3B82F6'};width:${pPct}%"></div></div>
-        <span style="font-size:10px;color:var(--t3);width:26px;text-align:right">${pPct}%</span>
+        <span style="font-size:11px;color:var(--t3);width:26px;text-align:right">${pPct}%</span>
       </div>`;
     }).join('');
     // Loose tasks row (tasks in cluster but not in any project)
@@ -23290,7 +23290,7 @@ function renderClustersDashboard(){
     const looseRow=looseTasks.length?`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-top:1px solid var(--bd1)">
       <div style="width:8px;height:8px;border-radius:2px;background:var(--t3);flex-shrink:0"></div>
       <span style="flex:1;font-size:11px;color:var(--t3)">Loose tasks</span>
-      <span style="font-size:10px;color:var(--t3)">${looseTasks.length}</span>
+      <span style="font-size:11px;color:var(--t3)">${looseTasks.length}</span>
     </div>`:'';
     return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px">
       <div style="display:flex;align-items:flex-start;gap:10px">
@@ -23299,20 +23299,20 @@ function renderClustersDashboard(){
           <div style="font-size:14px;font-weight:700;color:var(--t1)">${esc(cl.name)}</div>
           <div style="font-size:11px;color:var(--t3);margin-top:2px">${clProjects.length} project${clProjects.length!==1?'s':''} · ${clTasks.length} task${clTasks.length!==1?'s':''}</div>
         </div>
-        <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px;flex-shrink:0" onclick="openClusterModal(${cl.id})">Edit</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;flex-shrink:0" onclick="openClusterModal(${cl.id})">Edit</button>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div style="display:flex;align-items:center">
-          <div style="width:26px;height:26px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${ownerInitials}</div>
+          <div style="width:26px;height:26px;border-radius:50%;background:${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${ownerInitials}</div>
           ${collabAvatars}
         </div>
         <div style="flex:1;height:5px;background:var(--s3);border-radius:3px"><div style="height:5px;border-radius:3px;background:${cl.color||'#3B82F6'};width:${pct}%;transition:width .3s"></div></div>
         <span style="font-size:11px;font-weight:600;color:var(--t1);min-width:30px;text-align:right">${pct}%</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <span style="font-size:10px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clTasks.length} tasks</span>
-        <span style="font-size:10px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clProjects.length} projects</span>
-        ${overdueCount>0?`<span style="font-size:10px;background:rgba(239,68,68,.12);border-radius:8px;padding:2px 8px;color:var(--red)">${overdueCount} overdue</span>`:''}
+        <span style="font-size:11px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clTasks.length} tasks</span>
+        <span style="font-size:11px;background:var(--s3);border-radius:8px;padding:2px 8px;color:var(--t2)">${clProjects.length} projects</span>
+        ${overdueCount>0?`<span style="font-size:11px;background:rgba(239,68,68,.12);border-radius:8px;padding:2px 8px;color:var(--red)">${overdueCount} overdue</span>`:''}
       </div>
       ${(projRows||looseRow)?`<div style="border-top:1px solid var(--bd2);padding-top:8px">${projRows}${looseRow}</div>`:''}
     </div>`;
@@ -23349,7 +23349,7 @@ function renderClustersDashboard(){
       <div style="width:32px;height:32px;border-radius:7px;background:${cl.color||'#3B82F6'}22;border:1.5px solid ${cl.color||'#3B82F6'};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${cl.icon||'📁'}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(cl.name)}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">${s.nProjects} project${s.nProjects!==1?'s':''} · ${s.nTasks} task${s.nTasks!==1?'s':''}${s.overdue>0?` · <span style="color:var(--red)">${s.overdue} overdue</span>`:''}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">${s.nProjects} project${s.nProjects!==1?'s':''} · ${s.nTasks} task${s.nTasks!==1?'s':''}${s.overdue>0?` · <span style="color:var(--red)">${s.overdue} overdue</span>`:''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <div style="width:90px;height:5px;background:var(--s3);border-radius:3px"><div style="height:5px;border-radius:3px;background:${cl.color||'#3B82F6'};width:${s.pct}%;transition:width .3s"></div></div>
@@ -23476,7 +23476,7 @@ function renderHelpBrowseTab(articles,q){
         <div style="font-size:28px;margin-bottom:8px">${c.icon}</div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">${esc(c.name)}</div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:8px">${esc(c.desc)}</div>
-        <div style="font-size:10px;color:var(--ac);font-weight:600">${count} article${count!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--ac);font-weight:600">${count} article${count!==1?'s':''}</div>
       </div>`;
     }).join('')}
   </div>
@@ -23494,7 +23494,7 @@ function helpArticleCard(a){
   <div style="flex:1;min-width:0">
     <div style="font-size:13px;font-weight:600;margin-bottom:3px">${esc(a.title)}</div>
     <div style="font-size:11px;color:var(--t3)">${esc(a.summary)}</div>
-    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(a.tags||[]).map(t=>`<span style="font-size:10px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">${esc(t)}</span>`).join('')}${a.tourId?`<span style="font-size:10px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">🎯 Has Tour</span>`:''}</div>
+    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${(a.tags||[]).map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">${esc(t)}</span>`).join('')}${a.tourId?`<span style="font-size:11px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">🎯 Has Tour</span>`:''}</div>
   </div>
   <svg style="flex-shrink:0;color:var(--t3);width:14px;height:14px;margin-top:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
 </div>`;
@@ -23576,7 +23576,7 @@ function renderHelpAskTab(){
         <div style="width:28px;height:28px;border-radius:50%;background:${m.role==='user'?'var(--ac)':'var(--s3)'};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.role==='user'?'👤':'🤖'}</div>
         <div style="max-width:85%;display:flex;flex-direction:column;gap:6px">
           <div style="background:${m.role==='user'?'var(--ac)':'var(--s2)'};color:${m.role==='user'?'#fff':'var(--t1)'};padding:10px 12px;border-radius:10px;font-size:12px;line-height:1.6">${m.role==='assistant'?simpleMarkdown(m.body):esc(m.body)}</div>
-          ${citedArts.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;padding:0 2px">${citedArts.map(a=>`<button onclick="_helpArticleId=${a.id};renderHelp()" style="font-size:10px;background:var(--s3);border:1px solid var(--br);border-radius:10px;padding:3px 8px;cursor:pointer;color:var(--t2);display:flex;align-items:center;gap:4px">📄 ${esc(a.title)}</button>`).join('')}</div>`:''}
+          ${citedArts.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;padding:0 2px">${citedArts.map(a=>`<button onclick="_helpArticleId=${a.id};renderHelp()" style="font-size:11px;background:var(--s3);border:1px solid var(--br);border-radius:10px;padding:3px 8px;cursor:pointer;color:var(--t2);display:flex;align-items:center;gap:4px">📄 ${esc(a.title)}</button>`).join('')}</div>`:''}
         </div>
       </div>`;
     }).join('')+(_helpAILoading?`<div style="display:flex;gap:8px;align-items:center"><div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div><div style="background:var(--s2);padding:10px 14px;border-radius:10px;font-size:12px;color:var(--t3)">Thinking…</div></div>`:''))}
@@ -23657,15 +23657,15 @@ function renderHelpToursTab(){
           <div style="flex:1;min-width:0">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
               <span style="font-size:13px;font-weight:600">${esc(t.name)}</span>
-              ${isCompleted?'<span style="font-size:10px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">✓ Completed</span>':''}
-              ${isActive?'<span style="font-size:10px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">In Progress</span>':''}
+              ${isCompleted?'<span style="font-size:11px;background:rgba(16,185,129,.15);color:#10b981;padding:2px 6px;border-radius:10px">✓ Completed</span>':''}
+              ${isActive?'<span style="font-size:11px;background:var(--acs);color:var(--ac);padding:2px 6px;border-radius:10px">In Progress</span>':''}
             </div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(t.desc)}</div>
             <div style="display:flex;gap:8px;align-items:center">
-              <span style="font-size:10px;color:var(--t3)">⏱ ~${t.est} min · ${t.steps.length} steps</span>
-              <span style="font-size:10px;color:var(--t3)">${t.roles.map(r=>`<span style="background:var(--s3);padding:1px 5px;border-radius:8px">${r}</span>`).join(' ')}</span>
+              <span style="font-size:11px;color:var(--t3)">⏱ ~${t.est} min · ${t.steps.length} steps</span>
+              <span style="font-size:11px;color:var(--t3)">${t.roles.map(r=>`<span style="background:var(--s3);padding:1px 5px;border-radius:8px">${r}</span>`).join(' ')}</span>
             </div>
-            ${isActive?`<div style="margin-top:8px"><div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--ac);width:${Math.round((progress/t.steps.length)*100)}%;transition:width .3s"></div></div><div style="font-size:10px;color:var(--t3);margin-top:3px">Step ${progress} of ${t.steps.length}</div></div>`:''}
+            ${isActive?`<div style="margin-top:8px"><div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--ac);width:${Math.round((progress/t.steps.length)*100)}%;transition:width .3s"></div></div><div style="font-size:11px;color:var(--t3);margin-top:3px">Step ${progress} of ${t.steps.length}</div></div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
             <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">${isActive?'Resume':'Launch'}</button>
@@ -23718,7 +23718,7 @@ function renderTourBuilder(){
     <div style="width:10px;height:10px;border-radius:50%;background:${_builderRecording?'#ef4444':'var(--t3)'};${_builderRecording?'animation:tourPulse 1s infinite':''};"></div>
     <div style="flex:1">
       <div style="font-size:12px;font-weight:600">${_builderRecording?'🔴 Recording… Click any element to add it as a tour step':'Record Mode'}</div>
-      <div style="font-size:10px;color:var(--t3)">${_builderRecording?'Click elements on screen. Press Esc or Stop to finish.':'Click Record to start capturing element clicks as tour steps.'}</div>
+      <div style="font-size:11px;color:var(--t3)">${_builderRecording?'Click elements on screen. Press Esc or Stop to finish.':'Click Record to start capturing element clicks as tour steps.'}</div>
     </div>
     <button class="${_builderRecording?'btn-s':'btn-p'}" onclick="toggleBuilderRecord()" style="font-size:11px">${_builderRecording?'⏹ Stop':'● Record'}</button>
   </div>
@@ -23733,7 +23733,7 @@ function renderTourBuilder(){
         <button onclick="_builderTour.steps.splice(${i},1);renderHelp()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px">×</button>
       </div>
       <textarea class="inp" oninput="_builderTour.steps[${i}].body=this.value" placeholder="Step description…" style="width:100%;font-size:11px;min-height:48px;resize:vertical">${esc(s.body)}</textarea>
-      <div style="margin-top:4px;font-size:10px;color:var(--t3)">Target: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(s.target||'(none)')}</code></div>
+      <div style="margin-top:4px;font-size:11px;color:var(--t3)">Target: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(s.target||'(none)')}</code></div>
     </div>`).join(''):
     `<div style="text-align:center;padding:24px;color:var(--t3);border:2px dashed var(--br);border-radius:8px">
       <div style="font-size:24px;margin-bottom:6px">📍</div>
@@ -23747,9 +23747,9 @@ function renderTourBuilder(){
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Existing Tours</div>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${HC_TOURS.map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
-        <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${t.steps.length} steps · ${t.type}</div></div>
-        <button class="btn-s" onclick="loadTourIntoBuilder(${t.id})" style="font-size:10px">Edit</button>
-        <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:10px">Preview</button>
+        <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${t.steps.length} steps · ${t.type}</div></div>
+        <button class="btn-s" onclick="loadTourIntoBuilder(${t.id})" style="font-size:11px">Edit</button>
+        <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">Preview</button>
       </div>`).join('')}
     </div>
   </div>
@@ -23845,7 +23845,7 @@ function renderHelpInsights(){
       ].map(m=>`<div style="text-align:center">
         <div style="font-size:24px;margin-bottom:4px">${m.icon}</div>
         <div style="font-size:20px;font-weight:700">${m.val}${m.total!==null?'/'+m.total:''}</div>
-        <div style="font-size:10px;color:var(--t3)">${m.label}</div>
+        <div style="font-size:11px;color:var(--t3)">${m.label}</div>
         ${m.pct!==null?`<div style="margin-top:6px;height:4px;background:var(--s3);border-radius:2px"><div style="height:100%;background:var(--ac);width:${m.pct}%"></div></div>`:''}
       </div>`).join('')}
     </div>
@@ -23865,7 +23865,7 @@ function renderHelpInsights(){
         <span style="font-size:18px">${m.icon}</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:600">${m.done}${m.total!==null?'/'+m.total:''}</div>
-          <div style="font-size:10px;color:var(--t3)">${m.label}</div>
+          <div style="font-size:11px;color:var(--t3)">${m.label}</div>
           ${m.pct!==null?`<div style="margin-top:4px;height:3px;background:var(--s2);border-radius:2px"><div style="height:100%;background:var(--ac);width:${m.pct}%"></div></div>`:''}
         </div>
       </div>`).join('')}
@@ -23879,22 +23879,22 @@ function renderHelpInsights(){
       ${completedTours===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--acs);border-radius:6px">
         <span style="font-size:16px">🚀</span>
         <div style="flex:1;font-size:11px">Start the <strong>Member Onboarding</strong> tour to get a full walkthrough</div>
-        <button class="btn-p" onclick="launchTour(1)" style="font-size:10px">Start</button>
+        <button class="btn-p" onclick="launchTour(1)" style="font-size:11px">Start</button>
       </div>`:''}
       ${totalNotes===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
         <span style="font-size:16px">📝</span>
         <div style="flex:1;font-size:11px">Create your first note to start building your knowledge base</div>
-        <button class="btn-s" onclick="nav('notes')" style="font-size:10px">Go to Notes</button>
+        <button class="btn-s" onclick="nav('notes')" style="font-size:11px">Go to Notes</button>
       </div>`:''}
       ${totalContacts===0?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
         <span style="font-size:16px">👤</span>
         <div style="flex:1;font-size:11px">Add your first contact and try Clodura enrichment</div>
-        <button class="btn-s" onclick="nav('contacts')" style="font-size:10px">Go to Contacts</button>
+        <button class="btn-s" onclick="nav('contacts')" style="font-size:11px">Go to Contacts</button>
       </div>`:''}
       <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s3);border-radius:6px">
         <span style="font-size:16px">🤖</span>
         <div style="flex:1;font-size:11px">Ask the AI helper a question about any LevelUp feature</div>
-        <button class="btn-s" onclick="_helpTab='ask';renderHelp()" style="font-size:10px">Ask AI</button>
+        <button class="btn-s" onclick="_helpTab='ask';renderHelp()" style="font-size:11px">Ask AI</button>
       </div>
     </div>
   </div>

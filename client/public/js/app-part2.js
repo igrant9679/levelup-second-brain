@@ -31,7 +31,7 @@ function renderSettingsHTML(){
   <div style="flex:1">
     <div style="font-size:15px;font-weight:600" id="prof-name">${esc(name)}</div>
     <div style="font-size:11px;color:var(--t3)" id="prof-email">${esc(email)}</div>
-    <div style="font-size:10px;color:var(--ac);margin-top:2px">Owner</div>
+    <div style="font-size:11px;color:var(--ac);margin-top:2px">Owner</div>
     ${(()=>{
       // Profile completeness: photo(25), bio(25), jobTitle(25), tz(25)
       const fields=[
@@ -44,7 +44,7 @@ function renderSettingsHTML(){
       const color=pct===100?'var(--ok)':pct>=50?'var(--ac)':'var(--warn)';
       const missing=fields.filter(f=>!f.done).map(f=>f.label);
       return `<div style="margin-top:8px">
-        <div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--t3);margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--t3);margin-bottom:4px">
           <span>Profile ${pct}% complete</span>
           ${missing.length?`<span style="color:var(--t3)">Add: ${missing.join(', ')}</span>`:"<span style='color:var(--ok)'>&#10003; All done!</span>"}
         </div>
@@ -55,23 +55,23 @@ function renderSettingsHTML(){
     })()}
   </div>
   </div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:10px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" id="prof-name-input" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll();clearTimeout(window._nameTimer);window._nameTimer=setTimeout(()=>saveNameToServer(this.value),1200)"></div>
-  <div class="lr" style="padding:8px 0;flex-direction:column;align-items:flex-start;gap:6px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:10px;color:var(--t3)">Current: <span id="current-email-display">${esc(email)}</span></div></div><button class="btn btn-s" style="font-size:11px;height:28px" onclick="showChangeEmailForm()">Change Email</button></div><div id="change-email-form" style="display:none;width:100%;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Change Email Address</div><div style="margin-bottom:6px"><div style="font-size:10px;color:var(--t3);margin-bottom:2px">New Email Address</div><input class="inp" type="email" id="new-email-input" placeholder="new@example.com" style="width:100%;max-width:280px;font-size:12px" autocomplete="email"></div><div style="margin-bottom:8px"><div style="font-size:10px;color:var(--t3);margin-bottom:2px">Current Password (required to confirm)</div><input class="inp" type="password" id="email-change-pw" placeholder="Your current password" style="width:100%;max-width:280px;font-size:12px" autocomplete="current-password"></div><div style="display:flex;gap:6px"><button class="btn btn-p" id="email-change-btn" style="height:28px;font-size:11px" onclick="doChangeEmail()">Update Email</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="document.getElementById('change-email-form').style.display='none'">Cancel</button></div><div id="email-change-msg" style="font-size:11px;margin-top:6px;min-height:14px"></div></div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Display Name</div><div style="font-size:11px;color:var(--t3)">Shown in sidebar and greetings</div></div><input class="inp" id="prof-name-input" style="max-width:200px" value="${esc(name)}" oninput="D.creds.userName=this.value;updateProfileUI();document.getElementById('prof-name').textContent=this.value;document.getElementById('prof-av').textContent=this.value.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();saveAll();clearTimeout(window._nameTimer);window._nameTimer=setTimeout(()=>saveNameToServer(this.value),1200)"></div>
+  <div class="lr" style="padding:8px 0;flex-direction:column;align-items:flex-start;gap:6px"><div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div><div style="font-size:12px;font-weight:500">Email Address</div><div style="font-size:11px;color:var(--t3)">Current: <span id="current-email-display">${esc(email)}</span></div></div><button class="btn btn-s" style="font-size:11px;height:28px" onclick="showChangeEmailForm()">Change Email</button></div><div id="change-email-form" style="display:none;width:100%;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--brd)"><div style="font-size:11px;font-weight:600;margin-bottom:8px">Change Email Address</div><div style="margin-bottom:6px"><div style="font-size:11px;color:var(--t3);margin-bottom:2px">New Email Address</div><input class="inp" type="email" id="new-email-input" placeholder="new@example.com" style="width:100%;max-width:280px;font-size:12px" autocomplete="email"></div><div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:2px">Current Password (required to confirm)</div><input class="inp" type="password" id="email-change-pw" placeholder="Your current password" style="width:100%;max-width:280px;font-size:12px" autocomplete="current-password"></div><div style="display:flex;gap:6px"><button class="btn btn-p" id="email-change-btn" style="height:28px;font-size:11px" onclick="doChangeEmail()">Update Email</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="document.getElementById('change-email-form').style.display='none'">Cancel</button></div><div id="email-change-msg" style="font-size:11px;margin-top:6px;min-height:14px"></div></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Job Title</div></div><input class="inp" style="max-width:200px" placeholder="e.g. Founder & CEO" value="${esc(D.creds.jobTitle||'')}" oninput="D.creds.jobTitle=this.value;saveAll();updateProfileCompleteness()"></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Time Zone</div></div><select class="inp" style="max-width:180px" onchange="D.creds.tz=this.value;saveAll();updateProfileCompleteness()"><option value="" ${!D.creds.tz?'selected':''}>— Select —</option><option ${D.creds.tz==='Eastern Time'?'selected':''}>Eastern Time</option><option ${D.creds.tz==='Central'?'selected':''}>Central</option><option ${D.creds.tz==='Pacific'?'selected':''}>Pacific</option><option ${D.creds.tz==='UTC'?'selected':''}>UTC</option></select></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:10px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" placeholder="A line about what you're focused on — shown in Coach insights" oninput="D.creds.bio=this.value;saveAll();updateProfileCompleteness()">${esc(D.creds.bio||'')}</textarea></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Bio / Focus</div><div style="font-size:11px;color:var(--t3)">Shown in Coach insights</div></div><textarea class="inp" style="max-width:280px;height:60px" placeholder="A line about what you're focused on — shown in Coach insights" oninput="D.creds.bio=this.value;saveAll();updateProfileCompleteness()">${esc(D.creds.bio||'')}</textarea></div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔒 Change Password</div>
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">Current Password</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:3px">Current Password</div>
       <input class="inp" type="password" id="chpw-current" placeholder="Your current password" autocomplete="current-password" style="width:100%;max-width:280px;font-size:12px">
     </div>
     <div style="margin-bottom:8px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">New Password <span style="font-weight:400">(min 8 characters)</span></div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:3px">New Password <span style="font-weight:400">(min 8 characters)</span></div>
       <input class="inp" type="password" id="chpw-new" placeholder="New password" autocomplete="new-password" style="width:100%;max-width:280px;font-size:12px">
     </div>
     <div style="margin-bottom:10px">
-      <div style="font-size:10px;color:var(--t3);margin-bottom:3px">Confirm New Password</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:3px">Confirm New Password</div>
       <input class="inp" type="password" id="chpw-confirm" placeholder="Repeat new password" autocomplete="new-password" style="width:100%;max-width:280px;font-size:12px">
     </div>
     <button class="btn btn-p" id="chpw-btn" style="height:32px;font-size:12px" onclick="changePassword()">Update Password</button>
@@ -79,7 +79,7 @@ function renderSettingsHTML(){
   </div>
   <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--brd)"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Session</div>
   <button class="btn btn-s" style="margin-bottom:8px" onclick="doLogout()">🚪 Sign Out &amp; Switch User</button>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:12px">Signs you out and returns to the login screen. Your data is preserved.</div>
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">Danger Zone</div>
   <button class="btn btn-d" onclick="if(confirm('Reset ALL app data to defaults? This cannot be undone.')){localStorage.clear();location.reload()}">🗑 Reset All Data</button></div>
   </div>
@@ -90,11 +90,11 @@ function renderSettingsHTML(){
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Workspace</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Workspace Name</div><div style="font-size:10px;color:var(--t3)">Shown in the sidebar header</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Workspace Name</div><div style="font-size:11px;color:var(--t3)">Shown in the sidebar header</div></div>
       <input class="inp" id="gen-workspace-name" style="max-width:200px;font-size:12px" value="${esc(D.prefs&&D.prefs.workspaceName||'LevelUp')}" oninput="D.prefs=D.prefs||{};D.prefs.workspaceName=this.value;const wl=document.getElementById('workspace-label');if(wl)wl.textContent=this.value||'LevelUp';saveAll()">
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Home Screen</div><div style="font-size:10px;color:var(--t3)">Module shown on launch</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Home Screen</div><div style="font-size:11px;color:var(--t3)">Module shown on launch</div></div>
       <select class="inp" id="gen-home-screen" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.homeScreen=this.value;saveAll()">
         ${['Dashboard','Tasks','Calendar','Notes','Habits','Journal','Goals','Contacts'].map(m=>`<option value="${m}" ${(D.prefs&&D.prefs.homeScreen||'Dashboard')===m?'selected':''}>${m}</option>`).join('')}
       </select>
@@ -105,20 +105,20 @@ function renderSettingsHTML(){
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Date &amp; Time</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">First Day of Week</div><div style="font-size:10px;color:var(--t3)">Affects Calendar and weekly views</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">First Day of Week</div><div style="font-size:11px;color:var(--t3)">Affects Calendar and weekly views</div></div>
       <div style="display:flex;gap:4px">
         <button id="gen-fdow-mon" class="btn ${!(D.prefs&&D.prefs.firstDayOfWeek==='sunday')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.firstDayOfWeek='monday';document.getElementById('gen-fdow-mon').className='btn btn-p';document.getElementById('gen-fdow-sun').className='btn';saveAll()">Mon</button>
         <button id="gen-fdow-sun" class="btn ${(D.prefs&&D.prefs.firstDayOfWeek==='sunday')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.firstDayOfWeek='sunday';document.getElementById('gen-fdow-sun').className='btn btn-p';document.getElementById('gen-fdow-mon').className='btn';saveAll()">Sun</button>
       </div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Date Format</div><div style="font-size:10px;color:var(--t3)">How dates are displayed across the app</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Date Format</div><div style="font-size:11px;color:var(--t3)">How dates are displayed across the app</div></div>
       <select class="inp" id="gen-date-format" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.dateFormat=this.value;saveAll()">
         ${[{v:'MM/DD/YYYY',l:'MM/DD/YYYY'},{v:'DD/MM/YYYY',l:'DD/MM/YYYY'},{v:'YYYY-MM-DD',l:'YYYY-MM-DD'},{v:'D MMM YYYY',l:'D MMM YYYY'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.dateFormat||'MM/DD/YYYY')===o.v?'selected':''}>${o.l}</option>`).join('')}
       </select>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Time Format</div><div style="font-size:10px;color:var(--t3)">12-hour (AM/PM) or 24-hour clock</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Time Format</div><div style="font-size:11px;color:var(--t3)">12-hour (AM/PM) or 24-hour clock</div></div>
       <div style="display:flex;gap:4px">
         <button id="gen-tf-12" class="btn ${!(D.prefs&&D.prefs.timeFormat==='24h')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.timeFormat='12h';document.getElementById('gen-tf-12').className='btn btn-p';document.getElementById('gen-tf-24').className='btn';saveAll()">12h</button>
         <button id="gen-tf-24" class="btn ${(D.prefs&&D.prefs.timeFormat==='24h')?'btn-p':''}" style="font-size:11px;padding:3px 10px" onclick="D.prefs=D.prefs||{};D.prefs.timeFormat='24h';document.getElementById('gen-tf-24').className='btn btn-p';document.getElementById('gen-tf-12').className='btn';saveAll()">24h</button>
@@ -129,9 +129,9 @@ function renderSettingsHTML(){
   <!-- Working Hours — drives the AI Capacity Check + Smart Scheduler -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">⏰ Working Hours</div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Used by the Capacity check on My Day and the AI Smart Scheduler. Per-day overrides (e.g. shorter Fridays, no weekends) take precedence when set.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Used by the Capacity check on My Day and the AI Smart Scheduler. Per-day overrides (e.g. shorter Fridays, no weekends) take precedence when set.</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Hours</div><div style="font-size:10px;color:var(--t3)">Applies on any day without a per-day override.</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Default Hours</div><div style="font-size:11px;color:var(--t3)">Applies on any day without a per-day override.</div></div>
       <div style="display:flex;gap:6px;align-items:center;font-size:12px">
         <select class="inp" id="gen-wh-start" style="width:78px;font-size:12px" onchange="_saveWorkingHoursDefault()">
           ${Array.from({length:24},(_,h)=>`<option value="${h}" ${(D.prefs&&D.prefs.workingHours&&D.prefs.workingHours.start)===h||(!(D.prefs&&D.prefs.workingHours&&Number.isFinite(D.prefs.workingHours.start))&&h===9)?'selected':''}>${String(h).padStart(2,'0')}:00</option>`).join('')}
@@ -146,8 +146,8 @@ function renderSettingsHTML(){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div style="font-size:11px;font-weight:500;color:var(--t2)">Per-day overrides</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_applyWorkingHoursPreset('weekdays-only')" title="Mon–Fri use the default; Sat/Sun are non-working (no capacity)">Weekdays only</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px" onclick="_applyWorkingHoursPreset('clear-overrides')" title="Drop every per-day override">Clear</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px" onclick="_applyWorkingHoursPreset('weekdays-only')" title="Mon–Fri use the default; Sat/Sun are non-working (no capacity)">Weekdays only</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px" onclick="_applyWorkingHoursPreset('clear-overrides')" title="Drop every per-day override">Clear</button>
         </div>
       </div>
       <div id="gen-wh-dow" style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${_renderDowOverrideGrid()}</div>
@@ -158,7 +158,7 @@ function renderSettingsHTML(){
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Language &amp; Region</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Language</div><div style="font-size:10px;color:var(--t3)">UI display language</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Language</div><div style="font-size:11px;color:var(--t3)">UI display language</div></div>
       <select class="inp" id="gen-language" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.language=this.value;saveAll()">
         ${[{v:'en',l:'English'},{v:'es',l:'Español'},{v:'fr',l:'Français'},{v:'de',l:'Deutsch'},{v:'pt',l:'Português'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.language||'en')===o.v?'selected':''}>${o.l}</option>`).join('')}
       </select>
@@ -169,11 +169,11 @@ function renderSettingsHTML(){
   <div>
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Behaviour</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Auto-save</div><div style="font-size:10px;color:var(--t3)">Automatically save changes as you type</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Auto-save</div><div style="font-size:11px;color:var(--t3)">Automatically save changes as you type</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.autoSave===false)?'on':''}" id="tog-autosave" onclick="D.prefs=D.prefs||{};D.prefs.autoSave=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Keyboard Shortcuts</div><div style="font-size:10px;color:var(--t3)">Enable global keyboard shortcuts (?, Cmd+K, etc.)</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Keyboard Shortcuts</div><div style="font-size:11px;color:var(--t3)">Enable global keyboard shortcuts (?, Cmd+K, etc.)</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.keyboardShortcuts===false)?'on':''}" id="tog-kbshortcuts" onclick="D.prefs=D.prefs||{};D.prefs.keyboardShortcuts=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
     </div>
   </div>
@@ -181,31 +181,31 @@ function renderSettingsHTML(){
   <!-- Replay Intro -->
   <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:6px">Onboarding Intro</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Replay the animated intro splash screen that appeared on your first login.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Replay the animated intro splash screen that appeared on your first login.</p>
     <button class="btn" style="font-size:11px;background:var(--s3);border:1px solid var(--bd2)" onclick="localStorage.removeItem('lu_splash_shown_v1');const name=(D.creds&&D.creds.userName||'User').split(' ')[0];showSplashScreen(name);">&#9654; Replay Intro</button>
   </div>
   <!-- Reset to Defaults -->
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--warn)">Reset General Settings</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Restores all General settings to their defaults. Your tasks, notes, and other app data are not affected.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Restores all General settings to their defaults. Your tasks, notes, and other app data are not affected.</p>
     <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset all General settings to defaults?')){const keep={darkMode:D.prefs.darkMode,compact:D.prefs.compact,accent:D.prefs.accent,notifications:D.prefs.notifications};D.prefs={...keep,workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true};saveAll();applyPrefs();renderScreen('settings');toast('\u2699 General settings reset to defaults');}">&#x21BA; Reset to Defaults</button>
   </div>
   </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🎨 Appearance</h3>
-  <p style="font-size:10px;color:var(--t3);margin-bottom:14px">Themes are personal — each team member can customise independently. Changes apply instantly and sync across your devices.</p>
+  <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Themes are personal — each team member can customise independently. Changes apply instantly and sync across your devices.</p>
 
   <!-- Base toggles -->
   <div class="cd" style="padding:10px 14px;margin-bottom:14px">
-    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:10px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
-    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Density</div><div style="font-size:10px;color:var(--t3)">Sizing for rows, padding, and labels</div></div>${(()=>{const cur=(D.prefs&&D.prefs.density)||(D.prefs&&D.prefs.compact?'compact':'normal');const opts=[{k:'compact',l:'Compact'},{k:'normal',l:'Normal'},{k:'dense',l:'Dense'}];return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${opts.map(o=>`<button class="btn" style="border-radius:0;height:26px;padding:0 10px;font-size:10px;background:${cur===o.k?'var(--ac)':'transparent'};color:${cur===o.k?'#fff':'var(--t2)'};border:none;cursor:pointer" onclick="setDensity('${o.k}')">${o.l}</button>`).join('')}</div>`;})()}</div>
-    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">🌅 Time-aware accent drift</div><div style="font-size:10px;color:var(--t3)">Subtly nudges accent hue across the day — warm at sunrise, cool at dusk</div></div><div class="tog ${D.prefs&&D.prefs.accentDrift?'on':''}" id="tog-accent-drift" onclick="toggleAccentDrift(this)"></div></div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Dark Mode</div><div style="font-size:11px;color:var(--t3)">Default dark theme (recommended)</div></div><div class="tog ${D.prefs&&D.prefs.darkMode!==false?'on':''}" id="tog-dark" onclick="toggleDarkMode(this)"></div></div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">Density</div><div style="font-size:11px;color:var(--t3)">Sizing for rows, padding, and labels</div></div>${(()=>{const cur=(D.prefs&&D.prefs.density)||(D.prefs&&D.prefs.compact?'compact':'normal');const opts=[{k:'compact',l:'Compact'},{k:'normal',l:'Normal'},{k:'dense',l:'Dense'}];return `<div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden">${opts.map(o=>`<button class="btn" style="border-radius:0;height:26px;padding:0 10px;font-size:11px;background:${cur===o.k?'var(--ac)':'transparent'};color:${cur===o.k?'#fff':'var(--t2)'};border:none;cursor:pointer" onclick="setDensity('${o.k}')">${o.l}</button>`).join('')}</div>`;})()}</div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px;font-weight:500">🌅 Time-aware accent drift</div><div style="font-size:11px;color:var(--t3)">Subtly nudges accent hue across the day — warm at sunrise, cool at dusk</div></div><div class="tog ${D.prefs&&D.prefs.accentDrift?'on':''}" id="tog-accent-drift" onclick="toggleAccentDrift(this)"></div></div>
   </div>
 
   <!-- Quick presets -->
   <div class="cd" style="padding:12px 14px;margin-bottom:14px">
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">🌌 Quick Presets</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Apply a curated theme as a starting point. You can then customise any colour below.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Apply a curated theme as a starting point. You can then customise any colour below.</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">
       ${THEME_PRESETS.map(p=>`<button class="btn btn-s" style="height:auto;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:6px;text-align:left;justify-content:flex-start;border:1px solid ${p.theme.ac?`color-mix(in srgb,${p.theme.ac} 40%,var(--bd2))`:'var(--bd2)'};background:linear-gradient(135deg,${p.theme.bg||'var(--s2)'} 0%,${p.theme.s2||'var(--s3)'} 100%)" onclick="applyThemePreset(${JSON.stringify(p).replace(/"/g,'&quot;')})"><span style="font-size:16px;flex-shrink:0">${p.emoji}</span><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:${p.theme.t1||'var(--t1)'}">${esc(p.name)}</span></button>`).join('')}
     </div>
@@ -215,17 +215,17 @@ function renderSettingsHTML(){
   <div class="cd" style="padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="font-size:12px;font-weight:600">🎨 Custom Colours</div>
-      <button class="btn btn-s" style="font-size:10px;height:24px" onclick="resetTheme()">↺ Reset to Defaults</button>
+      <button class="btn btn-s" style="font-size:11px;height:24px" onclick="resetTheme()">↺ Reset to Defaults</button>
     </div>
     ${(()=>{const eff=_getEffectiveTheme();return THEME_VAR_GROUPS.map(g=>`
       <div style="margin-bottom:14px">
-        <div style="font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(g.label)}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${esc(g.label)}</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px">
           ${g.keys.map(kk=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer">
             <input type="color" value="${_themeColorAsHex(eff[kk.k])}" style="width:28px;height:24px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setThemeVar('${kk.k}',this.value)">
             <div style="flex:1;min-width:0">
               <div style="font-size:11px;color:var(--t1);font-weight:500">${esc(kk.name)}</div>
-              <div style="font-size:10px;color:var(--t3);font-family:ui-monospace,monospace">--${kk.k}</div>
+              <div style="font-size:11px;color:var(--t3);font-family:ui-monospace,monospace">--${kk.k}</div>
             </div>
           </label>`).join('')}
         </div>
@@ -235,7 +235,7 @@ function renderSettingsHTML(){
 
   <!-- Page accent (per-route hue) -->
   <details class="cd" style="padding:12px 14px;margin-bottom:14px">
-    <summary style="font-size:12px;font-weight:600;cursor:pointer;list-style:none">📄 Per-Page Accent Colours <span style="font-size:10px;color:var(--t3);font-weight:400">— controls each route's banner hue</span></summary>
+    <summary style="font-size:12px;font-weight:600;cursor:pointer;list-style:none">📄 Per-Page Accent Colours <span style="font-size:11px;color:var(--t3);font-weight:400">— controls each route's banner hue</span></summary>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-top:10px">
       ${(()=>{const cur=Object.assign({},PAGE_ACCENT_DEFAULTS,D.prefs.pageAccents||{});return Object.entries(cur).map(([screen,color])=>`<label style="display:flex;align-items:center;gap:6px;padding:5px 7px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;cursor:pointer"><input type="color" value="${color}" style="width:24px;height:20px;border:none;padding:0;background:transparent;cursor:pointer" oninput="setPageAccent('${screen}',this.value)"><span style="font-size:11px;color:var(--t1);text-transform:capitalize">${screen}</span></label>`).join('');})()}
     </div>
@@ -245,13 +245,13 @@ function renderSettingsHTML(){
   <div class="cd" style="padding:12px 14px;margin-bottom:14px">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">🔤 Typography</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Family</div><div style="font-size:10px;color:var(--t3)">Applied across the app</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Family</div><div style="font-size:11px;color:var(--t3)">Applied across the app</div></div>
       <select class="inp" style="max-width:220px;font-size:12px" onchange="D.prefs.themeFontFamily=this.value;save('prefs');applyTheme()">
         ${[['__system','System default'],['"Inter",sans-serif','Inter'],['"Roboto",sans-serif','Roboto'],['"SF Pro",-apple-system,sans-serif','SF Pro / Apple system'],['"Segoe UI",sans-serif','Segoe UI'],['Georgia,serif','Georgia (serif)'],['"Times New Roman",serif','Times New Roman'],['"Courier New",ui-monospace,monospace','Courier (mono)'],['"JetBrains Mono",ui-monospace,monospace','JetBrains Mono'],['"Lora",serif','Lora']].map(([v,l])=>`<option value="${esc(v)}" ${(D.prefs.themeFontFamily||'__system')===v?'selected':''}>${esc(l)}</option>`).join('')}
       </select>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Size Scale</div><div style="font-size:10px;color:var(--t3)">${Math.round((Number(D.prefs.themeFontScale)||1)*100)}% of default</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Size Scale</div><div style="font-size:11px;color:var(--t3)">${Math.round((Number(D.prefs.themeFontScale)||1)*100)}% of default</div></div>
       <input type="range" min="0.85" max="1.30" step="0.05" value="${Number(D.prefs.themeFontScale)||1}" style="width:180px" oninput="D.prefs.themeFontScale=Number(this.value);save('prefs');applyTheme();this.parentElement.querySelector('div div:last-child').textContent=Math.round(Number(this.value)*100)+'% of default'">
     </div>
   </div>
@@ -260,22 +260,22 @@ function renderSettingsHTML(){
   <div class="cd" style="padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">⭐ Saved Profiles</div>
-      <button class="btn btn-p" style="font-size:10px;height:24px" onclick="saveThemeAsProfile()">💾 Save Current as Profile</button>
+      <button class="btn btn-p" style="font-size:11px;height:24px" onclick="saveThemeAsProfile()">💾 Save Current as Profile</button>
     </div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Capture the current colours + fonts + page accents as a named profile you can re-apply any time, or schedule by time of day.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Capture the current colours + fonts + page accents as a named profile you can re-apply any time, or schedule by time of day.</p>
     ${(()=>{const profs=D.prefs.themeProfiles||[];if(!profs.length)return '<div style="font-size:11px;color:var(--t3);text-align:center;padding:14px">No saved profiles yet.</div>';
       return `<div style="display:flex;flex-direction:column;gap:6px">${profs.map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px">
         <span style="font-size:16px">${esc(p.emoji||'🎨')}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500">${esc(p.name)}</div>
-          <div style="font-size:10px;color:var(--t3)">${Object.keys(p.theme||{}).length} colour overrides · ${Object.keys(p.pageAccents||{}).length} page accents${p.fontFamily&&p.fontFamily!=='__system'?' · custom font':''}</div>
+          <div style="font-size:11px;color:var(--t3)">${Object.keys(p.theme||{}).length} colour overrides · ${Object.keys(p.pageAccents||{}).length} page accents${p.fontFamily&&p.fontFamily!=='__system'?' · custom font':''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${(Object.values(p.theme||{}).slice(0,4)).map(c=>`<span style="width:14px;height:14px;border-radius:50%;background:${esc(c)};border:1px solid var(--bd2)"></span>`).join('')}
         </div>
-        <button class="btn btn-p" style="height:24px;font-size:10px" onclick="loadThemeProfile(${p.id})">Apply</button>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="renameThemeProfile(${p.id})" title="Rename">✏</button>
-        <button class="btn btn-d" style="height:24px;font-size:10px" onclick="deleteThemeProfile(${p.id})" title="Delete">✕</button>
+        <button class="btn btn-p" style="height:24px;font-size:11px" onclick="loadThemeProfile(${p.id})">Apply</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="renameThemeProfile(${p.id})" title="Rename">✏</button>
+        <button class="btn btn-d" style="height:24px;font-size:11px" onclick="deleteThemeProfile(${p.id})" title="Delete">✕</button>
       </div>`).join('')}</div>`;
     })()}
   </div>
@@ -284,9 +284,9 @@ function renderSettingsHTML(){
   <div class="cd" style="padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">⏰ Schedule Profiles</div>
-      <button class="btn btn-p" style="font-size:10px;height:24px" onclick="addThemeSchedule()">+ Add Rule</button>
+      <button class="btn btn-p" style="font-size:11px;height:24px" onclick="addThemeSchedule()">+ Add Rule</button>
     </div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Auto-switch profiles by time of day. Useful for ramping focus colours in the morning, sunset palette in the evening, etc. Multiple rules: the first matching wins.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Auto-switch profiles by time of day. Useful for ramping focus colours in the morning, sunset palette in the evening, etc. Multiple rules: the first matching wins.</p>
     ${(()=>{
       const sched=D.prefs.themeSchedule||[];
       const profs=D.prefs.themeProfiles||[];
@@ -305,12 +305,12 @@ function renderSettingsHTML(){
           <input type="time" class="inp" style="height:24px;font-size:11px;width:90px" value="${esc(s.end||'12:00')}" onchange="updateThemeSchedule(${s.id},{end:this.value})">
         </div>
         <div style="display:flex;gap:2px">
-          ${dayLbl.map((d,di)=>{const on=(s.days||[0,1,2,3,4,5,6]).includes(di);return `<span title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][di]}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;border-radius:4px;cursor:pointer;${on?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t3)'}" onclick="(function(){const arr=(D.prefs.themeSchedule.find(x=>x.id===${s.id}).days||[]).slice();const i=arr.indexOf(${di});if(i>=0)arr.splice(i,1);else arr.push(${di});updateThemeSchedule(${s.id},{days:arr});renderScreen('settings')})()">${d}</span>`;}).join('')}
+          ${dayLbl.map((d,di)=>{const on=(s.days||[0,1,2,3,4,5,6]).includes(di);return `<span title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][di]}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;${on?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t3)'}" onclick="(function(){const arr=(D.prefs.themeSchedule.find(x=>x.id===${s.id}).days||[]).slice();const i=arr.indexOf(${di});if(i>=0)arr.splice(i,1);else arr.push(${di});updateThemeSchedule(${s.id},{days:arr});renderScreen('settings')})()">${d}</span>`;}).join('')}
         </div>
-        <button class="btn btn-d" style="height:22px;font-size:10px" onclick="deleteThemeSchedule(${s.id})">✕</button>
+        <button class="btn btn-d" style="height:22px;font-size:11px" onclick="deleteThemeSchedule(${s.id})">✕</button>
       </div>`).join('')}</div>`;
     })()}
-    ${(()=>{const a=_getActiveSchedule();if(!a)return '';const p=(D.prefs.themeProfiles||[]).find(x=>x.id===a.profileId);return `<div style="margin-top:8px;font-size:10px;color:var(--ok);padding:5px 8px;background:rgba(34,197,94,.1);border-radius:6px">▶ Active now: ${esc(p?p.emoji+' '+p.name:'(unknown)')} (${esc(a.start)}–${esc(a.end)})</div>`;})()}
+    ${(()=>{const a=_getActiveSchedule();if(!a)return '';const p=(D.prefs.themeProfiles||[]).find(x=>x.id===a.profileId);return `<div style="margin-top:8px;font-size:11px;color:var(--ok);padding:5px 8px;background:rgba(34,197,94,.1);border-radius:6px">▶ Active now: ${esc(p?p.emoji+' '+p.name:'(unknown)')} (${esc(a.start)}–${esc(a.end)})</div>`;})()}
   </div>
   </div>
   <!-- Notifications --><div id="sp-3" class="sp" style="display:none">
@@ -320,27 +320,27 @@ function renderSettingsHTML(){
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">In-App Alerts</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest</div><div style="font-size:10px;color:var(--t3)">Morning summary of tasks, habits, and goals for the day</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest</div><div style="font-size:11px;color:var(--t3)">Morning summary of tasks, habits, and goals for the day</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.dailyDigest===false)?'on':''}" id="tog-notif-digest" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.dailyDigest=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'📊 Daily digest on':'📊 Daily digest off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Reminders</div><div style="font-size:10px;color:var(--t3)">Alert when a task is due today or overdue</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Reminders</div><div style="font-size:11px;color:var(--t3)">Alert when a task is due today or overdue</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.deadlineReminders===false)?'on':''}" id="tog-notif-deadline" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.deadlineReminders=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'⏰ Deadline reminders on':'⏰ Deadline reminders off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Habit Streak Alerts</div><div style="font-size:10px;color:var(--t3)">Notify when a streak is at risk or broken</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Habit Streak Alerts</div><div style="font-size:11px;color:var(--t3)">Notify when a streak is at risk or broken</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.habitStreaks===false)?'on':''}" id="tog-notif-habits" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.habitStreaks=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'🔥 Habit streak alerts on':'🔥 Habit streak alerts off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Goal Milestone Alerts</div><div style="font-size:10px;color:var(--t3)">Celebrate when a goal reaches 25%, 50%, 75%, or 100%</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Goal Milestone Alerts</div><div style="font-size:11px;color:var(--t3)">Celebrate when a goal reaches 25%, 50%, 75%, or 100%</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.goalMilestones===false)?'on':''}" id="tog-notif-goals" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.goalMilestones=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'🎯 Goal milestone alerts on':'🎯 Goal milestone alerts off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">AI Insight Alerts</div><div style="font-size:10px;color:var(--t3)">Show AI-generated tips and nudges in the notification panel</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">AI Insight Alerts</div><div style="font-size:11px;color:var(--t3)">Show AI-generated tips and nudges in the notification panel</div></div>
       <div class="tog ${!(D.prefs&&D.prefs.notifications&&D.prefs.notifications.aiInsights===false)?'on':''}" id="tog-notif-ai" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.aiInsights=!this.classList.contains('on');this.classList.toggle('on');saveAll();if(this.classList.contains('on')){if(typeof startAIAssistant==='function')startAIAssistant()}else{if(typeof aiTimer!=='undefined'&&aiTimer){clearInterval(aiTimer);aiTimer=null;}const b=document.getElementById('ai-bubble');if(b)b.innerHTML=''}toast(this.classList.contains('on')?'✨ AI insight alerts on':'✨ AI insight alerts off')"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Sound Alerts</div><div style="font-size:10px;color:var(--t3)">Play a subtle chime when new notifications arrive</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Sound Alerts</div><div style="font-size:11px;color:var(--t3)">Play a subtle chime when new notifications arrive</div></div>
       <div class="tog ${D.prefs&&D.prefs.notifications&&D.prefs.notifications.soundAlerts?'on':''}" id="tog-notif-sound" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.soundAlerts=!this.classList.contains('on');this.classList.toggle('on');saveAll();if(this.classList.contains('on'))playNotifChime();toast(this.classList.contains('on')?'🔔 Sound alerts on':'🔕 Sound alerts off')"></div>
     </div>
   </div>
@@ -349,11 +349,11 @@ function renderSettingsHTML(){
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Reminder Timing</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Time</div><div style="font-size:10px;color:var(--t3)">When to show the morning summary</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Time</div><div style="font-size:11px;color:var(--t3)">When to show the morning summary</div></div>
       <input type="time" class="inp" style="max-width:120px;font-size:12px" value="${D.prefs&&D.prefs.notifications&&D.prefs.notifications.digestTime||'08:00'}" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.digestTime=this.value;saveAll();toast('⏰ Digest time set to '+this.value)">
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Advance Notice</div><div style="font-size:10px;color:var(--t3)">How early to warn before a task is due</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Deadline Advance Notice</div><div style="font-size:11px;color:var(--t3)">How early to warn before a task is due</div></div>
       <select class="inp" style="max-width:160px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.deadlineAdvance=this.value;saveAll()">
         ${[{v:'same-day',l:'Same day'},{v:'1-day',l:'1 day before'},{v:'2-days',l:'2 days before'},{v:'3-days',l:'3 days before'}].map(o=>`<option value="${o.v}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.deadlineAdvance||'1-day')===o.v?'selected':''}>${o.l}</option>`).join('')}
       </select>
@@ -363,41 +363,41 @@ function renderSettingsHTML(){
   <!-- Daily Morning Digest (server-side) -->
   <div id="daily-digest-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">☀ Daily Morning Digest Email</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across CommunityForce (Smartsheet), LSI Media (NiftyPM), and your personal LevelUp tasks. Sent only when there's something to surface.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">A single email each morning summarizing today's plate across CommunityForce (Smartsheet), LSI Media (NiftyPM), and your personal LevelUp tasks. Sent only when there's something to surface.</p>
     <div id="daily-digest-body" style="font-size:11px;color:var(--t2)">Loading…</div>
   </div>
 
   <!-- Weekly Review (server-side) -->
   <div id="weekly-review-panel" style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Weekly Review Email</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across CF + LSI + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Late-week recap email: what shipped this past week, what's overdue / carrying over, what's coming next week — across CF + LSI + Personal. Includes an AI-generated reflection (if an AI key is configured).</p>
     <div id="weekly-review-body" style="font-size:11px;color:var(--t2)">Loading…</div>
   </div>
 
   <!-- Email Notifications -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">Email Notifications</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Control which system emails LevelUp sends to your account. Changes take effect immediately.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Control which system emails LevelUp sends to your account. Changes take effect immediately.</p>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:10px;color:var(--t3)">Receive an email when your Microsoft 365 token is about to expire</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">OAuth Token Expiry Emails</div><div style="font-size:11px;color:var(--t3)">Receive an email when your Microsoft 365 token is about to expire</div></div>
       <div class="tog" id="tog-email-expiry" onclick="toggleEmailNotifPref('optOutExpiryEmails',this)"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Emails</div><div style="font-size:10px;color:var(--t3)">Receive a daily email summary of your tasks, habits, and goals</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Daily Digest Emails</div><div style="font-size:11px;color:var(--t3)">Receive a daily email summary of your tasks, habits, and goals</div></div>
       <div class="tog on" id="tog-email-digest" onclick="toggleEmailNotifPref('optOutDigestEmails',this)"></div>
     </div>
-    <div id="email-notif-prefs-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
+    <div id="email-notif-prefs-status" style="font-size:11px;color:var(--t3);margin-top:4px"></div>
   </div>
 
   <!-- Quiet Hours -->
   <div>
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">Quiet Hours</div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Enable Quiet Hours</div><div style="font-size:10px;color:var(--t3)">Suppress all notifications during this window</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Enable Quiet Hours</div><div style="font-size:11px;color:var(--t3)">Suppress all notifications during this window</div></div>
       <div class="tog ${D.prefs&&D.prefs.notifications&&D.prefs.notifications.quietHours?'on':''}" id="tog-quiet-hours" onclick="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.quietHours=!this.classList.contains('on');this.classList.toggle('on');saveAll()"></div>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Quiet Hours Window</div><div style="font-size:10px;color:var(--t3)">Start and end time for quiet hours</div></div>
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Quiet Hours Window</div><div style="font-size:11px;color:var(--t3)">Start and end time for quiet hours</div></div>
       <div style="display:flex;align-items:center;gap:6px">
         <select class="inp" style="max-width:90px;font-size:12px" onchange="D.prefs=D.prefs||{};D.prefs.notifications=D.prefs.notifications||{};D.prefs.notifications.quietStart=this.value;saveAll()">
           ${['20:00','21:00','22:00','23:00','00:00'].map(t=>`<option value="${t}" ${(D.prefs&&D.prefs.notifications&&D.prefs.notifications.quietStart||'22:00')===t?'selected':''}>${t}</option>`).join('')}
@@ -411,35 +411,35 @@ function renderSettingsHTML(){
   </div>
   </div>
   <!-- Accounts --><div id="sp-4" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Connected Accounts</h3>
-  <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
+  <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Connect your Microsoft 365 account to enable two-way Calendar, Mail, and Contacts sync. Tokens are stored securely on the server — never in your browser.</p>
   <div id="oauth-ms-card" style="background:var(--s2);border-radius:8px;padding:12px;margin-bottom:10px">
     <div class="lr" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:32px;height:32px;background:#0078d4;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">M</div>
-        <div><div style="font-size:12px;font-weight:600">Microsoft 365</div><div style="font-size:10px;color:var(--t3)">Outlook · Calendar · Contacts</div></div>
+        <div><div style="font-size:12px;font-weight:600">Microsoft 365</div><div style="font-size:11px;color:var(--t3)">Outlook · Calendar · Contacts</div></div>
       </div>
-      <div id="oauth-ms-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
+      <div id="oauth-ms-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not connected</div>
     </div>
-    <div id="oauth-ms-info" style="display:none;font-size:10px;color:var(--t2);margin-bottom:8px"></div>
-    <div id="oauth-ms-expiry" style="display:none;font-size:10px;margin-bottom:8px"></div>
+    <div id="oauth-ms-info" style="display:none;font-size:11px;color:var(--t2);margin-bottom:8px"></div>
+    <div id="oauth-ms-expiry" style="display:none;font-size:11px;margin-bottom:8px"></div>
     <div id="oauth-ms-expiry-bar-wrap" style="display:none;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span id="oauth-ms-expiry-label" style="font-size:10px;color:var(--t2)"></span>
-        <span id="oauth-ms-expiry-days" style="font-size:10px;font-weight:600"></span>
+        <span id="oauth-ms-expiry-label" style="font-size:11px;color:var(--t2)"></span>
+        <span id="oauth-ms-expiry-days" style="font-size:11px;font-weight:600"></span>
       </div>
       <div style="height:4px;border-radius:2px;background:var(--s3);overflow:hidden">
         <div id="oauth-ms-expiry-bar" style="height:100%;border-radius:2px;transition:width 0.4s ease"></div>
       </div>
     </div>
     <!-- Step indicator (shown when not connected) -->
-    <div id="oauth-ms-steps" style="display:flex;gap:4px;align-items:center;margin-bottom:8px;font-size:10px;color:var(--t3)">
+    <div id="oauth-ms-steps" style="display:flex;gap:4px;align-items:center;margin-bottom:8px;font-size:11px;color:var(--t3)">
       <span id="oauth-ms-step1" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">1</span> Save credentials</span>
       <span style="color:var(--t3)">›</span>
       <span id="oauth-ms-step2" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span> Connect</span>
       <span style="color:var(--t3)">›</span>
       <span id="oauth-ms-step3" style="display:flex;align-items:center;gap:3px"><span style="width:16px;height:16px;border-radius:50%;background:var(--s3);color:var(--t2);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">3</span> Test</span>
     </div>
-    <div id="oauth-ms-guide" style="font-size:10px;color:var(--t3);margin-bottom:8px;display:none">Click <strong>Connect Microsoft 365</strong> to open the Microsoft consent page. You will be redirected back automatically after authorising.</div>
+    <div id="oauth-ms-guide" style="font-size:11px;color:var(--t3);margin-bottom:8px;display:none">Click <strong>Connect Microsoft 365</strong> to open the Microsoft consent page. You will be redirected back automatically after authorising.</div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button id="btn-ms-connect" class="btn" style="font-size:11px;padding:4px 10px" onclick="connectOAuth('microsoft')">🔗 Connect Microsoft 365</button>
       <button id="btn-ms-disconnect" class="btn btn-d" style="font-size:11px;padding:4px 10px;display:none" onclick="disconnectOAuth('microsoft')">✕ Disconnect</button>
@@ -459,16 +459,16 @@ function renderSettingsHTML(){
     <div class="lr" style="margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:32px;height:32px;background:#6366f1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">✉</div>
-        <div><div style="font-size:12px;font-weight:600">Secondary Email Account</div><div style="font-size:10px;color:var(--t3)">SMTP/IMAP · Any Email Provider</div></div>
+        <div><div style="font-size:12px;font-weight:600">Secondary Email Account</div><div style="font-size:11px;color:var(--t3)">SMTP/IMAP · Any Email Provider</div></div>
       </div>
-      <div id="smtp-imap-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not configured</div>
+      <div id="smtp-imap-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">Not configured</div>
     </div>
     <div id="smtp-imap-form" style="display:none;margin-bottom:8px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
         <input id="smtp-email" class="inp" type="email" placeholder="Email address" style="font-size:11px" />
         <input id="smtp-display-name" class="inp" type="text" placeholder="Display name (optional)" style="font-size:11px" />
       </div>
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP Settings</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP Settings</div>
       <div style="display:grid;grid-template-columns:1fr 120px 120px;gap:6px;margin-bottom:6px">
         <input id="smtp-imap-host" class="inp" type="text" placeholder="IMAP Host (e.g., imap.gmail.com)" style="font-size:11px" />
         <input id="smtp-imap-port" class="inp" type="number" placeholder="Port" value="993" style="font-size:11px" />
@@ -478,7 +478,7 @@ function renderSettingsHTML(){
         <input id="smtp-imap-username" class="inp" type="text" placeholder="IMAP Username" style="font-size:11px" />
         <input id="smtp-imap-password" class="inp" type="password" placeholder="IMAP Password" style="font-size:11px" />
       </div>
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP Settings</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP Settings</div>
       <div style="display:grid;grid-template-columns:1fr 120px 120px;gap:6px;margin-bottom:6px">
         <input id="smtp-smtp-host" class="inp" type="text" placeholder="SMTP Host (e.g., smtp.gmail.com)" style="font-size:11px" />
         <input id="smtp-smtp-port" class="inp" type="number" placeholder="Port" value="587" style="font-size:11px" />
@@ -522,43 +522,43 @@ function renderSettingsHTML(){
   <div id="oauth-user-creds" style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <details>
     <summary style="font-size:12px;font-weight:600;margin-bottom:4px;cursor:pointer">🔑 Advanced: Override with your own OAuth App Credentials</summary>
-    <p style="font-size:10px;color:var(--t3);margin:8px 0 10px">Most users can skip this. The app uses global OAuth credentials configured by the owner (Railway env vars <code>MS_CLIENT_ID</code> / <code>MS_CLIENT_SECRET</code> / <code>MS_TENANT_ID</code>). Only fill in your own Azure AD app credentials below if you want to override the global app for your account.</p>
+    <p style="font-size:11px;color:var(--t3);margin:8px 0 10px">Most users can skip this. The app uses global OAuth credentials configured by the owner (Railway env vars <code>MS_CLIENT_ID</code> / <code>MS_CLIENT_SECRET</code> / <code>MS_TENANT_ID</code>). Only fill in your own Azure AD app credentials below if you want to override the global app for your account.</p>
     <div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:6px">Microsoft 365</div>
       <div style="margin-bottom:6px">
-        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Application (Client) ID</label>
+        <label style="font-size:11px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Application (Client) ID</label>
         <input id="ms-cred-id" class="inp" style="width:100%;font-size:11px" type="text" placeholder="e.g., b7bdcd01-c4e0-4c4c-8e16-606b9457fc6e" />
       </div>
       <div style="margin-bottom:6px">
-        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Client Secret (Value)</label>
+        <label style="font-size:11px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Client Secret (Value)</label>
         <input id="ms-cred-secret" class="inp" style="width:100%;font-size:11px" type="password" placeholder="e.g., 6~q8Q~cZgq6LVyPn-4hkJW0llzPfVqDVQJwxKa5m" />
       </div>
       <div style="display:flex;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-        <button class="btn btn-p" style="height:30px;font-size:10px;white-space:nowrap" onclick="saveOAuthCredentials('microsoft')">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:10px;white-space:nowrap" id="btn-ms-verify-creds" onclick="verifyOAuthCredentials('microsoft')" title="Check if these credentials are accepted by Microsoft">🔍 Verify</button>
-        <button class="btn btn-d" style="height:30px;font-size:10px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
+        <button class="btn btn-p" style="height:30px;font-size:11px;white-space:nowrap" onclick="saveOAuthCredentials('microsoft')">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px;white-space:nowrap" id="btn-ms-verify-creds" onclick="verifyOAuthCredentials('microsoft')" title="Check if these credentials are accepted by Microsoft">🔍 Verify</button>
+        <button class="btn btn-d" style="height:30px;font-size:11px" onclick="deleteOAuthCredentials('microsoft')" title="Remove saved credentials">✕ Clear</button>
       </div>
       <div style="margin-bottom:6px">
-        <label style="font-size:10px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Tenant ID (Optional — single-tenant apps only)</label>
+        <label style="font-size:11px;color:var(--t2);font-weight:500;display:block;margin-bottom:2px">Tenant ID (Optional — single-tenant apps only)</label>
         <input id="ms-cred-tenant" class="inp" style="width:100%;font-size:11px" type="text" placeholder="e.g., 3e6b1e3d-2176-40c3-83fe-9d8183e016c1" />
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Leave blank for multi-tenant. Required if your Azure app is single-tenant. Find in Azure Portal → App registrations → your app → Directory (tenant) ID.</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">Leave blank for multi-tenant. Required if your Azure app is single-tenant. Find in Azure Portal → App registrations → your app → Directory (tenant) ID.</div>
       </div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Azure Portal → App registrations → your app → Authentication: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')"><span id="ms-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')">Copy</button></div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:4px">Redirect URI to add in Azure Portal → App registrations → your app → Authentication: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')"><span id="ms-redirect-uri"></span></code> <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/oauth/microsoft/callback');toast('✓ Copied')">Copy</button></div>
       <!-- Microsoft Graph Scope Selector -->
       <div style="margin-bottom:6px">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">📋 Permission Scopes <span style="font-weight:400;color:var(--t3)">(select what you need — fewer scopes = less consent friction)</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--t2)">
+        <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">📋 Permission Scopes <span style="font-weight:400;color:var(--t3)">(select what you need — fewer scopes = less consent friction)</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--t2)">
           <label style="display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="ms-scope-mail" value="Mail.ReadWrite,Mail.Send" checked style="cursor:pointer"> ✉ Mail</label>
           <label style="display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="ms-scope-calendar" value="Calendars.ReadWrite" checked style="cursor:pointer"> 📅 Calendar</label>
           <label style="display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="ms-scope-contacts" value="Contacts.ReadWrite" checked style="cursor:pointer"> 👥 Contacts</label>
         </div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Changes take effect on the next Connect. Reconnect after changing scopes.</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">Changes take effect on the next Connect. Reconnect after changing scopes.</div>
       </div>
-      <div id="ms-cred-status" style="font-size:10px;color:var(--t3)"></div>
-      <div id="ms-verify-status" style="font-size:10px;margin-top:2px"></div>
+      <div id="ms-cred-status" style="font-size:11px;color:var(--t3)"></div>
+      <div id="ms-verify-status" style="font-size:11px;margin-top:2px"></div>
       <div id="ms-audit-log" style="margin-top:6px;display:none">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('microsoft')">▶ Recent Activity</div>
-        <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:10px;color:var(--t3)"></div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px;cursor:pointer" onclick="toggleAuditLog('microsoft')">▶ Recent Activity</div>
+        <div id="ms-audit-log-entries" style="display:none;max-height:120px;overflow-y:auto;font-size:11px;color:var(--t3)"></div>
       </div>
     </div>
     </details>
@@ -567,7 +567,7 @@ function renderSettingsHTML(){
   <!-- Notification Sender (owner/admin only) -->
   <div id="notif-sender-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📤 System Notification Sender</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Choose which connected account is used to send all system notifications (password reset emails, digest emails, alerts). Only accounts that are currently connected appear here.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Choose which connected account is used to send all system notifications (password reset emails, digest emails, alerts). Only accounts that are currently connected appear here.</p>
     <div style="display:flex;gap:8px;align-items:center">
       <select id="notif-sender-select" class="inp" style="flex:1;font-size:11px">
         <option value="">— Use built-in notification service —</option>
@@ -575,20 +575,20 @@ function renderSettingsHTML(){
       <button class="btn btn-p" style="height:30px;font-size:11px" onclick="saveNotificationSender()">Save</button>
       <button id="btn-test-email" class="btn" style="height:30px;font-size:11px" onclick="testEmailSender()">📧 Test Email</button>
     </div>
-    <div id="notif-sender-status" style="font-size:10px;color:var(--t3);margin-top:4px"></div>
+    <div id="notif-sender-status" style="font-size:11px;color:var(--t3);margin-top:4px"></div>
     <!-- Email Delivery Log -->
     <div style="margin-top:10px">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📋 Recent Delivery Log</div>
-      <div id="email-delivery-log" style="font-size:10px;color:var(--t3)">Loading…</div>
+      <div id="email-delivery-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
   </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:8px">⚙ Setup Required — Microsoft 365 OAuth</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">To enable the Connect button, register an OAuth app with Microsoft and enter your credentials above. You need a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">To enable the Connect button, register an OAuth app with Microsoft and enter your credentials above. You need a <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
     <div style="margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;color:#0078d4;margin-bottom:4px">Steps to register your app:</div>
-      <ol style="font-size:10px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
+      <ol style="font-size:11px;color:var(--t3);padding-left:16px;margin:0;line-height:1.8">
         <li>Go to <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" style="color:var(--ac)">portal.azure.com → App registrations</a> → New registration</li>
         <li>Set <strong>Redirect URI</strong> to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;user-select:all">${window.location.origin}/api/oauth/microsoft/callback</code></li>
         <li>Copy the <strong>Application (client) ID</strong> → paste into the field above</li>
@@ -603,55 +603,55 @@ function renderSettingsHTML(){
   <!-- Contact Enrichment -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔍 Contact Enrichment — Clodura</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Add your Clodura API key to enable one-click contact enrichment with verified email, phone, LinkedIn, and 40+ firmographic fields.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Add your Clodura API key to enable one-click contact enrichment with verified email, phone, LinkedIn, and 40+ firmographic fields.</p>
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
       <input id="clo-api-key" class="inp" type="password" placeholder="Clodura API Key" style="flex:1;font-size:11px" value="${esc(D.creds.clo_key||'')}" oninput="D.creds.clo_key=this.value;saveAll()">
-      <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('clo-api-key').type=document.getElementById('clo-api-key').type==='password'?'text':'password'">👁</button>
+      <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('clo-api-key').type=document.getElementById('clo-api-key').type==='password'?'text':'password'">👁</button>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="D.creds.clo_key=document.getElementById('clo-api-key').value;saveAll();toast('✅ Clodura API key saved')">Save</button>
-      ${D.creds.clo_key?`<button class="btn btn-d" style="height:28px;font-size:10px" onclick="D.creds.clo_key='';saveAll();renderScreen('settings');toast('Clodura key removed')">✕ Remove</button>`:''}
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="D.creds.clo_key=document.getElementById('clo-api-key').value;saveAll();toast('✅ Clodura API key saved')">Save</button>
+      ${D.creds.clo_key?`<button class="btn btn-d" style="height:28px;font-size:11px" onclick="D.creds.clo_key='';saveAll();renderScreen('settings');toast('Clodura key removed')">✕ Remove</button>`:''}
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:6px">${D.creds.clo_key?'<span style="color:var(--ok)">✓ Configured</span>':'Not configured — <a href="https://clodura.ai" target="_blank" style="color:var(--ac)">Get a Clodura API key</a>'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:6px">${D.creds.clo_key?'<span style="color:var(--ok)">✓ Configured</span>':'Not configured — <a href="https://clodura.ai" target="_blank" style="color:var(--ac)">Get a Clodura API key</a>'}</div>
   </div>
   <!-- Atlas (CFResourcePlanner) one-way sync.
        Hydrated by _hydrateAtlasPanel() after the settings page mounts. -->
   <div id="atlas-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🗺 Atlas — CFResourcePlanner mirror</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, proposals, recruiting, resource planning, capacity, proforma, reports, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:10px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:10px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">One-way sync from Atlas. Replaces the legacy CF Smartsheet pulls — Atlas is now the source of truth for CF org chart, projects, opportunities, proposals, recruiting, resource planning, capacity, proforma, reports, COE plan, and project tasks. Set <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">ATLAS_SYNC_URL</code> + <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">ATLAS_SYNC_TOKEN</code> as Railway env vars on this LevelUp deployment.</p>
     <div id="atlas-panel-body" style="font-size:11px;color:var(--t2)">Loading…</div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateAtlasPanel()">Reload status</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="nav('atlas')">→ Open Atlas page</button>
-      <button class="btn btn-d" style="height:28px;font-size:10px" onclick="_atlasClear()" title="Wipe the locally cached Atlas snapshot. Does NOT touch Atlas itself.">✕ Clear cached snapshot</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_atlasPullNow()">↻ Pull from Atlas</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateAtlasPanel()">Reload status</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="nav('atlas')">→ Open Atlas page</button>
+      <button class="btn btn-d" style="height:28px;font-size:11px" onclick="_atlasClear()" title="Wipe the locally cached Atlas snapshot. Does NOT touch Atlas itself.">✕ Clear cached snapshot</button>
     </div>
   </div>
   <!-- Automation Rules — hydrated by _hydrateAutomationsPanel() -->
   <div id="automations-panel" style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">⚙ Automation Rules</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">When a task matches a trigger, run an action automatically. Runs every 15 min on the server. Works on native + external (Smartsheet/Nifty) tasks.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">When a task matches a trigger, run an action automatically. Runs every 15 min on the server. Works on native + external (Smartsheet/Nifty) tasks.</p>
     <div id="automations-body" style="font-size:11px;color:var(--t2)">Loading…</div>
     <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_openAutomationEditor()">+ New rule</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_automationsRunNow()">▶ Run all now</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateAutomationsPanel()">Reload</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_openAutomationEditor()">+ New rule</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_automationsRunNow()">▶ Run all now</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateAutomationsPanel()">Reload</button>
     </div>
   </div>
   <!-- External Task Sync / Webhooks -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔗 External Task Sync — Webhook</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Send tasks from Zapier, Make, or any HTTP source directly into LevelUp. POST JSON to the endpoint below with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">{title, due, priority, context}</code>.</p>
-    <div style="font-size:10px;color:var(--t2);margin-bottom:4px">Webhook Endpoint:</div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Send tasks from Zapier, Make, or any HTTP source directly into LevelUp. POST JSON to the endpoint below with <code style="background:var(--s3);padding:1px 4px;border-radius:3px">{title, due, priority, context}</code>.</p>
+    <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Webhook Endpoint:</div>
     <div style="display:flex;gap:6px;align-items:center">
-      <code style="background:var(--s3);padding:4px 8px;border-radius:4px;font-size:10px;flex:1;user-select:all;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${window.location.origin}/api/webhook/tasks</code>
-      <button class="btn btn-s" style="height:26px;font-size:10px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/webhook/tasks');toast('✓ Copied')">Copy</button>
+      <code style="background:var(--s3);padding:4px 8px;border-radius:4px;font-size:11px;flex:1;user-select:all;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${window.location.origin}/api/webhook/tasks</code>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="navigator.clipboard.writeText(window.location.origin+'/api/webhook/tasks');toast('✓ Copied')">Copy</button>
     </div>
   </div>
   <!-- Calendar Integration -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📅 Calendar Integrations</div>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Calendar sync is managed via your Connected Accounts (Settings → Accounts). Once connected, use the ☁ Sync O365 button in the Calendar view to pull events.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Calendar sync is managed via your Connected Accounts (Settings → Accounts). Once connected, use the ☁ Sync O365 button in the Calendar view to pull events.</p>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="font-size:11px" onclick="nav('settings');setTimeout(()=>{document.querySelectorAll('.sp').forEach(x=>x.style.display='none');document.getElementById('sp-4').style.display='';document.querySelectorAll('.si').forEach((x,i)=>{x.classList.toggle('on',i===4)});loadOAuthStatus()},50)">→ Go to Accounts</button>
       <button class="btn btn-s" style="font-size:11px" onclick="nav('mail')">→ Open Calendar</button>
@@ -663,30 +663,30 @@ function renderSettingsHTML(){
   <!-- Default AI output length -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">📏 Default AI output length</h4>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">Controls how much text AI generates (Validate, Pre-mortem, Expand, Compose Notes, Compose Description, Journal modes, Note modes, etc.). You can override per-RTE via the chip in each AI Assistance bar — clicking it cycles Short → Medium → Long.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Controls how much text AI generates (Validate, Pre-mortem, Expand, Compose Notes, Compose Description, Journal modes, Note modes, etc.). You can override per-RTE via the chip in each AI Assistance bar — clicking it cycles Short → Medium → Long.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${[['short','📏 Short','~80 words · 3-5 sentences'],['medium','📐 Medium','~200 words · default'],['long','📋 Long','~500 words · formatted'] ].map(([v,l,h])=>{
         const active=((D.prefs&&D.prefs.aiOutputLength)||'medium')===v;
-        return `<button class="btn ${active?'btn-p':'btn-s'}" style="font-size:11px;height:auto;padding:8px 10px;text-align:left;flex:1;min-width:140px" onclick="_aiSetLength('${v}');renderScreen('settings')"><div style="font-weight:600">${l}</div><div style="font-size:10px;color:${active?'rgba(255,255,255,.85)':'var(--t3)'};margin-top:2px">${h}</div></button>`;
+        return `<button class="btn ${active?'btn-p':'btn-s'}" style="font-size:11px;height:auto;padding:8px 10px;text-align:left;flex:1;min-width:140px" onclick="_aiSetLength('${v}');renderScreen('settings')"><div style="font-weight:600">${l}</div><div style="font-size:11px;color:${active?'rgba(255,255,255,.85)':'var(--t3)'};margin-top:2px">${h}</div></button>`;
       }).join('')}
     </div>
   </div>
   <!-- AI Provider Keys -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">${String(D.creds.role||'').toLowerCase()==='admin'?'Workspace AI keys — saved on the server and shared with all team members. Each user does <strong>not</strong> need to enter their own key.':"🔒 AI keys are managed by your administrator and shared across the team. You don't need to enter your own."}</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">${String(D.creds.role||'').toLowerCase()==='admin'?'Workspace AI keys — saved on the server and shared with all team members. Each user does <strong>not</strong> need to enter their own key.':"🔒 AI keys are managed by your administrator and shared across the team. You don't need to enter your own."}</p>
     <!-- Active Provider Selector -->
     <div style="margin-bottom:12px">
-      <label style="font-size:10px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
+      <label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${['openai','claude','gemini'].map(p=>{
           const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
           const active=_sharedAI.provider||'openai';
           const isAdmin=String(D.creds.role||'').toLowerCase()==='admin';
-          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:10px;height:26px${isAdmin?'':';opacity:.6;pointer-events:none'}" ${isAdmin?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${isAdmin?'':';opacity:.6;pointer-events:none'}" ${isAdmin?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
         }).join('')}
       </div>
-      <div style="font-size:10px;color:var(--t3);margin-top:6px">
+      <div style="font-size:11px;color:var(--t3);margin-top:6px">
         ${(()=>{const p=_sharedAI.provider||'openai';const hasKey=!!_sharedAI.keys[p];return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
       </div>
     </div>
@@ -695,96 +695,96 @@ function renderSettingsHTML(){
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#10a37f;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">O</div>
         <div style="font-size:11px;font-weight:600">OpenAI (GPT-4o, GPT-4o-mini)</div>
-        ${_sharedAI.keys.openai?'<span style="font-size:10px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:10px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.openai?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
         <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.openai||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('openai',document.getElementById('ai-openai-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-openai" onclick="testAIProvider('openai','ai-openai-key','btn-test-openai')">⚡ Test</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('openai',document.getElementById('ai-openai-key').value.trim())">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-openai" onclick="testAIProvider('openai','ai-openai-key','btn-test-openai')">⚡ Test</button>
       </div>
-      <div id="ai-openai-status" style="font-size:10px;margin-top:4px;display:none"></div>
-      <div style="font-size:10px;color:var(--t3);margin-top:4px">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--ac)">platform.openai.com/api-keys</a></div>
+      <div id="ai-openai-status" style="font-size:11px;margin-top:4px;display:none"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--ac)">platform.openai.com/api-keys</a></div>
     </div>
     <!-- Claude -->
     <div style="margin-bottom:10px;padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#d97706;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">A</div>
         <div style="font-size:11px;font-weight:600">Anthropic Claude (claude-3-5-sonnet)</div>
-        ${_sharedAI.keys.claude?'<span style="font-size:10px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:10px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.claude?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
         <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.claude||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('claude',document.getElementById('ai-claude-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-claude" onclick="testAIProvider('claude','ai-claude-key','btn-test-claude')">⚡ Test</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('claude',document.getElementById('ai-claude-key').value.trim())">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-claude" onclick="testAIProvider('claude','ai-claude-key','btn-test-claude')">⚡ Test</button>
       </div>
-      <div id="ai-claude-status" style="font-size:10px;margin-top:4px;display:none"></div>
-      <div style="font-size:10px;color:var(--t3);margin-top:4px">Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--ac)">console.anthropic.com</a></div>
+      <div id="ai-claude-status" style="font-size:11px;margin-top:4px;display:none"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--ac)">console.anthropic.com</a></div>
     </div>
     <!-- Gemini -->
     <div style="padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
         <div style="width:20px;height:20px;background:#4285f4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">G</div>
         <div style="font-size:11px;font-weight:600">Google Gemini (gemini-1.5-pro)</div>
-        ${_sharedAI.keys.gemini?'<span style="font-size:10px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:10px;color:var(--t3);margin-left:auto">Not set</span>'}
+        ${_sharedAI.keys.gemini?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
       <div style="display:flex;gap:6px">
         <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.gemini||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:10px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:10px" onclick="setAIKey('gemini',document.getElementById('ai-gemini-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:10px" id="btn-test-gemini" onclick="testAIProvider('gemini','ai-gemini-key','btn-test-gemini')">⚡ Test</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('gemini',document.getElementById('ai-gemini-key').value.trim())">Save</button>
+        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-gemini" onclick="testAIProvider('gemini','ai-gemini-key','btn-test-gemini')">⚡ Test</button>
       </div>
-      <div id="ai-gemini-status" style="font-size:10px;margin-top:4px;display:none"></div>
-      <div style="font-size:10px;color:var(--t3);margin-top:4px">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">aistudio.google.com</a></div>
+      <div id="ai-gemini-status" style="font-size:11px;margin-top:4px;display:none"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">aistudio.google.com</a></div>
     </div>
   </div>
   <!-- Usage & Cost Caps -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">💰 Usage & Cost Caps</h4>
-    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Monthly cap (USD)</div><div style="font-size:10px;color:var(--t3)">AI features stop when this limit is reached</div></div><input class="inp" style="max-width:80px" value="$20.00"></div>
+    <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Monthly cap (USD)</div><div style="font-size:11px;color:var(--t3)">AI features stop when this limit is reached</div></div><input class="inp" style="max-width:80px" value="$20.00"></div>
     <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">This month's usage</div></div><span style="font-size:12px;font-weight:500;color:var(--ok)">$3.42 / $20.00</span></div>
   </div>
   <!-- AI Feature Toggles -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:8px">🤖 AI Feature Toggles</h4>
-    ${[{key:'aiTasks',label:'Task AI',desc:'Smart decomposition, priority scoring, delegation suggestions'},{key:'aiCalendar',label:'Calendar AI',desc:'Meeting prep briefs, schedule optimisation, NL event creation'},{key:'aiMail',label:'Mail AI',desc:'Smart reply drafts, triage scoring, thread summarisation'},{key:'aiNotes',label:'Notes AI',desc:'Concept linking, gap detection, Q&A over notes'},{key:'aiHabits',label:'Habits & Journal AI',desc:'Mood correlation, streak coaching, sentiment trends'},{key:'aiContacts',label:'Contacts AI',desc:'Relationship health score, conversation starters, duplicates'}].map(f=>`<div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">${f.label}</div><div style="font-size:10px;color:var(--t3)">${f.desc}</div></div><div class="tog ${!(D.prefs&&D.prefs[f.key]===false)?'on':''}" onclick="D.prefs=D.prefs||{};D.prefs['${f.key}']=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'${f.label} on':'${f.label} off')"></div></div>`).join('')}
+    ${[{key:'aiTasks',label:'Task AI',desc:'Smart decomposition, priority scoring, delegation suggestions'},{key:'aiCalendar',label:'Calendar AI',desc:'Meeting prep briefs, schedule optimisation, NL event creation'},{key:'aiMail',label:'Mail AI',desc:'Smart reply drafts, triage scoring, thread summarisation'},{key:'aiNotes',label:'Notes AI',desc:'Concept linking, gap detection, Q&A over notes'},{key:'aiHabits',label:'Habits & Journal AI',desc:'Mood correlation, streak coaching, sentiment trends'},{key:'aiContacts',label:'Contacts AI',desc:'Relationship health score, conversation starters, duplicates'}].map(f=>`<div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">${f.label}</div><div style="font-size:11px;color:var(--t3)">${f.desc}</div></div><div class="tog ${!(D.prefs&&D.prefs[f.key]===false)?'on':''}" onclick="D.prefs=D.prefs||{};D.prefs['${f.key}']=!this.classList.contains('on');this.classList.toggle('on');saveAll();toast(this.classList.contains('on')?'${f.label} on':'${f.label} off')"></div></div>`).join('')}
   </div>
   <!-- Assistant Topics -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:6px">📰 Assistant Topics</h4>
-    <p style="font-size:10px;color:var(--t2);margin-bottom:8px">The AI assistant will proactively share info on these topics:</p>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:8px">The AI assistant will proactively share info on these topics:</p>
     ${['World News','Politics','Technology','Entertainment','Science','Weather','Sports','Finance'].map(t=>`<div class="lr" style="padding:4px 0"><div class="chk ${D.aiTopics.includes(t)?'on':''}" onclick="if(D.aiTopics.includes('${t}'))D.aiTopics=D.aiTopics.filter(x=>x!=='${t}');else D.aiTopics.push('${t}');save('aiTopics');renderScreen('settings')"></div><span style="font-size:11px">${t}</span></div>`).join('')}
   </div>
   <!-- AI Follow-ups in Compose -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">✉ AI Compose Features</h4>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:8px">AI-powered tools available in the compose modal.</p>
-    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">✨ Suggest Follow-ups</div><div style="font-size:10px;color:var(--t3)">Generate 3 follow-up message suggestions based on your draft</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
-    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">🤖 Smart Reply Drafts</div><div style="font-size:10px;color:var(--t3)">One-click AI draft based on email thread context</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
-    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">📋 Thread Summarisation</div><div style="font-size:10px;color:var(--t3)">Collapse long chains into a 3-sentence summary</div></div><span style="font-size:10px;color:var(--ok)">✓ Enabled</span></div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">AI-powered tools available in the compose modal.</p>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">✨ Suggest Follow-ups</div><div style="font-size:11px;color:var(--t3)">Generate 3 follow-up message suggestions based on your draft</div></div><span style="font-size:11px;color:var(--ok)">✓ Enabled</span></div>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">🤖 Smart Reply Drafts</div><div style="font-size:11px;color:var(--t3)">One-click AI draft based on email thread context</div></div><span style="font-size:11px;color:var(--ok)">✓ Enabled</span></div>
+    <div class="lr" style="padding:6px 0"><div style="flex:1"><div style="font-size:12px">📋 Thread Summarisation</div><div style="font-size:11px;color:var(--t3)">Collapse long chains into a 3-sentence summary</div></div><span style="font-size:11px;color:var(--ok)">✓ Enabled</span></div>
   </div>
   </div>
   <!-- Teams --><div id="sp-7" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Teams & Permissions</h3>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:10px">Manage team members and their access rights.</p>
-  ${D.teams.map(team=>`<div class="team-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${esc(team.name)}</div><button class="btn btn-p" style="height:26px;font-size:10px" onclick="addTeamMember(${team.id})">+ Add Member</button></div>
+  <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Manage team members and their access rights.</p>
+  ${D.teams.map(team=>`<div class="team-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">${esc(team.name)}</div><button class="btn btn-p" style="height:26px;font-size:11px" onclick="addTeamMember(${team.id})">+ Add Member</button></div>
   ${team.members.map(m=>`<div class="member-row"><div class="member-av" style="background:${m.color}">${m.name.split(' ').map(w=>w[0]).join('')}</div><div class="member-info"><div class="member-name">${esc(m.name)}</div><div class="member-role">${esc(m.email)} · ${m.role}</div></div>
-  <select class="inp" style="width:80px;height:24px;font-size:10px" onchange="updateMemberRole(${team.id},${m.id},this.value)"><option ${m.role==='Owner'?'selected':''}>Owner</option><option ${m.role==='Admin'?'selected':''}>Admin</option><option ${m.role==='Member'?'selected':''}>Member</option><option ${m.role==='Viewer'?'selected':''}>Viewer</option></select>
-  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="editTeamMember(${team.id},${m.id})">✏ Edit</button>
-  <button class="btn btn-s" style="height:24px;font-size:10px" onclick="editPerms(${team.id},${m.id})">Permissions</button>
-  ${m.role!=='Owner'?`<button class="btn btn-d" style="height:24px;font-size:10px" onclick="if(confirm('Remove ${m.name} from team?'))removeMember(${team.id},${m.id})">✕ Remove</button>`:''}</div>`).join('')}
+  <select class="inp" style="width:80px;height:24px;font-size:11px" onchange="updateMemberRole(${team.id},${m.id},this.value)"><option ${m.role==='Owner'?'selected':''}>Owner</option><option ${m.role==='Admin'?'selected':''}>Admin</option><option ${m.role==='Member'?'selected':''}>Member</option><option ${m.role==='Viewer'?'selected':''}>Viewer</option></select>
+  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="editTeamMember(${team.id},${m.id})">✏ Edit</button>
+  <button class="btn btn-s" style="height:24px;font-size:11px" onclick="editPerms(${team.id},${m.id})">Permissions</button>
+  ${m.role!=='Owner'?`<button class="btn btn-d" style="height:24px;font-size:11px" onclick="if(confirm('Remove ${m.name} from team?'))removeMember(${team.id},${m.id})">✕ Remove</button>`:''}</div>`).join('')}
   </div>`).join('')}
   <button class="btn btn-s" onclick="addTeam()">+ Create Team</button>
   </div>
   <!-- Word Doc Note Import --><div id="sp-8" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">📝 Word Document Note Import</h3>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:12px">Import notes from a Microsoft Word (.docx) file. Each note in the document must begin with a <strong>title</strong>, followed by a <strong>date line</strong> (e.g. <em>Monday, January 1, 2024</em>) and a <strong>time line</strong> (e.g. <em>9:00 AM</em>).</p>
+  <p style="font-size:11px;color:var(--t2);margin-bottom:12px">Import notes from a Microsoft Word (.docx) file. Each note in the document must begin with a <strong>title</strong>, followed by a <strong>date line</strong> (e.g. <em>Monday, January 1, 2024</em>) and a <strong>time line</strong> (e.g. <em>9:00 AM</em>).</p>
 
   <!-- Upload area -->
   <div id="wdi-drop-zone" style="border:2px dashed var(--bd2);border-radius:10px;padding:24px;text-align:center;cursor:pointer;margin-bottom:12px;transition:border-color .2s,background .2s" onclick="document.getElementById('wdi-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" ondragleave="this.style.borderColor='var(--bd2)';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='var(--bd2)';this.style.background='';wdiHandleDrop(event.dataTransfer.files)">
     <div style="font-size:28px;margin-bottom:6px">📄</div>
     <div style="font-size:12px;font-weight:600;margin-bottom:3px">Drop your .docx file here</div>
-    <div style="font-size:10px;color:var(--t3)">or click to browse — max 100 MB</div>
+    <div style="font-size:11px;color:var(--t3)">or click to browse — max 100 MB</div>
     <input type="file" id="wdi-file-input" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" onchange="wdiHandleDrop(this.files)">
   </div>
 
@@ -794,9 +794,9 @@ function renderSettingsHTML(){
       <span style="font-size:18px">📄</span>
       <div style="flex:1;min-width:0">
         <div id="wdi-file-name" style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-        <div id="wdi-file-size" style="font-size:10px;color:var(--t3)"></div>
+        <div id="wdi-file-size" style="font-size:11px;color:var(--t3)"></div>
       </div>
-      <button class="btn btn-s" style="font-size:10px;height:24px" onclick="wdiClearFile()">✕ Clear</button>
+      <button class="btn btn-s" style="font-size:11px;height:24px" onclick="wdiClearFile()">✕ Clear</button>
     </div>
   </div>
 
@@ -805,7 +805,7 @@ function renderSettingsHTML(){
     <input type="checkbox" id="wdi-skip-binaries" style="accent-color:var(--ac);cursor:pointer">
     <div style="flex:1">
       <div style="font-weight:600">⚡ Skip images & attachments</div>
-      <div style="font-size:10px;color:var(--t3);margin-top:2px">Imports text and formatting only. Use this when server storage isn't configured yet — avoids stuffing megabytes of data URIs into your notes.</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Imports text and formatting only. Use this when server storage isn't configured yet — avoids stuffing megabytes of data URIs into your notes.</div>
     </div>
   </label>
 
@@ -819,7 +819,7 @@ function renderSettingsHTML(){
   </div>
 
   <!-- Warnings -->
-  <div id="wdi-warnings" style="display:none;background:var(--warn-bg,#fffbeb);border:1px solid var(--warn,#f59e0b);border-radius:8px;padding:10px;margin-bottom:10px;font-size:10px;color:var(--t2)">
+  <div id="wdi-warnings" style="display:none;background:var(--warn-bg,#fffbeb);border:1px solid var(--warn,#f59e0b);border-radius:8px;padding:10px;margin-bottom:10px;font-size:11px;color:var(--t2)">
     <div style="font-weight:600;margin-bottom:4px">⚠ Warnings</div>
     <div id="wdi-warnings-list"></div>
   </div>
@@ -829,14 +829,14 @@ function renderSettingsHTML(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
       <div style="font-size:12px;font-weight:600">📊 Preview — <span id="wdi-note-count">0</span> notes found</div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-s" style="font-size:10px;height:24px" onclick="wdiSelectAll(true)">Select all</button>
-        <button class="btn btn-s" style="font-size:10px;height:24px" onclick="wdiSelectAll(false)">Deselect all</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px" onclick="wdiSelectAll(true)">Select all</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px" onclick="wdiSelectAll(false)">Deselect all</button>
       </div>
     </div>
     <!-- Duplicate handling -->
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px;background:var(--s2);border-radius:6px">
-      <span style="font-size:10px;font-weight:600;color:var(--t2);white-space:nowrap">Duplicate handling:</span>
-      <select id="wdi-dup-mode" class="inp" style="height:24px;font-size:10px;flex:1">
+      <span style="font-size:11px;font-weight:600;color:var(--t2);white-space:nowrap">Duplicate handling:</span>
+      <select id="wdi-dup-mode" class="inp" style="height:24px;font-size:11px;flex:1">
         <option value="skip">Skip duplicates (keep existing)</option>
         <option value="overwrite">Overwrite duplicates</option>
         <option value="rename">Import as new (rename with suffix)</option>
@@ -854,7 +854,7 @@ function renderSettingsHTML(){
   <!-- Import history -->
   <div style="margin-top:16px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">🕐 Import History</div>
-    <div id="wdi-history" style="font-size:10px;color:var(--t3)">No imports yet.</div>
+    <div id="wdi-history" style="font-size:11px;color:var(--t3)">No imports yet.</div>
   </div>
   </div>
   <!-- Sync --><div id="sp-9" class="sp" style="display:none">
@@ -866,12 +866,12 @@ function renderSettingsHTML(){
       <div style="width:28px;height:28px;border-radius:6px;background:#0078d4;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">M</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:500">Microsoft 365</div>
-        <div id="sync-panel-ms-status" style="font-size:10px;color:var(--t3)">Loading…</div>
+        <div id="sync-panel-ms-status" style="font-size:11px;color:var(--t3)">Loading…</div>
       </div>
       <div style="display:flex;gap:4px">
-        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
-        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="syncOAuthMail('microsoft')">✉ Mail</button>
-        <button class="btn" style="font-size:10px;padding:3px 8px" onclick="openContactsImportPicker('microsoft')">👥 Contacts</button>
+        <button class="btn" style="font-size:11px;padding:3px 8px" onclick="syncOAuthCalendar('microsoft')">📅 Cal</button>
+        <button class="btn" style="font-size:11px;padding:3px 8px" onclick="syncOAuthMail('microsoft')">✉ Mail</button>
+        <button class="btn" style="font-size:11px;padding:3px 8px" onclick="openContactsImportPicker('microsoft')">👥 Contacts</button>
       </div>
     </div>
   </div>
@@ -879,36 +879,36 @@ function renderSettingsHTML(){
   <button class="btn btn-p" style="width:100%;font-size:12px;margin-bottom:12px" onclick="syncAllProviders()">🔄 Sync All Now</button>
   <!-- Sync log -->
   <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">Recent Sync Activity</div>
-  <div id="sync-panel-log" style="font-size:10px;color:var(--t3);background:var(--bg2,rgba(0,0,0,0.04));border-radius:6px;padding:8px;max-height:160px;overflow-y:auto">Loading…</div>
+  <div id="sync-panel-log" style="font-size:11px;color:var(--t3);background:var(--bg2,rgba(0,0,0,0.04));border-radius:6px;padding:8px;max-height:160px;overflow-y:auto">Loading…</div>
   </div>
   <!-- Backup --><div id="sp-10" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Backup & Export</h3>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:10px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Export All Data</div><div style="font-size:11px;color:var(--t3)">JSON + Markdown + CSV</div></div><button class="btn btn-p" style="font-size:11px" onclick="exportData()">Export ZIP</button></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Auto-Backup</div></div><div class="tog on" onclick="this.classList.toggle('on')"></div></div>
-  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:10px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
-  <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:10px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
+  <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Import Data</div><div style="font-size:11px;color:var(--t3)">Restore from JSON backup</div></div><button class="btn btn-s" style="font-size:11px" onclick="document.getElementById('import-input').click()">Import JSON</button></div>
+  <div style="background:var(--acs);border-left:3px solid var(--ac);border-radius:0 6px 6px 0;padding:8px 12px;margin-top:4px;font-size:11px;color:var(--t2)">⚠ Importing will <strong>replace</strong> all current data. Export a backup first if needed.</div></div>
   <!-- Privacy --><div id="sp-11" class="sp" style="display:none"><h3 style="font-size:14px;font-weight:600;margin-bottom:8px">Privacy</h3>
-  <p style="font-size:10px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
+  <p style="font-size:11px;color:var(--t2);margin-bottom:8px">LevelUp is local-first. Your data lives on your machine.</p>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">Local encryption</div></div><div class="tog" onclick="this.classList.toggle('on')"></div></div>
   <div class="lr" style="padding:8px 0"><div style="flex:1"><div style="font-size:12px">AI Audit Log</div></div><button class="btn btn-s" style="font-size:11px">View Activity</button></div></div>
   <!-- Admin --><div id="sp-12" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">\ud83d\udee1 Admin Tools</h3>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:12px">Visible to administrators only. Manage system-wide email delivery and OAuth token health.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Visible to administrators only. Manage system-wide email delivery and OAuth token health.</p>
     <!-- Expiry Notification -->
     <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px">\u26a0 OAuth Token Expiry Check</div>
-      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Check all users' connected OAuth tokens and send an owner notification if any expire within 3 days. Runs at most once per day.</p>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Check all users' connected OAuth tokens and send an owner notification if any expire within 3 days. Runs at most once per day.</p>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn btn-p" style="height:30px;font-size:11px" onclick="adminCheckTokenExpiry()">Check &amp; Notify Now</button>
-        <span id="admin-expiry-status" style="font-size:10px;color:var(--t3)"></span>
+        <span id="admin-expiry-status" style="font-size:11px;color:var(--t3)"></span>
       </div>
     </div>
     <!-- Send Expiry Emails Now -->
     <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px">📨 Send Expiry Warning Emails</div>
-      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Send a direct expiry warning email to each user whose OAuth token expires within 7 days. Idempotent — runs at most once per day.</p>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Send a direct expiry warning email to each user whose OAuth token expires within 7 days. Idempotent — runs at most once per day.</p>
       <div style="display:flex;gap:8px;align-items:center">
         <button class="btn btn-p" style="height:30px;font-size:11px" onclick="adminSendExpiryEmails()">Send Expiry Emails Now</button>
-        <span id="admin-expiry-email-status" style="font-size:10px;color:var(--t3)"></span>
+        <span id="admin-expiry-email-status" style="font-size:11px;color:var(--t3)"></span>
       </div>
     </div>
         <!-- Email Delivery Log -->
@@ -927,28 +927,28 @@ function renderSettingsHTML(){
         <button class="btn btn-s" style="height:28px;font-size:11px" onclick="clearAdminLogFilters()">Clear</button>
       </div>
       <!-- Table -->
-      <div id="admin-delivery-log" style="font-size:10px;color:var(--t3)">Loading\u2026</div>
+      <div id="admin-delivery-log" style="font-size:11px;color:var(--t3)">Loading\u2026</div>
       <!-- Pagination -->
-      <div id="admin-log-pagination" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:10px"></div>
+      <div id="admin-log-pagination" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:11px"></div>
     </div>
     <!-- Log Retention Period -->
     <div style="margin-top:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:600;margin-bottom:6px">&#x23F1; Log Retention Period</div>
-      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Logs older than this many days are deleted during each scheduled run (min 7, max 3650).</p>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Logs older than this many days are deleted during each scheduled run (min 7, max 3650).</p>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <input id="admin-retention-days" class="inp" type="number" min="7" max="3650" style="width:100px;font-size:12px" placeholder="90" />
         <button class="btn btn-p" style="height:30px;font-size:11px" onclick="saveLogRetentionDays()">Save</button>
-        <span id="admin-retention-status" style="font-size:10px;color:var(--t3)"></span>
+        <span id="admin-retention-status" style="font-size:11px;color:var(--t3)"></span>
       </div>
     </div>
     <!-- Scheduled Task History -->
     <div style="margin-top:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div style="font-size:12px;font-weight:600">⏱ Scheduled Task History</div>
-        <button class="btn btn-s" style="height:26px;font-size:10px" onclick="loadScheduledTaskLog()">↻ Refresh</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadScheduledTaskLog()">↻ Refresh</button>
       </div>
-      <p style="font-size:10px;color:var(--t3);margin-bottom:8px">Last 20 runs of the daily OAuth token expiry check job.</p>
-      <div id="admin-task-log" style="font-size:10px;color:var(--t3)">Loading…</div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Last 20 runs of the daily OAuth token expiry check job.</p>
+      <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
   </div>
   </div></div>`;
@@ -957,8 +957,8 @@ function renderSettingsHTML(){
 function renderCredCard(title,icon,desc,prefix,fields,isAI=false){
   const connected=fields.some(f=>D.creds[f.split('|')[1]]);
   return `<div class="cred"><div class="cred-h"><div class="cred-icon" style="background:var(--s3);color:var(--ac)">${icon}</div><div style="flex:1"><div class="cred-title">${title}</div><div class="cred-desc">${desc}</div></div><div class="cred-st"><span class="dot ${connected?'dot-g':'dot-x'}"></span><span style="color:${connected?'var(--ok)':'var(--t3)'}">${connected?'Configured':'Not set'}</span></div></div>
-  ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:10px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${key}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:10px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
-  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:10px" onclick="testIntegrationCred('${prefix}','${title}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
+  ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:11px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${key}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:11px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
+  <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="testIntegrationCred('${prefix}','${title}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
 }
 
 function showSetTab(el,id){
@@ -998,24 +998,24 @@ function _renderDailyDigestPanelHTML(p){
     <div class="lr" style="padding:6px 0;align-items:center">
       <div style="flex:1">
         <div style="font-size:12px;font-weight:500">Send the morning digest</div>
-        <div style="font-size:10px;color:var(--t3)">${lastSent}</div>
+        <div style="font-size:11px;color:var(--t3)">${lastSent}</div>
       </div>
       <div class="tog ${p.enabled?'on':''}" id="tog-digest-enabled" onclick="_toggleDigestEnabled()"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
       <div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Send around</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Send around</div>
         <input id="digest-time" type="time" class="inp" style="width:100%;font-size:11px" value="${esc(p.time||'07:00')}" onchange="_saveDigestTime()">
       </div>
       <div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
         <input id="digest-recipient" class="inp" placeholder="${esc(userEmail)}" style="width:100%;font-size:11px" value="${esc(p.recipientEmail||'')}" onblur="_saveDigestRecipient()">
       </div>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
     <div style="display:flex;gap:6px;margin-top:10px">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_digestSendNow()">📧 Send now (test)</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateDailyDigestPanel()">Reload</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_digestSendNow()">📧 Send now (test)</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateDailyDigestPanel()">Reload</button>
     </div>
   `;
 }
@@ -1083,30 +1083,30 @@ function _renderWeeklyReviewPanelHTML(p){
     <div class="lr" style="padding:6px 0;align-items:center">
       <div style="flex:1">
         <div style="font-size:12px;font-weight:500">Send the weekly review</div>
-        <div style="font-size:10px;color:var(--t3)">${lastSent}</div>
+        <div style="font-size:11px;color:var(--t3)">${lastSent}</div>
       </div>
       <div class="tog ${p.enabled?'on':''}" id="tog-weekly-enabled" onclick="_toggleWeeklyEnabled()"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;margin-top:8px">
       <div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Day</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Day</div>
         <select id="weekly-dow" class="inp" style="width:100%;font-size:11px" onchange="_saveWeeklyDow()">
           ${days.map((d,i)=>`<option value="${i}" ${p.dayOfWeek===i?'selected':''}>${d}</option>`).join('')}
         </select>
       </div>
       <div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Time</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Time</div>
         <input id="weekly-time" type="time" class="inp" style="width:100%;font-size:11px" value="${esc(p.time||'16:30')}" onchange="_saveWeeklyTime()">
       </div>
       <div>
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Recipient (default: your email)</div>
         <input id="weekly-recipient" class="inp" placeholder="${esc(userEmail)}" style="width:100%;font-size:11px" value="${esc(p.recipientEmail||'')}" onblur="_saveWeeklyRecipient()">
       </div>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">Resolves to: <code style="background:var(--s3);padding:1px 4px;border-radius:3px">${esc(recipient)}</code></div>
     <div style="display:flex;gap:6px;margin-top:10px">
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_weeklySendNow()">📧 Send now (test)</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_hydrateWeeklyReviewPanel()">Reload</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_weeklySendNow()">📧 Send now (test)</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_hydrateWeeklyReviewPanel()">Reload</button>
     </div>
   `;
 }
@@ -1175,16 +1175,16 @@ function _renderAutomationsPanelHTML(rules){
     const trigDetail=r.trigger==='external_status'&&tc.statusEquals?` = "${esc(String(tc.statusEquals))}"`:'';
     const actDetail=r.action==='add_tag'&&ac.tag?` "${esc(String(ac.tag))}"`:r.action==='set_priority'&&ac.priority?` → ${esc(String(ac.priority))}`:r.action==='set_my_day'?(ac.on===false?' (remove)':''):'';
     const lastFired=r.lastFiredAt?new Date(r.lastFiredAt).toLocaleString():'Never';
-    const errBadge=r.lastError?` <span style="color:var(--red);font-size:10px" title="${esc(r.lastError)}">⚠ error</span>`:'';
+    const errBadge=r.lastError?` <span style="color:var(--red);font-size:11px" title="${esc(r.lastError)}">⚠ error</span>`:'';
     return `<div style="padding:8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;display:flex;align-items:center;gap:8px">
       <div class="tog ${r.enabled?'on':''}" onclick="_toggleAutomation(${r.id})" style="flex-shrink:0"></div>
       <div style="flex:1;min-width:0">
         <div style="font-size:11px;font-weight:600">${esc(r.name)}${errBadge}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">When <strong>${esc(_autoTriggerLabel(r.trigger))}</strong>${esc(trigDetail)} → <strong>${esc(_autoActionLabel(r.action))}</strong>${esc(actDetail)}</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px">Fired ${r.fireCount||0}× · Last: ${esc(lastFired)}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">When <strong>${esc(_autoTriggerLabel(r.trigger))}</strong>${esc(trigDetail)} → <strong>${esc(_autoActionLabel(r.action))}</strong>${esc(actDetail)}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px">Fired ${r.fireCount||0}× · Last: ${esc(lastFired)}</div>
       </div>
-      <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_openAutomationEditor(${r.id})">Edit</button>
-      <button class="btn btn-d" style="height:24px;font-size:10px" onclick="_deleteAutomation(${r.id})">✕</button>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_openAutomationEditor(${r.id})">Edit</button>
+      <button class="btn btn-d" style="height:24px;font-size:11px" onclick="_deleteAutomation(${r.id})">✕</button>
     </div>`;
   }).join('')}</div>`;
 }
@@ -1223,14 +1223,14 @@ function _openAutomationEditor(id){
     <div style="background:var(--s1);border:1px solid var(--brd);border-radius:10px;padding:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
       <div style="display:flex;align-items:center;margin-bottom:12px">
         <h3 style="font-size:13px;font-weight:600;flex:1;margin:0">${existing?'Edit':'New'} Automation Rule</h3>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_closeAutomationEditor()">✕</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_closeAutomationEditor()">✕</button>
       </div>
       <div style="margin-bottom:10px">
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Name</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Name</div>
         <input id="auto-name" class="inp" style="width:100%;font-size:11px" value="${esc(existing?existing.name:'')}" placeholder="e.g. Overdue → My Day">
       </div>
       <div style="margin-bottom:10px">
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">When (trigger)</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">When (trigger)</div>
         <select id="auto-trigger" class="inp" style="width:100%;font-size:11px" onchange="_autoToggleTriggerFields()">
           <option value="task_overdue_today" ${trigger==='task_overdue_today'?'selected':''}>Native task is overdue</option>
           <option value="task_status_done" ${trigger==='task_status_done'?'selected':''}>Native task just marked Done</option>
@@ -1238,11 +1238,11 @@ function _openAutomationEditor(id){
         </select>
       </div>
       <div id="auto-trigger-fields" style="margin-bottom:10px;display:${trigger==='external_status'?'block':'none'}">
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Status equals (case-insensitive)</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Status equals (case-insensitive)</div>
         <input id="auto-trig-status" class="inp" style="width:100%;font-size:11px" value="${esc(tc.statusEquals||'')}" placeholder="e.g. In-Progress">
       </div>
       <div style="margin-bottom:10px">
-        <div style="font-size:10px;color:var(--t2);margin-bottom:3px">Then (action)</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:3px">Then (action)</div>
         <select id="auto-action" class="inp" style="width:100%;font-size:11px" onchange="_autoToggleActionFields()">
           <option value="set_my_day" ${action==='set_my_day'?'selected':''}>Add to My Day</option>
           <option value="add_tag" ${action==='add_tag'?'selected':''}>Add tag</option>
@@ -1251,8 +1251,8 @@ function _openAutomationEditor(id){
       </div>
       <div id="auto-action-fields" style="margin-bottom:14px"></div>
       <div style="display:flex;gap:6px;justify-content:flex-end">
-        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_closeAutomationEditor()">Cancel</button>
-        <button class="btn btn-p" style="height:28px;font-size:10px" onclick="_saveAutomation(${existing?existing.id:'null'})">${existing?'Save':'Create'}</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_closeAutomationEditor()">Cancel</button>
+        <button class="btn btn-p" style="height:28px;font-size:11px" onclick="_saveAutomation(${existing?existing.id:'null'})">${existing?'Save':'Create'}</button>
       </div>
     </div>
   </div>`;
@@ -1271,9 +1271,9 @@ function _autoRenderActionFields(action,ac){
   if(action==='set_my_day'){
     box.innerHTML=`<label style="font-size:11px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="auto-act-on" ${ac.on!==false?'checked':''}> Add to My Day (uncheck to remove from My Day)</label>`;
   }else if(action==='add_tag'){
-    box.innerHTML=`<div style="font-size:10px;color:var(--t2);margin-bottom:3px">Tag</div><input id="auto-act-tag" class="inp" style="width:100%;font-size:11px" value="${esc(ac.tag||'')}" placeholder="e.g. urgent">`;
+    box.innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:3px">Tag</div><input id="auto-act-tag" class="inp" style="width:100%;font-size:11px" value="${esc(ac.tag||'')}" placeholder="e.g. urgent">`;
   }else if(action==='set_priority'){
-    box.innerHTML=`<div style="font-size:10px;color:var(--t2);margin-bottom:3px">Priority</div><select id="auto-act-priority" class="inp" style="width:100%;font-size:11px"><option value="High" ${ac.priority==='High'?'selected':''}>High</option><option value="Medium" ${ac.priority==='Medium'||!ac.priority?'selected':''}>Medium</option><option value="Low" ${ac.priority==='Low'?'selected':''}>Low</option></select>`;
+    box.innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:3px">Priority</div><select id="auto-act-priority" class="inp" style="width:100%;font-size:11px"><option value="High" ${ac.priority==='High'?'selected':''}>High</option><option value="Medium" ${ac.priority==='Medium'||!ac.priority?'selected':''}>Medium</option><option value="Low" ${ac.priority==='Low'?'selected':''}>Low</option></select>`;
   }
 }
 function _closeAutomationEditor(){
@@ -1347,12 +1347,12 @@ async function _hydrateTombstoneArchive(){
       if(ovr.localNote)annot.push('📝 note');
       if(ovr.localProjectId){const pj=(D.projects||[]).find(p=>String(p.id)===String(ovr.localProjectId));if(pj)annot.push('📁 '+esc(pj.name));}
       return `<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px">
-        <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:10px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
+        <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'(no title)')}</div>
-          <div style="font-size:10px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(et.removedAt.slice(0,10)):''}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(et.removedAt.slice(0,10)):''}</div>
         </div>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="_reviveTombstoned('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_reviveTombstoned('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
       </div>`;
     }).join('');
   }catch(e){
@@ -1395,7 +1395,7 @@ function _renderAutoProjectsMaint(){
     const c=counts[String(p.id)]||{native:0,external:0};
     const total=c.native+c.external;
     const tag=total===0?'<span style="color:var(--red);font-weight:600">empty</span>':'<span style="color:var(--t3)">'+total+' task'+(total===1?'':'s')+'</span>';
-    const descTag=(p.desc||'').trim()?'<span style="color:var(--ok);font-size:10px">📝 has description</span>':'<span style="color:var(--warn);font-size:10px">📝 no description</span>';
+    const descTag=(p.desc||'').trim()?'<span style="color:var(--ok);font-size:11px">📝 has description</span>':'<span style="color:var(--warn);font-size:11px">📝 no description</span>';
     return `<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:9px;font-size:11px">
       <span style="width:6px;height:6px;border-radius:2px;background:${p.color||'#1f6feb'};flex-shrink:0"></span>
       <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name||'(no name)')}</span>
@@ -1413,11 +1413,11 @@ function _renderAutoProjectsMaint(){
 
   body.innerHTML=`
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
-      <span style="font-size:10px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong>${orphans.length?` · <strong style="color:var(--ac)">${orphans.length} not in a program</strong>`:''}</span>
+      <span style="font-size:11px;color:var(--t3)">${all.length} auto-synced · <strong style="color:var(--red)">${empties.length} empty</strong> · <strong style="color:var(--warn)">${missingDesc.length} without description</strong>${orphans.length?` · <strong style="color:var(--ac)">${orphans.length} not in a program</strong>`:''}</span>
       <div style="flex:1"></div>
-      ${orphans.length?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--ac);border-color:var(--ac)" onclick="_linkAutoProjectsToPrograms()" title="Push CF auto-synced projects into the CommunityForce program, LSI ones into LSI Media. Runs only on projects not already in a program.">🔗 Link ${orphans.length} to program</button>`:''}
-      ${empties.length?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_cleanupEmptyAutoProjects()" title="Delete every auto-synced project with zero linked tasks">🗑 Delete ${empties.length} empty</button>`:''}
-      ${missingDesc.length?`<button class="btn btn-s" style="height:26px;font-size:10px;color:var(--purp);border-color:var(--purp)" onclick="_aiFillAutoProjectDescriptions()" title="AI-generate 2-sentence descriptions for projects that don't have one">✨ AI fill ${missingDesc.length} description${missingDesc.length===1?'':'s'}</button>`:''}
+      ${orphans.length?`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac);border-color:var(--ac)" onclick="_linkAutoProjectsToPrograms()" title="Push CF auto-synced projects into the CommunityForce program, LSI ones into LSI Media. Runs only on projects not already in a program.">🔗 Link ${orphans.length} to program</button>`:''}
+      ${empties.length?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="_cleanupEmptyAutoProjects()" title="Delete every auto-synced project with zero linked tasks">🗑 Delete ${empties.length} empty</button>`:''}
+      ${missingDesc.length?`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp);border-color:var(--purp)" onclick="_aiFillAutoProjectDescriptions()" title="AI-generate 2-sentence descriptions for projects that don't have one">✨ AI fill ${missingDesc.length} description${missingDesc.length===1?'':'s'}</button>`:''}
     </div>
     <div style="max-height:280px;overflow-y:auto">${list}</div>`;
 }
@@ -1532,15 +1532,15 @@ function _renderSmartsheetCard(s,watches){
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
     <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet (CF)</div>
     ${connected
-      ?`<div style="font-size:10px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>`
-      :`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — <a href="https://app.smartsheet.com/b/personalsettings" target="_blank" style="color:var(--ac)">get an API token</a></div>`}
+      ?`<div style="font-size:11px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>`
+      :`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Not connected — <a href="https://app.smartsheet.com/b/personalsettings" target="_blank" style="color:var(--ac)">get an API token</a></div>`}
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      <input id="ext-token-smartsheet" class="inp" type="password" placeholder="${connected?'(token saved — paste to replace)':'Paste API token'}" style="flex:1;font-size:10px;height:26px">
-      <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSetToken('smartsheet')">${connected?'Update':'Connect'}</button>
-      ${connected?`<button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('smartsheet')" title="Removes token, watches, and pulled tasks">✕</button>`:''}
+      <input id="ext-token-smartsheet" class="inp" type="password" placeholder="${connected?'(token saved — paste to replace)':'Paste API token'}" style="flex:1;font-size:11px;height:26px">
+      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="_extSetToken('smartsheet')">${connected?'Update':'Connect'}</button>
+      ${connected?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="_extDisconnect('smartsheet')" title="Removes token, watches, and pulled tasks">✕</button>`:''}
     </div>
     ${connected?_renderWatchList('smartsheet',watches):''}
-    ${connected?`<button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('smartsheet')">+ Watch a sheet</button>`:''}
+    ${connected?`<button class="btn btn-s" style="height:24px;font-size:11px;margin-top:4px" onclick="_extOpenAddWatch('smartsheet')">+ Watch a sheet</button>`:''}
   </div>`;
 }
 
@@ -1553,26 +1553,26 @@ function _renderNiftyCard(s,watches){
   const appConfigured=!!s.oauthAppConfigured;
   let body;
   if(connected){
-    body=`<div style="font-size:10px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>
+    body=`<div style="font-size:11px;color:var(--ok);margin-bottom:6px">✓ ${esc(s.accountDisplayName||s.accountEmail||'Connected')} · ${s.watchCount} watched</div>
       <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extConnectNifty()" title="Re-authorize (e.g. if scope changed)">↻ Reconnect</button>
-        <button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('nifty')" title="Removes credentials, watches, and pulled tasks">✕</button>
+        <button class="btn btn-p" style="height:26px;font-size:11px" onclick="_extConnectNifty()" title="Re-authorize (e.g. if scope changed)">↻ Reconnect</button>
+        <button class="btn btn-d" style="height:26px;font-size:11px" onclick="_extDisconnect('nifty')" title="Removes credentials, watches, and pulled tasks">✕</button>
       </div>
       ${_renderWatchList('nifty',watches)}
-      <button class="btn btn-s" style="height:24px;font-size:10px;margin-top:4px" onclick="_extOpenAddWatch('nifty')">+ Watch a project</button>`;
+      <button class="btn btn-s" style="height:24px;font-size:11px;margin-top:4px" onclick="_extOpenAddWatch('nifty')">+ Watch a project</button>`;
   }else if(appConfigured){
-    body=`<div style="font-size:10px;color:var(--warn);margin-bottom:6px">App saved · click <strong>Connect</strong> to authorize</div>
+    body=`<div style="font-size:11px;color:var(--warn);margin-bottom:6px">App saved · click <strong>Connect</strong> to authorize</div>
       <div style="display:flex;gap:6px;margin-bottom:6px">
-        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extConnectNifty()">🔗 Connect to NiftyPM</button>
-        <button class="btn" style="height:26px;font-size:10px" onclick="_extEditNiftyApp()" title="Edit Client ID / Secret">Edit app</button>
-        <button class="btn btn-d" style="height:26px;font-size:10px" onclick="_extDisconnect('nifty')">✕</button>
+        <button class="btn btn-p" style="height:26px;font-size:11px" onclick="_extConnectNifty()">🔗 Connect to NiftyPM</button>
+        <button class="btn" style="height:26px;font-size:11px" onclick="_extEditNiftyApp()" title="Edit Client ID / Secret">Edit app</button>
+        <button class="btn btn-d" style="height:26px;font-size:11px" onclick="_extDisconnect('nifty')">✕</button>
       </div>`;
   }else{
-    body=`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">Not connected — create an app at <a href="https://nifty.pm/integrations/apps" target="_blank" style="color:var(--ac)">Nifty → Integrations → Apps</a> (use redirect URL <code style="background:var(--s2);padding:1px 4px;border-radius:3px;font-size:10px">${window.location.origin}/api/oauth/nifty/callback</code>)</div>
+    body=`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Not connected — create an app at <a href="https://nifty.pm/integrations/apps" target="_blank" style="color:var(--ac)">Nifty → Integrations → Apps</a> (use redirect URL <code style="background:var(--s2);padding:1px 4px;border-radius:3px;font-size:11px">${window.location.origin}/api/oauth/nifty/callback</code>)</div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px">
-        <input id="ext-nifty-client-id" class="inp" placeholder="Client ID" style="font-size:10px;height:26px">
-        <input id="ext-nifty-client-secret" class="inp" type="password" placeholder="Client Secret" style="font-size:10px;height:26px">
-        <button class="btn btn-p" style="height:26px;font-size:10px" onclick="_extSaveNiftyApp()">Save & Connect</button>
+        <input id="ext-nifty-client-id" class="inp" placeholder="Client ID" style="font-size:11px;height:26px">
+        <input id="ext-nifty-client-secret" class="inp" type="password" placeholder="Client Secret" style="font-size:11px;height:26px">
+        <button class="btn btn-p" style="height:26px;font-size:11px" onclick="_extSaveNiftyApp()">Save & Connect</button>
       </div>`;
   }
   return `
@@ -1612,7 +1612,7 @@ async function _extConnectNifty(){
 
 function _renderWatchList(source,watches){
   if(!watches.length){
-    return `<div style="font-size:10px;color:var(--t3);padding:6px 0">No ${source==='smartsheet'?'sheets':'projects'} watched yet.</div>`;
+    return `<div style="font-size:11px;color:var(--t3);padding:6px 0">No ${source==='smartsheet'?'sheets':'projects'} watched yet.</div>`;
   }
   // Surface error vs healthy with a coloured left-stripe; show how stale the
   // last pull is so users notice when the cron has stopped firing for a row.
@@ -1624,27 +1624,27 @@ function _renderWatchList(source,watches){
     const lastPullAge=w.lastPulledAt?fmtAge(now-new Date(w.lastPulledAt).getTime()):'never pulled';
     const lastPullAbs=w.lastPulledAt?new Date(w.lastPulledAt).toLocaleString():'never';
     const pill=hasErr
-      ?`<span title="${esc(w.lastError).slice(0,400)}" style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(239,68,68,.18);color:var(--red);font-weight:600;flex-shrink:0;cursor:help">⚠ error · hover for details</span>`
+      ?`<span title="${esc(w.lastError).slice(0,400)}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(239,68,68,.18);color:var(--red);font-weight:600;flex-shrink:0;cursor:help">⚠ error · hover for details</span>`
       :(w.lastPulledAt
-        ?`<span title="Last pull: ${lastPullAbs}" style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(34,197,94,.18);color:var(--ok);font-weight:600;flex-shrink:0">✓ ${lastPullAge}</span>`
-        :`<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.18);color:var(--warn);font-weight:600;flex-shrink:0">pending first pull</span>`);
+        ?`<span title="Last pull: ${lastPullAbs}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(34,197,94,.18);color:var(--ok);font-weight:600;flex-shrink:0">✓ ${lastPullAge}</span>`
+        :`<span style="font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(245,158,11,.18);color:var(--warn);font-weight:600;flex-shrink:0">pending first pull</span>`);
     const label=w.label||(source==='smartsheet'?w.sheetId:w.projectId);
     const matchSummary=source==='smartsheet'?`${esc(w.ownerColumn)} ${w.matchMode} "${esc(w.ownerMatchValue)}"`:`${w.filterByAssignee?'My tasks only':'All tasks'}`;
     const removeFn=source==='smartsheet'?'_extRemoveSmartsheetWatch':'_extRemoveNiftyWatch';
     // For Nifty watches, show a "Sync subtasks" toggle row underneath
     // the match summary so the user can flip noise reduction without
     // editing JSON in the console.
-    const subtaskToggle=source==='nifty'?`<label style="display:flex;align-items:center;gap:4px;color:var(--t3);font-size:10px;margin-top:2px;cursor:pointer" title="When OFF, subtasks (Nifty rows whose 'task' parent is set) are dropped at pull time — useful when subtasks duplicate parent titles and clutter the Tasks page.">
+    const subtaskToggle=source==='nifty'?`<label style="display:flex;align-items:center;gap:4px;color:var(--t3);font-size:11px;margin-top:2px;cursor:pointer" title="When OFF, subtasks (Nifty rows whose 'task' parent is set) are dropped at pull time — useful when subtasks duplicate parent titles and clutter the Tasks page.">
       <input type="checkbox" ${(w.includeSubtasks!==0)?'checked':''} onchange="_extToggleNiftySubtasks(${w.id},this.checked)" style="margin:0">
       Sync subtasks
     </label>`:'';
-    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-left:3px solid ${stripe};border-radius:4px;font-size:10px">
+    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--s2);border-left:3px solid ${stripe};border-radius:4px;font-size:11px">
       <div style="flex:1;overflow:hidden">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:1px">
           <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>
           ${pill}
         </div>
-        <div style="color:var(--t3);font-size:10px">${matchSummary}</div>
+        <div style="color:var(--t3);font-size:11px">${matchSummary}</div>
         ${subtaskToggle}
       </div>
       <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" onclick="${removeFn}(${w.id})" title="Remove">✕</button>
@@ -1771,7 +1771,7 @@ function _renderAddSmartsheetWatchModal(sheets){
       </div>
       <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
         <div style="font-size:11px;font-weight:600;margin-bottom:4px">${_icon('folder',13,'currentColor')} Mirror as LevelUp project</div>
-        <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every row pulled from this sheet to a LevelUp project so it appears on the Projects page + roll-ups.</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Auto-link every row pulled from this sheet to a LevelUp project so it appears on the Projects page + roll-ups.</div>
         <select id="ext-ss-project" class="inp" style="width:100%;font-size:11px">
           <option value="__new__">+ Create new project from this sheet</option>
           <option value="">(don't mirror — pull tasks only)</option>
@@ -1928,7 +1928,7 @@ async function _niftyInspectRows(){
         </div>
       </div>
       <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Showing ${rows.length} row(s). Click <strong>Raw</strong> to view the full JSON Nifty returned for that task. Click <strong>Hide</strong> to mark that row removed in LevelUp immediately. Use <strong>Hide all shown</strong> for a bulk cleanup.</p>
-      <div style="overflow-x:auto;font-size:10px;line-height:1.5">
+      <div style="overflow-x:auto;font-size:11px;line-height:1.5">
         <table style="border-collapse:collapse;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace">
           <thead><tr style="background:var(--s3);text-align:left">
             <th style="padding:6px;border-bottom:1px solid var(--bd2)">Title</th>
@@ -1953,8 +1953,8 @@ async function _niftyInspectRows(){
             <td style="padding:6px">${fmt(r.nifty_task_group)}</td>
             <td style="padding:6px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${fmt(r.nifty_task_group_id)}</td>
             <td style="padding:6px;white-space:nowrap">
-              <button class="btn btn-s" style="font-size:10px;padding:2px 6px" onclick="_niftyShowRaw(${i})">Raw</button>
-              <button class="btn btn-s" style="font-size:10px;padding:2px 6px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyHideRow(${r.id})">Hide</button>
+              <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="_niftyShowRaw(${i})">Raw</button>
+              <button class="btn btn-s" style="font-size:11px;padding:2px 6px;background:#7c2d12;color:#fff;border-color:#5b2010" onclick="_niftyHideRow(${r.id})">Hide</button>
             </td>
           </tr>`).join('')}</tbody>
         </table>
@@ -1992,11 +1992,11 @@ function _niftyShowRaw(idx){
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:13px;font-weight:600">Raw Nifty JSON — ${esc(r.title||'(untitled)')}</div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-s" style="font-size:10px" onclick="navigator.clipboard.writeText(this.parentElement.parentElement.nextElementSibling.textContent).then(()=>this.textContent='✅ Copied')">📋 Copy</button>
-        <button class="btn btn-s" style="font-size:10px" onclick="this.closest('div[style*=fixed]').remove()">Close</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="navigator.clipboard.writeText(this.parentElement.parentElement.nextElementSibling.textContent).then(()=>this.textContent='✅ Copied')">📋 Copy</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="this.closest('div[style*=fixed]').remove()">Close</button>
       </div>
     </div>
-    <pre style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:10px;line-height:1.5;overflow:auto;max-height:70vh;white-space:pre-wrap;word-wrap:break-word;font-family:ui-monospace,Menlo,Consolas,monospace">${esc(pretty)}</pre>
+    <pre style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:11px;line-height:1.5;overflow:auto;max-height:70vh;white-space:pre-wrap;word-wrap:break-word;font-family:ui-monospace,Menlo,Consolas,monospace">${esc(pretty)}</pre>
   </div>`;
   document.body.appendChild(ta);
 }
@@ -2042,7 +2042,7 @@ function _renderAddNiftyWatchModal(projects){
     <label style="display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:8px"><input id="ext-nf-mine-only" type="checkbox" checked> Only tasks assigned to me</label>
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="font-size:11px;font-weight:600;margin-bottom:4px">${_icon('folder',13,'currentColor')} Mirror as LevelUp project</div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Auto-link every Nifty task pulled to a LevelUp project.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Auto-link every Nifty task pulled to a LevelUp project.</div>
       <select id="ext-nf-project-map" class="inp" style="width:100%;font-size:11px">
         <option value="__new__">+ Create new project from this Nifty project</option>
         <option value="">(don't mirror — pull tasks only)</option>
@@ -2392,7 +2392,7 @@ function handleOneNoteFiles(files){
       const statusEl=res.querySelector('.import-status');
       if(statusEl)statusEl.textContent='✓ Imported '+imported+'/'+total+' note(s)';
       else res.innerHTML='<div class="import-status" style="font-size:12px;color:var(--ok)">✓ Imported '+imported+'/'+total+' note(s)</div>';
-      res.innerHTML+=`<div class="lr" style="cursor:pointer;margin-top:4px" onclick="nav('notes');setTimeout(()=>showNoteInEditor(${noteId}),200)"><span style="font-size:10px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:10px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
+      res.innerHTML+=`<div class="lr" style="cursor:pointer;margin-top:4px" onclick="nav('notes');setTimeout(()=>showNoteInEditor(${noteId}),200)"><span style="font-size:11px;padding:2px 4px;border-radius:2px;background:var(--purps);color:var(--purp)">OneNote</span><span class="rt">${esc(title)}</span><span style="font-size:11px;padding:2px 4px;border-radius:2px;background:var(--s3);color:var(--t3)">#${tag.toLowerCase()}</span></div>`;
     }catch(ex){
       res.innerHTML+='<div style="font-size:11px;color:var(--red)">⚠ Error importing '+esc(file.name)+': '+ex.message+'</div>';
     }
@@ -2450,7 +2450,7 @@ function showAIMsg(){
   if(!m)return; // every category dismissed — stay quiet
   const div=document.createElement('div');
   div.className='ai-msg';
-  const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:10px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
+  const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:11px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
   div.innerHTML=`<button class="ai-close" title="Hide ${m.type} messages" onclick="localStorage.setItem('lu_dismissed_type_${m.type}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
@@ -2785,8 +2785,8 @@ function showDailyDigest(){
   if(dateEl)dateEl.textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   const section=(icon,title,items,renderFn)=>items.length?`<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${icon} ${title}</div>${items.map(renderFn).join('')}</div>`:'';
   const taskRow=t=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span><span style="font-size:12px;flex:1">${esc(t.title)}</span></div>`;
-  const habitRow=h=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${h.icon}</span><span style="font-size:12px;flex:1">${esc(h.title)}</span><span style="font-size:10px;color:var(--warn)">🔥${h.streak}d</span></div>`;
-  const goalRow=g=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${g.icon}</span><span style="font-size:12px;flex:1">${esc(g.title)}</span><div style="width:60px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${g.pct}%;background:var(--ac)"></div></div><span style="font-size:10px;color:var(--ac)">${g.pct}%</span></div>`;
+  const habitRow=h=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${h.icon}</span><span style="font-size:12px;flex:1">${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}d</span></div>`;
+  const goalRow=g=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">${g.icon}</span><span style="font-size:12px;flex:1">${esc(g.title)}</span><div style="width:60px;height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${g.pct}%;background:var(--ac)"></div></div><span style="font-size:11px;color:var(--ac)">${g.pct}%</span></div>`;
   let html='';
   if(overdueTasks.length)html+=`<div style="background:rgba(239,68,68,.1);border:1px solid var(--red);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--red)">⚠️ <strong>${overdueTasks.length} overdue task${overdueTasks.length>1?'s':''}</strong> need attention</div>`;
   html+=section('📋','Due today',todayTasks,taskRow);
@@ -2856,11 +2856,11 @@ function renderNotifPanel(){
     return`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;transition:background .15s;border-bottom:1px solid var(--bd1);${isRead?'opacity:.55':''}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
       <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="(${n.action.toString()})()">${n.icon}</div>
       <div style="flex:1;min-width:0;cursor:pointer" onclick="(${n.action.toString()})()">
-        <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}${isRead?'<span style="font-size:10px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
+        <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}${isRead?'<span style="font-size:11px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
         <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
-        <div style="font-size:10px;color:var(--t3)">${n.time}</div>
+        <div style="font-size:11px;color:var(--t3)">${n.time}</div>
       </div>
-      <select onchange="event.stopPropagation();if(this.value)snoozeNotif('${n.id}',+this.value)" onclick="event.stopPropagation()" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;font-size:10px;color:var(--t2);cursor:pointer;align-self:center;max-width:72px" title="Snooze">
+      <select onchange="event.stopPropagation();if(this.value)snoozeNotif('${n.id}',+this.value)" onclick="event.stopPropagation()" style="flex-shrink:0;background:var(--s3);border:1px solid var(--bd2);border-radius:5px;padding:2px 4px;font-size:11px;color:var(--t2);cursor:pointer;align-self:center;max-width:72px" title="Snooze">
         <option value="">⏰ Snooze</option>
         <option value="900000">15 min</option>
         <option value="3600000">1 hour</option>
@@ -2981,7 +2981,7 @@ function exportNotePDF(id){
   .tag{display:inline-block;background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:10px;font-size:11px;margin-right:4px}
   .meta{font-size:11px;color:#718096;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #e2e8f0}
   .note-title{font-size:28px;font-weight:700;color:#1a202c;margin-bottom:8px}
-  .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:10px;color:#a0aec0;display:flex;justify-content:space-between}
+  .footer{margin-top:40px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#a0aec0;display:flex;justify-content:space-between}
   @media print{
     body{padding:20px 24px}
     @page{margin:15mm 20mm;size:A4}
@@ -3038,10 +3038,10 @@ function aiConceptLink(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔗 Concept Links</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Notes sharing concepts with <strong>${esc(n.title)}</strong>:</div>
-  <div style="font-size:10px;color:var(--t3);margin-bottom:10px">Shared keywords: ${topWords.slice(0,5).map(w=>`<span style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;margin-right:3px">${w}</span>`).join('')}</div>
+  <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Shared keywords: ${topWords.slice(0,5).map(w=>`<span style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;margin-right:3px">${w}</span>`).join('')}</div>
   <div style="max-height:280px;overflow-y:auto">${linked.map(({note,matches})=>`<div style="padding:8px;margin-bottom:5px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${note.id})">
     <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(note.title)}</div>
-    <div style="font-size:10px;color:var(--t3)">${matches} shared concept${matches!==1?'s':''} · ${(note.tags||[]).map(t=>'#'+t).join(' ')}</div>
+    <div style="font-size:11px;color:var(--t3)">${matches} shared concept${matches!==1?'s':''} · ${(note.tags||[]).map(t=>'#'+t).join(' ')}</div>
   </div>`).join('')}</div>
   <div style="display:flex;gap:8px;margin-top:10px">
   <button class="btn btn-p" onclick="closeModal()">Close</button>
@@ -3103,9 +3103,9 @@ function aiNoteQA(){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🤔 Q&A Over Your Notes</h2>
   <div style="background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;font-style:italic">“${esc(question)}”</div>
-  <div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:8px">MOST RELEVANT NOTES (${scored.length}):</div>
+  <div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">MOST RELEVANT NOTES (${scored.length}):</div>
   <div style="max-height:280px;overflow-y:auto">${scored.map(({n,matches,bestSentence})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">
-    <div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(n.title)} <span style="font-size:10px;color:var(--t3);font-weight:400">${matches} match${matches!==1?'es':''}</span></div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(n.title)} <span style="font-size:11px;color:var(--t3);font-weight:400">${matches} match${matches!==1?'es':''}</span></div>
     ${bestSentence?`<div style="font-size:11px;color:var(--t2);line-height:1.5">“${esc(bestSentence.slice(0,120))}${bestSentence.length>120?'…':''}”</div>`:''}
   </div>`).join('')}</div>
   <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
@@ -3226,8 +3226,8 @@ function aiAutoTagNote(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:10px">✨ AI Auto-Tag — ${esc(n.title)}</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Suggested tags based on note content. Click to toggle, then Apply.</div>
-  ${existingTags.length?`<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--t3);margin-bottom:4px">Current tags:</div><div style="display:flex;gap:4px;flex-wrap:wrap">${existingTags.map(t=>`<span style="font-size:10px;background:var(--acs);color:var(--ac);padding:2px 7px;border-radius:10px">#${t}</span>`).join('')}</div></div>`:''}
-  <div style="margin-bottom:12px"><div style="font-size:10px;color:var(--t3);margin-bottom:6px">Suggested new tags (click to select):</div>
+  ${existingTags.length?`<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--t3);margin-bottom:4px">Current tags:</div><div style="display:flex;gap:4px;flex-wrap:wrap">${existingTags.map(t=>`<span style="font-size:11px;background:var(--acs);color:var(--ac);padding:2px 7px;border-radius:10px">#${t}</span>`).join('')}</div></div>`:''}
+  <div style="margin-bottom:12px"><div style="font-size:11px;color:var(--t3);margin-bottom:6px">Suggested new tags (click to select):</div>
   <div id="autotag-chips" style="display:flex;gap:6px;flex-wrap:wrap">${newSuggestions.map(t=>`<span class="autotag-chip" data-tag="${t}" style="font-size:11px;background:var(--s3);border:1px solid var(--bd2);color:var(--t2);padding:4px 10px;border-radius:12px;cursor:pointer;transition:all .15s" onclick="this.classList.toggle('sel');this.style.background=this.classList.contains('sel')?'var(--acs)':'var(--s3)';this.style.color=this.classList.contains('sel')?'var(--ac)':'var(--t2)';this.style.borderColor=this.classList.contains('sel')?'var(--ac)':'var(--bd2)'">#${t}</span>`).join('')}</div></div>
   <div style="display:flex;gap:8px;margin-top:4px">
   <button class="btn btn-p" onclick="(function(){
@@ -3470,14 +3470,14 @@ function aiCrossModuleInsight(q){
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">${scored.length} related items across ${Object.keys(groups).length} module${Object.keys(groups).length!==1?'s':''}:</div>
   <div style="max-height:360px;overflow-y:auto">${Object.entries(groups).map(([type,rows])=>`
     <div style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:600;color:var(--t3);letter-spacing:.05em;margin-bottom:4px">${type.toUpperCase()}S (${rows.length})</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t3);letter-spacing:.05em;margin-bottom:4px">${type.toUpperCase()}S (${rows.length})</div>
       ${rows.map(({it,pos,score})=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;background:var(--s2);margin-bottom:3px;cursor:pointer" data-insight-pos="${pos}" onclick="closeModal();execSearch(_insightActions[${pos}])" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='var(--s2)'">
         <span style="font-size:14px">${it.icon}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.label)}</div>
-          ${it.meta?`<div style="font-size:10px;color:var(--t3)">${esc(it.meta)}</div>`:''}
+          ${it.meta?`<div style="font-size:11px;color:var(--t3)">${esc(it.meta)}</div>`:''}
         </div>
-        <div style="font-size:10px;color:var(--ac);font-weight:600;flex-shrink:0">${score}pts</div>
+        <div style="font-size:11px;color:var(--ac);font-weight:600;flex-shrink:0">${score}pts</div>
       </div>`).join('')}
     </div>`).join('')}</div>
   <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
@@ -4708,7 +4708,7 @@ function renderFASubtasks(){
     <select class="fa-inp" style="width:90px;padding:4px 6px" onchange="_faSubtasks[${i}].status=this.value"><option>Not Started</option><option>In Progress</option><option>Done</option></select>
     <select class="fa-inp" style="width:70px;padding:4px 6px" onchange="_faSubtasks[${i}].priority=this.value"><option>Low</option><option selected>Medium</option><option>High</option></select>
     <input type="date" class="fa-inp" style="width:120px" value="${s.due||''}" onchange="_faSubtasks[${i}].due=this.value">
-    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;flex-shrink:0" onclick="faRemoveSubtask(${i})">✕</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px;padding:0 6px;flex-shrink:0" onclick="faRemoveSubtask(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -4729,7 +4729,7 @@ function renderFAMilestones(){
     <input class="fa-inp" style="padding:4px 8px" placeholder="Milestone label..." value="${esc(m.label)}" oninput="_faMilestones[${i}].label=this.value">
     <input type="date" class="fa-inp" style="padding:4px 8px" value="${m.targetDate||''}" onchange="_faMilestones[${i}].targetDate=this.value">
     <select class="fa-inp" style="padding:4px 6px" onchange="_faMilestones[${i}].status=this.value"><option>Not Started</option><option>In Progress</option><option>Done</option></select>
-    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px" onclick="faRemoveMilestone(${i})">✕</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px;padding:0 6px" onclick="faRemoveMilestone(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -4750,7 +4750,7 @@ function renderFAAlts(){
     <input class="fa-inp" style="padding:4px 8px" placeholder="Option label" value="${esc(a.label)}" oninput="_faDecisionAlts[${i}].label=this.value">
     <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Pros" oninput="_faDecisionAlts[${i}].pros=this.value">${esc(a.pros)}</textarea>
     <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Cons" oninput="_faDecisionAlts[${i}].cons=this.value">${esc(a.cons)}</textarea>
-    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;margin-top:2px" onclick="faRemoveAlt(${i})">✕</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px;padding:0 6px;margin-top:2px" onclick="faRemoveAlt(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -4772,7 +4772,7 @@ function renderFAActions(){
     <input class="fa-inp" style="padding:4px 8px" placeholder="Action item..." value="${esc(a.title)}" oninput="_faMeetingActions[${i}].title=this.value">
     <select class="fa-inp" style="padding:4px 6px" onchange="_faMeetingActions[${i}].assignee=this.value"><option value="">Unassigned</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select>
     <input type="date" class="fa-inp" style="padding:4px 8px" value="${a.due||''}" onchange="_faMeetingActions[${i}].due=this.value">
-    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px" onclick="faRemoveAction(${i})">✕</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px;padding:0 6px" onclick="faRemoveAction(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -4896,7 +4896,7 @@ function renderFATask(){
       <div class="fa-field"><label>Start Time</label><input type="time" class="fa-inp" id="fa-starttime"></div>
     </div>
     <div class="fa-row c2">
-      <div class="fa-field"><label>Due Date <span style="font-size:10px;color:var(--t3);font-weight:400">— or pick:</span></label>
+      <div class="fa-field"><label>Due Date <span style="font-size:11px;color:var(--t3);font-weight:400">— or pick:</span></label>
         <input type="date" class="fa-inp" id="fa-due">
         <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px" id="fa-due-chips">
           <span class="fa-due-chip" onclick="faSetDueChip(0)" title="Today">Today</span>
@@ -4984,7 +4984,7 @@ function renderFANote(){
     ${faCommonScope()}
     <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
     <div class="fa-field">
-      <label style="display:flex;justify-content:space-between;align-items:center">Content <span style="font-size:10px;color:var(--t3);font-weight:400">Markdown supported</span></label>
+      <label style="display:flex;justify-content:space-between;align-items:center">Content <span style="font-size:11px;color:var(--t3);font-weight:400">Markdown supported</span></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         <textarea class="fa-inp" id="fa-desc" style="min-height:140px;font-family:monospace;font-size:11px" placeholder="# Title\n\nWrite your note in **markdown**...\n\n- Bullet points\n- **Bold**, *italic*" oninput="renderNotePreview(this.value)"></textarea>
         <div id="fa-note-preview" style="min-height:140px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:10px;font-size:12px;color:var(--t2);line-height:1.6;overflow-y:auto"><em style="color:var(--t3)">Preview will appear here as you type...</em></div>
@@ -4992,18 +4992,18 @@ function renderFANote(){
     </div>
     <!-- Rich Text Body -->
     <div class="fa-field" style="margin-top:12px">
-      <label><span>📝 Free-form Body <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span></label>
+      <label><span>📝 Free-form Body <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text editor — write your full thoughts here</span></span></label>
       ${luRTE_render({id:'fa-note-rte', placeholder:'Write your full note here — no structure required. Use the toolbar to format as you go...', value:'', height:'180px'})}
       <!-- AI Assistance -->
       <div style="margin-top:6px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-        <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
+        <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:5px">✨ AI Assistance</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('expand')">📝 Expand</button>
-          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('summarise')">📌 Summarise</button>
-          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('link')">🔗 Link Concepts</button>
-          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('autotag')">🏷 Auto-tag</button>
-          <button type="button" class="btn btn-s" style="height:24px;font-size:10px" onclick="rteNoteAI('questions')">❓ Key Questions</button>
-          <button type="button" class="btn btn-d" style="height:24px;font-size:10px" onclick="document.getElementById('fa-note-rte').innerHTML='';luRTE_updateCharCount('fa-note-rte')">🗑 Clear</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteNoteAI('expand')">📝 Expand</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteNoteAI('summarise')">📌 Summarise</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteNoteAI('link')">🔗 Link Concepts</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteNoteAI('autotag')">🏷 Auto-tag</button>
+          <button type="button" class="btn btn-s" style="height:24px;font-size:11px" onclick="rteNoteAI('questions')">❓ Key Questions</button>
+          <button type="button" class="btn btn-d" style="height:24px;font-size:11px" onclick="document.getElementById('fa-note-rte').innerHTML='';luRTE_updateCharCount('fa-note-rte')">🗑 Clear</button>
           ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
         </div>
         <div id="fa-note-ai-result" style="display:none;margin-top:6px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:180px;overflow-y:auto"></div>
@@ -5102,7 +5102,7 @@ function renderFAGoal(){
       <span class="err" id="fa-title-err">Title is required</span>
     </div>
     <div class="fa-field" style="margin-bottom:10px">
-      <label><span>Description <span style="font-size:10px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, success criteria</span></span></label>
+      <label><span>Description <span style="font-size:11px;color:var(--t3);font-weight:400">Rich text — why this goal matters, milestones, success criteria</span></span></label>
       ${luRTE_render({id:'fa-goal-rte', placeholder:'Why does this goal matter? Describe milestones, success criteria…', value:'', height:'140px'})}
       <textarea class="fa-inp" id="fa-desc" style="display:none"></textarea>
     </div>
@@ -5155,7 +5155,7 @@ function renderFAReflections(){
   <div style="display:grid;grid-template-columns:130px 1fr 24px;gap:6px;align-items:start;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
     <input type="date" class="fa-inp" style="padding:4px 8px" value="${r.date||''}" onchange="_faReflections[${i}].date=this.value">
     <textarea class="fa-inp" style="padding:4px 8px;min-height:50px" placeholder="Weekly check-in note..." oninput="_faReflections[${i}].note=this.value">${esc(r.note)}</textarea>
-    <button class="btn btn-d" style="height:24px;font-size:10px;padding:0 6px;margin-top:2px" onclick="faRemoveReflection(${i})">✕</button>
+    <button class="btn btn-d" style="height:24px;font-size:11px;padding:0 6px;margin-top:2px" onclick="faRemoveReflection(${i})">✕</button>
   </div>`).join('');
 }
 
@@ -5213,19 +5213,19 @@ function renderFAJournal(){
   <div class="fa-section" id="fa-journal-rte-section">
     <div class="fa-section-title" style="display:flex;justify-content:space-between;align-items:center">
       <span>📓 Free-form Diary Entry</span>
-      <span style="font-size:10px;font-weight:400;color:var(--t3)">Rich text — write freely, format as you go</span>
+      <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — write freely, format as you go</span>
     </div>
     ${luRTE_render({id:'fa-jrnl-rte', placeholder:'Write freely here — this is your private diary. No prompts, no structure. Just your thoughts...', value:'', height:'200px'})}
     <!-- AI Assistance -->
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
-      <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:6px">✨ AI Assistance</div>
+      <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">✨ AI Assistance</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('expand')">📝 Expand</button>
-        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('reflect')">🧘 Reflect</button>
-        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('summarise')">📌 Summarise</button>
-        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('mood')">🟡 Mood Analysis</button>
-        <button type="button" class="btn btn-s" style="height:26px;font-size:10px" onclick="rteJournalAI('questions')">❓ Prompt Me</button>
-        <button type="button" class="btn btn-d" style="height:26px;font-size:10px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';luRTE_updateCharCount('fa-jrnl-rte')">🗑 Clear</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:11px" onclick="rteJournalAI('expand')">📝 Expand</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:11px" onclick="rteJournalAI('reflect')">🧘 Reflect</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:11px" onclick="rteJournalAI('summarise')">📌 Summarise</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:11px" onclick="rteJournalAI('mood')">🟡 Mood Analysis</button>
+        <button type="button" class="btn btn-s" style="height:26px;font-size:11px" onclick="rteJournalAI('questions')">❓ Prompt Me</button>
+        <button type="button" class="btn btn-d" style="height:26px;font-size:11px" onclick="document.getElementById('fa-jrnl-rte').innerHTML='';luRTE_updateCharCount('fa-jrnl-rte')">🗑 Clear</button>
         ${typeof _aiLengthChip==='function'?_aiLengthChip():''}
       </div>
       <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
@@ -5548,11 +5548,11 @@ function aiContactHealth(){
       <div style="width:36px;height:36px;border-radius:50%;background:var(--acs);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--ac);flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
-        <div style="font-size:10px;color:var(--t3)">${daysSince===999?'Never contacted':daysSince===0?'Contacted today':'Last contact '+daysSince+'d ago'} · ${linkedTasks} task${linkedTasks!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--t3)">${daysSince===999?'Never contacted':daysSince===0?'Contacted today':'Last contact '+daysSince+'d ago'} · ${linkedTasks} task${linkedTasks!==1?'s':''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:16px;font-weight:700;color:${color}">${health}</div>
-        <div style="font-size:10px;color:${color}">${label}</div>
+        <div style="font-size:11px;color:${color}">${label}</div>
       </div>
     </div>`;
   }).join('')}</div>
@@ -5581,9 +5581,9 @@ function aiContactConversation(id){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:4px">💬 Conversation Starters</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">For your next interaction with <strong>${esc(c.name)}</strong> (${esc(role)} at ${esc(company)}):</div>
   <div style="max-height:300px;overflow-y:auto">${starters.map((s,i)=>`<div style="padding:8px 10px;margin-bottom:6px;border-radius:6px;background:var(--s2);font-size:12px;line-height:1.5;cursor:pointer;border:1px solid transparent" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='transparent'" onclick="navigator.clipboard&&navigator.clipboard.writeText('${s.replace(/'/g,"\\'").replace(/"/g,'&quot;')}');toast('📋 Copied to clipboard')">
-    <span style="color:var(--t3);font-size:10px;margin-right:6px">${i+1}.</span>${esc(s)}
+    <span style="color:var(--t3);font-size:11px;margin-right:6px">${i+1}.</span>${esc(s)}
   </div>`).join('')}</div>
-  <div style="font-size:10px;color:var(--t3);margin-top:8px">📋 Click any starter to copy to clipboard</div>
+  <div style="font-size:11px;color:var(--t3);margin-top:8px">📋 Click any starter to copy to clipboard</div>
   <button class="btn btn-p" style="margin-top:8px" onclick="closeModal()">Close</button>`;
   document.getElementById('modal-capture').classList.add('show');
 }
@@ -5621,19 +5621,19 @@ function aiContactDuplicates(){
       return`<div style="padding:10px;margin-bottom:8px;border-radius:6px;background:var(--s2);font-size:12px">
         <div style="display:flex;justify-content:space-between;margin-bottom:6px">
           <span style="font-weight:600">${esc(reason)}</span>
-          <span style="font-size:10px;color:${confColor};font-weight:600">${confidence} confidence</span>
+          <span style="font-size:11px;color:${confColor};font-weight:600">${confidence} confidence</span>
         </div>
         <div style="display:flex;gap:8px">
           <div style="flex:1;padding:6px;background:var(--s3);border-radius:4px;cursor:pointer" onclick="closeModal();openContactDetail(${a.id})">
             <div style="font-weight:500">${esc(a.name)}</div>
-            <div style="font-size:10px;color:var(--t3)">${esc(a.email||'')} · ${esc(a.company||'')}</div>
+            <div style="font-size:11px;color:var(--t3)">${esc(a.email||'')} · ${esc(a.company||'')}</div>
           </div>
           <div style="flex:1;padding:6px;background:var(--s3);border-radius:4px;cursor:pointer" onclick="closeModal();openContactDetail(${b.id})">
             <div style="font-weight:500">${esc(b.name)}</div>
-            <div style="font-size:10px;color:var(--t3)">${esc(b.email||'')} · ${esc(b.company||'')}</div>
+            <div style="font-size:11px;color:var(--t3)">${esc(b.email||'')} · ${esc(b.company||'')}</div>
           </div>
         </div>
-        <div style="font-size:10px;color:var(--t3);margin-top:4px">Click a card to open and manually merge or delete</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:4px">Click a card to open and manually merge or delete</div>
       </div>`;
     }).join('')}</div>
     <button class="btn btn-p" style="margin-top:10px" onclick="closeModal()">Close</button>`;
@@ -5695,9 +5695,9 @@ async function loadRelatedBookmarks(entityType, entityId){
         ${b.favicon ? `<img src="${b.favicon}" style="width:14px;height:14px;margin-top:2px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:12px;flex-shrink:0">🔖</span>'}
         <div style="flex:1;min-width:0">
           <a href="${b.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ac);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
-          ${b.description ? `<div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
+          ${b.description ? `<div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
         </div>
-        <button class="btn btn-s" style="font-size:10px;padding:1px 5px;color:var(--err);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
+        <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--err);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
       </div>
     `).join('');
   } catch(e) {
@@ -5759,9 +5759,9 @@ function renderLinkBookmarkList(items, entityType, entityId){
       ${b.favicon ? `<img src="${b.favicon}" style="width:16px;height:16px;flex-shrink:0" onerror="this.style.display='none'">` : '<span style="font-size:14px">🔖</span>'}
       <div style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.title||b.url)}</div>
-        <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.url)}</div>
+        <div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.url)}</div>
       </div>
-      <button class="btn btn-s" style="font-size:10px;padding:2px 8px;flex-shrink:0">Link</button>
+      <button class="btn btn-s" style="font-size:11px;padding:2px 8px;flex-shrink:0">Link</button>
     </div>
   `).join('');
 }
@@ -5792,35 +5792,35 @@ function paintBookmarks(){
   const collSidebar=`
     <div style="width:190px;flex-shrink:0;border-right:1px solid var(--bd1);padding-right:12px;margin-right:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Collections</span>
+        <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Collections</span>
         <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="showCreateCollection()" title="New collection">+</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:2px">
         <div class="lr" style="border-radius:6px;padding:5px 8px;cursor:pointer;background:${_bkCollFilter===null?'var(--acs)':'transparent'};color:${_bkCollFilter===null?'var(--ac)':'inherit'}" onclick="_bkCollFilter=null;_bkPage=1;renderBookmarks()">
-          <span style="font-size:12px">&#128278;</span><span style="font-size:11px;font-weight:500">All Bookmarks</span><span style="font-size:10px;color:var(--t3);margin-left:auto">${_bkTotal}</span>
+          <span style="font-size:12px">&#128278;</span><span style="font-size:11px;font-weight:500">All Bookmarks</span><span style="font-size:11px;color:var(--t3);margin-left:auto">${_bkTotal}</span>
         </div>
         ${_bkCollections.map(c=>`
           <div class="lr" style="border-radius:6px;padding:5px 8px;cursor:pointer;background:${_bkCollFilter===c.id?'var(--acs)':'transparent'};color:${_bkCollFilter===c.id?'var(--ac)':'inherit'}" onclick="_bkCollFilter=${c.id};_bkPage=1;loadCollectionView(${c.id})">
             <span style="font-size:12px">${esc(c.icon||'&#128193;')}</span>
             <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
-            <span style="font-size:10px;color:var(--t3)">${c.bookmarkCount||0}</span>
+            <span style="font-size:11px;color:var(--t3)">${c.bookmarkCount||0}</span>
             <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
               <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 4px" onclick="editCollection(${c.id})" title="Edit">&#9999;</button>
               <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 4px;color:var(--red)" onclick="deleteCollection(${c.id})" title="Delete">&#128465;</button>
             </div>
           </div>`).join('')}
-        ${_bkCollections.length===0?'<div style="font-size:10px;color:var(--t3);padding:8px 4px;font-style:italic">No collections yet</div>':''}
+        ${_bkCollections.length===0?'<div style="font-size:11px;color:var(--t3);padding:8px 4px;font-style:italic">No collections yet</div>':''}
       </div>
       <div style="margin-top:14px;border-top:1px solid var(--bd1);padding-top:10px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Shared Links</span>
+          <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px">Shared Links</span>
           <button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="showShareManager()" title="Manage shares">&#9881;</button>
         </div>
-        ${_bkShares.length===0?'<div style="font-size:10px;color:var(--t3);font-style:italic">No shared links</div>':''}
+        ${_bkShares.length===0?'<div style="font-size:11px;color:var(--t3);font-style:italic">No shared links</div>':''}
         ${_bkShares.slice(0,5).map(s=>`
           <div style="margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
-            <div style="font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)">${esc(s.title||'Untitled share')}</div>
-            <div style="font-size:10px;color:var(--t3);margin-bottom:3px">${s.viewCount||0} views</div>
+            <div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)">${esc(s.title||'Untitled share')}</div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:3px">${s.viewCount||0} views</div>
             <div style="display:flex;gap:4px">
               <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 5px" onclick="copyShareLink('${esc(s.token)}')">&#128203; Copy</button>
               <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 5px;color:var(--red)" onclick="deleteShare(${s.id})">&#128465;</button>
@@ -5844,11 +5844,11 @@ function paintBookmarks(){
   }else{
     cards=_bkData.map(b=>{
       const tags=b.tags?JSON.parse(b.tags):[];
-      const tagHtml=tags.map(t=>`<span class="pill" style="background:var(--s3);color:var(--t2);font-size:10px;margin-right:3px">${esc(t)}</span>`).join('');
+      const tagHtml=tags.map(t=>`<span class="pill" style="background:var(--s3);color:var(--t2);font-size:11px;margin-right:3px">${esc(t)}</span>`).join('');
       const favicon=b.favicon?`<img src="${esc(b.favicon)}" style="width:16px;height:16px;border-radius:2px;flex-shrink:0" onerror="this.style.display='none'">`:'<span style="font-size:14px">&#127760;</span>';
       const domain=(() => { try { return new URL(b.url).hostname.replace(/^www\./,''); } catch { return ''; } })();
       const readMins=b.wordCount?Math.max(1,Math.round(b.wordCount/200)):null;
-      const readTimeHtml=readMins?`<span style="font-size:10px;color:var(--t3)">&#9201; ${readMins} min read</span>`:'';
+      const readTimeHtml=readMins?`<span style="font-size:11px;color:var(--t3)">&#9201; ${readMins} min read</span>`:'';
       const isSelected=_bkSelected.has(b.id);
       return `<div class="cd" style="cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative${b.isRead?';opacity:.75':''}${isSelected?';border-color:var(--ac);box-shadow:0 0 0 2px var(--acs)':''}" onmouseenter="this.style.borderColor='var(--ac)'" onmouseleave="this.style.borderColor='${isSelected?'var(--ac)':''}'" onclick="_bkMultiSelect?toggleBkSelect(${b.id}):window.open('${esc(b.url)}','_blank')">
         ${_bkMultiSelect?`<div style="position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px;border-radius:4px;border:2px solid ${isSelected?'var(--ac)':'var(--bd2)'};background:${isSelected?'var(--ac)':'var(--s1)'};display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="event.stopPropagation();toggleBkSelect(${b.id})">${isSelected?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>':''}</div>`:''}
@@ -5857,26 +5857,26 @@ function paintBookmarks(){
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;min-width:0;overflow:hidden">
               ${favicon}
               <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 0%;min-width:0">${esc(b.title||'Untitled')}</span>
-              <span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(domain)}</span>
+              <span style="font-size:11px;color:var(--t3);flex-shrink:0">${esc(domain)}</span>
             </div>
             ${b.description?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(b.description)}</div>`:''}
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${tagHtml}
               ${readTimeHtml}
-              <span style="font-size:10px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
-              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:10px">&#10003; Read</span>':''}
+              <span style="font-size:11px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
+              ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">&#10003; Read</span>':''}
             </div>
           </div>
           ${b.ogImage?`<img src="${esc(b.ogImage)}" style="width:80px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`:''}
         </div>
         <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px" onclick="event.stopPropagation()">
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'&#11088;':'&#9734;'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'Unread':'Read'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();showAddToCollection(${b.id})" title="Add to collection">&#128193;</button>
-          ${_bkCollFilter?`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--warn)" onclick="event.stopPropagation();removeFromCollection(${_bkCollFilter},${b.id})" title="Remove from this collection">&#128197;</button>`:''}
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();shareBookmark(${b.id})" title="Share">&#128279;</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">&#9999;</button>
-          <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">&#128465;</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'&#11088;':'&#9734;'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'Unread':'Read'}</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();showAddToCollection(${b.id})" title="Add to collection">&#128193;</button>
+          ${_bkCollFilter?`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px;color:var(--warn)" onclick="event.stopPropagation();removeFromCollection(${_bkCollFilter},${b.id})" title="Remove from this collection">&#128197;</button>`:''}
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();shareBookmark(${b.id})" title="Share">&#128279;</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">&#9999;</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">&#128465;</button>
         </div>
       </div>`;
     }).join('');
@@ -5885,7 +5885,7 @@ function paintBookmarks(){
   const collTitle=_bkCollFilter?(_bkCollections.find(c=>c.id===_bkCollFilter)||{name:'Collection'}).name:'All Bookmarks';
 
   el.innerHTML=`<div class="pg-h ph-r">
-    <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'} <span style="opacity:.45;font-size:10px">· build ${esc(String((window.__APP_BUILD)||'?'))}</span></p></div>
+    <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'} <span style="opacity:.45;font-size:11px">· build ${esc(String((window.__APP_BUILD)||'?'))}</span></p></div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">&#128278; Bookmarklet</button>
       ${_bkCollFilter?`<button class="btn btn-s" style="font-size:11px" onclick="shareCollection(${_bkCollFilter})">&#128279; Share Collection</button>`:''}
@@ -5915,7 +5915,7 @@ function paintBookmarks(){
           <option value="read" ${_bkReadFilter==='read'?'selected':''}>Read</option>
         </select>`:''}
       </div>
-      ${_bkTags.length&&!_bkCollFilter?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:10px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
+      ${_bkTags.length&&!_bkCollFilter?`<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:2px;align-items:center"><span style="font-size:11px;color:var(--t3);margin-right:4px">Tags:</span>${tagPills}</div>`:''}
       ${_bkMultiSelect&&_bkSelected.size>0?`<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:200;background:var(--s2);border:1px solid var(--ac);border-radius:12px;padding:10px 18px;display:flex;gap:10px;align-items:center;box-shadow:0 4px 24px rgba(0,0,0,.4)">
         <span style="font-size:12px;color:var(--t2)">${_bkSelected.size} selected</span>
         <button class="btn btn-s" style="font-size:11px" onclick="bulkAddToCollection()">&#128193; Add to Collection</button>
@@ -5956,8 +5956,8 @@ function showBookmarklet(){
     `</div>` +
     `<div style="text-align:center"><a href="${code}" style="display:inline-block;padding:10px 20px;background:var(--ac);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;cursor:grab" onclick="event.preventDefault();toast('Drag this to your bookmarks bar!')">🔖 Save to LevelUp</a></div>` +
     `<div style="font-size:11px;color:var(--t3)"><strong>How to install:</strong><br>1. Show your browser's bookmarks bar (Ctrl+Shift+B or Cmd+Shift+B)<br>2. Drag the button above to the bookmarks bar<br>3. Visit any page and click the bookmarklet to save it instantly</div>` +
-    `<div style="font-size:10px;color:var(--t3)">Or copy the code manually:</div>` +
-    `<textarea class="inp" style="font-size:10px;font-family:monospace;height:60px" readonly onclick="this.select()">${safeCode}</textarea>` +
+    `<div style="font-size:11px;color:var(--t3)">Or copy the code manually:</div>` +
+    `<textarea class="inp" style="font-size:11px;font-family:monospace;height:60px" readonly onclick="this.select()">${safeCode}</textarea>` +
     `</div>`,
     [{label:'Close',cls:'btn-s',action:'closeModal()'}]
   );
@@ -5968,8 +5968,8 @@ function showAddBookmark(){
     '<div style="display:flex;flex-direction:column;gap:12px">' +
     '<div class="field"><label>URL *</label><input class="inp" id="bk-url" placeholder="https://example.com"></div>' +
     '<div class="field"><label>Title <span style="color:var(--t3);font-weight:400">(optional — auto-fetched from page)</span></label><input class="inp" id="bk-title" placeholder="Leave blank to auto-detect"></div>' +
-    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-desc-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription(\'bk-description\',\'btn-bk-desc-ai\')">✨ AI Describe</button></label><textarea class="inp" id="bk-description" placeholder="Short summary — click ✨ AI Describe to generate" style="min-height:60px"></textarea></div>' +
-    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-tags-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags(\'bk-tags\',\'btn-bk-tags-ai\')">✨ AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-desc-ai" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription(\'bk-description\',\'btn-bk-desc-ai\')">✨ AI Describe</button></label><textarea class="inp" id="bk-description" placeholder="Short summary — click ✨ AI Describe to generate" style="min-height:60px"></textarea></div>' +
+    '<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-tags-ai" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags(\'bk-tags\',\'btn-bk-tags-ai\')">✨ AI Suggest</button></label><input class="inp" id="bk-tags" placeholder="dev, react, tutorial"></div>' +
     '<div class="field"><label>Notes</label><textarea class="inp" id="bk-notes" placeholder="Your private notes about this page..." style="min-height:60px"></textarea></div>' +
     '</div>',
     [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Bookmark',cls:'btn-p',action:'doAddBookmark()'}]
@@ -6074,8 +6074,8 @@ function editBookmark(id){
     '<div style="display:flex;flex-direction:column;gap:12px">' +
     `<div class="field"><label>URL</label><input class="inp" value="${esc(b.url)}" disabled style="opacity:.6"></div>` +
     `<div class="field"><label>Title</label><input class="inp" id="bk-edit-title" value="${esc(b.title||'')}"></div>` +
-    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-edit-desc-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription('bk-edit-desc','btn-bk-edit-desc-ai')">✨ AI Describe</button></label><textarea class="inp" id="bk-edit-desc" data-bid="${id}" style="min-height:60px">${esc(b.description||'')}</textarea></div>` +
-    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-edit-tags-ai" class="btn btn-s" style="height:22px;font-size:10px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags('bk-edit-tags','btn-bk-edit-tags-ai')">✨ AI Suggest</button></label><input class="inp" id="bk-edit-tags" data-bid="${id}" value="${esc(tags.join(', '))}"></div>` +
+    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-bk-edit-desc-ai" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="doSuggestBookmarkDescription('bk-edit-desc','btn-bk-edit-desc-ai')">✨ AI Describe</button></label><textarea class="inp" id="bk-edit-desc" data-bid="${id}" style="min-height:60px">${esc(b.description||'')}</textarea></div>` +
+    `<div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Tags <span style="color:var(--t3);font-weight:400">(comma-separated)</span><button type="button" id="btn-bk-edit-tags-ai" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" onclick="doSuggestBookmarkTags('bk-edit-tags','btn-bk-edit-tags-ai')">✨ AI Suggest</button></label><input class="inp" id="bk-edit-tags" data-bid="${id}" value="${esc(tags.join(', '))}"></div>` +
     `<div class="field"><label>Notes</label><textarea class="inp" id="bk-edit-notes" style="min-height:60px">${esc(b.notes||'')}</textarea></div>` +
     '</div>',
     [{label:'Cancel',cls:'btn-s',action:'closeModal()'},{label:'💾 Save Changes',cls:'btn-p',action:`doEditBookmark(${id})`}]
@@ -6196,9 +6196,9 @@ function showAddToCollection(bookmarkId){
       <span style="font-size:16px">${esc(c.icon||'📁')}</span>
       <div style="flex:1">
         <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
-        <div style="font-size:10px;color:var(--t3)">${c.bookmarkCount||0} bookmarks</div>
+        <div style="font-size:11px;color:var(--t3)">${c.bookmarkCount||0} bookmarks</div>
       </div>
-      <button class="btn btn-s" style="font-size:10px;padding:2px 8px">Add</button>
+      <button class="btn btn-s" style="font-size:11px;padding:2px 8px">Add</button>
     </div>`).join('');
   openBkModal('📁 Add to Collection',
     `<div style="font-size:12px;color:var(--t2);margin-bottom:12px">Adding: <strong>${esc(title.slice(0,60))}</strong></div>` +
@@ -6367,12 +6367,12 @@ function showShareManager(){
       <div style="display:flex;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500">${esc(s.title||'Untitled')}</div>
-          <div style="font-size:10px;color:var(--t3)">${s.shareType==='collection'?'Collection':'Selection'} &bull; ${s.viewCount||0} views &bull; Expires: ${exp}</div>
-          <div style="font-size:10px;color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</div>
+          <div style="font-size:11px;color:var(--t3)">${s.shareType==='collection'?'Collection':'Selection'} &bull; ${s.viewCount||0} views &bull; Expires: ${exp}</div>
+          <div style="font-size:11px;color:var(--ac);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(url)}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
-          <button class="btn btn-s" style="height:24px;font-size:10px" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>
-          <button class="btn btn-s" style="height:24px;font-size:10px;color:var(--red)" onclick="deleteShare(${s.id})">Delete</button>
+          <button class="btn btn-s" style="height:24px;font-size:11px" onclick="copyShareLink(null,'${esc(url)}')">Copy</button>
+          <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red)" onclick="deleteShare(${s.id})">Delete</button>
         </div>
       </div>
     </div>`;
@@ -6426,7 +6426,7 @@ function renderContacts(){
       <option value="">All tags</option>
       ${allTags.map(t=>`<option value="${esc(t)}" ${_contactTagFilter===t?'selected':''}>${esc(t)}</option>`).join('')}
     </select>
-    <span style="font-size:10px;color:var(--t3)">${filtered.length} result${filtered.length!==1?'s':''}</span>
+    <span style="font-size:11px;color:var(--t3)">${filtered.length} result${filtered.length!==1?'s':''}</span>
   </div>
   ${!hasKey?`<div style="background:var(--warn)1a;border:1px solid var(--warn);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;color:var(--t2);display:flex;align-items:center;gap:10px">
     <span style="font-size:18px">🔑</span>
@@ -6457,9 +6457,9 @@ function renderContacts(){
   bar.id='contact-bulk-bar';
   bar.style.cssText='display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--bd2);border-radius:10px;padding:8px 16px;display:none;gap:10px;align-items:center;box-shadow:0 4px 24px rgba(0,0,0,.4);z-index:100';
   bar.innerHTML=`<span id="contact-bulk-count" style="font-size:11px;color:var(--t2)">0 selected</span>
-    <button class="btn btn-p" style="height:26px;font-size:10px" onclick="enrichSelectedContacts()">🔍 Enrich Selected</button>
-    <button class="btn btn-d" style="height:26px;font-size:10px" onclick="deleteSelectedContacts()">🗑 Delete</button>
-    <button class="btn btn-s" style="height:26px;font-size:10px" onclick="_contactSelected.clear();renderContacts()">✕ Clear</button>`;
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="enrichSelectedContacts()">🔍 Enrich Selected</button>
+    <button class="btn btn-d" style="height:26px;font-size:11px" onclick="deleteSelectedContacts()">🗑 Delete</button>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_contactSelected.clear();renderContacts()">✕ Clear</button>`;
   $('contacts-main').appendChild(bar);
   updateContactBulkBar();
   // Rail
@@ -6475,26 +6475,26 @@ function contactRow(c,hasKey){
     <td style="padding:6px 8px" onclick="event.stopPropagation()"><input type="checkbox" ${_contactSelected.has(c.id)?'checked':''} onchange="toggleContactSelect(${c.id},this.checked)" style="cursor:pointer"></td>
     <td style="padding:6px 8px">
       <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
-        <div><div style="font-weight:500">${esc(c.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(c.location||'')}</div></div>
+        <div style="width:28px;height:28px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${initials}</div>
+        <div><div style="font-weight:500">${esc(c.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(c.location||'')}</div></div>
       </div>
     </td>
     <td style="padding:6px 8px;color:var(--t2)">${esc(c.title||'—')}</td>
     <td style="padding:6px 8px;font-weight:500">${esc(c.company||'—')}</td>
     <td style="padding:6px 8px">${c.email?`<a href="mailto:${esc(c.email)}" onclick="event.stopPropagation()" style="color:var(--ac);text-decoration:none">${esc(c.email)}</a>`:'<span style="color:var(--t3)">—</span>'}</td>
     <td style="padding:6px 8px;color:var(--t2)">${c.phone||'<span style="color:var(--t3)">—</span>'}</td>
-    <td style="padding:6px 8px">${(c.tags||[]).slice(0,2).map(t=>`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:var(--acs);color:var(--ac);margin-right:3px">${esc(t)}</span>`).join('')}${(c.tags||[]).length>2?`<span style="font-size:10px;color:var(--t3)">+${c.tags.length-2}</span>`:''}</td>
+    <td style="padding:6px 8px">${(c.tags||[]).slice(0,2).map(t=>`<span style="font-size:11px;padding:1px 5px;border-radius:8px;background:var(--acs);color:var(--ac);margin-right:3px">${esc(t)}</span>`).join('')}${(c.tags||[]).length>2?`<span style="font-size:11px;color:var(--t3)">+${c.tags.length-2}</span>`:''}</td>
     <td style="padding:6px 8px">
-      <span id="enrich-status-${c.id}" style="font-size:10px;padding:2px 6px;border-radius:8px;${enrichBtnStyle}">${enrichBtnLabel}</span>
+      <span id="enrich-status-${c.id}" style="font-size:11px;padding:2px 6px;border-radius:8px;${enrichBtnStyle}">${enrichBtnLabel}</span>
     </td>
     <td style="padding:6px 8px" onclick="event.stopPropagation()">
       <div style="display:flex;gap:4px">
-        <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="openContactDetail(${c.id})" title="View">👁</button>
-        <button class="btn btn-s" style="height:22px;font-size:10px;padding:0 6px" onclick="openEditContactModal(${c.id})" title="Edit">✏</button>
-        <button class="btn btn-p" style="height:22px;font-size:10px;padding:0 6px;${!hasKey?'opacity:.5;':''}"
+        <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="openContactDetail(${c.id})" title="View">👁</button>
+        <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="openEditContactModal(${c.id})" title="Edit">✏</button>
+        <button class="btn btn-p" style="height:22px;font-size:11px;padding:0 6px;${!hasKey?'opacity:.5;':''}"
           onclick="${hasKey?`enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}"
           title="Enrich via Clodura">🔍</button>
-        <button class="btn btn-d" style="height:22px;font-size:10px;padding:0 6px" onclick="deleteContact(${c.id})" title="Delete">🗑</button>
+        <button class="btn btn-d" style="height:22px;font-size:11px;padding:0 6px" onclick="deleteContact(${c.id})" title="Delete">🗑</button>
       </div>
     </td>
   </tr>`;
@@ -6517,7 +6517,7 @@ function renderContactsRail(contacts){
       const count=contacts.filter(c=>(c.tags||[]).includes(t)).length;
       return`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="_contactTagFilter=_contactTagFilter===\'${t}\'?\'\':\'${t}\';renderContacts()">
         <span style="font-size:11px;${_contactTagFilter===t?'color:var(--ac);font-weight:600':''}">${esc(t)}</span>
-        <span style="font-size:10px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">${count}</span>
+        <span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">${count}</span>
       </div>`;
     }).join('')}
     <div style="margin-top:14px">
@@ -6658,24 +6658,24 @@ function openContactDetail(id){
     <div style="flex:1">
       <div style="font-size:16px;font-weight:700">${esc(c.name)}</div>
       <div style="font-size:11px;color:var(--t2)">${esc(c.title||'')}${c.title&&c.company?' · ':''}${esc(c.company||'')}</div>
-      <div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(c.location||'')}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(c.location||'')}</div>
     </div>
-    ${c.enriched?`<span style="font-size:10px;padding:2px 7px;border-radius:8px;background:var(--ok)1a;color:var(--ok);border:1px solid var(--ok)">✓ Enriched</span>`:''}
+    ${c.enriched?`<span style="font-size:11px;padding:2px 7px;border-radius:8px;background:var(--ok)1a;color:var(--ok);border:1px solid var(--ok)">✓ Enriched</span>`:''}
   </div>
   <div style="display:grid;gap:6px;margin-bottom:14px">
-    ${c.email?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Email</span><a href="mailto:${esc(c.email)}" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.email)}</a></div>`:''}
-    ${c.phone?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Phone</span><span style="font-size:11px">${esc(c.phone)}</span></div>`:''}
-    ${c.linkedin?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">LinkedIn</span><a href="https://${esc(c.linkedin)}" target="_blank" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.linkedin)}</a></div>`:''}
-    ${c.twitter?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Twitter</span><span style="font-size:11px">@${esc(c.twitter)}</span></div>`:''}
-    ${c.department?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Dept</span><span style="font-size:11px">${esc(c.department)}</span></div>`:''}
-    ${c.seniority?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Seniority</span><span style="font-size:11px">${esc(c.seniority)}</span></div>`:''}
-    ${c.industry?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Industry</span><span style="font-size:11px">${esc(c.industry)}</span></div>`:''}
-    ${c.companySize?`<div class="lr" style="padding:5px 0"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Co. Size</span><span style="font-size:11px">${esc(c.companySize)}</span></div>`:''}
-    ${c.technologies&&c.technologies.length?`<div class="lr" style="padding:5px 0;align-items:flex-start"><span style="font-size:10px;color:var(--t3);width:70px;flex-shrink:0">Tech Stack</span><div style="display:flex;flex-wrap:wrap;gap:3px">${c.technologies.slice(0,8).map(t=>`<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t)}</span>`).join('')}</div></div>`:''}
+    ${c.email?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Email</span><a href="mailto:${esc(c.email)}" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.email)}</a></div>`:''}
+    ${c.phone?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Phone</span><span style="font-size:11px">${esc(c.phone)}</span></div>`:''}
+    ${c.linkedin?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">LinkedIn</span><a href="https://${esc(c.linkedin)}" target="_blank" style="color:var(--ac);font-size:11px;text-decoration:none">${esc(c.linkedin)}</a></div>`:''}
+    ${c.twitter?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Twitter</span><span style="font-size:11px">@${esc(c.twitter)}</span></div>`:''}
+    ${c.department?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Dept</span><span style="font-size:11px">${esc(c.department)}</span></div>`:''}
+    ${c.seniority?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Seniority</span><span style="font-size:11px">${esc(c.seniority)}</span></div>`:''}
+    ${c.industry?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Industry</span><span style="font-size:11px">${esc(c.industry)}</span></div>`:''}
+    ${c.companySize?`<div class="lr" style="padding:5px 0"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Co. Size</span><span style="font-size:11px">${esc(c.companySize)}</span></div>`:''}
+    ${c.technologies&&c.technologies.length?`<div class="lr" style="padding:5px 0;align-items:flex-start"><span style="font-size:11px;color:var(--t3);width:70px;flex-shrink:0">Tech Stack</span><div style="display:flex;flex-wrap:wrap;gap:3px">${c.technologies.slice(0,8).map(t=>`<span style="font-size:11px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t)}</span>`).join('')}</div></div>`:''}
   </div>
-  ${(c.tags||[]).length?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.tags.map(t=>`<span style="font-size:10px;padding:2px 8px;border-radius:8px;background:var(--acs);color:var(--ac)">${esc(t)}</span>`).join('')}</div></div>`:''}
-  ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
-  ${c.enrichedAt?`<div style="font-size:10px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}  ${(()=>{
+  ${(c.tags||[]).length?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.tags.map(t=>`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:var(--acs);color:var(--ac)">${esc(t)}</span>`).join('')}</div></div>`:''}
+  ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
+  ${c.enrichedAt?`<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}  ${(()=>{
     const slug='contact:'+c.name.toLowerCase().replace(/\s+/g,'-');
     const nameLC=c.name.toLowerCase();
     const linked=D.tasks.filter(t=>{
@@ -6689,7 +6689,7 @@ function openContactDetail(id){
       if(aD!==bD)return aD-bD;
       return (a.due||'9999')>(b.due||'9999')?1:-1;
     });
-    if(!linked.length)return `<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY</div><div style="font-size:11px;color:var(--t3);padding:8px 10px;background:var(--s2);border-radius:6px">No tasks linked yet — click 📋 Create Task to add one.</div></div>`;
+    if(!linked.length)return `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY</div><div style="font-size:11px;color:var(--t3);padding:8px 10px;background:var(--s2);border-radius:6px">No tasks linked yet — click 📋 Create Task to add one.</div></div>`;
     const priColor={High:'var(--red)',Medium:'var(--warn,#f59e0b)',Low:'var(--ok)'};
     const rows=linked.map(t=>{
       const done=t.status==='Done';
@@ -6701,25 +6701,25 @@ function openContactDetail(id){
         `<div style="flex:1;min-width:0">` +
           `<div style="font-size:11px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div>` +
           `<div style="display:flex;gap:6px;align-items:center;margin-top:2px;flex-wrap:wrap">` +
-            `<span style="font-size:10px;color:${priColor[pri]||'var(--t3)'}">${pri}</span>` +
-            `<span style="font-size:10px;color:${overdue?'var(--red)':'var(--t3)'}">${overdue?'⚠ Overdue · ':''}${dueStr}</span>` +
-            `<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t.status)}</span>` +
+            `<span style="font-size:11px;color:${priColor[pri]||'var(--t3)'}">${pri}</span>` +
+            `<span style="font-size:11px;color:${overdue?'var(--red)':'var(--t3)'}">${overdue?'⚠ Overdue · ':''}${dueStr}</span>` +
+            `<span style="font-size:11px;padding:1px 5px;border-radius:8px;background:var(--s3);color:var(--t2)">${esc(t.status)}</span>` +
           `</div>` +
         `</div>` +
       `</div>`;
     }).join('');
     const openCount=linked.filter(t=>t.status!=='Done').length;
-    return `<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY <span style="font-weight:400;color:var(--t3)">(${linked.length} task${linked.length!==1?'s':''}, ${openCount} open)</span></div>${rows}</div>`;
+    return `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:6px;letter-spacing:.05em">ACTIVITY <span style="font-weight:400;color:var(--t3)">(${linked.length} task${linked.length!==1?'s':''}, ${openCount} open)</span></div>${rows}</div>`;
   })()}  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-    <button class="btn btn-p" style="height:28px;font-size:10px" onclick="createTaskFromContact(${c.id})">📋 Create Task</button>
-    <button class="btn btn-p" style="height:28px;font-size:10px" onclick="openEditContactModal(${c.id})">✏ Edit</button>
-    <button class="btn btn-p" style="height:28px;font-size:10px;${!hasKey?'opacity:.5;':''}"
+    <button class="btn btn-p" style="height:28px;font-size:11px" onclick="createTaskFromContact(${c.id})">📋 Create Task</button>
+    <button class="btn btn-p" style="height:28px;font-size:11px" onclick="openEditContactModal(${c.id})">✏ Edit</button>
+    <button class="btn btn-p" style="height:28px;font-size:11px;${!hasKey?'opacity:.5;':''}"
       onclick="${hasKey?`closeDrawer();enrichContact(${c.id})`:`toast('⚠️ Add Clodura API key in Settings → Integrations')`}">
       🔍 Enrich via Clodura
     </button>
-    <button class="btn btn-s" style="height:28px;font-size:10px;color:var(--grn)" onclick="aiContactConversation(${c.id})">💬 Starters</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="closeDrawer()">Close</button>
-    <button class="btn btn-d" style="height:28px;font-size:10px" onclick="deleteContact(${c.id});closeDrawer()">🗑 Delete</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px;color:var(--grn)" onclick="aiContactConversation(${c.id})">💬 Starters</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="closeDrawer()">Close</button>
+    <button class="btn btn-d" style="height:28px;font-size:11px" onclick="deleteContact(${c.id});closeDrawer()">🗑 Delete</button>
   </div>`;
   ov.classList.add('show');
 }
@@ -6950,8 +6950,8 @@ async function wdiParseFile(){
       return `<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bd1);${i===_wdiParsedNotes.length-1?'border:none':''}">
         <input type="checkbox" id="wdi-chk-${i}" checked style="margin-top:2px;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.name)}${isDup?'<span style="margin-left:6px;font-size:10px;background:var(--warn,#f59e0b);color:#fff;padding:1px 5px;border-radius:8px">duplicate</span>':''}</div>
-          <div style="font-size:10px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(preview)}</div>
+          <div style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.name)}${isDup?'<span style="margin-left:6px;font-size:11px;background:var(--warn,#f59e0b);color:#fff;padding:1px 5px;border-radius:8px">duplicate</span>':''}</div>
+          <div style="font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(preview)}</div>
         </div>
       </div>`;
     }).join('');
@@ -7091,9 +7091,9 @@ async function loadOnenoteNotebooks(){
         <span style="font-size:18px;margin-right:8px">📓</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:500">${esc(nb.name)}</div>
-          <div style="font-size:10px;color:var(--t3)">Last modified: ${new Date(nb.lastModified).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">Last modified: ${new Date(nb.lastModified).toLocaleDateString()}</div>
         </div>
-        <span style="font-size:10px;color:var(--t3)">›</span>
+        <span style="font-size:11px;color:var(--t3)">›</span>
       </div>`).join('');
   } catch(e){
     nbWrap.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load notebooks: '+esc(e.message)+'</div>';
@@ -7119,9 +7119,9 @@ async function selectOnenoteNotebook(id,name){
         <span style="font-size:16px;margin-right:8px">📂</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:500">${esc(s.name)}</div>
-          <div style="font-size:10px;color:var(--t3)">Last modified: ${new Date(s.lastModified).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">Last modified: ${new Date(s.lastModified).toLocaleDateString()}</div>
         </div>
-        <span style="font-size:10px;color:var(--t3)">›</span>
+        <span style="font-size:11px;color:var(--t3)">›</span>
       </div>`).join('');
   } catch(e){
     secList.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load sections: '+esc(e.message)+'</div>';
@@ -7142,13 +7142,13 @@ async function selectOnenoteSection(id,name){
       pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">No pages found.</div>';
       return;
     }
-    pagesList.innerHTML=`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">${pages.length} page${pages.length!==1?'s':''} found — click a page to import it individually, or use the button below to import all.</div>`+
+    pagesList.innerHTML=`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">${pages.length} page${pages.length!==1?'s':''} found — click a page to import it individually, or use the button below to import all.</div>`+
       pages.map(p=>`
         <div class="lr" style="cursor:pointer;padding:6px 8px;border-radius:6px;margin-bottom:3px;background:var(--s2)" onclick="startOnenoteImport('page','${p.id.replace(/'/g,"\\'")}',' ${p.title.replace(/'/g,"\\'")}')">  
           <span style="font-size:14px;margin-right:8px">📄</span>
           <div style="flex:1">
             <div style="font-size:11px;font-weight:500">${esc(p.title||'Untitled')}</div>
-            <div style="font-size:10px;color:var(--t3)">${new Date(p.lastModified).toLocaleDateString()}</div>
+            <div style="font-size:11px;color:var(--t3)">${new Date(p.lastModified).toLocaleDateString()}</div>
           </div>
         </div>`).join('');
   } catch(e){
@@ -7225,11 +7225,11 @@ async function loadOnenoteHistory(){
       return `<div class="lr" style="padding:8px;border-radius:8px;background:var(--s2);margin-bottom:4px">
         <div style="flex:1">
           <div style="font-size:11px;font-weight:500">${esc(j.notebookName||'Unknown notebook')}${j.sectionName?' / '+esc(j.sectionName):''}</div>
-          <div style="font-size:10px;color:var(--t3)">${new Date(j.createdAt).toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--t3)">${new Date(j.createdAt).toLocaleString()}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:10px;color:${statusColor}">${statusIcon} ${j.status}</div>
-          <div style="font-size:10px;color:var(--t3)">${j.importedPages}/${j.totalPages} pages</div>
+          <div style="font-size:11px;color:${statusColor}">${statusIcon} ${j.status}</div>
+          <div style="font-size:11px;color:var(--t3)">${j.importedPages}/${j.totalPages} pages</div>
         </div>
       </div>`;
     }).join('');
@@ -7315,14 +7315,14 @@ function _rteHistoryRender(surfaceId){
     const ago=_rteTimeAgo(h.ts);
     return `<div style="padding:6px 0;border-bottom:1px solid var(--bd2);last-child:border:none">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span style="font-size:10px;color:var(--t3)">${ago}</span>
+        <span style="font-size:11px;color:var(--t3)">${ago}</span>
         <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_rteHistoryInsert('${surfaceId}',${i})">⬇ Use</button>
       </div>
-      <div style="font-size:10px;color:var(--t2);white-space:pre-wrap;max-height:60px;overflow:hidden;line-height:1.5">${esc(h.result.substring(0,200))}${h.result.length>200?'…':''}</div>
+      <div style="font-size:11px;color:var(--t2);white-space:pre-wrap;max-height:60px;overflow:hidden;line-height:1.5">${esc(h.result.substring(0,200))}${h.result.length>200?'…':''}</div>
     </div>`;
   }).join('');
   return `<details style="margin-top:8px">
-    <summary style="font-size:10px;font-weight:600;color:var(--t2);cursor:pointer;user-select:none">🕐 Recent AI Responses (${items.length})</summary>
+    <summary style="font-size:11px;font-weight:600;color:var(--t2);cursor:pointer;user-select:none">🕐 Recent AI Responses (${items.length})</summary>
     <div style="margin-top:6px;padding:6px;background:var(--s1);border-radius:6px;border:1px solid var(--bd2)">${rows}</div>
   </details>`;
 }
@@ -7333,7 +7333,7 @@ function _rteHistoryInsert(surfaceId,idx){
   // Find the result element for this surface and show the historical result
   const resultElId=surfaceId.replace('-rte','-ai-result').replace('fa-jrnl','fa-jrnl').replace('dr-diary','dr-jrnl').replace('dr-note','dr-note').replace('ni-body','ni').replace('fa-note','fa-note').replace('idea-body-rte-','idea-ai-result-');
   const el=document.getElementById(resultElId);
-  if(el){el.style.display='block';el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(item.result)}</div><button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteInsert('${surfaceId}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`;}
+  if(el){el.style.display='block';el.innerHTML=`<div style="white-space:pre-wrap;line-height:1.6">${esc(item.result)}</div><button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteInsert('${surfaceId}',this.previousElementSibling.textContent)">⬇ Insert into body</button>`;}
   toast('📋 Historical response loaded');
 }
 function _rteTimeAgo(ts){
@@ -7472,8 +7472,8 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
     const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
     const previewId='ai-out-'+Math.random().toString(36).slice(2,9);
     const insertBtn=targetRteId
-      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onmousedown="event.preventDefault()" onclick="_rteInsertHTML('${targetRteId}','${previewId}',this)">⬇ Insert into body</button>`
-      :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:10px;padding:0 8px" onclick="_rteCopyToClipboard('${previewId}')">📋 Copy</button>`;
+      ?`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onmousedown="event.preventDefault()" onclick="_rteInsertHTML('${targetRteId}','${previewId}',this)">⬇ Insert into body</button>`
+      :`<button type="button" class="btn btn-p" style="margin-top:6px;height:22px;font-size:11px;padding:0 8px" onclick="_rteCopyToClipboard('${previewId}')">📋 Copy</button>`;
     const historyHtml=targetRteId?_rteHistoryRender(targetRteId):'';
     // data-md holds the original markdown for clipboard copy. The visible div
     // shows the rendered HTML. Both live in the same node so the Insert /
@@ -7894,7 +7894,7 @@ async function loadUserCredentials(){
                 <input type="checkbox" id="${p}-share-toggle" ${isShared?'checked':''} onchange="toggleCredentialSharing('${provider}',this.checked)" style="cursor:pointer">
                 <span>👥 Share these credentials with team members who have no own credentials</span>
               </label>
-              <span style="font-size:10px;color:var(--t3)">${isShared?'<span style="color:var(--ok)">Shared</span>':'Private'}</span>
+              <span style="font-size:11px;color:var(--t3)">${isShared?'<span style="color:var(--ok)">Shared</span>':'Private'}</span>
             `;
             credSection.appendChild(shareRow);
           }
@@ -8044,7 +8044,7 @@ async function loadEmailDeliveryLog(){
         <div style="flex:1;min-width:0">
           <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t2)">${e.to}</div>
           <div style="color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.subject}${errNote}</div>
-          <div style="color:var(--t3);font-size:10px">${date}</div>
+          <div style="color:var(--t3);font-size:11px">${date}</div>
         </div>
       </div>`;
     }).join('');
@@ -8259,7 +8259,7 @@ async function loadAdminDeliveryLog(page=1){
     if(!entries.length){el.innerHTML='<span style="color:var(--t3);font-style:italic">No entries found.</span>';if(pgEl)pgEl.innerHTML='';return;}
     const statusColor=(s)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
     const statusIcon=(s)=>s==='sent'?'\u2713':s==='failed'?'\u2717':'\u2014';
-    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:10px">
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:11px">
       <thead><tr style="border-bottom:1px solid var(--brd);color:var(--t3)">
         <th style="text-align:left;padding:4px 6px;font-weight:600">Status</th>
         <th style="text-align:left;padding:4px 6px;font-weight:600">To</th>
@@ -8290,9 +8290,9 @@ async function loadAdminDeliveryLog(page=1){
       const totalPages=Math.ceil(total/20);
       const start=(page-1)*20+1;const end=Math.min(page*20,total);
       pgEl.innerHTML=`<span style="color:var(--t3)">${start}-${end} of ${total}</span>
-        <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px" ${page<=1?'disabled':''} onclick="loadAdminDeliveryLog(${page-1})">\u2190</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px" ${page<=1?'disabled':''} onclick="loadAdminDeliveryLog(${page-1})">\u2190</button>
         <span style="color:var(--t3)">Page ${page}/${totalPages}</span>
-        <button class="btn btn-s" style="height:24px;font-size:10px;padding:0 8px" ${page>=totalPages?'disabled':''} onclick="loadAdminDeliveryLog(${page+1})">\u2192</button>`;
+        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px" ${page>=totalPages?'disabled':''} onclick="loadAdminDeliveryLog(${page+1})">\u2192</button>`;
     }
   }catch(e){
     el.innerHTML='<span style="color:var(--err,#ef4444)">\u2717 '+(e?.message||'Failed to load log')+'</span>';
@@ -8410,7 +8410,7 @@ async function loadScheduledTaskLog(){
     const fmt=function(ts){return ts?new Date(ts).toLocaleString():'\u2014';};
     const dur=function(ms){return ms!=null?(ms<1000?ms+'ms':(ms/1000).toFixed(1)+'s'):'\u2014';};
     const statusBadge=function(err){return err?'<span style="color:var(--err);font-weight:600">\u2717 Error</span>':'<span style="color:var(--ok);font-weight:600">\u2713 OK</span>';};
-    let html='<table style="width:100%;border-collapse:collapse;font-size:10px">';
+    let html='<table style="width:100%;border-collapse:collapse;font-size:11px">';
     html+='<tr style="color:var(--t2);border-bottom:1px solid var(--brd)"><th style="text-align:left;padding:3px 6px">Time</th><th style="text-align:left;padding:3px 6px">Task</th><th style="padding:3px 6px">Status</th><th style="padding:3px 6px">Emails</th><th style="padding:3px 6px">Owner</th><th style="padding:3px 6px">Duration</th></tr>';
     for(var i=0;i<rows.length;i++){
       var r=rows[i];
@@ -8423,7 +8423,7 @@ async function loadScheduledTaskLog(){
       html+='<td style="padding:3px 6px;text-align:center">'+dur(r.durationMs)+'</td>';
       html+='</tr>';
       if(r.error){
-        html+='<tr><td colspan="6" style="padding:2px 6px 6px;color:var(--err);font-size:10px">'+r.error+'</td></tr>';
+        html+='<tr><td colspan="6" style="padding:2px 6px 6px;color:var(--err);font-size:11px">'+r.error+'</td></tr>';
       }
     }
     html+='</table>';
@@ -8807,8 +8807,8 @@ async function openContactsImportPicker(provider){
       <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Select which contacts to add. Already-imported entries (matched by email) are dimmed and unchecked.</div>
       <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
         <input id="ci-search" class="inp" placeholder="🔍 Filter by name or email..." style="flex:1;font-size:11px;height:28px" oninput="_renderContactsImportList()">
-        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_ciToggleAll(true)">Select all</button>
-        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_ciToggleAll(false)">None</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_ciToggleAll(true)">Select all</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_ciToggleAll(false)">None</button>
       </div>
       <div id="ci-list" style="max-height:380px;overflow-y:auto;border:1px solid var(--bd1);border-radius:6px"></div>
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
@@ -8836,10 +8836,10 @@ function _renderContactsImportList(){
     const initials=(c.name||c.email||'?').split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
     return `<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;${dup?'opacity:.5':''}">
       <input type="checkbox" data-idx="${c._idx}" ${dup?'':'checked'} ${dup?'disabled':''} style="accent-color:var(--ac)">
-      <div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0">${esc(initials)}</div>
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0">${esc(initials)}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;color:var(--t1)">${esc(c.name||'(no name)')}${dup?' <span style=\"font-size:10px;color:var(--t3);font-weight:400\">— already imported</span>':''}</div>
-        <div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.email||'')}${c.title||c.company?' · '+esc([c.title,c.company].filter(Boolean).join(', ')):''}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--t1)">${esc(c.name||'(no name)')}${dup?' <span style=\"font-size:11px;color:var(--t3);font-weight:400\">— already imported</span>':''}</div>
+        <div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.email||'')}${c.title||c.company?' · '+esc([c.title,c.company].filter(Boolean).join(', ')):''}</div>
       </div>
     </label>`;
   }).join('');
@@ -9151,8 +9151,8 @@ function renderHelpDrawer(q){
   body.innerHTML=`
   ${activeTour?`<div style="background:var(--acs);border:1px solid var(--ac);border-radius:8px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
     <span style="font-size:16px">🎯</span>
-    <div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--ac)">Tour in progress: ${esc(activeTour.name)}</div><div style="font-size:10px;color:var(--t3)">Step ${_activeTour.stepIdx+1} of ${activeTour.steps.length}</div></div>
-    <button class="btn-p" onclick="showTourStep();closeHelpDrawer()" style="font-size:10px">Resume</button>
+    <div style="flex:1"><div style="font-size:11px;font-weight:600;color:var(--ac)">Tour in progress: ${esc(activeTour.name)}</div><div style="font-size:11px;color:var(--t3)">Step ${_activeTour.stepIdx+1} of ${activeTour.steps.length}</div></div>
+    <button class="btn-p" onclick="showTourStep();closeHelpDrawer()" style="font-size:11px">Resume</button>
   </div>`:''}
 
   <div style="position:relative;margin-bottom:14px">
@@ -9163,13 +9163,13 @@ function renderHelpDrawer(q){
   ${q&&results.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">${results.length} result${results.length!==1?'s':''}</div><div style="display:flex;flex-direction:column;gap:6px">${results.map(a=>helpDrawerCard(a)).join('')}</div>`:
   q&&!results.length?`<div style="text-align:center;padding:20px;color:var(--t3)"><div style="font-size:24px;margin-bottom:6px">🔍</div><div style="font-size:12px">No results. <button onclick="_helpTab='ask';nav('help');closeHelpDrawer()" style="background:none;border:none;cursor:pointer;color:var(--ac);font-size:12px">Ask AI instead</button></div></div>`:
   `<div>
-    <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">Suggested for this screen</div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">Suggested for this screen</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${suggested.map(a=>helpDrawerCard(a)).join('')}</div>
-    <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">🎯 Guided Tours</div>
+    <div style="font-size:11px;font-weight:700;color:var(--t3);margin-bottom:8px;text-transform:uppercase">🎯 Guided Tours</div>
     <div style="display:flex;flex-direction:column;gap:6px">${HC_TOURS.slice(0,3).map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
       <span style="font-size:18px">${t.type==='onboarding'?'🚀':'🎯'}</span>
-      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${t.steps.length} steps · ~${t.est} min</div></div>
-      <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:10px">Start</button>
+      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${t.steps.length} steps · ~${t.est} min</div></div>
+      <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">Start</button>
     </div>`).join('')}</div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--br);display:flex;gap:6px">
       <button onclick="_helpTab='ask';nav('help');closeHelpDrawer()" class="btn-s" style="font-size:11px;flex:1">🤖 Ask AI</button>
@@ -9185,7 +9185,7 @@ function renderHelpDrawer(q){
       <p style="font-size:11px;color:var(--t3);margin-bottom:14px">Quick links — the full help drawer hit a rendering issue. The articles below still work.</p>
       ${HC_ARTICLES.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="_helpArticleId=${a.id};nav('help');closeHelpDrawer()">
         <div style="font-size:12px;font-weight:600">${esc(a.title)}</div>
-        <div style="font-size:10px;color:var(--t3)">${esc(a.summary)}</div>
+        <div style="font-size:11px;color:var(--t3)">${esc(a.summary)}</div>
       </div>`).join('')}
       <div style="margin-top:12px"><button class="btn btn-p" onclick="nav('help');closeHelpDrawer()" style="font-size:11px">📚 Open Full Help Center</button></div>
     </div>`;
@@ -9196,7 +9196,7 @@ function helpDrawerCard(a){
   const cat=HC_CATS.find(c=>c.id===a.catId);
   return `<div onclick="_helpArticleId=${a.id};nav('help');closeHelpDrawer()" style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;cursor:pointer;display:flex;align-items:flex-start;gap:8px" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--br)'">
   <span style="font-size:16px;flex-shrink:0">${cat?cat.icon:'📄'}</span>
-  <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(a.title)}</div><div style="font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.summary)}</div></div>
+  <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(a.title)}</div><div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.summary)}</div></div>
   <svg style="flex-shrink:0;color:var(--t3);width:12px;height:12px;margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
 </div>`;
 }
@@ -9233,8 +9233,8 @@ function showProactiveHint(hint){
     <div style="flex:1;min-width:0">
       <div style="font-size:11px;color:var(--t1);line-height:1.5;margin-bottom:6px">${esc(hint.msg)}</div>
       <div style="display:flex;gap:6px">
-        <button onclick="_helpArticleId=${hint.articleId};nav('help');document.getElementById('proactive-hint')?.remove()" style="font-size:10px;background:none;border:none;cursor:pointer;color:var(--ac);font-weight:600">${esc(hint.action)}</button>
-        <button onclick="document.getElementById('proactive-hint')?.remove()" style="font-size:10px;background:none;border:none;cursor:pointer;color:var(--t3)">Dismiss</button>
+        <button onclick="_helpArticleId=${hint.articleId};nav('help');document.getElementById('proactive-hint')?.remove()" style="font-size:11px;background:none;border:none;cursor:pointer;color:var(--ac);font-weight:600">${esc(hint.action)}</button>
+        <button onclick="document.getElementById('proactive-hint')?.remove()" style="font-size:11px;background:none;border:none;cursor:pointer;color:var(--t3)">Dismiss</button>
       </div>
     </div>
     <button onclick="document.getElementById('proactive-hint')?.remove()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;flex-shrink:0">×</button>
@@ -9256,18 +9256,18 @@ async function loadTeamNotificationSenders(){
     if(!Array.isArray(users)||!users.length){el.innerHTML='<div style="color:var(--t3)">No users found.</div>';return;}
     el.innerHTML=users.map(u=>`
       <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd1)">
-        <div style="width:24px;height:24px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--t1)">${esc(((u.name||u.email||'?').charAt(0)||'?').toUpperCase())}</div>
+        <div style="width:24px;height:24px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--t1)">${esc(((u.name||u.email||'?').charAt(0)||'?').toUpperCase())}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:600;color:var(--t1)">${esc(u.name||'(unnamed)')} ${u.role==='admin'?'<span style=\"font-size:10px;color:var(--ac);margin-left:4px\">ADMIN</span>':''}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(u.email||'')}</div>
+          <div style="font-size:11px;font-weight:600;color:var(--t1)">${esc(u.name||'(unnamed)')} ${u.role==='admin'?'<span style=\"font-size:11px;color:var(--ac);margin-left:4px\">ADMIN</span>':''}</div>
+          <div style="font-size:11px;color:var(--t3)">${esc(u.email||'')}</div>
         </div>
-        <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${u.hasSmtp?'rgba(34,197,94,.15);color:var(--ok)':'var(--s3);color:var(--t3)'}">${u.hasSmtp?'✓ Configured':'Not set'}</span>
-        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="openTeamSenderForm(${u.id},'${esc(u.name||u.email||'user')}')">${u.hasSmtp?'Edit':'Configure'}</button>
-        ${u.hasSmtp?`<button class="btn btn-d" style="height:24px;font-size:10px" onclick="deleteTeamSender(${u.id})">✕</button>`:''}
+        <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.hasSmtp?'rgba(34,197,94,.15);color:var(--ok)':'var(--s3);color:var(--t3)'}">${u.hasSmtp?'✓ Configured':'Not set'}</span>
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="openTeamSenderForm(${u.id},'${esc(u.name||u.email||'user')}')">${u.hasSmtp?'Edit':'Configure'}</button>
+        ${u.hasSmtp?`<button class="btn btn-d" style="height:24px;font-size:11px" onclick="deleteTeamSender(${u.id})">✕</button>`:''}
       </div>
     `).join('');
   }catch(e){
-    el.innerHTML='<div style="color:var(--err);font-size:10px">Failed to load: '+esc(e.message||String(e))+'</div>';
+    el.innerHTML='<div style="color:var(--err);font-size:11px">Failed to load: '+esc(e.message||String(e))+'</div>';
   }
 }
 async function openTeamSenderForm(userId,userLabel){
@@ -9277,12 +9277,12 @@ async function openTeamSenderForm(userId,userLabel){
   const e=existing||{};
   const html=`
     <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Configure SMTP — ${esc(userLabel)}</h3>
-    <p style="font-size:10px;color:var(--t3);margin-bottom:10px">This account sends notifications to ${esc(userLabel)}.</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">This account sends notifications to ${esc(userLabel)}.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
       <input id="ts-email" class="inp" type="email" placeholder="Email address" value="${esc(e.email||'')}" style="font-size:11px"/>
       <input id="ts-display-name" class="inp" type="text" placeholder="Display name (optional)" value="${esc(e.displayName||'')}" style="font-size:11px"/>
     </div>
-    <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP</div>
+    <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">IMAP</div>
     <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:6px;margin-bottom:6px">
       <input id="ts-imap-host" class="inp" placeholder="IMAP Host" value="${esc(e.imapHost||'')}" style="font-size:11px"/>
       <input id="ts-imap-port" class="inp" type="number" placeholder="Port" value="${e.imapPort||993}" style="font-size:11px"/>
@@ -9292,7 +9292,7 @@ async function openTeamSenderForm(userId,userLabel){
       <input id="ts-imap-username" class="inp" placeholder="IMAP Username" value="${esc(e.imapUsername||'')}" style="font-size:11px"/>
       <input id="ts-imap-password" class="inp" type="password" placeholder="IMAP Password" value="${esc(e.imapPassword||'')}" style="font-size:11px"/>
     </div>
-    <div style="font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP</div>
+    <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP</div>
     <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:6px;margin-bottom:6px">
       <input id="ts-smtp-host" class="inp" placeholder="SMTP Host" value="${esc(e.smtpHost||'')}" style="font-size:11px"/>
       <input id="ts-smtp-port" class="inp" type="number" placeholder="Port" value="${e.smtpPort||587}" style="font-size:11px"/>
@@ -10155,16 +10155,16 @@ function renderMindmaps(){
             <span style="font-size:20px">${m.icon||'🧠'}</span>
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.title)}</div>
-              <div style="font-size:10px;color:var(--t3)">${m.nodes.length} nodes · ${m.edges.length} connections</div>
+              <div style="font-size:11px;color:var(--t3)">${m.nodes.length} nodes · ${m.edges.length} connections</div>
             </div>
           </div>
-          <div style="font-size:10px;color:var(--t3)">Updated ${timeAgo(m.updatedAt)}</div>
-          ${(m.assignedTo||((m.assignees||[]).length))?`<div style="font-size:10px;color:var(--purp);margin-top:4px">👥 ${esc(m.assignedTo||'')}${(m.assignees||[]).length>1?(' +'+((m.assignees||[]).length-1)):''}</div>`:''}
+          <div style="font-size:11px;color:var(--t3)">Updated ${timeAgo(m.updatedAt)}</div>
+          ${(m.assignedTo||((m.assignees||[]).length))?`<div style="font-size:11px;color:var(--purp);margin-top:4px">👥 ${esc(m.assignedTo||'')}${(m.assignees||[]).length>1?(' +'+((m.assignees||[]).length-1)):''}</div>`:''}
           <div style="display:flex;gap:4px;margin-top:8px;flex-wrap:wrap">
-            <button class="btn btn-s" style="font-size:10px;height:22px" onclick="event.stopPropagation();mmRename(${m.id})">✏ Rename</button>
-            <button class="btn btn-s" style="font-size:10px;height:22px" onclick="event.stopPropagation();_openMindMapAssign(${m.id})">👥 Assign</button>
-            <button class="btn btn-s" style="font-size:10px;height:22px" onclick="event.stopPropagation();mmDuplicate(${m.id})">📋 Clone</button>
-            <button class="btn btn-s" style="font-size:10px;height:22px;color:var(--red)" onclick="event.stopPropagation();mmDelete(${m.id})">🗑</button>
+            <button class="btn btn-s" style="font-size:11px;height:22px" onclick="event.stopPropagation();mmRename(${m.id})">✏ Rename</button>
+            <button class="btn btn-s" style="font-size:11px;height:22px" onclick="event.stopPropagation();_openMindMapAssign(${m.id})">👥 Assign</button>
+            <button class="btn btn-s" style="font-size:11px;height:22px" onclick="event.stopPropagation();mmDuplicate(${m.id})">📋 Clone</button>
+            <button class="btn btn-s" style="font-size:11px;height:22px;color:var(--red)" onclick="event.stopPropagation();mmDelete(${m.id})">🗑</button>
           </div>
         </div>
       `).join('')}
@@ -10180,7 +10180,7 @@ function _openMindMapAssign(id){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Mind Map</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(mm.title||mm.name||'Untitled')}</div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('mm-assign-ma',mm)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('mm-assign-ma',mm)}</div>
     <div class="dr-actions" style="margin-top:14px">
       <button class="btn btn-p" onclick="_saveMindMapAssign(${id})">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
@@ -10208,10 +10208,10 @@ function _renderSharedMindMapsSection(){
   const open=!(D.prefs&&D.prefs.sharedMMSectionCollapsed);
   return `<div class="cd" style="border-left:3px solid var(--purp);margin-bottom:12px">
     <div onclick="_toggleSharedMMSection()" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 0;${open?'margin-bottom:8px':''}">
-      <span style="display:inline-block;font-size:10px;${open?'':'transform:rotate(-90deg)'}">▾</span>
+      <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated</span>
-      <span style="font-size:10px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:10px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedMindMapCard).join(''):''}
   </div>`;
@@ -10227,7 +10227,7 @@ function _sharedMindMapCard(p){
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc((p.icon?p.icon+' ':'🧠 ')+(p.title||p.name||'Untitled'))}</span>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:2px">${(p.nodes||[]).length} nodes · ${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${(p.nodes||[]).length} nodes · ${sub}</div>
   </div>`;
 }
 async function _openSharedMindMapView(idx){
@@ -10241,17 +10241,17 @@ async function _openSharedMindMapView(idx){
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
-      <span style="font-size:10px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
     </div>
     <div class="field"><label>Name</label><input class="inp" id="smm-name" value="${esc(p.title||p.name||'')}"></div>
-    <div class="field"><label>Assignees <span style="font-size:10px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('smm-ma',p)}</div>
+    <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('smm-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedMindMap(${Number(idx)||0})">Save</button>
       ${adminSh&&!p._delegated?`<button class="btn btn-s" style="border-color:var(--ac);color:var(--ac)" onclick="_takeOwnership(${Number(idx)||0},'mindmaps')" title="Move this mind map into your workspace; the current owner stays an assignee">⬇ Take ownership</button>`:''}
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'mindmaps')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:10px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the graph stays with the owner.':'Saved to the mind-map owner.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit, reassign, take ownership &amp; delete — the graph stays with the owner.':'Saved to the mind-map owner.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -10342,18 +10342,18 @@ function renderMindmapCanvas(){
   const layoutOpts=MM_LAYOUTS.map(l=>`<option value="${l.k}" ${(mm.layout||'free')===l.k?'selected':''}>${l.l}</option>`).join('');
   main.innerHTML = `
   <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmClose()">← Back</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmClose()">← Back</button>
     <h2 style="font-size:16px;font-weight:700;margin:0">${mm.icon} ${esc(mm.title)}</h2>
     <span style="flex:1"></span>
     <input id="mm-search" placeholder="🔍 Search…" value="${esc(_mmSearchQuery)}" style="height:26px;font-size:11px;width:140px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="mmSearch(this.value)">
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmUndo()" title="Undo (Cmd/Ctrl+Z)">↶</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmRedo()" title="Redo (Cmd/Ctrl+Shift+Z)">↷</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmAddNode()" title="Add a new node">+ Node</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px;${_mmConnecting?'background:var(--ac);color:#fff':''}" onclick="mmToggleConnect()" title="Click to start connecting nodes">${_mmConnecting?'🔗 Connecting…':'🔗 Connect'}</button>
-    <select class="inp" style="height:28px;font-size:10px;padding:0 6px" onchange="mmSetLayout(this.value)" title="Layout type">${layoutOpts}</select>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmAutoLayout()" title="Apply layout">⚡ Apply</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmUndo()" title="Undo (Cmd/Ctrl+Z)">↶</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmRedo()" title="Redo (Cmd/Ctrl+Shift+Z)">↷</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmAddNode()" title="Add a new node">+ Node</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px;${_mmConnecting?'background:var(--ac);color:#fff':''}" onclick="mmToggleConnect()" title="Click to start connecting nodes">${_mmConnecting?'🔗 Connecting…':'🔗 Connect'}</button>
+    <select class="inp" style="height:28px;font-size:11px;padding:0 6px" onchange="mmSetLayout(this.value)" title="Layout type">${layoutOpts}</select>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmAutoLayout()" title="Apply layout">⚡ Apply</button>
     <div style="position:relative;display:inline-block">
-      <button class="btn btn-s" style="height:28px;font-size:10px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('mm-ai-menu')" title="AI tools">✨ AI ▾</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('mm-ai-menu')" title="AI tools">✨ AI ▾</button>
       <div id="mm-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
         <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-ai-menu');mmAIExpandSelected()">💡 Expand selected node</button>
         <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-ai-menu');mmAISummarize()">📜 Summarize map</button>
@@ -10361,16 +10361,16 @@ function renderMindmapCanvas(){
       </div>
     </div>
     <div style="position:relative;display:inline-block">
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="event.stopPropagation();togglePopMenu('mm-export-menu')" title="Export">⬇ Export ▾</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();togglePopMenu('mm-export-menu')" title="Export">⬇ Export ▾</button>
       <div id="mm-export-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:160px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
         <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportSVG()">🖼 SVG</button>
         <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportPNG()">🖼 PNG</button>
         <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;background:transparent;border:none;text-align:left" onclick="closePopMenu('mm-export-menu');mmExportMarkdown()">⬇ Markdown outline</button>
       </div>
     </div>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmZoomIn()" title="Zoom in">🔍+</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmZoomOut()" title="Zoom out">🔍−</button>
-    <button class="btn btn-s" style="height:28px;font-size:10px" onclick="mmResetView()" title="Reset view">⊞</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmZoomIn()" title="Zoom in">🔍+</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmZoomOut()" title="Zoom out">🔍−</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="mmResetView()" title="Reset view">⊞</button>
   </div>
   <div class="mm-stage" style="position:relative;flex:1;display:flex;min-height:500px">
     <div id="mm-canvas-wrap" style="position:relative;flex:1;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;overflow:hidden;cursor:grab"
@@ -10387,7 +10387,7 @@ function renderMindmapCanvas(){
     <aside class="mm-side" id="mm-side"></aside>
   </div>
   <div id="mm-context-menu" style="display:none;position:fixed;background:var(--s1);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:9999;min-width:170px;box-shadow:0 4px 12px rgba(0,0,0,.4)"></div>
-  <div style="margin-top:8px;font-size:10px;color:var(--t3)">
+  <div style="margin-top:8px;font-size:11px;color:var(--t3)">
     💡 Double-click canvas to add · drag node to move · right-click for actions · click node to select · shift+click to multi-select · click a connection line to edit/delete it · Tab=child · Enter=sibling · Delete=remove · /=search · scroll=zoom
   </div>`;
   mmDrawNodes();
@@ -10767,17 +10767,17 @@ function mmRenderSidePanel(){
     <div class="mm-side-section">
       <div class="mm-side-section-h">Sub-items (${(node.subItems||[]).length})</div>
       ${(node.subItems||[]).map((s,i)=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0"><span class="chk" style="width:13px;height:13px;border:1px solid var(--bd2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;${s.done?'background:var(--ac);color:#fff':''}" onclick="mmToggleSubItem(${node.id},${i})">${s.done?'✓':''}</span><span style="flex:1;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.text)}</span><span style="cursor:pointer;color:var(--red);font-size:11px;padding:0 4px" onclick="mmRemoveSubItem(${node.id},${i})">✕</span></div>`).join('')}
-      <button class="btn btn-s" style="font-size:10px;height:22px;width:100%;margin-top:4px" onclick="mmAddSubItem(${node.id})">+ Add sub-item</button>
+      <button class="btn btn-s" style="font-size:11px;height:22px;width:100%;margin-top:4px" onclick="mmAddSubItem(${node.id})">+ Add sub-item</button>
     </div>
-    ${outEdges.length?`<div class="mm-side-section"><div class="mm-side-section-h">Connections (${outEdges.length})</div>${outEdges.map(e=>{const other=_mmCurrent.nodes.find(n=>n.id===(e.from===node.id?e.to:e.from));if(!other)return '';const ei=_mmCurrent.edges.indexOf(e);return `<div style="font-size:10px;padding:3px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:4px"><span style="flex:1;cursor:pointer;color:var(--ac);text-decoration:underline" onclick="_mmSelectedSet=new Set([${other.id}]);_mmSelected=${other.id};mmDrawNodes();mmRenderSidePanel()">${e.from===node.id?'→':'←'} ${esc(other.text||'')}</span><span title="Edit connection" style="cursor:pointer;color:var(--t3);padding:0 3px" onclick="mmSelectEdge(null,${ei})">✏</span><span title="Delete connection" style="cursor:pointer;color:var(--red);padding:0 3px" onclick="mmDeleteEdge(${ei})">✕</span></div>`;}).join('')}</div>`:''}
+    ${outEdges.length?`<div class="mm-side-section"><div class="mm-side-section-h">Connections (${outEdges.length})</div>${outEdges.map(e=>{const other=_mmCurrent.nodes.find(n=>n.id===(e.from===node.id?e.to:e.from));if(!other)return '';const ei=_mmCurrent.edges.indexOf(e);return `<div style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:4px"><span style="flex:1;cursor:pointer;color:var(--ac);text-decoration:underline" onclick="_mmSelectedSet=new Set([${other.id}]);_mmSelected=${other.id};mmDrawNodes();mmRenderSidePanel()">${e.from===node.id?'→':'←'} ${esc(other.text||'')}</span><span title="Edit connection" style="cursor:pointer;color:var(--t3);padding:0 3px" onclick="mmSelectEdge(null,${ei})">✏</span><span title="Delete connection" style="cursor:pointer;color:var(--red);padding:0 3px" onclick="mmDeleteEdge(${ei})">✕</span></div>`;}).join('')}</div>`:''}
     <div class="mm-side-section">
       <div class="mm-side-section-h">Actions</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
-        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmAddChild(${node.id})">+ Child</button>
-        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToTask(${node.id})">📋 Task</button>
-        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToProject(${node.id})">${_icon('folder',13,'currentColor')} Project</button>
-        <button class="btn btn-s" style="font-size:10px;height:24px;flex:1" onclick="mmConvertToNote(${node.id})">📝 Note</button>
-        <button class="btn btn-d" style="font-size:10px;height:24px;flex:1" onclick="mmDeleteNode(${node.id})">🗑 Delete</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px;flex:1" onclick="mmAddChild(${node.id})">+ Child</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px;flex:1" onclick="mmConvertToTask(${node.id})">📋 Task</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px;flex:1" onclick="mmConvertToProject(${node.id})">${_icon('folder',13,'currentColor')} Project</button>
+        <button class="btn btn-s" style="font-size:11px;height:24px;flex:1" onclick="mmConvertToNote(${node.id})">📝 Note</button>
+        <button class="btn btn-d" style="font-size:11px;height:24px;flex:1" onclick="mmDeleteNode(${node.id})">🗑 Delete</button>
       </div>
     </div>`;
 }
@@ -10821,13 +10821,13 @@ function mmRenderEdgePanel(){
     <div class="mm-side-section">
       <div class="mm-side-section-h">Line style</div>
       <div style="display:flex;gap:4px">
-        <button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${(e.style||'solid')==='solid'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('solid')">── Solid</button>
-        <button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${e.style==='dashed'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('dashed')">- - Dashed</button>
+        <button class="btn btn-s" style="flex:1;font-size:11px;height:24px;${(e.style||'solid')==='solid'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('solid')">── Solid</button>
+        <button class="btn btn-s" style="flex:1;font-size:11px;height:24px;${e.style==='dashed'?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetStyle('dashed')">- - Dashed</button>
       </div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Arrow</div>
-      <div style="display:flex;gap:4px">${arrowOpts.map(([k,l])=>`<button class="btn btn-s" style="flex:1;font-size:10px;height:24px;${(e.arrow||'none')===k?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetArrow('${k}')">${l}</button>`).join('')}</div>
+      <div style="display:flex;gap:4px">${arrowOpts.map(([k,l])=>`<button class="btn btn-s" style="flex:1;font-size:11px;height:24px;${(e.arrow||'none')===k?'background:var(--ac);color:#fff':''}" onclick="mmEdgeSetArrow('${k}')">${l}</button>`).join('')}</div>
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Thickness (${thick})</div>
@@ -10839,7 +10839,7 @@ function mmRenderEdgePanel(){
     </div>
     <div class="mm-side-section">
       <div class="mm-side-section-h">Actions</div>
-      <button class="btn btn-d" style="font-size:10px;height:26px;width:100%" onclick="mmDeleteEdge(${_mmSelectedEdge})">🗑 Delete connection</button>
+      <button class="btn btn-d" style="font-size:11px;height:26px;width:100%" onclick="mmDeleteEdge(${_mmSelectedEdge})">🗑 Delete connection</button>
     </div>`;
 }
 function mmDeselectEdge(){_mmSelectedEdge=null;const s=document.getElementById('mm-side');if(s){s.classList.remove('open');s.innerHTML='';}mmDrawEdges();}
@@ -11486,7 +11486,7 @@ function renderSheetsSection(){
       <div style="font-weight:600;margin-bottom:4px">No sheets yet</div>
       <div style="font-size:12px;margin-bottom:14px">Spin up a spreadsheet to plan projects, score decisions, map a strategy, or track a budget.</div>
       <button class="btn btn-p" onclick="shNewSheetMenu(event)">+ New sheet from template</button></div>`}
-    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated sheets <span style="font-size:10px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((s,i)=>_shSharedCard(s,i)).join('')}</div></div>`:''}
+    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated sheets <span style="font-size:11px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((s,i)=>_shSharedCard(s,i)).join('')}</div></div>`:''}
   `;
 }
 function _shCard(s){
@@ -11512,7 +11512,7 @@ function _shSharedCard(s,i){
 
 function shNewSheetMenu(ev){
   if(ev&&ev.stopPropagation)ev.stopPropagation();
-  _shPopMenu(ev||{clientX:200,clientY:160},SHEET_TEMPLATES.map(t=>({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>shCreateFromTemplate(t.key)})),260);
+  _shPopMenu(ev||{clientX:200,clientY:160},SHEET_TEMPLATES.map(t=>({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>shCreateFromTemplate(t.key)})),260);
 }
 function shCreateFromTemplate(key){
   ensureSheets();
@@ -11610,7 +11610,7 @@ function _shEval(sheet,formula,depth){
 // ─── Display / formatting ────────────────────────────────────────────────────
 function _shFmtVal(col,v){
   if(v==null||v==='')return '';
-  if(typeof v==='string'&&v.charAt(0)==='#'&&/^#(ERR|DIV|CYCLE)/.test(v))return `<span style="color:var(--red);font-size:10px">${esc(v)}</span>`;
+  if(typeof v==='string'&&v.charAt(0)==='#'&&/^#(ERR|DIV|CYCLE)/.test(v))return `<span style="color:var(--red);font-size:11px">${esc(v)}</span>`;
   switch(col.type){
     case 'currency':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
     case 'number':{const n=_shNum(v);if(isNaN(n))return esc(String(v));return esc(String(Math.round(n*1e6)/1e6));}
@@ -11642,17 +11642,17 @@ function _shEditorHtml(){
   const shared=s._shared?`<span class="sh-shared-tag">${s._delegated?'➡ delegated':'👥 shared'}</span>`:'';
   return `<div class="sh-editor" style="--c:${c}">
     <div class="sh-toolbar">
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shClose()">← Sheets</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shClose()">← Sheets</button>
       <span class="sh-ed-ic">${esc(s.icon||'📊')}</span>
       <input class="sh-ed-title" value="${esc(s.title||'')}" onchange="shSetTitle(this.value)" placeholder="Untitled sheet">
       ${shared}
       <span style="flex:1"></span>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shUndo()" title="Undo">↶</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shRedo()" title="Redo">↷</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shAddRow()">+ Row</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shAddCol()">+ Column</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="shExportCSV()" title="Export CSV">⬇ CSV</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px;${_sheetShowDesign?'background:var(--ac);color:#fff':''}" onclick="shToggleDesign()" title="Design & sharing">🎨 Design</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shUndo()" title="Undo">↶</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shRedo()" title="Redo">↷</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shAddRow()">+ Row</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shAddCol()">+ Column</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shExportCSV()" title="Export CSV">⬇ CSV</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px;${_sheetShowDesign?'background:var(--ac);color:#fff':''}" onclick="shToggleDesign()" title="Design & sharing">🎨 Design</button>
     </div>
     <div class="sh-body">
       <div class="sh-grid-wrap" id="sheet-grid-wrap">${_shGridHtml()}</div>
@@ -11838,12 +11838,12 @@ function _shDesignHtml(){
       <label class="sh-check"><input type="checkbox" ${th.gridlines!==false?'checked':''} onchange="shToggleTheme('gridlines')"> Gridlines</label>
     </div>
     <div class="sh-side-sec"><div class="sh-side-h">👥 Share with team</div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this sheet from their Sheets section.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this sheet from their Sheets section.</div>
       ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('sheet-ma',s):'<div style="font-size:11px;color:var(--t3)">Assignment unavailable</div>'}
-      <button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:6px" onclick="shSaveAssign()">Save sharing</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;width:100%;margin-top:6px" onclick="shSaveAssign()">Save sharing</button>
     </div>
     <div class="sh-side-sec">
-      <button class="btn btn-d" style="height:26px;font-size:10px;width:100%" onclick="shDeleteSheet(${Number(s.id)})" ${s._shared?'disabled title="Only the owner can delete"':''}>🗑 Delete sheet</button>
+      <button class="btn btn-d" style="height:26px;font-size:11px;width:100%" onclick="shDeleteSheet(${Number(s.id)})" ${s._shared?'disabled title="Only the owner can delete"':''}>🗑 Delete sheet</button>
     </div>`;
 }
 function shSetIcon(ic){ if(!_sheetCurrent)return; _sheetCurrent.icon=ic; saveSheets(); renderSheetsSection(); }
@@ -11887,7 +11887,7 @@ function _shPopMenu(ev,items,width){
   setTimeout(()=>document.addEventListener('click',function _c(){ const x=document.getElementById('sh-popmenu'); if(x)x.remove(); document.removeEventListener('click',_c); },{once:true}),30);
 }
 function _shColorMenu(ev,cb,allowNone){
-  const items=SHEET_PALETTE.map(c=>({html:`<span class="sh-dot" style="background:${c}"></span><span style="font-size:10px;color:var(--t3)">${c}</span>`,onClick:()=>cb(c)}));
+  const items=SHEET_PALETTE.map(c=>({html:`<span class="sh-dot" style="background:${c}"></span><span style="font-size:11px;color:var(--t3)">${c}</span>`,onClick:()=>cb(c)}));
   items.unshift({html:'<span class="sh-dot" style="background:transparent;border:1px solid var(--bd2)"></span>None',onClick:()=>cb('')});
   _shPopMenu(ev,items);
 }
@@ -12056,7 +12056,7 @@ function renderDecksSection(){
       <div style="font-weight:600;margin-bottom:4px">No presentations yet</div>
       <div style="font-size:12px;margin-bottom:14px">Build slide decks with editable charts, tables, kanban boards and visuals — then present full-screen.</div>
       <button class="btn btn-p" onclick="dkNewDeckMenu(event)">+ New deck from template</button></div>`}
-    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated decks <span style="font-size:10px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((d,i)=>_dkSharedCard(d,i)).join('')}</div></div>`:''}
+    ${shared.length?`<div style="margin-top:22px"><div style="font-size:12px;font-weight:700;color:var(--purp);display:flex;align-items:center;gap:6px;margin-bottom:8px">👥 Shared & delegated decks <span style="font-size:11px;color:var(--t3)">(${shared.length})</span></div><div class="sh-gallery">${shared.map((d,i)=>_dkSharedCard(d,i)).join('')}</div></div>`:''}
   `;
 }
 function _dkCard(d){
@@ -12081,8 +12081,8 @@ function dkNewDeckMenu(ev){
   order.forEach(cat=>{
     const inCat=DECK_TEMPLATES.filter(t=>(DECK_CATS[t.key]||'Start')===cat);
     if(!inCat.length)return;
-    items.push({header:true,html:`<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.5px">${esc(cat)}</div>`});
-    inCat.forEach(t=>items.push({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:10px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>dkCreateFromTemplate(t.key)}));
+    items.push({header:true,html:`<div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--t3);letter-spacing:.5px">${esc(cat)}</div>`});
+    inCat.forEach(t=>items.push({html:`<span style="font-size:15px;margin-right:8px">${t.icon}</span><span><div style="font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${esc(t.desc)}</div></span>`,onClick:()=>dkCreateFromTemplate(t.key)}));
   });
   _shPopMenu(ev||{clientX:200,clientY:160},items,280);
 }
@@ -12112,15 +12112,15 @@ function _dkEditorHtml(){
   const d=_deckCurrent; const shared=d._shared?`<span class="sh-shared-tag">${d._delegated?'➡ delegated':'👥 shared'}</span>`:'';
   return `<div class="dk-editor">
     <div class="dk-toolbar">
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkClose()">← Decks</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkClose()">← Decks</button>
       <span style="font-size:18px">${esc(d.icon||'🖼')}</span>
       <input class="dk-ed-title" value="${esc(d.title||'')}" onchange="dkSetTitle(this.value)" placeholder="Untitled deck">
       ${shared}
       <span style="flex:1"></span>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkUndo()" title="Undo">↶</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkRedo()" title="Redo">↷</button>
-      <button class="btn btn-s" style="height:28px;font-size:10px" onclick="dkAddSlide()">+ Slide</button>
-      <button class="btn btn-p" style="height:28px;font-size:10px" onclick="dkPresent()" title="Present full-screen">▶ Present</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkUndo()" title="Undo">↶</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkRedo()" title="Redo">↷</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkAddSlide()">+ Slide</button>
+      <button class="btn btn-p" style="height:28px;font-size:11px" onclick="dkPresent()" title="Present full-screen">▶ Present</button>
     </div>
     <div class="dk-body">
       <div class="dk-slidelist" id="dk-slidelist">${_dkThumbsHtml()}</div>
@@ -12233,10 +12233,10 @@ function _dkPropsHtml(){
       <div class="dk-props-h" style="margin-top:14px">Deck icon</div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">${SHEET_ICONS.map(ic=>`<div class="dk-add-b" style="padding:4px;min-width:26px" onclick="dkSetIcon('${ic}')">${ic}</div>`).join('')}</div>
       <div class="dk-props-h" style="margin-top:14px">👥 Share with team</div>
-      <div style="font-size:10px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this deck.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this deck.</div>
       ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('deck-ma',d):''}
-      <button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:6px" onclick="dkSaveAssign()">Save sharing</button>
-      <button class="btn btn-d" style="height:26px;font-size:10px;width:100%;margin-top:10px" onclick="dkDeleteDeck(${Number(d.id)})" ${d._shared?'disabled':''}>🗑 Delete deck</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;width:100%;margin-top:6px" onclick="dkSaveAssign()">Save sharing</button>
+      <button class="btn btn-d" style="height:26px;font-size:11px;width:100%;margin-top:10px" onclick="dkDeleteDeck(${Number(d.id)})" ${d._shared?'disabled':''}>🗑 Delete deck</button>
     </div>`;
   }
   return insert+body;
@@ -12264,23 +12264,23 @@ function _dkElPropsHtml(el){
       +row('Title',`<input type="text" value="${esc(el.title||'')}" onchange="dkSetProp(${el.id},'title',this.value)">`)
       +`<div class="dk-props-h" style="margin-top:6px">Data</div>${_dkChartDataHtml(el)}`;
   } else if(el.type==='table'){
-    specific=`<div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblAdd(${el.id},'row')">+ Row</button><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblAdd(${el.id},'col')">+ Col</button></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblDel(${el.id},'row')">− Row</button><button class="btn btn-s" style="height:26px;font-size:10px;flex:1" onclick="dkTblDel(${el.id},'col')">− Col</button></div><div style="font-size:10px;color:var(--t3);margin-top:6px">Double-click the table to edit cells.</div>`;
+    specific=`<div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-s" style="height:26px;font-size:11px;flex:1" onclick="dkTblAdd(${el.id},'row')">+ Row</button><button class="btn btn-s" style="height:26px;font-size:11px;flex:1" onclick="dkTblAdd(${el.id},'col')">+ Col</button></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px"><button class="btn btn-s" style="height:26px;font-size:11px;flex:1" onclick="dkTblDel(${el.id},'row')">− Row</button><button class="btn btn-s" style="height:26px;font-size:11px;flex:1" onclick="dkTblDel(${el.id},'col')">− Col</button></div><div style="font-size:11px;color:var(--t3);margin-top:6px">Double-click the table to edit cells.</div>`;
   } else if(el.type==='kanban'){
-    specific=`<button class="btn btn-s" style="height:26px;font-size:10px;width:100%" onclick="dkKanAddCol(${el.id})">+ Column</button><button class="btn btn-s" style="height:26px;font-size:10px;width:100%;margin-top:5px" onclick="dkKanDelCol(${el.id})">− Last column</button><div style="font-size:10px;color:var(--t3);margin-top:6px">Double-click the board to add/edit cards.</div>`;
+    specific=`<button class="btn btn-s" style="height:26px;font-size:11px;width:100%" onclick="dkKanAddCol(${el.id})">+ Column</button><button class="btn btn-s" style="height:26px;font-size:11px;width:100%;margin-top:5px" onclick="dkKanDelCol(${el.id})">− Last column</button><div style="font-size:11px;color:var(--t3);margin-top:6px">Double-click the board to add/edit cards.</div>`;
   }
   return `<div class="dk-props-h">${el.type} element</div>${specific}
     <div class="dk-prop-row" style="display:flex;gap:5px;margin-top:8px">
-      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkZOrder(${el.id},1)" title="Bring forward">⬆ Front</button>
-      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkZOrder(${el.id},-1)" title="Send back">⬇ Back</button>
-      <button class="btn btn-s" style="flex:1;height:26px;font-size:10px" onclick="dkDupEl(${el.id})">⧉</button>
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:11px" onclick="dkZOrder(${el.id},1)" title="Bring forward">⬆ Front</button>
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:11px" onclick="dkZOrder(${el.id},-1)" title="Send back">⬇ Back</button>
+      <button class="btn btn-s" style="flex:1;height:26px;font-size:11px" onclick="dkDupEl(${el.id})">⧉</button>
     </div>
-    <button class="btn btn-d" style="height:26px;font-size:10px;width:100%" onclick="dkDeleteEl(null,${el.id})">🗑 Delete element</button>`;
+    <button class="btn btn-d" style="height:26px;font-size:11px;width:100%" onclick="dkDeleteEl(null,${el.id})">🗑 Delete element</button>`;
 }
 function _dkChartDataHtml(el){
   const labels=el.labels||[]; const series=el.series||[];
-  let html='<table style="width:100%;font-size:10px;border-collapse:collapse"><tr><th style="text-align:left">Label</th>'+series.map((s,si)=>`<th style="color:${s.color}">S${si+1}</th>`).join('')+'</tr>';
-  labels.forEach((l,i)=>{ html+=`<tr><td><input type="text" value="${esc(l)}" style="width:100%;font-size:10px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartLabel(${el.id},${i},this.value)"></td>`+series.map((s,si)=>`<td><input type="number" value="${Number((s.data||[])[i])||0}" style="width:46px;font-size:10px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartVal(${el.id},${si},${i},this.value)"></td>`).join('')+'</tr>'; });
-  html+='</table><div style="display:flex;gap:4px;margin-top:5px"><button class="btn btn-s" style="height:24px;font-size:10px;flex:1" onclick="dkChartAddRow(${el.id})">+ Row</button><button class="btn btn-s" style="height:24px;font-size:10px;flex:1" onclick="dkChartAddSeries(${el.id})">+ Series</button></div>';
+  let html='<table style="width:100%;font-size:11px;border-collapse:collapse"><tr><th style="text-align:left">Label</th>'+series.map((s,si)=>`<th style="color:${s.color}">S${si+1}</th>`).join('')+'</tr>';
+  labels.forEach((l,i)=>{ html+=`<tr><td><input type="text" value="${esc(l)}" style="width:100%;font-size:11px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartLabel(${el.id},${i},this.value)"></td>`+series.map((s,si)=>`<td><input type="number" value="${Number((s.data||[])[i])||0}" style="width:46px;font-size:11px;padding:2px 4px;background:var(--s1);border:1px solid var(--bd2);border-radius:4px;color:var(--t1)" onchange="dkChartVal(${el.id},${si},${i},this.value)"></td>`).join('')+'</tr>'; });
+  html+='</table><div style="display:flex;gap:4px;margin-top:5px"><button class="btn btn-s" style="height:24px;font-size:11px;flex:1" onclick="dkChartAddRow(${el.id})">+ Row</button><button class="btn btn-s" style="height:24px;font-size:11px;flex:1" onclick="dkChartAddSeries(${el.id})">+ Series</button></div>';
   return html;
 }
 
@@ -12375,16 +12375,16 @@ async function _hydrateAtlasPanel(){
       ? '<span style="color:var(--ok)">✓ Token configured</span>'
       : '<span style="color:var(--warn)">⚠ Token missing</span>';
     const urlLine=s.urlConfigured
-      ? `<span style="color:var(--ok)">✓ URL: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:10px">${esc(url)}</code></span>`
+      ? `<span style="color:var(--ok)">✓ URL: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">${esc(url)}</code></span>`
       : '<span style="color:var(--warn)">⚠ ATLAS_SYNC_URL env var missing</span>';
     const synced=s.lastPulledAt
       ? `Last synced: <strong>${new Date(s.lastPulledAt).toLocaleString()}</strong>${s.lastUpdatedAt?` · source updated ${new Date(s.lastUpdatedAt).toLocaleString()}`:''}`
       : 'Never pulled yet.';
     const counts=s.entityCounts||{};
     const countLine=Object.keys(counts).length
-      ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${Object.entries(counts).map(([k,v])=>`<span style="background:var(--s3);padding:2px 6px;border-radius:3px;font-size:10px"><strong>${v}</strong> ${esc(k)}</span>`).join('')}</div>`
+      ? `<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${Object.entries(counts).map(([k,v])=>`<span style="background:var(--s3);padding:2px 6px;border-radius:3px;font-size:11px"><strong>${v}</strong> ${esc(k)}</span>`).join('')}</div>`
       : '';
-    body.innerHTML=`${urlLine} · ${tokenLine}<br><span style="color:var(--t3);font-size:10px">${synced}</span>${countLine}`;
+    body.innerHTML=`${urlLine} · ${tokenLine}<br><span style="color:var(--t3);font-size:11px">${synced}</span>${countLine}`;
   }catch(e){
     body.innerHTML=`<span style="color:var(--warn)">Status check failed: ${esc(String(e&&e.message||e))}</span>`;
   }
@@ -12520,7 +12520,7 @@ function _atlasMember(snap,id){
 }
 function _atlasProgram(snap,id){return (snap.programs||[]).find(p=>p.id===id);}
 function _atlasProject(snap,id){return (snap.projects||[]).find(p=>p.id===id);}
-function _atlasOpenLink(){return `<a href="${ATLAS_PUBLIC_URL}" target="_blank" style="font-size:10px;color:var(--ac);text-decoration:none">Open in Atlas ↗</a>`;}
+function _atlasOpenLink(){return `<a href="${ATLAS_PUBLIC_URL}" target="_blank" style="font-size:11px;color:var(--ac);text-decoration:none">Open in Atlas ↗</a>`;}
 
 function _atlasProjectsHTML(snap,category){
   const items=(snap.projects||[]).filter(p=>p.category===category);
@@ -12536,15 +12536,15 @@ function _atlasProjectsHTML(snap,category){
     const margin=rev-cost;
     return `<div class="cd" style="padding:12px;border-left:3px solid #0ea5e9;cursor:pointer" onclick="atlasOpenDrawer('project','${p.id}')">
       <div style="font-size:13px;font-weight:700;margin-bottom:2px">${esc(p.name)}</div>
-      ${p.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:6px">${esc(p.customer)}</div>`:''}
+      ${p.customer?`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(p.customer)}</div>`:''}
       <div style="display:flex;gap:8px;font-size:11px;color:var(--t2);margin-bottom:4px">
         <span><strong>${_atlasMoney(rev)}</strong>${category==='project'?'/mo':' tgt'}</span>
         <span style="color:#dc2626"><strong>${_atlasMoney(cost)}</strong> cost</span>
         <span style="color:${margin>=0?'#16a34a':'#dc2626'}"><strong>${margin>=0?'':'-'}${_atlasMoney(Math.abs(margin))}</strong></span>
       </div>
-      ${p.pm?`<div style="font-size:10px;color:var(--t3)">PM: ${esc(p.pm)}</div>`:''}
-      ${p.revenueNote?`<div style="font-size:10px;color:var(--t3);margin-top:4px;font-style:italic">${esc(p.revenueNote)}</div>`:''}
-      ${p.clins&&p.clins.length?`<div style="font-size:10px;color:var(--t3);margin-top:4px">${p.clins.length} CLIN${p.clins.length===1?'':'s'}</div>`:''}
+      ${p.pm?`<div style="font-size:11px;color:var(--t3)">PM: ${esc(p.pm)}</div>`:''}
+      ${p.revenueNote?`<div style="font-size:11px;color:var(--t3);margin-top:4px;font-style:italic">${esc(p.revenueNote)}</div>`:''}
+      ${p.clins&&p.clins.length?`<div style="font-size:11px;color:var(--t3);margin-top:4px">${p.clins.length} CLIN${p.clins.length===1?'':'s'}</div>`:''}
       ${_atlasAnnotIndicator('project',p.id)}
     </div>`;
   }).join('')}</div>`;
@@ -12573,10 +12573,10 @@ function _atlasOppsHTML(snap){
   const wonValue=won.reduce((s,o)=>s+(Number(o.potential)||0),0);
   const winRate=(won.length+lost.length)?Math.round(won.length/(won.length+lost.length)*100):0;
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_atlasMoney(totalPipeline)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${won.length}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won (${_atlasMoney(wonValue)})</div></div>
-    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #3b82f6"><div style="font-size:20px;font-weight:750;color:#3b82f6;line-height:1">${_atlasMoney(totalPipeline)}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Pipeline Value</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #f59e0b"><div style="font-size:20px;font-weight:750;color:#f59e0b;line-height:1">${open.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Open Opps</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #10b981"><div style="font-size:20px;font-weight:750;color:#10b981;line-height:1">${won.length}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won (${_atlasMoney(wonValue)})</div></div>
+    <div class="cd" style="padding:12px;text-align:center;border-left:3px solid #16a34a"><div style="font-size:20px;font-weight:750;color:#16a34a;line-height:1">${winRate}%</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
   </div>`;
   // Group by stage; canonical order, then any unknown stages at end
   const byStage={};_ATLAS_OPP_STAGES.forEach(s=>byStage[s.k]=[]);
@@ -12593,15 +12593,15 @@ function _atlasOppsHTML(snap){
   const columnCount=visibleStages.length+unknownKeys.length;
   const cardHTML=o=>{
     const statusColor=o.status?(_ATLAS_OPP_STATUS_C[o.status]||'#64748b'):null;
-    const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
+    const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:11px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
     const daysToClose=o.closeDate?(()=>{const d=new Date(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
     const closeLbl=o.closeDate?(daysToClose!==null?(daysToClose<0?`<span style="color:#dc2626">${Math.abs(daysToClose)}d overdue</span>`:`${daysToClose}d`):esc(o.closeDate)):'';
     return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:pointer" onclick="atlasOpenDrawer('project','${o.id}')" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
       <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
-      ${o.customer?`<div style="font-size:10px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
+      ${o.customer?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px">${esc(o.customer)}</div>`:''}
       ${o.potential?`<div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:3px">${_atlasMoney(o.potential)}/yr</div>`:''}
       ${statusChip?`<div style="margin-bottom:3px">${statusChip}</div>`:''}
-      <div style="font-size:10px;color:var(--t2);line-height:1.5">
+      <div style="font-size:11px;color:var(--t2);line-height:1.5">
         ${o.pm?`<div>PM: <strong>${esc(o.pm)}</strong></div>`:''}
         ${o.opr?`<div>OPR: ${esc(o.opr)}</div>`:''}
         ${closeLbl?`<div>Close: ${closeLbl}</div>`:''}
@@ -12614,7 +12614,7 @@ function _atlasOppsHTML(snap){
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:${color};margin-bottom:6px;display:flex;justify-content:space-between">
         <span>${esc(stageName)}</span><span style="color:var(--t3);font-weight:600">${list.length}${total?' · '+_atlasMoney(total):''}</span>
       </div>
-      ${list.length?list.map(cardHTML).join(''):'<div style="font-size:10px;color:var(--t3);padding:8px 4px;text-align:center">—</div>'}
+      ${list.length?list.map(cardHTML).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px 4px;text-align:center">—</div>'}
     </div>`;
   };
   const board=`<div style="display:flex;gap:10px;overflow-x:auto;align-items:flex-start;padding-bottom:6px">
@@ -12634,10 +12634,10 @@ function _atlasOrgChartHTML(snap){
       const cost=members.reduce((s,m)=>s+(m.cost||0),0);
       return `<div class="cd" style="padding:10px 12px;margin-bottom:8px;margin-left:${depth*16}px;border-left:3px solid ${esc(d.accent||'#64748b')}">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-          <div style="cursor:pointer" onclick="atlasOpenDrawer('department','${d.id}')"><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:10px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''} ${_atlasAnnotIndicator('department',d.id)}</div>
-          <div style="font-size:10px;color:var(--t3)">${members.length} · ${_atlasMoney(cost)}/mo</div>
+          <div style="cursor:pointer" onclick="atlasOpenDrawer('department','${d.id}')"><strong style="font-size:13px">${esc(d.name)}</strong>${d.subtitle?` <span style="font-size:11px;color:var(--t3)">· ${esc(d.subtitle)}</span>`:''} ${_atlasAnnotIndicator('department',d.id)}</div>
+          <div style="font-size:11px;color:var(--t3)">${members.length} · ${_atlasMoney(cost)}/mo</div>
         </div>
-        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:10px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:10px;color:var(--t3)">No members</div>'}
+        ${members.length?`<div style="display:flex;flex-wrap:wrap;gap:5px;font-size:11px">${members.map(m=>`<span style="background:var(--s3);padding:2px 7px;border-radius:3px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')" title="${esc(m.role||'')}${m.cost?` · ${_atlasMoney(m.cost)}/mo`:''}">${esc(m.name)}${m.sme?' 🎓':''}${m.hub?' 🌐':''}</span>`).join('')}</div>`:'<div style="font-size:11px;color:var(--t3)">No members</div>'}
         ${tree(d.id,depth+1)}
       </div>`;
     }).join('');
@@ -12658,9 +12658,9 @@ function _atlasResourcesHTML(snap){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
         ${list.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
-          <div style="font-size:10px;color:var(--t2);margin-top:4px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
-          ${m.sme||m.hub||m.associate||m.proposal||m.recruiter?`<div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">${m.sme?'<span style="background:rgba(124,92,191,.15);color:#7c5cbf;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">SME</span>':''}${m.hub?'<span style="background:rgba(13,148,136,.15);color:#0d9488;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">HUB</span>':''}${m.associate?'<span style="background:rgba(217,119,6,.15);color:#d97706;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">ASSOC</span>':''}${m.proposal?'<span style="background:rgba(5,150,105,.15);color:#059669;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">PROP</span>':''}${m.recruiter?'<span style="background:rgba(124,58,237,.15);color:#7c3aed;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">RECR</span>':''}</div>`:''}
+          <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:4px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
+          ${m.sme||m.hub||m.associate||m.proposal||m.recruiter?`<div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap">${m.sme?'<span style="background:rgba(124,92,191,.15);color:#7c5cbf;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">SME</span>':''}${m.hub?'<span style="background:rgba(13,148,136,.15);color:#0d9488;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">HUB</span>':''}${m.associate?'<span style="background:rgba(217,119,6,.15);color:#d97706;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">ASSOC</span>':''}${m.proposal?'<span style="background:rgba(5,150,105,.15);color:#059669;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">PROP</span>':''}${m.recruiter?'<span style="background:rgba(124,58,237,.15);color:#7c3aed;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700">RECR</span>':''}</div>`:''}
           ${_atlasAnnotIndicator('member',m.id)}
         </div>`).join('')}
       </div>
@@ -12704,11 +12704,11 @@ function _atlasTaskRow(snap,a,statusCfg){
   const ownerLbl=owners.length?owners.join(', '):(a.ownerText||'—');
   const proj=a.projectId?_atlasProject(snap,a.projectId):null;
   return `<div class="cd" style="padding:9px 12px;margin-bottom:5px;display:flex;gap:10px;align-items:flex-start;cursor:pointer" onclick="atlasOpenDrawer('activity','${a.id}')">
-    <span style="display:inline-block;background:${s.c};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${s.l}</span>
+    <span style="display:inline-block;background:${s.c};color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">${s.l}</span>
     <div style="flex:1;min-width:0">
       <div style="font-size:12px;font-weight:600">${a.isMilestone?'◆ ':''}${esc(a.subtask||'(untitled)')} ${_atlasAnnotIndicator('activity',a.id)}</div>
-      ${a.objective?`<div style="font-size:10px;color:var(--t2);margin-top:2px"><strong>Next:</strong> ${esc(a.objective)}</div>`:''}
-      <div style="font-size:10px;color:var(--t3);margin-top:3px">
+      ${a.objective?`<div style="font-size:11px;color:var(--t2);margin-top:2px"><strong>Next:</strong> ${esc(a.objective)}</div>`:''}
+      <div style="font-size:11px;color:var(--t3);margin-top:3px">
         ${a.phase?'<span>'+esc(a.phase)+'</span> · ':''}
         ${a.dueDate?'due '+esc(a.dueDate)+' · ':''}
         ${ownerLbl!=='—'?esc(ownerLbl):''}
@@ -12733,7 +12733,7 @@ function _atlasRailHTML(snap){
       <div><strong>${allM}</strong> people · <strong style="color:#dc2626">${_atlasMoney(totalCost)}</strong>/mo cost</div>
       <div><strong style="color:#16a34a">${_atlasMoney(revenue)}</strong>/mo realized · <strong style="color:#f59e0b">${_atlasMoney(targetRev)}</strong> pipeline</div>
     </div>
-    <div style="margin-top:10px;font-size:10px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
+    <div style="margin-top:10px;font-size:11px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
     <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:11px;color:var(--ac);text-decoration:none">Open Atlas ↗</a>
   </div>`;
 }
@@ -12757,10 +12757,10 @@ function _atlasInjectRptCSS(){
   s.textContent=`
   .atlas-rpt .pf-tbl{width:100%;border-collapse:collapse;font-size:12px}
   .atlas-rpt .pf-tbl th,.atlas-rpt .pf-tbl td{border:1px solid var(--brd);padding:5px 9px;text-align:left;vertical-align:top}
-  .atlas-rpt .pf-tbl thead th{background:var(--s2);font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--t3)}
+  .atlas-rpt .pf-tbl thead th{background:var(--s2);font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--t3)}
   .atlas-rpt .pf-tbl tbody tr:nth-child(even){background:var(--s2)}
   .atlas-rpt .pf-note{font-size:11px;color:var(--t3);margin-top:6px}
-  .atlas-rpt .pf-pill{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:9px;background:var(--s3);color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
+  .atlas-rpt .pf-pill{display:inline-block;font-size:11px;font-weight:800;padding:1px 7px;border-radius:9px;background:var(--s3);color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
   .atlas-rpt .pf-pill.pf-crit{background:#FEE2E2;color:#B91C1C}
   .atlas-rpt .pf-pill.pf-high{background:#FEF3C7;color:#B45309}
   .atlas-rpt .pf-pill.pf-med{background:#E0E7FF;color:#3730A3}
@@ -12785,23 +12785,23 @@ function _atlasRecruitingHTML(snap){
   const byStage={};STAGES.forEach(s=>byStage[s]=0);
   cands.forEach(c=>{const s=(c.status||'new').toLowerCase();if(byStage[s]!=null)byStage[s]++;});
   const funnel=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:14px">
-    ${STAGES.map(s=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${stageCol[s]}"><div style="font-size:18px;font-weight:750;color:${stageCol[s]};line-height:1">${byStage[s]}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${stageLbl[s]}</div></div>`).join('')}</div>`;
+    ${STAGES.map(s=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${stageCol[s]}"><div style="font-size:18px;font-weight:750;color:${stageCol[s]};line-height:1">${byStage[s]}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${stageLbl[s]}</div></div>`).join('')}</div>`;
   // Requisitions + their candidates
   const reqHTML=reqs.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">Open Requisitions</div>`+reqs.map(r=>{
     const rc=cands.filter(c=>c.recruitingId===r.id);
     const title=r.title||r.jdTitle||'(untitled requisition)';
     return `<div class="cd" style="padding:12px;margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:13px;font-weight:700">${esc(title)}</div><span class="pf-pill ${r.status==='open'?'pf-ok':''}" style="font-size:10px">${esc(r.status||'open')}</span></div>
-      ${rc.length?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">${rc.map(c=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px"><span>${esc(c.name||'—')}${c.clearance?` · <span style="color:var(--t3)">${esc(c.clearance)}</span>`:''}</span><span style="color:${stageCol[(c.status||'new').toLowerCase()]||'#64748b'};font-weight:700">${esc(stageLbl[(c.status||'new').toLowerCase()]||c.status||'new')}${c.salaryK?` · $${c.salaryK}K`:''}</span></div>`).join('')}</div>`:`<div style="font-size:10px;color:var(--t3);margin-top:6px">No candidates linked.</div>`}
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:13px;font-weight:700">${esc(title)}</div><span class="pf-pill ${r.status==='open'?'pf-ok':''}" style="font-size:11px">${esc(r.status||'open')}</span></div>
+      ${rc.length?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">${rc.map(c=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px"><span>${esc(c.name||'—')}${c.clearance?` · <span style="color:var(--t3)">${esc(c.clearance)}</span>`:''}</span><span style="color:${stageCol[(c.status||'new').toLowerCase()]||'#64748b'};font-weight:700">${esc(stageLbl[(c.status||'new').toLowerCase()]||c.status||'new')}${c.salaryK?` · $${c.salaryK}K`:''}</span></div>`).join('')}</div>`:`<div style="font-size:11px;color:var(--t3);margin-top:6px">No candidates linked.</div>`}
     </div>`;
   }).join(''):'';
   // Resume bank
   const bankHTML=bank.length?`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin:14px 0 6px">Resume Bank <span style="color:var(--t3);font-weight:400">· ${bank.length}</span></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${bank.map(b=>`<div class="cd" style="padding:10px 12px">
       <div style="font-size:12px;font-weight:700">${esc(b.name||'—')}</div>
-      ${b.role?`<div style="font-size:10px;color:var(--t3)">${esc(b.role)}</div>`:''}
-      <div style="font-size:10px;color:var(--t2);margin-top:4px">${[b.clearance,b.location,b.partner].filter(Boolean).map(esc).join(' · ')}</div>
-      ${(b.skills&&b.skills.length)?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${b.skills.slice(0,5).map(esc).join(', ')}</div>`:''}
+      ${b.role?`<div style="font-size:11px;color:var(--t3)">${esc(b.role)}</div>`:''}
+      <div style="font-size:11px;color:var(--t2);margin-top:4px">${[b.clearance,b.location,b.partner].filter(Boolean).map(esc).join(' · ')}</div>
+      ${(b.skills&&b.skills.length)?`<div style="font-size:11px;color:var(--t3);margin-top:3px">${b.skills.slice(0,5).map(esc).join(', ')}</div>`:''}
     </div>`).join('')}</div>`:'';
   return funnel+reqHTML+bankHTML;
 }
@@ -12814,13 +12814,13 @@ function _atlasResourcePlanningHTML(snap){
   const rows=(rp.heatmap||[]).filter(r=>(r.cells||[]).some(c=>c.pct>0)).sort((a,b)=>{
     const am=Math.max(...(a.cells||[{pct:0}]).map(c=>c.pct)),bm=Math.max(...(b.cells||[{pct:0}]).map(c=>c.pct));return bm-am;});
   const heat=`<div class="cd" style="padding:12px;margin-bottom:14px;overflow:auto">
-    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Allocation Heatmap <span style="font-size:10px;color:var(--t3);font-weight:400">· % allocated by month (red &gt;100, amber 85–100)</span></div>
-    <table style="border-collapse:collapse;font-size:10px;white-space:nowrap">
+    <div style="font-size:12px;font-weight:700;margin-bottom:8px">Allocation Heatmap <span style="font-size:11px;color:var(--t3);font-weight:400">· % allocated by month (red &gt;100, amber 85–100)</span></div>
+    <table style="border-collapse:collapse;font-size:11px;white-space:nowrap">
       <thead><tr><th style="text-align:left;padding:3px 6px;position:sticky;left:0;background:var(--bg)">Resource</th>${months.map(mo=>`<th style="padding:3px 5px;color:var(--t3)">${esc(mo.label)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(r=>`<tr><td style="padding:3px 6px;position:sticky;left:0;background:var(--bg)"><strong>${esc(r.name)}</strong><span style="color:var(--t3)"> · ${esc(r.dept||'')}</span></td>${(r.cells||[]).map(c=>{const col=_atlasAllocColor(c.pct);return `<td style="padding:0" title="${c.pct}%"><div style="background:${c.pct?col:'transparent'}22;color:${c.pct?col:'var(--t3)'};text-align:center;padding:3px 5px;font-weight:${c.pct>100?'800':'600'}">${c.pct||'·'}</div></td>`;}).join('')}</tr>`).join('')}</tbody>
     </table></div>`;
   const avail=(rp.availability||[]);
-  const availHTML=avail.length?`<div class="cd" style="padding:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Availability Snapshot <span style="font-size:10px;color:var(--t3);font-weight:400">· first month with spare capacity</span></div>
+  const availHTML=avail.length?`<div class="cd" style="padding:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Availability Snapshot <span style="font-size:11px;color:var(--t3);font-weight:400">· first month with spare capacity</span></div>
     <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="text-align:left;color:var(--t3)"><th style="padding:4px">Resource</th><th>Dept</th><th>Spare from</th><th>Status</th></tr></thead><tbody>
     ${avail.map(a=>`<tr style="border-top:1px solid var(--brd)"><td style="padding:4px">${esc(a.name)}</td><td style="color:var(--t3)">${esc(a.dept||'')}</td><td>${a.firstUnder?`${esc(a.firstUnder.label)} <span style="color:var(--t3)">(${a.firstUnder.pct}%)</span>`:'—'}</td><td>${a.furlough?`<span style="color:#dc2626;font-weight:700">${esc(a.furlough)}</span>`:(a.note?esc(a.note):'<span style="color:var(--t3)">—</span>')}</td></tr>`).join('')}
     </tbody></table></div>`:'';
@@ -12833,7 +12833,7 @@ function _atlasCapacityHTML(snap){
   if(!c)return _atlasComputedEmpty(snap.atlasComputed&&snap.atlasComputed.capacityError);
   const t=c.totals||{};
   const kpis=[{l:'Projected Revenue',v:_atlasMoney(t.revenue),col:'#16a34a'},{l:'Payroll',v:_atlasMoney(t.payroll),col:'#dc2626'},{l:'Profit',v:_atlasMoney(t.profit),col:(t.profit>=0?'#16a34a':'#dc2626')},{l:'Margin',v:(t.margin||0)+'%',col:'#3b82f6'},{l:'Utilization',v:(t.util||0)+'%',col:'#7c3aed'},{l:'Bench FTE',v:(t.benchFTE||0),col:'#f59e0b'},{l:'Headcount',v:(t.headcount||0),col:'#0ea5e9'},{l:'Over-allocated',v:(t.over||0),col:'#dc2626'}];
-  const kpiHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:17px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
+  const kpiHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:17px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
   // Forecast table
   const fc=c.forecast||[];
   const maxRev=Math.max(1,...fc.map(r=>r.revenue||0));
@@ -12843,7 +12843,7 @@ function _atlasCapacityHTML(snap){
     </tbody></table></div>`:'';
   // Item profitability
   const projs=c.projects||[];
-  const projHTML=projs.length?`<div class="cd" style="padding:12px;overflow:auto"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Item Profitability <span style="font-size:10px;color:var(--t3);font-weight:400">· current month</span></div>
+  const projHTML=projs.length?`<div class="cd" style="padding:12px;overflow:auto"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Item Profitability <span style="font-size:11px;color:var(--t3);font-weight:400">· current month</span></div>
     <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--t3)"><th style="text-align:left;padding:4px">Item</th><th style="text-align:left">Category</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cost</th><th style="text-align:right">Profit</th><th style="text-align:right">Margin</th><th style="text-align:right">FTE</th></tr></thead><tbody>
     ${projs.map(p=>`<tr style="border-top:1px solid var(--brd)"><td style="padding:4px">${esc(p.name)}</td><td style="color:var(--t3)">${esc(p.category)}</td><td style="text-align:right">${_atlasMoney(p.revenue)}</td><td style="text-align:right;color:#dc2626">${_atlasMoney(p.cost)}</td><td style="text-align:right;color:${p.profit>=0?'#16a34a':'#dc2626'};font-weight:700">${_atlasMoney(p.profit)}</td><td style="text-align:right">${p.margin}%</td><td style="text-align:right">${p.fte}</td></tr>`).join('')}
     </tbody></table></div>`:'';
@@ -12863,12 +12863,12 @@ function _atlasProformaHTML(snap){
   if(co.monthlyRevenue!=null)kpis.push({l:'Monthly Revenue',v:_atlasMoney(co.monthlyRevenue),col:'#3b82f6'});
   if(co.monthlyProfit!=null)kpis.push({l:'Monthly Profit',v:_atlasMoney(co.monthlyProfit),col:'#16a34a'});
   if(co.fy27RevenueTarget!=null)kpis.push({l:'FY27 Target',v:_atlasMoney(co.fy27RevenueTarget),col:'#7c3aed'});
-  if(kpis.length)html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:16px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
+  if(kpis.length)html+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px">${kpis.map(k=>`<div class="cd" style="padding:10px;text-align:center;border-left:3px solid ${k.col}"><div style="font-size:16px;font-weight:750;color:${k.col};line-height:1">${k.v}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">${k.l}</div></div>`).join('')}</div>`;
   const card=(title,inner)=>`<div class="cd" style="padding:12px;margin-bottom:12px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">${esc(title)}</div>${inner}</div>`;
   const tbl=(cols,rows)=>`<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--t3);text-align:left">${cols.map(c=>`<th style="padding:4px ${c.r?'4px;text-align:right':'4px'}">${esc(c.l)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr style="border-top:1px solid var(--brd)">${cols.map(c=>`<td style="padding:4px${c.r?';text-align:right':''}">${r[c.k]==null?'':esc(String(r[c.k]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   const F=P.financials||{};
   if((F.cashTrajectory||[]).length)html+=card('Cash Trajectory',tbl([{l:'Period',k:'period'},{l:'Cash',k:'_cash',r:1},{l:'Status',k:'status'}],(F.cashTrajectory||[]).map(r=>({period:r.period||r.month||'',_cash:_atlasMoney(r.cash),status:r.status||''}))));
-  if((P.scenarios||[]).length)html+=card('Scenarios',`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${P.scenarios.map(s=>`<div style="padding:10px;background:var(--s2);border-radius:6px"><div style="font-size:12px;font-weight:700">${esc(s.name||'Scenario')}</div>${s.cashAtHorizon!=null?`<div style="font-size:11px;color:var(--t2);margin-top:3px">Cash @ horizon: <strong>${_atlasMoney(s.cashAtHorizon)}</strong></div>`:''}${s.gateTiming?`<div style="font-size:10px;color:var(--t3)">Gate: ${esc(s.gateTiming)}</div>`:''}${s.assumptions?`<div style="font-size:10px;color:var(--t3);margin-top:3px">${esc(s.assumptions)}</div>`:''}</div>`).join('')}</div>`);
+  if((P.scenarios||[]).length)html+=card('Scenarios',`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">${P.scenarios.map(s=>`<div style="padding:10px;background:var(--s2);border-radius:6px"><div style="font-size:12px;font-weight:700">${esc(s.name||'Scenario')}</div>${s.cashAtHorizon!=null?`<div style="font-size:11px;color:var(--t2);margin-top:3px">Cash @ horizon: <strong>${_atlasMoney(s.cashAtHorizon)}</strong></div>`:''}${s.gateTiming?`<div style="font-size:11px;color:var(--t3)">Gate: ${esc(s.gateTiming)}</div>`:''}${s.assumptions?`<div style="font-size:11px;color:var(--t3);margin-top:3px">${esc(s.assumptions)}</div>`:''}</div>`).join('')}</div>`);
   if((P.contractEconomics||[]).length)html+=card('Contract Economics',tbl([{l:'Contract',k:'contract'},{l:'Revenue',k:'_rev',r:1},{l:'Cost',k:'_cost',r:1},{l:'Profit',k:'_profit',r:1},{l:'Margin',k:'_margin',r:1},{l:'Role',k:'role'}],(P.contractEconomics||[]).map(r=>({contract:r.contract||'',_rev:_atlasMoney(r.rev),_cost:_atlasMoney(r.cost),_profit:_atlasMoney(r.profit),_margin:(r.margin!=null?r.margin+'%':''),role:r.role||''}))));
   if((P.dates||[]).length)html+=card('Critical Dates',tbl([{l:'Date',k:'date'},{l:'Event',k:'event'},{l:'Impact',k:'impact'},{l:'Status',k:'status'}],P.dates));
   if((P.risks||[]).length)html+=card('Risks',tbl([{l:'Risk',k:'risk'},{l:'Level',k:'level'},{l:'Status',k:'status'},{l:'Owner',k:'owner'},{l:'Mitigation',k:'mitigation'}],P.risks));
@@ -12886,15 +12886,15 @@ function _atlasReportsHTML(snap){
   if(_atlasRptOpen){
     const r=reports.find(x=>x.key===_atlasRptOpen);
     if(r)return `<div style="margin-bottom:10px"><button class="btn btn-s" onclick="_atlasRptOpen=null;renderAtlas()">← All reports</button></div>
-      <div class="cd atlas-rpt" style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="font-size:16px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial report" style="font-size:11px;color:#d97706">$</span>':''}</h2><span style="font-size:10px;color:var(--t3)">${esc(r.area)}</span></div>${r.html||'<div class="rpt-empty">No content.</div>'}</div>`;
+      <div class="cd atlas-rpt" style="padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="font-size:16px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial report" style="font-size:11px;color:#d97706">$</span>':''}</h2><span style="font-size:11px;color:var(--t3)">${esc(r.area)}</span></div>${r.html||'<div class="rpt-empty">No content.</div>'}</div>`;
   }
   const byArea={};reports.forEach(r=>{(byArea[r.area]=byArea[r.area]||[]).push(r);});
   return Object.keys(byArea).map(area=>`<div style="margin-bottom:14px">
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t2);margin-bottom:6px">${esc(area)}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px">
     ${byArea[area].map(r=>`<div class="cd" style="padding:12px;cursor:pointer" onclick="_atlasRptOpen='${r.key}';renderAtlas()">
-      <div style="font-size:13px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial" style="font-size:10px;color:#d97706">$</span>':''}</div>
-      <div style="font-size:10px;color:var(--ac);margin-top:4px">Open report →</div></div>`).join('')}
+      <div style="font-size:13px;font-weight:700">${esc(r.title)}${r.financial?' <span title="Financial" style="font-size:11px;color:#d97706">$</span>':''}</div>
+      <div style="font-size:11px;color:var(--ac);margin-top:4px">Open report →</div></div>`).join('')}
     </div></div>`).join('');
 }
 
@@ -12907,9 +12907,9 @@ function _atlasPTOHTML(snap){
   if(!rows.length)return `<div class="cd" style="padding:24px;color:var(--t3);text-align:center">No PTO or furlough entries recorded.</div>`;
   return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">${rows.map(r=>`<div class="cd" style="padding:12px">
     <div style="font-size:13px;font-weight:700">${esc(r.name)}</div>
-    <div style="font-size:10px;color:var(--t3);margin-bottom:6px">${esc(r.dept)}</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:6px">${esc(r.dept)}</div>
     ${r.furlough?`<div style="font-size:11px;color:#dc2626;font-weight:700;margin-bottom:4px">Furlough: ${esc(r.furlough)}</div>`:''}
-    ${r.pto.length?r.pto.map(p=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-top:1px solid var(--brd)">${esc(p.start||'?')} → ${esc(p.end||'?')}${p.note?` <span style="color:var(--t3)">· ${esc(p.note)}</span>`:''}</div>`).join(''):'<div style="font-size:10px;color:var(--t3)">No PTO logged</div>'}
+    ${r.pto.length?r.pto.map(p=>`<div style="font-size:11px;color:var(--t2);padding:3px 0;border-top:1px solid var(--brd)">${esc(p.start||'?')} → ${esc(p.end||'?')}${p.note?` <span style="color:var(--t3)">· ${esc(p.note)}</span>`:''}</div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No PTO logged</div>'}
   </div>`).join('')}</div>`;
 }
 
@@ -12926,16 +12926,16 @@ function _atlasProposalsHTML(snap){
   const submitted=props.filter(p=>p.status==='submitted').length;
   const winRate=(won+lost)?Math.round(won/(won+lost)*100):0;
   const kpis=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">
-    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #0EA5E9"><div style="font-size:18px;font-weight:750;color:#0EA5E9;line-height:1">${open}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">In Progress</div></div>
-    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #7C3AED"><div style="font-size:18px;font-weight:750;color:#7C3AED;line-height:1">${submitted}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Submitted</div></div>
-    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #16A34A"><div style="font-size:18px;font-weight:750;color:#16A34A;line-height:1">${won}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won</div></div>
-    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #DC2626"><div style="font-size:18px;font-weight:750;color:#DC2626;line-height:1">${winRate}%</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #0EA5E9"><div style="font-size:18px;font-weight:750;color:#0EA5E9;line-height:1">${open}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">In Progress</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #7C3AED"><div style="font-size:18px;font-weight:750;color:#7C3AED;line-height:1">${submitted}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Submitted</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #16A34A"><div style="font-size:18px;font-weight:750;color:#16A34A;line-height:1">${won}</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Won</div></div>
+    <div class="cd" style="padding:11px;text-align:center;border-left:3px solid #DC2626"><div style="font-size:18px;font-weight:750;color:#DC2626;line-height:1">${winRate}%</div><div style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px">Win Rate</div></div>
   </div>`;
   const rows=props.map(p=>{
     const opp=p.opportunityId?(snap.projects||[]).find(x=>x.id===p.opportunityId):null;
     const c=_PROP_STATUS_COLOR[p.status]||'#64748b';
     const due=p.rfp&&p.rfp.dueDate;
-    const dueChip=due?(()=>{const dd=new Date(due);if(isNaN(dd))return '';const days=Math.round((dd-Date.now())/86400000);if(days<0)return `<span style="font-size:10px;color:#dc2626;font-weight:700">${Math.abs(days)}d overdue</span>`;if(days<14)return `<span style="font-size:10px;color:#d97706;font-weight:700">due in ${days}d</span>`;return `<span style="font-size:10px;color:var(--t3)">due in ${days}d</span>`;})():'';
+    const dueChip=due?(()=>{const dd=new Date(due);if(isNaN(dd))return '';const days=Math.round((dd-Date.now())/86400000);if(days<0)return `<span style="font-size:11px;color:#dc2626;font-weight:700">${Math.abs(days)}d overdue</span>`;if(days<14)return `<span style="font-size:11px;color:#d97706;font-weight:700">due in ${days}d</span>`;return `<span style="font-size:11px;color:var(--t3)">due in ${days}d</span>`;})():'';
     const secCount=(p.sections||[]).filter(s=>(s.html||'').trim()).length;
     const totSec=(p.sections||[]).length;
     const ppMatches=(p.pastPerformance&&p.pastPerformance.matches)?p.pastPerformance.matches.length:0;
@@ -12943,10 +12943,10 @@ function _atlasProposalsHTML(snap){
     return `<div class="cd" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid ${c};cursor:pointer" onclick="atlasOpenDrawer('proposal','${p.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:5px">
         <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:800">${esc(p.title)} ${_atlasAnnotIndicator('proposal',p.id)}</div>
-        ${opp?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(opp.name)}${opp.customer?' · '+esc(opp.customer):''}</div>`:(p.rfp&&p.rfp.customer?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${esc(p.rfp.customer)}</div>`:'')}</div>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span style="background:${c}22;color:${c};padding:2px 7px;font-size:10px;font-weight:700;border-radius:3px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${dueChip}</div>
+        ${opp?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(opp.name)}${opp.customer?' · '+esc(opp.customer):''}</div>`:(p.rfp&&p.rfp.customer?`<div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(p.rfp.customer)}</div>`:'')}</div>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap"><span style="background:${c}22;color:${c};padding:2px 7px;font-size:11px;font-weight:700;border-radius:3px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${dueChip}</div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10px;color:var(--t2)">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--t2)">
         <span>📝 ${secCount}/${totSec} sections</span>
         ${roles?`<span>👥 ${roles} roles</span>`:''}
         ${ppMatches?`<span>🎯 ${ppMatches} PP matches</span>`:''}
@@ -12984,8 +12984,8 @@ function _atlasClassificationHTML(snap){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
         ${people.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)} ${_atlasAnnotIndicator('member',m.id)}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
-          <div style="font-size:10px;color:var(--t2);margin-top:3px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
+          <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:3px">${_atlasMoney(m.cost)}/mo · ${esc(m._dept)}</div>
         </div>`).join('')}
       </div>
     </div>`;
@@ -13002,7 +13002,7 @@ function _atlasClassificationHTML(snap){
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
         ${uncl.map(m=>`<div class="cd" style="padding:10px 12px;cursor:pointer" onclick="atlasOpenDrawer('member','${m.id}')">
           <div style="font-size:12px;font-weight:700">${esc(m.name)}</div>
-          <div style="font-size:10px;color:var(--t3)">${esc(m.role||'')}</div>
+          <div style="font-size:11px;color:var(--t3)">${esc(m.role||'')}</div>
         </div>`).join('')}
       </div>
     </div>`;
@@ -13058,12 +13058,12 @@ function _atlasRenderDrawer(){
   el.innerHTML=`<div style="background:var(--bg);width:680px;max-width:100%;height:100%;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.3);display:flex;flex-direction:column">
     <div style="padding:16px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div style="flex:1;min-width:0">
-        <div style="font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">Atlas · ${esc(typeLabel)}</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">Atlas · ${esc(typeLabel)}</div>
         <div style="font-size:18px;font-weight:800;margin-top:3px">${esc(name)}</div>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0">
-        <a href="${ATLAS_PUBLIC_URL}" target="_blank" class="btn btn-s" style="height:28px;font-size:10px;text-decoration:none">↗ Atlas</a>
-        <button class="btn btn-s" style="height:28px;font-size:10px" onclick="_atlasCloseDrawer()">✕</button>
+        <a href="${ATLAS_PUBLIC_URL}" target="_blank" class="btn btn-s" style="height:28px;font-size:11px;text-decoration:none">↗ Atlas</a>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_atlasCloseDrawer()">✕</button>
       </div>
     </div>
     ${tabBar}
@@ -13127,7 +13127,7 @@ function _atlasDetailsMember(m){
       ${_atlasFld('Location',locName?locName.name:m.location)}${_atlasFld('Clearance',clrName?clrName.name:m.clearance)}
       ${_atlasFld('Badge',m.badge)}${_atlasFld('Flag',m.reassess?'⚠ Reassess':'')}
     </div>
-    ${cls.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">${cls.map(([l,c])=>`<span style="background:${c}22;color:${c};font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${l}</span>`).join('')}</div>`:''}
+    ${cls.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">${cls.map(([l,c])=>`<span style="background:${c}22;color:${c};font-size:11px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${l}</span>`).join('')}</div>`:''}
     ${skills.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Skills</div><div style="display:flex;flex-wrap:wrap;gap:5px">${skills.map(s=>`<span style="background:rgba(14,165,233,.12);color:#0EA5E9;padding:3px 9px;border-radius:3px;font-size:11px;font-weight:600">${esc(s)}</span>`).join('')}</div></div>`:''}
     ${certs.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Certifications</div><div style="display:flex;flex-wrap:wrap;gap:5px">${certs.map(c=>`<span style="background:rgba(13,148,136,.12);color:#0d9488;padding:3px 9px;border-radius:3px;font-size:11px;font-weight:600">${esc(c)}</span>`).join('')}</div></div>`:''}
     ${m.note?`<div style="margin-top:14px;padding:10px 12px;background:var(--s2);border-radius:6px;font-size:12px;color:var(--t2)">${esc(m.note)}</div>`:''}
@@ -13165,7 +13165,7 @@ function _atlasDetailsActivity(a){
     ${a.objective?`<div style="margin-top:10px;padding:8px 10px;background:rgba(197,165,90,.08);border:1px solid rgba(197,165,90,.25);border-radius:6px;font-size:12px"><b>Next Steps:</b> ${esc(a.objective)}</div>`:''}
     ${owners.length?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${owners.map(m=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline;text-underline-offset:2px" onclick="atlasOpenDrawer('member','${m.id}')">${esc(m.name)}</span>`).join(', ')}</div>`:(a.ownerText?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${esc(a.ownerText)}</div>`:'')}
     ${a.updates&&a.updates.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Status Updates (${a.updates.length})</div>
-      ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:10px">${esc(u.author||'—')} · ${new Date(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
+      ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:11px">${esc(u.author||'—')} · ${new Date(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
     </div>`:''}
     ${a.attachments&&a.attachments.length?`<div style="margin-top:10px">${a.attachments.map(at=>`<div style="font-size:12px;padding:4px 0">${at.type==='file'?'📄':'🔗'} <a href="${esc(at.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(at.name||at.url)}</a></div>`).join('')}</div>`:''}`;
 }
@@ -13180,11 +13180,11 @@ function _atlasDetailsProposal(p){
   const sectionsList=(p.sections||[]).map(s=>{
     const has=(s.html||'').replace(/<[^>]+>/g,' ').trim();
     return `<div style="border-bottom:1px solid var(--bd1);padding:9px 0">
-      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:700">${esc(s.title)}${s.source==='ai'?' <span style="font-size:10px;color:#7C3AED;font-weight:700;letter-spacing:.3px;text-transform:uppercase">AI</span>':s.source==='computed'?' <span style="font-size:10px;color:#059669;font-weight:700;letter-spacing:.3px;text-transform:uppercase">computed</span>':''}</div><div style="font-size:10px;color:var(--t3)">${has?(s.html.replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length+' words'):'empty'}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:700">${esc(s.title)}${s.source==='ai'?' <span style="font-size:11px;color:#7C3AED;font-weight:700;letter-spacing:.3px;text-transform:uppercase">AI</span>':s.source==='computed'?' <span style="font-size:11px;color:#059669;font-weight:700;letter-spacing:.3px;text-transform:uppercase">computed</span>':''}</div><div style="font-size:11px;color:var(--t3)">${has?(s.html.replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length+' words'):'empty'}</div></div>
       ${has?`<div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.5;max-height:80px;overflow:hidden;position:relative">${s.html}</div>`:''}
     </div>`;
   }).join('');
-  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="background:${c}22;color:${c};font-size:10px;font-weight:800;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${opp?`<span style="font-size:11px;color:var(--t2);cursor:pointer;text-decoration:underline" onclick="atlasOpenDrawer('project','${opp.id}')">↗ ${esc(opp.name)}</span>`:''}${tpl?`<span style="font-size:11px;color:var(--t3)">📄 ${esc(tpl.name)}</span>`:''}</div>
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="background:${c}22;color:${c};font-size:11px;font-weight:800;padding:3px 9px;border-radius:4px;letter-spacing:.4px;text-transform:uppercase">${esc(p.status)}</span>${opp?`<span style="font-size:11px;color:var(--t2);cursor:pointer;text-decoration:underline" onclick="atlasOpenDrawer('project','${opp.id}')">↗ ${esc(opp.name)}</span>`:''}${tpl?`<span style="font-size:11px;color:var(--t3)">📄 ${esc(tpl.name)}</span>`:''}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${_atlasFld('Customer',rfp.customer)}${_atlasFld('Due Date',rfp.dueDate)}
       ${_atlasFld('Period of Performance',rfp.pop)}${_atlasFld('Potential Value',rfp.potentialValue?_atlasMoney(rfp.potentialValue):'')}
@@ -13199,14 +13199,14 @@ function _atlasDetailsProposal(p){
     ${p.pricing&&p.pricing.items&&p.pricing.items.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">Pricing — ${_atlasMoney(p.pricing.items.reduce((s,i)=>s+(i.fee||0),0))} total</div><div style="font-size:11px;color:var(--t3)">${p.pricing.items.length} line items · ${p.pricing.mode==='project-clins'?'pulled from CLINs':'manual'}</div></div>`:''}
     ${p.winLoss?`<div style="margin-top:14px;padding:10px 12px;background:${c}11;border:1px solid ${c}44;border-radius:6px"><div style="font-size:11px;font-weight:700;color:${c};text-transform:uppercase;letter-spacing:.4px">Win/Loss Debrief</div><div style="font-size:12px;color:var(--t2);margin-top:4px;line-height:1.55">${esc(p.winLoss.notes||'(no notes)')}</div></div>`:''}`;
 }
-function _atlasFld(label,val){if(val===null||val===undefined||val==='')return '';return `<div style="background:var(--s2);padding:7px 10px;border-radius:5px"><div style="font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">${esc(label)}</div><div style="font-size:12px;color:var(--t1);margin-top:2px">${esc(String(val))}</div></div>`;}
+function _atlasFld(label,val){if(val===null||val===undefined||val==='')return '';return `<div style="background:var(--s2);padding:7px 10px;border-radius:5px"><div style="font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--t3)">${esc(label)}</div><div style="font-size:12px;color:var(--t1);margin-top:2px">${esc(String(val))}</div></div>`;}
 
 /* ── Annotations ── */
 function _atlasDrawerNotesHTML(type,id,a){
   const key=_atlasAnnotKey(type,id);
   return `<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Your private notes about this Atlas item. Stored in your LevelUp account — never synced back to Atlas. Updated ${a.updatedAt?new Date(a.updatedAt).toLocaleString():'never'}.</div>
     <textarea id="atlas-annot-textarea" style="width:100%;min-height:280px;padding:10px 12px;border:1.5px solid var(--brd);border-radius:7px;font-size:13px;font-family:inherit;background:var(--s1);color:var(--t1);line-height:1.55" placeholder="Add notes, observations, follow-ups...">${esc(a.notes||'')}</textarea>
-    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${type}','${id}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:10px" onclick="_atlasClearAnnot('${type}','${id}')">Clear</button>`:''}</div>`;
+    <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${type}','${id}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:11px" onclick="_atlasClearAnnot('${type}','${id}')">Clear</button>`:''}</div>`;
 }
 function _atlasSaveAnnot(type,id){
   const ta=document.getElementById('atlas-annot-textarea');if(!ta)return;
@@ -13237,15 +13237,15 @@ function _atlasDrawerSpawnHTML(type,id,e){
     <div style="display:grid;grid-template-columns:1fr;gap:8px">
       <button class="btn btn-p" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnNote('${type}','${id}')">
         <div style="font-size:13px;font-weight:700">📝 Create LevelUp Note</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.8);margin-top:2px;font-weight:400">Long-form notes, ideas, research about this Atlas item</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.8);margin-top:2px;font-weight:400">Long-form notes, ideas, research about this Atlas item</div>
       </button>
       <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnJournal('${type}','${id}')">
         <div style="font-size:13px;font-weight:700">📓 Add Journal Entry</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px;font-weight:400">A dated personal log entry referencing this item</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px;font-weight:400">A dated personal log entry referencing this item</div>
       </button>
       <button class="btn btn-s" style="text-align:left;padding:12px 14px;height:auto" onclick="_atlasSpawnTask('${type}','${id}')">
         <div style="font-size:13px;font-weight:700">✅ Create LevelUp Task</div>
-        <div style="font-size:10px;color:var(--t3);margin-top:2px;font-weight:400">An actionable task with this Atlas item as context</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:2px;font-weight:400">An actionable task with this Atlas item as context</div>
       </button>
     </div>`;
 }
