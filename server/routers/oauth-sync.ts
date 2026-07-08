@@ -671,11 +671,21 @@ export const oauthSyncRouter = router({
     if (sent) {
       return { success: true, message: `Test email sent to ${ctx.user.email}` };
     }
-    return {
-      success: false,
-      message:
-        "No SMTP sender is configured. Go to Settings \u2192 Accounts, connect a Google or Microsoft account, then select it as the System Notification Sender.",
-    };
+    // Surface the REAL failure from the delivery log. The old canned "No SMTP
+    // sender is configured" text showed for ANY failure \u2014 including auth or
+    // connection errors on a perfectly-configured sender \u2014 sending users off
+    // to reconfigure accounts that were never the problem.
+    try {
+      const rows = await db.getEmailDeliveryLog(ctx.user.id, 1);
+      const last = rows && rows[0];
+      if (last && last.errorMessage) {
+        return { success: false, message: `Send failed: ${String(last.errorMessage).slice(0, 300)}` };
+      }
+      if (last && last.status === "skipped") {
+        return { success: false, message: "No sender is configured \u2014 add a Secondary Email (SMTP) account or connect Google/Microsoft, then pick it as the System Notification Sender." };
+      }
+    } catch { /* fall through to generic */ }
+    return { success: false, message: "Send failed \u2014 check the Recent Delivery Log below for the error detail." };
   }),
 
   /**
