@@ -1356,9 +1356,19 @@ function applyTheme(opts){
   }
   const fs=Number(D.prefs.themeFontScale)||1;
   root.style.setProperty('--lu-font-scale',String(fs));
-  // Apply scale by adjusting body font-size (works alongside compact-mode etc.)
   let baseFs=document.body.classList.contains('dense-mode')?12:document.body.classList.contains('compact-mode')?13:15;
-  document.body.style.fontSize=(baseFs*fs).toFixed(1)+'px';
+  // Whole-UI scaling (Spacious ⇄ Compact): most of the app uses hardcoded px
+  // sizes that don't inherit body font-size, so the old font-size-only scale
+  // barely moved anything. Scale the layout itself with zoom (all modern
+  // browsers, Firefox 126+). Text must not double-scale, so body font-size
+  // stays at the density base when zoom is active. Old behaviour kept as a
+  // fallback for browsers without zoom.
+  if('zoom' in document.body.style){
+    document.body.style.zoom=(fs===1?'':String(fs));
+    document.body.style.fontSize=baseFs+'px';
+  }else{
+    document.body.style.fontSize=(baseFs*fs).toFixed(1)+'px';
+  }
   // Re-render to update inline-styled colour pickers etc. if requested.
   if(opts&&opts.silent!==true){
     _lastAppliedThemeKey=_themeFingerprint();

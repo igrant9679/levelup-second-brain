@@ -251,8 +251,8 @@ function renderSettingsHTML(){
       </select>
     </div>
     <div class="lr" style="padding:6px 0">
-      <div style="flex:1"><div style="font-size:12px;font-weight:500">Font Size Scale</div><div style="font-size:11px;color:var(--t3)">${Math.round((Number(D.prefs.themeFontScale)||1)*100)}% of default</div></div>
-      <input type="range" min="0.85" max="1.30" step="0.05" value="${Number(D.prefs.themeFontScale)||1}" style="width:180px" oninput="D.prefs.themeFontScale=Number(this.value);save('prefs');applyTheme();this.parentElement.querySelector('div div:last-child').textContent=Math.round(Number(this.value)*100)+'% of default'">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Display Scale <span style="font-size:10px;color:var(--t3);font-weight:400">Compact ⇄ Spacious</span></div><div style="font-size:11px;color:var(--t3)">${Math.round((Number(D.prefs.themeFontScale)||1)*100)}% — scales the whole interface</div></div>
+      <input type="range" min="0.85" max="1.30" step="0.05" value="${Number(D.prefs.themeFontScale)||1}" style="width:180px" oninput="D.prefs.themeFontScale=Number(this.value);save('prefs');applyTheme();this.parentElement.querySelector('div div:last-child').textContent=Math.round(Number(this.value)*100)+'% — scales the whole interface'">
     </div>
   </div>
 
@@ -581,6 +581,17 @@ function renderSettingsHTML(){
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">📋 Recent Delivery Log</div>
       <div id="email-delivery-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
+  </div>
+  <!-- Data Migration Health (owner/admin only) — Step 3 readiness for retiring
+       the user_app_data blob columns. Read-only: shows table-vs-blob counts,
+       consistency, and which store served the last load. -->
+  <div id="migration-health-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div style="font-size:12px;font-weight:600">🔬 Data Migration Health</div>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadMigrationHealth()">↻ Check now</button>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Blob → relational migration status for tasks / notes / ideas. All three need <b>consistent ✓</b> and <b>served from: relational</b> over a soak period before the legacy blob columns can be retired (Step 3). Read-only — checking changes nothing.</p>
+    <div id="migration-health-body" style="font-size:11px;color:var(--t3)">Click “Check now” to run the readiness checks.</div>
   </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -8590,6 +8601,40 @@ async function verifyOAuthCredentials(provider){
   if(btn){btn.disabled=false;btn.textContent='🔍 Verify';}
 }
 
+/** Data Migration Health (admin) — Step 3 readiness check, strictly read-only.
+    Queries the {tasks,notes,ideas}RelationalStatus endpoints and shows which
+    store served the last appData.load (captured in window._luLoadSources). */
+async function loadMigrationHealth(){
+  const body=document.getElementById('migration-health-body');
+  if(!body)return;
+  body.innerHTML='Checking…';
+  const rows=[];
+  for(const ent of ['tasks','notes','ideas']){
+    try{
+      const r=await _trpc('appData.'+ent+'RelationalStatus',undefined,'query');
+      const ok=!!(r&&r.ok&&r.consistent);
+      rows.push({ent,ok,detail:(r&&r.ok)?('table '+r.tableCount+' / blob '+r.blobCount):'endpoint unavailable'});
+    }catch(e){rows.push({ent,ok:false,detail:'error: '+String(e&&e.message||e).slice(0,60)});}
+  }
+  const src=window._luLoadSources||null;
+  const srcCell=ent=>{
+    const v=src?String(src[ent]||'?'):'?';
+    const good=v==='relational';
+    return `<span style="color:${good?'var(--ok)':'var(--warn)'};font-weight:600">${esc(v)}</span>`;
+  };
+  const allOk=rows.every(r=>r.ok)&&!!src&&['tasks','notes','ideas'].every(k=>src[k]==='relational');
+  body.innerHTML=`
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <tr style="color:var(--t3);text-align:left"><th style="padding:3px 6px">Entity</th><th style="padding:3px 6px">Counts</th><th style="padding:3px 6px">Consistent</th><th style="padding:3px 6px">Served from (last load)</th></tr>
+      ${rows.map(r=>`<tr style="border-top:1px solid var(--bd1)"><td style="padding:3px 6px;font-weight:600">${r.ent}</td><td style="padding:3px 6px">${esc(r.detail)}</td><td style="padding:3px 6px">${r.ok?'<span style="color:var(--ok)">✓ consistent</span>':'<span style="color:var(--red)">✗</span>'}</td><td style="padding:3px 6px">${srcCell(r.ent)}</td></tr>`).join('')}
+    </table>
+    <div style="margin-top:8px;padding:7px 9px;border-radius:6px;background:${allOk?'var(--oks)':'var(--warns)'};color:${allOk?'var(--ok)':'var(--warn)'};font-size:11px;font-weight:600">
+      ${allOk?'✓ All checks green — Step 3 (retiring the blob columns) is safe to schedule. Take a DB backup of user_app_data first; the column drop is irreversible.':'⚠ Not ready — at least one check is not green. Do NOT retire the blob columns yet.'}
+    </div>
+    ${src&&src.at?`<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources captured ${esc(src.at)}</div>`:'<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources not captured yet — reload the app once on this build, then re-check.</div>'}
+  `;
+}
+
 /** Load notification sender options (admin only) */
 async function loadNotificationSenderOptions(){
   const section=document.getElementById('notif-sender-section');
@@ -8598,8 +8643,10 @@ async function loadNotificationSenderOptions(){
   try{
     const data=await _trpc('oauthSync.getNotificationSenderOptions',undefined,'query');
     if(!data)return;
-    // Show section for admins
+    // Show section for admins (+ the Migration Health panel, same gating)
     section.style.display='';
+    const mh=document.getElementById('migration-health-section');
+    if(mh)mh.style.display='';
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
     const labels={microsoft:'Microsoft 365',google:'Google',smtp:'Secondary email (SMTP)'};
@@ -9922,6 +9969,10 @@ async function loadServerData(){
     // we must NOT resurrect it — that was making deletes bounce back and
     // re-append at the bottom. 90s grace absorbs device/server clock skew
     // and the create-then-close race window.
+    // Surface the blob-vs-relational read sources for the admin Migration
+    // Health panel (Step 3 readiness check — 'relational' on all three is a
+    // precondition for retiring the blob columns).
+    try{ window._luLoadSources={tasks:sd._tasksSource||'?',notes:sd._notesSource||'?',ideas:sd._ideasSource||'?',at:new Date().toISOString()}; }catch(_){}
     let _srvUpd=0;
     try{ if(sd&&sd.updatedAt!=null)_srvUpd=new Date(sd.updatedAt).getTime()||0; }catch(_){ _srvUpd=0; }
     const _GRACE=90*1000;
