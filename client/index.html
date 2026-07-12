@@ -1337,12 +1337,11 @@ body.sb-open .lu-pill-pop{display:none!important}
 
 /* AI ASSISTANT BUBBLE */
 .ai-bubble{position:fixed;bottom:20px;right:20px;z-index:80;display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
-/* Desktop: assistant/news messages live bottom-LEFT (beside the sidebar) so
-   they never stack into the toast corner bottom-right. Mobile keeps the
-   right-side placement its media queries already manage. */
+/* Desktop: assistant/news messages sit bottom-right, just LEFT of the round
+   ❓ help button (which is at right:24px, 22px wide). User-chosen placement.
+   Mobile keeps the placement its media queries already manage. */
 @media (min-width:901px){
-  .ai-bubble{left:calc(var(--side) + 16px);right:auto;align-items:flex-start}
-  .ai-msg{border-radius:12px 12px 12px 4px}
+  .ai-bubble{right:56px;bottom:20px}
 }
 /* Always hide the AI/news bubble while the mobile sidebar is open so news
    messages can't slide in over it and block taps. */
@@ -2886,7 +2885,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-128';
+  var APP_BUILD='2026-07-05-129';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
