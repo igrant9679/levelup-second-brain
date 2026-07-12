@@ -2461,9 +2461,16 @@ body.sh-resizing{user-select:none!important}
       <button id="notes-mode-sheets-btn" onclick="setNotesMode('sheets')" title="Spreadsheets">📊 Sheets</button>
       <button id="notes-mode-slides-btn" onclick="setNotesMode('slides')" title="Presentations">🖼 Slides</button>
     </div>
-    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:11px" onclick="toggleNotesBulkMode()" id="btn-notes-bulk" title="Select multiple notes for bulk actions">☑ Select</button>
-    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:11px" onclick="document.getElementById('doc-import-input').click()" title="Import PDF / Word / TXT">📥 Import Docs</button>
-    <button class="btn btn-s notes-only-notes" style="height:28px;font-size:11px" onclick="openNoteTemplates()" title="New note from template">📝 Templates</button>
+    <!-- Secondary note actions live in one ⋯ menu — the header previously
+         carried 4 separate buttons plus the mode toggle. -->
+    <div class="notes-only-notes" style="position:relative;display:inline-flex">
+      <button class="btn btn-s" style="height:28px;font-size:11px" id="btn-notes-more" onclick="event.stopPropagation();togglePopMenu('notes-more-menu')" title="More note actions">⋯ More</button>
+      <div id="notes-more-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:5px;z-index:var(--z-dropdown);min-width:210px;box-shadow:0 10px 32px rgba(0,0,0,.45)">
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-more-menu');toggleNotesBulkMode()">☑ Select multiple…</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-more-menu');document.getElementById('doc-import-input').click()">📥 Import documents…</button>
+        <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:30px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-more-menu');openNoteTemplates()">📝 New from template…</button>
+      </div>
+    </div>
     <button class="btn btn-p notes-only-notes" onclick="openFA('note')">+ New Note</button>
     <button class="btn btn-p notes-only-sheets" onclick="shNewSheetMenu(event)">+ New Sheet</button>
     <button class="btn btn-p notes-only-slides" onclick="dkNewDeckMenu(event)">+ New Deck</button>
@@ -2849,7 +2856,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-124';
+  var APP_BUILD='2026-07-05-125';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

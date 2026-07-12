@@ -4630,6 +4630,87 @@ function renderScreen(s){
   if(s==='atlas')renderAtlas();
   if(s==='help')renderHelp();
   updateSidebarBadges();
+  // Pane resizers need the fresh layout — install after this frame paints.
+  setTimeout(initPaneResizers,60);
+}
+
+// ─── Resizable panes ─────────────────────────────────────────────────────────
+// Drag handles on the column boundaries of every multi-pane screen:
+//   • Notes: folders-nav │ list │ (editor) │ links-rail — 3 handles
+//   • Every right-rail screen (.bg.wr — Tasks, Mail, Calendar, Home, …): the
+//     main │ rail boundary — one shared rail width across all of them.
+// Widths persist in D.prefs.paneSizes (server-synced) and re-apply on every
+// screen render. Mobile keeps its stacked layouts (the ≤900px CSS overrides
+// use !important, which beats these inline widths — and we don't install
+// handles there at all). Reuses the pre-existing .notes-resize handle CSS.
+function _paneSizes(){D.prefs=D.prefs||{};return D.prefs.paneSizes=D.prefs.paneSizes||{};}
+function _applyCurrentPaneSizes(){
+  const scr=document.querySelector('.scr.on');if(!scr)return;
+  const bg=scr.querySelector(':scope > .bg');if(!bg)return;
+  const ps=_paneSizes();
+  if(scr.id==='s-notes'){
+    bg.style.gridTemplateColumns=`var(--side) ${ps.notesNav||160}px ${ps.notesList||240}px 1fr ${ps.notesRail||200}px`;
+  }else if(bg.classList.contains('wr')){
+    bg.style.gridTemplateColumns=`var(--side) 1fr ${ps.rail||280}px`;
+  }
+}
+function initPaneResizers(){
+  const scr=document.querySelector('.scr.on');if(!scr)return;
+  const bg=scr.querySelector(':scope > .bg');if(!bg)return;
+  bg.querySelectorAll(':scope > .notes-resize').forEach(e=>e.remove());
+  if(window.innerWidth<=900)return;
+  _applyCurrentPaneSizes();
+  const mk=(pane,edge,key,min,max)=>{
+    if(!pane)return;
+    const r0=pane.getBoundingClientRect();
+    if(r0.width<2)return; // pane hidden (grid view / focus mode)
+    const h=document.createElement('div');
+    h.className='notes-resize';
+    h.title='Drag to resize · double-click to reset';
+    if(getComputedStyle(bg).position==='static')bg.style.position='relative';
+    bg.appendChild(h);
+    const pos=()=>{
+      const b=pane.getBoundingClientRect(),g=bg.getBoundingClientRect();
+      h.style.top=(b.top-g.top)+'px';h.style.height=b.height+'px';
+      h.style.left=((edge==='right'?b.right:b.left)-g.left-3)+'px';
+    };
+    pos();h._pos=pos;
+    h.ondblclick=()=>{delete _paneSizes()[key];save('prefs');initPaneResizers();};
+    h.onmousedown=(e)=>{
+      e.preventDefault();
+      const startX=e.clientX,startW=pane.getBoundingClientRect().width;
+      h.classList.add('dragging');
+      document.body.style.cursor='col-resize';document.body.style.userSelect='none';
+      const mv=(ev)=>{
+        const dx=ev.clientX-startX;
+        const w=Math.max(min,Math.min(max,edge==='right'?startW+dx:startW-dx));
+        _paneSizes()[key]=Math.round(w);
+        _applyCurrentPaneSizes();
+        bg.querySelectorAll(':scope > .notes-resize').forEach(x=>{if(x._pos)x._pos();});
+      };
+      const up=()=>{
+        document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+        h.classList.remove('dragging');
+        document.body.style.cursor='';document.body.style.userSelect='';
+        save('prefs');
+      };
+      document.addEventListener('mousemove',mv);
+      document.addEventListener('mouseup',up);
+    };
+  };
+  if(scr.id==='s-notes'){
+    if(document.body.classList.contains('notes-mode-sheets')||document.body.classList.contains('notes-mode-slides'))return;
+    mk(document.getElementById('notes-nav-panel'),'right','notesNav',110,340);
+    mk(document.getElementById('notes-list-panel'),'right','notesList',170,520);
+    mk(document.getElementById('notes-rail-panel'),'left','notesRail',140,420);
+  }else if(bg.classList.contains('wr')){
+    mk(bg.querySelector(':scope > .rr'),'left','rail',180,520);
+  }
+}
+if(typeof window!=='undefined'&&!window._luPaneRzResizeWired){
+  window._luPaneRzResizeWired=true;
+  let _przT=null;
+  window.addEventListener('resize',()=>{clearTimeout(_przT);_przT=setTimeout(initPaneResizers,150);});
 }
 
 let _bulkSelected=new Set();
@@ -12148,8 +12229,10 @@ function toggleNotesBulkMode(){
   if(!_notesBulkMode)_notesBulkSelected.clear();
   const bar=document.getElementById('notes-bulk-bar');
   if(bar)bar.style.display=_notesBulkMode?'flex':'none';
-  const btn=document.getElementById('btn-notes-bulk');
-  if(btn){btn.style.background=_notesBulkMode?'var(--page-accent)':'';btn.style.color=_notesBulkMode?'#fff':'';btn.textContent=_notesBulkMode?'☑ Selecting…':'☑ Select';}
+  // Bulk mode is entered from the ⋯ More menu; highlight that button while
+  // active so the mode has a visible anchor (exit via the bar's ✕ Done).
+  const btn=document.getElementById('btn-notes-more');
+  if(btn){btn.style.background=_notesBulkMode?'var(--page-accent)':'';btn.style.color=_notesBulkMode?'#fff':'';btn.textContent=_notesBulkMode?'☑ Selecting…':'⋯ More';}
   document.body.classList.toggle('notes-bulk-mode',_notesBulkMode);
   _updateNotesBulkCount();
   if(typeof applyNotesFilters==='function')applyNotesFilters();
@@ -12437,6 +12520,9 @@ function applyNoteTemplate(idx){
   toggleNoteInlineEdit(newNote.id);
   toast('📝 Template applied — start editing!');
 }
+// Collapsible Notes-nav sections — persisted so the panel stays how you left it.
+function _nnc(k){return !!(D.prefs&&D.prefs.notesNavCollapsed&&D.prefs.notesNavCollapsed[k]);}
+function _toggleNotesNavSec(k){D.prefs=D.prefs||{};const c=D.prefs.notesNavCollapsed=D.prefs.notesNavCollapsed||{};c[k]=!c[k];save('prefs');renderNotes();}
 function renderNotes(){
   // Update header subtitle with live counts (matches the .ph-r subtitle
   // pattern used on Tasks / Projects / Goals etc.)
@@ -12456,10 +12542,12 @@ function renderNotes(){
   }
   // Populate Notes nav panel
   const nav=$('notes-nav-panel');
+  // Collapsible section headings (state persists in D.prefs.notesNavCollapsed)
+  const _nnHead=(key,label)=>`<div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px" onclick="_toggleNotesNavSec('${key}')" title="Click to ${_nnc(key)?'expand':'collapse'}"><span style="font-size:11px">${_nnc(key)?'▸':'▾'}</span>${label}</div>`;
   nav.innerHTML=`<div style="font-size:13px;font-weight:600;margin-bottom:10px;padding:0 4px">Notes</div>
   ${['Recent','Favorites','Web Clips','Meeting Notes','Journal','Resources'].map((n,i)=>`<div class="nn ${i===0&&!_notesFilterStatus?'on':''}" onclick="filterNotesByCategory('${n}',this)">${n}</div>`).join('')}
-  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Lifecycle</div>
-  ${(()=>{
+  ${_nnHead('lifecycle','Lifecycle')}
+  ${_nnc('lifecycle')?'':(()=>{
     const _u=D.notes.filter(n=>!n.folderId);
     return _NOTE_STATUSES.map(s=>{
       const c=_u.filter(n=>_noteStatus(n)===s.id).length;
@@ -12467,8 +12555,8 @@ function renderNotes(){
       return `<div class="nn ${on?'on':''}" onclick="filterNotesByStatus('${s.id}')" style="display:flex;align-items:center;gap:6px" title="${esc(s.hint)}"><span style="color:${s.color}">${s.icon}</span> ${s.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${c}</span></div>`;
     }).join('');
   })()}
-  <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">Smart Folders</div>
-  ${(()=>{
+  ${_nnHead('smart','Smart Folders')}
+  ${_nnc('smart')?'':(()=>{
     const now=new Date(); const todayStr=now.toISOString().slice(0,10);
     const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
     // Counts only consider un-foldered notes so they match what the smart

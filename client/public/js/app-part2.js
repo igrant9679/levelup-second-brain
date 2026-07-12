@@ -11474,6 +11474,9 @@ function _applyNotesMode(){
   if(bn)bn.classList.toggle('on',m==='notes'); if(bs)bs.classList.toggle('on',m==='sheets'); if(bd)bd.classList.toggle('on',m==='slides');
   if(m==='sheets')renderSheetsSection();
   if(m==='slides'&&typeof renderDecksSection==='function')renderDecksSection();
+  // Reinstall pane resize handles when returning to notes mode (they're
+  // removed while Sheets/Slides own the screen).
+  if(typeof initPaneResizers==='function')setTimeout(initPaneResizers,80);
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────
