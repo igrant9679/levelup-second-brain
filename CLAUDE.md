@@ -42,11 +42,34 @@ package.json          ← `start` runs `drizzle-kit migrate || echo … && node 
 
 Newer features were built relationally; older "second brain" data is still blob-based. Migrating it is a known piece of tech debt.
 
-### Blob → relational migration (tasks + notes + ideas — Steps 1-2 DONE)
+### Blob → relational migration (tasks + notes + ideas — STEP 3a LIVE)
 
-**Status:** the `tasks`, `notes`, and `ideas` entities are all migrated through
-*read-flip*. Step 3 (retire the blob columns) is deliberately deferred — needs
-a soak period — see the detailed handoff below.
+**Status (2026-07-12, build -131, commit `b2bdb89`): STEP 3a IS DEPLOYED.**
+The relational tables are the SOLE store for tasks/notes/ideas. The
+`user_app_data.{tasks,notes,ideas}` blob columns are **FROZEN pre-3a
+snapshots** (rollback net) — nothing writes them anymore. Owner took a full
+JSON backup first (`appData.exportUserAppDataBackup`, owner-gated, build -130)
+and readiness was verified green in the admin **Migration Health** panel
+(Settings; shipped -124). What 3a changed: `save` excludes the three from the
+blob upsert and mirror failures PROPAGATE (a failed save is visible
+client-side); `readTasks/readNotes/readIdeas` serve the tables unconditionally
+(frozen blob only on a table error → `blob-error`, or a loud `blob-rescue`
+when a table is empty while the blob has items); updateSharedTask/Note/Status
+blob writes removed; deleteSharedItem is table-direct for the three kinds
+(ideas gained its previously-missing ideasTable delete); transferItemOwnership
+uses `readEntityArray`/`writeEntityArray` (ORDER BY id preserves manual
+order); admin bulk-delete blob-prune loops removed. Client payload/API shape
+is unchanged.
+**Rollback:** `git revert b2bdb89` (frozen blobs still hold pre-3a state).
+**NEXT — Step 3b after ~1 week clean soak (target ≥ 2026-07-19):** migration
+`0049` drops the three columns (IRREVERSIBLE); also remove them from
+`drizzle/schema.ts`, `DATA_KEYS`, the save zod input, the frozen-blob
+fallbacks in readX, and the backfill endpoints. Before running it, confirm the
+Migration Health banner stayed green and no `blob-rescue` ever appeared in the
+Railway logs.
+
+The sections below describe the original Steps 1-2 architecture — accurate
+history, but read them with the 3a status above in mind.
 
 **What's live (server-only — the client is untouched throughout):**
 - **`tasks` table** (migration `0030`, `drizzle/schema.ts` → `tasksTable`) —
@@ -73,8 +96,9 @@ a soak period — see the detailed handoff below.
   table from the current blob) and
   `appData.{tasks,notes,ideas}RelationalStatus` (returns
   `{tableCount, blobCount, consistent}`).
-- The JSON blobs are **still dual-written and are still the source of truth.**
-  `user_app_data.{tasks,notes,ideas}` columns have NOT been dropped.
+- ~~The JSON blobs are still dual-written and are still the source of truth.~~
+  **OUTDATED — as of Step 3a (build -131) the blobs are FROZEN and the tables
+  are the sole store.** The columns still exist (drop is Step 3b).
 
 **Verified on production (build `2026-05-22-12`):**
 - `tasksRelationalStatus` → `{tableCount:19, blobCount:19, consistent:true}`;
@@ -140,8 +164,18 @@ Per-entity gotchas:
 
 ## Team visibility / shared-workspace model (June 6 2026 — DONE, builds -76→-84)
 
+**⚠ VISIBILITY RULE SUPERSEDED (2026-07-02, build -112, commit `cbbe16d`):**
+"admins see everything" leaked the owner's whole workspace to invited Admins
+(Lucas/Khaja/Sabine are all role=admin). All 8 `shared*ForMe` endpoints now
+gate full visibility on `isOwnerCtxUser()` (top of `appData.ts`:
+OWNER_OPEN_ID match OR first-registered user) — **only the workspace OWNER
+sees everyone's items; admins see only items assigned to them** but keep
+their edit/take-ownership powers. When adding new shared entities, gate with
+`isOwnerCtxUser`, NOT `isAdminUser`. The rest of this section is accurate.
+
 **Goal (user-chosen):** every member sees only items they CREATE or that are
-ASSIGNED to them; admins/owners see everything. Data stays per-user blobs; we
+ASSIGNED to them; ~~admins/owners see everything~~ (see supersession note
+above). Data stays per-user blobs; we
 *augment reads* rather than rewrite the save path (chosen over a full
 shared-pool rewrite because the wholesale "replace my whole list" blob save is
 incompatible with a shared pool — a member saving their filtered slice would
@@ -270,6 +304,18 @@ Password not accepted`, that's the **secondary SMTP** account's password (revoke
 Gmail app-password etc.), a config fix in Settings → Notifications — NOT the OAuth
 path this build fixed.
 
+**FINAL ROOT CAUSE FOUND 2026-07-05 (commit `e0785fc`):** the secondary sender
+is mailpool.io **port 465**, whose dashboard labels implicit TLS as "TLS:
+true" — so "TLS" (=STARTTLS in our dropdown) was selected and nodemailer
+waited for a plaintext greeting on a TLS-only port → `Greeting never
+received`. All three SMTP transporters (sendEmail system mail, verify, Mail
+compose) are now **port-aware**: 465 = implicit TLS always, 587 = STARTTLS
+always, the stored label only decides other ports. Also shipped en route: a
+sender **fallback chain** (`resolveSenderCandidates`, -113 — one dead
+credential can't kill all mail), fail-fast SMTP timeouts, and a truthful Test
+Email popup (it used to say "No SMTP sender is configured" for ANY failure —
+`6da1579` makes it surface the delivery-log error instead).
+
 ### Other fixes this session (builds -90→-97)
 - **-90/-92** External (Nifty/LSI, Smartsheet/CF) tasks were rendering as purple
   "SHARED" cards + "Shared task not found" on click. Real cause: `cardRow` routed
@@ -289,6 +335,99 @@ path this build fixed.
   `bookmarks.fetchMetadata` reusing `extractPageMetadata`).
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
+
+## Session arc June 25 → July 12 2026 (builds -105 → -131) — ALL PUSHED/LIVE
+
+Huge arc across four working days. Current build **`2026-07-12-131`**.
+
+### New features
+- **-105** Mind Map connections became editable/deletable (click/right-click an
+  edge → editor panel: style/arrow/thickness/label/delete; Del key works).
+- **-106/-107** **SHEETS** — Smartsheet-like spreadsheets as a Notes-page mode
+  (header toggle Notes|Sheets|Slides, `D.prefs.notesMode`). `D.sheets` blob,
+  **migration 0047**. Formula engine `_shEval` (A1 refs, SUM/AVG/…/MEDIAN),
+  visual column types, themes, 9 templates, CSV export, drag col/row resize,
+  co-editable team sharing (`sharedSheetsForMe`/`updateSharedSheet`).
+- **-108/-109** **SLIDES/DECKS** — presentation builder, same architecture.
+  `D.decks`, **migration 0048**. Elements: text/shape/image/chart (custom SVG
+  bar/line/area/pie/donut)/table/kanban/bullets/metric/progress; % coords +
+  cqw fonts (canvas/thumbs/present have `container-type:inline-size`);
+  full-screen Present mode; **15 templates in 4 business categories**.
+  `sharedDecksForMe`/`updateSharedDeck`. CSS prefix `dk-`, sheets `sh-`.
+- **-122/-128** direct deletes: gallery 🗑 on sheet/deck cards; hover × on
+  sheet rows + slide thumbs; right-click deck-table cells for positional
+  row/col insert/delete; kanban column/card × (edit mode only — dkKanCommit
+  strips contenteditable=false children so the × can't leak into card text).
+- **-125** **Resizable panes** everywhere: drag handles on Notes' 3 boundaries
+  + every `.bg.wr` right rail (shared width). `D.prefs.paneSizes`, dblclick
+  resets, installed via `initPaneResizers()` from `renderScreen`. This
+  activated the previously-dead `.notes-resize` CSS.
+- **-124** Display Scale slider (Settings → Appearance) now scales the WHOLE
+  UI via `body.zoom` (old font-size-only approach didn't touch hardcoded px).
+  Admin **Migration Health** panel + **-130** owner-only backup download.
+- **-126/-129** Assistant/news bubble: Settings → Notifications card (master +
+  per-category toggles synced in `D.prefs.aiBubble`, frequency picker); ✕ on a
+  message mutes via synced pref with a pointer to Settings. Position:
+  bottom-right at `right:56px`, just left of the round ❓ help button
+  (user-chosen; was briefly bottom-left).
+
+### Notes formatting saga (-114 → -121) — READ THIS BEFORE TOUCHING EDITORS
+User-reported "bullets don't work" had FOUR stacked causes, fixed in layers:
+1. **-114** 72 bespoke toolbar buttons app-wide used `onclick=execCommand`
+   which loses focus/selection → silent no-op. Also luRTE caret placement,
+   `- item<br>` corruption, list grouping, Notion-style auto-format (`- `+
+   space), duplicate `?`/Ctrl+/ key bindings, modifier-guard on 1-letter navs.
+2. **-115** global `*{margin:0;padding:0}` reset made inserted list markers
+   render outside the editable's clip box → `[contenteditable="true"] ul/ol/li`
+   restore rules in index.html.
+3. **-117 THE REAL DISPLAY BUG**: `luRTE_mdToHtml`/`renderMd` decided
+   "already HTML?" via `startsWith('<')` — contenteditable's mixed bodies
+   (`Text<br><ul>…`) got HTML-escaped on display, destroying saved lists.
+   Now `_luRTE_isHtml()` detects a real tag ANYWHERE.
+4. **-116** font-family/size + text/highlight colour on EVERY editor
+   (`_rteFontTools`, selection saved on mousedown via `_rteSaveSel`/`_rteApply`;
+   `_rteExec`/`_rteFindEd` make toolbar controls self-targeting).
+- **-120/-121** ALL editing surfaces consolidated onto `luRTE_render` (drawers
+  dr-note/dr-notes/dr-goal/dr-diary, FA modals fa-note/fa-goal/fa-jrnl, idea
+  editors; same element ids so save paths untouched; net −130 lines; only the
+  subtask mini-toolbar stays bespoke). **Never hand-roll a toolbar again.**
+- **-118** distinct SVG icons for bullet vs numbered list buttons.
+- Verification lesson: test against the REAL extracted `<style>` block +
+  `fetch levelupnow.tools` to check APP_BUILD/CSS actually live — a minimal
+  harness passed while prod failed, twice.
+
+### Team page + privacy + email (July 2-5)
+- **-110** Team member stats were `D.tasks.filter(createdBy===name)` → 0 for
+  everyone else; now own=all of D.tasks, others=admin shared pool by
+  `_sharedFromUserId`; rail totals from same pool.
+- **-111** Last Seen uses `users.lastSignedIn` (exposed via team.listMembers).
+- **-112** **VISIBILITY: owner-only full view** (see supersession note in the
+  June team-visibility section — gate new shared reads with `isOwnerCtxUser`).
+- **-113/e0785fc** email fixed for real (see Email section addendum: port-465
+  STARTTLS trap + fallback chain + truthful Test Email errors).
+
+### UI/typography overhaul (July 5)
+- **-119** z-index ladder on `--z-*` tokens (drawer 100 < modal 1000 < FA 1010
+  < toast 5000; 9xxx band untouched); `--t3` contrast fix in CSS **and both
+  JS THEME_DEFAULTS maps** (dark #7C8AA3, light #64748B — light was 2.56:1!);
+  note lifecycle pills theme-adaptive (`color-mix` with var(--t1)); font floor
+  8→9, 9/9.5→10 (~620 sites).
+- **-123** context-aware 10px→11px sweep: **1,827 bumped**, 103 kept where the
+  same style block pins height<22px or line-height<14px. Script pattern in
+  scratchpad `font-sweep.js` (latin1 read/write preserves part1's NUL bytes —
+  verify 12 NULs before/after any byte-level tooling).
+- **-119/-120** Home "Today's Plan" strip (My Day quick-complete + schedule +
+  habit chips, unified-landing v1); topbar's two AI buttons → one ✨ menu;
+  Notes header → mode toggle + "⋯ More" + New Note; Notes nav Lifecycle/Smart
+  Folders collapsible (`D.prefs.notesNavCollapsed`).
+- **-127** Bookmarks: card action strip (7 absolute buttons overlapping
+  titles) → hover ⭐+⋯ menu (`bkCardMenu`); header wraps; new right rail
+  (converted to `.bg wr`: quick filters/recent/top tags/top sites).
+
+### Migration milestone (July 12)
+Step 3a live — see the Blob → relational section near the top for the full
+current state + the Step 3b runbook. Audit note: automated sweep of all 861
+inline handler functions + static ids found zero dead references.
 
 ## Deploy workflow
 
