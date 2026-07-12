@@ -2356,6 +2356,12 @@ body.notes-mode-slides #s-notes #notes-slides-section{display:flex!important}
 .sh-rownum-h,.sh-rownum{width:34px;min-width:34px;text-align:center;color:var(--t3);font-size:11px;background:var(--s2);position:sticky;left:0;z-index:2;cursor:pointer}
 .sh-rownum:hover{background:color-mix(in srgb,var(--c) 18%,var(--s2));color:var(--t1)}
 .sh-rownum-h{z-index:4}
+/* direct row delete — hover × on the row number cell (sticky = positioned,
+   so the absolute × anchors to it) */
+.sh-row-del{position:absolute;top:2px;right:2px;font-size:12px;line-height:1;color:var(--red);cursor:pointer;opacity:0;transition:opacity .12s;padding:1px 3px;border-radius:4px}
+.sh-table tbody tr:hover .sh-row-del{opacity:.75}
+.sh-row-del:hover{opacity:1!important;background:var(--reds)}
+@media (pointer:coarse){.sh-row-del{opacity:.5}}
 /* drag-resize handles */
 .sh-col-resize{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;z-index:6}
 .sh-col-resize:hover,body.sh-resizing .sh-col-resize{background:var(--ac);opacity:.6}
@@ -2422,6 +2428,18 @@ body.sh-resizing{user-select:none!important}
 .dk-thumb{position:relative;border:2px solid var(--bd2);border-radius:7px;overflow:hidden;cursor:pointer;background:#fff;aspect-ratio:16/9;flex-shrink:0;container-type:inline-size}
 .dk-thumb.on{border-color:var(--ac);box-shadow:0 0 0 2px color-mix(in srgb,var(--ac) 40%,transparent)}
 .dk-thumb-n{position:absolute;top:2px;left:3px;font-size:9px;font-weight:700;color:var(--t3);background:rgba(255,255,255,.7);border-radius:3px;padding:0 3px}
+/* slide delete — hover × on the thumbnail */
+.dk-thumb-del{position:absolute;top:2px;right:3px;z-index:2;font-size:12px;line-height:1;font-weight:700;color:#b91c1c;background:rgba(255,255,255,.85);border-radius:4px;padding:1px 4px;cursor:pointer;opacity:0;transition:opacity .12s}
+.dk-thumb:hover .dk-thumb-del{opacity:.85}
+.dk-thumb-del:hover{opacity:1!important;background:#fecaca}
+@media (pointer:coarse){.dk-thumb-del{opacity:.6}}
+/* kanban delete affordances (edit mode) */
+.dk-kan-x{cursor:pointer;color:#b91c1c;font-weight:700;font-size:1.8cqw;line-height:1;padding:0 .4cqw;border-radius:3px;opacity:.55}
+.dk-kan-x:hover{opacity:1;background:rgba(239,68,68,.15)}
+.dk-kan-card-x{position:absolute;top:1px;right:2px;cursor:pointer;color:#b91c1c;font-weight:700;font-size:10px;line-height:1;opacity:0;transition:opacity .12s}
+.dk-kan-card{position:relative;padding-right:12px}
+.dk-kan-card:hover .dk-kan-card-x{opacity:.8}
+.dk-kan-card-x:hover{opacity:1!important}
 .dk-thumb-inner{position:absolute;inset:0;transform-origin:top left}
 .dk-thumb-add{border:1px dashed var(--bd2);border-radius:7px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:18px;cursor:pointer;flex-shrink:0}
 .dk-thumb-add:hover{color:var(--ac);border-color:var(--ac)}
@@ -2868,7 +2886,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-127';
+  var APP_BUILD='2026-07-05-128';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

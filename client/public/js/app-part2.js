@@ -11831,7 +11831,7 @@ function _shGridHtml(){
     const rh=row.height?`height:${row.height}px;`:'';
     const shadow=row.color?`box-shadow:inset 4px 0 0 ${row.color};`:'';
     const trStyle=(rh||shadow)?` style="${rh}${shadow}"`:'';
-    body+=`<tr data-rid="${row.id}"${trStyle}><td class="sh-rownum" onclick="shRowMenu(event,${row.id})" title="Row actions · drag bottom edge to resize">${ri+1}<span class="sh-row-resize" title="Drag to resize row" onmousedown="shRowResizeStart(event,${row.id})" onclick="event.stopPropagation()"></span></td>`;
+    body+=`<tr data-rid="${row.id}"${trStyle}><td class="sh-rownum" onclick="shRowMenu(event,${row.id})" title="Row actions · drag bottom edge to resize">${ri+1}<span class="sh-row-del" title="Delete row" onclick="event.stopPropagation();shDeleteRow(${row.id})">×</span><span class="sh-row-resize" title="Drag to resize row" onmousedown="shRowResizeStart(event,${row.id})" onclick="event.stopPropagation()"></span></td>`;
     cols.forEach((col,ci)=>{ body+=`<td class="sh-td sh-td-${col.type}" style="${col.align?`text-align:${col.align}`:''}">${_shCellHtml(s,row,col)}</td>`; });
     body+='<td class="sh-rowpad"></td></tr>';
   });
@@ -11951,6 +11951,9 @@ function shDeleteCol(cid){ const s=_sheetCurrent; if(s.columns.length<=1)return 
 function shSortByCol(cid,dir){ const s=_sheetCurrent; const col=s.columns.find(c=>c.id===cid); if(!col)return; _shSnap(); const val=row=>{ let v=(row.cells||{})[cid]; if(typeof v==='string'&&v.charAt(0)==='=')v=_shEval(s,v,0); const n=_shNum(v); return isNaN(n)?String(v==null?'':v).toLowerCase():n; }; s.rows.sort((a,b)=>{ const va=val(a),vb=val(b); if(typeof va==='number'&&typeof vb==='number')return (va-vb)*dir; return String(va).localeCompare(String(vb))*dir; }); saveSheets(); renderSheetGrid(); }
 
 function shAddRow(){ const s=_sheetCurrent; if(!s)return; _shSnap(); const id=(s.rows.reduce((m,r)=>Math.max(m,r.id),0)||0)+1; s.rows.push({id,cells:{},color:''}); saveSheets(); renderSheetGrid(); }
+// Direct row delete (hover × on the row number) — no confirm needed because
+// it routes through the undo stack; the toast says so.
+function shDeleteRow(rid){ const s=_sheetCurrent; if(!s)return; _shSnap(); s.rows=s.rows.filter(r=>r.id!==rid); saveSheets(); renderSheetGrid(); toast('🗑 Row deleted — ↶ Undo to restore'); }
 function shRowMenu(ev,rid){
   ev.stopPropagation(); const s=_sheetCurrent; const idx=s.rows.findIndex(r=>r.id===rid); if(idx<0)return;
   const items=[
@@ -12285,7 +12288,7 @@ function renderDeckThumbs(){ const l=document.getElementById('dk-slidelist'); if
 
 // ─── Thumbnails ──────────────────────────────────────────────────────────────
 function _dkThumbsHtml(){
-  return (_deckCurrent.slides||[]).map((s,i)=>`<div class="dk-thumb ${i===_deckSlide?'on':''}" style="background:${_dkBg(s)}" onclick="dkGotoSlide(${i})" oncontextmenu="dkSlideMenu(event,${i})" title="Slide ${i+1} — right-click for options"><span class="dk-thumb-n">${i+1}</span>${(s.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>`).join('')
+  return (_deckCurrent.slides||[]).map((s,i)=>`<div class="dk-thumb ${i===_deckSlide?'on':''}" style="background:${_dkBg(s)}" onclick="dkGotoSlide(${i})" oncontextmenu="dkSlideMenu(event,${i})" title="Slide ${i+1} — right-click for options"><span class="dk-thumb-n">${i+1}</span><span class="dk-thumb-del" title="Delete slide" onclick="event.stopPropagation();dkDeleteSlide(${i})">×</span>${(s.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>`).join('')
     +`<div class="dk-thumb-add" onclick="dkAddSlide()" title="Add slide">＋</div>`;
 }
 function dkGotoSlide(i){ _deckSlide=Math.max(0,Math.min(_deckCurrent.slides.length-1,i)); _deckSelEl=null; _deckEditingText=null; renderDecksSection(); }
@@ -12324,13 +12327,34 @@ function _dkElHtml(el,interactive,editing){
 function _dkTableHtml(el,editing){
   const rows=el.rows||[[ '' ]]; const hdr=el.header!==false;
   let html='<table class="dk-tbl">';
-  rows.forEach((row,ri)=>{ html+='<tr>'; row.forEach((cell,ci)=>{ const tag=(hdr&&ri===0)?'th':'td'; const ce=editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkTblCommit(${el.id},${ri},${ci},this)"`:''; html+=`<${tag} style="font-size:1.7cqw" ${ce}>${esc(cell==null?'':String(cell))}</${tag}>`; }); html+='</tr>'; });
+  // In edit mode, right-click any cell for insert/delete of THAT row/column
+  // (the props panel's +/- buttons only ever touched the last one).
+  rows.forEach((row,ri)=>{ html+='<tr>'; row.forEach((cell,ci)=>{ const tag=(hdr&&ri===0)?'th':'td'; const ce=editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkTblCommit(${el.id},${ri},${ci},this)" oncontextmenu="dkTblCellMenu(event,${el.id},${ri},${ci})"`:''; html+=`<${tag} style="font-size:1.7cqw" ${ce}>${esc(cell==null?'':String(cell))}</${tag}>`; }); html+='</tr>'; });
   html+='</table>'; return html;
+}
+// Table cell context menu (edit mode): positional insert/delete.
+function dkTblCellMenu(ev,id,ri,ci){
+  ev.preventDefault();ev.stopPropagation();
+  const el=_dkEl(id);if(!el)return;
+  const rows=el.rows||[];const colCount=rows[0]?rows[0].length:0;
+  _shPopMenu(ev,[
+    {html:'⬆ Insert row above',onClick:()=>{_dkSnap();el.rows.splice(ri,0,new Array(colCount).fill(''));saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+    {html:'⬇ Insert row below',onClick:()=>{_dkSnap();el.rows.splice(ri+1,0,new Array(colCount).fill(''));saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+    {html:'⬅ Insert column left',onClick:()=>{_dkSnap();el.rows.forEach(r=>r.splice(ci,0,''));saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+    {html:'➡ Insert column right',onClick:()=>{_dkSnap();el.rows.forEach(r=>r.splice(ci+1,0,''));saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+    {html:`<span style="color:var(--red)">🗑 Delete this row</span>`,onClick:()=>{if(rows.length<=1)return toast('A table needs at least one row');_dkSnap();el.rows.splice(ri,1);saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+    {html:`<span style="color:var(--red)">🗑 Delete this column</span>`,onClick:()=>{if(colCount<=1)return toast('A table needs at least one column');_dkSnap();el.rows.forEach(r=>r.splice(ci,1));saveDecks();renderDeckCanvas();renderDeckThumbs();}},
+  ]);
 }
 function _dkKanbanHtml(el,editing){
   const cols=el.columns||[];
-  return `<div class="dk-kanban">${cols.map((col,ci)=>`<div class="dk-kan-col"><div class="dk-kan-h" style="color:${col.color||'#475569'}"><span style="width:1.4cqw;height:1.4cqw;border-radius:50%;background:${col.color||'#94a3b8'};display:inline-block"></span>${esc(col.title||'')}</div>${(col.cards||[]).map((c,di)=>`<div class="dk-kan-card" ${editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkKanCommit(${el.id},${ci},${di},this)"`:''}>${esc(c)}</div>`).join('')}${editing?`<div class="dk-kan-add" onmousedown="event.stopPropagation()" onclick="dkKanAddCard(${el.id},${ci})">＋ card</div>`:''}</div>`).join('')}</div>`;
+  const colDel=(ci)=>editing?`<span class="dk-kan-x" contenteditable="false" title="Delete column" onmousedown="event.stopPropagation()" onclick="dkKanDelColAt(${el.id},${ci})">×</span>`:'';
+  const cardDel=(ci,di)=>editing?`<span class="dk-kan-card-x" contenteditable="false" title="Delete card" onmousedown="event.stopPropagation()" onclick="dkKanDelCard(${el.id},${ci},${di})">×</span>`:'';
+  return `<div class="dk-kanban">${cols.map((col,ci)=>`<div class="dk-kan-col"><div class="dk-kan-h" style="color:${col.color||'#475569'}"><span style="width:1.4cqw;height:1.4cqw;border-radius:50%;background:${col.color||'#94a3b8'};display:inline-block"></span>${esc(col.title||'')}<span style="flex:1"></span>${colDel(ci)}</div>${(col.cards||[]).map((c,di)=>`<div class="dk-kan-card" ${editing?`contenteditable="true" onmousedown="event.stopPropagation()" onblur="dkKanCommit(${el.id},${ci},${di},this)"`:''}>${esc(c)}${cardDel(ci,di)}</div>`).join('')}${editing?`<div class="dk-kan-add" onmousedown="event.stopPropagation()" onclick="dkKanAddCard(${el.id},${ci})">＋ card</div>`:''}</div>`).join('')}</div>`;
 }
+// Positional kanban deletes (edit mode × buttons).
+function dkKanDelColAt(id,ci){ const el=_dkEl(id); if(!el||!el.columns)return; if(el.columns.length<=1)return toast('A board needs at least one column'); _dkSnap(); el.columns.splice(ci,1); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
+function dkKanDelCard(id,ci,di){ const el=_dkEl(id); if(!el||!el.columns||!el.columns[ci])return; _dkSnap(); (el.columns[ci].cards||[]).splice(di,1); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
 
 // ─── Element interactions ────────────────────────────────────────────────────
 function dkCanvasDown(e){ if(e.target.id==='dk-canvas'){ _deckSelEl=null; _deckEditingText=null; renderDeckCanvas(); renderDeckProps(); } }
@@ -12339,7 +12363,7 @@ function dkEditEl(e,id){ if(e)e.stopPropagation(); const el=_dkEl(id); if(!el)re
 function dkDeleteEl(e,id){ if(e)e.stopPropagation(); const s=_dkSlide(); if(!s)return; _dkSnap(); s.elements=(s.elements||[]).filter(x=>x.id!==id); if(_deckSelEl===id)_deckSelEl=null; _deckEditingText=null; saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
 function dkTextCommit(id,node){ const el=_dkEl(id); if(!el)return; const v=node.innerText.replace(/ /g,' '); if((el.text||'')!==v){ _dkSnap(); el.text=v; saveDecks(); renderDeckThumbs(); } _deckEditingText=null; }
 function dkTblCommit(id,ri,ci,node){ const el=_dkEl(id); if(!el||!el.rows[ri])return; const v=node.innerText.trim(); if(String(el.rows[ri][ci]==null?'':el.rows[ri][ci])!==v){ _dkSnap(); el.rows[ri][ci]=v; saveDecks(); renderDeckThumbs(); } }
-function dkKanCommit(id,ci,di,node){ const el=_dkEl(id); if(!el||!el.columns[ci])return; const v=node.innerText.trim(); if(!v){ el.columns[ci].cards.splice(di,1); _dkSnap(); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); return; } if(el.columns[ci].cards[di]!==v){ _dkSnap(); el.columns[ci].cards[di]=v; saveDecks(); renderDeckThumbs(); } }
+function dkKanCommit(id,ci,di,node){ const el=_dkEl(id); if(!el||!el.columns[ci])return; const clone=node.cloneNode(true); clone.querySelectorAll('[contenteditable="false"]').forEach(x=>x.remove()); const v=clone.innerText.trim(); if(!v){ el.columns[ci].cards.splice(di,1); _dkSnap(); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); return; } if(el.columns[ci].cards[di]!==v){ _dkSnap(); el.columns[ci].cards[di]=v; saveDecks(); renderDeckThumbs(); } }
 function dkKanAddCard(id,ci){ const el=_dkEl(id); if(!el||!el.columns[ci])return; _dkSnap(); el.columns[ci].cards=el.columns[ci].cards||[]; el.columns[ci].cards.push('New card'); saveDecks(); renderDeckCanvas(); renderDeckThumbs(); }
 function dkElMouseDown(e,id,mode){ if(_deckEditingText===id)return; e.stopPropagation(); const el=_dkEl(id); if(!el)return; if(_deckEditingText&&_deckEditingText!==id)_deckEditingText=null; if(_deckSelEl!==id){ _deckSelEl=id; renderDeckCanvas(); renderDeckProps(); } const canvas=document.getElementById('dk-canvas'); if(!canvas)return; const rect=canvas.getBoundingClientRect(); _deckDrag={id,mode,rect,sx:e.clientX,sy:e.clientY,ox:el.x,oy:el.y,ow:el.w,oh:el.h,moved:false,snap:JSON.stringify(_deckCurrent.slides)}; document.addEventListener('mousemove',_dkDragMove); document.addEventListener('mouseup',_dkDragEnd); }
 function _dkDragMove(e){ if(!_deckDrag)return; const d=_deckDrag; const el=_dkEl(d.id); if(!el)return; const dxp=(e.clientX-d.sx)/d.rect.width*100, dyp=(e.clientY-d.sy)/d.rect.height*100; if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>2)d.moved=true; if(d.mode==='move'){ el.x=Math.max(0,Math.min(100-el.w,d.ox+dxp)); el.y=Math.max(0,Math.min(100-el.h,d.oy+dyp)); } else { el.w=Math.max(4,Math.min(100-el.x,d.ow+dxp)); el.h=Math.max(4,Math.min(100-el.y,d.oh+dyp)); } const node=document.querySelector('.dk-el[data-id="'+d.id+'"]'); if(node){ node.style.left=el.x+'%';node.style.top=el.y+'%';node.style.width=el.w+'%';node.style.height=el.h+'%'; } }
