@@ -316,6 +316,27 @@ function renderSettingsHTML(){
   <!-- Notifications --><div id="sp-3" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🔔 Notifications</h3>
 
+  <!-- Assistant bubble (bottom-left popups: news headlines, tips, warnings) -->
+  ${(()=>{const p=_aiBubblePrefs();
+    const row=(key,label,hint)=>`<div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">${label}</div><div style="font-size:11px;color:var(--t3)">${hint}</div></div>
+      <div class="tog ${p[key]!==false?'on':''}" onclick="_setAiBubblePref('${key}',!this.classList.contains('on'));this.classList.toggle('on')"></div>
+    </div>`;
+    return `<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">💬 Assistant Bubble <span style="font-size:10px;font-weight:400;color:var(--t3)">the rotating popups at the bottom-left</span></div>
+    ${row('enabled','Show assistant popups','Master switch for the rotating bubble messages')}
+    ${row('news','📰 News headlines','Live headlines for your AI Topics (orange NEWS items)')}
+    ${row('info','💡 Tips & insights','Product tips and workflow suggestions')}
+    ${row('warning','⚠️ Warnings','Overdue-task and attention nudges')}
+    ${row('encourage','🔥 Encouragement','Streak and momentum boosts')}
+    <div class="lr" style="padding:6px 0">
+      <div style="flex:1"><div style="font-size:12px;font-weight:500">Frequency</div><div style="font-size:11px;color:var(--t3)">How often a new message appears</div></div>
+      <select class="inp" style="width:150px;font-size:11px" onchange="_setAiBubblePref('intervalMin',this.value)">
+        ${[[2,'Every 2 minutes'],[4,'Every 4 minutes'],[10,'Every 10 minutes'],[30,'Every 30 minutes'],[60,'Every hour']].map(([v,l])=>`<option value="${v}" ${Number(p.intervalMin||4)===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+  </div>`;})()}
+
   <!-- In-App Alerts -->
   <div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:10px">In-App Alerts</div>
@@ -2441,28 +2462,66 @@ async function loadLiveNews(){
   }catch(e){console.warn('[news] Failed to load live headlines:',e);}
 }
 
+// Assistant-bubble preferences — synced via D.prefs.aiBubble so they follow
+// the account (the old per-category mute was an invisible, per-device
+// localStorage flag). Seeded once from any legacy dismissals.
+function _aiBubblePrefs(){
+  D.prefs=D.prefs||{};
+  const p=D.prefs.aiBubble=D.prefs.aiBubble||{};
+  if(p._seeded===undefined){
+    ['news','info','warning','encourage'].forEach(t=>{
+      if(p[t]===undefined)p[t]=!localStorage.getItem('lu_dismissed_type_'+t);
+    });
+    if(p.enabled===undefined)p.enabled=true;
+    if(!p.intervalMin)p.intervalMin=4;
+    p._seeded=1;
+  }
+  return p;
+}
+function _setAiBubblePref(key,val){
+  const p=_aiBubblePrefs();
+  p[key]=(key==='intervalMin')?Math.max(1,Number(val)||4):!!val;
+  save('prefs');
+  applyAIBubblePrefs();
+}
+// Restart the cycle timer with current prefs (called after Settings changes).
+function applyAIBubblePrefs(){
+  const p=_aiBubblePrefs();
+  if(aiTimer){clearInterval(aiTimer);aiTimer=null;}
+  if(p.enabled===false)return;
+  aiTimer=setInterval(showAIMsg,p.intervalMin*60000);
+}
+// ✕ on a message mutes its whole category — now visibly, in synced Settings.
+function _aiBubbleMute(type,el){
+  _setAiBubblePref(type,false);
+  if(el&&el.parentElement)el.parentElement.remove();
+  toast({type:'info',title:'Muted '+type.toUpperCase()+' popups',msg:'Re-enable any time in Settings → Notifications → Assistant bubble.',duration:5000});
+}
 function startAIAssistant(){
   if(aiTimer)return;
+  if(_aiBubblePrefs().enabled===false)return;
   // Load live news first, then start cycling
   loadLiveNews().then(()=>{
     showAIMsg();
-    aiTimer=setInterval(showAIMsg,240000); // every 4 minutes
+    applyAIBubblePrefs();
   });
 }
 function showAIMsg(){
   const bubble=document.getElementById('ai-bubble');
   if(!bubble)return;
-  // Skip whole categories (news / info / encourage / warning) the user has dismissed.
+  const p=_aiBubblePrefs();
+  if(p.enabled===false)return;
+  // Skip whole categories (news / info / encourage / warning) the user muted.
   let attempts=0,m=null;
   while(attempts<aiMsgs.length){
     const cand=aiMsgs[aiMsgIdx%aiMsgs.length];aiMsgIdx++;attempts++;
-    if(!localStorage.getItem('lu_dismissed_type_'+cand.type)){m=cand;break;}
+    if(p[cand.type]!==false){m=cand;break;}
   }
-  if(!m)return; // every category dismissed — stay quiet
+  if(!m)return; // every category muted — stay quiet
   const div=document.createElement('div');
   div.className='ai-msg';
   const msgContent=m.link?`<div style="cursor:pointer" onclick="window.open('${m.link}','_blank')">${m.msg} <span style="font-size:11px;color:var(--ac)">↗ Read more</span></div>`:`<div>${m.msg}</div>`;
-  div.innerHTML=`<button class="ai-close" title="Hide ${m.type} messages" onclick="localStorage.setItem('lu_dismissed_type_${m.type}','1');this.parentElement.remove()">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
+  div.innerHTML=`<button class="ai-close" title="Mute ${m.type} messages (re-enable in Settings)" onclick="_aiBubbleMute('${m.type}',this)">✕</button><div class="ai-type ${m.type}">${m.type.toUpperCase()}</div>${msgContent}`;
   bubble.insertBefore(div,bubble.firstChild);
   // Speak if enabled
   if('speechSynthesis' in window && D.creds.aiSpeak){
