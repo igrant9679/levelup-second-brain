@@ -607,9 +607,12 @@ function renderSettingsHTML(){
        the user_app_data blob columns. Read-only: shows table-vs-blob counts,
        consistency, and which store served the last load. -->
   <div id="migration-health-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
       <div style="font-size:12px;font-weight:600">🔬 Data Migration Health</div>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadMigrationHealth()">↻ Check now</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-mh-backup" onclick="_downloadMigrationBackup()" title="Owner only: download every user_app_data row as JSON — the required backup before Step 3">💾 Download backup</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadMigrationHealth()">↻ Check now</button>
+      </div>
     </div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Blob → relational migration status for tasks / notes / ideas. All three need <b>consistent ✓</b> and <b>served from: relational</b> over a soak period before the legacy blob columns can be retired (Step 3). Read-only — checking changes nothing.</p>
     <div id="migration-health-body" style="font-size:11px;color:var(--t3)">Click “Check now” to run the readiness checks.</div>
@@ -8696,6 +8699,26 @@ async function verifyOAuthCredentials(provider){
   if(btn){btn.disabled=false;btn.textContent='🔍 Verify';}
 }
 
+/** Owner-only: download the full user_app_data table as a JSON backup file —
+    the prescribed precondition before Step 3 drops the legacy blob columns. */
+async function _downloadMigrationBackup(){
+  const btn=document.getElementById('btn-mh-backup');
+  if(btn){btn.disabled=true;btn.textContent='⏳ Exporting…';}
+  try{
+    const res=await _trpc('appData.exportUserAppDataBackup',undefined,'query');
+    if(!res||!res.ok)throw new Error((res&&res.error)||'export failed');
+    const blob=new Blob([JSON.stringify(res,null,1)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='levelup-user_app_data-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast({type:'success',title:'💾 Backup downloaded',msg:res.rowCount+' user row(s), '+Math.round(blob.size/1024)+' KB. Keep this file safe before scheduling Step 3.',duration:7000});
+  }catch(e){
+    toast({type:'error',title:'Backup failed',msg:String(e&&e.message||e).slice(0,140)});
+  }
+  if(btn){btn.disabled=false;btn.textContent='💾 Download backup';}
+}
 /** Data Migration Health (admin) — Step 3 readiness check, strictly read-only.
     Queries the {tasks,notes,ideas}RelationalStatus endpoints and shows which
     store served the last appData.load (captured in window._luLoadSources). */

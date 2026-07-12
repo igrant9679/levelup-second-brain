@@ -512,6 +512,27 @@ export const appDataRouter = router({
   }),
 
   /**
+   * OWNER-ONLY full export of user_app_data — the prescribed backup before
+   * Step 3 (dropping the legacy blob columns, which is irreversible). Returns
+   * every row with all blob columns verbatim; the client downloads it as a
+   * JSON file. Strictly read-only. Gated to the workspace owner (not plain
+   * admins) because it contains every member's raw data.
+   */
+  exportUserAppDataBackup: adminProcedure.query(async ({ ctx }) => {
+    const owner = await isOwnerCtxUser(ctx.user as any);
+    if (!owner) return { ok: false as const, error: 'Workspace owner only.' };
+    const db = await getDb();
+    if (!db) return { ok: false as const, error: 'db unavailable' };
+    const rows = await db.select().from(userAppData);
+    return {
+      ok: true as const,
+      exportedAt: new Date().toISOString(),
+      rowCount: rows.length,
+      rows,
+    };
+  }),
+
+  /**
    * Phase 1 / step 2 (team-visibility): one-shot backfill of the userId-based
    * createdById / assigneeId columns (migration 0045) from the existing data.
    *   - tasks: createdById ← resolve(createdBy name) ?? row owner;
