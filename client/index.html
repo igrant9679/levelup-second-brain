@@ -2320,6 +2320,11 @@ body.notes-mode-slides #s-notes #notes-slides-section{display:flex!important}
 .sh-card:hover .sh-card-del{opacity:.75}
 .sh-card-del:hover{opacity:1!important;background:var(--reds)}
 @media (pointer:coarse){.sh-card-del{opacity:.6}} /* always visible on touch — no hover there */
+/* Bookmark card actions: compact ⭐ + ⋯ pair, hover-revealed (replaces the
+   old always-visible 7-button strip that overlapped card titles). */
+.bk-acts{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+.cd:hover .bk-acts{opacity:1}
+@media (pointer:coarse){.bk-acts{opacity:.7}}
 .sh-card-ic{font-size:20px}
 .sh-card-title{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sh-card-meta{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:6px}
@@ -2582,7 +2587,7 @@ body.sh-resizing{user-select:none!important}
 <!-- ===== S-CONTACTS ===== -->
 <div class="scr" id="s-contacts"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="contacts-main"></main><aside class="rr" id="contacts-rail" style="width:280px"></aside></div></div>
 
-<div class="scr" id="s-bookmarks"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="bookmarks-main"></main></div></div>
+<div class="scr" id="s-bookmarks"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="bookmarks-main"></main><aside class="rr" id="bookmarks-rail"></aside></div></div>
 
 <!-- DETAIL DRAWER -->
 <div class="drawer-overlay" id="drawer-ov" onmousedown="this._md=event.target===this" onclick="if(event.target===this&&this._md)closeDrawer()">
@@ -2863,7 +2868,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-05-126';
+  var APP_BUILD='2026-07-05-127';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

@@ -5850,6 +5850,21 @@ async function doLinkBookmark(entityType, entityId, bookmarkId, rowEl){
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Per-card ⋯ menu — replaces the old always-visible row of 7 absolute-
+// positioned buttons that overlapped the card title on narrower cards.
+function bkCardMenu(ev,id){
+  const b=_bkData.find(x=>x.id===id);
+  if(!b)return;
+  const items=[
+    {html:(b.isRead?'📖 Mark unread':'✓ Mark read'),onClick:()=>toggleBookmarkRead(id,b.isRead)},
+    {html:'📁 Add to collection…',onClick:()=>showAddToCollection(id)},
+  ];
+  if(_bkCollFilter)items.push({html:'📤 Remove from this collection',onClick:()=>removeFromCollection(_bkCollFilter,id)});
+  items.push({html:'🔗 Share…',onClick:()=>shareBookmark(id)});
+  items.push({html:'✏ Edit…',onClick:()=>editBookmark(id)});
+  items.push({html:'<span style="color:var(--red)">🗑 Delete</span>',onClick:()=>deleteBookmark(id)});
+  _shPopMenu(ev,items);
+}
 function paintBookmarks(){
   const el=$('bookmarks-main');
   if(!el)return;
@@ -5875,8 +5890,8 @@ function paintBookmarks(){
             <span style="font-size:11px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span>
             <span style="font-size:11px;color:var(--t3)">${c.bookmarkCount||0}</span>
             <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
-              <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 4px" onclick="editCollection(${c.id})" title="Edit">&#9999;</button>
-              <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 4px;color:var(--red)" onclick="deleteCollection(${c.id})" title="Delete">&#128465;</button>
+              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 4px" onclick="editCollection(${c.id})" title="Edit">&#9999;</button>
+              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 4px;color:var(--red)" onclick="deleteCollection(${c.id})" title="Delete">&#128465;</button>
             </div>
           </div>`).join('')}
         ${_bkCollections.length===0?'<div style="font-size:11px;color:var(--t3);padding:8px 4px;font-style:italic">No collections yet</div>':''}
@@ -5892,8 +5907,8 @@ function paintBookmarks(){
             <div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t1)">${esc(s.title||'Untitled share')}</div>
             <div style="font-size:11px;color:var(--t3);margin-bottom:3px">${s.viewCount||0} views</div>
             <div style="display:flex;gap:4px">
-              <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 5px" onclick="copyShareLink('${esc(s.token)}')">&#128203; Copy</button>
-              <button class="btn btn-s" style="height:16px;font-size:10px;padding:0 5px;color:var(--red)" onclick="deleteShare(${s.id})">&#128465;</button>
+              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 5px" onclick="copyShareLink('${esc(s.token)}')">&#128203; Copy</button>
+              <button class="btn btn-s" style="height:20px;font-size:11px;padding:0 5px;color:var(--red)" onclick="deleteShare(${s.id})">&#128465;</button>
             </div>
           </div>`).join('')}
       </div>
@@ -5924,7 +5939,7 @@ function paintBookmarks(){
         ${_bkMultiSelect?`<div style="position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px;border-radius:4px;border:2px solid ${isSelected?'var(--ac)':'var(--bd2)'};background:${isSelected?'var(--ac)':'var(--s1)'};display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="event.stopPropagation();toggleBkSelect(${b.id})">${isSelected?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.5" fill="none"/></svg>':''}</div>`:''}
         <div style="display:flex;gap:10px;align-items:flex-start">
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;min-width:0;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;min-width:0;overflow:hidden;padding-right:64px">
               ${favicon}
               <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 0%;min-width:0">${esc(b.title||'Untitled')}</span>
               <span style="font-size:11px;color:var(--t3);flex-shrink:0">${esc(domain)}</span>
@@ -5939,14 +5954,9 @@ function paintBookmarks(){
           </div>
           ${b.ogImage?`<img src="${esc(b.ogImage)}" style="width:80px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">`:''}
         </div>
-        <div style="position:absolute;top:8px;right:8px;display:flex;gap:4px" onclick="event.stopPropagation()">
+        <div class="bk-acts" onclick="event.stopPropagation()">
           <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkFav(${b.id},${b.isFavorite})" title="${b.isFavorite?'Unfavorite':'Favorite'}">${b.isFavorite?'&#11088;':'&#9734;'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();toggleBookmarkRead(${b.id},${b.isRead})" title="${b.isRead?'Mark unread':'Mark read'}">${b.isRead?'Unread':'Read'}</button>
-          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();showAddToCollection(${b.id})" title="Add to collection">&#128193;</button>
-          ${_bkCollFilter?`<button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px;color:var(--warn)" onclick="event.stopPropagation();removeFromCollection(${_bkCollFilter},${b.id})" title="Remove from this collection">&#128197;</button>`:''}
-          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();shareBookmark(${b.id})" title="Share">&#128279;</button>
-          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px" onclick="event.stopPropagation();editBookmark(${b.id})" title="Edit">&#9999;</button>
-          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 6px;color:var(--red)" onclick="event.stopPropagation();deleteBookmark(${b.id})" title="Delete">&#128465;</button>
+          <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="event.stopPropagation();bkCardMenu(event,${b.id})" title="More actions">⋯</button>
         </div>
       </div>`;
     }).join('');
@@ -5956,7 +5966,7 @@ function paintBookmarks(){
 
   el.innerHTML=`<div class="pg-h ph-r">
     <div><h1>&#128278; Bookmarks</h1><p style="font-size:12px;color:var(--t2)">${_bkCollFilter?'Viewing: '+esc(collTitle):'Your saved web pages &amp; reading list'} <span style="opacity:.45;font-size:11px">· build ${esc(String((window.__APP_BUILD)||'?'))}</span></p></div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
       <button class="btn btn-s" style="font-size:11px" onclick="showBookmarklet()" title="Get browser bookmarklet for one-click saving">&#128278; Bookmarklet</button>
       ${_bkCollFilter?`<button class="btn btn-s" style="font-size:11px" onclick="shareCollection(${_bkCollFilter})">&#128279; Share Collection</button>`:''}
       <button class="btn ${_bkMultiSelect?'btn-p':'btn-s'}" style="font-size:11px" onclick="toggleBkMultiSelect()" title="Select multiple bookmarks">&#9745; Select</button>
@@ -6002,6 +6012,32 @@ function paintBookmarks(){
       <div style="margin-top:16px;font-size:11px;color:var(--t3);text-align:center">${_bkTotal} bookmark${_bkTotal!==1?'s':''} total</div>
     </div>
   </div>`;
+  _paintBookmarksRail();
+}
+// Right rail for Bookmarks (the page previously had no rail — dead space on
+// wide screens): quick filters, recently added, top tags and top domains.
+// The shared shortcuts-legend card auto-appends to every .rr after render.
+function _paintBookmarksRail(){
+  const rail=$('bookmarks-rail');
+  if(!rail)return;
+  const recent=_bkData.slice(0,5);
+  const domains={};
+  _bkData.forEach(b=>{try{const d=new URL(b.url).hostname.replace(/^www\./,'');domains[d]=(domains[d]||0)+1;}catch(_){}});
+  const topDomains=Object.entries(domains).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const topTags=(_bkTags||[]).slice(0,10);
+  rail.innerHTML=`
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">🔖 Quick Filters</div>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px">
+      <div class="lr" style="cursor:pointer;border-radius:6px;padding:5px 8px;${_bkFavFilter?'background:var(--acs);color:var(--ac)':''}" onclick="_bkFavFilter=!_bkFavFilter;_bkPage=1;renderBookmarks()">⭐ <span style="font-size:11px;font-weight:500">Favorites</span></div>
+      <div class="lr" style="cursor:pointer;border-radius:6px;padding:5px 8px;${_bkReadFilter==='unread'?'background:var(--acs);color:var(--ac)':''}" onclick="_bkReadFilter=_bkReadFilter==='unread'?'':'unread';_bkPage=1;renderBookmarks()">📚 <span style="font-size:11px;font-weight:500">Reading list</span></div>
+    </div>
+    ${recent.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🕐 Recently Added</div>
+    <div style="margin-bottom:14px">${recent.map(b=>`<div class="lr" style="cursor:pointer;padding:4px 0;border-bottom:1px solid var(--bd1)" onclick="window.open('${esc(b.url)}','_blank')"><span class="rt" style="font-size:11px">${esc(b.title||b.url)}</span></div>`).join('')}</div>`:''}
+    ${topTags.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🏷 Top Tags</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px">${topTags.map(t=>`<span class="pill" style="cursor:pointer;${_bkTagFilter===t?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t2)'}" onclick="_bkTagFilter=_bkTagFilter==='${esc(t)}'?'':'${esc(t)}';_bkPage=1;renderBookmarks()">${esc(t)}</span>`).join('')}</div>`:''}
+    ${topDomains.length?`<div style="font-size:12px;font-weight:600;margin-bottom:6px">🌐 Top Sites</div>
+    <div style="margin-bottom:8px">${topDomains.map(([d,n])=>`<div class="lr" style="cursor:pointer;padding:3px 0" onclick="_bkSearch='${esc(d)}';_bkPage=1;renderBookmarks()"><span class="rt" style="font-size:11px;color:var(--t2)">${esc(d)}</span><span style="font-size:11px;color:var(--t3)">${n}</span></div>`).join('')}</div>`:''}
+  `;
 }
 function openBkModal(title,body,buttons){
   const m=$('modal-content');
