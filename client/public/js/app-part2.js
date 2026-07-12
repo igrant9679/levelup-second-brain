@@ -8730,8 +8730,7 @@ async function loadMigrationHealth(){
   for(const ent of ['tasks','notes','ideas']){
     try{
       const r=await _trpc('appData.'+ent+'RelationalStatus',undefined,'query');
-      const ok=!!(r&&r.ok&&r.consistent);
-      rows.push({ent,ok,detail:(r&&r.ok)?('table '+r.tableCount+' / blob '+r.blobCount):'endpoint unavailable'});
+      rows.push({ent,ok:!!(r&&r.ok),detail:(r&&r.ok)?('table '+r.tableCount+' · frozen blob '+r.blobCount):'endpoint unavailable'});
     }catch(e){rows.push({ent,ok:false,detail:'error: '+String(e&&e.message||e).slice(0,60)});}
   }
   const src=window._luLoadSources||null;
@@ -8740,14 +8739,17 @@ async function loadMigrationHealth(){
     const good=v==='relational';
     return `<span style="color:${good?'var(--ok)':'var(--warn)'};font-weight:600">${esc(v)}</span>`;
   };
+  // Step 3a is live: the relational tables are the sole store and the blob
+  // columns are frozen pre-3a snapshots, so table-vs-blob count drift is
+  // EXPECTED as you keep working. Health = every entity served relational.
   const allOk=rows.every(r=>r.ok)&&!!src&&['tasks','notes','ideas'].every(k=>src[k]==='relational');
   body.innerHTML=`
     <table style="width:100%;border-collapse:collapse;font-size:11px">
-      <tr style="color:var(--t3);text-align:left"><th style="padding:3px 6px">Entity</th><th style="padding:3px 6px">Counts</th><th style="padding:3px 6px">Consistent</th><th style="padding:3px 6px">Served from (last load)</th></tr>
-      ${rows.map(r=>`<tr style="border-top:1px solid var(--bd1)"><td style="padding:3px 6px;font-weight:600">${r.ent}</td><td style="padding:3px 6px">${esc(r.detail)}</td><td style="padding:3px 6px">${r.ok?'<span style="color:var(--ok)">✓ consistent</span>':'<span style="color:var(--red)">✗</span>'}</td><td style="padding:3px 6px">${srcCell(r.ent)}</td></tr>`).join('')}
+      <tr style="color:var(--t3);text-align:left"><th style="padding:3px 6px">Entity</th><th style="padding:3px 6px">Counts</th><th style="padding:3px 6px">Served from (last load)</th></tr>
+      ${rows.map(r=>`<tr style="border-top:1px solid var(--bd1)"><td style="padding:3px 6px;font-weight:600">${r.ent}</td><td style="padding:3px 6px">${esc(r.detail)}</td><td style="padding:3px 6px">${srcCell(r.ent)}</td></tr>`).join('')}
     </table>
     <div style="margin-top:8px;padding:7px 9px;border-radius:6px;background:${allOk?'var(--oks)':'var(--warns)'};color:${allOk?'var(--ok)':'var(--warn)'};font-size:11px;font-weight:600">
-      ${allOk?'✓ All checks green — Step 3 (retiring the blob columns) is safe to schedule. Take a DB backup of user_app_data first; the column drop is irreversible.':'⚠ Not ready — at least one check is not green. Do NOT retire the blob columns yet.'}
+      ${allOk?'✓ Step 3a is live and healthy — the relational tables are the sole store. Frozen-blob count drift is expected. After a clean soak, Step 3b can drop the blob columns (irreversible).':'⚠ At least one entity is not serving from relational — investigate before Step 3b. If a load source says blob-rescue, run that entity’s backfill for the affected account.'}
     </div>
     ${src&&src.at?`<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources captured ${esc(src.at)}</div>`:'<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources not captured yet — reload the app once on this build, then re-check.</div>'}
   `;

@@ -72,8 +72,10 @@ async function _resolveUserIdMap(): Promise<Map<string, number>> {
 
 async function mirrorTasksToRelational(db: any, userId: number, tasksJson: string) {
   let arr: any;
-  try { arr = JSON.parse(tasksJson); } catch { return; }
-  if (!Array.isArray(arr)) return;
+  // Step 3a: this write is authoritative — reject bad payloads loudly instead
+  // of silently storing nothing while the save reports ok.
+  try { arr = JSON.parse(tasksJson); } catch { throw new Error('tasks payload is not valid JSON'); }
+  if (!Array.isArray(arr)) throw new Error('tasks payload is not an array');
   const idMap = await _resolveUserIdMap();
   const resolveId = (s: any): number | null => {
     if (!s) return null;
@@ -120,26 +122,28 @@ async function mirrorTasksToRelational(db: any, userId: number, tasksJson: strin
  * preserved. Returns the array plus which source served it.
  */
 async function readTasks(db: any, userId: number, blobRaw: string | null): Promise<{ tasks: any[]; source: string }> {
+  // Step 3a: the relational table IS the store — served unconditionally. The
+  // FROZEN blob is consulted only for (a) a transient table read error and
+  // (b) a loud rescue if this user's table was somehow never populated while
+  // the frozen blob still holds items (a never-mirrored account). The old
+  // consistency check is gone: the blob no longer receives writes, so a
+  // divergence is expected, not an anomaly.
   let blobTasks: any[] = [];
   try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobTasks = a; } catch {}
   let tableRows: any[];
   try {
     tableRows = await db.select().from(tasksTable).where(eq(tasksTable.userId, userId)).orderBy(tasksTable.id);
   } catch (err) {
-    console.warn('[appData] relational tasks read failed — serving blob:', (err as Error)?.message);
+    console.warn('[appData] relational tasks read failed — serving frozen blob:', (err as Error)?.message);
     return { tasks: blobTasks, source: 'blob-error' };
   }
-  if (!tableRows.length) return { tasks: blobTasks, source: 'blob-empty' };
+  if (!tableRows.length && blobTasks.length) {
+    console.warn('[appData] tasks table EMPTY but frozen blob has', blobTasks.length, 'items for user', userId, '— serving blob (rescue). Run backfillTasksRelational for this account.');
+    return { tasks: blobTasks, source: 'blob-rescue' };
+  }
   const tableTasks = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  const blobIds = new Set(blobTasks.filter((t: any) => t && t.id != null).map((t: any) => String(t.id)));
-  const tableIds = new Set(tableTasks.map((t: any) => String(t.id)));
-  const consistent = blobIds.size === tableIds.size && [...blobIds].every((id) => tableIds.has(id));
-  if (!consistent) {
-    console.warn('[appData] tasks blob/relational id mismatch — serving blob', { blob: blobIds.size, table: tableIds.size });
-    return { tasks: blobTasks, source: 'blob-mismatch' };
-  }
   return { tasks: tableTasks, source: 'relational' };
 }
 
@@ -147,8 +151,8 @@ async function readTasks(db: any, userId: number, blobRaw: string | null): Promi
 // large bodyHtml from Word imports.
 async function mirrorNotesToRelational(db: any, userId: number, json: string) {
   let arr: any;
-  try { arr = JSON.parse(json); } catch { return; }
-  if (!Array.isArray(arr)) return;
+  try { arr = JSON.parse(json); } catch { throw new Error('notes payload is not valid JSON'); }
+  if (!Array.isArray(arr)) throw new Error('notes payload is not an array');
   const seen = new Set<string>();
   const rows = arr
     .filter((n: any) => n && n.id != null && String(n.id).length > 0)
@@ -178,26 +182,23 @@ async function mirrorNotesToRelational(db: any, userId: number, json: string) {
 }
 
 async function readNotes(db: any, userId: number, blobRaw: string | null): Promise<{ notes: any[]; source: string }> {
+  // Step 3a: table-authoritative — see readTasks for the rescue semantics.
   let blobArr: any[] = [];
   try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobArr = a; } catch {}
   let tableRows: any[];
   try {
     tableRows = await db.select().from(notesTable).where(eq(notesTable.userId, userId)).orderBy(notesTable.id);
   } catch (err) {
-    console.warn('[appData] relational notes read failed — serving blob:', (err as Error)?.message);
+    console.warn('[appData] relational notes read failed — serving frozen blob:', (err as Error)?.message);
     return { notes: blobArr, source: 'blob-error' };
   }
-  if (!tableRows.length) return { notes: blobArr, source: 'blob-empty' };
+  if (!tableRows.length && blobArr.length) {
+    console.warn('[appData] notes table EMPTY but frozen blob has', blobArr.length, 'items for user', userId, '— serving blob (rescue). Run backfillNotesRelational for this account.');
+    return { notes: blobArr, source: 'blob-rescue' };
+  }
   const tableItems = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  const blobIds = new Set(blobArr.filter((t: any) => t && t.id != null).map((t: any) => String(t.id)));
-  const tableIds = new Set(tableItems.map((t: any) => String(t.id)));
-  const consistent = blobIds.size === tableIds.size && [...blobIds].every((id) => tableIds.has(id));
-  if (!consistent) {
-    console.warn('[appData] notes blob/relational id mismatch — serving blob', { blob: blobIds.size, table: tableIds.size });
-    return { notes: blobArr, source: 'blob-mismatch' };
-  }
   return { notes: tableItems, source: 'relational' };
 }
 
@@ -205,8 +206,8 @@ async function readNotes(db: any, userId: number, blobRaw: string | null): Promi
 // confidence / ease) and stage as queryable columns.
 async function mirrorIdeasToRelational(db: any, userId: number, json: string) {
   let arr: any;
-  try { arr = JSON.parse(json); } catch { return; }
-  if (!Array.isArray(arr)) return;
+  try { arr = JSON.parse(json); } catch { throw new Error('ideas payload is not valid JSON'); }
+  if (!Array.isArray(arr)) throw new Error('ideas payload is not an array');
   const seen = new Set<string>();
   const rows = arr
     .filter((i: any) => i && i.id != null && String(i.id).length > 0)
@@ -233,27 +234,41 @@ async function mirrorIdeasToRelational(db: any, userId: number, json: string) {
 }
 
 async function readIdeas(db: any, userId: number, blobRaw: string | null): Promise<{ ideas: any[]; source: string }> {
+  // Step 3a: table-authoritative — see readTasks for the rescue semantics.
   let blobArr: any[] = [];
   try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobArr = a; } catch {}
   let tableRows: any[];
   try {
     tableRows = await db.select().from(ideasTable).where(eq(ideasTable.userId, userId)).orderBy(ideasTable.id);
   } catch (err) {
-    console.warn('[appData] relational ideas read failed — serving blob:', (err as Error)?.message);
+    console.warn('[appData] relational ideas read failed — serving frozen blob:', (err as Error)?.message);
     return { ideas: blobArr, source: 'blob-error' };
   }
-  if (!tableRows.length) return { ideas: blobArr, source: 'blob-empty' };
+  if (!tableRows.length && blobArr.length) {
+    console.warn('[appData] ideas table EMPTY but frozen blob has', blobArr.length, 'items for user', userId, '— serving blob (rescue). Run backfillIdeasRelational for this account.');
+    return { ideas: blobArr, source: 'blob-rescue' };
+  }
   const tableItems = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  const blobIds = new Set(blobArr.filter((t: any) => t && t.id != null).map((t: any) => String(t.id)));
-  const tableIds = new Set(tableItems.map((t: any) => String(t.id)));
-  const consistent = blobIds.size === tableIds.size && [...blobIds].every((id) => tableIds.has(id));
-  if (!consistent) {
-    console.warn('[appData] ideas blob/relational id mismatch — serving blob', { blob: blobIds.size, table: tableIds.size });
-    return { ideas: blobArr, source: 'blob-mismatch' };
-  }
   return { ideas: tableItems, source: 'relational' };
+}
+
+// Step 3a table-based array access for the migrated entities — used by every
+// mutation that previously parsed/patched/rewrote the (now frozen) blob
+// columns. ORDER BY id preserves manual ordering (the mirrors delete +
+// re-insert in array order on every write).
+async function readEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas'): Promise<any[]> {
+  const t = kind === 'tasks' ? tasksTable : kind === 'notes' ? notesTable : ideasTable;
+  const rows = await db.select().from(t).where(eq(t.userId, userId)).orderBy(t.id);
+  return rows.map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } }).filter(Boolean);
+}
+async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas', arr: any[]): Promise<string> {
+  const json = JSON.stringify(arr);
+  if (kind === 'tasks') await mirrorTasksToRelational(db, userId, json);
+  else if (kind === 'notes') await mirrorNotesToRelational(db, userId, json);
+  else await mirrorIdeasToRelational(db, userId, json);
+  return json;
 }
 
 export const appDataRouter = router({
@@ -341,47 +356,44 @@ export const appDataRouter = router({
       const db = await getDb();
       if (!db) return { ok: false };
 
-      // Build only the columns that were provided
+      // Step 3a (blob retirement, 2026-07-12): tasks / notes / ideas no longer
+      // write to their user_app_data blob columns — the relational tables are
+      // the sole store. The blob columns are FROZEN with their pre-3a contents
+      // as a rollback safety net until Step 3b drops them. The client payload
+      // shape is unchanged.
+      const RELATIONAL_ONLY = new Set<DataKey>(['tasks', 'notes', 'ideas']);
       const updates: Partial<Record<DataKey, string>> = {};
       for (const key of DATA_KEYS) {
         const val = input[key as keyof typeof input];
-        if (val !== undefined) {
+        if (val !== undefined && !RELATIONAL_ONLY.has(key)) {
           updates[key as DataKey] = val;
         }
       }
+      const hasRelational = input.tasks !== undefined || input.notes !== undefined || input.ideas !== undefined;
 
-      if (Object.keys(updates).length === 0) return { ok: true };
+      if (Object.keys(updates).length === 0 && !hasRelational) return { ok: true };
 
-      // Upsert: insert or update on duplicate userId
-      await db
-        .insert(userAppData)
-        .values({ userId: ctx.user.id, ...updates })
-        .onDuplicateKeyUpdate({ set: updates });
+      if (Object.keys(updates).length > 0) {
+        await db
+          .insert(userAppData)
+          .values({ userId: ctx.user.id, ...updates })
+          .onDuplicateKeyUpdate({ set: updates });
+      } else if (hasRelational) {
+        // Only relational entities in this save: still ensure the row exists
+        // and bump updatedAt (the client's offline-merge logic dates server
+        // writes by it).
+        await db
+          .insert(userAppData)
+          .values({ userId: ctx.user.id })
+          .onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+      }
 
-      // Dual-write pilot: mirror tasks into the relational `tasks` table so
-      // they're queryable at the DB level. The JSON blob above stays the
-      // source of truth — a failure here must never affect the blob save.
-      if (updates.tasks !== undefined) {
-        try {
-          await mirrorTasksToRelational(db, ctx.user.id, updates.tasks);
-        } catch (err) {
-          console.warn('[appData] tasks relational mirror failed:', (err as Error)?.message);
-        }
-      }
-      if (updates.notes !== undefined) {
-        try {
-          await mirrorNotesToRelational(db, ctx.user.id, updates.notes);
-        } catch (err) {
-          console.warn('[appData] notes relational mirror failed:', (err as Error)?.message);
-        }
-      }
-      if (updates.ideas !== undefined) {
-        try {
-          await mirrorIdeasToRelational(db, ctx.user.id, updates.ideas);
-        } catch (err) {
-          console.warn('[appData] ideas relational mirror failed:', (err as Error)?.message);
-        }
-      }
+      // The relational writes are now AUTHORITATIVE — a failure must surface
+      // to the client as a failed save (it shows its sync-failed toast and
+      // retains the dirty flag), not be swallowed like the dual-write era.
+      if (input.tasks !== undefined) await mirrorTasksToRelational(db, ctx.user.id, input.tasks);
+      if (input.notes !== undefined) await mirrorNotesToRelational(db, ctx.user.id, input.notes);
+      if (input.ideas !== undefined) await mirrorIdeasToRelational(db, ctx.user.id, input.ideas);
 
       return { ok: true };
     }),
@@ -1353,16 +1365,8 @@ export const appDataRouter = router({
           if (primaryName !== undefined) t.assignedTo = primaryName;
           else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
         };
-        const [appRow] = await db.select({ notes: userAppData.notes }).from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (appRow && appRow.notes) {
-          try {
-            const arr = JSON.parse(appRow.notes);
-            if (Array.isArray(arr)) {
-              const t = arr.find((x: any) => x && String(x.id) === input.noteId);
-              if (t) { applyTo(t); await db.update(userAppData).set({ notes: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId)); }
-            }
-          } catch {}
-        }
+        // Step 3a: the relational row IS the store — the blob write that used
+        // to happen here is gone (blob columns are frozen pre-3a snapshots).
         let newRaw = row.raw;
         try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch {}
         const set: Record<string, unknown> = { raw: newRaw };
@@ -1402,24 +1406,7 @@ export const appDataRouter = router({
         const isDone = /done|complete|completed|closed/i.test(input.status);
         const completedAt = isDone ? new Date().toISOString() : null;
 
-        // 1) Owner's JSON blob (source of truth).
-        const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (appRow && appRow.tasks) {
-          try {
-            const arr = JSON.parse(appRow.tasks);
-            if (Array.isArray(arr)) {
-              const t = arr.find((x: any) => x && String(x.id) === input.taskId);
-              if (t) {
-                t.status = input.status;
-                t.completedAt = completedAt;
-                await db.update(userAppData).set({ tasks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
-              }
-            }
-          } catch { /* blob unparseable — mirror update below still applies */ }
-        }
-
-        // 2) Relational mirror (status col + raw JSON).
+        // Step 3a: relational row is the sole store (blob write removed).
         let newRaw = row.raw;
         try {
           const t = JSON.parse(row.raw || '{}');
@@ -1516,20 +1503,7 @@ export const appDataRouter = router({
           else if (p.assignedTo != null) t.assignedTo = p.assignedTo;
         };
 
-        // 1) Owner's blob (source of truth).
-        const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData)
-          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
-        if (appRow && appRow.tasks) {
-          try {
-            const arr = JSON.parse(appRow.tasks);
-            if (Array.isArray(arr)) {
-              const t = arr.find((x: any) => x && String(x.id) === input.taskId);
-              if (t) { applyTo(t); await db.update(userAppData).set({ tasks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId)); }
-            }
-          } catch { /* blob unparseable — mirror update still applies */ }
-        }
-
-        // 2) Relational mirror (queryable cols + raw).
+        // Step 3a: relational row is the sole store (blob write removed).
         let newRaw = row.raw;
         try { const t = JSON.parse(row.raw || '{}'); applyTo(t); newRaw = JSON.stringify(t); } catch { /* keep old raw */ }
         const set: Record<string, unknown> = { raw: newRaw };
@@ -1630,7 +1604,22 @@ export const appDataRouter = router({
         const { isAdminUser } = await import("../_core/access");
         const allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id;
         if (!allowed) return { ok: false as const, error: 'not authorized' };
-        // Remove from the owner's JSON blob.
+        // Step 3a: tasks/notes/ideas live ONLY in their relational tables now —
+        // delete the row directly and leave the frozen blob untouched. The
+        // other kinds are still blob-backed and keep the blob filter.
+        if (input.kind === 'tasks') {
+          await db.delete(tasksTable).where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.itemId)));
+          return { ok: true as const };
+        }
+        if (input.kind === 'notes') {
+          await db.delete(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId)));
+          return { ok: true as const };
+        }
+        if (input.kind === 'ideas') {
+          await db.delete(ideasTable).where(and(eq(ideasTable.userId, input.ownerUserId), eq(ideasTable.ideaId, input.itemId)));
+          return { ok: true as const };
+        }
+        // Blob-backed kinds (projects/goals/programs/mindmaps/sheets/decks).
         const [appRow] = await db.select().from(userAppData).where(eq(userAppData.userId, input.ownerUserId)).limit(1);
         const cur = appRow ? (appRow as any)[input.kind] : null;
         if (cur) {
@@ -1640,13 +1629,7 @@ export const appDataRouter = router({
               const next = arr.filter((x: any) => x && String(x.id) !== input.itemId);
               await db.update(userAppData).set({ [input.kind]: JSON.stringify(next) } as any).where(eq(userAppData.userId, input.ownerUserId));
             }
-          } catch { /* blob unparseable — mirror delete below still applies */ }
-        }
-        // Relational mirror.
-        if (input.kind === 'tasks') {
-          await db.delete(tasksTable).where(and(eq(tasksTable.userId, input.ownerUserId), eq(tasksTable.taskId, input.itemId)));
-        } else if (input.kind === 'notes') {
-          await db.delete(notesTable).where(and(eq(notesTable.userId, input.ownerUserId), eq(notesTable.noteId, input.itemId)));
+          } catch { /* blob unparseable */ }
         }
         return { ok: true as const };
       } catch (e: any) {
@@ -1672,13 +1655,18 @@ export const appDataRouter = router({
       if (!db) return { ok: false as const, error: 'db unavailable' };
       if (input.ownerUserId === ctx.user.id) return { ok: false as const, error: 'You already own this item.' };
       try {
-        const colOf = (k: string) => k === 'tasks' ? userAppData.tasks : k === 'programs' ? userAppData.programs : k === 'mindmaps' ? userAppData.mindmaps : k === 'notes' ? userAppData.notes : k === 'sheets' ? userAppData.sheets : k === 'decks' ? userAppData.decks : userAppData.projects;
-        const setObj = (k: string, json: string): any => k === 'tasks' ? { tasks: json } : k === 'programs' ? { programs: json } : k === 'mindmaps' ? { mindmaps: json } : k === 'notes' ? { notes: json } : k === 'sheets' ? { sheets: json } : k === 'decks' ? { decks: json } : { projects: json };
+        // Step 3a: tasks/notes are table-backed — read/write their arrays via
+        // the relational store; blob-backed kinds keep using their columns.
+        const RELATIONAL = input.kind === 'tasks' || input.kind === 'notes';
+        const colOf = (k: string) => k === 'programs' ? userAppData.programs : k === 'mindmaps' ? userAppData.mindmaps : k === 'sheets' ? userAppData.sheets : k === 'decks' ? userAppData.decks : userAppData.projects;
+        const setObj = (k: string, json: string): any => k === 'programs' ? { programs: json } : k === 'mindmaps' ? { mindmaps: json } : k === 'sheets' ? { sheets: json } : k === 'decks' ? { decks: json } : { projects: json };
         const readArr = async (uid: number): Promise<any[]> => {
+          if (RELATIONAL) return readEntityArray(db, uid, input.kind as 'tasks' | 'notes');
           const [r] = await db.select({ v: colOf(input.kind) }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
           try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
         };
         const writeArr = async (uid: number, arr: any[]) => {
+          if (RELATIONAL) return writeEntityArray(db, uid, input.kind as 'tasks' | 'notes', arr);
           const json = JSON.stringify(arr);
           await db.update(userAppData).set(setObj(input.kind, json)).where(eq(userAppData.userId, uid));
           return json;
@@ -1696,15 +1684,8 @@ export const appDataRouter = router({
         const adminArr = await readArr(ctx.user.id);
         if (adminArr.some((x: any) => x && String(x.id) === input.itemId)) item.id = String(item.id) + '-' + ctx.user.id;
         adminArr.push(item);
-        const ownerJson = await writeArr(input.ownerUserId, ownerArr);
-        const adminJson = await writeArr(ctx.user.id, adminArr);
-        if (input.kind === 'tasks') {
-          try { await mirrorTasksToRelational(db, input.ownerUserId, ownerJson); } catch {}
-          try { await mirrorTasksToRelational(db, ctx.user.id, adminJson); } catch {}
-        } else if (input.kind === 'notes') {
-          try { await mirrorNotesToRelational(db, input.ownerUserId, ownerJson); } catch {}
-          try { await mirrorNotesToRelational(db, ctx.user.id, adminJson); } catch {}
-        }
+        await writeArr(input.ownerUserId, ownerArr);
+        await writeArr(ctx.user.id, adminArr);
         return { ok: true as const, newOwnerUserId: ctx.user.id };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
@@ -1750,24 +1731,8 @@ export const appDataRouter = router({
           return { ok: false as const, error: `Count mismatch (you passed ${input.confirmCount}, current is ${total}). Re-run the preview and use the new number.`, total };
         }
 
-        // Delete: edit each owner's blob, then drop the mirror rows.
-        const idsByOwner = new Map<number, Set<string>>();
-        for (const r of rows) {
-          if (!idsByOwner.has(r.userId)) idsByOwner.set(r.userId, new Set());
-          idsByOwner.get(r.userId)!.add(String(r.taskId));
-        }
-        for (const [uid, ids] of idsByOwner.entries()) {
-          const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
-          if (appRow && appRow.tasks) {
-            try {
-              const parsed = JSON.parse(appRow.tasks);
-              if (Array.isArray(parsed)) {
-                const next = parsed.filter((x: any) => !(x && ids.has(String(x.id))));
-                await db.update(userAppData).set({ tasks: JSON.stringify(next) }).where(eq(userAppData.userId, uid));
-              }
-            } catch { /* blob unparseable — mirror delete below still applies */ }
-          }
-        }
+        // Step 3a: the relational table is the sole task store — delete the
+        // rows directly; frozen blobs stay untouched.
         for (const r of rows) { await db.delete(tasksTable).where(eq(tasksTable.id, r.id)); }
         return { ok: true as const, deleted: total, byOwner };
       } catch (e: any) {
@@ -1825,22 +1790,8 @@ export const appDataRouter = router({
         if (input.confirmCount !== matched) {
           return { ok: false as const, error: `Count mismatch (you passed ${input.confirmCount}, current match is ${matched}). Re-run the preview and use the new number.`, willDelete: matched };
         }
-        // Best-effort: prune each owner's JSON blob by the duplicate ids.
-        const idsByOwner = new Map<number, Set<string>>();
-        for (const r of dupes) { if (!idsByOwner.has(r.userId)) idsByOwner.set(r.userId, new Set()); idsByOwner.get(r.userId)!.add(String(r.taskId)); }
-        for (const [uid, ids] of idsByOwner.entries()) {
-          const [appRow] = await db.select({ tasks: userAppData.tasks }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
-          if (appRow && appRow.tasks) {
-            try {
-              const parsed = JSON.parse(appRow.tasks);
-              if (Array.isArray(parsed)) {
-                const next = parsed.filter((x: any) => !(x && ids.has(String(x.id).slice(0, 40))));
-                await db.update(userAppData).set({ tasks: JSON.stringify(next) }).where(eq(userAppData.userId, uid));
-              }
-            } catch { /* blob unparseable — relational delete below still applies */ }
-          }
-        }
-        // Authoritative: delete the relational rows by primary key.
+        // Step 3a: relational rows are the sole store — delete by primary key;
+        // frozen blobs stay untouched.
         for (const r of dupes) { await db.delete(tasksTable).where(eq(tasksTable.id, r.id)); }
         return { ok: true as const, deleted: matched, byOwner };
       } catch (e: any) {
