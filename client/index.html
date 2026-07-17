@@ -285,19 +285,6 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 .logo svg{width:28px;height:28px}
 .logo b{font-size:18px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .logo small{font-size:11px;color:var(--t3);display:block;line-height:1;margin-top:-2px}
-/* ===== LevelUp mark (Option A monogram — user-approved 2026-07-17) =====
-   Custom-stroke LU + lifting arrow, inline SVG (replaces the old CloudFront
-   webp). Shared gradient def lives in #lu-logo-defs right after <body>;
-   url(#lu-g) refs resolve document-wide. The explicit selector below beats
-   the generic `.logo svg` 28px rule. */
-.logo svg.lu-mark{width:40px;height:40px}
-.lu-mark{display:block;flex-shrink:0}
-.lu-mark .lu-arr{transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
-.logo:hover .lu-arr{transform:translateY(-2.5px)}
-@media (prefers-reduced-motion: no-preference){
-  .lu-mark.lu-animate .lu-arr{animation:lu-arr-lift 4.5s ease-in-out 1s infinite}
-}
-@keyframes lu-arr-lift{0%,12%,100%{transform:translateY(0);opacity:1}6%{transform:translateY(-3px);opacity:.85}}
 .tb-s{flex:1;max-width:400px;margin:0 auto;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);display:flex;align-items:center;padding:0 10px;height:32px;gap:6px;position:relative}
 .tb-s input{flex:1;background:none;border:none;color:var(--t1);font-size:12px;outline:none}
 .tb-s input::placeholder{color:var(--t3)}
@@ -2043,22 +2030,11 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </style>
 </head><body>
 
-<!-- Shared gradient for the LevelUp mark. Rendered at 0×0 — display:none
-     would break url(#) refs in some browsers. -->
-<svg id="lu-logo-defs" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <defs>
-    <linearGradient id="lu-g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3B82F6"/>
-      <stop offset="1" stop-color="#8B5CF6"/>
-    </linearGradient>
-  </defs>
-</svg>
-
 <!-- ===== INVITE ACCEPT SCREEN ===== -->
 <div id="invite-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;padding:16px">
   <div style="width:100%;max-width:400px">
     <div style="text-align:center;margin-bottom:24px">
-      <svg class="lu-mark" width="56" height="56" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="margin:0 auto"><rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/><path d="M15 20 V47 H29" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round"/><g class="lu-arr"><path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
       <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
       <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
     </div>
@@ -2118,13 +2094,13 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
-    <svg class="lu-mark" width="48" height="48" viewBox="0 0 64 64" role="img" aria-label="LevelUp"><rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/><path d="M15 20 V47 H29" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round"/><g class="lu-arr"><path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:48px;height:48px;object-fit:contain">
     <svg style="animation:spin 1s linear infinite;color:var(--ac)" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     <div style="font-size:12px;color:var(--t3)">Restoring session…</div>
   </div>
   <div id="login-form-wrapper" style="display:none;width:100%;max-width:380px">
   <div style="text-align:center;margin-bottom:24px">
-    <svg class="lu-mark" width="56" height="56" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="margin:0 auto"><rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/><path d="M15 20 V47 H29" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round"/><g class="lu-arr"><path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
     <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
     <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
   </div>
@@ -2235,7 +2211,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </button>
 <div class="sb-backdrop" id="sb-backdrop" onclick="toggleMobileSidebar(false)"></div>
 <div class="logo" onclick="nav('home')">
-<svg class="lu-mark lu-animate" width="40" height="40" viewBox="0 0 64 64" role="img" aria-label="LevelUp"><rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/><path d="M15 20 V47 H29" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round"/><g class="lu-arr"><path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+<img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
 <div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
@@ -2858,7 +2834,7 @@ body.sh-resizing{user-select:none!important}
     @keyframes splash-fade-out{0%{opacity:1}100%{opacity:0;pointer-events:none}}
     #splash-screen.fade-out{animation:splash-fade-out .5s ease forwards;}
   </style>
-  <svg id="splash-logo" class="lu-mark lu-animate" width="96" height="96" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards"><rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/><path d="M15 20 V47 H29" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#lu-g)" stroke-width="7" stroke-linecap="round"/><g class="lu-arr"><path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+  <img id="splash-logo" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:96px;height:96px;object-fit:contain;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards">
   <div id="splash-brand" style="font-size:36px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0;animation:splash-text-in .5s ease .85s forwards;margin-top:12px">LevelUp</div>
   <div id="splash-tagline" style="font-size:14px;color:#64748B;opacity:0;animation:splash-tagline-in .5s ease 1.2s forwards;margin-top:4px">Your Second Brain</div>
   <div id="splash-greeting" style="font-size:16px;color:#94A3B8;opacity:0;animation:splash-tagline-in .5s ease 1.6s forwards;margin-top:28px"></div>
@@ -2922,7 +2898,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-17-134';
+  var APP_BUILD='2026-07-17-133';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
