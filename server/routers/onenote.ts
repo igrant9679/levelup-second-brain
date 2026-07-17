@@ -44,10 +44,10 @@ export type MsAccountSlot = (typeof MS_ACCOUNT_SLOTS)[number];
 const EXTRA_SLOT_SCOPES = ["offline_access", "User.Read", "Notes.Read"].join(" ");
 const slotSchema = z.enum(MS_ACCOUNT_SLOTS).default("microsoft");
 
-export function getOnenoteAuthUrl(origin: string, state: string, slot: MsAccountSlot = "microsoft"): string {
-  const clientId = process.env.MICROSOFT_CLIENT_ID ?? process.env.MS_CLIENT_ID ?? "";
+export function getOnenoteAuthUrl(origin: string, state: string, slot: MsAccountSlot = "microsoft", clientId?: string, tenantId?: string | null): string {
+  const cid = clientId || process.env.MICROSOFT_CLIENT_ID || process.env.MS_CLIENT_ID || "";
   const params = new URLSearchParams({
-    client_id: clientId,
+    client_id: cid,
     response_type: "code",
     redirect_uri: `${origin}/api/oauth/microsoft/callback`,
     scope: slot === "microsoft" ? ONENOTE_SCOPES : EXTRA_SLOT_SCOPES,
@@ -57,7 +57,11 @@ export function getOnenoteAuthUrl(origin: string, state: string, slot: MsAccount
     // DIFFERENT identity instead of silently reusing the current session.
     ...(slot !== "microsoft" ? { prompt: "select_account" } : {}),
   });
-  return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
+  // Same tenant resolution as the main connect flow — the '/common' endpoint
+  // routes personal accounts to login.live.com, where an org-only app
+  // registration fails with unauthorized_client ("not enabled for consumers").
+  const tenant = tenantId?.trim() || "common";
+  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
 }
 
 async function refreshMsToken(token: { refreshToken: string | null; userId: number; scope?: string | null }, slot: MsAccountSlot): Promise<string | null> {
@@ -358,10 +362,15 @@ export const onenoteRouter = router({
    * an ADDITIONAL Microsoft account (stored separately from the primary). */
   getAuthUrl: protectedProcedure
     .input(z.object({ origin: z.string(), slot: slotSchema.optional() }))
-    .query(({ input, ctx }) => {
+    .query(async ({ input, ctx }) => {
       const slot = input.slot ?? "microsoft";
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, slot })).toString("base64url");
-      return { url: getOnenoteAuthUrl(input.origin, state, slot) };
+      // Mirror the main flow's credential + tenant resolution so both connect
+      // paths land on the same Azure app registration and token endpoint.
+      const userCred = await db.getUserOauthCredential(ctx.user.id, "microsoft");
+      const clientId = (userCred?.clientId || process.env.MICROSOFT_CLIENT_ID || process.env.MS_CLIENT_ID) ?? "";
+      const tenantId = userCred?.tenantId || process.env.MS_TENANT_ID || null;
+      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, slot, tenantId })).toString("base64url");
+      return { url: getOnenoteAuthUrl(input.origin, state, slot, clientId, tenantId) };
     }),
 
   /** All Microsoft account slots + their connection state, for the panel. */
