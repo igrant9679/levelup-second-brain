@@ -64,9 +64,9 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
   if (!token.refreshToken) return null;
   const clientId = process.env.MICROSOFT_CLIENT_ID ?? process.env.MS_CLIENT_ID ?? "";
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET ?? process.env.MS_CLIENT_SECRET ?? "";
-  // Refresh with the scopes this slot was actually granted — requesting the
-  // primary's union scopes against an extra slot's narrower consent fails.
-  const scope = token.scope?.trim() || (slot === "microsoft" ? ONENOTE_SCOPES : EXTRA_SLOT_SCOPES);
+  // No scope param on refresh: Microsoft then returns ALL originally-consented
+  // scopes for the slot. Naming scopes here either strips extras (subset) or
+  // errors (superset of consent) — omitting is correct for every slot.
   const resp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -75,7 +75,6 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
       client_secret: clientSecret,
       refresh_token: token.refreshToken,
       grant_type: "refresh_token",
-      scope,
     }).toString(),
   });
   if (!resp.ok) return null;
@@ -104,6 +103,14 @@ async function graphGet<T>(accessToken: string, path: string): Promise<T> {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!resp.ok) {
+    if (resp.status === 401 || resp.status === 403) {
+      // OneNote endpoints return 401 code 40001 when the token lacks Notes
+      // scopes — surface the actionable fix instead of the raw Graph error.
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "Your Microsoft connection doesn't include OneNote access yet — reconnect your Microsoft account (Settings → Accounts or the OneNote panel) and approve the permissions, then try again.",
+      });
+    }
     const body = await resp.text().catch(() => "");
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",

@@ -105,6 +105,9 @@ const DEFAULT_MS_SCOPES = [
   "Mail.ReadWrite",
   "Mail.Send",
   "Contacts.ReadWrite",
+  // OneNote read access rides on the SAME consent so the user never has to
+  // know which of two connect buttons requests which permissions.
+  "Notes.Read",
 ];
 
 function getMsAuthUrl(origin: string, state: string, clientId: string, tenantId?: string | null, customScopes?: string | null): string {
@@ -154,7 +157,9 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
       client_secret: clientSecret,
       refresh_token: token.refreshToken,
       grant_type: "refresh_token",
-      scope: "offline_access User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send Contacts.ReadWrite",
+      // No scope param: Microsoft then returns ALL originally-consented scopes.
+      // The old hardcoded list silently STRIPPED any extra scope (e.g. OneNote's
+      // Notes.Read) from the access token on every refresh.
     }),
   });
   if (!resp.ok) return null;
