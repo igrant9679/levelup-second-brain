@@ -12733,6 +12733,7 @@ function renderNotes(){
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('md-import-input').click()">📥 Import .md / .txt</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');document.getElementById('doc-import-input').click()">📄 Import PDF / Word / RTF</button>
+            <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" title="Pull meeting notes from your OneNote meeting-notes section (set it in Settings → Integrations → OneNote)" onclick="closePopMenu('notes-overflow-menu');syncOnenoteMeetingNotes()">⟳ Sync OneNote meeting notes</button>
             <div style="height:1px;background:var(--bd1);margin:3px 2px"></div>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');exportNotesMarkdown()">⬇ Export all as Markdown</button>
             <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:26px;font-size:11px;color:var(--t1);background:transparent;border:none;text-align:left" onclick="closePopMenu('notes-overflow-menu');exportNotesPDF()">🖨 Export all as PDF</button>
@@ -12825,6 +12826,7 @@ function renderNotes(){
   const rail=$('notes-rail-panel');
   rail.innerHTML=`<div style="font-size:11px;font-weight:600;margin-bottom:6px">Quick Capture</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:11px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
+  ${(()=>{const evs=_calEventsOn(new Date());if(!evs.length)return '';return `<div style="font-size:11px;font-weight:600;margin-bottom:4px">📅 Today's Meetings</div><div style="margin-bottom:10px">${evs.slice(0,6).map(e=>{const linked=_noteForEvent(e.id);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" title="${linked?'Open the meeting note':'Create a meeting note for this event'}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" onclick="openMeetingNote('${_jsAttr(String(e.id))}','${_jsAttr(e.dateStr||_ymd())}')"><span class="rt" style="font-size:11px">${typeof e.hour==='number'?e.hour+':00 · ':''}${esc(e.title)}</span><span style="flex-shrink:0;color:${linked?'var(--ok)':'var(--ac)'}">${linked?'📝':'＋'}</span></div>`;}).join('')}</div>`;})()}
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
   ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
@@ -13216,6 +13218,8 @@ function renderNoteEditor(n){
     <div class="v" style="color:var(--t2)">${esc(n.source||'Manual')}</div>
     <div class="k">🏷 Tags</div>
     <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${esc(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags</span>'}</div>
+    <div class="k">📅 Meetings</div>
+    <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${n.id},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${n.id})">＋ Link meeting</span></div>
     <div class="k">🎨 Colour</div>
     <div class="v"><span class="note-color-palette">${colorDots}</span></div>
     <div class="k">📅 Dates</div>
@@ -17300,6 +17304,121 @@ function _upcomingCalEvents(limit){
   }
   return out;
 }
+// ─── Meeting ↔ Note linking ─────────────────────────────────────────────────
+// A note carries `meetings: [{id,title,date}]` snapshots (id = calendar event
+// id — number for local _calEvents rows, string for OAuth-synced D.calEvents;
+// always compare String()-ified). The NOTE is the single source of truth: the
+// event side just scans notes, so calendar re-syncs can never orphan the
+// association, and the snapshot keeps the chip renderable even if the event
+// later disappears from the calendar. Rides inside the note JSON → no server
+// or schema change needed.
+function _noteMeetings(n){return Array.isArray(n&&n.meetings)?n.meetings.filter(Boolean):[];}
+function _noteForEvent(evId){const k=String(evId);return (D.notes||[]).find(n=>_noteMeetings(n).some(m=>String(m.id)===k));}
+function _findCalEventById(evId){
+  const k=String(evId);
+  const local=(_calEvents||[]).find(e=>e&&String(e.id)===k);
+  if(local)return {ev:local,synced:false};
+  const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&String(e.id)===k);
+  if(raw)return {ev:raw,synced:true};
+  return null;
+}
+function _meetingRefFromEvent(ev,dateStr){
+  return {id:ev.id,title:ev.title||ev.subject||'(untitled)',date:dateStr||ev.dateStr||String(ev.start||'').slice(0,10)||_ymd()};
+}
+// Event side: open the linked meeting note, or create one (Meeting Notes type,
+// tagged, dropped into a "Meeting…" folder when one exists) and start editing.
+function openMeetingNote(evId,dateStr){
+  if(typeof closeModal==='function')closeModal();
+  const existing=_noteForEvent(evId);
+  if(existing){
+    nav('notes');
+    setTimeout(()=>showNoteInEditor(existing.id),150);
+    return;
+  }
+  const hit=_findCalEventById(evId);
+  if(!hit){toast('Event not found on the calendar');return;}
+  const ref=_meetingRefFromEvent(hit.ev,dateStr);
+  const mtgFolder=_noteFolders().find(f=>/meeting/i.test(f.name||''));
+  const n={
+    id:nextId(D.notes),
+    title:ref.title+' — '+ref.date,
+    body:'',bodyHtml:'',
+    noteType:'Meeting Notes',
+    para:'Resource',source:'Meeting',
+    tags:['meeting'],
+    updated:'Just now',
+    starred:false,
+    meetings:[ref],
+    createdBy:(D.creds&&D.creds.userName)||'',
+    createdAt:new Date().toISOString()
+  };
+  if(mtgFolder)n.folderId=mtgFolder.id;
+  D.notes.push(n);
+  save('notes');
+  toast('📝 Meeting note created');
+  nav('notes');
+  setTimeout(()=>{showNoteInEditor(n.id);toggleNoteInlineEdit(n.id);},150);
+}
+// Note side: chip actions + picker.
+function openMeetingFromNote(evId){
+  const hit=_findCalEventById(evId);
+  if(!hit){toast('This meeting is no longer on the calendar');return;}
+  if(curScreen!=='calendar')nav('calendar');
+  setTimeout(()=>openCalEvent(hit.ev.id),120);
+}
+function unlinkNoteMeeting(noteId,evId){
+  const n=D.notes.find(x=>x.id===noteId);if(!n)return;
+  n.meetings=_noteMeetings(n).filter(m=>String(m.id)!==String(evId));
+  save('notes');
+  toast('Meeting unlinked');
+  showNoteInEditor(noteId);
+}
+function _pickMeetingForNote(noteId,evId,date,title){
+  const n=D.notes.find(x=>x.id===noteId);if(!n)return;
+  n.meetings=_noteMeetings(n);
+  if(!n.meetings.some(m=>String(m.id)===String(evId))){
+    const hit=_findCalEventById(evId);
+    n.meetings.push(hit?_meetingRefFromEvent(hit.ev,date):{id:evId,title,date});
+  }
+  save('notes');
+  if(typeof closeModal==='function')closeModal();
+  toast('🔗 Linked to '+title);
+  showNoteInEditor(noteId);
+}
+// Picker modal: every calendar event from the past 7 → next 7 days (local +
+// synced), filterable. The filter re-renders only the list so the input keeps
+// focus while typing.
+function openMeetingPicker(noteId){
+  const items=[];
+  for(let i=-7;i<=7;i++){
+    const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+i);
+    const ds=_ymd(d);
+    (_calEventsOn(d)||[]).forEach(e=>{
+      items.push({id:e.id,title:e.title||'(untitled)',date:ds,hour:(typeof e.hour==='number'?e.hour:null)});
+    });
+  }
+  window._meetPicker={noteId,items};
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:10px">📅 Link this note to a meeting</h2>
+  <input class="inp" id="meet-picker-q" placeholder="🔍 Filter meetings…" style="width:100%;height:30px;font-size:12px;margin-bottom:8px;box-sizing:border-box" oninput="_meetPickerFilter(this.value)">
+  <div id="meet-picker-list" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn btn-s" style="height:28px;font-size:11px" onclick="closeModal()">Close</button></div>`;
+  _meetPickerFilter('');
+  document.getElementById('modal-capture').classList.add('show');
+  setTimeout(()=>document.getElementById('meet-picker-q')?.focus(),60);
+}
+function _meetPickerFilter(q){
+  const st=window._meetPicker;if(!st)return;
+  const box=document.getElementById('meet-picker-list');if(!box)return;
+  const ql=(q||'').toLowerCase();
+  const today=_ymd();
+  const list=st.items.filter(it=>!ql||it.title.toLowerCase().includes(ql));
+  box.innerHTML=list.length?list.map(it=>{
+    const taken=_noteForEvent(it.id);
+    return `<div class="lr" style="cursor:pointer;padding:6px 8px;border:1px solid var(--bd1);border-radius:6px" onclick="_pickMeetingForNote(${st.noteId},'${_jsAttr(String(it.id))}','${_jsAttr(it.date)}','${_jsAttr(it.title)}')"><span class="rt" style="font-size:12px">${it.date===today?'⭐ ':''}${esc(it.title)}</span><span class="rm" style="font-size:11px;color:var(--t3)">${esc(it.date)}${it.hour!=null?' · '+it.hour+':00':''}${taken?' · has note':''}</span></div>`;
+  }).join(''):`<div style="font-size:12px;color:var(--t3);padding:12px;text-align:center">No calendar events in the last or next 7 days.</div>`;
+}
+
 function openCalEvent(id){
   let ev=_calEvents.find(e=>e.id===id);
   let isSynced=false;
@@ -17324,10 +17443,12 @@ function openCalEvent(id){
   const m=document.getElementById('modal-content');
   const dateDisplay=ev.dateStr||'This week';
   const timeDisplay=(ev.start||ev.time||'')+' – '+(ev.end||'');
-  const actions=isSynced
+  const mtgNote=_noteForEvent(id);
+  const noteBtn=`<button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac);font-weight:600" onclick="openMeetingNote('${_jsAttr(String(id))}','${_jsAttr(ev.dateStr||'')}')" title="${mtgNote?'Open the meeting note linked to this event':'Create a meeting note linked to this event'}">📝 ${mtgNote?'Open notes':'Take notes'}</button>`;
+  const actions=noteBtn+(isSynced
     ?`<span style="font-size:11px;color:var(--t3);padding:3px 8px;background:var(--s3);border-radius:10px" title="Synced from Office 365 — edit in Outlook">☁ Synced from Office 365</span>`
     :`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="openEditCalEvent(${id})" title="Edit event">✏️ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>`;
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--red)" onclick="deleteCalEvent(${id})" title="Delete event">🗑️ Delete</button>`);
   m.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
     <h2 style="font-size:16px;font-weight:600;margin:0">${esc(ev.title)}</h2>
     <div style="display:flex;gap:6px;align-items:center">${actions}</div>

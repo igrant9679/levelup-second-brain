@@ -22,31 +22,51 @@ import { onenoteImportJobs } from "../../drizzle/schema";
 
 // ─── Microsoft Graph helpers ──────────────────────────────────────────────────
 
-/** Scopes needed for OneNote access (in addition to base User.Read) */
+/** Scopes for the OneNote consent flow. This must be the UNION of the app's
+ * Microsoft scopes (see oauth-sync.ts) plus Notes.Read — a consent granted
+ * with ONLY Notes scopes would replace the stored token and break the
+ * mail/calendar/contacts sync paths that refresh with their own scope list. */
 const ONENOTE_SCOPES = [
   "offline_access",
   "User.Read",
+  "Calendars.ReadWrite",
+  "Mail.ReadWrite",
+  "Mail.Send",
+  "Contacts.ReadWrite",
   "Notes.Read",
-  "Notes.ReadWrite",
 ].join(" ");
 
-export function getOnenoteAuthUrl(origin: string, state: string): string {
+/** Extra Microsoft accounts live under slot provider values so the primary
+ * 'microsoft' row (mail/calendar/contacts sync) is never overwritten. Extra
+ * slots get least-privilege consent — OneNote only. */
+export const MS_ACCOUNT_SLOTS = ["microsoft", "microsoft2", "microsoft3"] as const;
+export type MsAccountSlot = (typeof MS_ACCOUNT_SLOTS)[number];
+const EXTRA_SLOT_SCOPES = ["offline_access", "User.Read", "Notes.Read"].join(" ");
+const slotSchema = z.enum(MS_ACCOUNT_SLOTS).default("microsoft");
+
+export function getOnenoteAuthUrl(origin: string, state: string, slot: MsAccountSlot = "microsoft"): string {
   const clientId = process.env.MICROSOFT_CLIENT_ID ?? process.env.MS_CLIENT_ID ?? "";
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
     redirect_uri: `${origin}/api/oauth/microsoft/callback`,
-    scope: ONENOTE_SCOPES,
+    scope: slot === "microsoft" ? ONENOTE_SCOPES : EXTRA_SLOT_SCOPES,
     response_mode: "query",
     state,
+    // Extra accounts: always show the account picker so the user can pick a
+    // DIFFERENT identity instead of silently reusing the current session.
+    ...(slot !== "microsoft" ? { prompt: "select_account" } : {}),
   });
   return `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`;
 }
 
-async function refreshMsToken(token: { refreshToken: string | null; userId: number }): Promise<string | null> {
+async function refreshMsToken(token: { refreshToken: string | null; userId: number; scope?: string | null }, slot: MsAccountSlot): Promise<string | null> {
   if (!token.refreshToken) return null;
   const clientId = process.env.MICROSOFT_CLIENT_ID ?? process.env.MS_CLIENT_ID ?? "";
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET ?? process.env.MS_CLIENT_SECRET ?? "";
+  // Refresh with the scopes this slot was actually granted — requesting the
+  // primary's union scopes against an extra slot's narrower consent fails.
+  const scope = token.scope?.trim() || (slot === "microsoft" ? ONENOTE_SCOPES : EXTRA_SLOT_SCOPES);
   const resp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -55,14 +75,14 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
       client_secret: clientSecret,
       refresh_token: token.refreshToken,
       grant_type: "refresh_token",
-      scope: ONENOTE_SCOPES,
+      scope,
     }).toString(),
   });
   if (!resp.ok) return null;
   const data = await resp.json() as { access_token: string; expires_in: number; refresh_token?: string };
   await db.upsertOAuthToken({
     userId: token.userId,
-    provider: "microsoft",
+    provider: slot,
     accessToken: data.access_token,
     refreshToken: data.refresh_token ?? token.refreshToken,
     expiresAt: new Date(Date.now() + data.expires_in * 1000),
@@ -70,11 +90,11 @@ async function refreshMsToken(token: { refreshToken: string | null; userId: numb
   return data.access_token;
 }
 
-async function getValidMsToken(userId: number): Promise<string | null> {
-  const token = await db.getOAuthToken(userId, "microsoft");
+async function getValidMsToken(userId: number, slot: MsAccountSlot = "microsoft"): Promise<string | null> {
+  const token = await db.getOAuthToken(userId, slot);
   if (!token) return null;
   if (token.expiresAt.getTime() - Date.now() < 5 * 60 * 1000) {
-    return refreshMsToken(token);
+    return refreshMsToken(token, slot);
   }
   return token.accessToken;
 }
@@ -327,17 +347,47 @@ export const onenoteRouter = router({
     };
   }),
 
-  /** Generate Microsoft OAuth URL with OneNote scopes */
+  /** Generate Microsoft OAuth URL with OneNote scopes. Pass slot to connect
+   * an ADDITIONAL Microsoft account (stored separately from the primary). */
   getAuthUrl: protectedProcedure
-    .input(z.object({ origin: z.string() }))
+    .input(z.object({ origin: z.string(), slot: slotSchema.optional() }))
     .query(({ input, ctx }) => {
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString("base64url");
-      return { url: getOnenoteAuthUrl(input.origin, state) };
+      const slot = input.slot ?? "microsoft";
+      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, slot })).toString("base64url");
+      return { url: getOnenoteAuthUrl(input.origin, state, slot) };
+    }),
+
+  /** All Microsoft account slots + their connection state, for the panel. */
+  listAccounts: protectedProcedure.query(async ({ ctx }) => {
+    const out = [] as Array<{ slot: string; connected: boolean; email: string | null; displayName: string | null; hasNotesScope: boolean; isPrimary: boolean }>;
+    for (const slot of MS_ACCOUNT_SLOTS) {
+      const token = await db.getOAuthToken(ctx.user.id, slot);
+      out.push({
+        slot,
+        connected: !!token,
+        email: token?.email ?? null,
+        displayName: token?.displayName ?? null,
+        hasNotesScope: token ? (token.scope ?? "").includes("Notes") : false,
+        isPrimary: slot === "microsoft",
+      });
+    }
+    return out;
+  }),
+
+  /** Disconnect an EXTRA account slot (the primary is managed in the main
+   * Integrations panel since it also powers mail/calendar/contacts sync). */
+  disconnectAccount: protectedProcedure
+    .input(z.object({ slot: z.enum(["microsoft2", "microsoft3"]) }))
+    .mutation(async ({ input, ctx }) => {
+      await db.deleteOAuthToken(ctx.user.id, input.slot);
+      return { ok: true };
     }),
 
   /** List all OneNote notebooks */
-  listNotebooks: protectedProcedure.query(async ({ ctx }) => {
-    const accessToken = await getValidMsToken(ctx.user.id);
+  listNotebooks: protectedProcedure
+    .input(z.object({ account: slotSchema.optional() }).optional())
+    .query(async ({ input, ctx }) => {
+    const accessToken = await getValidMsToken(ctx.user.id, input?.account ?? "microsoft");
     if (!accessToken) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: "Microsoft account not connected. Please connect your account first." });
     }
@@ -353,9 +403,9 @@ export const onenoteRouter = router({
 
   /** List sections in a notebook */
   listSections: protectedProcedure
-    .input(z.object({ notebookId: z.string() }))
+    .input(z.object({ notebookId: z.string(), account: slotSchema.optional() }))
     .query(async ({ input, ctx }) => {
-      const accessToken = await getValidMsToken(ctx.user.id);
+      const accessToken = await getValidMsToken(ctx.user.id, input.account ?? "microsoft");
       if (!accessToken) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Microsoft account not connected." });
       }
@@ -371,9 +421,9 @@ export const onenoteRouter = router({
 
   /** List pages in a section */
   listPages: protectedProcedure
-    .input(z.object({ sectionId: z.string() }))
+    .input(z.object({ sectionId: z.string(), account: slotSchema.optional() }))
     .query(async ({ input, ctx }) => {
-      const accessToken = await getValidMsToken(ctx.user.id);
+      const accessToken = await getValidMsToken(ctx.user.id, input.account ?? "microsoft");
       if (!accessToken) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: "Microsoft account not connected." });
       }
@@ -386,6 +436,43 @@ export const onenoteRouter = router({
         createdAt: p.createdDateTime,
         lastModified: p.lastModifiedDateTime,
       }));
+    }),
+
+  /**
+   * Fetch the CONTENT of up to 20 pages, converted to markdown. This powers
+   * the client-driven import: the client batches page ids through here, then
+   * merges the results into its notes store and saves through the normal
+   * appData.save path — so imported notes hit the same relational-notes
+   * machinery as every other note. (The old startImport background job below
+   * fetched content and never persisted it anywhere; superseded by this.)
+   */
+  fetchPagesContent: protectedProcedure
+    .input(z.object({ pageIds: z.array(z.string().min(1)).min(1).max(20), account: slotSchema.optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const accessToken = await getValidMsToken(ctx.user.id, input.account ?? "microsoft");
+      if (!accessToken) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "Microsoft account not connected." });
+      }
+      const out: Array<{ id: string; ok: boolean; markdown: string; error?: string }> = [];
+      for (const pageId of input.pageIds) {
+        try {
+          const resp = await fetch(
+            `https://graph.microsoft.com/v1.0/me/onenote/pages/${encodeURIComponent(pageId)}/content`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!resp.ok) {
+            out.push({ id: pageId, ok: false, markdown: "", error: `Graph ${resp.status}` });
+          } else {
+            const html = await resp.text();
+            out.push({ id: pageId, ok: true, markdown: onenoteHtmlToMarkdown(html) });
+          }
+        } catch (err) {
+          out.push({ id: pageId, ok: false, markdown: "", error: String((err as Error)?.message ?? err).slice(0, 200) });
+        }
+        // gentle pacing for Graph rate limits
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      return { pages: out };
     }),
 
   /**

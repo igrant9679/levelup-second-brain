@@ -891,6 +891,41 @@ function renderSettingsHTML(){
     <div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">🕐 Import History</div>
     <div id="wdi-history" style="font-size:11px;color:var(--t3)">No imports yet.</div>
   </div>
+
+  <!-- ===== OneNote Meeting-Notes Sync ===== -->
+  <div style="height:1px;background:var(--bd1);margin:20px 0"></div>
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">📓 OneNote Meeting-Notes Sync</h3>
+  <p style="font-size:11px;color:var(--t2);margin-bottom:10px">Pull meeting notes straight from OneNote (where Outlook files them). Pages arrive as <strong>Meeting Notes</strong>, tagged and filed, and auto-link to the matching calendar event. Re-syncs are incremental — edited pages update in place, nothing duplicates. You can connect more than one Microsoft account.</p>
+  <div id="on-accounts" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <span id="on-status-badge" style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t3)">…</span>
+    <span id="on-status-text" style="font-size:11px;color:var(--t2)"></span>
+    <span id="on-btn-connect-wrap" style="display:none"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="connectOnenote()">Connect Microsoft Account</button></span>
+    <span id="on-btn-connected-wrap" style="display:none">
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="loadOnenoteNotebooks()">📓 Browse notebooks</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="syncOnenoteMeetingNotes()">⟳ Sync meeting notes now</button>
+    </span>
+  </div>
+  <div id="on-meeting-source" style="font-size:11px;color:var(--t2);margin-bottom:10px"></div>
+  <div id="on-browser" style="display:none;border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+    <div id="on-notebooks-wrap"></div>
+    <div id="on-sections-wrap" style="display:none">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Notebook: <b id="on-selected-nb-name"></b> · <a onclick="loadOnenoteNotebooks()" style="color:var(--ac);cursor:pointer">← notebooks</a> · click a section's ★ to make it your meeting-notes source</div>
+      <div id="on-sections-list"></div>
+      <button class="btn btn-s" style="height:26px;font-size:11px;margin-top:6px" onclick="startOnenoteImport('notebook')">⬇ Import whole notebook</button>
+    </div>
+    <div id="on-pages-wrap" style="display:none">
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Section: <b id="on-selected-sec-name"></b> · <a onclick="loadOnenoteNotebooks()" style="color:var(--ac);cursor:pointer">← notebooks</a></div>
+      <div id="on-pages-list"></div>
+      <button class="btn btn-p" style="height:26px;font-size:11px;margin-top:6px" onclick="startOnenoteImport('section')">⬇ Import all pages in this section</button>
+    </div>
+  </div>
+  <div id="on-progress-wrap" style="display:none;margin-bottom:10px">
+    <div id="on-progress-label" style="font-size:11px;color:var(--t2);margin-bottom:4px"></div>
+    <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden"><div id="on-progress-bar" style="height:100%;width:0%;background:var(--ac);transition:width .3s"></div></div>
+    <div id="on-progress-pct" style="font-size:11px;color:var(--t3);margin-top:2px">0%</div>
+  </div>
+  <div id="on-history-list" style="font-size:11px;color:var(--t3)"></div>
   </div>
   <!-- Sync --><div id="sp-9" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Sync</h3>
@@ -7136,7 +7171,61 @@ var _onSelectedSection=null;  // {id,name}
 var _onImportJobId=null;
 var _onPollTimer=null;
 
+// Which Microsoft account slot the OneNote browser/sync currently targets.
+// 'microsoft' = the primary account (also powers mail/calendar/contacts);
+// 'microsoft2'/'microsoft3' = additional OneNote-only accounts.
+var _onAccount='microsoft';
+async function loadOnenoteAccounts(){
+  const box=document.getElementById('on-accounts');
+  if(!box)return;
+  try{
+    const accts=await _trpc('onenote.listAccounts',undefined,'query')||[];
+    window._onAccounts=accts;
+    const connected=accts.filter(a=>a.connected);
+    if(connected.length&&!connected.some(a=>a.slot===_onAccount))_onAccount=connected[0].slot;
+    const free=accts.find(a=>!a.connected&&!a.isPrimary);
+    box.innerHTML=connected.map(a=>{
+      const active=_onAccount===a.slot;
+      const label=esc(a.email||a.displayName||a.slot);
+      const warn=a.hasNotesScope?'':' ⚠';
+      const x=a.isPrimary?'':`<span style='opacity:.6;cursor:pointer;margin-left:4px' title='Disconnect this account' onclick='event.stopPropagation();_onDisconnectExtra("${a.slot}")'>✕</span>`;
+      return `<span class="chip" style="cursor:pointer;${active?'border-color:var(--ac);color:var(--ac);background:var(--acs)':''}" title="${a.isPrimary?'Primary account — also powers Mail / Calendar / Contacts sync':'Additional OneNote account'}${a.hasNotesScope?'':' — reconnect needed to grant OneNote access'}" onclick='_onSelectAccount("${a.slot}")'>${a.isPrimary?'👑 ':'👤 '}${label}${warn}${x}</span>`;
+    }).join('')
+    +(connected.length&&free?`<span class="chip" style="cursor:pointer;color:var(--ac)" title="Sign in with a different Microsoft account (work or personal) — used for OneNote only" onclick='_onConnectExtra("${free.slot}")'>＋ Connect another account</span>`:'');
+  }catch(e){console.error('[OneNote accounts]',e);}
+}
+function _onSelectAccount(slot){
+  _onAccount=slot;
+  loadOnenoteAccounts();
+  const br=document.getElementById('on-browser');
+  if(br&&br.style.display!=='none')loadOnenoteNotebooks();
+}
+async function _onConnectExtra(slot){
+  try{
+    const d=await _trpc('onenote.getAuthUrl',{origin:window.location.origin,slot},'query');
+    if(d&&d.url)window.location.href=d.url;
+  }catch(e){toast('Could not start Microsoft sign-in: '+e.message,'error');}
+}
+async function _onDisconnectExtra(slot){
+  if(!confirm('Disconnect this additional Microsoft account from OneNote sync?'))return;
+  try{
+    await _trpc('onenote.disconnectAccount',{slot},'mutation');
+    if(_onAccount===slot)_onAccount='microsoft';
+    loadOnenoteAccounts();
+    toast('Account disconnected');
+  }catch(e){toast('Disconnect failed: '+e.message,'error');}
+}
+function _onRenderMeetingSource(){
+  const el=document.getElementById('on-meeting-source');
+  if(!el)return;
+  const cfg=D.prefs&&D.prefs.onenoteSync;
+  el.innerHTML=cfg&&cfg.sectionId
+    ?`⭐ Meeting-notes source: <b>${esc(cfg.notebookName||'')} › ${esc(cfg.sectionName||'')}</b>${cfg.account&&cfg.account!=='microsoft'?' <span style="color:var(--t3)">(additional account)</span>':''} — synced via the ⟳ button here or Notes → ⋮ menu`
+    :`No meeting-notes source set yet — browse to your meeting-notes section and click its ★.`;
+}
 async function loadOnenoteStatus(){
+  loadOnenoteAccounts();
+  _onRenderMeetingSource();
   const badge=document.getElementById('on-status-badge');
   const text=document.getElementById('on-status-text');
   const connectWrap=document.getElementById('on-btn-connect-wrap');
@@ -7165,7 +7254,7 @@ async function connectOnenote(){
     const data=await _trpc('onenote.getAuthUrl',{origin:window.location.origin},'query');
     if(data&&data.url)window.location.href=data.url;
   } catch(e){
-    showToast('Could not get Microsoft auth URL: '+e.message,'error');
+    toast('Could not get Microsoft auth URL: '+e.message,'error');
   }
 }
 
@@ -7175,9 +7264,9 @@ async function disconnectOnenote(){
     await _trpc('oauthSync.disconnect',{provider:'microsoft'},'mutation');
     loadOnenoteStatus();
     document.getElementById('on-browser').style.display='none';
-    showToast('Microsoft account disconnected');
+    toast('Microsoft account disconnected');
   } catch(e){
-    showToast('Disconnect failed: '+e.message,'error');
+    toast('Disconnect failed: '+e.message,'error');
   }
 }
 
@@ -7190,7 +7279,7 @@ async function loadOnenoteNotebooks(){
   nbWrap.style.display='';
   nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3);padding:8px 0">Loading notebooks…</div>';
   try{
-    const notebooks=await _trpc('onenote.listNotebooks',undefined,'query');
+    const notebooks=await _trpc('onenote.listNotebooks',{account:_onAccount},'query');
     if(!notebooks||notebooks.length===0){
       nbWrap.innerHTML='<div style="font-size:11px;color:var(--t3)">No notebooks found in your Microsoft account.</div>';
       return;
@@ -7218,20 +7307,23 @@ async function selectOnenoteNotebook(id,name){
   secWrap.style.display='';
   secList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading sections…</div>';
   try{
-    const sections=await _trpc('onenote.listSections',{notebookId:id},'query');
+    const sections=await _trpc('onenote.listSections',{notebookId:id,account:_onAccount},'query');
     if(!sections||sections.length===0){
       secList.innerHTML='<div style="font-size:11px;color:var(--t3)">No sections found.</div>';
       return;
     }
-    secList.innerHTML=sections.map(s=>`
-      <div class="lr" style="cursor:pointer;padding:8px;border-radius:8px;margin-bottom:4px;background:var(--s2)" onclick="selectOnenoteSection('${s.id.replace(/'/g,"\\'")}',' ${s.name.replace(/'/g,"\\'")}')">  
+    secList.innerHTML=sections.map(s=>{
+      const isMtgSrc=!!(D.prefs&&D.prefs.onenoteSync&&D.prefs.onenoteSync.sectionId===s.id);
+      return `
+      <div class="lr" style="cursor:pointer;padding:8px;border-radius:8px;margin-bottom:4px;background:var(--s2)" onclick="selectOnenoteSection('${s.id.replace(/'/g,"\\'")}',' ${s.name.replace(/'/g,"\\'")}')">
         <span style="font-size:16px;margin-right:8px">📂</span>
         <div style="flex:1">
-          <div style="font-size:12px;font-weight:500">${esc(s.name)}</div>
+          <div style="font-size:12px;font-weight:500">${esc(s.name)}${isMtgSrc?' <span style="font-size:11px;color:var(--warn)">⭐ meeting-notes source</span>':''}</div>
           <div style="font-size:11px;color:var(--t3)">Last modified: ${new Date(s.lastModified).toLocaleDateString()}</div>
         </div>
+        <span title="${isMtgSrc?'This is your meeting-notes section':'Set as your meeting-notes section — enables one-click ⟳ sync from the Notes page'}" style="font-size:14px;cursor:pointer;color:${isMtgSrc?'var(--warn)':'var(--t3)'};margin-right:8px" onclick="event.stopPropagation();_onenoteSetMeetingSource('${s.id.replace(/'/g,"\\'")}',' ${s.name.replace(/'/g,"\\'")}'.trim());selectOnenoteNotebook('${_onSelectedNotebook?_onSelectedNotebook.id.replace(/'/g,"\\'"):''}','${_onSelectedNotebook?_onSelectedNotebook.name.replace(/'/g,"\\'"):''}')">★</span>
         <span style="font-size:11px;color:var(--t3)">›</span>
-      </div>`).join('');
+      </div>`;}).join('');
   } catch(e){
     secList.innerHTML='<div style="font-size:11px;color:var(--red)">Failed to load sections: '+esc(e.message)+'</div>';
   }
@@ -7246,7 +7338,7 @@ async function selectOnenoteSection(id,name){
   pagesWrap.style.display='';
   pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">Loading pages…</div>';
   try{
-    const pages=await _trpc('onenote.listPages',{sectionId:id},'query');
+    const pages=await _trpc('onenote.listPages',{sectionId:id,account:_onAccount},'query');
     if(!pages||pages.length===0){
       pagesList.innerHTML='<div style="font-size:11px;color:var(--t3)">No pages found.</div>';
       return;
@@ -7265,29 +7357,156 @@ async function selectOnenoteSection(id,name){
   }
 }
 
-async function startOnenoteImport(scope,pageId,pageName){
-  if(!_onSelectedNotebook){showToast('No notebook selected','error');return;}
-  const input={
-    scope,
-    notebookId:_onSelectedNotebook.id,
-    notebookName:_onSelectedNotebook.name,
-    sectionId:_onSelectedSection?_onSelectedSection.id:undefined,
-    sectionName:_onSelectedSection?_onSelectedSection.name:undefined,
-    pageId:pageId||undefined,
-    pageName:pageName||undefined,
-  };
+// Null-safe progress helper — the Settings panel's progress elements don't
+// exist when a sync is triggered from the Notes page, so every DOM touch is
+// guarded and toasts carry the result either way.
+function _onProg(show,label,pct){
+  const wrap=document.getElementById('on-progress-wrap');
+  const browser=document.getElementById('on-browser');
+  if(wrap)wrap.style.display=show?'':'none';
+  if(browser&&show)browser.style.display='none';
+  const lbl=document.getElementById('on-progress-label');
+  if(lbl&&label!=null)lbl.textContent=label;
+  const bar=document.getElementById('on-progress-bar');
+  if(bar&&pct!=null)bar.style.width=pct+'%';
+  const pctEl=document.getElementById('on-progress-pct');
+  if(pctEl&&pct!=null)pctEl.textContent=pct+'%';
+}
+// Match a OneNote page to a calendar event on the page's creation date by
+// fuzzy title containment — powers the automatic meeting↔note link.
+function _onenoteMatchMeeting(p){
   try{
-    const result=await _trpc('onenote.startImport',input,'mutation');
-    _onImportJobId=result.jobId;
-    document.getElementById('on-browser').style.display='none';
-    document.getElementById('on-progress-wrap').style.display='';
-    document.getElementById('on-progress-label').textContent='Importing '+result.totalPages+' page'+(result.totalPages!==1?'s':'')+'…';
-    document.getElementById('on-progress-bar').style.width='0%';
-    document.getElementById('on-progress-pct').textContent='0%';
-    pollOnenoteProgress();
-  } catch(e){
-    showToast('Import failed to start: '+e.message,'error');
+    if(typeof _calEventsOn!=='function')return null;
+    const d=p.createdAt?new Date(p.createdAt):null;
+    if(!d||isNaN(d.getTime()))return null;
+    const tl=(p.title||'').toLowerCase().trim();
+    if(!tl)return null;
+    const hit=(_calEventsOn(d)||[]).find(e=>{
+      const et=(e.title||'').toLowerCase().trim();
+      return et.length>3&&(tl.includes(et)||et.includes(tl));
+    });
+    if(!hit)return null;
+    return {id:hit.id,title:hit.title,date:_ymd(d)};
+  }catch(_){return null;}
+}
+// Merge one fetched page into D.notes. Returns 'created' | 'updated'.
+// Re-imports match on onenotePageId and REPLACE the body but preserve the
+// user's tags, folder, stars, and meeting links.
+function _onenoteMergePage(p,markdown){
+  const secTag=(p.sectionName||'').trim();
+  const isMeeting=/meeting/i.test(secTag)||/meeting/i.test(p.title||'');
+  let n=D.notes.find(x=>x.onenotePageId===p.id);
+  if(n){
+    n.body=markdown;
+    n.bodyHtml='';
+    if(p.title)n.title=p.title;
+    if(p.lastModified)n.onenoteLastModified=p.lastModified;
+    n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    return 'updated';
   }
+  n={
+    id:nextId(D.notes),
+    title:p.title||'Untitled OneNote Page',
+    body:markdown,bodyHtml:'',
+    tags:['onenote'].concat(secTag?[secTag.toLowerCase().replace(/\s+/g,'-')]:[]).concat(isMeeting?['meeting']:[]),
+    source:'OneNote',
+    noteType:isMeeting?'Meeting Notes':'',
+    para:'Resource',
+    updated:'Just now',starred:false,
+    onenotePageId:p.id,
+    onenoteLastModified:p.lastModified||'',
+    createdBy:(D.creds&&D.creds.userName)||'',
+    createdAt:p.createdAt||new Date().toISOString()
+  };
+  if(isMeeting&&typeof _noteFolders==='function'){
+    const mtgFolder=_noteFolders().find(f=>/meeting/i.test(f.name||''));
+    if(mtgFolder)n.folderId=mtgFolder.id;
+  }
+  const ref=_onenoteMatchMeeting(p);
+  if(ref)n.meetings=[ref];
+  D.notes.push(n);
+  return 'created';
+}
+// REAL import — pulls page content through onenote.fetchPagesContent in
+// batches and merges into D.notes via the normal save path. (The old
+// server-side startImport job converted every page and then discarded the
+// result — imports "succeeded" but no notes ever appeared.)
+async function startOnenoteImport(scope,pageId,pageName){
+  if(!_onSelectedNotebook){toast('No notebook selected','error');return;}
+  const secName=_onSelectedSection?_onSelectedSection.name:'';
+  let pageList=[];
+  try{
+    if(scope==='page'&&pageId){
+      pageList=[{id:pageId,title:(pageName||'Untitled').trim(),sectionName:secName}];
+    } else if(scope==='section'&&_onSelectedSection){
+      const pages=await _trpc('onenote.listPages',{sectionId:_onSelectedSection.id,account:_onAccount},'query');
+      pageList=(pages||[]).map(p=>({id:p.id,title:p.title||'Untitled',lastModified:p.lastModified,createdAt:p.createdAt,sectionName:secName}));
+    } else if(scope==='notebook'){
+      const sections=await _trpc('onenote.listSections',{notebookId:_onSelectedNotebook.id,account:_onAccount},'query');
+      for(const s of (sections||[])){
+        const pages=await _trpc('onenote.listPages',{sectionId:s.id,account:_onAccount},'query');
+        (pages||[]).forEach(p=>pageList.push({id:p.id,title:p.title||'Untitled',lastModified:p.lastModified,createdAt:p.createdAt,sectionName:s.name}));
+      }
+    }
+  }catch(e){toast('Could not list OneNote pages: '+e.message,'error');return;}
+  if(!pageList.length){toast('No pages found to import','error');return;}
+  // Incremental: skip pages already imported at this exact lastModified stamp.
+  const work=pageList.filter(p=>{
+    const ex=D.notes.find(n=>n.onenotePageId===p.id);
+    return !(ex&&ex.onenoteLastModified&&p.lastModified&&ex.onenoteLastModified===p.lastModified);
+  });
+  const skippedCount=pageList.length-work.length;
+  if(!work.length){
+    toast('✓ OneNote already in sync — '+skippedCount+' page'+(skippedCount!==1?'s':'')+' unchanged');
+    return;
+  }
+  _onProg(true,'Importing '+work.length+' page'+(work.length!==1?'s':'')+'…',0);
+  let created=0,updated=0,failed=0,done=0;
+  for(let i=0;i<work.length;i+=10){
+    const batch=work.slice(i,i+10);
+    let res=null;
+    try{res=await _trpc('onenote.fetchPagesContent',{pageIds:batch.map(p=>p.id),account:_onAccount},'mutation');}
+    catch(e){console.error('[OneNote] batch failed:',e);}
+    const byId={};
+    ((res&&res.pages)||[]).forEach(pg=>{byId[pg.id]=pg;});
+    batch.forEach(p=>{
+      done++;
+      const pg=byId[p.id];
+      if(!pg||!pg.ok){failed++;return;}
+      const r=_onenoteMergePage(p,pg.markdown);
+      if(r==='created')created++;else updated++;
+    });
+    const pct=Math.round(done/work.length*100);
+    _onProg(true,'Imported '+done+' of '+work.length+' pages'+(failed?' ('+failed+' failed)':''),pct);
+  }
+  if(created||updated)save('notes');
+  _onProg(false);
+  const browser=document.getElementById('on-browser');
+  if(browser)browser.style.display='';
+  toast((failed?'⚠':'✅')+' OneNote sync: '+created+' new · '+updated+' updated'+(skippedCount?' · '+skippedCount+' unchanged':'')+(failed?' · '+failed+' failed':''));
+  if(typeof curScreen!=='undefined'&&curScreen==='notes'&&typeof renderNotes==='function')renderNotes();
+}
+// Remember a section as THE meeting-notes source (where Outlook files your
+// meeting notes), so syncs are one click from anywhere.
+function _onenoteSetMeetingSource(sectionId,sectionName){
+  if(!_onSelectedNotebook)return;
+  if(!D.prefs)D.prefs={};
+  D.prefs.onenoteSync={notebookId:_onSelectedNotebook.id,notebookName:_onSelectedNotebook.name,sectionId,sectionName,account:_onAccount};
+  save('prefs');
+  toast('⭐ "'+sectionName+'" set as your meeting-notes section');
+  if(typeof _onRenderMeetingSource==='function')_onRenderMeetingSource();
+}
+async function syncOnenoteMeetingNotes(){
+  const cfg=D.prefs&&D.prefs.onenoteSync;
+  if(!cfg||!cfg.sectionId){
+    toast('Pick your meeting-notes section first: Settings → 📝 Word Doc Import → OneNote → browse to a section and click its ★','error');
+    return;
+  }
+  _onAccount=cfg.account||'microsoft';
+  _onSelectedNotebook={id:cfg.notebookId,name:cfg.notebookName};
+  _onSelectedSection={id:cfg.sectionId,name:cfg.sectionName};
+  toast('⟳ Syncing "'+cfg.sectionName+'" from OneNote…');
+  await startOnenoteImport('section');
 }
 
 function pollOnenoteProgress(){
@@ -7306,9 +7525,9 @@ function pollOnenoteProgress(){
         _onPollTimer=null;
         document.getElementById('on-progress-wrap').style.display='none';
         if(job.status==='completed'){
-          showToast('✅ Imported '+job.importedPages+' note'+(job.importedPages!==1?'s':'')+' from OneNote!');
+          toast('✅ Imported '+job.importedPages+' note'+(job.importedPages!==1?'s':'')+' from OneNote!');
         } else {
-          showToast('⚠ Import finished with errors. '+job.failedPages+' pages failed.','error');
+          toast('⚠ Import finished with errors. '+job.failedPages+' pages failed.','error');
         }
         loadOnenoteStatus();
         loadOnenoteHistory();

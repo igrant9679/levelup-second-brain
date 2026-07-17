@@ -25,16 +25,21 @@ function buildFormBody(params: Record<string, string>): string {
     .join('&');
 }
 
-function parseState(state: string): { userId: number; origin: string; tenantId?: string | null } | null {
+function parseState(state: string): { userId: number; origin: string; tenantId?: string | null; slot?: string } | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { userId: number; origin: string; tenantId?: string | null };
+    const parsed = JSON.parse(decoded) as { userId: number; origin: string; tenantId?: string | null; slot?: string };
     if (!parsed.userId || !parsed.origin) return null;
     return parsed;
   } catch {
     return null;
   }
 }
+
+// Additional Microsoft accounts (OneNote multi-account) are stored under slot
+// provider values so the primary 'microsoft' row — which powers mail/calendar/
+// contacts sync — is never overwritten by a second consent.
+const MS_PROVIDER_SLOTS = ["microsoft", "microsoft2", "microsoft3"];
 
 export function registerProviderOAuthCallbacks(app: Express) {
   // ---- Microsoft ----
@@ -119,9 +124,10 @@ export function registerProviderOAuthCallbacks(app: Express) {
         ? await profileResp.json() as { displayName?: string; mail?: string; userPrincipalName?: string }
         : {};
 
+      const slot = MS_PROVIDER_SLOTS.includes(stateData.slot ?? "") ? (stateData.slot as string) : "microsoft";
       await db.upsertOAuthToken({
         userId: stateData.userId,
-        provider: "microsoft",
+        provider: slot,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token ?? null,
         expiresAt: new Date(Date.now() + tokenData.expires_in * 1000),
