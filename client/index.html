@@ -64,10 +64,12 @@
   --radius-pill:9999px;
   /* Elevation / shadow scale — three steps. Use sm for chips/inputs,
      md for cards on hover, lg for popovers/modals. */
-  --shadow-sm:0 1px 2px rgba(0,0,0,.06);
-  --shadow-md:0 4px 12px rgba(0,0,0,.12);
-  --shadow-lg:0 12px 32px rgba(0,0,0,.22);
-  --shadow-xl:0 20px 60px rgba(0,0,0,.35);
+  /* Layered elevation: a tight contact shadow + a soft ambient falloff reads
+     more physical than a single blur — the "modern SaaS" depth recipe. */
+  --shadow-sm:0 1px 2px rgba(0,0,0,.12),0 2px 8px -2px rgba(0,0,0,.10);
+  --shadow-md:0 1px 2px rgba(0,0,0,.16),0 8px 24px -6px rgba(0,0,0,.22);
+  --shadow-lg:0 2px 4px rgba(0,0,0,.18),0 16px 48px -12px rgba(0,0,0,.32);
+  --shadow-xl:0 4px 8px rgba(0,0,0,.20),0 28px 80px -16px rgba(0,0,0,.45);
   /* Semantic source colors — replaces hard-coded #1f6feb / #9333ea / #16a34a
      scattered through the codebase. */
   --color-source-cf:#1f6feb;
@@ -149,16 +151,27 @@ body:not(.compact-mode){font-size:15px}
 .md-body p:last-child{margin-bottom:0}
 .md-body h1,.md-body h2,.md-body h3,.md-body h4,.md-body h5,.md-body h6{color:var(--t1)}
 .md-body ul,.md-body ol{margin:6px 0 6px 18px;padding:0}
+.md-body ul{list-style:disc outside}
+.md-body ol{list-style:decimal outside}
 .md-body li{margin:2px 0}
+/* Legacy plain-text notes rendered dash-lines as BARE <li> with no <ul> —
+   give any orphan li a left inset so its marker can't hang into a clipped
+   ancestor, and force the disc so it can't inherit list-style:none. */
+.md-body>li,.note-doc .note-body>li{list-style:disc outside;margin-left:22px}
 /* Lists inside ANY contenteditable surface (note drawer Free-form Body,
    journal/goal/idea editors, task notes, …). The global *{margin:0;padding:0}
    reset zeroes ul/ol padding, which pushes the disc/number markers outside the
    editable's overflow clip box — lists were inserted but invisible. The luRTE
    .rte-body rules (injected at runtime, later in the cascade) still win inside
-   the main editor. */
-[contenteditable="true"] ul{list-style:disc outside;padding-left:22px;margin:6px 0}
-[contenteditable="true"] ol{list-style:decimal outside;padding-left:26px;margin:6px 0}
-[contenteditable="true"] li{margin:2px 0}
+   the main editor. Match bare [contenteditable] / contenteditable="" too —
+   only the ="true" form was covered before, so any editable created with the
+   bare attribute rendered invisible markers. */
+[contenteditable]:not([contenteditable="false"]) ul{list-style:disc outside;padding-left:22px;margin:6px 0}
+[contenteditable]:not([contenteditable="false"]) ol{list-style:decimal outside;padding-left:26px;margin:6px 0}
+[contenteditable]:not([contenteditable="false"]) li{margin:2px 0}
+[contenteditable]:not([contenteditable="false"]) li::marker{color:currentColor}
+[contenteditable]:not([contenteditable="false"]) ul ul{list-style-type:circle}
+[contenteditable]:not([contenteditable="false"]) ul ul ul{list-style-type:square}
 .md-body a{color:var(--ac);text-decoration:underline;word-break:break-word}
 .md-body code{background:var(--s3);padding:1px 5px;border-radius:3px;font-family:ui-monospace,monospace;font-size:.92em}
 .md-body pre{background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin:8px 0;overflow-x:auto}
@@ -262,19 +275,39 @@ body:not(.compact-mode) .drawer .field label{font-size:12px}
 .login-err{color:var(--red);font-size:11px;text-align:center;min-height:16px;margin-bottom:8px}
 html,body{height:100%;overflow:hidden}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
+::selection{background:rgba(59,130,246,.35)}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--bd3)}
 /* Use dvh (dynamic viewport height) so iOS Safari's collapsing address bar
    doesn't cut off the bottom of the app shell. Falls back to 100vh on older
    browsers. */
 .app{display:grid;grid-template-rows:var(--top) 1fr;height:100vh;height:100dvh}
 
 /* TOPBAR */
-.topbar{background:var(--s1);border-bottom:1px solid var(--bd1);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:100}
+.topbar{background:var(--s1);border-bottom:1px solid var(--bd1);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:100;box-shadow:0 4px 16px -10px rgba(0,0,0,.5)}
 .logo{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0}
 .logo svg{width:28px;height:28px}
 .logo b{font-size:18px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .logo small{font-size:11px;color:var(--t3);display:block;line-height:1;margin-top:-2px}
-.tb-s{flex:1;max-width:400px;margin:0 auto;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);display:flex;align-items:center;padding:0 10px;height:32px;gap:6px;position:relative}
+/* ===== LevelUp mark (inline SVG logo — replaces the old CloudFront webp) =====
+   The chevron pair reads "level up". Shared gradient/clip defs live in the
+   hidden #lu-logo-defs svg right after <body>; url(#…) refs resolve
+   document-wide. Sized per-site via width/height attrs — the explicit
+   selector below beats the generic `.logo svg` 28px rule. */
+.logo svg.lu-mark{width:40px;height:40px}
+.lu-mark{display:block;flex-shrink:0}
+.lu-mark .lu-chevA,.lu-mark .lu-chevB{transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.logo:hover .lu-chevA,a:hover>.lu-mark .lu-chevA{transform:translateY(-2.5px)}
+.logo:hover .lu-chevB,a:hover>.lu-mark .lu-chevB{transform:translateY(-1.2px)}
+@media (prefers-reduced-motion: no-preference){
+  .lu-mark.lu-animate .lu-chevA{animation:lu-lift 5.6s ease-in-out 1.6s infinite}
+  .lu-mark.lu-animate .lu-chevB{animation:lu-lift 5.6s ease-in-out 1.78s infinite}
+  .lu-mark.lu-animate .lu-shine{animation:lu-shine 5.6s ease-in-out 2.6s infinite}
+}
+@keyframes lu-lift{0%,14%,100%{transform:translateY(0)}6%{transform:translateY(-3px)}}
+@keyframes lu-shine{0%{transform:translateX(-30px) skewX(-18deg);opacity:0}2%{opacity:1}9%{transform:translateX(88px) skewX(-18deg);opacity:0}100%{transform:translateX(88px) skewX(-18deg);opacity:0}}
+.tb-s{flex:1;max-width:400px;margin:0 auto;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);display:flex;align-items:center;padding:0 10px;height:32px;gap:6px;position:relative;transition:border-color .15s ease,box-shadow .15s ease}
+.tb-s:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--acs)}
 .tb-s input{flex:1;background:none;border:none;color:var(--t1);font-size:12px;outline:none}
 .tb-s input::placeholder{color:var(--t3)}
 /* SEARCH DROPDOWN */
@@ -555,7 +588,10 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .su{margin-top:auto;padding:8px 14px;border-top:1px solid var(--bd1);display:flex;align-items:center;gap:8px;font-size:11px}
 
 /* MAIN */
-.mn{padding:16px 24px;overflow-y:auto;min-width:0}
+.mn{padding:16px 24px;overflow-y:auto;min-width:0;animation:lu-page-in var(--motion-normal,.24s) var(--ease-out,cubic-bezier(.2,.8,.3,1))}
+/* Replays on every screen switch — screens toggle display:none, which
+   restarts the animation. The global reduced-motion guard collapses it. */
+@keyframes lu-page-in{from{opacity:.35;transform:translateY(5px)}to{opacity:1;transform:none}}
 /* On pages without a right rail, cap content width on wide monitors so rows stay scannable. */
 .bg:not(.wr) .mn{width:100%;max-width:1280px;margin-right:auto}
 .rr{background:var(--s1);border-left:1px solid var(--bd1);padding:14px;overflow-y:auto;min-width:0}
@@ -572,7 +608,7 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .p-ip{background:rgba(59,130,246,.15);color:#60A5FA}.p-pe{background:var(--warns);color:var(--warn)}.p-ns{background:rgba(148,163,184,.15);color:#CBD5E1}
 .p-sc{background:var(--purps);color:var(--purp)}.p-dn{background:var(--oks);color:var(--ok)}
 .pb{height:3px;background:var(--s3);border-radius:2px;overflow:hidden;flex:1}.pb .f{height:100%;border-radius:2px}
-.btn{display:inline-flex;align-items:center;gap:4px;padding:0 12px;height:30px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:none;transition:all .12s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:0 12px;height:30px;border-radius:var(--r);font-size:12px;font-weight:500;cursor:pointer;border:none;transition:all .12s;white-space:nowrap}
 .btn-p{background:var(--ac);color:#fff}.btn-p:hover{background:var(--ach)}
 .btn-s{background:var(--s3);color:var(--t1);border:1px solid var(--bd2)}.btn-s:hover{background:var(--s4)}
 .btn-d{background:var(--reds);color:var(--red)}.btn-d:hover{opacity:.8}
@@ -617,9 +653,10 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:var(--z-drawer);
   display:flex;justify-content:flex-end;
   opacity:0;pointer-events:none;
-  transition:background .22s ease,opacity .2s ease}
-.drawer-overlay.show{background:rgba(0,0,0,.55);opacity:1;pointer-events:auto}
-.drawer{width:520px;max-width:90vw;background:var(--s1);border-left:1px solid var(--bd2);padding:20px;overflow-y:auto;
+  backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px);
+  transition:background .22s ease,opacity .2s ease,backdrop-filter .22s ease}
+.drawer-overlay.show{background:rgba(4,7,14,.5);opacity:1;pointer-events:auto;backdrop-filter:blur(5px) saturate(1.1);-webkit-backdrop-filter:blur(5px) saturate(1.1)}
+.drawer{width:520px;max-width:90vw;background:var(--s1);border-left:1px solid var(--bd2);padding:20px;overflow-y:auto;box-shadow:var(--shadow-xl);
   transform:translateX(40px);transition:transform .25s cubic-bezier(.2,.9,.3,1.1)}
 .drawer-overlay.show .drawer{transform:translateX(0)}
 @keyframes slideIn{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
@@ -642,7 +679,7 @@ body.dense-mode .ph-r h1{font-size:16px!important}
 .drawer .dr-actions{position:sticky;bottom:0;display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:12px 0;background:var(--s1);border-top:1px solid var(--bd1);z-index:3}
 
 /* MODAL */
-.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:var(--z-modal);display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-ov{position:fixed;inset:0;background:rgba(4,7,14,.55);z-index:var(--z-modal);display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px) saturate(1.1);-webkit-backdrop-filter:blur(6px) saturate(1.1)}
 .modal-ov.show{display:flex}
 .modal{background:var(--s2);border:1px solid var(--bd2);border-radius:12px;padding:20px;width:520px;max-width:95vw;max-height:85vh;overflow-y:auto;animation:popIn .2s ease}
 .modal.compose-modal{width:680px;max-width:96vw;max-height:90vh;padding:0;display:flex;flex-direction:column}
@@ -1438,6 +1475,8 @@ body.sb-open .ai-bubble{display:none!important}
 .note-doc .note-body h2{font-size:19px;font-weight:720;margin:24px 0 10px;color:var(--t1)}
 .note-doc .note-body h3{font-size:16px;font-weight:680;margin:20px 0 8px;color:var(--t1)}
 .note-doc .note-body ul,.note-doc .note-body ol{margin:0 0 15px 22px;color:var(--t2)}
+.note-doc .note-body ul{list-style:disc outside}
+.note-doc .note-body ol{list-style:decimal outside}
 .note-doc .note-body li{margin-bottom:6px}
 .note-doc .note-body a,.note-doc .note-body .wikilink{color:var(--ac);border-bottom:1px solid color-mix(in srgb,var(--ac) 40%,transparent);cursor:pointer}
 .note-doc .note-body blockquote{border-left:3px solid var(--ac);margin:0 0 15px;padding:4px 0 4px 16px;color:var(--t2);font-style:italic}
@@ -2017,11 +2056,34 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </style>
 </head><body>
 
+<!-- Shared defs for the LevelUp mark (gradients + clip). Rendered at 0×0 —
+     display:none would break url(#) refs in some browsers. -->
+<svg id="lu-logo-defs" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="lu-g-badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F8DF9"/>
+      <stop offset=".55" stop-color="#6366F1"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="lu-g-gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".22"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".04"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="lu-g-shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="lu-clip"><rect x="1" y="1" width="62" height="62" rx="15"/></clipPath>
+  </defs>
+</svg>
+
 <!-- ===== INVITE ACCEPT SCREEN ===== -->
 <div id="invite-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;padding:16px">
   <div style="width:100%;max-width:400px">
     <div style="text-align:center;margin-bottom:24px">
-      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
+      <svg class="lu-mark" width="56" height="56" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="margin:0 auto"><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-badge)"/><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-gloss)"/><rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="rgba(255,255,255,.16)"/><path class="lu-chevB" d="M19 47 L32 34 L45 47" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="lu-chevA" d="M19 34 L32 21 L45 34" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
       <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
     </div>
@@ -2081,13 +2143,13 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
-    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:48px;height:48px;object-fit:contain">
+    <svg class="lu-mark" width="48" height="48" viewBox="0 0 64 64" role="img" aria-label="LevelUp"><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-badge)"/><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-gloss)"/><rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="rgba(255,255,255,.16)"/><path class="lu-chevB" d="M19 47 L32 34 L45 47" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="lu-chevA" d="M19 34 L32 21 L45 34" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <svg style="animation:spin 1s linear infinite;color:var(--ac)" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     <div style="font-size:12px;color:var(--t3)">Restoring session…</div>
   </div>
   <div id="login-form-wrapper" style="display:none;width:100%;max-width:380px">
   <div style="text-align:center;margin-bottom:24px">
-    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
+    <svg class="lu-mark" width="56" height="56" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="margin:0 auto"><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-badge)"/><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-gloss)"/><rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="rgba(255,255,255,.16)"/><path class="lu-chevB" d="M19 47 L32 34 L45 47" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="lu-chevA" d="M19 34 L32 21 L45 34" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
     <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
   </div>
@@ -2198,7 +2260,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </button>
 <div class="sb-backdrop" id="sb-backdrop" onclick="toggleMobileSidebar(false)"></div>
 <div class="logo" onclick="nav('home')">
-<img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
+<svg class="lu-mark lu-animate" width="40" height="40" viewBox="0 0 64 64" role="img" aria-label="LevelUp"><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-badge)"/><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-gloss)"/><rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="rgba(255,255,255,.16)"/><g clip-path="url(#lu-clip)"><rect class="lu-shine" x="-8" y="-6" width="22" height="76" opacity="0" fill="url(#lu-g-shine)"/></g><path class="lu-chevB" d="M19 47 L32 34 L45 47" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="lu-chevA" d="M19 34 L32 21 L45 34" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
 <div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
@@ -2821,7 +2883,7 @@ body.sh-resizing{user-select:none!important}
     @keyframes splash-fade-out{0%{opacity:1}100%{opacity:0;pointer-events:none}}
     #splash-screen.fade-out{animation:splash-fade-out .5s ease forwards;}
   </style>
-  <img id="splash-logo" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:96px;height:96px;object-fit:contain;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards">
+  <svg id="splash-logo" class="lu-mark lu-animate" width="96" height="96" viewBox="0 0 64 64" role="img" aria-label="LevelUp" style="opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards"><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-badge)"/><rect x="1" y="1" width="62" height="62" rx="15" fill="url(#lu-g-gloss)"/><rect x="1.5" y="1.5" width="61" height="61" rx="14.5" fill="none" stroke="rgba(255,255,255,.16)"/><g clip-path="url(#lu-clip)"><rect class="lu-shine" x="-8" y="-6" width="22" height="76" opacity="0" fill="url(#lu-g-shine)"/></g><path class="lu-chevB" d="M19 47 L32 34 L45 47" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path class="lu-chevA" d="M19 34 L32 21 L45 34" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <div id="splash-brand" style="font-size:36px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0;animation:splash-text-in .5s ease .85s forwards;margin-top:12px">LevelUp</div>
   <div id="splash-tagline" style="font-size:14px;color:#64748B;opacity:0;animation:splash-tagline-in .5s ease 1.2s forwards;margin-top:4px">Your Second Brain</div>
   <div id="splash-greeting" style="font-size:16px;color:#94A3B8;opacity:0;animation:splash-tagline-in .5s ease 1.6s forwards;margin-top:28px"></div>
@@ -2885,7 +2947,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-12-131';
+  var APP_BUILD='2026-07-17-132';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

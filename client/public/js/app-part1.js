@@ -109,7 +109,52 @@ function luRTE_cmd(cmd,id){
     sel.addRange(r);
   }
   document.execCommand(cmd,false,null);
+  if(_luRTE_isListCmd(cmd))_luRTE_fixNestedLists(el);
   luRTE_updateCharCount(id);
+}
+
+function _luRTE_isListCmd(cmd){
+  return cmd==='insertUnorderedList'||cmd==='insertOrderedList'||cmd==='indent'||cmd==='outdent';
+}
+
+// Chromium's execCommand('insert(Un)orderedList') nests the new <ul>/<ol>
+// INSIDE the caret's <p>/<h1-6> instead of replacing it — invalid HTML that
+// the live DOM tolerates but the editing engine then chokes on: Enter fires
+// no beforeinput/insertParagraph at all, so the user can never create a
+// second bullet ("bullets don't work when editing an existing note" — bodies
+// with <p> wrappers come from Word imports, AI inserts, and renderMd).
+// Hoist any list out of its invalid container, keeping content before/after
+// the list in place, then restore the caret.
+function _luRTE_fixNestedLists(ed){
+  if(!ed)return;
+  const sel=window.getSelection();
+  let caret=null;
+  if(sel&&sel.rangeCount){
+    const r=sel.getRangeAt(0);
+    if(ed.contains(r.startContainer))caret={node:r.startContainer,off:r.startOffset};
+  }
+  const bad=ed.querySelectorAll('p>ul,p>ol,h1>ul,h1>ol,h2>ul,h2>ol,h3>ul,h3>ol,h4>ul,h4>ol,h5>ul,h5>ol,h6>ul,h6>ol');
+  bad.forEach(list=>{
+    const box=list.parentNode, parent=box&&box.parentNode;
+    if(!parent)return;
+    // Content AFTER the list stays a paragraph of its own, placed after.
+    const tail=box.cloneNode(false);
+    while(list.nextSibling)tail.appendChild(list.nextSibling);
+    parent.insertBefore(list,box.nextSibling);
+    if(tail.textContent.trim()||tail.querySelector('img,br'))parent.insertBefore(tail,list.nextSibling);
+    // Drop the original container if the list was all it had.
+    if(!box.textContent.trim()&&!box.querySelector('img,br'))box.remove();
+  });
+  if(caret&&ed.contains(caret.node)){
+    try{
+      const max=caret.node.nodeType===3?caret.node.textContent.length:caret.node.childNodes.length;
+      const r=document.createRange();
+      r.setStart(caret.node,Math.min(caret.off,max));
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }catch(_){/* caret restore is best-effort */}
+  }
 }
 
 // ─── Generic helpers for the bespoke (non-luRTE) toolbars ────────────────────
@@ -145,6 +190,7 @@ function _rteExec(ev,cmd,val){
     sel.removeAllRanges();sel.addRange(r);
   }
   document.execCommand(cmd,false,val==null?null:val);
+  if(_luRTE_isListCmd(cmd))_luRTE_fixNestedLists(ed);
 }
 // Font / colour controls need the selection captured on mousedown (opening a
 // <select> or native colour dialog steals it) and restored before applying.
@@ -210,6 +256,7 @@ function luRTE_autoFormat(e,id){
   if(trig==='-'||trig==='*')document.execCommand('insertUnorderedList',false,null);
   else if(/^\d{1,2}\.$/.test(trig))document.execCommand('insertOrderedList',false,null);
   else document.execCommand('formatBlock',false,'h'+trig.length);
+  _luRTE_fixNestedLists(el);
   luRTE_updateCharCount(id);
   return true;
 }
@@ -6794,7 +6841,7 @@ function renderHome(){
     const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
         <div class="chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderHome,80)" title="Mark done"></div>
         <span class="rt" style="font-size:12px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">${esc(t.title)}</span>
-        ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
+        ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>`:''}
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No My Day tasks yet — star tasks into My Day to plan your day.</div>`;
     const evRows=evs.length?evs.map(e=>`<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--bd1)">
@@ -8911,7 +8958,7 @@ function renderTaskBoard(){
       return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-          <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+          <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
            ${t.due?`<span style="font-size:11px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:11px;color:var(--red);font-weight:600">🔒</span>`:''}
           ${t.assignedTo?`<span style="font-size:11px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
           ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
@@ -9014,7 +9061,7 @@ function renderTaskMatrix(){
             <a ${_extOpenAttrs(url)} title="Open in source" style="flex:1;font-weight:500;color:var(--t1);text-decoration:none;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</a>
           </div>
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-            <span class="pill ${pillClass(pri)}" style="font-size:9px">${pri}</span>
+            <span class="pill ${pillClass(pri)}" style="font-size:10px">${pri}</span>
             ${t.status?`<span style="font-size:11px;color:var(--t3)">${esc(t.status)}</span>`:''}
             ${t.projectLabel?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.projectLabel)}</span>`:''}
             ${_extAnnotationChips(t.override)}
@@ -9026,7 +9073,7 @@ function renderTaskMatrix(){
       return `<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${t.id})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
         <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-          <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+          <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
           <span style="font-size:11px;color:var(--t3)">${t.estimatedMins||30}m</span>
           ${t.project?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span style="font-size:11px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
@@ -10632,7 +10679,7 @@ function _extAnnotationChips(ov){
   const bits=[];
   if(ov.pendingStatus)bits.push(_extPendingPill(ov));
   if(ov.localNote)bits.push(`<span title="${esc(ov.localNote).slice(0,200)}" style="font-size:11px;color:var(--ac);cursor:help">📝</span>`);
-  if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:9px" title="Local priority override">${ov.localPriority}</span>`);
+  if(ov.localPriority)bits.push(`<span class="pill ${pillClass(ov.localPriority)}" style="font-size:10px" title="Local priority override">${ov.localPriority}</span>`);
   if(ov.localTags){
     const tags=String(ov.localTags).split(',').map(t=>t.trim()).filter(Boolean).slice(0,3);
     tags.forEach(t=>bits.push(`<span style="font-size:9px;padding:1px 4px;background:var(--s3);color:var(--ac);border-radius:3px">#${esc(t)}</span>`));
@@ -10993,7 +11040,7 @@ function _populateCalRail(){
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('list',14,'currentColor')} Today + 7 days</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">✓ Tasks for today</div>
-    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||'M'}</span><span class="rt" style="font-size:11px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing scheduled.</div>'}
+    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority||'M'}</span><span class="rt" style="font-size:11px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing scheduled.</div>'}
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Upcoming events</div>
@@ -13105,7 +13152,7 @@ function renderNoteEditor(n){
       _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
       return `%%IMG${idx}%%`;
     });
-    bodyHtml=n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+    bodyHtml=n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/(?:<li style="margin:2px 0;padding-left:4px">.*<\/li>(?:\n|$))+/g,blk=>'<ul style="margin:6px 0;padding-left:22px;list-style:disc outside">'+blk.replace(/\n/g,'')+'</ul>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
   }
   const isEditing=_noteInlineEditId===n.id;
   if(isEditing){
@@ -15147,7 +15194,7 @@ function renderProjectsTeamKanban(header){
       ${tasks.map(t=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
         <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
         <div style="display:flex;gap:6px;font-size:11px;color:var(--t3)">
-          <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
+          <span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>
           ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span>📅 ${fmtDate(t.due)}</span>`:''}        </div>
         ${(t.subtasks||[]).length?`<div style="font-size:11px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
@@ -15736,7 +15783,7 @@ function _renderProjectEditTasksSection(pid){
     const done=t.status==='Done';
     return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd1);font-size:11px">
       <span style="flex:1;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
-      ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
+      ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span>`:''}
       ${t.due?`<span style="font-size:11px;color:var(--t3)">${esc(t.due)}</span>`:''}
       <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unassign from project" onclick="_unassignNativeFromProject(${t.id},${pid})">✕</button>
     </div>`;
@@ -22896,7 +22943,7 @@ function renderTeam(){
       ${dailyHabits.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">✅ Habits Today: ${habitsDone}/${dailyHabits.length}</div><div style="background:var(--s3);border-radius:3px;height:5px"><div style="background:var(--ok);height:100%;width:${dailyHabits.length?Math.round(habitsDone/dailyHabits.length*100):0}%;border-radius:3px"></div></div></div>`:''}
       ${avgGoalPct!==null?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🎯 Goals Avg: ${avgGoalPct}%</div><div class="pb"><div class="f" style="width:${avgGoalPct}%;background:var(--ac)"></div></div></div>`:''}
       <div style="font-size:11px;font-weight:600;margin-bottom:4px">📋 Active Tasks</div>
-      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
+      ${tasks.filter(t=>t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="padding:2px 0;font-size:11px" onclick="${t._shared?`_openSharedTaskView(${Number(t._idx)||0})`:`openDrawer('task',D.tasks.find(x=>x.id===${typeof t.id==='number'?t.id:JSON.stringify(String(t.id))}))`}"><div class="chk ${t.status==='Done'?'on':''}"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:10px">${t.priority}</span></div>`).join('') || '<div style="font-size:11px;color:var(--t3);padding:4px 0">No active tasks</div>'}
       ${memberFeedData.length?`<div style="margin-top:10px"><div style="font-size:11px;font-weight:600;margin-bottom:4px">🕐 Recent Activity</div>${memberFeedData.slice(0,3).map(a=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;color:var(--t2)"><span>${getActionIcon(a.action)}</span><span style="flex:1">${getActionLabel(a.action)}${a.entityTitle?' — '+esc(a.entityTitle):''}</span><span style="font-size:11px;color:var(--t3);white-space:nowrap">${timeAgo(a.createdAt)}</span></div>`).join('')}</div>`:''}
       ${isAdminOrOwner&&m.userId?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);display:flex;justify-content:flex-end"><button class="btn btn-s" style="height:24px;font-size:11px;color:var(--red);border-color:var(--red)" onclick="deleteTeamMember(${m.userId},'${esc(m.name||'this member')}')">🗑 Remove</button></div>`:''}
     </div>`;
