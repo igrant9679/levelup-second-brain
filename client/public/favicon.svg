@@ -1,16 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="lu-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#3B82F6"/>
-      <stop offset="100%" stop-color="#8B5CF6"/>
+    <linearGradient id="fa-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
     </linearGradient>
   </defs>
-  <!-- Background rounded square (dark, matches app bg) -->
-  <rect width="64" height="64" rx="12" ry="12" fill="#0B0F1A"/>
-  <!-- L -->
-  <text x="4" y="50" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" fill="url(#lu-grad)">L</text>
-  <!-- U body (two vertical bars + bottom curve) drawn as path so arrow fits cleanly -->
-  <text x="30" y="50" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" fill="url(#lu-grad)">U</text>
-  <!-- Upward arrow on right stem of U -->
-  <polygon points="52,7 57,17 54.5,17 54.5,24 49.5,24 49.5,17 47,17" fill="#8B5CF6"/>
+  <rect width="64" height="64" rx="14" fill="#10172B" stroke="rgba(255,255,255,.09)"/>
+  <path d="M15 20 V47 H29" fill="none" stroke="url(#fa-g)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37 20 V37.5 a8.5 8.5 0 0 0 17 0 V27" fill="none" stroke="url(#fa-g)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M54 20 V11 M49.5 14.5 L54 9.5 L58.5 14.5" fill="none" stroke="#8B5CF6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
