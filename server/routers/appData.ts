@@ -258,12 +258,14 @@ async function readIdeas(db: any, userId: number, blobRaw: string | null): Promi
 // mutation that previously parsed/patched/rewrote the (now frozen) blob
 // columns. ORDER BY id preserves manual ordering (the mirrors delete +
 // re-insert in array order on every write).
-async function readEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas'): Promise<any[]> {
+// Exported: imageMigration.ts uses these to operate on the LIVE relational
+// store (post-Step-3a the user_app_data blobs are frozen snapshots).
+export async function readEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas'): Promise<any[]> {
   const t = kind === 'tasks' ? tasksTable : kind === 'notes' ? notesTable : ideasTable;
   const rows = await db.select().from(t).where(eq(t.userId, userId)).orderBy(t.id);
   return rows.map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } }).filter(Boolean);
 }
-async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas', arr: any[]): Promise<string> {
+export async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas', arr: any[]): Promise<string> {
   const json = JSON.stringify(arr);
   if (kind === 'tasks') await mirrorTasksToRelational(db, userId, json);
   else if (kind === 'notes') await mirrorNotesToRelational(db, userId, json);

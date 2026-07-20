@@ -13,11 +13,13 @@
  *   is ever dropped. If the notes JSON can't be parsed, it aborts untouched.
  * - Deduplicated: an identical image embedded in several notes uploads once.
  */
-import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { userAppData } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storageBackend, storagePut } from "../storage";
+// Post-Step-3a the notes blob column in user_app_data is a FROZEN snapshot —
+// the relational `notes` table is the sole live store. Read/write through the
+// appData helpers so this migration operates on the notes users actually see.
+import { readEntityArray, writeEntityArray } from "./appData";
 
 // data:image/<subtype>;base64,<payload> — payload stops at the first
 // non-base64 character (e.g. the closing quote of an HTML attribute).
@@ -56,30 +58,16 @@ export const imageMigrationRouter = router({
     const db = await getDb();
     if (!db) throw new Error("Database unavailable.");
 
-    const rows = await db
-      .select()
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-
-    const rawNotes = rows.length ? (rows[0].notes as string | null) : null;
-    if (rawNotes == null) {
+    // Live store (relational notes table), NOT the frozen user_app_data blob.
+    const notes: Array<Record<string, unknown>> = await readEntityArray(db, ctx.user.id, "notes");
+    if (!notes.length) {
       return {
         ok: true, backend, notesScanned: 0, notesChanged: 0,
         imagesFound: 0, imagesMigrated: 0, imagesFailed: 0,
         bytesBefore: 0, bytesAfter: 0,
       };
     }
-
-    const bytesBefore = Buffer.byteLength(rawNotes, "utf-8");
-    let notes: Array<Record<string, unknown>>;
-    try {
-      const parsed = JSON.parse(rawNotes);
-      if (!Array.isArray(parsed)) throw new Error("not an array");
-      notes = parsed;
-    } catch {
-      throw new Error("Notes data could not be parsed — aborting, nothing changed.");
-    }
+    const bytesBefore = Buffer.byteLength(JSON.stringify(notes), "utf-8");
 
     // Pass 1: collect every unique data URI across all notes.
     const uniqueUris = new Set<string>();
@@ -92,7 +80,7 @@ export const imageMigrationRouter = router({
         }
       }
     }
-    const uriList = [...uniqueUris];
+    const uriList = Array.from(uniqueUris);
 
     if (uriList.length === 0) {
       return {
@@ -151,12 +139,9 @@ export const imageMigrationRouter = router({
 
     let bytesAfter = bytesBefore;
     if (notesChanged > 0) {
-      const newRaw = JSON.stringify(notes);
+      // Write back through the relational mirror — same path appData.save uses.
+      const newRaw = await writeEntityArray(db, ctx.user.id, "notes", notes);
       bytesAfter = Buffer.byteLength(newRaw, "utf-8");
-      await db
-        .insert(userAppData)
-        .values({ userId: ctx.user.id, notes: newRaw })
-        .onDuplicateKeyUpdate({ set: { notes: newRaw } });
     }
 
     return {
