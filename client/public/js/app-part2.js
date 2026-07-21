@@ -929,6 +929,20 @@ function renderSettingsHTML(){
   </div>
   <!-- Sync --><div id="sp-9" class="sp" style="display:none">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Sync</h3>
+  <!-- Storage health card — live upload test against the active backend
+       (Google Drive). Surfaces dead credentials in-app; a silent Drive
+       failure previously made imports inline images into note text until
+       the cache blew past the iPad's localStorage limit. -->
+  <div style="background:var(--bg2,rgba(255,255,255,0.04));border:1px solid var(--brd);border-radius:8px;padding:12px;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--t2)">📦 File Storage Health</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="loadStorageHealth()" title="Run a live upload test against the storage backend">↻ Re-check</button>
+        <a href="/api/storage-status" target="_blank" rel="noopener" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;display:inline-flex;align-items:center;text-decoration:none;color:var(--t2)" title="Full report with masked configuration values">Full report ↗</a>
+      </div>
+    </div>
+    <div id="storage-health-body"><span style="font-size:11px;color:var(--t3)">Open this panel to run the check…</span></div>
+  </div>
   <!-- Live sync status card -->
   <div id="sync-panel-status" style="background:var(--bg2,rgba(255,255,255,0.04));border:1px solid var(--brd);border-radius:8px;padding:12px;margin-bottom:12px">
     <div style="font-size:11px;font-weight:600;margin-bottom:8px;color:var(--t2)">Connected Providers</div>
@@ -8381,7 +8395,44 @@ async function loadEmailDeliveryLog(){
   }
 }
 /** Load the Sync settings panel (sp-9) with live provider status and recent sync log */
+// Storage Health card (Settings → Sync). Runs the server's live upload test
+// via /api/storage-status?json=1 and renders pass/fail + an actionable hint.
+async function loadStorageHealth(){
+  const body=document.getElementById('storage-health-body');
+  if(!body)return;
+  body.innerHTML='<span style="font-size:11px;color:var(--t3)">Running live upload test…</span>';
+  try{
+    const resp=await fetch('/api/storage-status?json=1&x='+Date.now(),{credentials:'include'});
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const r=await resp.json();
+    const labels={s3:'S3-compatible',drive:'Google Drive',forge:'Manus Forge (legacy)',none:'Not configured'};
+    const ok=!!r.ok;
+    const unconfigured=r.backend==='none';
+    const badge=unconfigured
+      ?'<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;background:var(--warns);color:var(--warn)">⚠ NOT CONFIGURED</span>'
+      :(ok
+        ?'<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;background:var(--oks);color:var(--ok)">✓ HEALTHY</span>'
+        :'<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;background:var(--reds);color:var(--red)">✕ FAILING</span>');
+    let hint='';
+    if(!ok&&!unconfigured){
+      hint=/invalid_grant/i.test(r.error||'')
+        ?'The Google Drive refresh token has expired or been revoked. Mint a new one at developers.google.com/oauthplayground (gear icon → use your own credentials → paste the GOOGLE_DRIVE client ID + secret from Railway), then update GOOGLE_DRIVE_REFRESH_TOKEN on Railway.'
+        :'Check the storage variables on Railway (see the full report for masked values), then Re-check.';
+    }
+    body.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${badge}
+      <span style="font-size:12px;font-weight:500">${esc(labels[r.backend]||r.backend||'?')}</span>
+      <span style="font-size:11px;color:var(--t3)">live upload test · checked ${new Date().toLocaleTimeString()}</span>
+    </div>
+    ${!ok&&r.error?`<pre style="margin:8px 0 0;background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px;font-size:11px;white-space:pre-wrap;color:var(--red)">${esc(String(r.error).slice(0,400))}</pre>`:''}
+    ${hint?`<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5">${esc(hint)}</div>`:''}
+    ${ok?'<div style="font-size:11px;color:var(--t3);margin-top:6px">Imported images &amp; attachments upload here (Google Drive) — notes only keep links. If this ever fails, imports fall back to embedding files into note text, which bloats the device cache.</div>':''}`;
+  }catch(e){
+    body.innerHTML='<span style="font-size:11px;color:var(--red)">Could not run the check: '+esc((e&&e.message)||String(e))+'</span>';
+  }
+}
 async function loadSyncPanel(){
+  loadStorageHealth();
   const msStatusEl=document.getElementById('sync-panel-ms-status');
   const googleStatusEl=document.getElementById('sync-panel-google-status');
   const logEl=document.getElementById('sync-panel-log');

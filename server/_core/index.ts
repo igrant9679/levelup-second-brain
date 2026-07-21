@@ -192,6 +192,19 @@ async function startServer() {
       }
       const { storageSelfTest, storageConfigSummary } = await import('../storage');
       const r = await storageSelfTest();
+      // JSON mode (?json=1) — consumed by the Settings → Sync "Storage Health"
+      // card so a dead credential surfaces in the app instead of hiding until
+      // imports silently bloat notes again.
+      if (req.query.json != null) {
+        res.json({
+          ok: r.ok,
+          backend: r.backend,
+          error: r.ok ? null : (r.error ?? null),
+          url: r.ok ? (r.url ?? null) : null,
+          checkedAt: new Date().toISOString(),
+        });
+        return;
+      }
       const cfg = storageConfigSummary();
       const labels: Record<string, string> = { s3: 'S3-compatible', drive: 'Google Drive', forge: 'Manus Forge (legacy)', none: 'Not configured' };
       const esc = (s: string) => s.replace(/[<>&]/g, c => c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&amp;');
