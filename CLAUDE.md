@@ -336,6 +336,69 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Session arc July 17–18 2026 (builds -132 → -136) — ALL PUSHED/LIVE
+
+Current build **`2026-07-18-136`** (commit `259e578`). Repo moved to
+`C:\Users\Admin\Desktop\Remote Desktop 1_Levelup\Documents\levelup-second-brain`
+(pnpm node_modules had to be reinstalled after the move; tsc is slow there —
+use `pnpm build` as the fast gate; 5 PRE-EXISTING tsc errors in other files
+are expected and don't block esbuild deploys).
+
+- **-133 Bullets 5th root cause (LIVE)**: Chromium `execCommand('insertUnorderedList')`
+  nests the new list INSIDE the caret's `<p>` (invalid HTML; whole paragraph
+  becomes one giant li). 108/208 prod notes are `<p>`-wrapped (Word/AI
+  imports). Fix: `_luRTE_fixNestedLists()` post-exec normalizer wired into
+  `luRTE_cmd` / `_rteExec` / `luRTE_autoFormat`; legacy dash-text display
+  fallback now wraps bare `<li>` in a real `<ul>`; list CSS covers every
+  contenteditable form. Verified on prod against real notes.
+- **-132/-134 design + logo layer REJECTED & REVERTED** (`ab1ac7b`, `2663981`):
+  index.html `<style>` additions shipped broken (unstyled page) twice on prod
+  while raw files AND the local `vite build` looked fine — root cause never
+  fully confirmed. Rule: verify built output locally AND live computed styles
+  immediately after ANY index.html CSS deploy, with a revert ready. The old
+  CloudFront logo webp is back (still a single point of failure).
+- **-135 Meeting ↔ Note linking**: notes carry `meetings:[{id,title,date}]`
+  snapshots (note = source of truth). Event popup 📝 Take/Open-notes button,
+  note-props 📅 Meetings chips + ±7-day picker, Notes-rail Today's Meetings
+  strip. Works for local + O365 events.
+- **-135 OneNote sync made REAL**: the old import was a façade (runImportJob
+  discarded content; the Settings panel markup never existed; `showToast`
+  undefined ×13). Now: `onenote.fetchPagesContent` (markdown per page) +
+  client pull-merge through `save('notes')`, incremental by `lastModified`,
+  auto-links to calendar events by date+title, panel UI lives in **sp-8**
+  (Word Doc Import). Notes ⋮ menu → "⟳ Sync OneNote meeting notes";
+  `D.prefs.onenoteSync` pins {notebook, section, account}.
+- **-135 Microsoft multi-account**: extra accounts under slot providers
+  `microsoft2`/`microsoft3` (no migration; primary row untouched so
+  mail/calendar/contacts can't regress). OAuth `state` carries slot+tenant.
+- **OAuth fixes (`d0cb6b2`, `91ac77e`)**: `Notes.Read` added to the MAIN
+  consent scopes; refresh grants must OMIT the `scope` param (naming a subset
+  silently STRIPS scopes from refreshed tokens — this killed OneNote within
+  the hour); OneNote connect resolves per-user clientId + tenant like the
+  main flow (`/common` routed personal accounts to login.live.com →
+  `unauthorized_client` for the org-only app registration).
+- **iPad "out of space" FIXED (`03b1cff` + ops)**: localStorage was 5.74MB
+  (iPad cap ~5MB) — 24 base64 images inlined in 5 old notes. Two-part fix:
+  `imageMigration.migrateNoteImages` re-pointed at the LIVE relational notes
+  store (it still read/wrote the FROZEN blob — post-3a trap; uses newly
+  exported `readEntityArray`/`writeEntityArray`), and the user re-minted the
+  dead Google Drive refresh token (`invalid_grant`; use the `GOOGLE_DRIVE_*`
+  client pair in OAuth Playground, NOT `GOOGLE_CLIENT_*`; Railway service is
+  **levelup-app**). Ran clean: 24/24 images → Drive, notes 5.15→1.36MB,
+  cache 1.95MB. Consent screen now **In production** (tokens no longer die
+  weekly — that 7-day expiry is what silently broke Drive and caused the
+  bloat).
+- **-136 Storage Health card**: Settings → Sync runs the live Drive upload
+  test on open (`/api/storage-status?json=1`), FAILING state shows the exact
+  re-mint steps.
+
+**Open thread — OneNote first sync**: the user's primary MS token may still
+lack `Notes.Read` (re-consent was in flight when interrupted). Steps: check
+`onenote.listAccounts` → `hasNotesScope`; reconnect via ANY Microsoft connect
+button (both carry Notes.Read now); browse notebooks in Settings → Word Doc
+Import → ★ the meeting-notes section → sync. Full details in
+`ONENOTE-SYNC-HANDOFF.md` (repo root).
+
 ## Session arc June 25 → July 12 2026 (builds -105 → -131) — ALL PUSHED/LIVE
 
 Huge arc across four working days. Current build **`2026-07-12-131`**.
