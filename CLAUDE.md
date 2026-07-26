@@ -336,6 +336,46 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Brand refresh — build -144 (2026-07-24) — PUSHED/LIVE ✅
+
+**Logo = "Aurora Stack"** (option 6 of the six mocked directions): three
+knowledge layers, top one lifting off. Now **vector, self-hosted, and defined
+ONCE** as an SVG `<symbol id="lu-mark">` near the top of `<body>` in
+`index.html`, referenced by `<use href="#lu-mark" xlink:href="#lu-mark">` at
+all **five** logo sites (2 login blocks, session-check, topbar, splash).
+Inlining it five times would create five duplicate gradient ids and one
+site's gradient would win everywhere — **don't do that.** The old raster
+`.webp` on the decommissioned CloudFront bucket is GONE (0 refs); that URL was
+the same single-point-of-failure that previously broke the iOS icon.
+
+**Icons regenerated from the mark.** `favicon.svg` keeps a rounded-square
+container for tabs and uses only TWO layers (the third turns to mud <24px).
+`favicon-192/512.png` are **full-bleed, mark inset to the maskable safe zone**
+— iOS/Android apply their own corner crop, so a baked-in radius double-rounds.
+No rasteriser is installed and none was added: they were rendered via
+canvas in the browser and POSTed to a temporary local save endpoint.
+
+**Font = Plus Jakarta Sans**, self-hosted at
+`client/public/fonts/plus-jakarta-sans-latin.woff2` (one variable file,
+300–800, 27 KB) with `font-display:swap`; `body` stack is
+`'Plus Jakarta Sans','Inter',sans-serif` and the Inter `@import` stays as
+fallback. **NB `applyTheme()` writes `document.body.style.fontFamily` inline
+when `D.prefs.themeFontFamily` is set — that beats the CSS default.** It's
+unset on the owner account. To swap the brand face to Outfit instead, it's the
+one `body{font-family:…}` declaration plus the `@font-face` src.
+
+⚠ **Trap fixed here, remember it:** `.logo svg{width:28px}` predated the
+inline mark and silently shrank the topbar logo from the 40px the old `<img>`
+rendered at — **a CSS width beats an element's `width` attribute.** Check for
+existing `<container> svg` rules whenever you replace an `<img>` with inline SVG.
+
+Verified on the BUILT output and live computed styles (this edits index.html
+CSS, the layer that shipped broken twice in -132/-134): font reports `loaded`,
+body computes the new stack, **all five marks actually paint** (getBBox
+non-zero — the three in `display:none` containers were temporarily revealed to
+prove it), topbar back to 40px, page still styled (`#0B0F1A`, 7 sheets, `--ac`
+resolves).
+
 ## Session arc July 24 2026 (builds -137 → -143) — ALL PUSHED/LIVE ✅
 
 **Verified live on production** (`2026-07-24-143`, logged in, real data): stock
