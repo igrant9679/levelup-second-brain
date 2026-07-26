@@ -6704,8 +6704,17 @@ const LU_LEVELS=[
 function luCurrentLevel(){
   const w=_wsRead();
   if(w.level>=1&&w.level<=5)return w.level;
-  // No stored level: stock config is level 5; anything else is a custom mix.
-  return (w.pages&&Object.keys(w.pages).length)?null:5;
+  // No stored level, so infer it. Only VISIBILITY counts as a deviation —
+  // a custom card `order` (which the legacy lu_home_cards migration brings
+  // across for existing users) rearranges the dashboard without hiding
+  // anything, so it's still level 5. Treating it as "Custom" made the dial
+  // read blank for anyone who had ever reordered their Home cards.
+  const pages=w.pages||{};
+  const hidesSomething=Object.keys(pages).some(k=>{
+    const p=pages[k]||{};
+    return p.on===false||p.rail===false||(p.modules&&Object.keys(p.modules).length>0);
+  });
+  return hidesSomething?null:5;
 }
 function luApplyLevel(n){
   n=Math.max(1,Math.min(5,Number(n)||5));
