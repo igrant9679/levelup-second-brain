@@ -1082,8 +1082,10 @@ function _renderWorkspacePanel(){
   const hiddenCount=LU_PAGES.filter(p=>p.nav&&!luPageOn(p.id)).length;
   const railsOff=LU_PAGES.filter(p=>p.rail&&!luRailOn(p.id)).length;
 
+  // white-space:normal is required — .btn sets nowrap, which makes these
+  // two-line descriptions overflow the button and spill into the next column.
   const presets=LU_PRESETS.map(p=>`
-    <button class="btn ${p.id===activePreset?'btn-p':'btn-s'}" style="height:auto;padding:8px 10px;font-size:11px;text-align:left;display:block;width:100%;margin-bottom:4px"
+    <button class="btn ${p.id===activePreset?'btn-p':'btn-s'}" style="height:auto;padding:8px 10px;font-size:11px;text-align:left;display:block;width:100%;margin-bottom:4px;white-space:normal;line-height:1.35"
       onclick="luApplyPreset('${p.id}');_renderWorkspacePanel()" title="${esc(p.desc)}">
       <div style="font-weight:600">${esc(p.label)}${p.id===activePreset?' ·  in use':''}</div>
       <div style="font-size:11px;opacity:.75;font-weight:400;margin-top:1px">${esc(p.desc)}</div>
@@ -9572,7 +9574,7 @@ function _wizStepHTML(step){
     <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">This is your second brain — tasks, notes, projects, goals, habits, calendar and more in one place. It's a lot, so let's start by showing you only the parts you'll actually use. Nothing gets deleted, and you can turn anything on later.</p>
     <div style="font-size:12px;font-weight:600;margin-bottom:6px">Which best describes your work?</div>
     <div style="display:grid;gap:6px">
-      ${_WIZ_ROLES.map(r=>`<button class="btn btn-s" style="height:auto;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;width:100%;${_wiz.role===r.id?'border-color:var(--ac)':''}"
+      ${_WIZ_ROLES.map(r=>`<button class="btn btn-s" style="height:auto;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;width:100%;white-space:normal;line-height:1.35;${_wiz.role===r.id?'border-color:var(--ac)':''}"
         onclick="_wizPickRole('${r.id}')">
         <span style="font-size:17px;line-height:1">${r.icon}</span>
         <span style="flex:1"><span style="display:block;font-size:12px;font-weight:600">${esc(r.title)}</span>
@@ -9585,7 +9587,7 @@ function _wizStepHTML(step){
     return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Pick a starting layout</h2>
     <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">Each layout just decides which pages appear in your sidebar to begin with. Pick the closest one — you'll fine-tune it on the next screen.</p>
     <div style="display:grid;gap:6px">
-      ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%"
+      ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%;white-space:normal;line-height:1.35"
         onclick="_wizPickPreset('${p.id}')">
         <span style="display:block;font-size:12px;font-weight:600">${esc(p.label)}${p.id===_wiz.teamPreset?' · your team’s default':''}</span>
         <span style="display:block;font-size:11px;opacity:.8;font-weight:400;margin-top:1px">${esc(p.desc)}</span>
