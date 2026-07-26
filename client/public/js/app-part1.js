@@ -6603,15 +6603,30 @@ function _wsMigrateLegacy(){
   if(!w.preset)w.preset='everything';
 }
 
+// Both setters below store a value only when it DEVIATES from the default
+// (pages visible, rails shown). Writing `on:true` would work, but it would
+// let the object grow every time someone toggles something off and back on,
+// and "reset" would stop meaning "nothing stored".
+function _wsTrimPage(id){
+  const w=_ws();
+  const p=(w.pages||{})[id];
+  if(p&&!Object.keys(p).length)delete w.pages[id];
+}
 function luSetPageOn(id,on){
   const def=luPageDef(id);
   if(!def||def.core)return;
-  _wsMigrateLegacy();_wsPage(id).on=!!on;_wsSave();
+  _wsMigrateLegacy();
+  const p=_wsPage(id);
+  if(on)delete p.on;else p.on=false;
+  _wsTrimPage(id);_wsSave();
   _luRebuildLayoutCSS();
   if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
 }
 function luSetRailOn(id,on){
-  _wsMigrateLegacy();_wsPage(id).rail=!!on;_wsSave();
+  _wsMigrateLegacy();
+  const p=_wsPage(id);
+  if(on)delete p.rail;else p.rail=false;
+  _wsTrimPage(id);_wsSave();
   _luRebuildLayoutCSS();
   if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
   if(typeof initPaneResizers==='function')setTimeout(initPaneResizers,60);
