@@ -1085,6 +1085,30 @@ function _renderWorkspacePanel(){
 
   // white-space:normal is required — .btn sets nowrap, which makes these
   // two-line descriptions overflow the button and spill into the next column.
+  // Detail level — the primary control. One dial, 5 stops, ordered least→most
+  // so it reads as a volume knob rather than a menu of options.
+  const curLevel=luCurrentLevel();
+  const levels=`
+    <div style="font-size:12px;font-weight:600;margin-bottom:2px">How much do you want to see?</div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:7px">Start here. Level 5 is everything; lower levels hide pages, sidebars and dashboard widgets. You can switch any individual thing back on below afterwards.</p>
+    <div style="display:flex;gap:3px;margin-bottom:6px">
+      ${LU_LEVELS.map(l=>`<button class="btn ${l.n===curLevel?'btn-p':'btn-s'}" title="${esc(l.label)} — ${esc(l.blurb)}"
+        aria-label="Detail level ${l.n}: ${esc(l.label)}" aria-pressed="${l.n===curLevel}"
+        style="flex:1;min-width:0;height:30px;font-size:12px;font-weight:700;padding:0"
+        onclick="luApplyLevel(${l.n});_renderWorkspacePanel()">${l.n}</button>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:6px">
+      <span>Fewest</span><span>Everything</span>
+    </div>
+    ${curLevel?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:7px 9px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600">${curLevel}. ${esc((LU_LEVELS.find(l=>l.n===curLevel)||{}).label||'')}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:1px">${esc((LU_LEVELS.find(l=>l.n===curLevel)||{}).blurb||'')}</div>
+    </div>`
+    :`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:7px 9px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600">Custom</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:1px">You've tuned things individually. Picking a level replaces that; your own toggles still work on top afterwards.</div>
+    </div>`}`;
+
   const presets=LU_PRESETS.map(p=>`
     <button class="btn ${p.id===activePreset?'btn-p':'btn-s'}" style="height:auto;padding:8px 10px;font-size:11px;text-align:left;display:block;width:100%;margin-bottom:4px;white-space:normal;line-height:1.35"
       onclick="luApplyPreset('${p.id}');_renderWorkspacePanel()" title="${esc(p.desc)}">
@@ -1117,7 +1141,9 @@ function _renderWorkspacePanel(){
   body.innerHTML=`
   <div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start">
     <div>
-      <div style="font-size:12px;font-weight:600;margin-bottom:6px">Start from a layout</div>
+      ${levels}
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px">Or shape it by role</div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:6px">Same idea, sliced by the kind of work you do instead of by volume.</p>
       ${presets}
       <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:4px">Density</div>
       <select class="inp" style="width:100%;font-size:11px" onchange="setDensity(this.value)">
@@ -9504,15 +9530,19 @@ function _wizPickRole(id){
   _wiz.pages=null; // recompute from the new preset
   _wizGo(1);
 }
-function _wizPickPreset(id){if(!_wiz)return;_wiz.preset=id;_wiz.pages=null;_wizRender();}
+function _wizPickPreset(id){if(!_wiz)return;_wiz.preset=id;_wiz.level=null;_wiz.pages=null;_wizRender();}
+function _wizPickLevel(n){if(!_wiz)return;_wiz.level=n;_wiz.preset=null;_wiz.pages=null;_wizRender();}
 // The page set the wizard is currently proposing: the chosen preset's list,
 // plus core pages, until the user starts ticking boxes themselves.
 function _wizPageSet(){
   if(_wiz.pages)return _wiz.pages;
-  const p=LU_PRESETS.find(x=>x.id===(_wiz.preset||'everything'));
+  // A detail level wins over a role preset when one has been picked.
+  const src=_wiz.level
+    ? LU_LEVELS.find(x=>x.n===_wiz.level)
+    : LU_PRESETS.find(x=>x.id===(_wiz.preset||'everything'));
   const set=new Set();
   LU_PAGES.filter(x=>x.nav).forEach(x=>{
-    if(!p||!p.pages||x.core||p.pages.indexOf(x.id)>=0)set.add(x.id);
+    if(!src||!src.pages||x.core||src.pages.indexOf(x.id)>=0)set.add(x.id);
   });
   _wiz.pages=set;
   return set;
@@ -9526,8 +9556,8 @@ function _wizTogglePage(id){
 }
 // Write the wizard's choices through the same setters Settings uses.
 function _wizApplyChoices(){
-  const preset=_wiz.preset||'everything';
-  if(typeof luApplyPreset==='function')luApplyPreset(preset);
+  if(_wiz.level&&typeof luApplyLevel==='function')luApplyLevel(_wiz.level);
+  else if(typeof luApplyPreset==='function')luApplyPreset(_wiz.preset||'everything');
   // Then reconcile any manual ticks on top of the preset.
   if(_wiz.pages){
     const set=_wiz.pages;
@@ -9584,9 +9614,22 @@ function _wizStepHTML(step){
     </div>`;
   }
   if(step===1){
-    const cur=_wiz.preset||'everything';
-    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Pick a starting layout</h2>
-    <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">Each layout just decides which pages appear in your sidebar to begin with. Pick the closest one — you'll fine-tune it on the next screen.</p>
+    const cur=_wiz.preset||(_wiz.level?null:'everything');
+    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">How much do you want to see?</h2>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 10px;max-width:60ch">LevelUp can show a little or a lot. Start low if that feels calmer — you can turn anything on later, one thing at a time, and nothing is deleted either way.</p>
+    <div style="display:flex;gap:4px;margin-bottom:4px">
+      ${LU_LEVELS.map(l=>`<button class="btn ${l.n===_wiz.level?'btn-p':'btn-s'}" title="${esc(l.blurb)}"
+        aria-label="Level ${l.n}: ${esc(l.label)}"
+        style="flex:1;min-width:0;height:34px;font-size:13px;font-weight:700;padding:0"
+        onclick="_wizPickLevel(${l.n})">${l.n}</button>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:8px"><span>Fewest</span><span>Everything</span></div>
+    ${_wiz.level?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:7px;padding:9px 11px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600">${_wiz.level}. ${esc((LU_LEVELS.find(l=>l.n===_wiz.level)||{}).label||'')}</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:1px">${esc((LU_LEVELS.find(l=>l.n===_wiz.level)||{}).blurb||'')}</div>
+    </div>`:''}
+    <div style="font-size:12px;font-weight:600;margin-bottom:2px">Or shape it by role</div>
+    <p style="font-size:11px;color:var(--t3);margin:0 0 6px">Sliced by the kind of work you do instead of by volume.</p>
     <div style="display:grid;gap:6px">
       ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%;white-space:normal;line-height:1.35"
         onclick="_wizPickPreset('${p.id}')">

@@ -6626,13 +6626,21 @@ function _wsTrimPage(id){
   const p=(w.pages||{})[id];
   if(p&&!Object.keys(p).length)delete w.pages[id];
 }
+// Any individual toggle means the layout no longer matches the level or role
+// preset it came from, so drop those markers — the dial should read "Custom"
+// rather than keep claiming a level that is no longer true.
+function _wsClearLevelMarker(){
+  const w=_ws();
+  delete w.level;
+  delete w.preset;
+}
 function luSetPageOn(id,on){
   const def=luPageDef(id);
   if(!def||def.core)return;
   _wsMigrateLegacy();
   const p=_wsPage(id);
   if(on)delete p.on;else p.on=false;
-  _wsTrimPage(id);_wsSave();
+  _wsClearLevelMarker();_wsTrimPage(id);_wsSave();
   _luRebuildLayoutCSS();
   if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
 }
@@ -6640,7 +6648,7 @@ function luSetRailOn(id,on){
   _wsMigrateLegacy();
   const p=_wsPage(id);
   if(on)delete p.rail;else p.rail=false;
-  _wsTrimPage(id);_wsSave();
+  _wsClearLevelMarker();_wsTrimPage(id);_wsSave();
   _luRebuildLayoutCSS();
   if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
   if(typeof initPaneResizers==='function')setTimeout(initPaneResizers,60);
@@ -6655,7 +6663,7 @@ function luSetModuleOn(pageId,modId,on){
   if(!!on===defaultOn)delete p.modules[modId];else p.modules[modId]=!!on;
   if(!Object.keys(p.modules).length)delete p.modules;
   if(!Object.keys(p).length){const w=_ws();if(w.pages)delete w.pages[pageId];}
-  _wsSave();_luRebuildLayoutCSS();
+  _wsClearLevelMarker();_wsSave();_luRebuildLayoutCSS();
 }
 // Back to stock. Deliberately deletes the whole object rather than writing
 // every default back, so "default" always means the same thing.
@@ -6665,6 +6673,77 @@ function luResetWorkspace(){
   _wsSave();_luRebuildLayoutCSS(true);
   if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
   if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+}
+
+// ── Detail level: one dial, 5 stops ────────────────────────────────────────
+// A single "how much do you want to see" axis, for anyone who finds ~30 pages
+// and ~11 dashboard widgets overwhelming. Distinct from LU_PRESETS below,
+// which slice by ROLE rather than by volume.
+//
+// Level 5 IS the stock app — picking it clears every override rather than
+// writing defaults back, so "everything" always means exactly one thing.
+// Levels are a STARTING POINT: every individual page, rail and widget toggle
+// keeps working on top, so anything can be switched back on one at a time.
+const LU_LEVELS=[
+  {n:1,label:'Essentials',   blurb:'Tasks and notes only. No sidebars, 2 dashboard widgets.',
+   rails:false, pages:['tasks','notes'],
+   home:['tasks','notes']},
+  {n:2,label:'Simple',       blurb:'Adds your planner and calendar. Still no sidebars.',
+   rails:false, pages:['tasks','notes','myday','calendar'],
+   home:['tasks','notes','meetings','habits']},
+  {n:3,label:'Balanced',     blurb:'Projects, goals, habits and journal. Sidebars back on.',
+   rails:true,  pages:['tasks','notes','myday','calendar','projects','goals','habits','journal'],
+   home:['tasks','notes','meetings','habits','projects','goals']},
+  {n:4,label:'Full',         blurb:'Nearly everything — adds work and comms pages.',
+   rails:true,  pages:['tasks','notes','myday','calendar','projects','goals','habits','journal',
+                       'command','programs','mail','team','reports','ideas','mindmaps','focus','coach'],
+   home:['tasks','notes','meetings','habits','projects','goals','recent','pinned','focus']},
+  {n:5,label:'Everything',   blurb:'Every page, sidebar and widget. How LevelUp ships.',
+   rails:true,  pages:null, home:null},
+];
+function luCurrentLevel(){
+  const w=_wsRead();
+  if(w.level>=1&&w.level<=5)return w.level;
+  // No stored level: stock config is level 5; anything else is a custom mix.
+  return (w.pages&&Object.keys(w.pages).length)?null:5;
+}
+function luApplyLevel(n){
+  n=Math.max(1,Math.min(5,Number(n)||5));
+  const lv=LU_LEVELS.find(l=>l.n===n);
+  if(!lv)return;
+  if(!lv.pages){ // level 5 == stock, which means storing nothing at all
+    luResetWorkspace();
+    if(typeof toast==='function')toast('Showing everything');
+    return;
+  }
+  _wsMigrateLegacy();
+  const w=_ws();w.pages=w.pages||{};
+  const keep=new Set(lv.pages);
+  LU_PAGES.forEach(def=>{
+    const cur=Object.assign({},w.pages[def.id]||{});
+    if(def.nav&&!def.core){if(keep.has(def.id))delete cur.on;else cur.on=false;}
+    if(def.rail){if(lv.rails===false)cur.rail=false;else delete cur.rail;}
+    if(Object.keys(cur).length)w.pages[def.id]=cur;else delete w.pages[def.id];
+  });
+  // Dashboard widgets. Only deviations are stored, so a widget this level
+  // happens to agree with the default on records nothing.
+  if(lv.home&&typeof _homeCardDefs!=='undefined'){
+    const wantHome=new Set(lv.home),mods={};
+    _homeCardDefs.forEach(d=>{
+      const want=wantHome.has(d.id);
+      if(want!==(d.default!==false))mods[d.id]=want;
+    });
+    const hp=_wsPage('home');
+    if(Object.keys(mods).length)hp.modules=mods;else delete hp.modules;
+    if(!Object.keys(hp).length)delete w.pages.home;
+  }
+  w.level=n;
+  delete w.preset; // the level is now the thing in charge
+  _wsSave();_luRebuildLayoutCSS(true);
+  if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
+  if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+  if(typeof toast==='function')toast(`Detail level ${n} — ${lv.label}`);
 }
 
 // Starter layouts. `pages:null` means "no overrides at all" — the stock app.
@@ -6701,6 +6780,7 @@ function luApplyPreset(presetId){
     if(Object.keys(cur).length)w.pages[def.id]=cur;else delete w.pages[def.id];
   });
   w.preset=presetId;
+  delete w.level; // a role preset isn't a point on the detail dial
   _wsSave();_luRebuildLayoutCSS(true);
   if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
   if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
@@ -6965,6 +7045,9 @@ function _wsPrefsSave(pageId,defs,prefs){
   const ordered=(prefs||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>r.id);
   if(ordered.length&&JSON.stringify(ordered)!==JSON.stringify(defs.map(d=>d.id)))p.order=ordered;else delete p.order;
   if(!Object.keys(p).length){const w=_ws();if(w.pages)delete w.pages[pageId];}
+  // Home-card / Tasks-rail dialogs change widget visibility, so the level no
+  // longer describes the layout either.
+  _wsClearLevelMarker();
   _wsSave();_luRebuildLayoutCSS();
 }
 function getHomeCardPrefs(){return _wsPrefsList('home',_homeCardDefs);}
@@ -23951,6 +24034,7 @@ var HC_ARTICLES=[
   {id:42,slug:'ai-length-control',catId:7,title:'AI output length control',summary:'Settings default + per-RTE chip that controls how much text every AI button generates.',tags:['ai','length','settings'],body:`## AI output length control\n\nEvery AI button across the app (Ideas / Notes / Journal / Compose Task Notes / Compose Project Description / Decision Brief — almost everything except the chat panel) respects a centralised length preference.\n\n### Settings default\n**Settings → AI Features → 📏 Default AI output length**. Three presets:\n- **📏 Short** — ~80 words / 3-5 sentences. Punchy.\n- **📐 Medium** — ~200 words. Default. Light formatting.\n- **📋 Long** — ~500 words. Comprehensive, uses ## headings + bullets + bold.\n\nPersisted to \`D.prefs.aiOutputLength\` and syncs across devices.\n\n### Per-RTE chip\nEvery AI Assistance bar (Ideas, Notes, Journal, Journal drawer) has a **Length:** chip on the right side. Click to cycle: Short → Medium → Long → Short. The change updates the Settings default — so flipping it in one place affects all bars on that device.\n\nIn the Compose preview modal (task notes / project description), the same chip lives in the action row.\n\n### Behind the scenes\n\`_aiLengthHint(level)\` returns the systemPrompt suffix that gets appended to every AI call. Short adds "Aim for ~80 words. Be punchy and direct." Long adds "Aim for ~500 words. Use headings, bullet lists, and bold where helpful."\n\n### Where it doesn't apply\n- **AI Chat panel (Cmd+J)** — chat responses follow the conversation tempo, not a fixed length\n- **Decision Brief** — has a rigid 6-section structure that length-control would break; the prompt itself defines section sizes\n- **AI Suggest Subtasks / AI Suggest Project Tasks** — return JSON arrays of 3-8 items; count isn't a word-count problem`},
   {id:43,slug:'ask-levelup-deep-insight',catId:7,title:'Ask LevelUp + Note Deep Insight',summary:'Content-aware AI Q&A across your whole workspace and per-note deep analysis.',tags:['ai','ask','deep-insight','content-aware'],body:`## Ask LevelUp + Note Deep Insight\n\nTwo content-aware AI features. Unlike the chat panel (which knows your data via *counts + titles* in a workspace snapshot), these read actual *content* — note bodies, task notes, journal text, idea descriptions.\n\n### ✨ Ask LevelUp (Cmd + /)\nClick the ✨ button in the topbar (or press **Cmd + /**) to open the universal Q&A overlay.\n\nUnder the hood: \`_gatherRelevantContent(query)\` scores every note / task / external task / journal entry / idea / opportunity against the question using keyword overlap + recency boost. Top 10 hits become the context (snippets up to 240 chars each, total budget 2,800 chars). The model gets the question + the source block and is told to cite with [1] [2] [3].\n\nAnswer renders with **clickable citations** that open the source object directly. Below the answer, a Sources footer shows the full snippets so you can verify.\n\n### Best for\n- "Where did I write about X?"\n- "Summarise everything I've captured about <topic>"\n- "What were my open questions about this client?"\n- "Did I ever decide whether to use Y or Z?"\n\nOne-shot lookup — for ongoing chat, use Cmd+J.\n\n### Note Deep Insight\nOpen any note → **✨ Deep Insight** in the AI Assistance bar. AI reads the full note body (up to 6,000 chars) and returns strict-JSON output rendered as a per-note panel:\n- **Summary** — 2-3 sentences\n- **Key points** — bulleted, the load-bearing insights\n- **Action items** — each with a **+ Task** button that creates a native task pre-linked to this note\n- **Open questions** — what's unresolved\n- **Related notes** — picked from the gatherer's matching hits\n\nResults are cached on \`note.aiDeepInsight\` (with a \`cachedAt\` stamp) so re-opens are instant. Click **↻ Refresh** to re-run with the current note content.`},
   {id:44,slug:'workspace-overview',catId:13,title:'Show only what you use',summary:'LevelUp has ~30 pages. Here is how to see just the ones you want.',tags:['workspace','layout','simplify','customize'],tourId:4,body:`## Show only what you use\n\nLevelUp is deliberately broad — tasks, notes, projects, goals, habits, calendar, mail, pipeline, mind maps and more. That breadth is the point of a second brain, but nobody uses all of it every day.\n\nSo you decide what appears. **Nothing is ever deleted.** Hiding a page removes it from your sidebar; the page, and all its data, is still there.\n\n### Three levels of control\n\n| Level | What it does | Where |\n|---|---|---|\n| **Pages** | Which entries appear in the sidebar | Settings → Workspace |\n| **Sidebars** | Whether a page shows its right-hand panel | Settings → Workspace, or ⚙ on the page |\n| **Sections** | Which cards show inside a page | ⚙ Customize this page |\n\n### Your choices follow you\n\nLayout is stored with your account, not in the browser, so it is the same on your laptop, your iPad and any other device you sign in on.\n\n### Nothing is one-way\n\nIf you hide a page and later open it from search, a link, or the command palette, it simply switches back on and tells you it did. You cannot lose a feature by tidying up.\n\n### Starting over\n\n**Settings → Workspace → Reset to defaults** puts every page, sidebar and section back exactly as LevelUp ships. It never touches your data.`},
+  {id:51,slug:'detail-level',catId:13,title:'Turn the volume down',summary:'One dial, five stops, from bare essentials to everything.',tags:['declutter','simplify','overwhelmed','level','workspace'],body:`## Turn the volume down\n\nIf LevelUp feels like a lot, it is — around thirty pages and a dashboard that can show eleven widgets at once. You do not have to live with all of it.\n\n**Settings → Workspace → How much do you want to see?** is a single dial with five stops.\n\n| Level | What you get |\n|---|---|\n| **1 · Essentials** | Tasks and notes. No side panels. Two dashboard widgets. |\n| **2 · Simple** | Adds your planner and calendar. Still no side panels. |\n| **3 · Balanced** | Projects, goals, habits and journal. Side panels back on. |\n| **4 · Full** | Nearly everything — the work and comms pages return. |\n| **5 · Everything** | Every page, panel and widget. How LevelUp ships. |\n\nLevel 5 is the default, so if you have never touched this, that is where you are.\n\n### It is a starting point, not a cage\n\nA level sets everything at once so you do not have to click through thirty switches. **After that, every individual control still works.** Want level 1 plus the calendar? Pick 1, then switch Calendar back on in the list underneath. The dial will simply show **Custom**, which is exactly right — it is your layout now, not a preset.\n\n### Nothing is deleted, ever\n\nHiding a page removes it from the sidebar. The page and everything in it stays exactly where it was, and opening it from search or a link switches it straight back on. The same goes for widgets. This is a visibility setting and nothing more.\n\n### Going back\n\nPick **5**, or use **Reset to defaults** — both put the app back to how it ships. Neither touches a single task, note or project.\n\n### Volume vs. role\n\nUnderneath the dial there are also role-shaped layouts (Executive, Project Manager, Creator, Personal). Those slice by the *kind* of work you do rather than by how much you see. Use whichever framing fits — they write to the same place.`},
   {id:45,slug:'hide-show-pages',catId:13,title:'Hiding and showing pages',summary:'Trim the sidebar to the pages you actually open.',tags:['workspace','sidebar','pages','navigation'],body:`## Hiding and showing pages\n\nGo to **Settings → Workspace**. Under **Pages & features** every sidebar entry is listed under the same headings as the sidebar itself — Today, Work, Mind, Life, Comms, Other.\n\nUse the toggle on the right of each row to show or hide it.\n\n### What happens when you hide a page\n\n- It disappears from the sidebar on every screen.\n- If a whole group empties out, its heading disappears too, so you are not left with a stranded label.\n- The page still exists. Its data is untouched.\n- Opening it from search, the command palette, or a link inside another page turns it straight back on.\n\n### Pages you cannot hide\n\n**Home**, **Help & Learning** and **Settings** always stay visible — otherwise it would be possible to hide the very screen you need to undo it.\n\n### Pages that are not in the sidebar\n\nA few screens (Clusters, Standup, Knowledge Graph, My Week, My Year, Process) are reached from links rather than the sidebar, so there is nothing to hide. You can still turn their right-hand sidebars off.`},
   {id:46,slug:'customize-a-page',catId:13,title:'Customizing a single page',summary:'Turn off the cards and panels you do not read.',tags:['workspace','sections','widgets','rail'],body:`## Customizing a single page\n\nEvery page with a right-hand panel has a **⚙ Customize this page** button at the bottom of that panel. You can also press **Ctrl/⌘ K** and choose *Customize this page*.\n\nThe dialog lists:\n\n- **Right sidebar** — hide the whole panel and let the main content use the space.\n- **Every section the page is currently showing** — listed by the exact heading you see on screen.\n\nUntick anything you do not read. Changes save immediately and sync to your other devices.\n\n### Home and Tasks have richer dialogs\n\nThose two pages have had their own customization for a while, and it does more than show/hide — you can reorder cards and, on Home, change how each card picks what to show (for example whether *Top Tasks* means highest priority or soonest due). The ⚙ button opens those dialogs instead.\n\n### If a section reappears\n\nSections are matched by their heading. If a heading gets reworded in an update, the old match is lost and the card comes back. That is the intended direction — you see too much rather than silently losing something. Just untick it again.\n\n### Reset one page\n\n**Reset page** in the same dialog restores that page only, leaving the rest of your layout alone.`},
   {id:47,slug:'layout-presets',catId:13,title:'Starting layouts',summary:'Seven ready-made layouts, from Everything to Focused.',tags:['workspace','presets','layout'],body:`## Starting layouts\n\nRather than toggling 25 pages by hand, start from a layout in **Settings → Workspace**.\n\n| Layout | Shows |\n|---|---|\n| **Everything** | Every page and sidebar — how LevelUp ships. The default. |\n| **Focused** | Today, tasks, notes, calendar. Sidebars off for a calm screen. |\n| **Balanced** | The above plus projects, goals, habits and journal. |\n| **Executive** | Portfolio, pipeline, reports, team — the roll-up view. |\n| **Project Manager** | Tasks, projects, programs, command center. |\n| **Creator** | Notes, mind maps, ideas, focus sessions. |\n| **Personal** | Habits, goals, journal, calendar. |\n\nA layout is only a starting point — change anything afterwards and your edits stick.\n\n### Everything means truly default\n\nChoosing **Everything** does not write a pile of settings; it clears your layout entirely, so "default" always means the same thing.\n\n### Moving a layout between accounts\n\n**Export layout** writes a small JSON file, and **Import layout** reads it back. Useful for setting up a second account the same way, or keeping a copy before experimenting.`},
