@@ -1102,6 +1102,7 @@ function _renderWorkspacePanel(){
         ${['normal','compact','dense'].map(d=>`<option value="${d}"${d===density?' selected':''}>${d[0].toUpperCase()+d.slice(1)}</option>`).join('')}
       </select>
       <div style="margin-top:14px;display:flex;flex-direction:column;gap:4px">
+        <button class="btn btn-p" style="font-size:11px" onclick="openSetupWizard()">Run the setup guide</button>
         <button class="btn btn-s" style="font-size:11px" onclick="luExportWorkspace()">Export layout</button>
         <button class="btn btn-s" style="font-size:11px" onclick="luImportWorkspace()">Import layout…</button>
         <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset your layout? Every page and rail comes back. Your data is not touched.')){luResetWorkspace();_renderWorkspacePanel();}">Reset to defaults</button>
@@ -3735,6 +3736,7 @@ function _cmdpActions(){
     {id:'tool-focus-start',group:'Tools',icon:'▶',title:'Start a focus timer',run:()=>{nav('focus');setTimeout(()=>{const b=document.querySelector('[onclick*="toggleFocus"]');if(b)b.click();},150);}},
     {id:'tool-toggle-dark',group:'Tools',icon:isDark?'☀':'🌙',title:isDark?'Switch to Light Mode':'Switch to Dark Mode',run:()=>{const t=document.getElementById('tog-dark');if(t)toggleDarkMode(t);else{D.prefs.darkMode=!D.prefs.darkMode;applyPrefs();save('prefs');}}},
     {id:'tool-customize-page',group:'Tools',icon:'⚙',title:'Customize this page…',run:()=>{closeCommandPalette();openPageCustomize(typeof curScreen!=='undefined'?curScreen:'home');}},
+    {id:'tool-setup-wizard',group:'Tools',icon:'🎓',title:'Run the setup guide…',run:()=>{closeCommandPalette();openSetupWizard();}},
     {id:'tool-workspace-layout',group:'Tools',icon:'▦',title:'Workspace layout & visible pages…',run:()=>{closeCommandPalette();nav('settings');setTimeout(()=>{const t=[...document.querySelectorAll('#s-settings .si')].find(x=>/Workspace/.test(x.textContent));if(t)t.click();},140);}},
     {id:'tool-reset-theme',group:'Tools',icon:'↺',title:'Reset theme to defaults',run:()=>resetTheme()},
     {id:'tool-save-profile',group:'Tools',icon:'💾',title:'Save current theme as profile…',run:()=>saveThemeAsProfile()},
@@ -4539,8 +4541,14 @@ function doLoginSuccess(member){
   if(!localStorage.getItem(_splashKey)){
     localStorage.setItem(_splashKey,'1');
     showSplashScreen(member.name.split(' ')[0]);
-    // First-ever login → splash plays for ~3.3s, then offer the welcome tour
-    setTimeout(()=>{ if(typeof _maybeOfferTour==='function') _maybeOfferTour(); },4500);
+    // First-ever login → splash plays for ~3.3s, then run setup. The wizard
+    // hands off to the welcome tour itself; if the account has already been
+    // onboarded on another device it declines to run and we fall back to the
+    // original tour offer, so returning users see exactly what they did before.
+    setTimeout(()=>{
+      const ran=(typeof _maybeRunSetupWizard==='function')&&_maybeRunSetupWizard();
+      if(!ran&&typeof _maybeOfferTour==='function')_maybeOfferTour();
+    },4500);
   }else{
     // Show daily digest after a short delay so the app is fully rendered
     setTimeout(showDailyDigest,1500);
@@ -9401,6 +9409,215 @@ window._pendingOAuthErrorDetail=null;
   if(success){window._pendingOAuthSuccess=success;history.replaceState(null,'',window.location.pathname);}
   if(error){window._pendingOAuthError=error;if(msErr)window._pendingOAuthErrorDetail=msErr;else if(detail)window._pendingOAuthErrorDetail=detail;history.replaceState(null,'',window.location.pathname);}
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETUP WIZARD — first-run onboarding
+// ═══════════════════════════════════════════════════════════════════════════
+// Walks a new teammate through choosing what they want to see, then hands off
+// to the guided tour so they learn how to use it. Purely a front-end for the
+// workspace layer in app-part1.js — it calls the same lu* setters the Settings
+// hub does, so there's one source of truth for what a layout is.
+//
+// Completion is recorded in D.prefs.workspace.onboarded, which is server-
+// synced, so signing in on a second device doesn't re-run it.
+//
+// Auto-runs only on a genuinely first-ever login. Existing accounts keep
+// today's behaviour exactly (the tour offer) and can start it on demand from
+// Help, Settings → Workspace, or the command palette.
+
+let _wiz=null;
+const _WIZ_ROLES=[
+  {id:'exec',      icon:'📊', title:'Executive / owner',     blurb:'Portfolio, pipeline, reports and team roll-ups.'},
+  {id:'pm',        icon:'🗂', title:'Project / delivery lead',blurb:'Tasks, projects, programs and the command center.'},
+  {id:'creator',   icon:'✍',  title:'Maker / knowledge work', blurb:'Notes, mind maps, ideas and focus sessions.'},
+  {id:'personal',  icon:'🌱', title:'Personal productivity',  blurb:'Habits, goals, journal and calendar.'},
+  {id:'everything',icon:'🌐', title:'Show me everything',     blurb:'Every page turned on. You can trim it later.'},
+];
+const _WIZ_STEPS=['Your work','Your layout','Your pages','Connect','Get going'];
+
+function openSetupWizard(){
+  const ws=(D.prefs&&D.prefs.workspace)||{};
+  _wiz={step:0,role:null,preset:ws.preset&&ws.preset!=='everything'?ws.preset:null,pages:null};
+  _wizRender();
+}
+function closeSetupWizard(){
+  const ov=document.getElementById('lu-wiz-ov');if(ov)ov.remove();
+  document.body.style.overflow='';
+  _wiz=null;
+}
+// Finishing and skipping both count as onboarded — nobody should meet this
+// twice unless they ask for it.
+function _wizComplete(msg){
+  try{
+    D.prefs=D.prefs||{};D.prefs.workspace=D.prefs.workspace||{};
+    D.prefs.workspace.onboarded=true;
+    if(typeof _wsSave==='function')_wsSave();else save('prefs');
+  }catch(_){}
+  closeSetupWizard();
+  if(msg&&typeof toast==='function')toast(msg);
+}
+function _wizGo(step){
+  if(!_wiz)return;
+  _wiz.step=Math.max(0,Math.min(_WIZ_STEPS.length-1,step));
+  _wizRender();
+}
+function _wizPickRole(id){
+  if(!_wiz)return;
+  _wiz.role=id;
+  _wiz.preset=id;
+  _wiz.pages=null; // recompute from the new preset
+  _wizGo(1);
+}
+function _wizPickPreset(id){if(!_wiz)return;_wiz.preset=id;_wiz.pages=null;_wizRender();}
+// The page set the wizard is currently proposing: the chosen preset's list,
+// plus core pages, until the user starts ticking boxes themselves.
+function _wizPageSet(){
+  if(_wiz.pages)return _wiz.pages;
+  const p=LU_PRESETS.find(x=>x.id===(_wiz.preset||'everything'));
+  const set=new Set();
+  LU_PAGES.filter(x=>x.nav).forEach(x=>{
+    if(!p||!p.pages||x.core||p.pages.indexOf(x.id)>=0)set.add(x.id);
+  });
+  _wiz.pages=set;
+  return set;
+}
+function _wizTogglePage(id){
+  const set=_wizPageSet();
+  const def=luPageDef(id);
+  if(def&&def.core)return;
+  if(set.has(id))set.delete(id);else set.add(id);
+  _wizRender();
+}
+// Write the wizard's choices through the same setters Settings uses.
+function _wizApplyChoices(){
+  const preset=_wiz.preset||'everything';
+  if(typeof luApplyPreset==='function')luApplyPreset(preset);
+  // Then reconcile any manual ticks on top of the preset.
+  if(_wiz.pages){
+    const set=_wiz.pages;
+    LU_PAGES.filter(p=>p.nav&&!p.core).forEach(p=>{
+      const want=set.has(p.id);
+      if(luPageOn(p.id)!==want)luSetPageOn(p.id,want);
+    });
+  }
+}
+
+function _wizRender(){
+  if(!_wiz)return;
+  let ov=document.getElementById('lu-wiz-ov');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='lu-wiz-ov';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:10050;display:flex;align-items:center;justify-content:center;padding:16px';
+    document.body.appendChild(ov);
+    document.body.style.overflow='hidden';
+  }
+  const step=_wiz.step;
+  const dots=_WIZ_STEPS.map((s,i)=>`<div style="display:flex;align-items:center;gap:6px;${i<=step?'':'opacity:.45'}">
+      <span style="width:18px;height:18px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;background:${i<step?'var(--ok)':i===step?'var(--ac)':'var(--s4)'};color:${i<=step?'#fff':'var(--t3)'}">${i<step?'✓':i+1}</span>
+      <span style="font-size:11px;${i===step?'font-weight:700':''}">${esc(s)}</span>
+    </div>`).join('<span style="flex:1;height:1px;background:var(--bd1);min-width:8px"></span>');
+
+  ov.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd2);border-radius:14px;width:min(660px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.5)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--bd1);display:flex;align-items:center;gap:8px">${dots}</div>
+    <div style="padding:18px;overflow:auto;flex:1">${_wizStepHTML(step)}</div>
+    <div style="padding:12px 18px;border-top:1px solid var(--bd1);display:flex;align-items:center;gap:8px">
+      <button class="btn btn-s" style="font-size:11px" onclick="_wizComplete('You can finish setup any time from Help')">Skip setup</button>
+      <div style="flex:1"></div>
+      ${step>0?`<button class="btn btn-s" style="font-size:11px" onclick="_wizGo(${step-1})">Back</button>`:''}
+      ${step<_WIZ_STEPS.length-1
+        ? `<button class="btn btn-p" style="font-size:11px" onclick="${step===2?'_wizApplyChoices();':''}_wizGo(${step+1})">Continue</button>`
+        : `<button class="btn btn-p" style="font-size:11px" onclick="_wizComplete('Setup complete — welcome aboard')">Finish</button>`}
+    </div>
+  </div>`;
+}
+
+function _wizStepHTML(step){
+  const name=((D.creds&&D.creds.userName)||'').split(' ')[0]||'there';
+  if(step===0){
+    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Welcome to LevelUp, ${esc(name)}</h2>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">This is your second brain — tasks, notes, projects, goals, habits, calendar and more in one place. It's a lot, so let's start by showing you only the parts you'll actually use. Nothing gets deleted, and you can turn anything on later.</p>
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px">Which best describes your work?</div>
+    <div style="display:grid;gap:6px">
+      ${_WIZ_ROLES.map(r=>`<button class="btn btn-s" style="height:auto;padding:10px 12px;text-align:left;display:flex;gap:10px;align-items:flex-start;width:100%;${_wiz.role===r.id?'border-color:var(--ac)':''}"
+        onclick="_wizPickRole('${r.id}')">
+        <span style="font-size:17px;line-height:1">${r.icon}</span>
+        <span style="flex:1"><span style="display:block;font-size:12px;font-weight:600">${esc(r.title)}</span>
+        <span style="display:block;font-size:11px;color:var(--t3);font-weight:400;margin-top:1px">${esc(r.blurb)}</span></span>
+      </button>`).join('')}
+    </div>`;
+  }
+  if(step===1){
+    const cur=_wiz.preset||'everything';
+    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Pick a starting layout</h2>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">Each layout just decides which pages appear in your sidebar to begin with. Pick the closest one — you'll fine-tune it on the next screen.</p>
+    <div style="display:grid;gap:6px">
+      ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%"
+        onclick="_wizPickPreset('${p.id}')">
+        <span style="display:block;font-size:12px;font-weight:600">${esc(p.label)}</span>
+        <span style="display:block;font-size:11px;opacity:.8;font-weight:400;margin-top:1px">${esc(p.desc)}</span>
+      </button>`).join('')}
+    </div>`;
+  }
+  if(step===2){
+    const set=_wizPageSet();
+    const groups=Object.keys(LU_PAGE_GROUPS).map(gk=>{
+      const rows=LU_PAGES.filter(p=>p.group===gk&&p.nav).map(p=>{
+        const on=set.has(p.id)||p.core;
+        return `<label style="display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:6px;cursor:${p.core?'default':'pointer'};${p.core?'opacity:.55':''}">
+          <input type="checkbox" ${on?'checked':''} ${p.core?'disabled':''} onchange="_wizTogglePage('${p.id}')">
+          <span style="font-size:12px">${esc(p.label)}</span>
+        </label>`;
+      }).join('');
+      return `<div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;margin:8px 0 2px">${esc(LU_PAGE_GROUPS[gk])}</div>${rows}</div>`;
+    }).join('');
+    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Choose your pages</h2>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 8px;max-width:60ch">Tick what you want in the sidebar. Anything you leave off is still there — search for it or open a link to it and it switches straight back on. Home, Help and Settings always stay.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 18px">${groups}</div>`;
+  }
+  if(step===3){
+    return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">Connect your accounts</h2>
+    <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">Optional, and easy to do later. Connecting brings your real calendar, mail and work tasks into LevelUp so the dashboard reflects your actual day.</p>
+    <div style="display:grid;gap:8px">
+      ${[['Microsoft 365 or Google','Calendar, mail and contacts sync both ways.','sp-4'],
+         ['Smartsheet / NiftyPM','Pull your work tasks in and push status back.','sp-5'],
+         ['OneNote meeting notes','Sync meeting notes and auto-link them to events.','sp-8']]
+        .map(([t,d,panel])=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px">
+          <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t)}</div><div style="font-size:11px;color:var(--t3)">${esc(d)}</div></div>
+          <button class="btn btn-s" style="font-size:11px;height:26px" onclick="_wizComplete();nav('settings');setTimeout(()=>{const el=[...document.querySelectorAll('#s-settings .si')].find(x=>x.getAttribute('onclick')&&x.getAttribute('onclick').indexOf(&quot;'${panel}'&quot;)>=0);if(el)el.click();},140)">Set up</button>
+        </div>`).join('')}
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-top:12px">Skipping is fine — LevelUp works fully on its own, and Settings → Accounts is always there.</p>`;
+  }
+  const visible=LU_PAGES.filter(p=>p.nav&&luPageOn(p.id)).length;
+  return `<h2 style="font-size:19px;font-weight:750;margin:0 0 4px">You're set up</h2>
+  <p style="font-size:12px;color:var(--t2);margin:0 0 14px;max-width:60ch">Your sidebar now shows ${visible} pages. Here's how to get value out of LevelUp from day one.</p>
+  <div style="display:grid;gap:8px;margin-bottom:14px">
+    ${[['Capture everything, sort later','Press <b>Ctrl/⌘ N</b> anywhere to add a task, or <b>+ New</b> in the top bar. Getting it out of your head is the whole point.'],
+       ['Start each morning on Planner','It gathers what is due, what you scheduled and your habits into one list, so you decide once what today looks like.'],
+       ['Link things as you go','Notes, tasks, projects and meetings can all reference each other. Those links are what turns this from a to-do list into a second brain.'],
+       ['Ask it questions','<b>Ctrl/⌘ K</b> searches everything; the ✨ menu asks AI about your own notes and tasks, with citations.'],
+       ['Reshape it whenever','Every page has ⚙ Customize in its sidebar, and Settings → Workspace controls the lot.']]
+      .map(([t,d])=>`<div style="display:flex;gap:9px;align-items:flex-start">
+        <span style="color:var(--ok);font-size:13px;line-height:1.35">✓</span>
+        <div><div style="font-size:12px;font-weight:600">${esc(t)}</div><div style="font-size:11px;color:var(--t2);margin-top:1px">${d}</div></div>
+      </div>`).join('')}
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-p" style="font-size:11px" onclick="_wizComplete();setTimeout(()=>launchTour(1),200)">Take the 5-minute tour</button>
+    <button class="btn btn-s" style="font-size:11px" onclick="_wizComplete();setTimeout(()=>openFA('task'),200)">Add my first task</button>
+  </div>`;
+}
+
+// First-ever login only. Returning accounts keep today's behaviour untouched.
+function _maybeRunSetupWizard(){
+  try{
+    const ws=(D.prefs&&D.prefs.workspace)||{};
+    if(ws.onboarded)return false;
+    openSetupWizard();
+    return true;
+  }catch(_){return false;}
+}
 
 // ====== TOUR ENGINE ======
 function launchTour(tourId){
