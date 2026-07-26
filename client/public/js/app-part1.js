@@ -6615,6 +6615,79 @@ function luResetWorkspace(){
   if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
 }
 
+// Starter layouts. `pages:null` means "no overrides at all" — the stock app.
+// Everything else lists the pages to KEEP; the rest get hidden. Core pages are
+// always kept regardless of what's listed here.
+const LU_PRESETS=[
+  {id:'everything',label:'Everything',desc:'Every page and rail. Exactly how LevelUp ships — the default.',pages:null},
+  {id:'focused',   label:'Focused',   desc:'Today, tasks, notes and calendar only. Rails off for a calm screen.',
+   rails:false, pages:['home','myday','tasks','notes','calendar']},
+  {id:'balanced',  label:'Balanced',  desc:'Core planning plus projects, goals, habits and journal.',
+   pages:['home','myday','tasks','notes','calendar','projects','goals','habits','journal']},
+  {id:'exec',      label:'Executive', desc:'The roll-up view: portfolio, pipeline, reports and team.',
+   pages:['home','command','programs','projects','pipeline','reports','team','calendar','mail','tasks']},
+  {id:'pm',        label:'Project Manager', desc:'Delivery focus: tasks, projects, programs and the command center.',
+   pages:['home','myday','tasks','projects','programs','command','calendar','team','notes']},
+  {id:'creator',   label:'Creator',   desc:'Thinking tools: notes, mind maps, ideas and focus sessions.',
+   pages:['home','notes','mindmaps','ideas','focus','journal','goals','tasks']},
+  {id:'personal',  label:'Personal',  desc:'Life tracking: habits, goals, journal and calendar.',
+   pages:['home','myday','habits','goals','journal','calendar','notes','tasks']},
+];
+function luApplyPreset(presetId){
+  const p=LU_PRESETS.find(x=>x.id===presetId);
+  if(!p)return;
+  // "Everything" is stock, and stock means no stored overrides at all.
+  if(!p.pages){luResetWorkspace();if(typeof toast==='function')toast('Layout reset to Everything');return;}
+  _wsMigrateLegacy();
+  const w=_ws();w.pages=w.pages||{};
+  const keep=new Set(p.pages);
+  LU_PAGES.forEach(def=>{
+    const cur=Object.assign({},w.pages[def.id]||{});
+    if(def.nav&&!def.core){if(keep.has(def.id))delete cur.on;else cur.on=false;}
+    if(def.rail){if(p.rails===false)cur.rail=false;else delete cur.rail;}
+    // Keep storage sparse: a page matching the default stores nothing.
+    if(Object.keys(cur).length)w.pages[def.id]=cur;else delete w.pages[def.id];
+  });
+  w.preset=presetId;
+  _wsSave();_luRebuildLayoutCSS(true);
+  if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
+  if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
+  if(typeof toast==='function')toast(`Layout set to ${p.label}`);
+}
+function luExportWorkspace(){
+  try{
+    const blob=new Blob([JSON.stringify(_wsRead(),null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='levelup-workspace-layout.json';
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0);
+    if(typeof toast==='function')toast('Layout exported');
+  }catch(e){if(typeof toast==='function')toast('Export failed: '+(e.message||e));}
+}
+function luImportWorkspace(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='application/json,.json';
+  inp.onchange=()=>{
+    const f=inp.files&&inp.files[0];if(!f)return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const parsed=JSON.parse(String(r.result||'{}'));
+        if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('not a layout file');
+        D.prefs=D.prefs||{};
+        D.prefs.workspace=Object.assign({v:1,preset:'custom'},parsed);
+        _wsSave();_luRebuildLayoutCSS(true);
+        if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
+        if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+        if(typeof toast==='function')toast('Layout imported');
+      }catch(e){if(typeof toast==='function')toast('Import failed: '+(e.message||e));}
+    };
+    r.readAsText(f);
+  };
+  inp.click();
+}
+
 // One generated stylesheet carries every hide rule. Rebuilt only when the
 // stored shape actually changes, so calling it each render is cheap.
 let _luLayoutCSSKey=null;

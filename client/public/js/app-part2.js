@@ -1,21 +1,27 @@
 function renderSettingsHTML(){
   // Each tab: an _ICON_PATHS name + plain-text label. Rendered icon+label so
   // every Settings tab has an icon (matches the main sidebar's icon-per-item).
+  // Each tab carries an EXPLICIT panel id. Order and id are decoupled on
+  // purpose: sp-N ids are referenced by hardcoded string in ~13 places
+  // (showSetTab hydration hooks, deep links from other screens), so inserting
+  // a tab must never renumber the existing panels.
   const setNav=[
-    {ic:'user',lb:'Profile'},{ic:'settings',lb:'General'},{ic:'palette',lb:'Appearance'},
-    {ic:'bell',lb:'Notifications'},{ic:'mail',lb:'Accounts'},{ic:'link',lb:'Integrations'},
-    {ic:'sparkles',lb:'AI Features'},{ic:'users',lb:'Teams'},{ic:'edit',lb:'Word Doc Import'},
-    {ic:'refresh',lb:'Sync'},{ic:'save',lb:'Backup'},{ic:'lock',lb:'Privacy'},
-    {ic:'shield',lb:'Admin'}
+    {ic:'user',lb:'Profile',id:'sp-0'},{ic:'settings',lb:'General',id:'sp-1'},
+    {ic:'palette',lb:'Appearance',id:'sp-2'},{ic:'columns',lb:'Workspace',id:'sp-13'},
+    {ic:'bell',lb:'Notifications',id:'sp-3'},{ic:'mail',lb:'Accounts',id:'sp-4'},
+    {ic:'link',lb:'Integrations',id:'sp-5'},{ic:'sparkles',lb:'AI Features',id:'sp-6'},
+    {ic:'users',lb:'Teams',id:'sp-7'},{ic:'edit',lb:'Word Doc Import',id:'sp-8'},
+    {ic:'refresh',lb:'Sync',id:'sp-9'},{ic:'save',lb:'Backup',id:'sp-10'},
+    {ic:'lock',lb:'Privacy',id:'sp-11'},{ic:'shield',lb:'Admin',id:'sp-12'}
   ];
   // Visual section breaks before these indexes (same pattern as the sidebar).
-  const setSections={1:'Preferences',4:'Connections',7:'Workspace & Data',12:'Admin'};
+  const setSections={1:'Preferences',5:'Connections',8:'Workspace & Data',13:'Admin'};
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
   return `<div class="pg-h"><h1 style="display:inline-flex;align-items:center;gap:8px">${_icon('settings',22,'var(--page-accent)')}Settings</h1><p style="font-size:12px;color:var(--t2)">Configure your LevelUp experience.</p></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px">
-  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'sp-${i}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${_icon(n.ic,15,'currentColor')} ${n.lb}</div>`;}).join('')}</div>
+  <div>${setNav.map((n,i)=>{const sl=setSections[i]?`<div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:10px 8px 3px">${setSections[i]}</div>`:'';return `${sl}<div class="si ${i===0?'on':''}" onclick="showSetTab(this,'${n.id}')" style="margin:0 0 1px;padding:5px 8px;font-size:11px">${_icon(n.ic,15,'currentColor')} ${n.lb}</div>`;}).join('')}</div>
   <div>
   <!-- Profile --><div id="sp-0" class="sp">
   <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">\ud83d\udc64 Profile</h3>
@@ -1035,7 +1041,81 @@ function renderSettingsHTML(){
       <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
   </div>
+  <!-- Workspace --><div id="sp-13" class="sp" style="display:none">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Workspace layout</h3>
+    <p style="font-size:11px;color:var(--t2);margin-bottom:12px">Choose what you see. Nothing is deleted — anything you switch off is one click from coming back, and your choices follow you to any device you sign in on.</p>
+    <div id="ws-panel-body" style="font-size:11px;color:var(--t3)">Loading…</div>
+  </div>
   </div></div>`;
+}
+
+// ─── Workspace layout panel (Settings → Workspace) ──────────────────────────
+// Renders from the LU_PAGES registry in app-part1.js, so it stays correct as
+// pages are added. Everything writes through the lu* setters, which keep the
+// stored object sparse and rebuild #lu-layout-css.
+function _renderWorkspacePanel(){
+  const body=document.getElementById('ws-panel-body');
+  if(!body)return;
+  if(typeof LU_PAGES==='undefined'){body.textContent='Layout engine unavailable.';return;}
+  const ws=(D.prefs&&D.prefs.workspace)||{};
+  const activePreset=ws.preset||'everything';
+  const density=(D.prefs&&D.prefs.density)||((D.prefs&&D.prefs.compact)?'compact':'normal');
+  const hiddenCount=LU_PAGES.filter(p=>p.nav&&!luPageOn(p.id)).length;
+  const railsOff=LU_PAGES.filter(p=>p.rail&&!luRailOn(p.id)).length;
+
+  const presets=LU_PRESETS.map(p=>`
+    <button class="btn ${p.id===activePreset?'btn-p':'btn-s'}" style="height:auto;padding:8px 10px;font-size:11px;text-align:left;display:block;width:100%;margin-bottom:4px"
+      onclick="luApplyPreset('${p.id}');_renderWorkspacePanel()" title="${esc(p.desc)}">
+      <div style="font-weight:600">${esc(p.label)}${p.id===activePreset?' ·  in use':''}</div>
+      <div style="font-size:11px;opacity:.75;font-weight:400;margin-top:1px">${esc(p.desc)}</div>
+    </button>`).join('');
+
+  const groups=Object.keys(LU_PAGE_GROUPS).map(gk=>{
+    const rows=LU_PAGES.filter(p=>p.group===gk&&p.nav).map(p=>{
+      const on=luPageOn(p.id), rOn=luRailOn(p.id);
+      return `<div class="lr" style="padding:6px 0;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;${on?'':'opacity:.55'}">${esc(p.label)}${p.core?' <span style="font-size:11px;color:var(--t3)">· always on</span>':''}</div>
+          ${p.rail?`<div style="font-size:11px;color:var(--t3)">Right sidebar ${rOn?'shown':'hidden'}</div>`:''}
+        </div>
+        ${p.rail?`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 8px;${on?'':'opacity:.4;pointer-events:none'}"
+            onclick="luSetRailOn('${p.id}',${!rOn});_renderWorkspacePanel()"
+            title="Show or hide this page's right sidebar">${rOn?'Hide rail':'Show rail'}</button>`:''}
+        <div class="tog ${on?'on':''}" role="button" tabindex="0"
+          aria-label="${esc(p.label)} visibility" aria-pressed="${on}"
+          style="${p.core?'opacity:.4;pointer-events:none':''}"
+          onclick="luSetPageOn('${p.id}',${!on});_renderWorkspacePanel()"></div>
+      </div>`;
+    }).join('');
+    return rows?`<div style="margin-bottom:10px">
+      <div class="sl" style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.6px;padding:6px 0 2px">${esc(LU_PAGE_GROUPS[gk])}</div>
+      ${rows}</div>`:'';
+  }).join('');
+
+  body.innerHTML=`
+  <div style="display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px;align-items:start">
+    <div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">Start from a layout</div>
+      ${presets}
+      <div style="margin-top:12px;font-size:12px;font-weight:600;margin-bottom:4px">Density</div>
+      <select class="inp" style="width:100%;font-size:11px" onchange="setDensity(this.value)">
+        ${['normal','compact','dense'].map(d=>`<option value="${d}"${d===density?' selected':''}>${d[0].toUpperCase()+d.slice(1)}</option>`).join('')}
+      </select>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:4px">
+        <button class="btn btn-s" style="font-size:11px" onclick="luExportWorkspace()">Export layout</button>
+        <button class="btn btn-s" style="font-size:11px" onclick="luImportWorkspace()">Import layout…</button>
+        <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset your layout? Every page and rail comes back. Your data is not touched.')){luResetWorkspace();_renderWorkspacePanel();}">Reset to defaults</button>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+        <div style="font-size:12px;font-weight:600">Pages &amp; features</div>
+        <div style="font-size:11px;color:var(--t3)">${hiddenCount?`${hiddenCount} hidden`:'all shown'}${railsOff?` · ${railsOff} rail${railsOff===1?'':'s'} off`:''}</div>
+      </div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:6px">Hiding a page only removes it from the sidebar. Open it from search or a link and it switches straight back on.</p>
+      ${groups}
+    </div>
+  </div>`;
 }
 
 function renderCredCard(title,icon,desc,prefix,fields,isAI=false){
@@ -1055,6 +1135,7 @@ function showSetTab(el,id){
   if(id==='sp-12'){loadAdminDeliveryLog(1);loadScheduledTaskLog();loadLogRetentionDays();}
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
+  if(id==='sp-13'&&typeof _renderWorkspacePanel==='function')_renderWorkspacePanel();
 }
 
 // ─── External Sources (Smartsheet + Nifty) Settings UI ─────────────────────
