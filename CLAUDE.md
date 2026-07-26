@@ -336,6 +336,40 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Detail level dial — builds -147/-148 (2026-07-24) — PUSHED/LIVE ✅
+
+A single "how much do you want to see?" control for anyone overwhelmed by ~30
+pages and an 11-widget dashboard. **`LU_LEVELS`** (app-part1.js, above
+`LU_PRESETS`) — 5 stops, `luApplyLevel(n)`, `luCurrentLevel()`:
+
+| n | label | pages | Home widgets | rails |
+|---|---|---|---|---|
+| 1 | Essentials | 5 | 2 | off |
+| 2 | Simple | 7 | 4 | off |
+| 3 | Balanced | 11 | 6 | on |
+| 4 | Full | 20 | 9 | on |
+| 5 | Everything | 25 | 11 | on |
+
+**Level 5 clears every override** rather than writing defaults back (2 stored
+bytes vs 915 at level 1) — same rule as preset `everything`. This is a
+SEPARATE AXIS from `LU_PRESETS` (which slices by role); each clears the other's
+marker.
+
+**A level is a starting point, not a cage.** Every individual toggle keeps
+working on top, and `luSetPageOn`/`luSetRailOn`/`luSetModuleOn` **and** the
+legacy `_wsPrefsSave` bridge all call `_wsClearLevelMarker()` so the dial
+honestly falls back to "Custom". Forgetting that in the first pass was a real
+bug — the dial kept claiming a level the layout no longer matched.
+
+⚠ **`luCurrentLevel()` infers from VISIBILITY only** (`on`/`rail`/`modules`) —
+a stored Home-card **`order`** does not count. The legacy `lu_home_cards`
+migration brings an existing custom order across, and counting it made the dial
+read blank for any long-time user (hit on the owner's live account, fixed -148).
+
+Surfaced in Settings → Workspace as the PRIMARY control (role presets demoted
+below it) and in the onboarding wizard step 2. Help article `detail-level`
+("Turn the volume down"). Help is now 13 cats / 50 articles / 4 tours.
+
 ## Aurora Glass theme — builds -145/-146 (2026-07-24) — PUSHED/LIVE ✅
 
 First of the four mocked visual directions. Ambient `--page-accent` auras
