@@ -24,6 +24,12 @@
 <link rel="apple-touch-icon" sizes="512x512" href="/favicon-512.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Plus Jakarta Sans — self-hosted so the brand face can't be lost to a CDN
+   outage (the same single-point-of-failure that killed the old logo URL).
+   One variable file covers 300-800. font-display:swap so text is never
+   invisible; Inter stays in the stack as the fallback. */
+@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:300 800;font-display:swap;
+  src:url('/fonts/plus-jakarta-sans-latin.woff2') format('woff2')}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0B0F1A;--s1:#0F1525;--s2:#161D2E;--s3:#1E2740;--s4:#252F4A;--bd1:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.10);--bd3:rgba(255,255,255,.16);--t1:#F8FAFC;--t2:#94A3B8;--t3:#7C8AA3;--t4:#475569;--ac:#3B82F6;--ach:#60A5FA;--acs:rgba(59,130,246,.15);--red:#F87171;--reds:rgba(239,68,68,.15);--warn:#FBBF24;--warns:rgba(245,158,11,.15);--ok:#4ADE80;--oks:rgba(34,197,94,.15);--purp:#C084FC;--purps:rgba(168,85,247,.15);--top:56px;--side:220px;--r:8px;--brd:rgba(255,255,255,.10)}
 /* ===========================================================================
@@ -272,7 +278,7 @@ body:not(.compact-mode) .drawer .field label{font-size:12px}
 .login-pin input:focus{border-color:var(--ac)}
 .login-err{color:var(--red);font-size:11px;text-align:center;min-height:16px;margin-bottom:8px}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
+body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--bg);color:var(--t1);font-size:14px;line-height:1.5}
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px}
 /* Use dvh (dynamic viewport height) so iOS Safari's collapsing address bar
    doesn't cut off the bottom of the app shell. Falls back to 100vh on older
@@ -282,7 +288,10 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--t1);font-si
 /* TOPBAR */
 .topbar{background:var(--s1);border-bottom:1px solid var(--bd1);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:100}
 .logo{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0}
-.logo svg{width:28px;height:28px}
+/* 40px matches the size the previous raster logo was rendered at. This rule
+   predates the inline SVG mark and would otherwise shrink it to 28px, since a
+   CSS width beats the element's width attribute. */
+.logo svg{width:40px;height:40px}
 .logo b{font-size:18px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .logo small{font-size:11px;color:var(--t3);display:block;line-height:1;margin-top:-2px}
 .tb-s{flex:1;max-width:400px;margin:0 auto;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--r);display:flex;align-items:center;padding:0 10px;height:32px;gap:6px;position:relative}
@@ -2029,12 +2038,36 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 }
 </style>
 </head><body>
+<!-- ── Brand mark: "Aurora Stack" ──────────────────────────────────────────
+     Three knowledge layers with the top one lifting off — the second brain
+     made visible. Defined ONCE as a <symbol> and referenced with <use> at
+     each of the five logo sites: inlining it five times would mean five
+     duplicate gradient ids, which is invalid and lets one site's gradient
+     win everywhere. Both href and xlink:href are set on each <use> so older
+     iOS Safari resolves it too.
+
+     This replaces a raster .webp served from a decommissioned CloudFront
+     bucket — the same class of single-point-of-failure that already broke
+     the iOS home-screen icon once. It is now vector, self-hosted, and
+     crisp at every size. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;overflow:hidden">
+  <defs>
+    <linearGradient id="lu-mark-grad" x1="8" y1="26" x2="40" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#C084FC"/>
+    </linearGradient>
+    <symbol id="lu-mark" viewBox="0 0 48 48">
+      <path d="m24 6 16 9-16 9-16-9Z" fill="url(#lu-mark-grad)"/>
+      <path d="m8 25 16 9 16-9" fill="none" stroke="#818CF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>
+      <path d="m8 33 16 9 16-9" fill="none" stroke="#818CF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>
+    </symbol>
+  </defs>
+</svg>
 
 <!-- ===== INVITE ACCEPT SCREEN ===== -->
 <div id="invite-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;padding:16px">
   <div style="width:100%;max-width:400px">
     <div style="text-align:center;margin-bottom:24px">
-      <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
+      <svg width="56" height="56" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
       <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
       <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
     </div>
@@ -2094,13 +2127,13 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
-    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:48px;height:48px;object-fit:contain">
+    <svg width="48" height="48" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
     <svg style="animation:spin 1s linear infinite;color:var(--ac)" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     <div style="font-size:12px;color:var(--t3)">Restoring session…</div>
   </div>
   <div id="login-form-wrapper" style="display:none;width:100%;max-width:380px">
   <div style="text-align:center;margin-bottom:24px">
-    <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
+    <svg width="56" height="56" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
     <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
     <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
   </div>
@@ -2211,7 +2244,7 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
 </button>
 <div class="sb-backdrop" id="sb-backdrop" onclick="toggleMobileSidebar(false)"></div>
 <div class="logo" onclick="nav('home')">
-<img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
+<svg width="40" height="40" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
 <div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
@@ -2834,7 +2867,7 @@ body.sh-resizing{user-select:none!important}
     @keyframes splash-fade-out{0%{opacity:1}100%{opacity:0;pointer-events:none}}
     #splash-screen.fade-out{animation:splash-fade-out .5s ease forwards;}
   </style>
-  <img id="splash-logo" src="https://d2xsxph8kpxj0f.cloudfront.net/310519663559786933/EZ4TiNMnCU3PshqezcxMr9/levelup-logo-icon-PCC7A8sNzJyBmfEPAzZSFN.webp" alt="LevelUp" style="width:96px;height:96px;object-fit:contain;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards">
+  <svg id="splash-logo" width="96" height="96" role="img" aria-label="LevelUp" style="flex-shrink:0;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
   <div id="splash-brand" style="font-size:36px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0;animation:splash-text-in .5s ease .85s forwards;margin-top:12px">LevelUp</div>
   <div id="splash-tagline" style="font-size:14px;color:#64748B;opacity:0;animation:splash-tagline-in .5s ease 1.2s forwards;margin-top:4px">Your Second Brain</div>
   <div id="splash-greeting" style="font-size:16px;color:#94A3B8;opacity:0;animation:splash-tagline-in .5s ease 1.6s forwards;margin-top:28px"></div>
@@ -2898,7 +2931,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-24-143';
+  var APP_BUILD='2026-07-24-144';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

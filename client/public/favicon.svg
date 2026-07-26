@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- LevelUp "Aurora Stack" mark — three knowledge layers, top one lifting off.
+       Icon variant: keeps the dark rounded-square container of the previous
+       favicon so it reads on any tab colour, and drops to TWO layers with a
+       heavier stroke, because the third layer turns to mud below ~24px. -->
   <defs>
-    <linearGradient id="lu-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#3B82F6"/>
-      <stop offset="100%" stop-color="#8B5CF6"/>
+    <linearGradient id="lu-grad" x1="16" y1="34" x2="48" y2="14" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#C084FC"/>
     </linearGradient>
   </defs>
-  <!-- Background rounded square (dark, matches app bg) -->
   <rect width="64" height="64" rx="12" ry="12" fill="#0B0F1A"/>
-  <!-- L -->
-  <text x="4" y="50" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" fill="url(#lu-grad)">L</text>
-  <!-- U body (two vertical bars + bottom curve) drawn as path so arrow fits cleanly -->
-  <text x="30" y="50" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" fill="url(#lu-grad)">U</text>
-  <!-- Upward arrow on right stem of U -->
-  <polygon points="52,7 57,17 54.5,17 54.5,24 49.5,24 49.5,17 47,17" fill="#8B5CF6"/>
+  <path d="m32 13 21 11.5L32 36 11 24.5Z" fill="url(#lu-grad)"/>
+  <path d="m11 38 21 11.5L53 38" fill="none" stroke="#818CF8" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
 </svg>
