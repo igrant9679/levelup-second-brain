@@ -336,6 +336,96 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Session arc July 24 2026 (builds -137 → -142) — COMMITTED, **NOT PUSHED**
+
+**Workspace customization + onboarding + help.** User asked to let each
+teammate simplify/customize every page and pick which functionality they use,
+with an onboarding flow and a help refresh — explicitly **without removing any
+functionality**, and with **the default configuration identical to today**.
+
+Current build **`2026-07-24-142`**. Seven commits on `main`, all local:
+`81435e0` -137 · `775dd06`+`cddf3e5` -138 · `0e31d0c` -139 · `0db0cc7` -140 ·
+`f50a83f` -141 · `6b944ce` -142 · `d2e1709` sparse fix.
+
+### The core invariant (protect this)
+**An absent/empty `D.prefs.workspace` must render EXACTLY what the app rendered
+before this arc.** Everything is stored as a *deviation from default*; every
+resolver falls back to the pre-existing behaviour. Concretely: stock config
+generates an **empty stylesheet**, and `luResetWorkspace()` is literally
+`delete D.prefs.workspace`. Every setter deletes a key once it matches its
+default so the object collapses back to `{}` — a regression pass caught
+`luSetPageOn`/`luSetRailOn` violating this (fixed in `d2e1709`). If you add a
+setter, keep it sparse and re-run the parity check.
+
+### Architecture (app-part1.js, near `_homeCardDefs`)
+- **`LU_PAGES`** — all 31 routes with `{nav, core, rail}`. `core:true`
+  (home/settings/help) can never be hidden. `nav:false` pages (clusters,
+  standup, graph, myweek, myyear, process) are link-reached, so they get rail
+  control but no visibility checkbox. **`rail` mirrors which screens are
+  `.bg.wr` in index.html — keep in sync.**
+- **`LU_PRESETS`** — everything / focused / balanced / exec / pm / creator /
+  personal. `pages:null` (Everything) = clear the object, not write defaults.
+- **Storage `D.prefs.workspace`** `{v,preset,pages:{id:{on,rail,modules,order}},onboarded}`.
+  Server-synced because `prefs` is in `_syncKeys`.
+- **Visibility is applied by ONE generated stylesheet** `#lu-layout-css`
+  (`_luRebuildLayoutCSS`), NOT inline styles. This survives the async
+  re-renders several pages do after their data loads, and keeps all of it out
+  of `index.html` — same trick `applyTheme()` uses for `#lu-page-accents`.
+  **This is why the -132/-134 index.html CSS trap doesn't apply to this arc.**
+- **Hooks:** `applyPageLayout()` in `renderScreen`; empty-group hiding in
+  `initSidebars`; a `nav()` guard that re-enables a hidden page reached by deep
+  link instead of dead-ending.
+- **Rail sections are auto-tagged** — `_luRailModules()` derives a stable
+  `data-mod` id from each rail card's own heading after render, so EVERY page's
+  rail is customizable without hand-editing a dozen template literals. Explicit
+  `data-mod` in markup wins (Projects rail has 4 as the worked example) and now
+  takes its label from its heading too. Injected chrome (mini-week, shortcuts
+  legend, customize button) is skipped. Reworded heading → card reappears
+  (deliberate: fail toward showing too much).
+- **Legacy stores bridged, not rewritten** — `getHomeCardPrefs`/`getTaskRailPrefs`
+  keep their exact `[{id,visible,order}]` shape but read/write the synced
+  object, so all existing consumers are untouched and Home/Tasks layouts now
+  follow the user between devices (they were localStorage-only). Old keys are
+  read as a fallback until first change.
+
+### UI
+- **Settings → Workspace** (`sp-13`, `_renderWorkspacePanel`). ⚠ Settings nav
+  entries now carry an **explicit `id`** — order and panel id are decoupled
+  because `sp-N` ids are hardcoded in ~13 places. **Never renumber panels.**
+- **⚙ Customize this page** injected into every rail by the same
+  `renderScreen` wrapper that injects the mini-week strip; plus 3 command-palette
+  actions. Home/Tasks delegate to their existing richer dialogs (modes +
+  reorder) rather than being flattened.
+- **Setup wizard** (`openSetupWizard`, app-part2.js) — 5 steps, hands off to
+  `launchTour(1)`. Auto-runs **only on a genuinely first-ever login**; if
+  already onboarded elsewhere it declines and the original tour offer runs, so
+  existing accounts see today's behaviour unchanged. Skipping counts as done.
+- **Team starter layout** — `appData.setTeamStarterPreset` (gated on
+  `isOwnerCtxUser`, NOT `isAdminUser`: invited teammates are all admins) +
+  `getTeamStarterPreset`, stored in `system_settings`, no migration. Seeds the
+  wizard only; never overwrites an existing member.
+- **Help** — new category 13 "Your Workspace" (6 articles) + "Your first week"
+  in Getting Started + tour 4. Now 13 cats / 49 articles / 4 tours.
+
+### Verification done
+Both bundles `node -c`; **12 NUL bytes** intact; `vite`+`esbuild` clean and
+bundles byte-identical; **`tsc --noEmit` reports 0 errors repo-wide** (the
+"5-6 pre-existing errors" noted elsewhere in this file is now STALE).
+Browser regression pass green: stock = empty stylesheet, all 31 registry
+entries match the real DOM, no preset can hide core pages, hide/show
+round-trips to `{}`, hiding survives a full re-render, wizard gating works
+both ways, help data has no dup ids/slugs/orphans.
+
+**NOT verified locally:** the two tRPC procedures need a DB and there's no
+`.env` here — typecheck/build only. Confirm on Railway after deploy.
+
+**Local build gotcha:** `vite` and `esbuild` OOM when chained on this machine
+("Zone Allocation failed" / exit 134). Run them as separate commands, or
+`NODE_OPTIONS=--max-old-space-size=4096`.
+
+**Untracked:** `.claude/launch.json` (static-server config pointing at a
+session scratchpad) — intentionally not committed.
+
 ## Session arc July 17–18 2026 (builds -132 → -136) — ALL PUSHED/LIVE
 
 Current build **`2026-07-18-136`** (commit `259e578`). Repo moved to
