@@ -3734,6 +3734,8 @@ function _cmdpActions(){
     {id:'create-habit',group:'Create',icon:'✅',title:'Add new habit…',run:()=>openFA('habit')},
     {id:'tool-focus-start',group:'Tools',icon:'▶',title:'Start a focus timer',run:()=>{nav('focus');setTimeout(()=>{const b=document.querySelector('[onclick*="toggleFocus"]');if(b)b.click();},150);}},
     {id:'tool-toggle-dark',group:'Tools',icon:isDark?'☀':'🌙',title:isDark?'Switch to Light Mode':'Switch to Dark Mode',run:()=>{const t=document.getElementById('tog-dark');if(t)toggleDarkMode(t);else{D.prefs.darkMode=!D.prefs.darkMode;applyPrefs();save('prefs');}}},
+    {id:'tool-customize-page',group:'Tools',icon:'⚙',title:'Customize this page…',run:()=>{closeCommandPalette();openPageCustomize(typeof curScreen!=='undefined'?curScreen:'home');}},
+    {id:'tool-workspace-layout',group:'Tools',icon:'▦',title:'Workspace layout & visible pages…',run:()=>{closeCommandPalette();nav('settings');setTimeout(()=>{const t=[...document.querySelectorAll('#s-settings .si')].find(x=>/Workspace/.test(x.textContent));if(t)t.click();},140);}},
     {id:'tool-reset-theme',group:'Tools',icon:'↺',title:'Reset theme to defaults',run:()=>resetTheme()},
     {id:'tool-save-profile',group:'Tools',icon:'💾',title:'Save current theme as profile…',run:()=>saveThemeAsProfile()},
     ...profs.map(p=>({id:'profile-'+p.id,group:'Theme Profiles',icon:p.emoji||'🎨',title:'Apply: '+p.name,run:()=>loadThemeProfile(p.id)})),

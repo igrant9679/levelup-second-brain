@@ -1824,12 +1824,28 @@ function _renderMiniWeekStrip(){
     r.insertAdjacentHTML('afterbegin',html);
   });
 }
+// One discoverable way into per-page customization, injected into every rail
+// alongside the shortcuts legend — the same trick _renderMiniWeekStrip uses,
+// and far safer than threading a button through a dozen page headers. Pages
+// with no rail are covered by Settings → Workspace and the command palette.
+function _renderCustomizeAffordance(){
+  const page=typeof curScreen!=='undefined'?curScreen:'home';
+  const html=`<div class="lu-page-customize" style="margin-top:8px">
+    <button class="btn btn-s" style="width:100%;font-size:11px;height:26px"
+      onclick="openPageCustomize('${_jsAttr(page)}')"
+      title="Choose which sections show on this page">⚙ Customize this page</button>
+  </div>`;
+  document.querySelectorAll('.scr.on .rr, .scr.on .notes-rail').forEach(r=>{
+    const old=r.querySelector('.lu-page-customize');if(old)old.remove();
+    r.insertAdjacentHTML('beforeend',html);
+  });
+}
 // Auto-inject after every screen render. renderScreen is the orchestrator
 // that fires per-page render functions; we tack on the legend afterwards.
 const _origRenderScreen=window.renderScreen||function(){};
 window.renderScreen=function(s){
   const r=_origRenderScreen.apply(this,arguments);
-  setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();_applyPlatformKeys();},50);
+  setTimeout(()=>{_renderMiniWeekStrip();_renderShortcutsLegend();_applyPlatformKeys();_renderCustomizeAffordance();},50);
   return r;
 };
 // On non-Mac, swap the static Mac ⌘ glyph for "Ctrl" in keyboard-shortcut hints.
@@ -6602,7 +6618,14 @@ function luSetRailOn(id,on){
 }
 function luSetModuleOn(pageId,modId,on){
   _wsMigrateLegacy();
-  const p=_wsPage(pageId);p.modules=p.modules||{};p.modules[modId]=!!on;
+  const p=_wsPage(pageId);p.modules=p.modules||{};
+  // Sparse: a module back at its default stores nothing, so the page (and
+  // eventually the whole workspace object) collapses away again.
+  const def=(_luPageModules(pageId)||[]).find(m=>m.id===modId);
+  const defaultOn=def?def.default!==false:true;
+  if(!!on===defaultOn)delete p.modules[modId];else p.modules[modId]=!!on;
+  if(!Object.keys(p.modules).length)delete p.modules;
+  if(!Object.keys(p).length){const w=_ws();if(w.pages)delete w.pages[pageId];}
   _wsSave();_luRebuildLayoutCSS();
 }
 // Back to stock. Deliberately deletes the whole object rather than writing
@@ -6719,13 +6742,126 @@ function _luRebuildLayoutCSS(force){
     tag.textContent=out.join('\n');
   }catch(e){if(window.__DEV__)console.warn('[workspace] rebuild CSS failed',e);}
 }
+// Right rails are where the optional, glanceable content lives, and every
+// page builds them the same way: a stack of cards, each opening with a short
+// bold heading. Rather than hand-tagging ~60 cards across a dozen render
+// functions (and risking their template literals), derive a stable id from
+// each card's own heading after render — so the label the user toggles is
+// literally the label they see. An explicit data-mod in the markup always
+// wins, and ids only drift if a heading is reworded, which self-heals by
+// showing the card again.
+function _luSlug(s){return String(s||'').replace(/[^\w\s-]/g,'').trim().toLowerCase().replace(/\s+/g,'-').slice(0,32);}
+function _luRailModules(){
+  const scr=document.querySelector('.scr.on');if(!scr)return[];
+  const rail=scr.querySelector(':scope > .bg > .rr');if(!rail)return[];
+  const found=[],seen=Object.create(null);
+  [...rail.children].forEach(el=>{
+    if(!el.getAttribute)return;
+    // Skip chrome that isn't page content. The mini-week strip, shortcuts
+    // legend and the customize button are injected into every rail after
+    // render by the renderScreen wrapper — they aren't this page's content.
+    if(el.classList.contains('notes-resize')||el.classList.contains('lu-sc-legend'))return;
+    if(el.classList.contains('lu-page-customize')||el.id==='lu-mini-week')return;
+    // The card's own heading is the label either way, so an explicitly tagged
+    // section still reads as the words on screen rather than its slug.
+    const head=[...el.querySelectorAll('*')].find(n=>{
+      const st=(n.getAttribute&&n.getAttribute('style'))||'';
+      const t=(n.textContent||'').trim();
+      return /font-weight:\s*(600|700|bold)/.test(st)&&t.length>1&&t.length<48;
+    });
+    const label=((head?head.textContent:el.textContent)||'').replace(/\s+/g,' ').trim().slice(0,42);
+    if(el.dataset.mod){
+      found.push({id:el.dataset.mod,label:label||el.dataset.modLabel||el.dataset.mod});
+      return;
+    }
+    const slug=_luSlug(label);
+    if(!slug)return;
+    let id='r-'+slug;
+    if(seen[id]){seen[id]++;id=id+'-'+seen[id];}else seen[id]=1;
+    el.setAttribute('data-mod',id);
+    el.setAttribute('data-mod-label',label);
+    found.push({id,label});
+  });
+  return found;
+}
 // Post-render hook. The stylesheet does the hiding; this keeps the grid and
-// the pane resizers agreeing with it, and hides sidebar groups left empty.
+// the pane resizers agreeing with it. Tagging runs after the CSS is built —
+// that's fine, the rules are declarative and match as soon as the attribute
+// lands.
 function applyPageLayout(page){
   try{
     _luRebuildLayoutCSS();
+    _luRailModules();
     if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
   }catch(e){if(window.__DEV__)console.warn('[workspace] applyPageLayout failed',e);}
+}
+// Generic per-page customize dialog, reachable from the ⚙ button in a page
+// header. Home and Tasks keep their own richer dialogs (they add per-card
+// "determination modes" and reordering that this one deliberately doesn't
+// duplicate), so those two delegate rather than lose functionality.
+function openPageCustomize(page){
+  page=page||(typeof curScreen!=='undefined'?curScreen:'home');
+  if(page==='home'&&typeof openHomeDashCustomize==='function')return openHomeDashCustomize();
+  if(page==='tasks'&&typeof openTaskRailCustomize==='function')return openTaskRailCustomize();
+  closeModal();
+  const def=luPageDef(page)||{id:page,label:page};
+  const mods=luPageModuleList(page);
+  const groups={};
+  mods.forEach(m=>{(groups[m.group]=groups[m.group]||[]).push(m);});
+  const groupHtml=Object.keys(groups).map(g=>`
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700;margin:10px 0 4px">${esc(g)}</div>
+    ${groups[g].map(m=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px">
+      <span style="flex:1;font-size:12px">${esc(m.label)}</span>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+        <input type="checkbox" ${luModuleOn(page,m.id)?'checked':''}
+          onchange="luSetModuleOn('${_jsAttr(page)}','${_jsAttr(m.id)}',this.checked)">Show
+      </label>
+    </div>`).join('')}`).join('');
+  const railRow=def.rail?`<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px">
+      <span style="flex:1;font-size:12px;font-weight:600">Right sidebar</span>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+        <input type="checkbox" ${luRailOn(page)?'checked':''}
+          onchange="luSetRailOn('${_jsAttr(page)}',this.checked);renderScreen('${_jsAttr(page)}');setTimeout(()=>openPageCustomize('${_jsAttr(page)}'),60)">Show
+      </label>
+    </div>`:'';
+  const html=`<div style="padding:18px;min-width:380px;max-width:520px;max-height:74vh;overflow:auto">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:6px">⚙ Customize ${esc(def.label)}</h3>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Switch off what you don't use. Nothing is deleted — turn it back on any time here or in Settings → Workspace. Saves automatically and syncs to your other devices.</p>
+    ${railRow}
+    ${groupHtml||'<div style="font-size:11px;color:var(--t3);padding:10px 0">This page has no optional sections yet. You can still hide the page itself or its sidebar from Settings → Workspace.</div>'}
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px">
+      <button class="btn btn-s" style="font-size:11px" onclick="closeModal();nav('settings');setTimeout(()=>{const t=[...document.querySelectorAll('#s-settings .si')].find(x=>/Workspace/.test(x.textContent));if(t)t.click();},120)">All settings…</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-s" style="font-size:11px" onclick="luResetPage('${_jsAttr(page)}');setTimeout(()=>openPageCustomize('${_jsAttr(page)}'),60)">Reset page</button>
+        <button class="btn btn-p" style="font-size:11px" onclick="closeModal()">Done</button>
+      </div>
+    </div>
+  </div>`;
+  const mc=document.getElementById('modal-content');if(mc)mc.innerHTML=html;
+  document.getElementById('modal-capture').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+function luResetPage(page){
+  const w=_wsRead();
+  if(w.pages&&w.pages[page]){delete _ws().pages[page];_wsSave();}
+  _luRebuildLayoutCSS(true);
+  if(typeof renderScreen==='function')renderScreen(page);
+  if(typeof toast==='function')toast('Page reset to defaults');
+}
+// Everything the current page can show/hide: the page's own registered
+// modules (Home cards, Tasks rail widgets, explicitly tagged sections) plus
+// whatever its rail is currently rendering.
+function luPageModuleList(page){
+  const out=[],seen=Object.create(null);
+  (_luPageModules(page)||[]).forEach(m=>{
+    if(seen[m.id])return;seen[m.id]=1;
+    out.push({id:m.id,label:m.label||m.id,group:page==='home'?'Dashboard cards':'Widgets'});
+  });
+  _luRailModules().forEach(m=>{
+    if(seen[m.id])return;seen[m.id]=1;
+    out.push({id:m.id,label:m.label,group:'Right sidebar'});
+  });
+  return out;
 }
 
 // Home dashboard card order & visibility
@@ -6765,11 +6901,45 @@ const _homeCardDefs=[
   {id:'focusSuggestion',icon:'target',label:'Peak Focus Hour',default:false},
   {id:'staleContent',icon:'trash',label:'Stale Content (>30d)',default:false},
 ];
-function getHomeCardPrefs(){
-  try{const p=JSON.parse(localStorage.getItem('lu_home_cards')||'null');if(p)return p;}catch(e){}
-  return _homeCardDefs.map(c=>({id:c.id,visible:c.default,order:_homeCardDefs.findIndex(x=>x.id===c.id)}));
+// ── Bridge: legacy pref shape ⇄ the synced workspace store ──────────────────
+// Home cards and the Tasks rail predate D.prefs.workspace and stored their
+// layout in localStorage, so it never followed the user to another device.
+// These two helpers present the workspace store in the exact legacy
+// [{id,visible,order}] shape, so every existing consumer keeps working
+// untouched while the data itself becomes server-synced.
+function _wsPrefsList(pageId,defs){
+  const page=_wsReadPage(pageId);
+  const mods=page.modules||{};
+  const order=Array.isArray(page.order)?page.order:null;
+  // Only fall back to the old localStorage layout while nothing has been
+  // written to the new store for this page.
+  const legacy=(order||Object.keys(mods).length)?null:_wsLegacyModules(pageId);
+  return defs.map((d,i)=>{
+    let visible=d.default!==false,ord=i;
+    if(Object.prototype.hasOwnProperty.call(mods,d.id))visible=mods[d.id]!==false;
+    else if(legacy){const r=legacy.find(x=>x.id===d.id);if(r)visible=r.visible!==false;}
+    if(order){const oi=order.indexOf(d.id);ord=oi>=0?oi:order.length+i;}
+    else if(legacy){const r=legacy.find(x=>x.id===d.id);if(r&&typeof r.order==='number')ord=r.order;}
+    return {id:d.id,visible,order:ord};
+  });
 }
-function saveHomeCardPrefs(prefs){localStorage.setItem('lu_home_cards',JSON.stringify(prefs));}
+function _wsPrefsSave(pageId,defs,prefs){
+  _wsMigrateLegacy();
+  const p=_wsPage(pageId);
+  const mods={};
+  (prefs||[]).forEach(r=>{
+    const d=defs.find(x=>x.id===r.id);if(!d)return;
+    // Store deviations only, so an untouched widget keeps following its default.
+    if((r.visible!==false)!==(d.default!==false))mods[r.id]=r.visible!==false;
+  });
+  if(Object.keys(mods).length)p.modules=mods;else delete p.modules;
+  const ordered=(prefs||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(r=>r.id);
+  if(ordered.length&&JSON.stringify(ordered)!==JSON.stringify(defs.map(d=>d.id)))p.order=ordered;else delete p.order;
+  if(!Object.keys(p).length){const w=_ws();if(w.pages)delete w.pages[pageId];}
+  _wsSave();_luRebuildLayoutCSS();
+}
+function getHomeCardPrefs(){return _wsPrefsList('home',_homeCardDefs);}
+function saveHomeCardPrefs(prefs){_wsPrefsSave('home',_homeCardDefs,prefs);}
 // ── Home card "determination" modes ─────────────────────────────────────────
 // Each card that surfaces a list (tasks / notes / projects / etc.) supports
 // multiple selection strategies. The user picks one from the Customize
@@ -10221,8 +10391,8 @@ const _taskRailDefs=[
   {id:'productivityScore',label:'📊 Productivity Score (today)',default:false},
   {id:'reportsLink',label:'📊 Open full Reports button',default:true}
 ];
-function getTaskRailPrefs(){try{const p=JSON.parse(localStorage.getItem('lu_task_rail')||'null');if(p)return p;}catch(e){}return _taskRailDefs.map((c,i)=>({id:c.id,visible:c.default,order:i}));}
-function saveTaskRailPrefs(p){localStorage.setItem('lu_task_rail',JSON.stringify(p));}
+function getTaskRailPrefs(){return _wsPrefsList('tasks',_taskRailDefs);}
+function saveTaskRailPrefs(p){_wsPrefsSave('tasks',_taskRailDefs,p);}
 function taskRailToggle(id,visible){const p=getTaskRailPrefs();const it=p.find(x=>x.id===id);if(it){it.visible=visible;saveTaskRailPrefs(p);renderTasks();}}
 function taskRailMove(id,dir){const p=getTaskRailPrefs().sort((a,b)=>a.order-b.order);const idx=p.findIndex(x=>x.id===id);if(idx<0)return;const ni=idx+dir;if(ni<0||ni>=p.length)return;[p[idx].order,p[ni].order]=[p[ni].order,p[idx].order];saveTaskRailPrefs(p);renderTasks();setTimeout(openTaskRailCustomize,80);}
 function openTaskRailCustomize(){
@@ -13643,7 +13813,7 @@ function _renderProjRail(){
   r.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:700">${_icon('barChart',14,'currentColor')} Insights</div>
   </div>
-  <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
+  <div data-mod="pr-health" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:8px">Health</div>
     <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
       <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok);flex-shrink:0"></span><span style="flex:1">On Track</span><strong>${byHealth['On Track']}</strong></div>
@@ -13651,9 +13821,9 @@ function _renderProjRail(){
       <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span style="flex:1">At Risk</span><strong style="color:var(--red)">${byHealth['At Risk']}</strong></div>
     </div>
   </div>
-  ${due30.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
-  ${onDeck.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
-  ${recentTasks.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
+  ${due30.length?`<div data-mod="pr-due30" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
+  ${onDeck.length?`<div data-mod="pr-ondeck" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
+  ${recentTasks.length?`<div data-mod="pr-recent" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
 }
 
 // ─── Project Health helper ──────────────────────────────────────────────────
