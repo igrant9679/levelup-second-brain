@@ -1727,6 +1727,13 @@ var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas'};
 var curScreen='home';
 function nav(s){
+  // A hidden page can still be reached by a deep link, the command palette or
+  // an in-app link. Turn it back on rather than dead-ending on a blank screen.
+  if(s&&typeof luPageOn==='function'&&!luPageOn(s)){
+    luSetPageOn(s,true);
+    const d=luPageDef(s);
+    if(typeof toast==='function'&&d)toast(`${d.label} was hidden — turned back on`);
+  }
   document.querySelectorAll('.scr').forEach(x=>x.classList.remove('on'));
   document.getElementById(SM[s]||'s-home').classList.add('on');
   curScreen=s;
@@ -3434,6 +3441,15 @@ function initSidebars(a){
       sb.appendChild(btn);
     }
   });
+  // Hide any group the user has emptied out. The items themselves are hidden
+  // by #lu-layout-css; a group whose every item is gone would otherwise leave
+  // a stranded header.
+  try{
+    document.querySelectorAll('[data-sb] .sg').forEach(g=>{
+      const items=[...g.querySelectorAll('.si[data-n]')];
+      g.style.display=(!items.length||items.some(i=>luPageOn(i.dataset.n)))?'':'none';
+    });
+  }catch(_){}
   // Hydrate group-collapse state: re-apply each saved group's collapsed
   // class on every nav (sidebars are re-cloned from #sb-tpl per render,
   // so without this every navigation would reset the user's fold state).
@@ -4677,6 +4693,8 @@ function renderScreen(s){
   if(s==='atlas')renderAtlas();
   if(s==='help')renderHelp();
   updateSidebarBadges();
+  // Apply the user's per-page layout (rails / hidden sections) before paint.
+  applyPageLayout(s);
   // Pane resizers need the fresh layout — install after this frame paints.
   setTimeout(initPaneResizers,60);
 }
@@ -4698,7 +4716,11 @@ function _applyCurrentPaneSizes(){
   if(scr.id==='s-notes'){
     bg.style.gridTemplateColumns=`var(--side) ${ps.notesNav||160}px ${ps.notesList||240}px 1fr ${ps.notesRail||200}px`;
   }else if(bg.classList.contains('wr')){
-    bg.style.gridTemplateColumns=`var(--side) 1fr ${ps.rail||280}px`;
+    // Rail hidden by the user's layout → don't reserve its track. (The
+    // generated #lu-layout-css also forces this with !important, so the two
+    // agree whichever runs last.)
+    const railOff=typeof luRailOn==='function'&&!luRailOn(scr.id.replace(/^s-/,''));
+    bg.style.gridTemplateColumns=railOff?'var(--side) 1fr':`var(--side) 1fr ${ps.rail||280}px`;
   }
 }
 function initPaneResizers(){
@@ -6420,6 +6442,217 @@ function autoCalcGoalPctBidirectional(g){
     save('goals');
     if(newPct===100)toast(`🎉 Goal "${g.title}" is 100% complete!`);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WORKSPACE CUSTOMIZATION — registry + resolvers
+// ═══════════════════════════════════════════════════════════════════════════
+// Per-user control over which pages, right rails and page sections are shown.
+// NOTHING is removed from the app: this is a visibility layer the user opts
+// into, so every feature stays one checkbox away.
+//
+// Stored in D.prefs.workspace, which is server-synced ('prefs' is in
+// _syncKeys), so a layout follows the user between devices. The two older
+// per-page systems (lu_home_cards / lu_task_rail) were localStorage-only —
+// they're read as a fallback here and folded in on first mutation.
+//
+//   D.prefs.workspace = {
+//     v:1,
+//     preset:'everything',
+//     pages:{ tasks:{on:true,rail:true,modules:{topOverdue:false}} },
+//     onboarded:true,
+//   }
+//
+// ⚠ SPARSE BY DESIGN. Only deviations from today's UI are ever written, and
+// every resolver falls back to the pre-existing default — so an absent or
+// empty workspace object renders EXACTLY what the app rendered before this
+// feature existed. Keep it that way: "reset to defaults" is simply
+// `delete D.prefs.workspace`.
+//
+// Visibility is applied through ONE generated stylesheet (#lu-layout-css,
+// built by _luRebuildLayoutCSS) rather than inline styles on each node. That
+// survives the async re-renders several pages do after their data loads, and
+// keeps all of it out of index.html — same approach applyTheme() already uses
+// for #lu-page-accents.
+
+// Every route in SM. `nav:true` = has a sidebar entry, and so gets a
+// visibility checkbox. `core:true` = can never be hidden, so nobody can lock
+// themselves out. `rail` mirrors which screens carry a .bg.wr right rail in
+// index.html — keep in sync with that markup.
+const LU_PAGES=[
+  {id:'home',     label:'Home',            group:'today', nav:true,  core:true,  rail:true },
+  {id:'myday',    label:'Planner',         group:'today', nav:true,  core:false, rail:true },
+  {id:'tasks',    label:'Tasks',           group:'work',  nav:true,  core:false, rail:true },
+  {id:'command',  label:'Command Center',  group:'work',  nav:true,  core:false, rail:true },
+  {id:'programs', label:'Programs',        group:'work',  nav:true,  core:false, rail:true },
+  {id:'projects', label:'Projects',        group:'work',  nav:true,  core:false, rail:true },
+  {id:'pipeline', label:'Pipeline',        group:'work',  nav:true,  core:false, rail:true },
+  {id:'atlas',    label:'Atlas',           group:'work',  nav:true,  core:false, rail:true },
+  {id:'notes',    label:'Notes',           group:'mind',  nav:true,  core:false, rail:false},
+  {id:'mindmaps', label:'Mind Maps',       group:'mind',  nav:true,  core:false, rail:false},
+  {id:'ideas',    label:'Ideas',           group:'mind',  nav:true,  core:false, rail:true },
+  {id:'focus',    label:'Focus',           group:'mind',  nav:true,  core:false, rail:false},
+  {id:'calendar', label:'Calendar',        group:'life',  nav:true,  core:false, rail:true },
+  {id:'goals',    label:'Goals',           group:'life',  nav:true,  core:false, rail:false},
+  {id:'habits',   label:'Habits',          group:'life',  nav:true,  core:false, rail:true },
+  {id:'coach',    label:'Coach',           group:'life',  nav:true,  core:false, rail:true },
+  {id:'journal',  label:'Journal',         group:'life',  nav:true,  core:false, rail:true },
+  {id:'mail',     label:'Mail',            group:'comms', nav:true,  core:false, rail:true },
+  {id:'team',     label:'Team',            group:'comms', nav:true,  core:false, rail:true },
+  {id:'contacts', label:'Contacts',        group:'comms', nav:true,  core:false, rail:true },
+  {id:'reports',  label:'Reports',         group:'other', nav:true,  core:false, rail:false},
+  {id:'bookmarks',label:'Bookmarks',       group:'other', nav:true,  core:false, rail:true },
+  {id:'archive',  label:'Archive',         group:'other', nav:true,  core:false, rail:false},
+  {id:'help',     label:'Help & Learning', group:'other', nav:true,  core:true,  rail:false},
+  {id:'settings', label:'Settings',        group:'other', nav:true,  core:true,  rail:false},
+  // Reached from in-app links / the command palette rather than the sidebar.
+  // They get rail + section control but no visibility checkbox — hiding a page
+  // with no nav entry would only break the links that point at it.
+  {id:'clusters', label:'Clusters',        group:'work',  nav:false, core:true,  rail:true },
+  {id:'standup',  label:'Standup',         group:'work',  nav:false, core:true,  rail:false},
+  {id:'myweek',   label:'My Week',         group:'today', nav:false, core:true,  rail:false},
+  {id:'myyear',   label:'My Year',         group:'today', nav:false, core:true,  rail:true },
+  {id:'process',  label:'Process (GTD)',   group:'work',  nav:false, core:true,  rail:false},
+  {id:'graph',    label:'Knowledge Graph', group:'mind',  nav:false, core:true,  rail:false},
+];
+const LU_PAGE_GROUPS={today:'Today',work:'Work',mind:'Mind',life:'Life',comms:'Comms',other:'Other'};
+function luPageDef(id){return LU_PAGES.find(p=>p.id===id)||null;}
+
+// Read-only view of the stored prefs. Never creates objects — it runs during
+// render, and lazily writing here would defeat the sparse-by-default rule.
+function _wsRead(){return (D&&D.prefs&&D.prefs.workspace)||{};}
+function _wsReadPage(id){return (_wsRead().pages||{})[id]||{};}
+// Mutable accessors — only called from explicit user actions.
+function _ws(){D.prefs=D.prefs||{};return D.prefs.workspace=D.prefs.workspace||{};}
+function _wsPage(id){const w=_ws();w.pages=w.pages||{};return w.pages[id]=w.pages[id]||{};}
+function _wsSave(){try{save('prefs');}catch(_){try{localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));}catch(__){}}}
+
+// The per-page module lists. Home and Tasks reuse the defs that already drive
+// their existing Customize dialogs, so those keep working untouched; the rest
+// are tagged with data-mod attributes on their render output.
+function _luPageModules(pageId){
+  if(pageId==='home')return typeof _homeCardDefs!=='undefined'?_homeCardDefs:[];
+  if(pageId==='tasks')return typeof _taskRailDefs!=='undefined'?_taskRailDefs:[];
+  return (typeof LU_PAGE_MODULES!=='undefined'&&LU_PAGE_MODULES[pageId])||[];
+}
+// Pre-workspace layout prefs. Read-only fallback so a user who customised
+// Home/Tasks before this feature keeps their layout until they touch it again.
+function _wsLegacyModules(pageId){
+  const key=pageId==='home'?'lu_home_cards':pageId==='tasks'?'lu_task_rail':null;
+  if(!key)return null;
+  try{const raw=JSON.parse(localStorage.getItem(key)||'null');if(Array.isArray(raw)&&raw.length)return raw;}catch(_){}
+  return null;
+}
+
+function luPageOn(id){
+  const def=luPageDef(id);
+  if(!def||def.core)return true;
+  return _wsReadPage(id).on!==false;
+}
+function luRailOn(id){
+  const def=luPageDef(id);
+  if(!def||!def.rail)return true;
+  return _wsReadPage(id).rail!==false;
+}
+function luModuleOn(pageId,modId){
+  const mods=_wsReadPage(pageId).modules;
+  if(mods&&Object.prototype.hasOwnProperty.call(mods,modId))return mods[modId]!==false;
+  const legacy=_wsLegacyModules(pageId);
+  if(legacy){const row=legacy.find(r=>r.id===modId);if(row)return row.visible!==false;}
+  const def=(_luPageModules(pageId)||[]).find(m=>m.id===modId);
+  return def?def.default!==false:true;
+}
+
+// Fold the two legacy localStorage stores into the synced workspace object.
+// Runs once, on the first change the user makes through the new UI — doing it
+// at boot would mean writing prefs for everyone before they've asked for
+// anything, and could race the server hydrating D.prefs.
+function _wsMigrateLegacy(){
+  const w=_ws();
+  if(w.v)return;
+  [['home',typeof _homeCardDefs!=='undefined'?_homeCardDefs:[]],
+   ['tasks',typeof _taskRailDefs!=='undefined'?_taskRailDefs:[]]].forEach(([pageId,defs])=>{
+    const legacy=_wsLegacyModules(pageId);
+    if(!legacy)return;
+    const mods={};
+    legacy.slice().sort((a,b)=>(a.order||0)-(b.order||0)).forEach(r=>{
+      const def=defs.find(d=>d.id===r.id);
+      if(!def)return;
+      // Store deviations only, so untouched widgets keep following their default.
+      if((r.visible!==false)!==(def.default!==false))mods[r.id]=r.visible!==false;
+    });
+    if(Object.keys(mods).length){const p=_wsPage(pageId);p.modules=Object.assign({},p.modules||{},mods);}
+  });
+  w.v=1;
+  if(!w.preset)w.preset='everything';
+}
+
+function luSetPageOn(id,on){
+  const def=luPageDef(id);
+  if(!def||def.core)return;
+  _wsMigrateLegacy();_wsPage(id).on=!!on;_wsSave();
+  _luRebuildLayoutCSS();
+  if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
+}
+function luSetRailOn(id,on){
+  _wsMigrateLegacy();_wsPage(id).rail=!!on;_wsSave();
+  _luRebuildLayoutCSS();
+  if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
+  if(typeof initPaneResizers==='function')setTimeout(initPaneResizers,60);
+}
+function luSetModuleOn(pageId,modId,on){
+  _wsMigrateLegacy();
+  const p=_wsPage(pageId);p.modules=p.modules||{};p.modules[modId]=!!on;
+  _wsSave();_luRebuildLayoutCSS();
+}
+// Back to stock. Deliberately deletes the whole object rather than writing
+// every default back, so "default" always means the same thing.
+function luResetWorkspace(){
+  if(D&&D.prefs)delete D.prefs.workspace;
+  try{localStorage.removeItem('lu_home_cards');localStorage.removeItem('lu_task_rail');}catch(_){}
+  _wsSave();_luRebuildLayoutCSS(true);
+  if(typeof initSidebars==='function')initSidebars(typeof curScreen!=='undefined'?curScreen:'home');
+  if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);
+}
+
+// One generated stylesheet carries every hide rule. Rebuilt only when the
+// stored shape actually changes, so calling it each render is cheap.
+let _luLayoutCSSKey=null;
+function _luRebuildLayoutCSS(force){
+  try{
+    const w=_wsRead();
+    const key=JSON.stringify(w.pages||{});
+    if(!force&&key===_luLayoutCSSKey)return;
+    _luLayoutCSSKey=key;
+    const out=[];
+    LU_PAGES.forEach(def=>{
+      const scr='#'+(typeof SM!=='undefined'&&SM[def.id]?SM[def.id]:'s-'+def.id);
+      if(def.nav&&!luPageOn(def.id))out.push(`.si[data-n="${def.id}"]{display:none!important}`);
+      if(def.rail&&!luRailOn(def.id)){
+        out.push(`${scr} > .bg.wr > .rr{display:none!important}`);
+        // Beats the inline grid the pane-resizer writes, so the main column
+        // reclaims the space instead of leaving a 280px gap.
+        out.push(`${scr} > .bg.wr{grid-template-columns:var(--side) 1fr!important}`);
+      }
+      const mods=(w.pages||{})[def.id];
+      if(mods&&mods.modules){
+        Object.keys(mods.modules).forEach(mid=>{
+          if(mods.modules[mid]===false)out.push(`${scr} [data-mod="${mid}"]{display:none!important}`);
+        });
+      }
+    });
+    let tag=document.getElementById('lu-layout-css');
+    if(!tag){tag=document.createElement('style');tag.id='lu-layout-css';document.head.appendChild(tag);}
+    tag.textContent=out.join('\n');
+  }catch(e){if(window.__DEV__)console.warn('[workspace] rebuild CSS failed',e);}
+}
+// Post-render hook. The stylesheet does the hiding; this keeps the grid and
+// the pane resizers agreeing with it, and hides sidebar groups left empty.
+function applyPageLayout(page){
+  try{
+    _luRebuildLayoutCSS();
+    if(typeof _applyCurrentPaneSizes==='function')_applyCurrentPaneSizes();
+  }catch(e){if(window.__DEV__)console.warn('[workspace] applyPageLayout failed',e);}
 }
 
 // Home dashboard card order & visibility
