@@ -1049,6 +1049,25 @@ function renderSettingsHTML(){
   </div></div>`;
 }
 
+// Publish the current layout as the starting point for new teammates. The
+// server gates this on the workspace OWNER (invited teammates are all admins,
+// so the client can't tell them apart) — if a non-owner gets here, the server
+// says so and we surface that verbatim rather than pretending it worked.
+async function _publishTeamPreset(){
+  const el=document.getElementById('ws-team-preset-status');
+  const ws=(D.prefs&&D.prefs.workspace)||{};
+  if(el){el.textContent='Publishing…';el.style.color='var(--t3)';}
+  try{
+    const r=await _trpc('appData.setTeamStarterPreset',
+      {preset:ws.preset||'everything',layout:{pages:ws.pages||{}}},'mutation');
+    if(!el)return;
+    if(r&&r.ok){el.textContent='Published. New teammates will start from this layout.';el.style.color='var(--ok)';}
+    else{el.textContent=(r&&r.error)||'Could not publish.';el.style.color='var(--red)';}
+  }catch(e){
+    if(el){el.textContent='Could not publish: '+(e.message||e);el.style.color='var(--red)';}
+  }
+}
+
 // ─── Workspace layout panel (Settings → Workspace) ──────────────────────────
 // Renders from the LU_PAGES registry in app-part1.js, so it stays correct as
 // pages are added. Everything writes through the lu* setters, which keep the
@@ -1101,6 +1120,13 @@ function _renderWorkspacePanel(){
       <select class="inp" style="width:100%;font-size:11px" onchange="setDensity(this.value)">
         ${['normal','compact','dense'].map(d=>`<option value="${d}"${d===density?' selected':''}>${d[0].toUpperCase()+d.slice(1)}</option>`).join('')}
       </select>
+      ${['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase())?`
+      <div style="margin-top:14px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px">Team starting layout</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Publish your current layout as the one new teammates begin with. It is only a starting point — they can change anything, and this never touches an existing member's setup.</div>
+        <button class="btn btn-s" style="font-size:11px;width:100%" onclick="_publishTeamPreset()">Publish as team default</button>
+        <div id="ws-team-preset-status" style="font-size:11px;color:var(--t3);margin-top:5px"></div>
+      </div>`:''}
       <div style="margin-top:14px;display:flex;flex-direction:column;gap:4px">
         <button class="btn btn-p" style="font-size:11px" onclick="openSetupWizard()">Run the setup guide</button>
         <button class="btn btn-s" style="font-size:11px" onclick="luExportWorkspace()">Export layout</button>
@@ -9437,8 +9463,15 @@ const _WIZ_STEPS=['Your work','Your layout','Your pages','Connect','Get going'];
 
 function openSetupWizard(){
   const ws=(D.prefs&&D.prefs.workspace)||{};
-  _wiz={step:0,role:null,preset:ws.preset&&ws.preset!=='everything'?ws.preset:null,pages:null};
+  _wiz={step:0,role:null,preset:ws.preset&&ws.preset!=='everything'?ws.preset:null,pages:null,teamPreset:null};
   _wizRender();
+  // If the owner published a starting layout for the team, preselect it. Async
+  // and best-effort: the wizard is already usable, this just moves the default.
+  _trpc('appData.getTeamStarterPreset',undefined,'query').then(tp=>{
+    if(!_wiz||!tp||!tp.preset)return;
+    _wiz.teamPreset=tp.preset;
+    if(!_wiz.role&&!_wiz.pages){_wiz.preset=tp.preset;_wizRender();}
+  }).catch(()=>{});
 }
 function closeSetupWizard(){
   const ov=document.getElementById('lu-wiz-ov');if(ov)ov.remove();
@@ -9554,7 +9587,7 @@ function _wizStepHTML(step){
     <div style="display:grid;gap:6px">
       ${LU_PRESETS.map(p=>`<button class="btn ${p.id===cur?'btn-p':'btn-s'}" style="height:auto;padding:10px 12px;text-align:left;display:block;width:100%"
         onclick="_wizPickPreset('${p.id}')">
-        <span style="display:block;font-size:12px;font-weight:600">${esc(p.label)}</span>
+        <span style="display:block;font-size:12px;font-weight:600">${esc(p.label)}${p.id===_wiz.teamPreset?' · your team’s default':''}</span>
         <span style="display:block;font-size:11px;opacity:.8;font-weight:400;margin-top:1px">${esc(p.desc)}</span>
       </button>`).join('')}
     </div>`;

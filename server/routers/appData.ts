@@ -1,7 +1,7 @@
 import { eq, and, ne, isNull, asc } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "../db";
-import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users } from "../../drizzle/schema";
+import { userAppData, tasksTable, notesTable, ideasTable, externalTasks, users, systemSettings } from "../../drizzle/schema";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 
 /**
@@ -34,8 +34,12 @@ async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Pro
   return _minUserIdCache.id != null && user.id === _minUserIdCache.id;
 }
 
+// system_settings row holding the owner-published starter layout for new
+// teammates. See setTeamStarterPreset / getTeamStarterPreset at the bottom.
+const TEAM_PRESET_KEY = 'teamStarterPreset';
+
 // Keys that can be saved/loaded
-const DATA_KEYS = ['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks'] as const;
+const DATA_KEYS =['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -1838,6 +1842,59 @@ export const appDataRouter = router({
       return { ok: true as const, users: usersList.length, tasksUpdated, notesUpdated };
     } catch (e: any) {
       return { ok: false as const, error: String(e?.message || e) };
+    }
+  }),
+
+  /**
+   * Team starter layout.
+   *
+   * The workspace OWNER can publish the layout new teammates begin with, so
+   * they land on a workspace shaped for how this team actually works instead
+   * of all ~31 pages at once. It is only a STARTING POINT — the setup wizard
+   * seeds from it and the member can change anything afterwards. Nothing here
+   * can hide a page from someone who has already chosen otherwise.
+   *
+   * Stored as one JSON row in system_settings (same key/value table the
+   * notificationSender and aiKey_* settings already use), so no migration.
+   */
+  setTeamStarterPreset: protectedProcedure
+    .input(z.object({ preset: z.string().max(40).nullable(), layout: z.any().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      // Gate on the OWNER, not isAdminUser — invited teammates are all admins.
+      if (!(await isOwnerCtxUser(ctx.user as any))) {
+        return { ok: false as const, error: 'Only the workspace owner can publish a team layout' };
+      }
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'no database' };
+      try {
+        const value = JSON.stringify({
+          preset: input.preset,
+          layout: input.layout ?? null,
+          publishedAt: new Date().toISOString(),
+        });
+        await db
+          .insert(systemSettings)
+          .values({ key: TEAM_PRESET_KEY, value })
+          .onDuplicateKeyUpdate({ set: { value } });
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  getTeamStarterPreset: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return null;
+    try {
+      const rows = await db
+        .select({ value: systemSettings.value })
+        .from(systemSettings)
+        .where(eq(systemSettings.key, TEAM_PRESET_KEY));
+      if (!rows.length) return null;
+      return JSON.parse(rows[0].value);
+    } catch {
+      // A malformed row must not break onboarding — fall back to no preset.
+      return null;
     }
   }),
 });
