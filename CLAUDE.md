@@ -336,6 +336,44 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Aurora Glass theme — builds -145/-146 (2026-07-24) — PUSHED/LIVE ✅
+
+First of the four mocked visual directions. Ambient `--page-accent` auras
+behind frosted surfaces; same navy ground.
+
+**All of it is scoped to `body.aurora`**, toggled from Settings → Appearance
+(`D.prefs.auroraGlass`, default ON, server-synced, `toggleAuroraGlass`). The
+whole look comes off with one click and **no deploy** — deliberate, given
+-132/-134. The CSS block is at the END of the main `<style>` in `index.html`.
+
+- **Aura** = one `body.aurora .scr.on > .bg::before`: fixed, 3 radial gradients
+  (2+teal in light), inset by `--top`/`--side`, z-index 0, no blur.
+  `.mn`/`.rr`/`.sb` lift to z-index 1. Left inset resets to 0 below 900px.
+- **Glass** on `.rr`, `.cd`, and `.rr > [style*="var(--s2)"]`. That last
+  selector reaches the **inline-styled** rail cards — scoped to DIRECT children
+  so menus/popovers/modals stay OPAQUE (verified). Repeats
+  `-webkit-backdrop-filter`, and the `@supports` fallback tests **both** forms.
+- The app **already** frosted `.rr` (`blur(18px) saturate(140%)` over navy,
+  "Frosted-glass right rails" block ~line 1620). Aurora lightens that; toggling
+  off restores it.
+- **NOT done:** the mockup's gradient page headings — those `<h1>`s contain
+  inline SVG icons and `background-clip:text` would clip them across 23 headers.
+
+⚠ **Aurora is a DARK-MODE direction.** The owner account runs light
+(`darkMode:false`). First pass used 11%/9% accent in light, which on a white
+ground is invisible — shipped but not perceptible. -146 raised it to 22%/17%
++ teal. Even so it reads as a soft wash in light; **Daybreak Pop (direction 04)
+is the one designed for light mode** if that's where the user lives.
+
+⚠⚠ **MEASUREMENT PITFALL — cost real time three times this session.**
+`getComputedStyle` right after a class/theme change returns **mid-transition
+interpolations** (`oklab(...)` values that match neither rule), and screenshots
+taken mid-paint show text as faded/missing that is provably `opacity:1` and
+correctly coloured. **Wait ~1-2s and re-measure before believing a "bug".**
+Also: light/dark is driven by the CSS custom properties `applyTheme()` writes,
+**not** by the `light-mode` class alone — removing the class does not preview
+dark mode.
+
 ## Brand refresh — build -144 (2026-07-24) — PUSHED/LIVE ✅
 
 **Logo = "Aurora Stack"** (option 6 of the six mocked directions): three
