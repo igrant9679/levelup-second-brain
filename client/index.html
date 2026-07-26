@@ -2103,10 +2103,16 @@ body.aurora.light-mode .rr > [style*="var(--s2)"]{
   background:color-mix(in srgb,#fff 66%,transparent)!important;
   border-color:rgba(22,33,62,.10)!important;
 }
+/* Light mode still needs to READ as Aurora. The first pass sat at 11%/9%,
+   which on a white ground is essentially invisible — the effect was shipped
+   but not delivered. These are tuned to be clearly present while staying a
+   wash rather than a stain; a light ground shows colour far more readily than
+   a dark one, so this stays well below the dark values. */
 body.aurora.light-mode .scr.on > .bg::before{
   background:
-    radial-gradient(42% 55% at 15% 0%,  color-mix(in srgb,var(--page-accent,#3B82F6) 11%,transparent), transparent 70%),
-    radial-gradient(38% 50% at 84% 2%,  color-mix(in srgb,var(--purp) 9%,transparent),                 transparent 72%);
+    radial-gradient(44% 58% at 14% 0%,  color-mix(in srgb,var(--page-accent,#3B82F6) 22%,transparent), transparent 70%),
+    radial-gradient(40% 52% at 85% 1%,  color-mix(in srgb,var(--purp) 17%,transparent),                transparent 72%),
+    radial-gradient(34% 44% at 50% 24%, color-mix(in srgb,#2DD4BF 9%,transparent),                     transparent 74%);
 }
 
 /* Without backdrop-filter translucent panels just look washed out, so fall
@@ -3019,7 +3025,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-24-145';
+  var APP_BUILD='2026-07-24-146';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
