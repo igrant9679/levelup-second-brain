@@ -2036,6 +2036,94 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
   .tlc-chk{min-width:24px;min-height:24px}
   .si{min-height:44px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AURORA GLASS
+   ═══════════════════════════════════════════════════════════════════════════
+   Ambient accent auras behind frosted surfaces. Same navy ground as before —
+   what changes is how colour is delivered: light from behind, glass in front.
+
+   EVERY rule is scoped to `body.aurora`, so the entire look is one class
+   toggle (Settings → Appearance → Aurora Glass, D.prefs.auroraGlass). If it
+   ever looks wrong on a device, it comes off instantly with no deploy. That
+   is deliberate: builds -132/-134 shipped broken index.html CSS twice.
+
+   The aura is driven by --page-accent, which body[data-screen=…] already sets
+   per screen, so every page glows its own hue for free. */
+
+/* One fixed layer per screen. No blur, no repaint cost, pointer-events off.
+   Sits at z-index 0; .mn/.rr are lifted to 1 below. */
+body.aurora .scr.on > .bg::before{
+  content:'';position:fixed;top:var(--top);right:0;bottom:0;left:var(--side);
+  pointer-events:none;z-index:0;
+  background:
+    radial-gradient(42% 55% at 15% 0%,  color-mix(in srgb,var(--page-accent,#3B82F6) 26%,transparent), transparent 70%),
+    radial-gradient(38% 50% at 84% 2%,  color-mix(in srgb,var(--purp) 20%,transparent),                transparent 72%),
+    radial-gradient(34% 44% at 50% 24%, color-mix(in srgb,#2DD4BF 10%,transparent),                    transparent 74%);
+}
+/* Sidebar is collapsed/overlaid below 900px, so the left inset would be wrong. */
+@media (max-width:900px){ body.aurora .scr.on > .bg::before{left:0} }
+body.aurora .mn,
+body.aurora .rr,
+body.aurora .sb{position:relative;z-index:1}
+
+/* Frosted surfaces. The rail and .cd cards are the two structural surfaces;
+   `.rr > [style*="var(--s2)"]` catches the inline-styled rail cards, scoped to
+   DIRECT children of the rail so menus, popovers and modals stay opaque and
+   readable — a see-through dropdown over content is unusable. */
+   NB the app already frosts .rr at blur(18px) saturate(140%) over navy (see
+   "Frosted-glass right rails" above). Aurora lightens that to a white film so
+   the aura reads through it — and must repeat the -webkit- prefix, or older
+   iOS Safari keeps the 18px blur from that earlier rule. */
+body.aurora .rr{
+  background:color-mix(in srgb,#fff 4.5%,transparent);
+  border-left-color:rgba(148,163,184,.14);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+body.aurora .cd,
+body.aurora .rr > [style*="var(--s2)"]{
+  background:color-mix(in srgb,#fff 5%,transparent)!important;
+  border-color:rgba(148,163,184,.14)!important;
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+/* Active nav becomes a soft gradient pill, keeping the left bar for scanning. */
+body.aurora .si.on{
+  background:linear-gradient(90deg,
+    color-mix(in srgb,var(--ac) 22%,transparent),
+    color-mix(in srgb,var(--purp) 14%,transparent));
+}
+
+/* Light mode: a white film over a light ground is invisible, so tint the glass
+   the other way and take the aura right down — it reads as a wash, not a haze. */
+body.aurora.light-mode .rr,
+body.aurora.light-mode .cd,
+body.aurora.light-mode .rr > [style*="var(--s2)"]{
+  background:color-mix(in srgb,#fff 66%,transparent)!important;
+  border-color:rgba(22,33,62,.10)!important;
+}
+body.aurora.light-mode .scr.on > .bg::before{
+  background:
+    radial-gradient(42% 55% at 15% 0%,  color-mix(in srgb,var(--page-accent,#3B82F6) 11%,transparent), transparent 70%),
+    radial-gradient(38% 50% at 84% 2%,  color-mix(in srgb,var(--purp) 9%,transparent),                 transparent 72%);
+}
+
+/* Without backdrop-filter translucent panels just look washed out, so fall
+   back to near-opaque surfaces and keep the aura. Tests the -webkit- form too:
+   older iOS supports only the prefixed property, and checking the unprefixed
+   one alone would needlessly flatten the glass there. */
+@supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
+  body.aurora .rr{background:color-mix(in srgb,var(--s1) 92%,transparent)}
+  body.aurora .cd,
+  body.aurora .rr > [style*="var(--s2)"]{background:color-mix(in srgb,var(--s2) 94%,transparent)!important}
+}
+/* Respect a stated preference for less transparency. */
+@media (prefers-reduced-transparency:reduce){
+  body.aurora .rr{background:var(--s1);backdrop-filter:none}
+  body.aurora .cd,
+  body.aurora .rr > [style*="var(--s2)"]{background:var(--s2)!important;backdrop-filter:none}
+}
 </style>
 </head><body>
 <!-- ── Brand mark: "Aurora Stack" ──────────────────────────────────────────
@@ -2931,7 +3019,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-24-144';
+  var APP_BUILD='2026-07-24-145';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');

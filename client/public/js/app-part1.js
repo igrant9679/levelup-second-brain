@@ -1088,6 +1088,11 @@ function _resetTaskContexts(){
 function saveAll(){['tasks','notes','projects','goals','journal','habits','teams','aiTopics','ideas','contacts','mindmaps','clusters','prefs','opportunities'].forEach(k=>{try{(window.save||save)(k);}catch(_){localStorage.setItem('lu_'+k,JSON.stringify(D[k]));}});localStorage.setItem('lu_creds',JSON.stringify(D.creds))}
 function applyPrefs(){
   document.body.classList.toggle('light-mode',D.prefs.darkMode===false);
+  // Aurora Glass — ambient accent auras behind frosted surfaces. One class
+  // drives the whole look (see the AURORA GLASS block in index.html), so it
+  // can be switched off from Settings → Appearance without a deploy.
+  // Default ON; only an explicit false opts out.
+  document.body.classList.toggle('aurora',D.prefs.auroraGlass!==false);
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
   // treat as 'compact'. Otherwise default to 'normal'.
   const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
@@ -1686,6 +1691,15 @@ function toggleDarkMode(el){
   save('prefs'); // was raw localStorage — bypassed server sync, so it reverted on refresh
   applyPrefs();
   toast(D.prefs.darkMode?'🌙 Dark mode on':'☀️ Light mode on');
+}
+// Aurora Glass on/off. The look is entirely CSS scoped to body.aurora, so this
+// is the whole implementation of the switch.
+function toggleAuroraGlass(el){
+  el.classList.toggle('on');
+  D.prefs.auroraGlass=el.classList.contains('on');
+  save('prefs');
+  applyPrefs();
+  toast(D.prefs.auroraGlass?'✨ Aurora Glass on':'Aurora Glass off');
 }
 function toggleCompact(el){
   el.classList.toggle('on');
