@@ -336,7 +336,18 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
-## Session arc July 24 2026 (builds -137 → -142) — COMMITTED, **NOT PUSHED**
+## Session arc July 24 2026 (builds -137 → -143) — ALL PUSHED/LIVE ✅
+
+**Verified live on production** (`2026-07-24-143`, logged in, real data): stock
+config generates an **empty `#lu-layout-css`** and stores no workspace object —
+the parity invariant holds on prod; all 31 registry entries match the real
+production DOM; Settings → Workspace renders (7 presets, 25 page toggles, 17
+rail buttons, owner Publish button); the Home rail auto-tagged 6 sections with
+readable derived ids; ⚙ Customize button + legend + mini-week all present after
+boot; `onboarded` unset so the wizard does **not** ambush the existing account.
+Build -143 fixed a real overflow bug a screenshot caught (see Known gotchas:
+`.btn` is `nowrap`).
+
 
 **Workspace customization + onboarding + help.** User asked to let each
 teammate simplify/customize every page and pick which functionality they use,
@@ -639,6 +650,18 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
 - 1-year JWT session expiry with no refresh/revocation. Documented risk; not blocking.
 - **`app-part1.js` contains literal `\0` (NUL) bytes inside the markdown renderer's template-literal placeholders** (used to mark code-block / image / link positions during transforms). `file(1)` will report it as "data" and some tools refuse to open it as text. This is intentional — preserve byte-for-byte if you ever re-extract or move things around.
 - **Grep tool may report `app-part1.js` as binary** because of those NUL bytes. Use `grep -an` via Bash instead when searching that file.
+- **`.btn` sets `white-space:nowrap`.** Any multi-line content inside a `.btn`
+  (a bold title plus a description line, which several pickers now do) will NOT
+  wrap — it overflows the button with `overflow:visible` and silently spills
+  over whatever is beside it. Add `white-space:normal;line-height:1.35`. Hit in
+  build -142 → fixed in -143; every DOM and computed-style assertion passed,
+  **only a screenshot caught it.** Screenshot any new multi-column panel.
+- **Don't measure a freshly loaded page too early.** Boot (session restore →
+  first render → the `renderScreen` wrapper's 50ms post-render injections for
+  the mini-week strip, shortcuts legend and ⚙ Customize button) takes several
+  seconds against production. Querying at ~3.5s reports them missing and looks
+  like a regression; wait ~6s. `window.renderScreen` is wrapped **twice**
+  (app-part1.js:1846 and :11650) and both chain correctly.
 
 ## Things deliberately not done
 
