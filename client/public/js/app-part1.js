@@ -1093,6 +1093,11 @@ function applyPrefs(){
   // can be switched off from Settings → Appearance without a deploy.
   // Default ON; only an explicit false opts out.
   document.body.classList.toggle('aurora',D.prefs.auroraGlass!==false);
+  // Daybreak Pop — the light-mode counterpart: porcelain ground, ink text, and
+  // accent-tinted card shadows. The CSS is scoped to body.light-mode.daybreak,
+  // so this class is inert in dark mode. Default ON; only an explicit false opts out.
+  document.body.classList.toggle('daybreak',D.prefs.daybreakPop!==false);
+  _luApplyDaybreakCSS();
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
   // treat as 'compact'. Otherwise default to 'normal'.
   const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
@@ -1142,6 +1147,69 @@ const THEME_DEFAULTS_LIGHT={
   // #64748B measures 4.76:1 and still reads as muted next to t2 #475569.
   t1:'#0F172A',t2:'#475569',t3:'#64748B',t4:'#CBD5E1',
   brd:'rgba(0,0,0,.10)',
+};
+// Daybreak Pop's card treatment, injected as its own stylesheet.
+//
+// This lives here rather than in index.html for a concrete reason: appended to
+// the end of that file's 150 KB <style>, it stopped the CSS parser dead — the
+// rules never reached the CSSOM AND the ~370 KB of bundled Tailwind that vite
+// concatenates after it was dropped with them. The exact trigger was never
+// pinned down (the same bytes parse fine in a standalone sheet), which is
+// itself the argument for not putting them there. Injected stylesheets are
+// what this app already uses for dynamic CSS — #lu-page-accents,
+// #lu-layout-css — and they are reliable.
+//
+// Only the card treatment is here; the ground/text TOKENS are DAYBREAK_LIGHT
+// below, because applyTheme() writes tokens inline on <body> and inline beats
+// any stylesheet.
+function _luApplyDaybreakCSS(){
+  try{
+    let tag=document.getElementById('lu-daybreak-css');
+    if(!tag){tag=document.createElement('style');tag.id='lu-daybreak-css';document.head.appendChild(tag);}
+    // Scoped to body.light-mode.daybreak, so it is inert in dark mode and
+    // removed entirely by the toggle.
+    tag.textContent=[
+      'body.light-mode.daybreak .cd,',
+      'body.light-mode.daybreak .rr > [style*="var(--s2)"]{',
+      '  background:#FFFFFF!important;',
+      '  border-color:transparent!important;',
+      '  backdrop-filter:none;',
+      '  box-shadow:0 1px 2px rgba(16,20,38,.05), 0 10px 26px -14px color-mix(in srgb,var(--page-accent,#2563EB) 42%,transparent)!important;',
+      '}',
+      'body.light-mode.daybreak .cd:hover,',
+      'body.light-mode.daybreak .rr > [style*="var(--s2)"]:hover{',
+      '  box-shadow:0 2px 5px rgba(16,20,38,.06), 0 16px 34px -14px color-mix(in srgb,var(--page-accent,#2563EB) 56%,transparent)!important;',
+      '}',
+      'body.light-mode.daybreak .rr{',
+      '  background:color-mix(in srgb,#fff 78%,transparent);',
+      '  border-left-color:rgba(22,33,62,.08);',
+      '}',
+      '@media (prefers-reduced-transparency:reduce){',
+      '  body.light-mode.daybreak .cd,',
+      '  body.light-mode.daybreak .rr > [style*="var(--s2)"]{box-shadow:0 1px 3px rgba(16,20,38,.12)!important}',
+      '  body.light-mode.daybreak .rr{background:var(--s1)}',
+      '}',
+    ].join('\n');
+  }catch(e){if(window.__DEV__)console.warn('[daybreak] css inject failed',e);}
+}
+
+// Daybreak Pop's ground/text tokens (light mode only).
+//
+// These MUST live here rather than in CSS: applyTheme() pushes the whole token
+// set as INLINE styles onto <body>, and inline beats any stylesheet rule, so a
+// `body.light-mode.daybreak{--bg:…}` block could never win. The card treatment
+// (accent-tinted shadows) is still plain CSS — that isn't token-based.
+//
+// Deliberately omits ac/ach/acs/purp/ok/red/warn: the user picks their accent
+// (D.prefs.accent), and overriding it here would silently discard that choice.
+// Merged as a DEFAULTS layer, so an explicitly stored theme still wins.
+const DAYBREAK_LIGHT={
+  bg:'#F2F5FB',            // cool porcelain
+  s1:'#FFFFFF',s2:'#FFFFFF',s3:'#EDF1F9',s4:'#DFE6F2',
+  bd1:'rgba(22,33,62,.07)',bd2:'rgba(22,33,62,.11)',bd3:'rgba(22,33,62,.17)',
+  t1:'#101426',            // ink
+  t2:'#3E475E',t3:'#5A6478',
+  brd:'rgba(22,33,62,.11)',
 };
 // Page-accent map (the hue used for each route's banner + cards).
 // Editable in the UI so users can rebrand the per-page palette too.
@@ -1301,7 +1369,10 @@ const THEME_VAR_GROUPS=[
 // Resolve the *effective* theme: defaults → active stored theme → scheduled override.
 function _getEffectiveTheme(){
   const dark=D.prefs.darkMode!==false;
-  const defaults=dark?THEME_DEFAULTS_DARK:THEME_DEFAULTS_LIGHT;
+  let defaults=dark?THEME_DEFAULTS_DARK:THEME_DEFAULTS_LIGHT;
+  // Daybreak Pop sits on top of the light defaults but UNDER anything the user
+  // has explicitly chosen, so it restyles the ground without overriding them.
+  if(!dark&&D.prefs.daybreakPop!==false)defaults=Object.assign({},defaults,DAYBREAK_LIGHT);
   let theme=Object.assign({},defaults,D.prefs.theme||{});
   // Scheduled override
   const sched=_getActiveSchedule();
@@ -1700,6 +1771,19 @@ function toggleAuroraGlass(el){
   save('prefs');
   applyPrefs();
   toast(D.prefs.auroraGlass?'✨ Aurora Glass on':'Aurora Glass off');
+}
+// Daybreak Pop on/off. Light-mode only — the CSS is scoped to
+// body.light-mode.daybreak, so toggling it in dark mode changes nothing
+// visible, which the Settings row says explicitly.
+function toggleDaybreakPop(el){
+  el.classList.toggle('on');
+  D.prefs.daybreakPop=el.classList.contains('on');
+  save('prefs');
+  applyPrefs();
+  const lit=D.prefs.darkMode===false;
+  toast(D.prefs.daybreakPop
+    ?(lit?'🌅 Daybreak Pop on':'🌅 Daybreak Pop on — shows in light mode')
+    :'Daybreak Pop off');
 }
 function toggleCompact(el){
   el.classList.toggle('on');
