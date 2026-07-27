@@ -1,5 +1,81 @@
 # LevelUp Second Brain — context for Claude Code sessions
 
+---
+
+## ▶ START NEXT SESSION HERE
+
+Live build at handoff: **`2026-07-24-152`** · everything committed AND pushed ·
+working tree clean (only untracked `.claude/launch.json`, deliberately so — it
+holds machine-specific scratch paths).
+
+### 1. Electric Ink theme — USER-REQUESTED, deferred to next session
+
+The **last unbuilt** of the four visual directions pitched on 2026-07-23
+(Aurora Glass ✅ -145/-146 · Daybreak Pop ✅ -150 · Chromatic Bento ✅ -152).
+User: *"Let's do the Electric Ink theme in the next session."*
+
+**What it is:** near-black ground, maximum-voltage accents. Colour lives in
+**glows, top-borders and big numerals** — never in fills — so it reads loud
+without hurting legibility. Command-centre feel.
+
+```
+ground   #08080D      volt blue #5B8CFF     magenta #FF4ECD
+surface  #0F0F17      lime      #A3E635     amber   #FFC53D
+```
+
+- **KPI tiles**: 2px coloured top-border + `text-shadow` glow on the NUMERAL only.
+- **Active nav**: edge-lit rail (`inset 2px 0 0 <volt>`), not a filled pill.
+- **Card titles**: volt blue; alternate cards lime.
+- ~90% of it is a token swap, so it is the cheapest of the four to build.
+
+**Discipline (from the original pitch):** glow on numerals and borders ONLY,
+never on body text; and re-check `--t2`/`--t3` land ≥4.5:1 on the darker ground
+(they were tuned for `#0B0F1A`, not `#08080D`).
+
+**⚠ It is a DARK-mode direction and the owner runs LIGHT** (`darkMode:false`).
+Scope it `body:not(.light-mode).electric` and say plainly that they must switch
+to dark to see it — do not "helpfully" flip their theme.
+
+**Follow the pattern the other three already establish — do not invent a new one:**
+1. `D.prefs.electricInk` + body class `electric` toggled in `applyPrefs()`.
+2. **Tokens go through the theme engine**, as `ELECTRIC_DARK` merged in
+   `_getEffectiveTheme()` as a defaults layer — above the dark defaults, UNDER
+   `D.prefs.theme`. **Tokens CANNOT live in CSS**: `applyTheme()` writes them
+   inline on `<body>` and inline beats any stylesheet. **Omit `ac/ach/acs`** or
+   you silently discard the user's `D.prefs.accent`.
+3. **Non-token CSS is injected from JS** (`#lu-electric-css`), never appended to
+   index.html's `<style>` — that block silently swallowed Daybreak's rules.
+4. Toggle row in Settings → Appearance next to Aurora / Daybreak / Colour tiles.
+5. Bump `APP_BUILD`; `node -c` both bundles; **12 NUL bytes** in app-part1.
+
+**⚠⚠ Verification rules that cost real time this session — read before measuring:**
+- `getComputedStyle` returns **stale / mid-transition** values here. It produced
+  a **bogus 1.01 contrast ratio** and twice served a stale `document.body`
+  background. **Verify colour + contrast deterministically** — recompute from
+  the token values and the `color-mix` recipe in plain JS (see the -152 commit).
+- For body-level reads, append a **probe element** inheriting the var; that is
+  reliable where `getComputedStyle(document.body)` is not.
+- Screenshots taken mid-paint show correct text as faded/missing. Wait ~1–2s.
+- **Screenshot new multi-column panels** — `.btn` is `white-space:nowrap`, and
+  DOM assertions cannot see overlap (this shipped a real bug in -142 → -143).
+
+### 2. Still open: OneNote first sync
+
+Unresolved since the START of the 2026-07-24 session. The primary Microsoft
+token may still lack `Notes.Read`. Check `onenote.listAccounts` →
+`hasNotesScope`; reconnect via ANY Microsoft connect button (all carry
+Notes.Read now); browse notebooks in Settings → Word Doc Import; ★ the
+meeting-notes section; then sync. Full detail in `ONENOTE-SYNC-HANDOFF.md`.
+
+### 3. Optional, user was offered and hasn't chosen
+
+- The owner has a stored `D.prefs.theme` that **outranks Daybreak's** ground/ink
+  by design. Resetting it in Settings → Appearance would show the full
+  direction. **Do not** make Daybreak outrank a stored theme instead.
+- Publish a different **team starter layout** (currently `balanced`).
+
+---
+
 ## What it is
 
 Personal productivity / "second brain" web app: tasks, notes, projects, goals, journal, habits, mind maps, contacts, bookmarks, calendar, mail. Single-user instance for now; multi-user team features exist but lightly used. Live at **https://levelupnow.tools**.
@@ -624,8 +700,11 @@ session scratchpad) — intentionally not committed.
 Current build **`2026-07-18-136`** (commit `259e578`). Repo moved to
 `C:\Users\Admin\Desktop\Remote Desktop 1_Levelup\Documents\levelup-second-brain`
 (pnpm node_modules had to be reinstalled after the move; tsc is slow there —
-use `pnpm build` as the fast gate; 5 PRE-EXISTING tsc errors in other files
-are expected and don't block esbuild deploys).
+use `pnpm build` as the fast gate. ~~5 PRE-EXISTING tsc errors in other files
+are expected~~ — **STALE: `tsc --noEmit` reported 0 errors repo-wide on
+2026-07-24.** Treat any new error as genuinely yours. Note `npx tsc` fails on
+this machine; use `./node_modules/.bin/tsc`, and raise the heap
+(`NODE_OPTIONS=--max-old-space-size=6144`) or it OOMs).
 
 - **-133 Bullets 5th root cause (LIVE)**: Chromium `execCommand('insertUnorderedList')`
   nests the new list INSIDE the caret's `<p>` (invalid HTML; whole paragraph
