@@ -1098,6 +1098,10 @@ function applyPrefs(){
   // so this class is inert in dark mode. Default ON; only an explicit false opts out.
   document.body.classList.toggle('daybreak',D.prefs.daybreakPop!==false);
   _luApplyDaybreakCSS();
+  // Chromatic Bento — Home dashboard widgets as deep-tinted colour tiles.
+  // Works in both light and dark. Default ON; only an explicit false opts out.
+  document.body.classList.toggle('bento',D.prefs.chromaticBento!==false);
+  _luApplyBentoCSS();
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
   // treat as 'compact'. Otherwise default to 'normal'.
   const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
@@ -1148,6 +1152,62 @@ const THEME_DEFAULTS_LIGHT={
   t1:'#0F172A',t2:'#475569',t3:'#64748B',t4:'#CBD5E1',
   brd:'rgba(0,0,0,.10)',
 };
+// ── Chromatic Bento ────────────────────────────────────────────────────────
+// Home dashboard widgets stop borrowing colour and BECOME the colour: each
+// tile is a deep-tinted surface keyed to its domain, with a wider radius so
+// the grid reads as a board of widgets. You find the habits card by its green
+// before you read a word of it.
+//
+// Hues come from the app's OWN per-route palette (the body[data-screen]
+// --page-accent map in index.html) rather than a new invented set. That
+// matters: build -61 already tinted the dashboard card TITLES from that same
+// palette, so tile and title harmonise instead of clashing.
+const BENTO_HUES={
+  // default-on cards
+  tasks:'#22c55e', notes:'#f97316', projects:'#a855f7', goals:'#dc2626',
+  files:'#0ea5e9', habits:'#10b981', meetings:'#0284c7', recent:'#6366f1',
+  pinned:'#f59e0b', focus:'#ef4444', reports:'#06b6d4',
+  // opt-in cards
+  habitHeatmap:'#10b981', moodTrend:'#f43f5e', mindmaps:'#ec4899',
+  bookmarks:'#d97706', deadlines:'#ef4444', productivityScore:'#06b6d4',
+  streaks:'#f59e0b', weekAhead:'#14b8a6', ideasPipeline:'#eab308',
+  taskVelocity:'#22c55e', tagCloud:'#8b5cf6', weather:'#0284c7',
+  quoteOfDay:'#a855f7', yesteryear:'#0d9488', aiInsight:'#8b5cf6',
+  focusSuggestion:'#ef4444', staleContent:'#64748b',
+};
+function _luApplyBentoCSS(){
+  try{
+    let tag=document.getElementById('lu-bento-css');
+    if(!tag){tag=document.createElement('style');tag.id='lu-bento-css';document.head.appendChild(tag);}
+    const rules=Object.keys(BENTO_HUES).map(id=>
+      `body.bento .home-card-wrap[data-home-id="${id}"]{--tile-accent:${BENTO_HUES[id]}}`);
+    rules.push(
+      // Home cards render as .cd inside .home-card-wrap, so this out-specifies
+      // Aurora's `body.aurora .cd` and Daybreak's `body.light-mode.daybreak .cd`
+      // WITHOUT relying on stylesheet order.
+      'body.bento .home-card-wrap .cd{',
+      '  background:color-mix(in srgb,var(--tile-accent,#3B82F6) 15%,var(--s1))!important;',
+      '  border:1px solid color-mix(in srgb,var(--tile-accent,#3B82F6) 30%,transparent)!important;',
+      '  border-radius:18px!important;',
+      '  backdrop-filter:none!important;',
+      '  box-shadow:none!important;',
+      '}',
+      // A white-ish ground shows colour far more readily, so the light recipe
+      // tints much less and keeps a soft accent shadow for separation.
+      'body.light-mode.bento .home-card-wrap .cd{',
+      '  background:color-mix(in srgb,var(--tile-accent,#3B82F6) 9%,#FFFFFF)!important;',
+      '  border-color:color-mix(in srgb,var(--tile-accent,#3B82F6) 24%,transparent)!important;',
+      '  box-shadow:0 1px 2px rgba(16,20,38,.05), 0 8px 20px -14px color-mix(in srgb,var(--tile-accent,#3B82F6) 55%,transparent)!important;',
+      '}',
+      // Tiles are draggable; keep hover to colour only so nothing reflows mid-drag.
+      'body.bento .home-card-wrap .cd:hover{',
+      '  border-color:color-mix(in srgb,var(--tile-accent,#3B82F6) 48%,transparent)!important;',
+      '}'
+    );
+    tag.textContent=rules.join('\n');
+  }catch(e){if(window.__DEV__)console.warn('[bento] css inject failed',e);}
+}
+
 // Daybreak Pop's card treatment, injected as its own stylesheet.
 //
 // This lives here rather than in index.html for a concrete reason: appended to
@@ -1784,6 +1844,15 @@ function toggleDaybreakPop(el){
   toast(D.prefs.daybreakPop
     ?(lit?'🌅 Daybreak Pop on':'🌅 Daybreak Pop on — shows in light mode')
     :'Daybreak Pop off');
+}
+// Chromatic Bento on/off. Home-scoped, so the toast says where to look.
+function toggleChromaticBento(el){
+  el.classList.toggle('on');
+  D.prefs.chromaticBento=el.classList.contains('on');
+  save('prefs');
+  applyPrefs();
+  if(typeof curScreen!=='undefined'&&curScreen==='home'&&typeof renderScreen==='function')renderScreen('home');
+  toast(D.prefs.chromaticBento?'🎨 Colour tiles on — see Home':'Colour tiles off');
 }
 function toggleCompact(el){
   el.classList.toggle('on');
