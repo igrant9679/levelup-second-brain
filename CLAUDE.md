@@ -336,6 +336,44 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Chromatic Bento + favicon fix — builds -151/-152 (2026-07-24) — PUSHED/LIVE ✅
+
+**-152 Chromatic Bento** (3rd mocked direction). Home dashboard widgets become
+deep-tinted colour tiles at 18px radius. `BENTO_HUES` (app-part1.js) maps 28
+card ids → hues taken from the app's **own** `body[data-screen]` `--page-accent`
+map, NOT a new palette — build -61 already tinted the card TITLES from it, so
+tile and title agree. Keyed on `.home-card-wrap[data-home-id]` (which
+`renderHome` already emits) setting `--tile-accent`; adding a widget = one line
+in `BENTO_HUES`. Selector `body.bento .home-card-wrap .cd` deliberately
+**out-specifies** `body.aurora .cd` and `body.light-mode.daybreak .cd`, so it
+wins on specificity, not stylesheet order. Separate recipes: 15% tint over
+`--s1` in dark, only 9% over white in light (a light ground shows colour far
+more readily). Hover changes border colour ONLY — tiles are draggable and a
+transform would reflow mid-drag. Injected as `#lu-bento-css`.
+Toggle: Settings → Appearance "Colour tiles" (`D.prefs.chromaticBento`).
+NB it styles the customizable dashboard widgets — **not** the hero KPI strip or
+the Today's Plan row, which are separate components.
+
+**-151 favicon** — `favicon.ico` was still the OLD "LU" art (last touched by the
+-134 revert). -144 replaced favicon.svg + the PNGs but **missed the .ico**,
+which Chrome often prefers. Rebuilt as a real multi-size ICO (16/32/48) with no
+new dependency — since Vista an ICO entry may point at a whole PNG, so the
+container is assembled by hand. **Also versioned every icon ref
+(`?v=20260724`) in index.html + manifest.webmanifest** — favicons are cached far
+harder than pages, and swapping bytes alone often won't make a browser refetch.
+Downloadable logo pack lives at `Desktop\LevelUp-Logo` (SVG masters, PNGs, mono
+variants, app icon, README).
+
+⚠⚠ **CONTRAST/COLOUR WORK: DO NOT TRUST `getComputedStyle` HERE.** Verifying
+Bento, the tab returned a **bogus 1.01 contrast ratio** because it served a
+stale text colour (dark-mode `--t1` while tiles were already light). The same
+stale-read hit `document.body` background twice earlier. **Verify colour claims
+deterministically**: recompute the rendered colour from the token values and the
+`color-mix` recipe in plain JS (see the -152 commit message). Done that way, all
+28 tiles pass **WCAG AAA** in dark, light and light+Daybreak; worst ratio
+13.23:1. For body-level reads, a freshly appended probe element inheriting the
+var is reliable where `getComputedStyle(document.body)` is not.
+
 ## Daybreak Pop (light mode) — build -150 (2026-07-24) — PUSHED/LIVE ✅
 
 Fourth mocked direction and the light-mode counterpart to Aurora. Porcelain
