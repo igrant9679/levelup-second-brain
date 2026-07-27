@@ -336,6 +336,38 @@ Email popup (it used to say "No SMTP sender is configured" for ANY failure —
 - **-97** Quick-Capture rail buttons polished; Notes **Recent** now sorts by
   most-recently-**created** (`_noteCreatedTime`, not the freeform `updated` string).
 
+## Daybreak Pop (light mode) — build -150 (2026-07-24) — PUSHED/LIVE ✅
+
+Fourth mocked direction and the light-mode counterpart to Aurora. Porcelain
+ground, ink text, and the signature: each card's **shadow is tinted by
+`--page-accent`** (so it changes hue per page); cards go pure white and
+borderless. Scoped to `body.light-mode.daybreak` — inert in dark — toggled at
+Settings → Appearance (`D.prefs.daybreakPop`, default ON, `toggleDaybreakPop`).
+
+**Two hard constraints, both found by verifying. Read before touching theming:**
+
+1. **Theme TOKENS cannot live in CSS.** `applyTheme()` writes the whole token
+   set as **inline styles on `<body>`**, and inline beats any stylesheet rule —
+   a `body.light-mode.daybreak{--bg:…}` block can never win. Daybreak's ground/
+   text tokens are therefore **`DAYBREAK_LIGHT`** in app-part1.js, merged by
+   `_getEffectiveTheme()` as a **defaults layer**: above the light defaults, but
+   **under `D.prefs.theme`**, so an explicitly stored theme still wins.
+   It deliberately omits `ac/ach/acs/purp/ok/red/warn` — the user's accent comes
+   from `D.prefs.accent` and overriding it would silently discard their choice.
+2. **Its card CSS is injected from JS** (`_luApplyDaybreakCSS` →
+   `<style id="lu-daybreak-css">`, called from `applyPrefs`). Appended to
+   index.html's `<style>` the rules **never reached the CSSOM at all**, while
+   the identical bytes parse fine in a standalone sheet. Root cause never
+   pinned — which is the argument for not putting them there. **Prefer
+   JS-injected stylesheets for any new CSS in this app** (`#lu-page-accents`,
+   `#lu-layout-css`, `#lu-daybreak-css` all work reliably).
+
+⚠ **The owner has a stored `D.prefs.theme`** (a light preset: bg `#F4F6FA`,
+t1 `#0F172A`, …). By the precedence above it **overrides Daybreak's ground and
+ink**, so that account gets Daybreak's card treatment but its own ground. That
+is intended. To see the full direction, reset the theme in Settings →
+Appearance; do NOT "fix" it by making Daybreak outrank a stored theme.
+
 ## Detail level dial — builds -147/-148 (2026-07-24) — PUSHED/LIVE ✅
 
 A single "how much do you want to see?" control for anyone overwhelmed by ~30
