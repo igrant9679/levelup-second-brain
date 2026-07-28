@@ -12516,9 +12516,12 @@ function applyNotesFilters(){
       return true;
     });
   }
-  // Sort. The "Recent" category implicitly forces newest-first regardless
-  // of the user's saved sort, since "Recent" without recency makes no sense.
-  if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder){
+  // Sort. "Recent" defaults to newest-CREATED-first (since "Recent" without
+  // recency makes no sense), but ONLY while the user is still on the default
+  // sort. An explicit pick from the Sort dropdown always wins — 'Recent' is
+  // the default category, so overriding it unconditionally made the whole
+  // Sort control a no-op on the page's default view.
+  if(_notesFilterCategory==='Recent'&&!_notesFilterSmart&&!_notesFilterFolder&&_notesSort==='newest'){
     // Recent = most recently CREATED first (by createdAt / id, not the
     // freeform 'updated' string which is unreliable to parse).
     notes=[...notes].sort((a,b)=>_noteCreatedTime(b)-_noteCreatedTime(a));
@@ -12755,23 +12758,19 @@ function filterNotesList(q){
   _notesFilterText=q||'';
   applyNotesFilters();
 }
-function filterNotesByTag(tag,el){
-  const chips=document.querySelectorAll('.notes-tag-chip');
-  const isActive=el.dataset.active==='1';
-  // Toggle: if already active, clear filter
-  chips.forEach(c=>{c.dataset.active='';c.style.background='var(--s3)';c.style.color='var(--t2)';});
-  const search=document.getElementById('notes-search');
-  if(isActive){
-    if(search)search.value='';
-    renderNotesList();
-  } else {
-    el.dataset.active='1';el.style.background='var(--ac)';el.style.color='#fff';
-    if(search)search.value='';
-    const me=D.creds.userName||'Idris Grant';
-    const base=_notesMyOnly?D.notes.filter(n=>!n.createdBy||n.createdBy===me):D.notes;
-    const filtered=base.filter(n=>(n.tags||[]).includes(tag));
-    const el2=document.getElementById('notes-list-inner');    if(el2)el2.innerHTML=filtered.map((n,i)=>`<div class="nc ${i===0?'on':''}" data-nid="${n.id}" onclick="showNoteInEditor(${n.id})"><div class="nc-t">${esc(n.title)}</div><div class="nc-tg">${(n.tags||[]).map(t=>`<span>#${t}</span>`).join('')}</div><div class="nc-m"><span>${n.source}</span><span>${fmtNoteDate(n.updated)}</span></div></div>`).join('')||`<p style="color:var(--t3);font-size:11px;padding:8px">No notes tagged #${tag}.</p>`;
-  }
+function filterNotesByTag(tag){
+  // Routes through the unified filter engine (_notesFilterTags) instead of
+  // writing its own list HTML. The old version painted the list directly, so
+  // it silently ignored the active Sort, the category/lifecycle filters and
+  // the pinned section — a second place where "sort doesn't work". It also
+  // took an `el` argument and dereferenced `el.dataset`, which threw for the
+  // note-properties chips (they call this with the tag only), making those
+  // chips dead on click.
+  const k=String(tag||'').toLowerCase();
+  const alreadyOnlyThis=_notesFilterTags.size===1&&_notesFilterTags.has(k);
+  _notesFilterTags=alreadyOnlyThis?new Set():new Set([k]); // click again to clear
+  _notesFilterText='';
+  if(typeof renderNotes==='function')renderNotes();else applyNotesFilters();
 }
 function filterNotesBySmart(filter,el){
   document.querySelectorAll('.nn').forEach(n=>{n.classList.remove('on');});
@@ -13429,7 +13428,7 @@ function renderNotes(){
       const sz=Math.round(9+(count-minF)/range*7); // 9px–16px
       const op=0.55+(count-minF)/range*0.45; // 0.55–1.0
       const hue=Math.abs(tag.split('').reduce((h,c)=>h*31+c.charCodeAt(0),0))%360;
-      return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:hsl(${hue},55%,62%);cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${tag}',this)" title="${count} note${count>1?'s':''}">#${tag}</span>`;
+      return `<span style="font-size:${sz}px;opacity:${op.toFixed(2)};color:hsl(${hue},55%,62%);cursor:pointer;margin:2px 3px 2px 0;display:inline-block;line-height:1.4;transition:opacity .15s,transform .15s" onmouseover="this.style.opacity='1';this.style.transform='scale(1.12)'" onmouseout="this.style.opacity='${op.toFixed(2)}';this.style.transform=''" onclick="filterNotesByTag('${_jsAttr(tag)}')" title="${count} note${count>1?'s':''}">#${esc(tag)}</span>`;
     }).join('');
   })()}</div>
   <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin:10px 0 4px;padding:0 4px">PARA</div>
@@ -13445,7 +13444,7 @@ function renderNotes(){
     ];
     return paraCats.map(p=>{
       const count=D.notes.filter(n=>(n.tags||[]).some(t=>p.tags.includes((t||'').toLowerCase()))).length;
-      return `<div class="nn" onclick="filterNotesByTag('${p.tags[0]}',this);" style="display:flex;align-items:center;gap:5px" title="Filter to notes tagged #${p.tags[0]}">${p.icons} ${p.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${count}</span></div>`;
+      return `<div class="nn" onclick="filterNotesByTag('${_jsAttr(p.tags[0])}');" style="display:flex;align-items:center;gap:5px" title="Filter to notes tagged #${p.tags[0]}">${p.icons} ${p.label}<span style="margin-left:auto;font-size:11px;color:var(--t3)">${count}</span></div>`;
     }).join('');
   })()}
   <div style="margin-top:auto;padding:8px 4px 0">
@@ -13496,8 +13495,8 @@ function renderNotes(){
     </div>
     <!-- Search + Filter toggle row -->
     <div style="display:flex;gap:4px;align-items:center">
-      <input id="notes-search" class="inp" placeholder="🔍 Search notes…" style="flex:1;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
-      <button id="notes-filter-toggle" class="btn btn-s" style="height:26px;font-size:11px;padding:0 7px;flex-shrink:0;white-space:nowrap" onclick="_notesFilterPanelOpen=!_notesFilterPanelOpen;document.getElementById('notes-filter-panel').style.display=_notesFilterPanelOpen?'block':'none';this.style.background=_notesFilterPanelOpen?'var(--ac)':'';this.style.color=_notesFilterPanelOpen?'#fff':'';" title="Toggle filters">⚙ Filter</button>
+      <input id="notes-search" class="inp" placeholder="🔍 Search notes…" value="${esc(_notesFilterText||'')}" style="flex:1;height:26px;font-size:11px" oninput="filterNotesList(this.value)">
+      <button id="notes-filter-toggle" class="btn btn-s" style="height:26px;font-size:11px;padding:0 7px;flex-shrink:0;white-space:nowrap;background:${_notesFilterPanelOpen?'var(--ac)':''};color:${_notesFilterPanelOpen?'#fff':''}" onclick="_notesFilterPanelOpen=!_notesFilterPanelOpen;document.getElementById('notes-filter-panel').style.display=_notesFilterPanelOpen?'block':'none';this.style.background=_notesFilterPanelOpen?'var(--ac)':'';this.style.color=_notesFilterPanelOpen?'#fff':'';" title="Toggle filters">⚙ Filter</button>
     </div>
     <!-- Active filter summary bar -->
     <div id="notes-filter-summary" style="display:flex;align-items:center;gap:6px;margin-top:4px;min-height:18px">
@@ -13505,33 +13504,30 @@ function renderNotes(){
     </div>
   </div>
   <!-- Collapsible filter panel -->
-  <div id="notes-filter-panel" style="display:none;padding:8px;border-bottom:1px solid var(--bd1);background:var(--s2);flex-shrink:0;overflow-y:auto;max-height:260px">
+  <div id="notes-filter-panel" style="display:${_notesFilterPanelOpen?'block':'none'};padding:8px;border-bottom:1px solid var(--bd1);background:var(--s2);flex-shrink:0;overflow-y:auto;max-height:260px">
     <!-- Sort + Group By -->
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Sort</span>
       <select id="nf-sort-select" class="inp" style="height:22px;font-size:11px;flex:1" onchange="setNotesSort(this.value)">
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
-        <option value="az">A → Z</option>
-        <option value="za">Z → A</option>
-        <option value="longest">Longest body</option>
-        <option value="tagged">Most tagged</option>
+        ${[['newest','Newest first'],['oldest','Oldest first'],['az','A → Z'],['za','Z → A'],['longest','Longest body'],['tagged','Most tagged']]
+          .map(([v,l])=>`<option value="${v}" ${_notesSort===v?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
       <span style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;white-space:nowrap">Group</span>
       <select id="nf-group-select" class="inp" style="height:22px;font-size:11px;flex:1" onchange="setNotesGroupBy(this.value)">
-        <option value="">None</option>
-        <option value="tag">By Tag</option>
-        <option value="source">By Source</option>
-        <option value="date">By Date</option>
+        ${[['','None'],['tag','By Tag'],['source','By Source'],['date','By Date']]
+          .map(([v,l])=>`<option value="${v}" ${_notesGroupBy===v?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>
     <!-- Tag facet -->
     <div style="margin-bottom:8px">
       <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Tags <span style="font-weight:400;color:var(--t3)">(multi-select, AND)</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
-        ${_allNoteTags.map(tag=>`<span class="nf-tag-chip" style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterTag('${esc(tag)}',this)">#${esc(tag)}</span>`).join('')}
+        ${_allNoteTags.map(tag=>{
+          const _on=_notesFilterTags.has(String(tag).toLowerCase());
+          return `<span class="nf-tag-chip" data-active="${_on?'1':''}" style="font-size:11px;padding:2px 7px;border-radius:10px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'};cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterTag('${_jsAttr(tag)}',this)">#${esc(tag)}</span>`;
+        }).join('')}
         ${_allNoteTags.length===0?'<span style="font-size:11px;color:var(--t3)">No tags yet</span>':''}
       </div>
     </div>
@@ -13542,7 +13538,8 @@ function renderNotes(){
         ${_allNoteSources.map(src=>{
           const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖'};
           const icon=icons[src]||'📝';
-          return `<span class="nf-src-chip" style="font-size:11px;padding:2px 7px;border-radius:10px;background:var(--s3);color:var(--t2);cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
+          const _on=_notesFilterSources.has(String(src).toLowerCase());
+          return `<span class="nf-src-chip" data-active="${_on?'1':''}" style="font-size:11px;padding:2px 7px;border-radius:10px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'};cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
         }).join('')}
       </div>
     </div>
@@ -13552,13 +13549,14 @@ function renderNotes(){
       <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px">
         ${['today','week','month','year','custom'].map(p=>{
           const labels={today:'Today',week:'This week',month:'This month',year:'This year',custom:'Custom…'};
-          return `<button class="nf-date-btn btn btn-s" style="height:20px;font-size:10px;padding:0 7px;background:var(--s3);color:var(--t2)" onclick="setNotesDatePreset('${p}',this)">${labels[p]}</button>`;
+          const _on=_notesFilterDatePreset===p;
+          return `<button class="nf-date-btn btn btn-s" data-active="${_on?'1':''}" style="height:20px;font-size:10px;padding:0 7px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'}" onclick="setNotesDatePreset('${p}',this)">${labels[p]}</button>`;
         }).join('')}
       </div>
-      <div id="nf-custom-date-row" style="display:none;gap:4px;align-items:center">
-        <input type="date" id="nf-date-from" class="inp" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateFrom=this.value;applyNotesFilters()">
+      <div id="nf-custom-date-row" style="display:${_notesFilterDatePreset==='custom'?'flex':'none'};gap:4px;align-items:center">
+        <input type="date" id="nf-date-from" class="inp" value="${esc(_notesFilterDateFrom||'')}" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateFrom=this.value;applyNotesFilters()">
         <span style="font-size:11px;color:var(--t3)">to</span>
-        <input type="date" id="nf-date-to" class="inp" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateTo=this.value;applyNotesFilters()">
+        <input type="date" id="nf-date-to" class="inp" value="${esc(_notesFilterDateTo||'')}" style="height:22px;font-size:11px;flex:1" onchange="_notesFilterDateTo=this.value;applyNotesFilters()">
       </div>
     </div>
   </div>
@@ -13967,7 +13965,7 @@ function renderNoteEditor(n){
     <div class="k">⛓ Source</div>
     <div class="v" style="color:var(--t2)">${esc(n.source||'Manual')}</div>
     <div class="k">🏷 Tags</div>
-    <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${esc(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags</span>'}</div>
+    <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${_jsAttr(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags</span>'}</div>
     <div class="k">📅 Meetings</div>
     <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${n.id},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${n.id})">＋ Link meeting</span></div>
     <div class="k">🎨 Colour</div>
@@ -17166,7 +17164,7 @@ function renderGoals(){
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
   }
-  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('target',22,'var(--page-accent)')}Goals</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const gs=D.goals||[];if(!gs.length)return 'No goals yet — add one to get started.';const avg=Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length);const dn=gs.filter(g=>(g.pct||0)===100).length;return `${gs.length} goal${gs.length!==1?'s':''} · ${avg}% avg progress${dn?` · ${dn} complete`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:11px;background:var(--ac);color:#fff;border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:11px;background:transparent;color:var(--t2);border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:11px;background:transparent;color:var(--t2);border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:11px" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button>${_goalsView==='grid'?`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();togglePopMenu('goals-filter-menu')" title="Filters & sort">🔍 Filter${(()=>{const n=(_goalsSearch?1:0)+(_goalsCategory!=='All'?1:0)+(_goalsStatusFilter!=='All'?1:0)+(_goalsHealthFilter!=='All'?1:0)+(_goalsSort!=='order'?1:0);return n?` • ${n}`:'';})()} ▾</button><div id="goals-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:280px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><input class="inp" placeholder="🔍 Search goals…" value="${esc(_goalsSearch)}" style="width:100%;height:28px;font-size:11px;margin-bottom:6px;box-sizing:border-box" oninput="setGoalsFilter('search',this.value)"><div style="display:flex;gap:6px;margin-bottom:6px"><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('status',this.value)">${['All','Active','At risk','Done'].map(s=>`<option ${_goalsStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('health',this.value)">${['All','On Track','Needs Attention','At Risk','Overdue','Done'].map(s=>`<option ${_goalsHealthFilter===s?'selected':''}>${s}</option>`).join('')}</select></div><select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:6px;box-sizing:border-box" onchange="setGoalsFilter('sort',this.value)"><option value="order" ${_goalsSort==='order'?'selected':''}>Default order</option><option value="pctDesc" ${_goalsSort==='pctDesc'?'selected':''}>% high → low</option><option value="pctAsc" ${_goalsSort==='pctAsc'?'selected':''}>% low → high</option><option value="dueAsc" ${_goalsSort==='dueAsc'?'selected':''}>Due soon</option><option value="az" ${_goalsSort==='az'?'selected':''}>A → Z</option></select>${(_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All'||_goalsSort!=='order')?`<button class="btn btn-s" style="width:100%;height:26px;font-size:11px;color:var(--warn)" onclick="clearGoalsFilters()">✕ Clear all filters</button>`:''}</div></div>`:''}<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('goals-ai-menu')" title="AI tools">✨ AI ▾</button><div id="goals-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiGoalProgress()">${_icon('sparkles',14,'currentColor')} Progress Narrative</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiWeeklyReview()">${_icon('calendar',14,'currentColor')} Weekly Review</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiOKRAlignment()">${_icon('link',14,'currentColor')} OKR Alignment</button></div></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
+  $('goals-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('target',22,'var(--page-accent)')}Goals</h1><p style="font-size:12px;color:var(--t2)">${(()=>{const gs=D.goals||[];if(!gs.length)return 'No goals yet — add one to get started.';const avg=Math.round(gs.reduce((s,g)=>s+(g.pct||0),0)/gs.length);const dn=gs.filter(g=>(g.pct||0)===100).length;return `${gs.length} goal${gs.length!==1?'s':''} · ${avg}% avg progress${dn?` · ${dn} complete`:''}`;})()}</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><div style="display:flex;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden"><button id="goals-scope-my" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_goalsView!=='team'&&_goalsMyOnly?'var(--ac)':'transparent'};color:${_goalsView!=='team'&&_goalsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_goalsMyOnly=true;_goalsView='grid';document.getElementById('goals-scope-my').style.background='var(--ac)';document.getElementById('goals-scope-my').style.color='#fff';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">My Goals</button><button id="goals-scope-all" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_goalsView!=='team'&&!_goalsMyOnly?'var(--ac)':'transparent'};color:${_goalsView!=='team'&&!_goalsMyOnly?'#fff':'var(--t2)'};border:none" onclick="_goalsMyOnly=false;_goalsView='grid';document.getElementById('goals-scope-all').style.background='var(--ac)';document.getElementById('goals-scope-all').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';renderGoalCards()">All Goals</button><button id="goals-scope-team" class="btn" style="border-radius:0;height:28px;font-size:11px;background:${_goalsView==='team'?'var(--ac)':'transparent'};color:${_goalsView==='team'?'#fff':'var(--t2)'};border:none" onclick="_goalsView='team';document.getElementById('goals-scope-team').style.background='var(--ac)';document.getElementById('goals-scope-team').style.color='#fff';document.getElementById('goals-scope-my').style.background='transparent';document.getElementById('goals-scope-my').style.color='var(--t2)';document.getElementById('goals-scope-all').style.background='transparent';document.getElementById('goals-scope-all').style.color='var(--t2)';renderGoalCards()">👥 Team</button></div><button id="goals-view-okr" class="btn btn-s" style="height:28px;font-size:11px;background:${_goalsView==='okr'?'var(--ac)':''};color:${_goalsView==='okr'?'#fff':''}" onclick="_goalsView=_goalsView==='okr'?'grid':'okr';this.style.background=_goalsView==='okr'?'var(--ac)':'';this.style.color=_goalsView==='okr'?'#fff':'';renderGoalCards()" title="Toggle OKR mode">🎯 OKR</button>${_goalsView==='grid'?`<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px" onclick="event.stopPropagation();togglePopMenu('goals-filter-menu')" title="Filters & sort">🔍 Filter${(()=>{const n=(_goalsSearch?1:0)+(_goalsCategory!=='All'?1:0)+(_goalsStatusFilter!=='All'?1:0)+(_goalsHealthFilter!=='All'?1:0)+(_goalsSort!=='order'?1:0);return n?` • ${n}`:'';})()} ▾</button><div id="goals-filter-menu" data-pop-menu="1" onclick="event.stopPropagation()" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px;z-index:50;width:280px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><input class="inp" placeholder="🔍 Search goals…" value="${esc(_goalsSearch)}" style="width:100%;height:28px;font-size:11px;margin-bottom:6px;box-sizing:border-box" oninput="setGoalsFilter('search',this.value)"><div style="display:flex;gap:6px;margin-bottom:6px"><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('status',this.value)">${['All','Active','At risk','Done'].map(s=>`<option ${_goalsStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select><select class="inp" style="flex:1;min-width:0;height:28px;font-size:11px;padding:0 6px" onchange="setGoalsFilter('health',this.value)">${['All','On Track','Needs Attention','At Risk','Overdue','Done'].map(s=>`<option ${_goalsHealthFilter===s?'selected':''}>${s}</option>`).join('')}</select></div><select class="inp" style="width:100%;height:28px;font-size:11px;padding:0 6px;margin-bottom:6px;box-sizing:border-box" onchange="setGoalsFilter('sort',this.value)"><option value="order" ${_goalsSort==='order'?'selected':''}>Default order</option><option value="pctDesc" ${_goalsSort==='pctDesc'?'selected':''}>% high → low</option><option value="pctAsc" ${_goalsSort==='pctAsc'?'selected':''}>% low → high</option><option value="dueAsc" ${_goalsSort==='dueAsc'?'selected':''}>Due soon</option><option value="az" ${_goalsSort==='az'?'selected':''}>A → Z</option></select>${(_goalsSearch||_goalsCategory!=='All'||_goalsStatusFilter!=='All'||_goalsHealthFilter!=='All'||_goalsSort!=='order')?`<button class="btn btn-s" style="width:100%;height:26px;font-size:11px;color:var(--warn)" onclick="clearGoalsFilters()">✕ Clear all filters</button>`:''}</div></div>`:''}<div style="position:relative;display:inline-block"><button class="btn btn-s" style="height:28px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('goals-ai-menu')" title="AI tools">✨ AI ▾</button><div id="goals-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:32px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)"><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiGoalProgress()">${_icon('sparkles',14,'currentColor')} Progress Narrative</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiWeeklyReview()">${_icon('calendar',14,'currentColor')} Weekly Review</button><button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('goals-ai-menu');aiOKRAlignment()">${_icon('link',14,'currentColor')} OKR Alignment</button></div></div><button class="btn btn-p" onclick="openFA('goal')">+ New Goal</button></div></div>
   ${(()=>{
     if(_goalsView!=='grid')return '';
     const cats=['All',...[...new Set(D.goals.map(g=>g.category||'').filter(Boolean))].sort()];
@@ -20556,10 +20554,8 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
     <button class="btn btn-p" id="pomo-btn" onclick="pomoToggle()" style="min-width:64px">▶ Start</button>
     <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
     <select class="inp" id="pomo-mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
-      <option value="25">25 min Focus</option>
-      <option value="50">50 min Deep Work</option>
-      <option value="5">5 min Break</option>
-      <option value="15">15 min Long Break</option>
+      ${[['25','25 min Focus'],['50','50 min Deep Work'],['5','5 min Break'],['15','15 min Long Break']]
+        .map(([v,l])=>`<option value="${v}" ${String(Math.round(_pomoTotal/60))===v?'selected':''}>${l}</option>`).join('')}
     </select>
   </div>
 </div>
