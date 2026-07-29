@@ -10,18 +10,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>LevelUp - The Second Brain</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260724">
-<link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260724">
-<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png?v=20260724">
-<link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png?v=20260724">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20260729">
+<link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260729">
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png?v=20260729">
+<link rel="icon" type="image/png" sizes="512x512" href="/favicon-512.png?v=20260729">
 <!-- iOS home-screen icon — points at the local 192px PNG (180x180 is the
      iOS sweet spot; the 192 is close enough and Safari scales). Without
      this iOS uses a thumbnail screenshot of the page as the icon, which
      looks bad. Two sizes declared so older iOS picks the right one. -->
-<link rel="apple-touch-icon" href="/favicon-192.png?v=20260724">
-<link rel="apple-touch-icon" sizes="180x180" href="/favicon-192.png?v=20260724">
-<link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png?v=20260724">
-<link rel="apple-touch-icon" sizes="512x512" href="/favicon-512.png?v=20260724">
+<link rel="apple-touch-icon" href="/favicon-192.png?v=20260729">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon-192.png?v=20260729">
+<link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png?v=20260729">
+<link rel="apple-touch-icon" sizes="512x512" href="/favicon-512.png?v=20260729">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /* Plus Jakarta Sans — self-hosted so the brand face can't be lost to a CDN
@@ -2133,36 +2133,26 @@ body.aurora.light-mode .scr.on > .bg::before{
 
 </style>
 </head><body>
-<!-- ── Brand mark: "Aurora Stack" ──────────────────────────────────────────
-     Three knowledge layers with the top one lifting off — the second brain
-     made visible. Defined ONCE as a <symbol> and referenced with <use> at
-     each of the five logo sites: inlining it five times would mean five
-     duplicate gradient ids, which is invalid and lets one site's gradient
-     win everywhere. Both href and xlink:href are set on each <use> so older
-     iOS Safari resolves it too.
+<!-- ── Brand mark ──────────────────────────────────────────────────────────
+     The "LU" mark (blue→purple gradient, the U's right stem rising into an
+     arrow). User asked for this one back on 2026-07-29, replacing the
+     "Aurora Stack" inline <symbol> that shipped in -144.
 
-     This replaces a raster .webp served from a decommissioned CloudFront
-     bucket — the same class of single-point-of-failure that already broke
-     the iOS home-screen icon once. It is now vector, self-hosted, and
-     crisp at every size. -->
-<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute;overflow:hidden">
-  <defs>
-    <linearGradient id="lu-mark-grad" x1="8" y1="26" x2="40" y2="6" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#C084FC"/>
-    </linearGradient>
-    <symbol id="lu-mark" viewBox="0 0 48 48">
-      <path d="m24 6 16 9-16 9-16-9Z" fill="url(#lu-mark-grad)"/>
-      <path d="m8 25 16 9 16-9" fill="none" stroke="#818CF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/>
-      <path d="m8 33 16 9 16-9" fill="none" stroke="#818CF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>
-    </symbol>
-  </defs>
-</svg>
+     It is a raster, so it is referenced as a plain <img> at each of the five
+     logo sites (login ×2, session-check, topbar, splash) — there is no
+     shared <symbol>/<use> sprite any more, and no duplicate-gradient-id
+     hazard to avoid.
+
+     IMPORTANT: it is served from client/public/, NOT from the CloudFront URL
+     it originally lived on. The artwork is byte-identical, but that bucket
+     is a third-party single point of failure and is what broke the iOS
+     home-screen icon once before. Keep it self-hosted. -->
 
 <!-- ===== INVITE ACCEPT SCREEN ===== -->
 <div id="invite-overlay" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;padding:16px">
   <div style="width:100%;max-width:400px">
     <div style="text-align:center;margin-bottom:24px">
-      <svg width="56" height="56" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
+      <img src="/levelup-logo.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
       <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
       <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
     </div>
@@ -2222,13 +2212,13 @@ body.aurora.light-mode .scr.on > .bg::before{
 <div id="login-overlay">
   <!-- Session-restore loading state: shown while auth.me check is in flight -->
   <div id="login-session-check" style="display:flex;flex-direction:column;align-items:center;gap:12px">
-    <svg width="48" height="48" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
+    <img src="/levelup-logo.webp" alt="LevelUp" style="width:48px;height:48px;object-fit:contain">
     <svg style="animation:spin 1s linear infinite;color:var(--ac)" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     <div style="font-size:12px;color:var(--t3)">Restoring session…</div>
   </div>
   <div id="login-form-wrapper" style="display:none;width:100%;max-width:380px">
   <div style="text-align:center;margin-bottom:24px">
-    <svg width="56" height="56" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
+    <img src="/levelup-logo.webp" alt="LevelUp" style="width:56px;height:56px;object-fit:contain">
     <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">LevelUp</div>
     <div style="font-size:11px;color:var(--t3)">The Second Brain</div>
   </div>
@@ -2339,7 +2329,7 @@ body.aurora.light-mode .scr.on > .bg::before{
 </button>
 <div class="sb-backdrop" id="sb-backdrop" onclick="toggleMobileSidebar(false)"></div>
 <div class="logo" onclick="nav('home')">
-<svg width="40" height="40" role="img" aria-label="LevelUp" style="flex-shrink:0"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
+<img src="/levelup-logo.webp" alt="LevelUp" style="width:40px;height:40px;object-fit:contain;flex-shrink:0">
 <div><b id="workspace-label">LevelUp</b><small>The Second Brain</small></div>
 </div>
 <div class="tb-s"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="Search everything..." id="gSearch" autocomplete="off" oninput="onSearchInput(this.value)" onfocus="onSearchFocus()" onkeydown="onSearchKey(event)"><span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 4px;border-radius:3px">⌘K</span><div id="search-drop"></div></div>
@@ -2962,7 +2952,7 @@ body.sh-resizing{user-select:none!important}
     @keyframes splash-fade-out{0%{opacity:1}100%{opacity:0;pointer-events:none}}
     #splash-screen.fade-out{animation:splash-fade-out .5s ease forwards;}
   </style>
-  <svg id="splash-logo" width="96" height="96" role="img" aria-label="LevelUp" style="flex-shrink:0;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards"><use href="#lu-mark" xlink:href="#lu-mark"/></svg>
+  <img id="splash-logo" src="/levelup-logo.webp" alt="LevelUp" style="width:96px;height:96px;object-fit:contain;opacity:0;animation:splash-logo-in .7s cubic-bezier(.34,1.56,.64,1) .2s forwards">
   <div id="splash-brand" style="font-size:36px;font-weight:800;background:linear-gradient(135deg,#3B82F6,#8B5CF6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0;animation:splash-text-in .5s ease .85s forwards;margin-top:12px">LevelUp</div>
   <div id="splash-tagline" style="font-size:14px;color:#64748B;opacity:0;animation:splash-tagline-in .5s ease 1.2s forwards;margin-top:4px">Your Second Brain</div>
   <div id="splash-greeting" style="font-size:16px;color:#94A3B8;opacity:0;animation:splash-tagline-in .5s ease 1.6s forwards;margin-top:28px"></div>
@@ -3026,7 +3016,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-27-153';
+  var APP_BUILD='2026-07-29-154';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
