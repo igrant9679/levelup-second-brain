@@ -4,9 +4,32 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-01-157`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-01-158`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
+
+**-158 — Scheduled tasks on the Calendar** (user-requested). A task with BOTH a
+date and a `startTime` now renders on the week/day/month grids and in the
+rails, alongside events. Key points:
+- **Derived at render time, never written into `_calEvents`** — so rescheduling
+  or completing a task updates the calendar with no sync step and no second
+  copy. `_taskSchedule()` / `_scheduledTaskEvents()` / `_cellTasksForDate()` /
+  `_tasksOnDate()` in app-part1.js.
+- Date is `startDate` falling back to `due`; end is `endTime` (a `:30` end
+  rounds the block up) else `estimatedMins` else +1h.
+- **Deduped against time-blocked tasks.** `openTimeBlockPicker` pushes a real
+  `_calEvents` row carrying `linkedTaskId`; without `_blockedTaskIds()` the same
+  task renders twice.
+- Task chips are **dashed-border + ▢/✓, priority-coloured**, and route to
+  `_calOpenChip('task',…)` → the task drawer. They deliberately omit the day
+  view's drag/resize wiring, which looks ids up in `_calEvents` and would no-op.
+- ⚠ Existing chips tint via `` `${e.color}22` `` — string concat that only works
+  for hex. Task colours are `var(--…)`, so they use `color-mix` instead. If you
+  ever give a synced event a var colour, it will silently lose its background.
+- Toggle in the Calendar view-tabs row (`D.prefs.calShowTasks`, default ON).
+- ⚠ Latent, pre-existing: the month/week grids build cell date strings with
+  `toISOString()` while `_syncedEventsOn`/`_tasksOnDate` use `_ymd()`. These
+  agree west of UTC (where the owner is) but diverge east of it.
 
 **Shipped since -152 (2026-07-29 → 07-31), all live and verified on prod:**
 - **-153** Notes **Sort** was a no-op on the page's default view — `'Recent'`

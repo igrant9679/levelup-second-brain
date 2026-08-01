@@ -18142,10 +18142,113 @@ function _cellEventsForDate(dateStr,hour){
     return {id:e.id,title:e.title||e.subject||'(untitled)',hour:h,endHour:eh,color:e.color||'var(--purp)',dateStr,_synced:true};
   });
 }
+// ── Scheduled tasks on the calendar ────────────────────────────────────────
+// A task is SCHEDULED when it has both a date and a start time. The date is
+// startDate (when the work happens), falling back to due — a task carrying a
+// time but no start date is almost always meant to be done on its due date.
+//
+// These are DERIVED at render time and never written into _calEvents. That is
+// the whole point: rescheduling or completing a task updates the calendar with
+// no sync step and no second copy to keep consistent.
+function _taskSchedule(t){
+  if(!t||(typeof _isSubtaskRow==='function'&&_isSubtaskRow(t)))return null;
+  const time=String(t.startTime||'').trim();
+  if(!/^\d{1,2}:\d{2}$/.test(time))return null;              // needs a real time
+  const date=String(t.startDate||t.due||'').slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;          // and a real date
+  const hour=parseInt(time.slice(0,2),10)||0;
+  let endHour=hour+1;
+  const et=String(t.endTime||'').trim();
+  if(/^\d{1,2}:\d{2}$/.test(et)){
+    const eh=parseInt(et.slice(0,2),10)||0,em=parseInt(et.slice(3,5),10)||0;
+    endHour=Math.max(hour+1,em>0?eh+1:eh);                   // round a :30 end up
+  }else if(Number(t.estimatedMins)>0){
+    endHour=hour+Math.max(1,Math.ceil(Number(t.estimatedMins)/60));
+  }
+  return {dateStr:date,hour,endHour,time};
+}
+// Priority-coded so the calendar reads at a glance; Done goes muted, not hidden
+// — seeing what you actually did at 2pm is the useful half of a calendar.
+function _taskCalColor(t){
+  if(String(t.status||'')==='Done')return 'var(--t3)';
+  const p=String(t.priority||'');
+  return p==='High'?'var(--red)':p==='Low'?'var(--ok)':'var(--warn)';
+}
+// Tasks time-blocked through openTimeBlockPicker already push a REAL _calEvents
+// entry carrying linkedTaskId. Without this they would render twice — once as
+// the block, once as the derived task.
+function _blockedTaskIds(){
+  const s=new Set();
+  (_calEvents||[]).forEach(e=>{if(e&&e.linkedTaskId!=null)s.add(String(e.linkedTaskId));});
+  return s;
+}
+function _scheduledTaskEvents(){
+  if(D&&D.prefs&&D.prefs.calShowTasks===false)return [];
+  const blocked=_blockedTaskIds();
+  const out=[];
+  ((typeof _taskPool==='function'?_taskPool():D.tasks)||[]).forEach(t=>{
+    if(!t||blocked.has(String(t.id)))return;
+    const s=_taskSchedule(t);
+    if(!s)return;
+    const done=String(t.status||'')==='Done';
+    out.push({
+      id:t.id,_taskId:t.id,_task:true,_done:done,
+      title:(done?'✓ ':'')+String(t.title||'(untitled task)'),
+      hour:s.hour,endHour:s.endHour,time:s.time,dateStr:s.dateStr,
+      color:_taskCalColor(t),
+    });
+  });
+  return out;
+}
+function _cellTasksForDate(dateStr,hour){
+  return _scheduledTaskEvents().filter(e=>e.dateStr===dateStr&&e.hour===hour);
+}
+function _tasksOnDate(dateObj){
+  const ds=_ymd(dateObj);
+  return _scheduledTaskEvents().filter(e=>e.dateStr===ds);
+}
+// One click handler for every calendar chip. Task chips must open the TASK
+// drawer, not openCalEvent — their id is a task id and would not resolve.
+function _calOpenChip(kind,id){
+  if(kind==='task'){
+    const t=((typeof _taskPool==='function'?_taskPool():D.tasks)||[]).find(x=>String(x.id)===String(id));
+    if(t&&typeof openDrawer==='function')return openDrawer('task',t);
+    if(typeof nav==='function')nav('tasks');
+    return;
+  }
+  if(typeof openCalEvent==='function')openCalEvent(id);
+}
+function _calChipClick(e){
+  return `_calOpenChip('${e&&e._task?'task':'event'}','${_jsAttr(String(e&&e.id!=null?e.id:''))}')`;
+}
+// Shared chip markup for the week + month grids.
+//
+// NB the existing event chips build their tint as `${e.color}22` — string
+// concatenation onto a colour. That only works for hex; for a `var(--x)` colour
+// it produces `var(--x)22`, which is invalid and silently yields no background.
+// Task colours are all vars, so they use color-mix instead of inheriting that bug.
+function _calChip(e,opts){
+  const o=opts||{};
+  const task=!!(e&&e._task);
+  const bg=task?`color-mix(in srgb,${e.color} 15%,transparent)`:`${e.color}22`;
+  const edge=task?`2px dashed ${e.color}`:`2px solid ${e.color}`;
+  const done=task&&e._done?';opacity:.55;text-decoration:line-through':'';
+  const tip=task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:'';
+  return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${tip?` title="${_jsAttr(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
+}
+// Show/hide scheduled tasks. Default ON — the user asked for them — so only an
+// explicit false opts out.
+function toggleCalShowTasks(){
+  D.prefs=D.prefs||{};
+  D.prefs.calShowTasks=D.prefs.calShowTasks===false;
+  save('prefs');
+  if(typeof renderCal==='function')renderCal();
+  toast(D.prefs.calShowTasks===false?'Scheduled tasks hidden':'📋 Scheduled tasks shown');
+}
 function _calEventsOn(dateObj){
   const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
   const local=(_calEvents||[]).filter((e)=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)));
-  return [...local,..._syncedEventsOn(dateObj)].sort((a,b)=>(a.hour||0)-(b.hour||0));
+  return [...local,..._syncedEventsOn(dateObj),..._tasksOnDate(dateObj)].sort((a,b)=>(a.hour||0)-(b.hour||0));
 }
 // Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
 // real {start,end} datetimes, skipping ones already past today.
@@ -18587,10 +18690,13 @@ function renderCal(){
 }
 
 function _calViewTabs(){
-  return `<div class="tabs" style="margin-bottom:10px">
+  const showTasks=!(D&&D.prefs&&D.prefs.calShowTasks===false);
+  const n=showTasks?_scheduledTaskEvents().length:0;
+  return `<div class="tabs" style="margin-bottom:10px;align-items:center">
     <div class="tab ${_calView==='week'?'on':''}" onclick="_calView='week';renderCal()">Week</div>
     <div class="tab ${_calView==='day'?'on':''}" onclick="_calView='day';renderCal()">Day</div>
     <div class="tab ${_calView==='month'?'on':''}" onclick="_calView='month';renderCal()">Month</div>
+    <button class="btn btn-s" style="margin-left:auto;height:24px;font-size:11px;white-space:normal;background:${showTasks?'var(--acs)':''};color:${showTasks?'var(--ac)':'var(--t3)'}" onclick="toggleCalShowTasks()" title="Tasks that have both a date and a start time appear on the grid alongside events">${showTasks?'▢ Tasks shown':'▢ Tasks hidden'}${showTasks&&n?` · ${n}`:''}</button>
   </div>`;
 }
 
@@ -18617,8 +18723,8 @@ function renderCalWeek(){
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
 ${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
-  const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek))),..._cellEventsForDate(weekDayStrs[d],h)];
-  return`<div class="cal-c">${evs.map(e=>`<div class="cal-ev" style="background:${e.color}22;border-left:2px solid ${e.color};color:var(--t1);cursor:pointer" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('')}</div></div>`;
+  const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek))),..._cellEventsForDate(weekDayStrs[d],h),..._cellTasksForDate(weekDayStrs[d],h)];
+  return`<div class="cal-c">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>`;
 }
 
 function renderCalDay(){
@@ -18633,10 +18739,15 @@ function renderCalDay(){
   const hours=[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
   const rows=hours.map(h=>{
     const label=h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
-    const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0))),..._cellEventsForDate(dayStr,h)];
+    const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0))),..._cellEventsForDate(dayStr,h),..._cellTasksForDate(dayStr,h)];
     const evHtml=evs.map(e=>{
       // Calculate duration in hours for visual height hint
       const durationH=e.endHour&&e.endHour>e.hour?e.endHour-e.hour:1;
+      // Task chips are DERIVED, not rows in _calEvents, so they deliberately
+      // skip the drag/resize affordances below — calDayDragStart/calResizeStart
+      // look the id up in _calEvents and would silently no-op on a task id.
+      // Rescheduling a task happens in its drawer.
+      if(e._task)return _calChip(e,{cls:'',extra:`;padding:4px 8px;border-radius:4px;margin-bottom:3px;font-size:11px;border-left-width:3px`});
       return`<div
         data-ev-id="${e.id}"
         draggable="true"
@@ -18779,8 +18890,8 @@ function renderCalMonth(){
     const dStr=d.toISOString().split('T')[0];
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
-    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d)];
-    const evDots=evs.slice(0,3).map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="event.stopPropagation();openCalEvent(${e.id})">${esc(e.title)}</div>`).join('');
+    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d),..._tasksOnDate(d)];
+    const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
       <div style="font-size:11px;font-weight:${isTodayCell?700:400};color:${isTodayCell?'var(--ac)':isThisMonth?'var(--t1)':'var(--t3)'};margin-bottom:3px">${d.getDate()}</div>
