@@ -897,6 +897,23 @@ body.sb-open .lu-pill-pop{display:none!important}
     will-change:transform;
     box-shadow:8px 0 32px rgba(0,0,0,.55);border-right:1px solid var(--bd2)}
   body.sb-open .sb{transform:translateX(0)}
+  /* ⚠ Aurora Glass (-145) lifts the main panes above its aura pseudo-element
+     with `body.aurora .mn,.rr,.sb{position:relative;z-index:1}`. That selector
+     is (0,2,1) and MEDIA QUERIES ADD NO SPECIFICITY, so it beat the `.sb`
+     (0,1,0) rule above and dropped the phone sidebar out of its fixed overlay
+     down to z-index 1 — BELOW the z-index 9994 backdrop. Every tap on a nav
+     row therefore hit .sb-backdrop, whose handler is toggleMobileSidebar(false),
+     so the menu just closed and nothing navigated: mobile nav looked dead.
+
+     The doubled `.sb.sb` is deliberate: it makes this (0,3,0), which beats
+     Aurora's (0,2,1) on SPECIFICITY rather than on source order. Matching
+     specificity alone is not enough — Aurora's block lives at the END of this
+     stylesheet, so on a tie it would still win. Winning outright also means
+     this keeps working if the blocks are ever reordered. Don't "tidy" it back
+     to a single .sb, and don't fix it by appending a rule after the Aurora
+     block instead — CSS appended to the end of this <style> is exactly what
+     silently failed for Daybreak and in -132/-134. */
+  body.aurora .sb.sb{position:fixed;z-index:9995}
   /* Lock the body scroll when the sidebar is open so the page underneath
      doesn't scroll. NOTE: don't use position:fixed on body or
      touch-action:none — both break iOS Safari taps and layout. Plain
@@ -3016,7 +3033,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-29-154';
+  var APP_BUILD='2026-07-31-155';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
