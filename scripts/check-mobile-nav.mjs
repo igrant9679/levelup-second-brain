@@ -225,6 +225,7 @@ const posPlain = resolve_(rules, 'position', NO_THEME, unknown);
 const zPlain = resolve_(rules, 'z-index', NO_THEME, unknown);
 const bdZ = resolveSimple(rules, 'z-index', s => /(^|\s)\.sb-backdrop$/.test(s.trim()));
 const mt = resolveSimple(rules, 'display', s => /\.menu-toggle$/.test(s.trim()));
+const collapse = resolveSimple(rules, 'display', s => /\.sb-collapse-toggle$/.test(s.trim()));
 
 const check = (ok, label, detail) => { (ok ? notes : failures).push(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`); };
 
@@ -252,6 +253,10 @@ check(posPlain?.value === 'fixed' && Number(zPlain?.value) === zNum,
 
 check(mt && mt.value !== 'none', 'hamburger is visible on phones',
   `.menu-toggle display:${mt?.value ?? '(none)'}`);
+
+// Collapse-to-icons is desktop-only; on phones it overlays a nav row.
+check(collapse?.value === 'none', 'collapse-to-icons toggle is hidden on phones',
+  `.sb-collapse-toggle display:${collapse?.value ?? '(none)'} via \`${collapse?.sel ?? '-'}\``);
 
 console.log(`Mobile nav guard — resolving CSS at ${PHONE_WIDTH}px`);
 console.log(`  source: ${label}`);

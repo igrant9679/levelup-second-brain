@@ -914,6 +914,13 @@ body.sb-open .lu-pill-pop{display:none!important}
      block instead — CSS appended to the end of this <style> is exactly what
      silently failed for Daybreak and in -132/-134. */
   body.aurora .sb.sb{position:fixed;z-index:9995}
+  /* Collapse-to-icons is a DESKTOP affordance — on phones the sidebar is a
+     slide-in overlay, so shrinking it to a 56px icon rail means nothing. It
+     also sits at bottom-left (z-index 5) directly over the Calendar row's
+     icon area, where it looks like a stray control. Taps on the row still
+     landed (the button only spans x 8-40), so this is a clarity fix, not a
+     tap-blocker. */
+  .sb-collapse-toggle{display:none}
   /* Lock the body scroll when the sidebar is open so the page underneath
      doesn't scroll. NOTE: don't use position:fixed on body or
      touch-action:none — both break iOS Safari taps and layout. Plain
@@ -3033,7 +3040,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-07-31-155';
+  var APP_BUILD='2026-07-31-156';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
