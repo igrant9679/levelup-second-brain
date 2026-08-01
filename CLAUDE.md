@@ -4,9 +4,28 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-07-24-152`** · everything committed AND pushed ·
+Live build at handoff: **`2026-07-31-155`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
+
+**Shipped since -152 (2026-07-29 → 07-31), all live and verified on prod:**
+- **-153** Notes **Sort** was a no-op on the page's default view — `'Recent'`
+  is the DEFAULT category and its branch forced created-desc BEFORE the sort
+  chain, so every dropdown option was unreachable. Guarded to fire only while
+  `_notesSort==='newest'`. Same sweep fixed the Notes filter panel (8 controls
+  that never reflected their own state after a re-render), `filterNotesByTag`
+  (bypassed the sort engine AND threw for the note-properties chips, which pass
+  no element), 4 unescaped user tags in `onclick` (the `_jsAttr` trap), and the
+  Goals scope buttons (hardcoded "My Goals" active while `_goalsMyOnly` was
+  false — the page rendered everyone's goals while claiming otherwise).
+- **-154** Logo reverted to the previous **"LU"** mark at all 5 sites, now
+  **self-hosted** at `client/public/levelup-logo.webp` (the old CloudFront URL
+  still resolves, but it is the single point of failure that broke the iOS icon
+  once). All icons regenerated from it via canvas→temp-endpoint; `favicon.svg`
+  is now a **raster wrapper** (the LU mark has no vector master) — kept as SVG
+  because SVG-capable browsers PREFER it and would otherwise show the old mark.
+- **-155** **Mobile nav fix** — see the media-query specificity entry under
+  Known gotchas. Added `pnpm check:mobile-nav` so it cannot regress silently.
 
 ### 1. Electric Ink theme — USER-REQUESTED, deferred to next session
 
@@ -917,6 +936,25 @@ Body class `compact-mode` is a setting. Normal mode has bumped font sizes (15px 
   over whatever is beside it. Add `white-space:normal;line-height:1.35`. Hit in
   build -142 → fixed in -143; every DOM and computed-style assertion passed,
   **only a screenshot caught it.** Screenshot any new multi-column panel.
+- **⚠ MEDIA QUERIES ADD NO SPECIFICITY — run `pnpm check:mobile-nav`.** A theme
+  selector like `body.aurora .sb` (0,2,1) beats `@media (max-width:900px){ .sb }`
+  (0,1,0), because the media wrapper contributes nothing. That is exactly how
+  Aurora (-145) silently killed **mobile navigation for a week**: the phone
+  sidebar fell out of `position:fixed` to `z-index:1`, landing BELOW the
+  z-index-9994 backdrop, so every tap on a nav row hit `.sb-backdrop` →
+  `toggleMobileSidebar(false)` → the menu just closed and nothing navigated.
+  Fixed in -155 with `body.aurora .sb.sb` (0,3,0) — the doubled class wins on
+  specificity, not source order (Aurora's block is at the END of the sheet, so
+  a tie would still lose). **`scripts/check-mobile-nav.mjs` resolves the cascade
+  statically at 390px and asserts the 6 invariants** (fixed overlay, stacks
+  above the backdrop, open/closed transforms, themes don't change the contract,
+  hamburger visible). No browser, no deps, exits non-zero. Run it before any
+  push touching CSS for `.sb` / `.mn` / `.rr` / `.sb-backdrop` / `.menu-toggle`.
+  It is validated against the real regression — removing the -155 rule makes it
+  fail with the exact winning selector named.
+- **Everything here was verified at desktop width for a week and nobody
+  noticed.** When touching shared layout CSS, check a phone viewport too — the
+  guard above covers the sidebar contract, but not layout generally.
 - **Don't measure a freshly loaded page too early.** Boot (session restore →
   first render → the `renderScreen` wrapper's 50ms post-render injections for
   the mini-week strip, shortcuts legend and ⚙ Customize button) takes several
