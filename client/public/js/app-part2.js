@@ -2732,6 +2732,65 @@ function showAIMsg(){
 // thread follows the user across devices. Last 50 messages kept; older ones
 // are dropped to keep the prefs blob bounded.
 // ═══════════════════════════════════════════════════════════════════════════
+// ── AI chat prompt budgeting ───────────────────────────────────────────────
+// ai.assist validates its input with zod: systemPrompt <= 4000 chars,
+// userContent <= 8000. Exceeding either is a 400 BEFORE the request ever
+// reaches a provider.
+//
+// The chat's systemPrompt is boilerplate + workspace snapshot + the recent
+// transcript — and the TRANSCRIPT GROWS AS YOU CHAT. So this worked at the
+// start of a conversation and began failing partway through, which reads like
+// an intermittent provider outage rather than a payload problem. Ask LevelUp
+// never hit it because it clamps and carries no transcript (see build -47,
+// which fixed the same class of bug on that path).
+//
+// Budget it explicitly instead of hoping it fits.
+const AI_SYS_MAX=3900;      // headroom under the server's 4000
+const AI_USER_MAX=7900;     // headroom under the server's 8000
+const AI_TURN_MAX=400;      // one transcript turn may not hog the budget
+// Guaranteed floor for the transcript. Without it the workspace snapshot eats
+// the whole budget and the chat keeps ZERO previous turns as soon as replies
+// get verbose — safe, but it silently stops being a conversation, which is the
+// entire point of the panel. The snapshot yields first; it is regenerated every
+// turn, whereas a dropped turn is gone.
+const AI_HISTORY_FLOOR=1200;
+function _aiClampStr(s,n){
+  s=String(s==null?'':s);
+  return s.length<=n?s:s.slice(0,Math.max(0,n-1))+'…';
+}
+// Builds a systemPrompt GUARANTEED to be <= AI_SYS_MAX. Priority order when
+// space runs out: rules > workspace snapshot > transcript, and the transcript
+// drops OLDEST-first so the most recent turns survive.
+function _aiChatSystemPrompt(history){
+  const head=`You are the LevelUp AI assistant — a friendly, sharp productivity coach embedded inside a personal "second brain" app. Your job is to help the user understand and act on their own workspace.
+
+Rules:
+- Be concise. Aim for 2–6 sentences unless the user explicitly asks for a long answer or a list.
+- Refer to the workspace context below when answering. Mention specific items by name when relevant.
+- When the user asks you to do something (create a task, schedule a focus block, summarise notes), describe what you'd do — the app's automation tools aren't directly hooked up yet, so propose a clear plan they can execute.
+- Use light Markdown: bullet lists, **bold** for emphasis, headings only when you really need them.
+- Speak in the second person ("you"). Encouraging tone, not corporate.`;
+  let ctx='';
+  try{ctx=typeof _buildAIContext==='function'?_buildAIContext():'';}catch(_){ctx='';}
+  // The snapshot may only use what is left after the transcript floor. With a
+  // real workspace the snapshot is well under this, so the transcript simply
+  // gets the slack — the floor only bites when the snapshot is huge.
+  const ctxRoom=Math.max(0,AI_SYS_MAX-head.length-AI_HISTORY_FLOOR);
+  ctx=_aiClampStr(ctx,ctxRoom);
+  let out=head+(ctx?'\n\n'+ctx:'');
+  const HDR='\n\nPrevious conversation turns (oldest first):\n';
+  const turns=[];
+  let used=out.length+HDR.length;
+  for(let i=(history||[]).length-1;i>=0;i--){          // newest first
+    const m=history[i]||{};
+    const line=`${m.role==='user'?'USER':'ASSISTANT'}: ${_aiClampStr(m.content,AI_TURN_MAX)}`;
+    if(used+line.length+2>AI_SYS_MAX)break;            // stop before overflowing
+    turns.unshift(line);
+    used+=line.length+2;
+  }
+  if(turns.length)out+=HDR+turns.join('\n\n');
+  return _aiClampStr(out,AI_SYS_MAX);                  // belt and braces
+}
 function _aiChatHistory(){return (D.prefs&&D.prefs.aiChat&&Array.isArray(D.prefs.aiChat.messages))?D.prefs.aiChat.messages:[];}
 function _aiChatPushMessage(role,content){
   D.prefs.aiChat=D.prefs.aiChat||{messages:[]};
@@ -3173,29 +3232,29 @@ async function sendAIMsg(){
     // Build the chat transcript as a single user-content blob since ai.assist
     // takes systemPrompt + userContent rather than a structured turn list.
     const history=_aiChatHistory().slice(-10,-1); // up to last 9 turns before the just-sent message
-    const sys=`You are the LevelUp AI assistant — a friendly, sharp productivity coach embedded inside a personal "second brain" app. Your job is to help the user understand and act on their own workspace.
-
-Rules:
-- Be concise. Aim for 2–6 sentences unless the user explicitly asks for a long answer or a list.
-- Refer to the workspace context below when answering. Mention specific items by name when relevant.
-- When the user asks you to do something (create a task, schedule a focus block, summarise notes), describe what you'd do — the app's automation tools aren't directly hooked up yet, so propose a clear plan they can execute.
-- Use light Markdown: bullet lists, **bold** for emphasis, headings only when you really need them.
-- Speak in the second person ("you"). Encouraging tone, not corporate.
-
-${_buildAIContext()}
-
-Previous conversation turns (oldest first):
-${history.map(m=>`${m.role==='user'?'USER':'ASSISTANT'}: ${m.content}`).join('\n\n')}`;
+    const sys=_aiChatSystemPrompt(history);
     const res=await _trpc('ai.assist',{
       systemPrompt:sys,
-      userContent:msg,
+      // The server caps userContent at 8000 too — a long paste would 400 in
+      // exactly the same way, so clamp rather than let it fail.
+      userContent:_aiClampStr(msg,AI_USER_MAX),
       provider:provider||'manus',
       apiKey:apiKey||undefined,
     },'mutation');
     const text=String(res?.result||res?.text||'').trim()||"I didn't get a response — try rephrasing, or check that an AI key is configured in Settings → AI Features.";
     _aiChatPushMessage('assistant',text);
   }catch(e){
-    _aiChatPushMessage('assistant',`⚠️ I couldn't reach the AI provider.\n\n${String(e.message||e).slice(0,200)}\n\nMake sure an API key is configured in **Settings → AI Features**, and that the chosen provider is reachable.`);
+    // Be truthful about WHICH failure this is. A zod 400 never reached a
+    // provider, so telling the user to check their API key sends them hunting
+    // in the wrong place — the same mistake the Test Email button used to make
+    // (see the email section in CLAUDE.md).
+    const raw=String((e&&e.message)||e||'');
+    const tooBig=/too_big|Too big/i.test(raw)&&/systemPrompt|userContent/i.test(raw);
+    if(tooBig){
+      _aiChatPushMessage('assistant',`⚠️ That message was too large to send.\n\nThe conversation context outgrew the request limit. **Clear the chat** (↻ in the panel header) and ask again — your workspace data is untouched.\n\n_This is a size limit, not a connection or API-key problem._`);
+    }else{
+      _aiChatPushMessage('assistant',`⚠️ I couldn't reach the AI provider.\n\n${raw.slice(0,200)}\n\nMake sure an API key is configured in **Settings → AI Features**, and that the chosen provider is reachable.`);
+    }
   }finally{
     _aiChatBusy=false;
     if(sendBtn)sendBtn.disabled=false;
