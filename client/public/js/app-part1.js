@@ -1102,6 +1102,12 @@ function applyPrefs(){
   // Works in both light and dark. Default ON; only an explicit false opts out.
   document.body.classList.toggle('bento',D.prefs.chromaticBento!==false);
   _luApplyBentoCSS();
+  // Electric Ink — near-black ground, voltage accents in glows/borders/numerals.
+  // Dark mode only (the CSS is scoped to body:not(.light-mode).electric) and
+  // DEFAULT OFF, unlike the other three: it is an opt-in direction, so it takes
+  // an explicit true.
+  document.body.classList.toggle('electric',D.prefs.electricInk===true);
+  _luApplyElectricCSS();
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
   // treat as 'compact'. Otherwise default to 'normal'.
   const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
@@ -1271,6 +1277,93 @@ const DAYBREAK_LIGHT={
   t2:'#3E475E',t3:'#5A6478',
   brd:'rgba(22,33,62,.11)',
 };
+// ── Electric Ink ───────────────────────────────────────────────────────────
+// Near-black ground, maximum-voltage accents. The rule that makes it work:
+// colour lives in GLOWS, TOP-BORDERS and BIG NUMERALS — never in fills. That
+// keeps it loud without hurting legibility, which is what separates it from a
+// neon theme that is painful to read.
+//
+// DARK MODE ONLY, and DEFAULT OFF (unlike Aurora/Daybreak/Bento, which shipped
+// on). It is a deliberate, loud direction rather than a refinement of the
+// stock look, so it is opt-in: `D.prefs.electricInk===true`.
+//
+// Ground/text TOKENS are ELECTRIC_DARK below — they cannot live in CSS,
+// because applyTheme() writes the token set as INLINE styles on <body> and
+// inline beats any stylesheet rule. Everything that is NOT a token is in the
+// injected stylesheet below.
+function _luApplyElectricCSS(){
+  try{
+    let tag=document.getElementById('lu-electric-css');
+    if(!tag){tag=document.createElement('style');tag.id='lu-electric-css';document.head.appendChild(tag);}
+    // Scoped to body:not(.light-mode).electric, so it is inert in light mode
+    // and removed entirely by the toggle.
+    const E='body:not(.light-mode).electric';
+    tag.textContent=[
+      // The voltage palette. These are NOT theme tokens on purpose: applyTheme
+      // writes every key of the theme object inline and never removes one, so
+      // putting them in ELECTRIC_DARK would leave stale --volt/--lime vars on
+      // <body> after the theme is switched off. A stylesheet rule scoped to
+      // .electric appears and disappears with the class.
+      `${E}{--volt:#5B8CFF;--magenta:#FF4ECD;--lime:#A3E635;--amber:#FFC53D}`,
+      // 1. KPI tiles — colour as a 2px TOP BORDER, glow on the NUMERAL only.
+      //    renderHome inline-styles these tiles (background/border/shadow), and
+      //    inline beats a stylesheet, so !important is required here. It is
+      //    scoped tightly enough that it cannot leak past the hero strip.
+      `${E} .home-hero-tile{background:#0F0F17!important;border:1px solid rgba(255,255,255,.07)!important;border-top:2px solid var(--volt)!important;box-shadow:none!important}`,
+      `${E} .home-hero-tile:nth-child(4n+2){border-top-color:var(--magenta)!important}`,
+      `${E} .home-hero-tile:nth-child(4n+3){border-top-color:var(--lime)!important}`,
+      `${E} .home-hero-tile:nth-child(4n+4){border-top-color:var(--amber)!important}`,
+      `${E} .home-hero-tile:hover{filter:none;transform:translateY(-2px)}`,
+      //    The numeral is the first line of the tile's text column. It already
+      //    carries its own colour inline; this only adds the glow.
+      `${E} .home-hero-tile>div:last-child>div:first-child{text-shadow:0 0 14px currentColor!important}`,
+      // 2. Active nav — EDGE-LIT RAIL, not a filled pill. The stock look fills
+      //    the row with --acs and draws a 3px bar in ::before; both go.
+      `${E} .si.on{background:transparent;color:var(--volt);box-shadow:inset 2px 0 0 var(--volt)}`,
+      `${E} .si.on::before{display:none}`,
+      `${E} .si.on svg{stroke:var(--volt)!important}`,
+      `${E} .si.on .c{background:var(--volt);color:#08080D}`,
+      // 3. Card titles — volt blue, alternating lime so a long page has rhythm.
+      //    TWO alternation rules are needed because cards sit in two different
+      //    structures, and using only the first shipped every title volt (the
+      //    alternation silently did nothing until it was measured):
+      //      - most pages: .cd elements are direct siblings -> nth-of-type works
+      //      - Home: each .cd is the ONLY .cd inside its own .home-card-wrap, so
+      //        every one is nth-of-type(1). Alternate on the WRAPPER instead;
+      //        those are siblings, and the order tracks the user's drag-reorder.
+      `${E} .cd .cd-t{color:var(--volt)}`,
+      `${E} .cd:nth-of-type(even) .cd-t{color:var(--lime)}`,
+      `${E} .home-card-wrap:nth-of-type(even) .cd .cd-t{color:var(--lime)}`,
+      // Discipline from the pitch: glow on numerals and borders ONLY, never on
+      // body text. This is the guard rail — if a future edit adds a text-shadow
+      // to prose inside a card, this puts it back.
+      `${E} .cd p,${E} .cd span,${E} .cd li,${E} .cd td{text-shadow:none}`,
+    ].join('\n');
+  }catch(e){if(window.__DEV__)console.warn('[electric] css inject failed',e);}
+}
+
+// Electric Ink's ground/text tokens (dark mode only).
+//
+// Same constraint as DAYBREAK_LIGHT: these MUST be here rather than in CSS,
+// because applyTheme() writes them inline on <body>.
+//
+// Deliberately omits ac/ach/acs — the user picks their accent
+// (D.prefs.accent) and overriding it would silently discard that choice. The
+// voltage palette reaches the UI through the injected stylesheet instead.
+//
+// t2/t3 are LIFTED from the stock dark values (#94A3B8/#7C8AA3). The pitch
+// flagged that they were tuned for #0B0F1A, not this darker ground — the
+// darker ground actually *helps* contrast, but the raised surfaces (s3/s4)
+// are where small meta text gets thin, so these are re-checked there. See
+// scripts/check-electric-contrast.mjs for the measured ratios.
+const ELECTRIC_DARK={
+  bg:'#08080D',                                            // near-black ground
+  s1:'#0F0F17',s2:'#13131D',s3:'#1B1B27',s4:'#242433',     // surfaces
+  bd1:'rgba(255,255,255,.07)',bd2:'rgba(255,255,255,.12)',bd3:'rgba(255,255,255,.18)',
+  t1:'#F5F7FF',t2:'#A6B0CA',t3:'#8C96B2',t4:'#4A5268',
+  ok:'#A3E635',warn:'#FFC53D',purp:'#FF4ECD',              // lime / amber / magenta
+  brd:'rgba(255,255,255,.12)',
+};
 // Page-accent map (the hue used for each route's banner + cards).
 // Editable in the UI so users can rebrand the per-page palette too.
 const PAGE_ACCENT_DEFAULTS={
@@ -1433,6 +1526,10 @@ function _getEffectiveTheme(){
   // Daybreak Pop sits on top of the light defaults but UNDER anything the user
   // has explicitly chosen, so it restyles the ground without overriding them.
   if(!dark&&D.prefs.daybreakPop!==false)defaults=Object.assign({},defaults,DAYBREAK_LIGHT);
+  // Electric Ink is the dark-mode counterpart: same precedence rule — above the
+  // dark defaults, UNDER anything the user explicitly stored, so it restyles the
+  // ground without overriding a chosen theme.
+  if(dark&&D.prefs.electricInk===true)defaults=Object.assign({},defaults,ELECTRIC_DARK);
   let theme=Object.assign({},defaults,D.prefs.theme||{});
   // Scheduled override
   const sched=_getActiveSchedule();
@@ -1844,6 +1941,22 @@ function toggleDaybreakPop(el){
   toast(D.prefs.daybreakPop
     ?(lit?'🌅 Daybreak Pop on':'🌅 Daybreak Pop on — shows in light mode')
     :'Daybreak Pop off');
+}
+// Electric Ink on/off. Dark-mode only — the CSS is scoped to
+// body:not(.light-mode).electric and the tokens only merge when dark, so
+// enabling it while in light mode changes nothing visible. The toast says so
+// rather than silently doing nothing; we deliberately do NOT flip the user's
+// darkMode pref for them.
+function toggleElectricInk(el){
+  el.classList.toggle('on');
+  D.prefs.electricInk=el.classList.contains('on');
+  save('prefs');
+  applyPrefs();
+  if(typeof applyTheme==='function')applyTheme();   // ground/text tokens
+  const lit=D.prefs.darkMode===false;
+  toast(D.prefs.electricInk
+    ?(lit?'⚡ Electric Ink on — switch to dark mode to see it':'⚡ Electric Ink on')
+    :'Electric Ink off');
 }
 // Chromatic Bento on/off. Home-scoped, so the toast says where to look.
 function toggleChromaticBento(el){

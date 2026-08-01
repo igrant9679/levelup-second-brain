@@ -27,11 +27,36 @@ holds machine-specific scratch paths).
 - **-155** **Mobile nav fix** — see the media-query specificity entry under
   Known gotchas. Added `pnpm check:mobile-nav` so it cannot regress silently.
 
-### 1. Electric Ink theme — USER-REQUESTED, deferred to next session
+### 1. Electric Ink theme — ✅ BUILT in -157 (2026-08-01)
 
-The **last unbuilt** of the four visual directions pitched on 2026-07-23
-(Aurora Glass ✅ -145/-146 · Daybreak Pop ✅ -150 · Chromatic Bento ✅ -152).
-User: *"Let's do the Electric Ink theme in the next session."*
+All four pitched directions are now shipped (Aurora Glass -145/-146 · Daybreak
+Pop -150 · Chromatic Bento -152 · **Electric Ink -157**).
+
+**What shipped:** `ELECTRIC_DARK` tokens merged in `_getEffectiveTheme()` (dark
+only, above dark defaults, UNDER `D.prefs.theme`, `ac/ach/acs` omitted so the
+user's accent survives) + `#lu-electric-css` injected by `_luApplyElectricCSS()`
++ `D.prefs.electricInk` / body class `electric` + a Settings → Appearance row.
+**DEFAULT OFF** — unlike the other three, this one is opt-in (`===true`),
+because it is a loud direction rather than a refinement.
+
+**Two things worth knowing if you touch it:**
+- **Card-title alternation needs TWO selectors.** Cards live in two structures:
+  on most pages `.cd` elements are direct siblings (`nth-of-type` works), but on
+  Home each `.cd` is the ONLY `.cd` inside its own `.home-card-wrap`, so every
+  one is `nth-of-type(1)`. Shipping only the first rule made every title volt
+  and the alternation silently did nothing — caught by measuring, not by eye.
+- **KPI tiles are inline-styled by `renderHome`**, so the top-border/background
+  rules need `!important`. Scoped to `.home-hero-tile` so it cannot leak.
+
+**Contrast verified deterministically** (`node scripts/check-electric-contrast.mjs`
+— parses `ELECTRIC_DARK` out of the bundle so it cannot drift): every text and
+accent tone clears WCAG AA on every surface; worst is `t3` on `s4` at 5.18:1.
+`t2`/`t3` were lifted to `#A6B0CA`/`#8C96B2` for the raised surfaces.
+
+Verified in-browser: inert in light mode (the owner's actual mode), fully
+reversible to stock dark when toggled off, accent not hijacked.
+
+The original pitch follows, kept for reference.
 
 **What it is:** near-black ground, maximum-voltage accents. Colour lives in
 **glows, top-borders and big numerals** — never in fills — so it reads loud
