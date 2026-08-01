@@ -17,7 +17,12 @@
  * This resolves the CSS cascade statically — no browser, no dependencies — and
  * asserts the invariants that must hold for the phone menu to be usable.
  *
- *   node scripts/check-mobile-nav.mjs
+ *   node scripts/check-mobile-nav.mjs                      # local source
+ *   node scripts/check-mobile-nav.mjs https://levelupnow.tools   # LIVE prod
+ *
+ * The URL form matters: this repo has twice shipped index.html CSS that looked
+ * fine locally and was broken on prod (-132/-134), so "it passes on disk" is
+ * not the same claim as "it is correct on the deployed site".
  *
  * Exits non-zero on failure. Run it before any push that touches CSS for
  * .sb / .mn / .rr / .sb-backdrop / .menu-toggle.
@@ -27,8 +32,18 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const HTML = resolve(ROOT, 'client/index.html');
+const ARG = process.argv[2];
+const SOURCE = ARG || resolve(ROOT, 'client/index.html');
 const PHONE_WIDTH = 390; // iPhone 14/15 logical width
+
+async function loadHtml(src) {
+  if (/^https?:\/\//i.test(src)) {
+    const res = await fetch(src);
+    if (!res.ok) throw new Error(`fetch ${src} -> HTTP ${res.status}`);
+    return { html: await res.text(), label: src };
+  }
+  return { html: readFileSync(src, 'utf8'), label: src.replace(ROOT + '\\', '').replace(ROOT + '/', '') };
+}
 
 // ── extract every <style> block, strip comments ──────────────────────────────
 function styleBlocks(html) {
@@ -186,8 +201,13 @@ function resolveSimple(rules, prop, selectorTest) {
 }
 
 // ── run ──────────────────────────────────────────────────────────────────────
-const html = readFileSync(HTML, 'utf8');
+const { html, label } = await loadHtml(SOURCE);
 const rules = styleBlocks(html).flatMap(parseRules);
+const build = (html.match(/APP_BUILD\s*=\s*'([^']+)'/) || [])[1] || '(unknown)';
+if (!rules.length) {
+  console.log(`No CSS rules parsed from ${label} — refusing to report a pass.`);
+  process.exit(1);
+}
 const unknown = new Set();
 const failures = [];
 const notes = [];
@@ -233,7 +253,9 @@ check(posPlain?.value === 'fixed' && Number(zPlain?.value) === zNum,
 check(mt && mt.value !== 'none', 'hamburger is visible on phones',
   `.menu-toggle display:${mt?.value ?? '(none)'}`);
 
-console.log(`Mobile nav guard — resolving client/index.html CSS at ${PHONE_WIDTH}px\n`);
+console.log(`Mobile nav guard — resolving CSS at ${PHONE_WIDTH}px`);
+console.log(`  source: ${label}`);
+console.log(`  build:  ${build}\n`);
 for (const n of notes) console.log('  ' + n);
 for (const f of failures) console.log('  ' + f);
 if (unknown.size) {
