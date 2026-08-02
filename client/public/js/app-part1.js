@@ -1108,6 +1108,10 @@ function applyPrefs(){
   // an explicit true.
   document.body.classList.toggle('electric',D.prefs.electricInk===true);
   _luApplyElectricCSS();
+  // Repaint the topbar dark/light switch for whatever the mode now is. Hooked
+  // here so it is correct however the mode changed — topbar, Settings, or a
+  // scheduled theme swap.
+  try{_syncThemeToggleBtn();}catch(_){}
   // Density (#13). Backwards-compat: if `compact` is set without `density`,
   // treat as 'compact'. Otherwise default to 'normal'.
   const density=D.prefs.density||(D.prefs.compact?'compact':'normal');
@@ -1919,6 +1923,42 @@ function toggleDarkMode(el){
   save('prefs'); // was raw localStorage — bypassed server sync, so it reverted on refresh
   applyPrefs();
   toast(D.prefs.darkMode?'🌙 Dark mode on':'☀️ Light mode on');
+}
+// ── Topbar dark/light switch ───────────────────────────────────────────────
+// Same pref as Settings → Appearance, but callable without a `.tog` element,
+// so the two controls cannot disagree about what "on" means.
+//
+// NB it must call applyTheme() as well as applyPrefs(): applyPrefs toggles the
+// `light-mode` CLASS, but the actual palette comes from the CSS custom
+// properties applyTheme() writes inline on <body>. Removing/adding the class
+// alone does not repaint the theme — a documented trap in this codebase.
+function toggleThemeMode(){
+  D.prefs=D.prefs||{};
+  const goingDark=D.prefs.darkMode===false;   // currently light -> go dark
+  D.prefs.darkMode=goingDark;
+  save('prefs');
+  applyPrefs();
+  if(typeof applyTheme==='function')applyTheme();
+  if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')renderScreen(curScreen);
+  toast(goingDark?'🌙 Dark mode on':'☀️ Light mode on');
+}
+// Paints the topbar button for the CURRENT mode, and keeps the Settings toggle
+// in sync so switching from the topbar while that panel is open doesn't leave
+// it showing a stale state.
+function _syncThemeToggleBtn(){
+  const dark=!(D.prefs&&D.prefs.darkMode===false);
+  const btn=document.getElementById('topbar-theme-btn');
+  if(btn){
+    // Show the action, not the state: in dark mode offer the sun (switch to light).
+    btn.innerHTML=dark
+      ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>'
+      : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>';
+    const label=dark?'Switch to light mode':'Switch to dark mode';
+    btn.setAttribute('aria-label',label);
+    btn.setAttribute('title',label);
+  }
+  const tog=document.getElementById('tog-dark');   // Settings → Appearance
+  if(tog)tog.classList.toggle('on',dark);
 }
 // Aurora Glass on/off. The look is entirely CSS scoped to body.aurora, so this
 // is the whole implementation of the switch.

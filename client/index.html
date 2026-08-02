@@ -1255,6 +1255,14 @@ body.sb-open .lu-pill-pop{display:none!important}
   .tb-s{display:none!important}
   /* Topbar logo subtitle hidden so name has room */
   .tb-l div small{display:none}
+  /* The topbar overflowed by ~18px at 390px even BEFORE the dark/light switch
+     was added (measured: scrollWidth 426 vs clientWidth 408 with the new button
+     hidden), which quietly clipped whichever control sat last. The logo TEXT is
+     the cheapest ~90px to reclaim — the mark still identifies the app and still
+     navigates home, and every action control stays reachable. NB the existing
+     `.tb-l div small` rule above targets a class the topbar does not use, so it
+     was never actually reclaiming anything. */
+  .logo div{display:none}
   /* AI bubble bottom-right won't overlap the iOS Safari toolbar */
   .ai-bubble{bottom:max(90px,env(safe-area-inset-bottom,0))}
   /* Reports: KPI strip stacks 1-up */
@@ -2378,6 +2386,10 @@ body.aurora.light-mode .scr.on > .bg::before{
 <button class="tbtn" id="topbar-sync-btn" onclick="_topbarSyncNow()" aria-label="Sync external sources (Smartsheet + NiftyPM)" title="Sync external sources (Smartsheet + NiftyPM)" style="position:relative"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span id="topbar-sync-dot" style="display:none;position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--ok)"></span></button>
 <span id="topbar-sync-label" style="font-size:11px;color:var(--t3);align-self:center;cursor:pointer;display:none" onclick="nav('command')" title="Open Command Center"></span>
 <button id="topbar-push-btn" onclick="_pushPendingNow()" style="display:none;background:#f59e0b;color:#fff;border:none;height:30px;padding:0 10px;font-size:11px;font-weight:600;border-radius:6px;cursor:pointer" title="Push queued status changes to source">⬆ Push <span data-pcount>0</span></button>
+<!-- Dark/light switch. The icon + labels are filled in by _syncThemeToggleBtn()
+     from applyPrefs(), so it stays correct no matter where the mode was changed
+     (here, Settings → Appearance, or a theme schedule firing). -->
+<button class="tbtn" id="topbar-theme-btn" onclick="toggleThemeMode()" aria-label="Switch colour mode" title="Switch colour mode"></button>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" role="button" tabindex="0" aria-label="Account and settings" onclick="nav('settings')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('settings')}">IG</div>
 </div>
@@ -3040,7 +3052,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-08-02-160';
+  var APP_BUILD='2026-08-02-161';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
