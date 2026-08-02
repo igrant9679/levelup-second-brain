@@ -2754,6 +2754,11 @@ const AI_TURN_MAX=400;      // one transcript turn may not hog the budget
 // entire point of the panel. The snapshot yields first; it is regenerated every
 // turn, whereas a dropped turn is gone.
 const AI_HISTORY_FLOOR=1200;
+// Cap for _buildAIContext()'s workspace snapshot. It is shared by the chat,
+// the Home insight card and the hero brief, and its ITEM TEXT is unbounded
+// user data even though the lists are sliced — so it is the growth vector all
+// three have in common.
+const AI_CTX_MAX=1800;
 function _aiClampStr(s,n){
   s=String(s==null?'':s);
   return s.length<=n?s:s.slice(0,Math.max(0,n-1))+'…';
@@ -2895,7 +2900,7 @@ function _buildAIContext(){
   const habitSummary=habits.slice(0,6).map(h=>`- ${h.title} (${h.cadence}): 🔥${h.streak||0} streak${h.doneToday?', done today':''}`).join('\n');
   const recentJournal=journal.slice(-3).map(j=>`- ${j.date} ${j.mood||''}: ${(j.body||'').slice(0,140)}`).join('\n');
   const ideaSummary=ideas.slice(0,4).map(i=>`- ${i.title} [${i.stage||'spark'}]`).join('\n');
-  return `WORKSPACE CONTEXT (snapshot — refer to it when answering)
+  const out=`WORKSPACE CONTEXT (snapshot — refer to it when answering)
 Current screen: ${curScreen||'home'} · today: ${today} · user: ${D.creds.userName||'unknown'}
 
 Tasks: ${tasks.length} total, ${open.length} open, ${overdue.length} overdue, ${today_tasks.length} due today
@@ -2915,6 +2920,13 @@ ${recentJournal||'(none)'}
 
 Ideas (${ideas.length}):
 ${ideaSummary||'(none)'}`;
+  // Cap the snapshot. It slices each list to a handful of items, but the ITEM
+  // TEXT is unbounded user data — a few very long task/note titles or journal
+  // excerpts are enough to push a caller's systemPrompt past the 4000-char
+  // limit. This is the single growth vector shared by the chat, the Home
+  // insight card and the hero brief, so capping it here fixes all of them at
+  // once rather than at each call site.
+  return _aiClampStr(out,AI_CTX_MAX);
 }
 function onAIInputKey(e){
   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAIMsg();}
@@ -7795,7 +7807,43 @@ function renderOnenoteHistory(latestJob){
 // ====== OAUTH SYNC ======
 // Calls the tRPC backend via fetch to manage Microsoft/Google OAuth tokens
 
+// ── ai.assist payload guard ────────────────────────────────────────────────
+// ai.assist is zod-validated: systemPrompt <= 4000, userContent <= 8000.
+// Exceeding either is a 400 that NEVER REACHES A PROVIDER, and it surfaced to
+// the user as "I couldn't reach the AI provider — check your API key", which
+// sends them hunting in entirely the wrong place (root-caused in build -159).
+//
+// There are ~30 ai.assist call sites and most build their prompts from LIVE
+// workspace data — task lists, note bodies, project rosters, JSON snapshots —
+// so they grow with the user's data. Clamping at each site is a thing to
+// forget, and the next new caller would reintroduce the bug. This is the one
+// boundary every call passes through, so the limit is enforced here once.
+//
+// This is a SAFETY NET, not a substitute for budgeting. Truncation here is
+// blind — it cuts the tail, which may be the part that mattered. A caller that
+// must keep specific content should allocate its own budget the way
+// _aiChatSystemPrompt does (rules > snapshot > transcript, oldest turns
+// dropped first). The console.warn exists so a silent truncation shows up
+// instead of quietly degrading answer quality.
+const _AI_LIMITS={systemPrompt:4000,userContent:8000};
+function _aiGuardInput(procedure,input){
+  if(procedure!=='ai.assist'||!input||typeof input!=='object')return input;
+  let out=input,clipped=null;
+  for(const k in _AI_LIMITS){
+    const v=input[k],max=_AI_LIMITS[k];
+    if(typeof v==='string'&&v.length>max){
+      if(out===input)out=Object.assign({},input);
+      out[k]=v.slice(0,max-1)+'…';
+      (clipped=clipped||[]).push(`${k} ${v.length}→${max}`);
+    }
+  }
+  if(clipped){
+    try{console.warn('[ai.assist] payload clamped ('+clipped.join(', ')+'). The caller should budget its own prompt — see _aiChatSystemPrompt.');}catch(_){}
+  }
+  return out;
+}
 async function _trpc(procedure,input,method='query'){
+  input=_aiGuardInput(procedure,input);
   const url='/api/trpc/'+procedure;
   if(method==='query'){
     const resp=await fetch(url+'?input='+encodeURIComponent(JSON.stringify({json:input})),{credentials:'include'});

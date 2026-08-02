@@ -47,6 +47,24 @@ for (const [label, hist] of cases) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label.padEnd(26)} systemPrompt=${String(s.length).padStart(4)} chars, turns kept=${keptTurns}`);
 }
 
+// The transcript FLOOR is the reason verbose conversations keep any history at
+// all. Without it the workspace snapshot eats the budget and the chat silently
+// stops being a conversation while every size assertion still passes — which is
+// exactly what the first version of this fix did.
+// Threshold is 2, not 1, and that matters: continuity needs the previous
+// EXCHANGE (a question and its answer), not one stray line. Dropping the floor
+// back to a token reserve still squeezes in a single turn, so a `>= 1` check
+// passes while the chat has effectively lost its memory — verified by actually
+// reverting the floor and watching this assertion catch it.
+const MIN_TURNS = 2;
+for (const [label, len] of [['verbose', 1200], ['huge', 9000]]) {
+  const hist = Array.from({length: 9}, (_, i) => turn(i % 2 ? 'assistant' : 'user', len));
+  const kept = (buildSys(hist).match(/(^|\n)(USER|ASSISTANT): /g) || []).length;
+  const ok = kept >= MIN_TURNS;
+  if (!ok) fail++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label} conversation retains an exchange — ${kept} turn(s) kept (min ${MIN_TURNS})`);
+}
+
 const starved = buildSys(Array.from({length: 30}, () => turn('assistant', 5000)));
 const keepsRules = /You are the LevelUp AI assistant/.test(starved) && /Be concise/.test(starved);
 console.log(`${keepsRules ? 'PASS' : 'FAIL'}  rules boilerplate survives a starved budget (${starved.length} chars)`);
@@ -70,5 +88,50 @@ console.log(`\ncontrol — unbudgeted prompt of the same conversation: ${oldStyl
             `(${oldStyle.length > 4000 ? 'exceeds' : 'DOES NOT EXCEED'} the 4000 cap)`);
 if (oldStyle.length <= 4000) { console.log('control failed: the fixture no longer reproduces the bug'); fail++; }
 
-console.log(fail ? `\n${fail} FAILURE(S)` : '\nAll prompt-budget cases stay within the server limits.');
-process.exit(fail ? 1 : 0);
+console.log(fail ? `\n${fail} FAILURE(S) in prompt budgeting` : '\nAll prompt-budget cases stay within the server limits.');
+// NB: no early exit here — the central-guard section below must still run.
+
+// ── Central ai.assist guard ────────────────────────────────────────────────
+// Every caller funnels through _trpc, so the limit is enforced there once.
+// ~30 call sites build prompts from live workspace data; clamping each is a
+// thing to forget, and the next new caller would reintroduce the bug.
+const src2 = readFileSync(P, 'utf8');
+const ga = src2.indexOf('const _AI_LIMITS=');
+const gb = src2.indexOf('async function _trpc(', ga);
+if (ga < 0 || gb < 0) { console.error('\nFAIL  ai.assist guard block not found in app-part2.js'); process.exit(1); }
+const guard = new Function(src2.slice(ga, gb) + '\nreturn {_AI_LIMITS,_aiGuardInput};')();
+
+let gfail = 0;
+const gcheck = (ok, label, detail) => {
+  if (!ok) gfail++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ' — ' + detail : ''}`);
+};
+console.log('\ncentral guard (every ai.assist caller passes through _trpc):');
+
+const huge = { systemPrompt: 'S'.repeat(99999), userContent: 'U'.repeat(99999), provider: 'manus' };
+const g = guard._aiGuardInput('ai.assist', huge);
+gcheck(g.systemPrompt.length <= 4000, 'clamps systemPrompt', `99999 -> ${g.systemPrompt.length}`);
+gcheck(g.userContent.length <= 8000, 'clamps userContent', `99999 -> ${g.userContent.length}`);
+gcheck(g.provider === 'manus', 'leaves other fields intact');
+gcheck(huge.systemPrompt.length === 99999, 'does not mutate the caller\'s object');
+
+const small = { systemPrompt: 'ok', userContent: 'ok' };
+gcheck(guard._aiGuardInput('ai.assist', small) === small, 'passes small payloads through untouched');
+gcheck(guard._aiGuardInput('appData.save', huge) === huge, 'only touches ai.assist, not other procedures');
+gcheck(guard._aiGuardInput('ai.assist', undefined) === undefined, 'tolerates a missing input');
+
+// The guard existing is not the same as the guard RUNNING. Assert it is
+// actually invoked as the first thing _trpc does — otherwise every check above
+// passes while the limit is enforced nowhere.
+const trpcBody = src2.slice(gb, src2.indexOf('\n}', gb));
+gcheck(/input\s*=\s*_aiGuardInput\(\s*procedure\s*,\s*input\s*\)/.test(trpcBody),
+  '_trpc actually calls the guard', 'a guard that exists but is never invoked protects nothing');
+
+// The shared workspace snapshot must be capped at source too — it feeds the
+// chat, the Home insight card and the hero brief.
+const capMatch = src2.match(/const AI_CTX_MAX=(\d+)/);
+gcheck(!!capMatch, 'AI_CTX_MAX defined', capMatch ? capMatch[1] + ' chars' : '');
+gcheck(/return _aiClampStr\(out,AI_CTX_MAX\);/.test(src2), '_buildAIContext() returns a clamped snapshot');
+
+console.log(gfail ? `\n${gfail} GUARD FAILURE(S)` : '\nCentral ai.assist guard holds.');
+process.exit(fail + gfail ? 1 : 0);
