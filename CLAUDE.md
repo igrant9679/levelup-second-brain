@@ -4,9 +4,67 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-01-158`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-02-161`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
+
+### Guard scripts — run these, they are cheap
+
+Three checks now exist that did not before. **Each was validated by deliberately
+breaking the thing it protects** — a check that cannot fail is worth nothing, and
+two of these passed against a broken build until they were strengthened.
+
+| command | protects |
+|---|---|
+| `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
+| `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
+| `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-161 — Dark/light switch in the topbar** (user-requested).
+`#topbar-theme-btn` between Sync and Notifications; shows the ACTION (a sun
+while in dark mode), not the state.
+- `toggleThemeMode()` drives the same `D.prefs.darkMode` as Settings but takes
+  no `.tog` element, so the two controls cannot disagree. It **must** call
+  `applyTheme()` as well as `applyPrefs()` — `applyPrefs` only toggles the
+  `light-mode` CLASS, while the palette comes from the inline custom properties
+  `applyTheme()` writes on `<body>`. Class alone does not repaint.
+- `_syncThemeToggleBtn()` repaints the icon AND updates Settings' `#tog-dark`.
+  Hooked into `applyPrefs()` so it is right however the mode changed.
+- ⚠ **The topbar was overflowing ~18px at 390px BEFORE this** (measured with the
+  new button hidden: 426 vs 408), silently clipping whichever control sat last.
+  Fixed by hiding the logo TEXT below 560px, where the search field already
+  hides. Now: overflow 0, all 8 controls on-screen and hit-testable.
+- Dead code found, left alone: `.tb-l` has 5 CSS rules and **zero** markup uses
+  it, so `.tb-l div small` never reclaimed anything.
+
+**-160 — Central guard for every `ai.assist` caller.** ~30 call sites build
+prompts from live workspace data. Rather than clamp each (a thing to forget, and
+the next new caller reintroduces it), `_aiGuardInput()` enforces the limits at
+the ONE boundary they share: `_trpc`.
+- It is a **safety net, not a substitute for budgeting** — truncation there is
+  blind, it cuts the tail. It `console.warn`s so a silent clip is visible.
+- `_buildAIContext()` now returns a snapshot capped at `AI_CTX_MAX` — it slices
+  each list to a few items but the ITEM TEXT is unbounded user data, and it is
+  the growth vector shared by the chat, the Home insight card and the hero brief.
+- ⚠ **The guard EXISTING is not the guard RUNNING.** The first checker verified
+  `_aiGuardInput` behaved correctly while never asserting `_trpc` calls it —
+  every check passed with the limit enforced nowhere. The checker now asserts
+  the wiring.
+
+**-159 — AI Chat 400 (`systemPrompt` too big).** `ai.assist` is zod-validated
+(`systemPrompt<=4000`, `userContent<=8000`); exceeding either is a 400 that
+never reaches a provider.
+- Cause: the chat prompt is boilerplate + snapshot + **the last 9 turns pasted
+  in full**, and the transcript GROWS as you chat — so it worked early in a
+  conversation and failed partway through. Ask LevelUp was immune because it
+  clamps and carries no transcript (build -47 fixed this class there).
+  Measured: the unbudgeted prompt was **17,794 chars, 4.4× the cap**.
+- `_aiChatSystemPrompt()` budgets rules > snapshot > transcript, dropping turns
+  OLDEST-first. `AI_HISTORY_FLOOR` guarantees the transcript room: the first fix
+  passed every size assertion while keeping **zero** turns once replies got
+  verbose — safe, but it silently stops being a conversation.
+- The error message no longer blames the API key for a size rejection. Same
+  lesson as the Test Email button.
 
 **-158 — Scheduled tasks on the Calendar** (user-requested). A task with BOTH a
 date and a `startTime` now renders on the week/day/month grids and in the
@@ -31,7 +89,7 @@ rails, alongside events. Key points:
   `toISOString()` while `_syncedEventsOn`/`_tasksOnDate` use `_ymd()`. These
   agree west of UTC (where the owner is) but diverge east of it.
 
-**Shipped since -152 (2026-07-29 → 07-31), all live and verified on prod:**
+**Earlier in the same arc (2026-07-29 → 07-31), all live and verified on prod:**
 - **-153** Notes **Sort** was a no-op on the page's default view — `'Recent'`
   is the DEFAULT category and its branch forced created-desc BEFORE the sort
   chain, so every dropdown option was unreachable. Guarded to fire only while
@@ -49,6 +107,10 @@ rails, alongside events. Key points:
   because SVG-capable browsers PREFER it and would otherwise show the old mark.
 - **-155** **Mobile nav fix** — see the media-query specificity entry under
   Known gotchas. Added `pnpm check:mobile-nav` so it cannot regress silently.
+- **-156** Hid the `«` collapse-to-icons toggle below 900px. It is a desktop
+  affordance (the sidebar is an overlay on phones) and it sat over the Calendar
+  row's icon area. NOT a tap-stealer — verified at 3 points across the row — so
+  this was clarity, not function. It is the 7th mobile-nav invariant.
 
 ### 1. Electric Ink theme — ✅ BUILT in -157 (2026-08-01)
 
