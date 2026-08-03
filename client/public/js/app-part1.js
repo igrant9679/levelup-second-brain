@@ -16084,29 +16084,39 @@ function renderProjects(){
   _renderProjRail();
 }
 function renderProjectsTeamKanban(header){
+  // This lives on the PROJECTS page, so it shows project work only:
+  // programs contain projects, projects contain tasks. Tasks without a
+  // projectId belong to the Tasks page, not here — including them made the
+  // Projects page look like a task dump on accounts with no projects yet.
+  const activeProjects=(D.projects||[]).filter(p=>!p.archived);
+  if(!activeProjects.length){
+    $('proj-main').innerHTML=header+renderEmptyState({icon:'users',title:'No projects yet',hint:'Workload shows each person’s project tasks side by side. Create a project and link tasks to it to see the spread.',ctaLabel:'+ New Project',ctaFn:"openFA('project')"});
+    return;
+  }
+  const pool=_topLevelTasks(D.tasks).filter(t=>t.projectId!=null&&t.projectId!=='');
   const allMembers=D.teams.flatMap(t=>t.members);
   // Build columns: one per member + Unassigned
   const cols=[...allMembers.map(m=>({key:m.name,label:m.name,color:m.color,initials:m.name.split(' ').map(w=>w[0]).join('')})),{key:null,label:'Unassigned',color:'var(--t3)',initials:'?'}];
   const colHtml=cols.map(col=>{
-    const tasks=D.tasks.filter(t=>t.status!=='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key)));
-    const done=D.tasks.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
+    const tasks=pool.filter(t=>t.status!=='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key)));
+    const done=pool.filter(t=>t.status==='Done'&&(col.key===null?(t.assignedTo==null||t.assignedTo===''):(t.assignedTo===col.key))).length;
     return`<div style="flex:1;min-width:200px;max-width:280px">
       <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px 6px 0 0;background:var(--s3);margin-bottom:6px">
         <div style="width:22px;height:22px;border-radius:50%;background:${col.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${col.initials}</div>
         <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
         <span style="font-size:11px;color:var(--t3)">${tasks.length} active · ${done} done</span>
       </div>
-      ${tasks.map(t=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      ${tasks.map(t=>{const pname=t.project||((D.projects||[]).find(x=>String(x.id)===String(t.projectId))||{}).name||'';return `<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
         <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
         <div style="display:flex;gap:6px;font-size:11px;color:var(--t3)">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
-          ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
+          ${pname?`<span>${_icon('folder',12,'currentColor')} ${esc(pname)}</span>`:''}
           ${t.due?`<span>📅 ${fmtDate(t.due)}</span>`:''}        </div>
         ${(t.subtasks||[]).length?`<div style="font-size:11px;color:var(--t3);margin-top:3px">✓ ${(t.subtasks||[]).filter(s=>s.done).length}/${(t.subtasks||[]).length} subtasks</div>`:''}
-      </div>`).join('')}
+      </div>`;}).join('')}
       ${tasks.length===0?`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No active tasks</div>`:''}
     </div>`}).join('');
-  $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Tasks grouped by assignee. Click any card to edit assignment.</div><div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
+  $('proj-main').innerHTML=header+`<div style="font-size:11px;color:var(--t2);margin-bottom:10px">Project tasks grouped by assignee. Tasks not linked to a project live on the Tasks page. Click any card to edit assignment.</div><div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px">${colHtml}</div>`;
 }
 function projectHealth(p){
   const pts=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done');
