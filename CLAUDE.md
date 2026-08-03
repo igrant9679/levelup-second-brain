@@ -212,7 +212,7 @@ Personal productivity / "second brain" web app: tasks, notes, projects, goals, j
 ## Stack
 
 - **Frontend**: React 19 + Vite, TypeScript, Tailwind 4, Radix UI, wouter routing, tRPC client.
-  - **BUT**: most of the actual UI lives in the legacy single-file HTML+JS app served as `client/index.html` (the HTML shell) plus two extracted JS chunks: `client/public/js/app-part1.js` (~12,000 lines) and `client/public/js/app-part2.js` (~8,800 lines). Don't be misled by `client/src/`; the real code is in those three files. As of `e298d0f`, `client/index.html` itself is only ~1,660 lines (was 22,555) — pure markup + CSS + the two `<script src defer>` tags.
+  - **BUT**: most of the actual UI lives in the legacy single-file HTML+JS app served as `client/index.html` (the HTML shell) plus two extracted JS chunks: `client/public/js/app-part1.js` (~25,200 lines) and `client/public/js/app-part2.js` (~14,300 lines). Don't be misled by `client/src/`; the real code is in those three files. As of `e298d0f`, `client/index.html` is markup + CSS + the two `<script src defer>` tags only (~3,065 lines, down from 22,555 before the split). ⚠ **Line counts drift fast — measure with `wc -l`, don't quote these.** They were wrong by ~2× before being re-measured on 2026-08-02.
 - **Backend**: Node + Express, tRPC, Drizzle ORM, MySQL (mysql2 driver).
 - **Deploy**: Railway. Auto-deploys on push to `main`.
 - **Auth**: email/password (bcrypt + JWT cookies, 1-year expiry) + Microsoft 365 OAuth.
@@ -221,15 +221,18 @@ Personal productivity / "second brain" web app: tasks, notes, projects, goals, j
 
 ```
 client/
-  index.html          ← HTML shell + CSS + 2 <script src> tags. ~1,660 lines.
+  index.html          ← HTML shell + CSS + 2 <script src> tags. ~3,065 lines.
+                        APP_BUILD stamp lives near the bottom (~line 3055).
   public/js/
-    app-part1.js      ← 12,063 lines. renderHome / renderTasks / renderNotes /
+    app-part1.js      ← ~25,195 lines. renderHome / renderTasks / renderNotes /
                         renderGoals / renderHabits / renderMail / renderJournal /
                         renderIdeas / renderCal / renderReports / RTE / lightbox /
-                        cmd palette / AI chat / theme engine / etc.
-    app-part2.js      ← 8,830 lines. renderSettingsHTML / renderHelp /
+                        cmd palette / theme engine / Ask LevelUp / etc.
+    app-part2.js      ← ~14,266 lines. renderSettingsHTML / renderHelp /
                         renderContacts / renderClustersDashboard / tour engine /
-                        knowledge-graph (s-graph) / mind-map (s-mindmap) / etc.
+                        knowledge-graph (s-graph) / mind-map (s-mindmap) /
+                        AI chat / _trpc + sync helpers / etc.
+    (all three measured 2026-08-02 — re-measure rather than trusting these)
   src/                ← Small React shell (App.tsx, AppLayout, ~12 pages)
 server/
   _core/              ← infra (auth context, tRPC, OAuth, email, LLM, env)
