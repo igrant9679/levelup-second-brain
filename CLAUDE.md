@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-02-161`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-02-163`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,26 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-163 — Projects Workload view scoped to project tasks** (user-reported from
+iPad: "all of the Tasks are showing up in the Project Page" with zero projects).
+`renderProjectsTeamKanban` listed EVERY task grouped by assignee with no
+project filter, and the view choice persists in synced `D.prefs.pageViews`, so
+one Workload click followed the user to every device. Now it pools
+`_topLevelTasks` with a `projectId` only, renders the standard empty state
+(+ New Project CTA) when no active projects exist, and the caption states the
+scope. Card project label falls back to a projectId lookup when the legacy
+`t.project` name string is unset. List/Kanban/Gantt never had the problem —
+they render projects only.
+
+**-162 — Goal check-in Save was a no-op** (user-reported). The Save button's
+handler was inline JS inside the `openGoalCheckIn` template literal; its
+`'…\n…'` string literals became REAL newlines when the template literal was
+evaluated, so the generated `onclick` attribute was a SyntaxError and the
+click did nothing. Moved to a named `saveGoalCheckIn(gid)`. ⚠ **The trap:
+never put `\n`-carrying JS in an inline handler built by a template literal**
+— scanned all three files for other `onclick` attrs containing `\n`; this was
+the only one. (Multi-line `onclick="` handlers: also zero remain.)
 
 **-161 — Dark/light switch in the topbar** (user-requested).
 `#topbar-theme-btn` between Sync and Notifications; shows the ACTION (a sun
