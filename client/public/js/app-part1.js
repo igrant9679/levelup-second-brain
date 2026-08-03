@@ -17365,32 +17365,34 @@ function openGoalCheckIn(gid){
   </div>
   ${prevCheckins.length?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Previous check-ins</div>${prevCheckins.reverse().map(ci=>`<div style="background:var(--s3);border-radius:5px;padding:6px 8px;margin-bottom:4px;font-size:11px"><div style="font-weight:600;color:var(--t3);margin-bottom:2px">${ci.date}</div><div style="color:var(--t2)">${esc(ci.progress)}</div></div>`).join('')}</div>`:''}
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-  <button class="btn btn-p" onclick="
-    const progress=document.getElementById('ci-progress').value.trim();
-    const blockers=document.getElementById('ci-blockers').value.trim();
-    const next=document.getElementById('ci-next').value.trim();
-    const pct=parseInt(document.getElementById('ci-pct').value);
-    if(!progress){toast('Please describe your progress.');return;}
-    const g2=D.goals.find(x=>x.id===${gid});
-    if(!g2)return;
-    if(!g2.checkIns)g2.checkIns=[];
-    g2.checkIns.push({date:'${today}',progress,blockers,next,pct});
-    g2.pct=pct;
-    g2.lastTouchedAt=new Date().toISOString();
-    g2.pctHistory=Array.isArray(g2.pctHistory)?g2.pctHistory:[];
-    g2.pctHistory.push({ts:Date.now(),pct});
-    if(g2.pctHistory.length>30)g2.pctHistory=g2.pctHistory.slice(-30);
-    // Also create a journal entry
-    const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:new Date().toISOString().split('T')[0],body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
-    D.journal.push(jEntry);
-    save('goals');save('journal');
-    closeModal();
-    renderGoals();
-    toast('✓ Check-in saved and logged to Journal!');
-  ">Save Check-in</button>
+  <button class="btn btn-p" onclick="saveGoalCheckIn(${gid})">Save Check-in</button>
   <button class="btn btn-s" onclick="closeModal()">Cancel</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
+}
+function saveGoalCheckIn(gid){
+  const g2=D.goals.find(x=>x.id===gid);
+  if(!g2)return;
+  const progress=document.getElementById('ci-progress').value.trim();
+  const blockers=document.getElementById('ci-blockers').value.trim();
+  const next=document.getElementById('ci-next').value.trim();
+  const pct=parseInt(document.getElementById('ci-pct').value);
+  if(!progress){toast('Please describe your progress.');return;}
+  const today=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if(!g2.checkIns)g2.checkIns=[];
+  g2.checkIns.push({date:today,progress,blockers,next,pct});
+  g2.pct=pct;
+  g2.lastTouchedAt=new Date().toISOString();
+  g2.pctHistory=Array.isArray(g2.pctHistory)?g2.pctHistory:[];
+  g2.pctHistory.push({ts:Date.now(),pct});
+  if(g2.pctHistory.length>30)g2.pctHistory=g2.pctHistory.slice(-30);
+  // Also create a journal entry
+  const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:new Date().toISOString().split('T')[0],body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
+  D.journal.push(jEntry);
+  save('goals');save('journal');
+  closeModal();
+  renderGoals();
+  toast('✓ Check-in saved and logged to Journal!');
 }
 function openGoalDetail(gid){
   const g=D.goals.find(x=>x.id===gid);
