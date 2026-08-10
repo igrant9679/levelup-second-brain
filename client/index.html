@@ -948,7 +948,15 @@ body.sb-open .lu-pill-pop{display:none!important}
      layout. #notes-mobile-tabs (in the markup) toggles which pane is
      visible via body.notes-pane-X. */
   .scr#s-notes>.bg{grid-template-columns:1fr!important;grid-template-rows:auto auto 1fr!important}
-  .scr#s-notes>.bg>.ph-r{grid-column:1/-1;margin:8px 12px 0!important}
+  /* ⚠ !important is load-bearing: the header, bulk bar and sheets/slides
+     sections carry grid-column:2/-1 (inline / base rule) for the desktop
+     5-column grid. Under the phone's 1fr template that placement spawns an
+     IMPLICIT column 2 which swallows the width — the explicit column (and
+     the #notes-mobile-tabs strip in it) collapses to ~24px, making the
+     Folders/List/Editor/Links tabs untappable in portrait. */
+  .scr#s-notes>.bg>.ph-r{grid-column:1/-1!important;margin:8px 12px 0!important}
+  #notes-bulk-bar{grid-column:1/-1!important}
+  #notes-sheets-section,#notes-slides-section{grid-column:1/-1!important;margin:6px 10px 12px!important}
   #notes-mobile-tabs{grid-column:1/-1}
   .scr#s-notes .notes-nav,
   .scr#s-notes .notes-list,
@@ -3052,7 +3060,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-08-02-163';
+  var APP_BUILD='2026-08-10-164';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
