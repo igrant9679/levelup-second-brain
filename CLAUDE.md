@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-02-163`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-10-164`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,20 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-164 — Phone Notes page unusable in portrait** (user-reported from iPhone:
+"can't select Notes without landscape"). The ≤900px Notes layout collapses the
+grid to `1fr`, but `.ph-r` and `#notes-bulk-bar` carry INLINE
+`grid-column:2/-1` (desktop placement) — under a 1-column template that spawns
+an **implicit column 2 that swallows the width**, crushing the explicit column
+and the `#notes-mobile-tabs` strip inside it to ~24px (the four tabs clip out
+of reach; the persisted `notesMobilePane:'editor'` then trapped users in the
+editor). Fixed with `!important` on the phone `grid-column:1/-1` overrides
+(ph-r / bulk bar / sheets+slides sections). ⚠ **New trap to remember: any
+inline `grid-column:2/-1` on a `.bg` child needs a phone override WITH
+`!important`, or the implicit column silently destroys the stacked layout.**
+Swept all 31 screens at 375px (overflow + elementFromPoint tap-blocking):
+Notes was the only offender; everything else clean.
 
 **-163 — Projects Workload view scoped to project tasks** (user-reported from
 iPad: "all of the Tasks are showing up in the Project Page" with zero projects).
