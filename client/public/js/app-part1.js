@@ -8757,7 +8757,7 @@ function _renderSharedNotesSection(){
       <span style="display:inline-block;font-size:11px;${open?'':'transform:rotate(-90deg)'}">▾</span>
       <span style="font-size:12px;font-weight:600;color:var(--purp)">Shared &amp; delegated notes</span>
       <span style="font-size:11px;font-weight:600;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:1px 7px;border-radius:8px">${shared.length}</span>
-      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to edit · assigned to/by you</span>
+      <span style="flex:1"></span><span style="font-size:11px;color:var(--t3)">click to read · assigned to/by you</span>
     </div>
     ${open?shared.map(_sharedNoteCard).join(''):''}
   </div>`;
@@ -8768,7 +8768,7 @@ function _sharedNoteCard(p){
   const who=delegated?(p._assigneeName||'someone'):_userNameById(p._sharedFromUserId);
   const badge=delegated?'DELEGATED':'SHARED';
   const sub=delegated?('assigned to '+esc(who)):('from '+esc(who));
-  return `<div onclick="_openSharedNoteView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared note — click to edit assignment">
+  return `<div onclick="_openSharedNoteView(${Number(p._idx)||0})" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid var(--purp);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer" title="Shared note — click to read & manage assignment">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||'Untitled')}</span>
@@ -8784,14 +8784,18 @@ async function _openSharedNoteView(idx){
   const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Editor not available');return;}
   const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
-  const snippet=String(p.bodyHtml?p.bodyHtml.replace(/<[^>]+>/g,' '):(p.body||'')).replace(/\s+/g,' ').trim().slice(0,200);
-  modal.innerHTML=`<div style="padding:16px;max-width:480px">
+  // Full read-only body via the same display path the note editor uses —
+  // a shared note the recipient cannot READ isn't shared. (The endpoint has
+  // always returned the full raw note; only this view truncated it.)
+  const bodyHtml=(typeof _noteBodyDisplayHtml==='function')?_noteBodyDisplayHtml(p):'';
+  modal.innerHTML=`<div style="padding:16px;max-width:720px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
       <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
+      ${(p.tags||[]).slice(0,4).map(t=>`<span style="font-size:11px;color:var(--t3)">#${esc(t)}</span>`).join('')}
     </div>
     <div class="field"><label>Title</label><input class="inp" id="snt-title" value="${esc(p.title||'')}"></div>
-    ${snippet?`<div style="font-size:11px;color:var(--t3);background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:8px;margin-bottom:8px;max-height:80px;overflow:hidden">${esc(snippet)}…</div>`:''}
+    ${bodyHtml?`<div class="note-doc" style="max-width:none;margin:0 0 10px;padding:0"><div class="note-body" style="max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd1);border-radius:8px;padding:12px 14px;background:var(--s1)">${bodyHtml}</div></div>`:''}
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedNote(${Number(idx)||0})">Save</button>
@@ -8799,7 +8803,7 @@ async function _openSharedNoteView(idx){
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'notes')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The note body stays with the owner.':'The note body stays with the owner; you can update its assignment here.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The body is read-only here — only the owner edits it.':'The body is read-only here — only the owner edits it. You can update the title and assignment.'}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -14039,24 +14043,27 @@ function _wikiAcPick(i){
 }
 // Back-compat shim (older callers).
 function insertWikiLink(title){if(_wikiAc){const i=_wikiAc.items.findIndex(x=>x.value===title);_wikiAcPick(i>=0?i:0);}}
-function renderNoteEditor(n){
-  // Prefer rich-HTML body (from RTE saves or document imports) when present;
-  // fall back to markdown-style rendering of n.body for older / plain notes.
-  let bodyHtml;
+// Display path for a note body, shared by the editor pane AND the
+// shared-note viewer so a recipient reads exactly what the owner sees.
+// Prefer rich-HTML body (from RTE saves or document imports) when present;
+// fall back to markdown-style rendering of n.body for older / plain notes.
+function _noteBodyDisplayHtml(n){
   if(n.bodyHtml&&n.bodyHtml.trim()){
     // Run through mdToHtml: real-HTML bodies (starting with '<') pass through
     // untouched; plain-typed bodies like "- a<br>- b" become real lists.
-    bodyHtml=luRTE_mdToHtml(n.bodyHtml);
-  } else {
-    // Build body HTML — extract markdown images first so they survive HTML escaping
-    const _imgPlaceholders=[];
-    const _bodyWithPlaceholders=(n.body||'').replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,alt,url)=>{
-      const idx=_imgPlaceholders.length;
-      _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
-      return `%%IMG${idx}%%`;
-    });
-    bodyHtml=n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/(?:<li style="margin:2px 0;padding-left:4px">.*<\/li>(?:\n|$))+/g,blk=>'<ul style="margin:6px 0;padding-left:22px;list-style:disc outside">'+blk.replace(/\n/g,'')+'</ul>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+    return luRTE_mdToHtml(n.bodyHtml);
   }
+  // Build body HTML — extract markdown images first so they survive HTML escaping
+  const _imgPlaceholders=[];
+  const _bodyWithPlaceholders=(n.body||'').replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(m,alt,url)=>{
+    const idx=_imgPlaceholders.length;
+    _imgPlaceholders.push(`<img src="${url}" alt="${alt||'Image'}" style="max-width:100%;border-radius:6px;margin:8px 0;display:block" loading="lazy" onerror="this.style.display='none'">`);
+    return `%%IMG${idx}%%`;
+  });
+  return n.body?_bodyWithPlaceholders.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/^#{3}\s+(.+)$/gm,'<h3 style="font-size:14px;font-weight:600;margin:10px 0 4px">$1</h3>').replace(/^#{2}\s+(.+)$/gm,'<h2 style="font-size:16px;font-weight:600;margin:12px 0 4px">$1</h2>').replace(/^#\s+(.+)$/gm,'<h1 style="font-size:18px;font-weight:700;margin:14px 0 6px">$1</h1>').replace(/^[-*]\s+(.+)$/gm,'<li style="margin:2px 0;padding-left:4px">$1</li>').replace(/(?:<li style="margin:2px 0;padding-left:4px">.*<\/li>(?:\n|$))+/g,blk=>'<ul style="margin:6px 0;padding-left:22px;list-style:disc outside">'+blk.replace(/\n/g,'')+'</ul>').replace(/\n/g,'<br>').replace(/%%IMG(\d+)%%/g,(_,i)=>_imgPlaceholders[+i]||''):'';
+}
+function renderNoteEditor(n){
+  let bodyHtml=_noteBodyDisplayHtml(n);
   const isEditing=_noteInlineEditId===n.id;
   if(isEditing){
     return `<button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
