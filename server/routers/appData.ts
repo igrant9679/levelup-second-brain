@@ -14,6 +14,18 @@ import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
  * "shared with them". Min-user-id lookup cached ~60s.
  */
 let _minUserIdCache: { id: number | null; at: number } | null = null;
+/**
+ * Per-item share permission. `shareMode` on an item is 'view' | 'edit';
+ * absent = legacy default, which preserves pre-permissions behaviour:
+ * notes were view-only for recipients, sheets/decks were co-editable.
+ * `shareAll: true` additionally makes the item visible to every workspace
+ * member (not just assignees). Admins and the item's owner are never
+ * limited by shareMode.
+ */
+function effShareMode(p: any, dflt: 'view' | 'edit'): 'view' | 'edit' {
+  return (p && (p.shareMode === 'view' || p.shareMode === 'edit')) ? p.shareMode : dflt;
+}
+
 async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Promise<boolean> {
   try {
     const { ENV } = await import("../_core/env");
@@ -931,8 +943,10 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
-              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false });
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p) || p.shareAll === true) {
+              // 'view' shareMode makes the sheet read-only for recipients
+              // (admins keep their full-edit powers; owner sees all).
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: !admin && effShareMode(p, 'edit') === 'view' });
             }
           }
         }
@@ -963,6 +977,8 @@ export const appDataRouter = router({
         theme: z.any().optional(),
         icon: z.string().max(16).optional(),
         color: z.string().max(32).optional(),
+        shareAll: z.boolean().optional(),
+        shareMode: z.enum(['view', 'edit']).optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -978,17 +994,30 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const sh = arr.find((x: any) => x && String(x.id) === input.sheetId);
         if (!sh) return { ok: false as const, error: 'sheet not found' };
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
+        const admin = isAdminUser(ctx.user as any);
+        const isItemOwner = input.ownerUserId === ctx.user.id;
+        let isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
+        if (!isAssignee) {
           const { adminListAllUsers } = await import("../db");
           const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
           const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
           const cur = String(sh.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
+          isAssignee = !!cur && myKeys.includes(cur);
         }
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        if (!(admin || isItemOwner || isAssignee || sh.shareAll === true)) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
+        // Content edits require 'edit' permission (owner/admin always may).
+        const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.columns != null || q.rows != null;
+        if (hasContent && !(admin || isItemOwner) && effShareMode(sh, 'edit') === 'view')
+          return { ok: false as const, error: 'view-only: the owner shared this sheet without edit permission' };
+        // Assignment changes stay with owner/admin/assignees (a share-all
+        // viewer can't reassign); share settings are owner/admin only.
+        const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
+        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
+        if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
+          return { ok: false as const, error: 'only the owner can change share settings' };
+        if (q.shareAll !== undefined) sh.shareAll = q.shareAll;
+        if (q.shareMode !== undefined) sh.shareMode = q.shareMode;
         if (q.title != null) sh.title = q.title;
         if (q.icon != null) sh.icon = q.icon;
         if (q.color != null) sh.color = q.color;
@@ -1047,8 +1076,8 @@ export const appDataRouter = router({
           for (const p of arr) {
             if (!p) continue;
             const assignee = String(p.assignedTo || '').trim().toLowerCase();
-            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p)) {
-              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: false });
+            if (owner || (assignee && myKeys.has(assignee)) || assignedToMe(p) || p.shareAll === true) {
+              out.push({ ...p, _sharedFromUserId: r.userId, _readOnly: !admin && effShareMode(p, 'edit') === 'view' });
             }
           }
         }
@@ -1077,6 +1106,8 @@ export const appDataRouter = router({
         theme: z.any().optional(),
         icon: z.string().max(16).optional(),
         color: z.string().max(32).optional(),
+        shareAll: z.boolean().optional(),
+        shareMode: z.enum(['view', 'edit']).optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1092,17 +1123,27 @@ export const appDataRouter = router({
         if (!Array.isArray(arr)) return { ok: false as const, error: 'bad data' };
         const dk = arr.find((x: any) => x && String(x.id) === input.deckId);
         if (!dk) return { ok: false as const, error: 'deck not found' };
-        let allowed = isAdminUser(ctx.user as any) || input.ownerUserId === ctx.user.id
-          || (Array.isArray(dk.assignees) && dk.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
-        if (!allowed) {
+        const admin = isAdminUser(ctx.user as any);
+        const isItemOwner = input.ownerUserId === ctx.user.id;
+        let isAssignee = Array.isArray(dk.assignees) && dk.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
+        if (!isAssignee) {
           const { adminListAllUsers } = await import("../db");
           const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
           const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
           const cur = String(dk.assignedTo || '').trim().toLowerCase();
-          allowed = !!cur && myKeys.includes(cur);
+          isAssignee = !!cur && myKeys.includes(cur);
         }
-        if (!allowed) return { ok: false as const, error: 'not authorized' };
+        if (!(admin || isItemOwner || isAssignee || dk.shareAll === true)) return { ok: false as const, error: 'not authorized' };
         const q = input.patch;
+        const hasContent = q.title != null || q.icon != null || q.color != null || q.theme !== undefined || q.slides != null;
+        if (hasContent && !(admin || isItemOwner) && effShareMode(dk, 'edit') === 'view')
+          return { ok: false as const, error: 'view-only: the owner shared this deck without edit permission' };
+        const hasAssign = q.assignees != null || q.assigneeNames != null || q.primaryAssigneeId !== undefined || q.assignedTo != null;
+        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
+        if ((q.shareAll !== undefined || q.shareMode !== undefined) && !(admin || isItemOwner))
+          return { ok: false as const, error: 'only the owner can change share settings' };
+        if (q.shareAll !== undefined) dk.shareAll = q.shareAll;
+        if (q.shareMode !== undefined) dk.shareMode = q.shareMode;
         if (q.title != null) dk.title = q.title;
         if (q.icon != null) dk.icon = q.icon;
         if (q.color != null) dk.color = q.color;
@@ -1294,6 +1335,7 @@ export const appDataRouter = router({
         if (r.assigneeId === ctx.user.id) return true;
         try {
           const t = JSON.parse(r.raw || '{}');
+          if (t.shareAll === true) return true;
           if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
           if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
         } catch {}
@@ -1310,6 +1352,10 @@ export const appDataRouter = router({
         if (!t) return null;
         t._sharedFromUserId = r.userId;
         t._readOnly = true;
+        // Notes default to view-only for recipients (legacy behaviour);
+        // shareMode 'edit' lets them edit the body. Admins and the note's
+        // owner (delegated rows) always can.
+        t._canEditBody = admin || delegated || effShareMode(t, 'view') === 'edit';
         if (delegated) { t._delegated = true; t._assigneeName = t.assignedTo || ''; }
         return t;
       };
@@ -1330,10 +1376,13 @@ export const appDataRouter = router({
       noteId: z.string().min(1),
       patch: z.object({
         title: z.string().max(512).optional(),
+        bodyHtml: z.string().max(2000000).optional(),
         assignedTo: z.string().max(255).optional(),
         assignees: z.array(z.number().int()).optional(),
         assigneeNames: z.array(z.string().max(255)).optional(),
         primaryAssigneeId: z.number().int().nullable().optional(),
+        shareAll: z.boolean().optional(),
+        shareMode: z.enum(['view', 'edit']).optional(),
       }),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -1344,10 +1393,22 @@ export const appDataRouter = router({
         if (!row) return { ok: false as const, error: 'note not found' };
         const { isAdminUser } = await import("../_core/access");
         let rawAssignees: number[] = [];
-        try { const rj = JSON.parse(row.raw || '{}'); if (Array.isArray(rj.assignees)) rawAssignees = rj.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
-        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id);
+        let rawNote: any = {};
+        try { rawNote = JSON.parse(row.raw || '{}') || {}; if (Array.isArray(rawNote.assignees)) rawAssignees = rawNote.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
+        const admin = isAdminUser(ctx.user as any);
+        const isItemOwner = row.userId === ctx.user.id;
+        const isAssignee = row.assigneeId === ctx.user.id || rawAssignees.includes(ctx.user.id);
+        const allowed = admin || isItemOwner || isAssignee || rawNote.shareAll === true;
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
+        // Body edits need 'edit' permission (notes default to view-only).
+        if (p.bodyHtml != null && !(admin || isItemOwner) && effShareMode(rawNote, 'view') === 'view')
+          return { ok: false as const, error: 'view-only: the owner shared this note without edit permission' };
+        // A share-all viewer can't reassign; share settings are owner/admin only.
+        const hasAssign = p.assignees != null || p.assigneeNames != null || p.primaryAssigneeId !== undefined || p.assignedTo != null;
+        if (hasAssign && !(admin || isItemOwner || isAssignee)) return { ok: false as const, error: 'not authorized to change assignment' };
+        if ((p.shareAll !== undefined || p.shareMode !== undefined) && !(admin || isItemOwner))
+          return { ok: false as const, error: 'only the owner can change share settings' };
         let primaryId: number | null | undefined = undefined;
         let primaryName: string | undefined = p.assignedTo ?? undefined;
         if (p.primaryAssigneeId !== undefined) {
@@ -1365,6 +1426,9 @@ export const appDataRouter = router({
         }
         const applyTo = (t: any) => {
           if (p.title != null) t.title = p.title;
+          if (p.bodyHtml != null) { t.bodyHtml = p.bodyHtml; t.updated = new Date().toLocaleString(); }
+          if (p.shareAll !== undefined) t.shareAll = p.shareAll;
+          if (p.shareMode !== undefined) t.shareMode = p.shareMode;
           if (p.assignees != null) t.assignees = p.assignees;
           if (p.assigneeNames != null) t.assigneeNames = p.assigneeNames;
           if (p.primaryAssigneeId !== undefined) t.primaryAssigneeId = p.primaryAssigneeId;

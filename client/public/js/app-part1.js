@@ -8719,14 +8719,40 @@ async function _saveSharedProgram(idx){
   }catch(e){ toast({type:'error',title:'Could not save',msg:String(e&&e.message||e)}); }
 }
 // ── Shared NOTES (relational, like tasks) — assignment + sharing ──────────
+// ─── Per-item share settings (notes / sheets / decks) ─────────────────
+// shareAll: item visible to EVERY workspace member (not just assignees).
+// shareMode: 'view' | 'edit' — what recipients may do. Absent = legacy
+// default (notes 'view', sheets/decks 'edit'), so old items behave as
+// they always did. Enforced server-side; these controls are the owner UI.
+function _shareEffMode(p,dflt){ return (p&&(p.shareMode==='view'||p.shareMode==='edit'))?p.shareMode:(dflt||'view'); }
+function _shareControlsHtml(idPrefix,item,dfltMode){
+  const mode=_shareEffMode(item,dfltMode);
+  return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd1)">
+    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" id="${idPrefix}-shareall" ${item&&item.shareAll?'checked':''} style="width:13px;height:13px"> 🌐 Share with everyone in the workspace</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t2)">Permission
+      <select id="${idPrefix}-sharemode" class="inp" style="height:24px;font-size:11px;width:auto;padding:0 6px">
+        <option value="edit" ${mode==='edit'?'selected':''}>✏ Can edit</option>
+        <option value="view" ${mode==='view'?'selected':''}>👁 Can view</option>
+      </select>
+    </label>
+  </div>`;
+}
+function _shareControlsGet(idPrefix){
+  const a=document.getElementById(idPrefix+'-shareall');
+  const m=document.getElementById(idPrefix+'-sharemode');
+  if(!a&&!m)return null;
+  return { shareAll:!!(a&&a.checked), shareMode:(m&&m.value==='view')?'view':'edit' };
+}
 function _openNoteAssign(id){
   const n=(D.notes||[]).find(x=>String(x.id)===String(id)); if(!n){toast('Note not found');return;}
   const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Editor not available');return;}
   modal.innerHTML=`<div style="padding:16px;max-width:480px">
-    <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Assign Note</h2>
+    <h2 style="font-size:14px;font-weight:600;margin-bottom:4px">👥 Share Note</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${esc(n.title||'Untitled')}</div>
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('note-assign-ma',n)}</div>
+    ${_shareControlsHtml('note-share',n,'view')}
+    <div style="font-size:11px;color:var(--t3);margin-top:6px">Recipients read the full note. "Can edit" also lets them change the note body.</div>
     <div class="dr-actions" style="margin-top:14px">
       <button class="btn btn-p" onclick="_saveNoteAssign('${String(id)}')">Save</button>
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
@@ -8737,6 +8763,7 @@ function _openNoteAssign(id){
 function _saveNoteAssign(id){
   const n=(D.notes||[]).find(x=>String(x.id)===String(id)); if(!n)return;
   if(typeof _maGet==='function'){ const ma=_maGet('note-assign-ma'); n.assignees=ma.assignees; n.assigneeNames=ma.assigneeNames; n.primaryAssigneeId=ma.primaryAssigneeId; const pi=ma.assignees.indexOf(ma.primaryAssigneeId); n.assignedTo=pi>=0?ma.assigneeNames[pi]:''; }
+  const sc=_shareControlsGet('note-share'); if(sc){ n.shareAll=sc.shareAll; n.shareMode=sc.shareMode; }
   n.updated='Just now';
   try{save('notes');}catch(_){}
   document.getElementById('modal-capture').classList.remove('show');
@@ -8773,7 +8800,7 @@ function _sharedNoteCard(p){
       <span style="font-size:9px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px;flex-shrink:0">${badge}</span>
       <span style="font-size:13px;font-weight:600;color:var(--t1);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.title||'Untitled')}</span>
     </div>
-    <div style="font-size:11px;color:var(--t3);margin-top:2px">${sub}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:2px">${sub} · ${p._canEditBody?'✏ can edit':'👁 view'}${p.shareAll?' · 🌐 everyone':''}</div>
   </div>`;
 }
 async function _openSharedNoteView(idx){
@@ -8784,18 +8811,20 @@ async function _openSharedNoteView(idx){
   const modal=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Editor not available');return;}
   const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
-  // Full read-only body via the same display path the note editor uses —
-  // a shared note the recipient cannot READ isn't shared. (The endpoint has
-  // always returned the full raw note; only this view truncated it.)
+  // Full body via the same display path the note editor uses — a shared
+  // note the recipient cannot READ isn't shared. When the owner granted
+  // 'edit' (or I'm admin / it's my own delegated note), the body is a
+  // contenteditable region and Save writes it back through updateSharedNote.
+  const canEdit=!!p._canEditBody;
   const bodyHtml=(typeof _noteBodyDisplayHtml==='function')?_noteBodyDisplayHtml(p):'';
   modal.innerHTML=`<div style="padding:16px;max-width:720px">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'} · EDITABLE</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:9px;font-weight:700;letter-spacing:.04em;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 6px;border-radius:6px">${p._delegated?'DELEGATED':'SHARED'}${p.shareAll?' · 🌐 EVERYONE':''} · ${canEdit?'✏ CAN EDIT':'👁 VIEW'}</span>
       <span style="font-size:11px;color:var(--t3)">${p._delegated?('assigned to '+esc(p._assigneeName||'someone')):('owned by '+esc(from))}</span>
       ${(p.tags||[]).slice(0,4).map(t=>`<span style="font-size:11px;color:var(--t3)">#${esc(t)}</span>`).join('')}
     </div>
-    <div class="field"><label>Title</label><input class="inp" id="snt-title" value="${esc(p.title||'')}"></div>
-    ${bodyHtml?`<div class="note-doc" style="max-width:none;margin:0 0 10px;padding:0"><div class="note-body" style="max-height:44vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--bd1);border-radius:8px;padding:12px 14px;background:var(--s1)">${bodyHtml}</div></div>`:''}
+    <div class="field"><label>Title</label><input class="inp" id="snt-title" value="${esc(p.title||'')}" ${canEdit?'':'readonly'}></div>
+    ${(bodyHtml||canEdit)?`<div class="note-doc" style="max-width:none;margin:0 0 10px;padding:0"><div class="note-body" id="snt-body" ${canEdit?'contenteditable="true" data-editable="1" spellcheck="true"':''} style="max-height:44vh;min-height:${canEdit?'90px':'0'};overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid ${canEdit?'var(--bd2)':'var(--bd1)'};border-radius:8px;padding:12px 14px;background:var(--s1);outline:none">${bodyHtml}</div></div>`:''}
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★ = Primary Responsible</span></label>${buildMultiAssignee('snt-ma',p)}</div>
     <div class="dr-actions" style="margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-p" onclick="_saveSharedNote(${Number(idx)||0})">Save</button>
@@ -8803,7 +8832,7 @@ async function _openSharedNoteView(idx){
       ${adminSh?`<button class="btn btn-d" onclick="_deleteSharedItem(${Number(idx)||0},'notes')">Delete</button>`:''}
       <button class="btn btn-s" onclick="document.getElementById('modal-capture').classList.remove('show')">Cancel</button>
     </div>
-    <div style="font-size:11px;color:var(--t3);margin-top:8px">${adminSh?'Admin: edit title + assignment, take ownership &amp; delete. The body is read-only here — only the owner edits it.':'The body is read-only here — only the owner edits it. You can update the title and assignment.'}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:8px">${canEdit?'You can edit the body — Save writes your changes back to the owner\'s note.':(adminSh?'Admin: edit assignment, take ownership &amp; delete. The owner shared this note as view-only.':'The owner shared this note as view-only. You can update its assignment.')}</div>
   </div>`;
   bg.classList.add('show');
 }
@@ -8812,6 +8841,8 @@ async function _saveSharedNote(idx){
   const ownerUserId=Number(p._sharedFromUserId)||0; const noteId=String(p.id);
   const g=id=>document.getElementById(id);
   const patch={ title:(g('snt-title')?.value||'').trim() };
+  const bodyEl=g('snt-body');
+  if(bodyEl&&bodyEl.dataset.editable==='1')patch.bodyHtml=bodyEl.innerHTML;
   if(typeof _maGet==='function'){ const ma=_maGet('snt-ma'); patch.assignees=ma.assignees; patch.assigneeNames=ma.assigneeNames; patch.primaryAssigneeId=ma.primaryAssigneeId; }
   try{
     const res=await _trpc('appData.updateSharedNote',{ownerUserId,noteId,patch},'mutation');

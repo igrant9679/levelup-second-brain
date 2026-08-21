@@ -12327,6 +12327,7 @@ function ensureSheets(){ if(!Array.isArray(D.sheets))D.sheets=[]; }
 function _sheetNextId(){ ensureSheets(); const all=D.sheets.concat(Array.isArray(D._sharedSheets)?D._sharedSheets:[]); let mx=Date.now(); all.forEach(s=>{const n=Number(s.id); if(!isNaN(n)&&n>=mx)mx=n+1;}); return mx; }
 function saveSheets(){
   if(_sheetCurrent)_sheetCurrent.updatedAt=new Date().toISOString();
+  if(_sheetCurrent&&_sheetCurrent._shared&&_sheetCurrent._readOnly){ return; } // view-only: server would reject the patch anyway
   if(_sheetCurrent&&_sheetCurrent._shared){ _shPushShared(_sheetCurrent); }
   else { try{(window.save||save)('sheets');}catch(_){ try{localStorage.setItem('lu_sheets',JSON.stringify(D.sheets));}catch(__){} } }
 }
@@ -12425,7 +12426,7 @@ function renderSheetsSection(){
 function _shCard(s){
   const rows=(s.rows||[]).length,cols=(s.columns||[]).length;
   const c=s.color||'#3b82f6';
-  const assignBadge=(Array.isArray(s.assignees)&&s.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${s.assignees.length}</span>`:'';
+  const assignBadge=(s.shareAll||(Array.isArray(s.assignees)&&s.assignees.length))?`<span class="sh-card-badge" style="background:${c}22;color:${c}">${s.shareAll?'🌐':'👥 '+s.assignees.length}${(s.shareMode==='view')?' 👁':''}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="shOpen(${Number(s.id)})">
     <span class="sh-card-del" title="Delete sheet" onclick="event.stopPropagation();shDeleteSheet(${Number(s.id)})">🗑</span>
     <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
@@ -12435,10 +12436,10 @@ function _shCard(s){
 }
 function _shSharedCard(s,i){
   const c=s.color||'#8b5cf6';
-  const tag=s._delegated?`assigned to ${esc(s.assignedTo||'someone')}`:'shared with you';
+  const tag=s._delegated?`assigned to ${esc(s.assignedTo||'someone')}`:(s.shareAll&&!s._delegated?'shared with everyone':'shared with you');
   return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="shOpenShared(${i})">
     <div class="sh-card-top"><span class="sh-card-ic">${esc(s.icon||'📊')}</span><span class="sh-card-title">${esc(s.title||'Untitled')}</span></div>
-    <div class="sh-card-meta">${(s.rows||[]).length} rows · ${s._delegated?'➡ ':'👥 '}${tag}</div>
+    <div class="sh-card-meta">${(s.rows||[]).length} rows · ${s._delegated?'➡ ':(s.shareAll?'🌐 ':'👥 ')}${tag}${s._readOnly?' · 👁 view':''}</div>
     <div class="sh-card-bar"></div>
   </div>`;
 }
@@ -12572,24 +12573,26 @@ function _shColSummary(sheet,col){
 // ─── Editor render ───────────────────────────────────────────────────────────
 function _shEditorHtml(){
   const s=_sheetCurrent; const c=s.color||'#3b82f6';
-  const shared=s._shared?`<span class="sh-shared-tag">${s._delegated?'➡ delegated':'👥 shared'}</span>`:'';
+  const ro=!!(s._shared&&s._readOnly); // owner granted 'view' only
+  const shared=s._shared?`<span class="sh-shared-tag">${ro?'👁 view only':(s._delegated?'➡ delegated':'👥 shared')}</span>`:'';
   return `<div class="sh-editor" style="--c:${c}">
     <div class="sh-toolbar">
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shClose()">← Sheets</button>
       <span class="sh-ed-ic">${esc(s.icon||'📊')}</span>
-      <input class="sh-ed-title" value="${esc(s.title||'')}" onchange="shSetTitle(this.value)" placeholder="Untitled sheet">
+      <input class="sh-ed-title" value="${esc(s.title||'')}" ${ro?'readonly':`onchange="shSetTitle(this.value)"`} placeholder="Untitled sheet">
       ${shared}
       <span style="flex:1"></span>
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shUndo()" title="Undo">↶</button>
+      ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="shUndo()" title="Undo">↶</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shRedo()" title="Redo">↷</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shAddRow()">+ Row</button>
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shAddCol()">+ Column</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shAddCol()">+ Column</button>`}
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="shExportCSV()" title="Export CSV">⬇ CSV</button>
-      <button class="btn btn-s" style="height:28px;font-size:11px;${_sheetShowDesign?'background:var(--ac);color:#fff':''}" onclick="shToggleDesign()" title="Design & sharing">🎨 Design</button>
+      ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px;${_sheetShowDesign?'background:var(--ac);color:#fff':''}" onclick="shToggleDesign()" title="Design & sharing">🎨 Design</button>`}
     </div>
+    ${ro?`<div style="font-size:11px;color:var(--t2);background:color-mix(in srgb,var(--purp) 10%,var(--s2));border:1px solid color-mix(in srgb,var(--purp) 30%,var(--bd1));border-radius:8px;padding:6px 10px;margin-bottom:8px">👁 The owner shared this sheet as <b>view-only</b> — you can read and export it, but not change it.</div>`:''}
     <div class="sh-body">
-      <div class="sh-grid-wrap" id="sheet-grid-wrap">${_shGridHtml()}</div>
-      <aside class="sh-side" id="sheet-side" style="display:${_sheetShowDesign?'block':'none'}">${_shDesignHtml()}</aside>
+      <div class="sh-grid-wrap" id="sheet-grid-wrap" ${ro?'style="pointer-events:none;user-select:text"':''}>${_shGridHtml()}</div>
+      ${ro?'':`<aside class="sh-side" id="sheet-side" style="display:${_sheetShowDesign?'block':'none'}">${_shDesignHtml()}</aside>`}
     </div>
   </div>`;
 }
@@ -12774,8 +12777,9 @@ function _shDesignHtml(){
       <label class="sh-check"><input type="checkbox" ${th.gridlines!==false?'checked':''} onchange="shToggleTheme('gridlines')"> Gridlines</label>
     </div>
     <div class="sh-side-sec"><div class="sh-side-h">👥 Share with team</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this sheet from their Sheets section.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members see this sheet in their Sheets section. Permission decides whether they co-edit or just view.</div>
       ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('sheet-ma',s):'<div style="font-size:11px;color:var(--t3)">Assignment unavailable</div>'}
+      ${(!s._shared&&typeof _shareControlsHtml==='function')?_shareControlsHtml('sheet-share',s,'edit'):''}
       <button class="btn btn-s" style="height:26px;font-size:11px;width:100%;margin-top:6px" onclick="shSaveAssign()">Save sharing</button>
     </div>
     <div class="sh-side-sec">
@@ -12790,6 +12794,8 @@ function shToggleTheme(k){ const th=_sheetCurrent.theme=_sheetCurrent.theme||{};
 function shSaveAssign(){ if(!_sheetCurrent)return; let g=null; try{ if(typeof _maGet==='function')g=_maGet('sheet-ma'); }catch(_){}
   if(g){ _sheetCurrent.assignees=g.assignees||[]; _sheetCurrent.assigneeNames=g.assigneeNames||[]; _sheetCurrent.primaryAssigneeId=g.primaryAssigneeId||null;
     if(g.primaryAssigneeId!=null&&Array.isArray(g.assignees)){ const i=g.assignees.indexOf(g.primaryAssigneeId); _sheetCurrent.assignedTo=(i>=0&&g.assigneeNames)?g.assigneeNames[i]:(_sheetCurrent.assignedTo||''); } }
+  const sc=(typeof _shareControlsGet==='function')?_shareControlsGet('sheet-share'):null;
+  if(sc){ _sheetCurrent.shareAll=sc.shareAll; _sheetCurrent.shareMode=sc.shareMode; }
   saveSheets(); toast('👥 Sharing saved'); renderSheetsSection();
 }
 
@@ -12854,7 +12860,7 @@ function ensureDecks(){ if(!Array.isArray(D.decks))D.decks=[]; }
 function _deckNextId(){ ensureDecks(); const all=D.decks.concat(Array.isArray(D._sharedDecks)?D._sharedDecks:[]); let mx=Date.now(); all.forEach(d=>{const n=Number(d.id); if(!isNaN(n)&&n>=mx)mx=n+1;}); return mx; }
 function _dkNewElId(){ let mx=0; (_deckCurrent.slides||[]).forEach(s=>(s.elements||[]).forEach(e=>{ if(e.id>mx)mx=e.id; })); return mx+1; }
 function _dkNewSlideId(){ let mx=0; (_deckCurrent.slides||[]).forEach(s=>{ if(s.id>mx)mx=s.id; }); return mx+1; }
-function saveDecks(){ if(_deckCurrent)_deckCurrent.updatedAt=new Date().toISOString(); if(_deckCurrent&&_deckCurrent._shared){ _dkPushShared(_deckCurrent); } else { try{(window.save||save)('decks');}catch(_){ try{localStorage.setItem('lu_decks',JSON.stringify(D.decks));}catch(__){} } } }
+function saveDecks(){ if(_deckCurrent)_deckCurrent.updatedAt=new Date().toISOString(); if(_deckCurrent&&_deckCurrent._shared&&_deckCurrent._readOnly){ return; } if(_deckCurrent&&_deckCurrent._shared){ _dkPushShared(_deckCurrent); } else { try{(window.save||save)('decks');}catch(_){ try{localStorage.setItem('lu_decks',JSON.stringify(D.decks));}catch(__){} } } }
 function _dkPushShared(deck){ clearTimeout(_deckSharedSyncTimer); _deckSharedSyncTimer=setTimeout(async()=>{ try{ await _trpc('appData.updateSharedDeck',{ownerUserId:Number(deck._sharedFromUserId)||0,deckId:String(deck.id),patch:{title:deck.title,icon:deck.icon,color:deck.color,theme:deck.theme,slides:deck.slides,assignees:deck.assignees,assigneeNames:deck.assigneeNames,primaryAssigneeId:deck.primaryAssigneeId,assignedTo:deck.assignedTo}},'mutation'); }catch(e){ if(typeof toast==='function')toast({type:'error',title:'Shared deck not synced',msg:String(e&&e.message||e).slice(0,120)}); } },1500); }
 function _dkSnap(){ if(!_deckCurrent)return; try{ _deckUndo.push(JSON.stringify(_deckCurrent.slides)); if(_deckUndo.length>50)_deckUndo.shift(); _deckRedo=[]; }catch(_){} }
 function dkUndo(){ if(!_deckCurrent||!_deckUndo.length)return toast('Nothing to undo'); _deckRedo.push(JSON.stringify(_deckCurrent.slides)); _deckCurrent.slides=JSON.parse(_deckUndo.pop()); if(_deckSlide>=_deckCurrent.slides.length)_deckSlide=Math.max(0,_deckCurrent.slides.length-1); _deckSelEl=null; saveDecks(); renderDecksSection(); }
@@ -12997,17 +13003,17 @@ function renderDecksSection(){
 }
 function _dkCard(d){
   const c=d.color||'#3b82f6'; const n=(d.slides||[]).length;
-  const assignBadge=(Array.isArray(d.assignees)&&d.assignees.length)?`<span class="sh-card-badge" style="background:${c}22;color:${c}">👥 ${d.assignees.length}</span>`:'';
+  const assignBadge=(d.shareAll||(Array.isArray(d.assignees)&&d.assignees.length))?`<span class="sh-card-badge" style="background:${c}22;color:${c}">${d.shareAll?'🌐':'👥 '+d.assignees.length}${(d.shareMode==='view')?' 👁':''}</span>`:'';
   return `<div class="sh-card" style="--c:${c}" onclick="dkOpen(${Number(d.id)})">
     <span class="sh-card-del" title="Delete deck" onclick="event.stopPropagation();dkDeleteDeck(${Number(d.id)})">🗑</span>
     <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
     <div class="sh-card-meta">${n} slide${n===1?'':'s'} ${assignBadge}</div><div class="sh-card-bar"></div></div>`;
 }
 function _dkSharedCard(d,i){
-  const c=d.color||'#8b5cf6'; const tag=d._delegated?`assigned to ${esc(d.assignedTo||'someone')}`:'shared with you';
+  const c=d.color||'#8b5cf6'; const tag=d._delegated?`assigned to ${esc(d.assignedTo||'someone')}`:(d.shareAll&&!d._delegated?'shared with everyone':'shared with you');
   return `<div class="sh-card sh-card-shared" style="--c:${c}" onclick="dkOpenShared(${i})">
     <div class="sh-card-top"><span class="sh-card-ic">${esc(d.icon||'🖼')}</span><span class="sh-card-title">${esc(d.title||'Untitled')}</span></div>
-    <div class="sh-card-meta">${(d.slides||[]).length} slides · ${d._delegated?'➡ ':'👥 '}${tag}</div><div class="sh-card-bar"></div></div>`;
+    <div class="sh-card-meta">${(d.slides||[]).length} slides · ${d._delegated?'➡ ':(d.shareAll?'🌐 ':'👥 ')}${tag}${d._readOnly?' · 👁 view':''}</div><div class="sh-card-bar"></div></div>`;
 }
 const DECK_CATS={blank:'Start',title:'Start',pitch:'Business & Sales',sales:'Business & Sales',company:'Business & Sales',marketing:'Marketing & Strategy',roadmap:'Marketing & Strategy',portfolio:'Marketing & Strategy',strategy:'Marketing & Strategy',project:'Internal & Operational',kickoff:'Internal & Operational',exec:'Internal & Operational',onboarding:'Internal & Operational',instructional:'Educational & Informational',webinar:'Educational & Informational'};
 function dkNewDeckMenu(ev){
@@ -13044,24 +13050,27 @@ async function _loadSharedDecks(){ try{ if(typeof _trpc!=='function')return; _sh
 function _dkSlide(){ return _deckCurrent&&_deckCurrent.slides[_deckSlide]; }
 function _dkEl(id){ const s=_dkSlide(); return s&&(s.elements||[]).find(e=>e.id===id); }
 function _dkBg(slide){ return (slide&&slide.bg)|| (_deckCurrent.theme&&_deckCurrent.theme.bg)||'#ffffff'; }
+function _dkRO(){ return !!(_deckCurrent&&_deckCurrent._shared&&_deckCurrent._readOnly); } // owner granted 'view' only
 function _dkEditorHtml(){
-  const d=_deckCurrent; const shared=d._shared?`<span class="sh-shared-tag">${d._delegated?'➡ delegated':'👥 shared'}</span>`:'';
+  const d=_deckCurrent; const ro=_dkRO();
+  const shared=d._shared?`<span class="sh-shared-tag">${ro?'👁 view only':(d._delegated?'➡ delegated':'👥 shared')}</span>`:'';
   return `<div class="dk-editor">
     <div class="dk-toolbar">
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkClose()">← Decks</button>
       <span style="font-size:18px">${esc(d.icon||'🖼')}</span>
-      <input class="dk-ed-title" value="${esc(d.title||'')}" onchange="dkSetTitle(this.value)" placeholder="Untitled deck">
+      <input class="dk-ed-title" value="${esc(d.title||'')}" ${ro?'readonly':`onchange="dkSetTitle(this.value)"`} placeholder="Untitled deck">
       ${shared}
       <span style="flex:1"></span>
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkUndo()" title="Undo">↶</button>
+      ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkUndo()" title="Undo">↶</button>
       <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkRedo()" title="Redo">↷</button>
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkAddSlide()">+ Slide</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="dkAddSlide()">+ Slide</button>`}
       <button class="btn btn-p" style="height:28px;font-size:11px" onclick="dkPresent()" title="Present full-screen">▶ Present</button>
     </div>
+    ${ro?`<div style="font-size:11px;color:var(--t2);background:color-mix(in srgb,var(--purp) 10%,var(--s2));border:1px solid color-mix(in srgb,var(--purp) 30%,var(--bd1));border-radius:8px;padding:6px 10px;margin-bottom:8px">👁 The owner shared this deck as <b>view-only</b> — browse the slides and ▶ Present, but editing is off.</div>`:''}
     <div class="dk-body">
       <div class="dk-slidelist" id="dk-slidelist">${_dkThumbsHtml()}</div>
-      <div class="dk-stage-wrap"><div class="dk-canvas" id="dk-canvas" style="background:${_dkBg(_dkSlide())}" onmousedown="dkCanvasDown(event)">${_dkCanvasInner()}</div></div>
-      <aside class="dk-props" id="dk-props">${_dkPropsHtml()}</aside>
+      <div class="dk-stage-wrap"><div class="dk-canvas" id="dk-canvas" style="background:${_dkBg(_dkSlide())};${ro?'pointer-events:none':''}" ${ro?'':`onmousedown="dkCanvasDown(event)"`}>${_dkCanvasInner()}</div></div>
+      ${ro?'':`<aside class="dk-props" id="dk-props">${_dkPropsHtml()}</aside>`}
     </div>
   </div>`;
 }
@@ -13072,8 +13081,9 @@ function renderDeckThumbs(){ const l=document.getElementById('dk-slidelist'); if
 
 // ─── Thumbnails ──────────────────────────────────────────────────────────────
 function _dkThumbsHtml(){
-  return (_deckCurrent.slides||[]).map((s,i)=>`<div class="dk-thumb ${i===_deckSlide?'on':''}" style="background:${_dkBg(s)}" onclick="dkGotoSlide(${i})" oncontextmenu="dkSlideMenu(event,${i})" title="Slide ${i+1} — right-click for options"><span class="dk-thumb-n">${i+1}</span><span class="dk-thumb-del" title="Delete slide" onclick="event.stopPropagation();dkDeleteSlide(${i})">×</span>${(s.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>`).join('')
-    +`<div class="dk-thumb-add" onclick="dkAddSlide()" title="Add slide">＋</div>`;
+  const ro=_dkRO();
+  return (_deckCurrent.slides||[]).map((s,i)=>`<div class="dk-thumb ${i===_deckSlide?'on':''}" style="background:${_dkBg(s)}" onclick="dkGotoSlide(${i})" ${ro?'':`oncontextmenu="dkSlideMenu(event,${i})"`} title="Slide ${i+1}${ro?'':' — right-click for options'}"><span class="dk-thumb-n">${i+1}</span>${ro?'':`<span class="dk-thumb-del" title="Delete slide" onclick="event.stopPropagation();dkDeleteSlide(${i})">×</span>`}${(s.elements||[]).map(e=>_dkElHtml(e,false,false)).join('')}</div>`).join('')
+    +(ro?'':`<div class="dk-thumb-add" onclick="dkAddSlide()" title="Add slide">＋</div>`);
 }
 function dkGotoSlide(i){ _deckSlide=Math.max(0,Math.min(_deckCurrent.slides.length-1,i)); _deckSelEl=null; _deckEditingText=null; renderDecksSection(); }
 function dkAddSlide(){ if(!_deckCurrent)return; _dkSnap(); _deckCurrent.slides.splice(_deckSlide+1,0,{id:_dkNewSlideId(),bg:'',elements:[]}); _deckSlide++; _deckSelEl=null; saveDecks(); renderDecksSection(); }
@@ -13190,8 +13200,9 @@ function _dkPropsHtml(){
       <div class="dk-props-h" style="margin-top:14px">Deck icon</div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">${SHEET_ICONS.map(ic=>`<div class="dk-add-b" style="padding:4px;min-width:26px" onclick="dkSetIcon('${ic}')">${ic}</div>`).join('')}</div>
       <div class="dk-props-h" style="margin-top:14px">👥 Share with team</div>
-      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members can open & co-edit this deck.</div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Assigned members see this deck in their Slides section. Permission decides whether they co-edit or just view &amp; present.</div>
       ${(typeof buildMultiAssignee==='function')?buildMultiAssignee('deck-ma',d):''}
+      ${(!d._shared&&typeof _shareControlsHtml==='function')?_shareControlsHtml('deck-share',d,'edit'):''}
       <button class="btn btn-s" style="height:26px;font-size:11px;width:100%;margin-top:6px" onclick="dkSaveAssign()">Save sharing</button>
       <button class="btn btn-d" style="height:26px;font-size:11px;width:100%;margin-top:10px" onclick="dkDeleteDeck(${Number(d.id)})" ${d._shared?'disabled':''}>🗑 Delete deck</button>
     </div>`;
@@ -13260,6 +13271,8 @@ function dkChartAddRow(id){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.lab
 function dkChartAddSeries(id){ const el=_dkEl(id); if(!el)return; _dkSnap(); el.series=el.series||[]; el.series.push({name:'Series '+(el.series.length+1),color:SHEET_PALETTE[el.series.length%SHEET_PALETTE.length],data:new Array((el.labels||[]).length).fill(0)}); saveDecks(); renderDeckCanvas(); renderDeckProps(); renderDeckThumbs(); }
 function dkSaveAssign(){ if(!_deckCurrent)return; let g=null; try{ if(typeof _maGet==='function')g=_maGet('deck-ma'); }catch(_){}
   if(g){ _deckCurrent.assignees=g.assignees||[]; _deckCurrent.assigneeNames=g.assigneeNames||[]; _deckCurrent.primaryAssigneeId=g.primaryAssigneeId||null; if(g.primaryAssigneeId!=null&&Array.isArray(g.assignees)){ const i=g.assignees.indexOf(g.primaryAssigneeId); _deckCurrent.assignedTo=(i>=0&&g.assigneeNames)?g.assigneeNames[i]:(_deckCurrent.assignedTo||''); } }
+  const sc=(typeof _shareControlsGet==='function')?_shareControlsGet('deck-share'):null;
+  if(sc){ _deckCurrent.shareAll=sc.shareAll; _deckCurrent.shareMode=sc.shareMode; }
   saveDecks(); toast('👥 Sharing saved'); }
 
 // ─── Chart SVG renderer ──────────────────────────────────────────────────────
