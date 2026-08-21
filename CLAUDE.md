@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-10-164`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-21-165`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,19 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-165 — Shared notes readable by recipients** (user asked to "share notes,
+sheets and slides with team members"). Sharing for all three ALREADY EXISTED
+(sheets/decks: "👥 Share with team" panel in their side/props panels, co-edit
+sync, "Shared & delegated" galleries; notes: 👥 assign button + shared
+section) — the real gap was the recipient's shared-note viewer showing only a
+200-char snippet. `sharedNotesForMe` always returned the full raw note; only
+the view truncated it. The body display logic is now extracted to
+`_noteBodyDisplayHtml()` (used by renderNoteEditor AND `_openSharedNoteView`),
+and the shared viewer renders the full body read-only + tags, keeping title/
+assignment editing. The old "shared Notes editor edits title + assignment
+only" caveat is now HALF-stale: editing is still title+assignment, but the
+body is fully READABLE.
 
 **-164 — Phone Notes page unusable in portrait** (user-reported from iPhone:
 "can't select Notes without landscape"). The ≤900px Notes layout collapses the
