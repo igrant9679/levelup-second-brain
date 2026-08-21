@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-21-165`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-21-166`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,23 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-166 — Share-with-everyone + per-item view/edit permissions** (user-requested
+follow-on to -165). Notes / sheets / decks items now carry `shareAll:true`
+(visible to every member) and `shareMode:'view'|'edit'` (what recipients may
+do). **Absent = legacy default: notes 'view', sheets/decks 'edit'** — old
+items behave exactly as before. Enforced in `updateSharedSheet/Deck/Note`
+(content needs 'edit'; assignment needs owner/admin/assignee; share settings
+owner/admin only); `sharedXForMe` stamps `_readOnly` (sheets/decks) /
+`_canEditBody` (notes). Owner UI = `_shareControlsHtml/Get` (app-part1)
+rendered in the note Share dialog + sheet Design panel + deck props panel.
+View-only recipients get gated editors (banner, inert grid/canvas, no
+add/delete; CSV + Present kept); 'edit' note recipients get a contenteditable
+body that Saves via the new `bodyHtml` patch field. ⚠ **tsc note: the
+"0 errors repo-wide" claim below (2026-07-24) is STALE — 8 pre-existing
+errors now exist in external-source files** (externalTasksCron,
+smartsheetAdapter, automations, externalSources), none in appData.ts. `pnpm
+build` (esbuild — what Railway runs) is the gate that must stay clean.
 
 **-165 — Shared notes readable by recipients** (user asked to "share notes,
 sheets and slides with team members"). Sharing for all three ALREADY EXISTED
