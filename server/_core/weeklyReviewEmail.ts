@@ -344,10 +344,10 @@ function buildFinanceHtml(rawFinance: string | null): string {
     let d = new Date(now.getFullYear(), now.getMonth(), day);
     if (day < now.getDate()) d = new Date(now.getFullYear(), now.getMonth() + 1, day);
     return { b, d };
-  }).filter(x => (x.d.getTime() - now.getTime()) / 86400000 <= 7).sort((a, b) => a.d.getTime() - b.d.getTime());
+  }).filter((x: any) => (x.d.getTime() - now.getTime()) / 86400000 <= 7).sort((a: any, b: any) => a.d.getTime() - b.d.getTime());
   return `<h2 style="font-size:15px;color:#0d9488;border-bottom:2px solid #0d9488;padding-bottom:4px;margin:20px 0 6px">💰 Money</h2>
   <div style="font-size:13px;color:#374151;margin-bottom:6px">Net worth <strong style="color:${net >= 0 ? '#10b981' : '#dc2626'}">${fmt(net)}</strong>${debt ? ` · total debt <strong style="color:#dc2626">${fmt(debt)}</strong>` : ''}</div>
-  ${due7.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${due7.slice(0, 8).map(x => `<tr><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6">${escHtml(String(x.b.name || ''))}${x.b.autopay ? ' <span style="font-size:10px;color:#6b7280">⚡ autopay</span>' : ''}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280">${x.d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600">${fmt(Number(x.b.amount) || 0)}</td></tr>`).join('')}</table>` : '<div style="font-size:12px;color:#9ca3af">No bills due in the next 7 days.</div>'}`;
+  ${due7.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${due7.slice(0, 8).map((x: any) => `<tr><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6">${escHtml(String(x.b.name || ''))}${x.b.autopay ? ' <span style="font-size:10px;color:#6b7280">⚡ autopay</span>' : ''}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280">${x.d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600">${fmt(Number(x.b.amount) || 0)}</td></tr>`).join('')}</table>` : '<div style="font-size:12px;color:#9ca3af">No bills due in the next 7 days.</div>'}`;
 }
 
 function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = ""): string {
