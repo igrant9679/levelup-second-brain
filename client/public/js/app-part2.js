@@ -14490,7 +14490,7 @@ function renderMoney(){
       <option value="mine" ${_finShared==null?'selected':''}>My budget</option>
       ${shared.map((b,i)=>`<option value="${i}" ${_finShared===i?'selected':''}>${esc(b.ownerName)}'s budget${b._readOnly?' (view)':''}</option>`).join('')}
     </select>`:'';
-  const tabs=[['overview','Overview'],['income','Income'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals']];
+  const tabs=[['overview','Overview'],['income','Income'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals'],['forecast','Forecast'],['reports','Reports']];
   m.innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Money${viewingShared?` <span style="font-size:11px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 8px;border-radius:8px">${ro?'👁 SHARED · VIEW':'👥 SHARED · CO-EDIT'}</span>`:''}</h1>
       <p style="font-size:12px;color:var(--t2)">Budgets, spending, accounts &amp; bills — your personal finance command center.</p></div>
@@ -14507,7 +14507,7 @@ function renderMoney(){
       ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
     </div></div>
     <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
-    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finGoalsHtml()}</div>`;
+    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
 }
 function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }
 // ── Overview ───────────────────────────────────────────────────────────
@@ -14722,7 +14722,7 @@ function _finBillsHtml(){
     </div></div>
     ${bills.length?bills.map(x=>{const b=x.b;const c=_finCat(b.catId);const days=Math.ceil((x.due-new Date())/86400000);const paid=b.lastPaidYM===_finYM(new Date());return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
       <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}</span>
-      <span class="fin-chip">day ${b.dueDay||1}</span>
+      ${ro?`<span class="fin-chip">day ${b.dueDay||1}</span>`:`<span class="fin-chip" title="Due day of the month — edit directly">due day <input type="number" min="1" max="28" value="${b.dueDay||1}" style="width:44px;height:20px;font-size:11px;text-align:center;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;color:var(--t1)" onchange="finSetBillDay('${esc(String(b.id))}',this.value)"></span>`}
       <span class="fin-chip" style="${days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':'due '+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
       <span style="font-weight:650;min-width:76px;text-align:right">${_finFmt(b.amount,0)}</span>
       ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${esc(String(b.id))}')">✓ Mark paid</button>`}
@@ -15095,4 +15095,182 @@ function finStreamLogSave(id){
     payee:st.name, catId:st.catId||'inc-salary', accountId:null, notes:'Income payment', amount:amt, streamId:st.id });
   _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'＋ '+_finFmt(amt,0)+' received',msg:st.name,duration:1800});
+}
+
+// ── Money: Forecast + Reports + AI analyst ─────────────────────────────
+// AI calls ride the existing ai.assist endpoint with the app's hard size
+// limits (systemPrompt<=4000, userContent<=8000 — builds -159/-160): every
+// block is clamped BEFORE the request, the _trpc guard is only the net.
+function finSetBillDay(id,val){
+  if(_finGuard())return;
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
+  b.dueDay=Math.min(28,Math.max(1,parseInt(val)||1));
+  _finSave(); renderMoney();
+}
+// ── forecast math ──────────────────────────────────────────────────────
+function _finForecastRows(nMonths){
+  const rows=[]; const yp=_finMonth.split('-');
+  let running=_finData().accounts.filter(a=>!['credit','loan'].includes(a.type)).reduce((s,a)=>s+(a.balance||0),0);
+  for(let i=0;i<(nMonths||12);i++){
+    const m=_finYM(new Date(Number(yp[0]),Number(yp[1])-1+i,1));
+    const inc=(_finData().incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,m),0);
+    const spend=_finBudgetTotal(m);
+    running+=inc-spend;
+    rows.push({m,inc,spend,net:inc-spend,running});
+  }
+  return rows;
+}
+function _finDebtPayoff(){
+  const f=_finData();
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  return f.accounts.filter(a=>['credit','loan'].includes(a.type)&&Math.abs(a.balance||0)>0).map(a=>{
+    const an=norm(a.name);
+    const bill=f.bills.find(b=>{const bn=norm(b.name);return bn&&(an.includes(bn)||bn.includes(an.split(' ').slice(0,2).join(' ')));});
+    const pay=bill?Number(bill.amount)||0:0;
+    let months=null,interest=0;
+    const B=Math.abs(a.balance||0);
+    if(pay>0){
+      if(a.apr&&a.apr>0){
+        const r=a.apr/100/12;
+        if(pay>B*r){ months=Math.ceil(-Math.log(1-r*B/pay)/Math.log(1+r)); interest=Math.round(pay*months-B); }
+      } else months=Math.ceil(B/pay);
+    }
+    const payoff=months!=null?_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+months,1)):null;
+    return {name:a.name,balance:B,pay,months,payoff,interest,apr:a.apr||null};
+  }).sort((x,y)=>(x.months==null?1e9:x.months)-(y.months==null?1e9:y.months));
+}
+function _finForecastHtml(){
+  const rows=_finForecastRows(12);
+  const debts=_finDebtPayoff();
+  const maxAbs=Math.max(1,...rows.map(r=>Math.abs(r.net)));
+  const minRun=Math.min(...rows.map(r=>r.running)),maxRun=Math.max(...rows.map(r=>r.running));
+  const runY=v=>90-Math.round((v-minRun)/Math.max(1,maxRun-minRun)*70);
+  const lastPayoff=debts.filter(d=>d.months!=null).slice(-1)[0];
+  const debtFree=lastPayoff?lastPayoff.payoff:null;
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm"><b>12-month projection</b> from ${_finMonthLabel(_finMonth)} — planned budgets + expected income${debtFree?` · <b style="color:var(--ok)">debt-free ~${debtFree}</b> at current payments`:''}</span>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp)" onclick="finForecastAI()">✨ AI: explain my forecast</button>
+    </div><div id="fin-forecast-ai"></div></div>
+  <div class="fin-grid">
+    <div class="fin-card"><h3>📈 Net by month &amp; running cash</h3>
+      <svg viewBox="0 0 560 120" style="width:100%">
+        ${rows.map((r,i)=>{const bx=8+i*46;const h=Math.round(Math.abs(r.net)/maxAbs*38);return `
+          <rect x="${bx}" y="${r.net>=0?52-h:54}" width="20" height="${Math.max(1,h)}" rx="2" fill="${r.net>=0?'var(--ok)':'var(--red)'}" opacity=".8"><title>${r.m}: net ${_finFmt(r.net,0)}</title></rect>
+          <text x="${bx+10}" y="114" font-size="9" fill="var(--t3)" text-anchor="middle">${r.m.slice(5)}</text>`;}).join('')}
+        <polyline fill="none" stroke="var(--ac)" stroke-width="2" points="${rows.map((r,i)=>(18+i*46)+','+runY(r.running)).join(' ')}"/>
+      </svg>
+      <div style="font-size:11px;color:var(--t3)">Bars: monthly net (income − planned spend) · Line: running cash position (starts from current asset balances)</div>
+    </div>
+    <div class="fin-card"><h3>💳 Debt payoff at current payments</h3>
+      ${debts.length?debts.map(d=>`<div class="fin-row">
+        <span class="nm">${esc(d.name)}${d.apr?` <span class="fin-chip">${d.apr}%</span>`:''}</span>
+        <span style="color:var(--red);font-weight:650">${_finFmt(d.balance,0)}</span>
+        <span class="fin-chip">${d.pay?_finFmt(d.pay,0)+'/mo':'no payment mapped'}</span>
+        <span class="fin-chip" style="${d.months!=null?'color:var(--ok)':''}">${d.months!=null?(d.months+' mo → '+d.payoff):'—'}</span>
+      </div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No debts — nothing to pay off 🎉</div>'}
+      ${debts.some(d=>d.interest>0)?`<div style="font-size:11px;color:var(--t3);margin-top:6px">Interest estimates use each account's APR where set.</div>`:''}
+    </div>
+  </div>
+  <div class="fin-card" style="margin-top:12px"><h3>🗓 Month-by-month plan</h3><div class="fin-tx-wrap">
+    <table class="fin-tx"><thead><tr><th>Month</th><th style="text-align:right">Expected income</th><th style="text-align:right">Planned spend</th><th style="text-align:right">Net</th><th style="text-align:right">Running cash</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${_finMonthLabel(r.m)}</td><td style="text-align:right" class="fin-amount-pos">${_finFmt(r.inc,0)}</td><td style="text-align:right">${_finFmt(r.spend,0)}</td><td style="text-align:right;color:${r.net>=0?'var(--ok)':'var(--red)'};font-weight:650">${_finFmt(r.net,0)}</td><td style="text-align:right;font-weight:650;color:${r.running>=0?'var(--t1)':'var(--red)'}">${_finFmt(r.running,0)}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+}
+// ── AI plumbing ────────────────────────────────────────────────────────
+function _finAIContext(){
+  const f=_finData(); const ym=_finMonth;
+  const byCat=_finSpentByCat(ym);
+  const topSpend=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>`${_finCat(x[0]).name}: spent ${Math.round(x[1])} (budget ${Math.round(_finBudgetFor(x[0],ym))})`).join('; ');
+  const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type)).map(a=>`${a.name} ${Math.round(a.balance||0)}${a.apr?' @'+a.apr+'%':''}`).join('; ');
+  const streams=(f.incomeStreams||[]).filter(s=>s.active!==false).map(s=>`${s.name} ${Math.round(_finStreamExpected(s,ym))}`).join('; ');
+  const fc=_finForecastRows(6).map(r=>`${r.m}: +${Math.round(r.inc)}/-${Math.round(r.spend)}`).join('; ');
+  const out=`MONTH ${ym}. Income received ${Math.round(_finIncome(ym))} of expected ${Math.round((f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,ym),0))}. Spent ${Math.round(_finSpent(ym))} of budget ${Math.round(_finBudgetTotal(ym))}.
+NET WORTH ${Math.round(_finNetWorth())}; TOTAL DEBT ${Math.round(_finDebt())}.
+TOP CATEGORIES: ${topSpend||'(none)'}
+DEBTS: ${debts||'(none)'}
+INCOME STREAMS/mo: ${streams||'(none)'}
+BILLS: ${f.bills.length} recurring, ${Math.round(f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(b.amount||0),0))}/mo total.
+6-MO PLAN: ${fc}`;
+  return _aiClampStr(out,2600);
+}
+const _FIN_AI_SYS=`You are the budget analyst inside the user's personal finance app. Analyze ONLY the DATA block — every number you cite must come from it. Reply in concise markdown: short headers, bullet lists, concrete dollar figures. Be direct about problems (overspending, debt load) and specific about actions within budgeting/spending. Do NOT give investment, tax, or legal advice — for those, say a professional should be consulted. No preamble, no disclaimers about being an AI.`;
+async function _finAI(question,extraData,targetId,title){
+  const target=document.getElementById(targetId);
+  if(target)target.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:10px 0">✨ ${esc(title||'Analyzing')}…</div>`;
+  try{
+    const {provider,apiKey}=_getAIConfig();
+    const data=_aiClampStr(_finAIContext()+(extraData?'\n'+extraData:''),5600);
+    const res=await _trpc('ai.assist',{
+      systemPrompt:_aiClampStr(_FIN_AI_SYS,3900),
+      userContent:_aiClampStr('DATA:\n'+data+'\n\nQUESTION: '+question,7900),
+      provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const text=String(res?.result||res?.text||'').trim();
+    if(!text)throw new Error('Empty response — check Settings → AI Features.');
+    const html=(typeof luRTE_mdToHtml==='function')?luRTE_mdToHtml(text):esc(text).replace(/\n/g,'<br>');
+    if(target)target.innerHTML=`<div style="background:color-mix(in srgb,var(--purp) 6%,var(--s1));border:1px solid color-mix(in srgb,var(--purp) 25%,var(--bd1));border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.7;margin-top:10px">${html}</div>`;
+  }catch(e){
+    if(target)target.innerHTML=`<div style="font-size:12px;color:var(--red);padding:8px 0">AI analysis failed: ${esc(String(e&&e.message||e).slice(0,180))}</div>`;
+  }
+}
+function finForecastAI(){
+  const rows=_finForecastRows(12).map(r=>`${r.m}: income ${Math.round(r.inc)}, spend ${Math.round(r.spend)}, net ${Math.round(r.net)}, cash ${Math.round(r.running)}`).join('\n');
+  const debts=_finDebtPayoff().map(d=>`${d.name}: ${Math.round(d.balance)} at ${Math.round(d.pay)}/mo → ${d.months!=null?d.months+' months':'no payment mapped'}`).join('\n');
+  _finAI('Explain this 12-month forecast: biggest risks, the months to watch, whether the debt payoff pace is sensible, and the 3 highest-impact changes to the plan.','FORECAST:\n'+rows+'\nDEBT PLAN:\n'+debts,'fin-forecast-ai','Reading your forecast');
+}
+// ── pre-canned reports ─────────────────────────────────────────────────
+function _finRepTable(headers,rows){
+  return `<div class="fin-tx-wrap"><table class="fin-tx"><thead><tr>${headers.map((h,i)=>`<th${i>0?' style="text-align:right"':''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td${i>0?' style="text-align:right"':''}>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function _finMonthsBack(n){ const out=[]; const yp=_finMonth.split('-'); for(let i=n-1;i>=0;i--)out.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); return out; }
+const FIN_REPORTS=[
+ {id:'monthly-summary',icon:'📋',name:'Monthly summary',desc:'Income, spending, net and top categories for the selected month.',run(){const ym=_finMonth;const by=_finSpentByCat(ym);const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,12).map(x=>[esc(_finCat(x[0]).icon+' '+_finCat(x[0]).name),_finFmt(x[1],0),_finFmt(_finBudgetFor(x[0],ym),0)]);return `<p style="font-size:12.5px">Income <b class="fin-amount-pos">${_finFmt(_finIncome(ym),0)}</b> · Spent <b>${_finFmt(_finSpent(ym),0)}</b> of ${_finFmt(_finBudgetTotal(ym),0)} budgeted · Net <b style="color:${_finIncome(ym)-_finSpent(ym)>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finIncome(ym)-_finSpent(ym),0)}</b></p>`+_finRepTable(['Category','Spent','Budget'],rows);}},
+ {id:'budget-variance',icon:'🎯',name:'Budget variance',desc:'Every category: budget vs actual, biggest overruns first.',run(){const ym=_finMonth;const by=_finSpentByCat(ym);const rows=_finBudgetIds(ym).filter(id=>_finCat(id).kind!=='income').map(id=>({id,b:_finBudgetFor(id,ym),s:by[id]||0})).filter(r=>r.b>0||r.s>0).sort((a,b)=>(b.s-b.b)-(a.s-a.b)).map(r=>[esc(_finCat(r.id).name),_finFmt(r.b,0),_finFmt(r.s,0),`<span style="color:${r.s>r.b?'var(--red)':'var(--ok)'};font-weight:650">${r.s>r.b?'+':''}${_finFmt(r.s-r.b,0)}</span>`]);return _finRepTable(['Category','Budget','Actual','Variance'],rows);}},
+ {id:'spending-by-category',icon:'🧾',name:'Spending by category',desc:'Where the money went this month, with share of total.',run(){const ym=_finMonth;const by=_finSpentByCat(ym);const tot=Math.max(1,_finSpent(ym));const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).map(x=>[esc(_finCat(x[0]).icon+' '+_finCat(x[0]).name),_finFmt(x[1],0),Math.round(x[1]/tot*100)+'%']);return rows.length?_finRepTable(['Category','Spent','Share'],rows):'<p style="font-size:12px;color:var(--t3)">No spending logged this month.</p>';}},
+ {id:'spending-trend',icon:'📉',name:'Spending trend',desc:'Total spending, last 6 months side by side.',run(){const ms=_finMonthsBack(6);return _finRepTable(['Month','Income','Spent','Net'],ms.map(m=>[_finMonthLabel(m),_finFmt(_finIncome(m),0),_finFmt(_finSpent(m),0),`<span style="color:${_finIncome(m)-_finSpent(m)>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finIncome(m)-_finSpent(m),0)}</span>`]));}},
+ {id:'income-vs-expenses',icon:'⚖️',name:'Income vs expenses (12 mo plan)',desc:'The year ahead: expected income against planned spend.',run(){return _finRepTable(['Month','Expected income','Planned spend','Net'],_finForecastRows(12).map(r=>[_finMonthLabel(r.m),_finFmt(r.inc,0),_finFmt(r.spend,0),`<span style="color:${r.net>=0?'var(--ok)':'var(--red)'};font-weight:650">${_finFmt(r.net,0)}</span>`]));}},
+ {id:'income-by-stream',icon:'💼',name:'Income by stream',desc:'Each household income source: expected vs received, this month and YTD.',run(){const ym=_finMonth;const y=ym.slice(0,4);const f=_finData();const rows=(f.incomeStreams||[]).map(st=>{const ytd=f.transactions.filter(t=>t.amount>0&&String(t.date||'').slice(0,4)===y&&(String(t.streamId||'')===String(st.id)||(!t.streamId&&t.payee===st.name))).reduce((s,t)=>s+t.amount,0);return [esc(st.name)+(st.active===false?' (paused)':''),_finFmt(_finStreamExpected(st,ym),0),_finFmt(_finStreamReceived(st,ym),0),_finFmt(ytd,0)];});return rows.length?_finRepTable(['Stream','Expected','Received','YTD'],rows):'<p style="font-size:12px;color:var(--t3)">No income streams yet — add them in the Income tab.</p>';}},
+ {id:'debt-overview',icon:'💳',name:'Debt overview',desc:'Every card and loan: balance, payment, payoff estimate.',run(){const ds=_finDebtPayoff();return ds.length?_finRepTable(['Debt','Balance','Payment/mo','Payoff'],ds.map(d=>[esc(d.name)+(d.apr?` (${d.apr}%)`:''),`<span style="color:var(--red)">${_finFmt(d.balance,0)}</span>`,d.pay?_finFmt(d.pay,0):'—',d.months!=null?`${d.months} mo (${d.payoff})`:'no payment mapped']))+`<p style="font-size:12px;margin-top:8px">Total debt <b style="color:var(--red)">${_finFmt(_finDebt(),0)}</b> · total payments ${_finFmt(ds.reduce((s,d)=>s+d.pay,0),0)}/mo</p>`:'<p style="font-size:12px;color:var(--t3)">No debts 🎉</p>';}},
+ {id:'debt-payoff-plan',icon:'🏁',name:'Debt payoff order',desc:'Snowball order (smallest balance first) with cumulative freed-up cash.',run(){const ds=_finDebtPayoff().slice().sort((a,b)=>a.balance-b.balance);let freed=0;return _finRepTable(['Order','Debt','Balance','Payment','Cash freed after payoff'],ds.map((d,i)=>{freed+=d.pay;return [String(i+1),esc(d.name),_finFmt(d.balance,0),d.pay?_finFmt(d.pay,0):'—',_finFmt(freed,0)+'/mo'];}))+'<p style="font-size:11px;color:var(--t3);margin-top:6px">Snowball: clear the smallest balance first, then roll its payment into the next debt.</p>';}},
+ {id:'upcoming-bills',icon:'📅',name:'Upcoming bills (30 days)',desc:'What\'s due in the next month, in order, with the total.',run(){const f=_finData();const now=new Date();const horizon=new Date(now.getTime()+30*86400000);const list=f.bills.filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).filter(x=>x.due<=horizon).sort((a,b)=>a.due-b.due);return list.length?_finRepTable(['Due','Bill','Category','Amount'],list.map(x=>[x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),esc(x.b.name)+(x.b.autopay?' ⚡':''),esc(_finCat(x.b.catId).name),_finFmt(x.b.amount,0)]))+`<p style="font-size:12px;margin-top:8px">Total due in 30 days: <b>${_finFmt(list.reduce((s,x)=>s+(x.b.amount||0),0),0)}</b></p>`:'<p style="font-size:12px;color:var(--t3)">Nothing due in the next 30 days.</p>';}},
+ {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);const rows=f.transactions.filter(t=>t.amount<0&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
+ {id:'net-worth',icon:'🏦',name:'Net worth statement',desc:'Assets and debts, line by line, with the bottom line.',run(){const f=_finData();const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type));const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type));return _finRepTable(['Assets','Balance'],assets.map(a=>[esc(a.name),_finFmt(a.balance||0,0)]))+_finRepTable(['Debts','Owed'],debts.map(a=>[esc(a.name),`<span style="color:var(--red)">${_finFmt(a.balance||0,0)}</span>`]))+`<p style="font-size:13px;margin-top:8px">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b></p>`;}},
+ {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tx=f.transactions.filter(t=>String(t.date||'').slice(0,4)===y);const inc=tx.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);const sp=-tx.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0);const by={};tx.forEach(t=>{if(t.amount<0)by[t.catId]=(by[t.catId]||0)-t.amount;});const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${tx.length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
+ {id:'savings-goals',icon:'🎯',name:'Savings goals check',desc:'Progress on each goal and the monthly amount needed to hit its date.',run(){const f=_finData();const rows=f.goals.map(g=>{const left=Math.max(0,(g.target||0)-(g.saved||0));let need='—';if(g.due){const months=Math.max(1,Math.ceil((new Date(g.due)-new Date())/(30.4*86400000)));need=_finFmt(left/months,0)+'/mo';}return [esc(g.name),_finFmt(g.saved||0,0),_finFmt(g.target||0,0),_finFmt(left,0),need];});return rows.length?_finRepTable(['Goal','Saved','Target','Remaining','Needed'],rows):'<p style="font-size:12px;color:var(--t3)">No goals yet — add them in the Goals tab.</p>';}},
+ {id:'bills-vs-budget',icon:'🧮',name:'Fixed vs flexible spending',desc:'How much of the budget is locked in bills vs discretionary.',run(){const ym=_finMonth;const f=_finData();const fixed=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(b.amount||0),0);const tot=_finBudgetTotal(ym);const flex=Math.max(0,tot-fixed);return `<p style="font-size:12.5px">Planned spend ${_finFmt(tot,0)} · <b>fixed bills ${_finFmt(fixed,0)}</b> (${tot?Math.round(fixed/tot*100):0}%) · <b>flexible ${_finFmt(flex,0)}</b></p><div class="fin-bar" style="max-width:420px;height:12px"><div style="width:${tot?Math.min(100,Math.round(fixed/tot*100)):0}%;background:var(--warn)"></div></div><p style="font-size:11px;color:var(--t3);margin-top:8px">A high fixed share means less room to adjust in a tight month — debt payments are usually the biggest lever.</p>`;}},
+];
+let _finRepOpen=null;
+function _finReportsHtml(){
+  const rep=_finRepOpen?FIN_REPORTS.find(r=>r.id===_finRepOpen):null;
+  const suggestions=['Where can I cut $500/month?','When am I debt-free at current payments?','How am I doing vs my plan this month?','Which debt should I pay off first and why?'];
+  const ai=`<div class="fin-card" style="margin-bottom:12px">
+    <h3>🤖 Ask the AI analyst</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <input class="inp" id="fin-ai-q" placeholder="Ask anything about your money — it answers from YOUR data…" style="flex:1;min-width:220px;height:32px;font-size:12px" onkeydown="if(event.key==='Enter')finAskAI()">
+      <button class="btn btn-p" style="height:32px;font-size:12px" onclick="finAskAI()">✨ Ask</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${suggestions.map(s=>`<span class="fin-chip" style="cursor:pointer" onclick="document.getElementById('fin-ai-q').value='${_jsAttr(s)}';finAskAI()">${esc(s)}</span>`).join('')}</div>
+    <div id="fin-ai-answer"></div>
+  </div>`;
+  if(rep){
+    return ai+`<div class="fin-card"><div class="fin-row" style="margin-bottom:10px">
+      <span class="nm" style="font-size:14px;font-weight:700">${rep.icon} ${esc(rep.name)}</span>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--purp)" onclick="finReportAI('${rep.id}')">✨ AI insights</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_finRepOpen=null;renderMoney()">← All reports</button>
+    </div><div id="fin-report-body">${rep.run()}</div><div id="fin-report-ai"></div></div>`;
+  }
+  return ai+`<div class="fin-grid">${FIN_REPORTS.map(r=>`<div class="fin-card" style="cursor:pointer" onclick="_finRepOpen='${r.id}';renderMoney()">
+    <h3 style="margin-bottom:4px">${r.icon} ${esc(r.name)}</h3>
+    <div style="font-size:11.5px;color:var(--t3);line-height:1.55">${esc(r.desc)}</div>
+  </div>`).join('')}</div>`;
+}
+function finAskAI(){
+  const q=(document.getElementById('fin-ai-q')||{}).value||'';
+  if(!q.trim()){toast('Type a question first.');return;}
+  _finAI(q.trim(),null,'fin-ai-answer','Thinking about “'+q.trim().slice(0,40)+'”');
+}
+function finReportAI(id){
+  const rep=FIN_REPORTS.find(r=>r.id===id); if(!rep)return;
+  const body=document.getElementById('fin-report-body');
+  const plain=body?body.innerText.replace(/\s+/g,' ').slice(0,3200):'';
+  _finAI('Give sharp insights on this "'+rep.name+'" report: what stands out, what needs action, and one concrete recommendation. REPORT CONTENT: '+plain,null,'fin-report-ai','Reading the report');
 }
