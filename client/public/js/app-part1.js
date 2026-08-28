@@ -7309,6 +7309,7 @@ const _homeCardDefs=[
   {id:'reports',icon:'barChart',label:'Reports & Insights',default:true},
   {id:'habitHeatmap',icon:'flame',label:'Habit Heatmap (30 days)',default:false},
   {id:'moodTrend',icon:'activity',label:'Mood Trend (14 days)',default:false},
+  {id:'money',icon:'barChart',label:'Money Snapshot',default:false},
   {id:'mindmaps',icon:'brain',label:'Recent Mind Maps',default:false},
   {id:'bookmarks',icon:'bookmark',label:'Recent Bookmarks',default:false},
   {id:'deadlines',icon:'clock',label:'Upcoming Deadlines',default:false},
@@ -7897,6 +7898,25 @@ function renderHome(){
           <div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--t3)"><span>Less</span><div style="width:10px;height:10px;background:var(--s3);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.25);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.55);border-radius:2px"></div><div style="width:10px;height:10px;background:rgba(34,197,94,.95);border-radius:2px"></div><span>More</span></div>
         </div>`;
       })(),
+      // ── Money snapshot (net worth · month cash flow · next bill) ──
+      money:(typeof _finData==='function'?(()=>{
+        try{
+          const f=_finData(); const ym=_finYM(new Date());
+          const inc=_finIncome(ym),sp=_finSpent(ym),net=_finNetWorth();
+          const bills=(f.bills||[]).filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).sort((a,b)=>a.due-b.due);
+          const nb=bills[0];
+          const budget=_finBudgetTotal(ym);
+          const pct=budget?Math.min(100,Math.round(sp/budget*100)):0;
+          return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('barChart',15,'#0d9488')} Money</div><span class="cd-a" onclick="nav('money')">Open Money</span></div>
+            <div style="display:flex;gap:14px;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd1);margin-bottom:8px">
+              <div style="text-align:center"><div style="font-size:19px;font-weight:750;color:${net>=0?'var(--ok)':'var(--red)'}">${_finFmt(net,0)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase">Net worth</div></div>
+              <div style="text-align:center"><div style="font-size:19px;font-weight:750;color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</div><div style="font-size:10px;color:var(--t3);text-transform:uppercase">Cash flow</div></div>
+            </div>
+            ${budget?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px">Spent ${_finFmt(sp,0)} of ${_finFmt(budget,0)} budget</div><div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:${pct}%;background:${sp>budget?'var(--red)':pct>85?'var(--warn)':'var(--ok)'}"></div></div>`:''}
+            ${nb?`<div style="font-size:11px;color:var(--t2)">Next bill: <b>${esc(nb.b.name)}</b> · ${nb.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})} · ${_finFmt(nb.b.amount,0)}</div>`:'<div style="font-size:11px;color:var(--t3)">No bills set up yet.</div>'}
+          </div>`;
+        }catch(_){return '';}
+      })():''),
       // ── 14-day Mood Trend (from journal) ──
       moodTrend:(()=>{
         const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
@@ -18311,6 +18331,7 @@ function _calOpenChip(kind,id){
   if(typeof openCalEvent==='function')openCalEvent(id);
 }
 function _calChipClick(e){
+  if(e&&e._finBill)return `nav('money');setTimeout(()=>{if(typeof renderMoney==='function'){_finTab='bills';renderMoney();}},250)`;
   return `_calOpenChip('${e&&e._task?'task':'event'}','${_jsAttr(String(e&&e.id!=null?e.id:''))}')`;
 }
 // Shared chip markup for the week + month grids.
@@ -18322,10 +18343,13 @@ function _calChipClick(e){
 function _calChip(e,opts){
   const o=opts||{};
   const task=!!(e&&e._task);
-  const bg=task?`color-mix(in srgb,${e.color} 15%,transparent)`:`${e.color}22`;
+  const bill=!!(e&&e._finBill);
+  // Bills use var() colours like tasks, so they take the color-mix path
+  // (the `${e.color}22` concat only works for hex — see note above).
+  const bg=(task||bill)?`color-mix(in srgb,${e.color} 15%,transparent)`:`${e.color}22`;
   const edge=task?`2px dashed ${e.color}`:`2px solid ${e.color}`;
   const done=task&&e._done?';opacity:.55;text-decoration:line-through':'';
-  const tip=task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:'';
+  const tip=bill?'Bill due — click to open Money → Bills':task?`${e._done?'Completed task':'Task'}${e.time?' · '+e.time:''} — click to open`:'';
   return `<div class="${o.cls||'cal-ev'}${task?' cal-task':''}"${tip?` title="${_jsAttr(tip)}"`:''} style="background:${bg};border-left:${edge};color:var(--t1);cursor:pointer${done}${o.extra||''}" onclick="event.stopPropagation();${_calChipClick(e)}">${task&&!e._done?'▢ ':''}${esc(e.title)}</div>`;
 }
 // Show/hide scheduled tasks. Default ON — the user asked for them — so only an
@@ -18340,7 +18364,7 @@ function toggleCalShowTasks(){
 function _calEventsOn(dateObj){
   const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
   const local=(_calEvents||[]).filter((e)=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)));
-  return [...local,..._syncedEventsOn(dateObj),..._tasksOnDate(dateObj)].sort((a,b)=>(a.hour||0)-(b.hour||0));
+  return [...local,..._syncedEventsOn(dateObj),..._tasksOnDate(dateObj),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(dateObj):[])].sort((a,b)=>(a.hour||0)-(b.hour||0));
 }
 // Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
 // real {start,end} datetimes, skipping ones already past today.
@@ -18982,7 +19006,7 @@ function renderCalMonth(){
     const dStr=d.toISOString().split('T')[0];
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
-    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d),..._tasksOnDate(d)];
+    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
     const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">

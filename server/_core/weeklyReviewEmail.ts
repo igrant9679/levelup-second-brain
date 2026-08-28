@@ -323,7 +323,34 @@ function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
   }).join('')}${rows.length > 40 ? `<tr><td style="padding:6px;font-size:10px;color:#9ca3af;text-align:center">… and ${rows.length - 40} more</td></tr>` : ''}</table>`;
 }
 
-function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock): string {
+/**
+ * Compact Money section for the weekly review. Empty string when the user
+ * has no finance data — the email is unchanged for non-Money users.
+ */
+function buildFinanceHtml(rawFinance: string | null): string {
+  if (!rawFinance) return '';
+  let f: any; try { f = JSON.parse(rawFinance); } catch { return ''; }
+  if (!f || typeof f !== 'object') return '';
+  const accounts = Array.isArray(f.accounts) ? f.accounts : [];
+  const bills = Array.isArray(f.bills) ? f.bills : [];
+  if (!accounts.length && !bills.length) return '';
+  const isDebt = (a: any) => ['credit', 'loan'].includes(a.type);
+  const net = accounts.reduce((s: number, a: any) => s + (isDebt(a) ? -Math.abs(a.balance || 0) : (a.balance || 0)), 0);
+  const debt = accounts.filter(isDebt).reduce((s: number, a: any) => s + Math.abs(a.balance || 0), 0);
+  const fmt = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
+  const now = new Date();
+  const due7 = bills.filter((b: any) => b.active !== false).map((b: any) => {
+    const day = Math.min(Math.max(1, Number(b.dueDay) || 1), 28);
+    let d = new Date(now.getFullYear(), now.getMonth(), day);
+    if (day < now.getDate()) d = new Date(now.getFullYear(), now.getMonth() + 1, day);
+    return { b, d };
+  }).filter(x => (x.d.getTime() - now.getTime()) / 86400000 <= 7).sort((a, b) => a.d.getTime() - b.d.getTime());
+  return `<h2 style="font-size:15px;color:#0d9488;border-bottom:2px solid #0d9488;padding-bottom:4px;margin:20px 0 6px">💰 Money</h2>
+  <div style="font-size:13px;color:#374151;margin-bottom:6px">Net worth <strong style="color:${net >= 0 ? '#10b981' : '#dc2626'}">${fmt(net)}</strong>${debt ? ` · total debt <strong style="color:#dc2626">${fmt(debt)}</strong>` : ''}</div>
+  ${due7.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${due7.slice(0, 8).map(x => `<tr><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6">${escHtml(String(x.b.name || ''))}${x.b.autopay ? ' <span style="font-size:10px;color:#6b7280">⚡ autopay</span>' : ''}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280">${x.d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600">${fmt(Number(x.b.amount) || 0)}</td></tr>`).join('')}</table>` : '<div style="font-size:12px;color:#9ca3af">No bills due in the next 7 days.</div>'}`;
+}
+
+function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = ""): string {
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
   const weekRange = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
   const picksHtml = ai.picks.length ? `
@@ -360,6 +387,7 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock): string {
   ${rowsHtml(rows.overdue, 'Nothing overdue. Clean slate.')}
   <h2 style="font-size:15px;color:#1f6feb;border-bottom:2px solid #1f6feb;padding-bottom:4px;margin:20px 0 6px">📅 Next 7 days <span style="color:#9ca3af;font-weight:400;font-size:12px">(${rows.nextWeek.length})</span></h2>
   ${rowsHtml(rows.nextWeek, 'Nothing scheduled in the next 7 days.')}
+  ${financeHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
     Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this review in Settings → Notifications · <em>"Shipped" timestamps for CF/LSI rows reflect when LevelUp first observed completion (not the source's actual completion time).</em>
   </p>
@@ -420,7 +448,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       }
       const aiBlock = await generateAIBlock(built);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
-      const html = renderWeeklyHtml(name, built, aiBlock);
+      const html = renderWeeklyHtml(name, built, aiBlock, buildFinanceHtml((row as any).finance));
       const ok = await sendEmail({
         to: recipient,
         subject: `📊 Weekly review — ${built.shipped.length} shipped, ${built.overdue.length} overdue, ${built.nextWeek.length} ahead`,

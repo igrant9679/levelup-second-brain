@@ -3033,6 +3033,10 @@ function buildNotifs(){
       });
     }
   }
+  // ---- Money alerts (bills due, over budget, low balance) ----
+  if(np.moneyAlerts!==false&&!quiet&&typeof _finNotifs==='function'){
+    try{_finNotifs().forEach(n=>notifs.push(n));}catch(_){}
+  }
   // ---- Habit Streak Alerts ----
   if(np.habitStreaks!==false&&!quiet){
     D.habits.filter(h=>!h.doneToday&&h.cadence==='Daily').forEach(h=>{
@@ -14491,6 +14495,7 @@ function _finCSS(){
 function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
   _finCSS(); ensureFin();
+  if(typeof _finSnapshotNetWorth==='function'){try{_finSnapshotNetWorth();}catch(_){}}
   if(!_sharedFinLoaded)_loadSharedFinance();
   const shared=Array.isArray(D._sharedBudgets)?D._sharedBudgets:[];
   const viewingShared=_finShared!=null&&shared[_finShared];
@@ -14812,7 +14817,7 @@ function _finAccountsHtml(){
     <div class="fin-grid">
       <div class="fin-card"><h3>💰 Assets</h3>${assets.length?assets.map(row).join(''):'<div style="font-size:11px;color:var(--t3)">Add checking, savings, cash and investment accounts.</div>'}</div>
       <div class="fin-card"><h3>💳 Debts</h3>${debts.length?debts.map(row).join(''):'<div style="font-size:11px;color:var(--t3)">Add credit cards and loans (balance = amount owed).</div>'}</div>
-    </div>`;
+    </div>${(typeof _finNetworthChartHtml==='function')?_finNetworthChartHtml():''}`;
 }
 function finOpenAcct(id){
   if(_finGuard())return;
@@ -15186,6 +15191,7 @@ function _finForecastHtml(){
       ${debts.some(d=>d.interest>0)?`<div style="font-size:11px;color:var(--t3);margin-top:6px">Interest estimates use each account's APR where set.</div>`:''}
     </div>
   </div>
+  <div id="fin-whatif">${(typeof _finWhatIfHtml==='function')?_finWhatIfHtml():''}</div>
   <div class="fin-card" style="margin-top:12px"><h3>🗓 Month-by-month plan</h3><div class="fin-tx-wrap">
     <table class="fin-tx"><thead><tr><th>Month</th><th style="text-align:right">Expected income</th><th style="text-align:right">Planned spend</th><th style="text-align:right">Net</th><th style="text-align:right">Running cash</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td>${_finMonthLabel(r.m)}</td><td style="text-align:right" class="fin-amount-pos">${_finFmt(r.inc,0)}</td><td style="text-align:right">${_finFmt(r.spend,0)}</td><td style="text-align:right;color:${r.net>=0?'var(--ok)':'var(--red)'};font-weight:650">${_finFmt(r.net,0)}</td><td style="text-align:right;font-weight:650;color:${r.running>=0?'var(--t1)':'var(--red)'}">${_finFmt(r.running,0)}</td></tr>`).join('')}
@@ -15256,7 +15262,7 @@ const FIN_REPORTS=[
 let _finRepOpen=null;
 function _finReportsHtml(){
   const rep=_finRepOpen?FIN_REPORTS.find(r=>r.id===_finRepOpen):null;
-  const suggestions=['Where can I cut $500/month?','When am I debt-free at current payments?','How am I doing vs my plan this month?','Which debt should I pay off first and why?'];
+  const suggestions=['Where can I cut $500/month?','When am I debt-free at current payments?','How am I doing vs my plan this month?','Which debt should I pay off first and why?','Scenario: my income drops 20% for 3 months','Scenario: I put an extra $1,000/month on debt'];
   const ai=`<div class="fin-card" style="margin-bottom:12px">
     <h3>🤖 Ask the AI analyst</h3>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
@@ -15693,4 +15699,150 @@ function finAddDetectedBill(i){
   const f=_finData();
   f.bills.push({id:String(Date.now())+i,name:c.name.slice(0,80),amount:c.amount,dueDay:c.dueDay,catId:c.catId||'subs-subscriptions',accountId:null,autopay:true,active:true});
   _finSave(); toast({type:'success',title:'＋ Bill added',msg:c.name,duration:1600});
+}
+
+/* ── Money phase 2: alerts, calendar bill chips, net-worth history,
+      debt what-if simulator, utilization + trends reports (build -172) ── */
+
+// ── notification-bell alerts (consumed by buildNotifs) ─────────────────
+function _finNotifs(){
+  const out=[];
+  if(!D.finance||typeof D.finance!=='object')return out;
+  const f=ensureFin(); const ym=_finYM(new Date());
+  // Bills due within 3 days (unpaid this month)
+  f.bills.filter(b=>b.active!==false&&b.lastPaidYM!==ym).forEach(b=>{
+    const due=_finBillNextDue(b); const days=Math.ceil((due-new Date())/86400000);
+    if(days<=3)out.push({id:'finb-'+b.id,type:days<=0?'warning':'info',icon:'💵',title:days<=0?'Bill due today':('Bill due in '+days+' day'+(days===1?'':'s')),body:b.name+' · '+_finFmt(b.amount,0),time:due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),read:false,action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='bills';renderMoney();},250);}});
+  });
+  // Categories over budget this month
+  const by=_finSpentByCat(ym);
+  _finBudgetIds(ym).forEach(id=>{
+    const b=_finBudgetFor(id,ym); const s=by[id]||0;
+    if(b>0&&s>b*1.0&&_finCat(id).kind!=='income')out.push({id:'finob-'+id+'-'+ym,type:'warning',icon:'🎯',title:'Over budget',body:_finCat(id).name+' — '+_finFmt(s,0)+' of '+_finFmt(b,0),time:'This month',read:false,action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='budgets';renderMoney();},250);}});
+  });
+  // Low balance on checking accounts
+  f.accounts.filter(a=>a.type==='checking'&&(a.balance||0)>0&&(a.balance||0)<500).forEach(a=>{
+    out.push({id:'finlow-'+a.id,type:'warning',icon:'🏦',title:'Low balance',body:a.name+' — '+_finFmt(a.balance,0),time:'Now',read:false,action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='accounts';renderMoney();},250);}});
+  });
+  return out.slice(0,12);
+}
+// ── bill chips for the Calendar month grid + day rails ─────────────────
+function _finBillsOnDate(dateObj){
+  try{
+    if(!D.finance||typeof D.finance!=='object')return [];
+    const f=ensureFin(); if(!f.bills.length)return [];
+    const day=dateObj.getDate();
+    return f.bills.filter(b=>b.active!==false&&Math.min(Math.max(1,Number(b.dueDay)||1),28)===day).map(b=>({
+      id:'finbill-'+b.id, title:'💵 '+b.name+' '+_finFmt(b.amount,0), color:'var(--warn)', _finBill:true,
+    }));
+  }catch(_){return [];}
+}
+// ── net worth history (monthly snapshots, self-recording) ──────────────
+function _finSnapshotNetWorth(){
+  if(_finShared!=null)return;
+  const f=ensureFin();
+  if(!Array.isArray(f.networthHistory))f.networthHistory=[];
+  if(!f.accounts.length)return;
+  const ym=_finYM(new Date());
+  const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type)).reduce((s,a)=>s+(a.balance||0),0);
+  const debts=_finDebt();
+  const cur=f.networthHistory.find(h=>h.ym===ym);
+  if(cur){ cur.assets=assets; cur.debts=debts; }  // keep current month fresh
+  else{ f.networthHistory.push({ym,assets,debts}); _finSave(); }
+  if(f.networthHistory.length>60)f.networthHistory=f.networthHistory.slice(-60);
+}
+function _finNetworthChartHtml(){
+  const f=_finData(); const hist=(f.networthHistory||[]).slice(-12);
+  if(hist.length<2)return `<div class="fin-card" style="margin-top:12px"><h3>📈 Net worth over time</h3><div style="font-size:11px;color:var(--t3)">Recording started — this chart fills in as the months pass (one snapshot per month, updated live for the current month).</div></div>`;
+  const nets=hist.map(h=>h.assets-h.debts);
+  const min=Math.min(...nets),max=Math.max(...nets);
+  const y=v=>92-Math.round((v-min)/Math.max(1,max-min)*74);
+  const step=hist.length>1?480/(hist.length-1):0;
+  return `<div class="fin-card" style="margin-top:12px"><h3>📈 Net worth over time</h3>
+    <svg viewBox="0 0 520 110" style="width:100%">
+      ${min<0&&max>0?`<line x1="14" x2="${14+step*(hist.length-1)}" y1="${y(0)}" y2="${y(0)}" stroke="var(--bd2)" stroke-dasharray="3 3"/>`:''}
+      <polyline fill="none" stroke="var(--ac)" stroke-width="2" points="${hist.map((h,i)=>(14+i*step)+','+y(h.assets-h.debts)).join(' ')}"/>
+      ${hist.map((h,i)=>`<circle cx="${14+i*step}" cy="${y(h.assets-h.debts)}" r="3" fill="var(--ac)"><title>${h.ym}: ${_finFmt(h.assets-h.debts,0)} (assets ${_finFmt(h.assets,0)} − debt ${_finFmt(h.debts,0)})</title></circle>`).join('')}
+      ${hist.map((h,i)=>`<text x="${14+i*step}" y="106" font-size="8" fill="var(--t3)" text-anchor="middle">${h.ym.slice(2)}</text>`).join('')}
+    </svg></div>`;
+}
+// ── debt what-if simulator ─────────────────────────────────────────────
+let _finWhatIfExtra=0; let _finWhatIfStrategy='snowball';
+function _finSimulatePayoff(extra,strategy){
+  const src=_finDebtPayoff().filter(d=>d.pay>0);
+  if(!src.length)return null;
+  const debts=src.map(d=>({name:d.name,bal:d.balance,pay:d.pay,apr:d.apr||0}));
+  const order=()=>debts.filter(d=>d.bal>0.005).sort((a,b)=>strategy==='avalanche'?(b.apr-a.apr)||(a.bal-b.bal):(a.bal-b.bal));
+  const budget=debts.reduce((s,d)=>s+d.pay,0)+(extra||0);
+  let months=0,interest=0; const payoffs=[];
+  while(debts.some(d=>d.bal>0.005)&&months<600){
+    months++;
+    let pool=budget;
+    // interest accrual
+    debts.forEach(d=>{ if(d.bal>0.005&&d.apr>0){ const i2=d.bal*(d.apr/100/12); d.bal+=i2; interest+=i2; } });
+    // minimums
+    order().forEach(d=>{ const p=Math.min(d.pay,d.bal,pool); d.bal-=p; pool-=p; });
+    // leftover → target debt per strategy
+    let guard=0;
+    while(pool>0.005&&debts.some(d=>d.bal>0.005)&&guard++<20){
+      const t=order()[0]; const p=Math.min(pool,t.bal); t.bal-=p; pool-=p;
+    }
+    debts.forEach(d=>{ if(d.bal<=0.005&&!payoffs.some(p=>p.name===d.name))payoffs.push({name:d.name,month:months}); });
+  }
+  return {months,interest:Math.round(interest),payoffs,budget};
+}
+function _finWhatIfHtml(){
+  const base=_finSimulatePayoff(0,_finWhatIfStrategy);
+  if(!base)return '';
+  const sim=_finSimulatePayoff(_finWhatIfExtra,_finWhatIfStrategy);
+  const dateAt=m=>_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+m,1));
+  return `<div class="fin-card" style="margin-top:12px"><h3>🎛 What-if: pay debt faster</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:10px">
+      Extra per month: <b style="min-width:64px">${_finFmt(_finWhatIfExtra,0)}</b>
+      <input type="range" min="0" max="3000" step="50" value="${_finWhatIfExtra}" style="flex:1;min-width:160px;max-width:300px" oninput="_finWhatIfExtra=parseInt(this.value);document.getElementById('fin-whatif').innerHTML=_finWhatIfHtml()">
+      <select class="inp" style="height:26px;font-size:11px;width:auto" onchange="_finWhatIfStrategy=this.value;document.getElementById('fin-whatif').innerHTML=_finWhatIfHtml()">
+        <option value="snowball" ${_finWhatIfStrategy==='snowball'?'selected':''}>Snowball (smallest first)</option>
+        <option value="avalanche" ${_finWhatIfStrategy==='avalanche'?'selected':''}>Avalanche (highest APR first)</option>
+      </select>
+    </div>
+    <div class="fin-kpis" style="margin-bottom:8px">
+      <div class="fin-kpi"><div class="n">${sim.months} mo</div><div class="l">Debt-free ${dateAt(sim.months)}${_finWhatIfExtra?` (was ${base.months} mo)`:''}</div></div>
+      <div class="fin-kpi"><div class="n" style="color:${_finWhatIfExtra&&base.interest-sim.interest>0?'var(--ok)':'var(--t1)'}">${_finFmt(sim.interest,0)}</div><div class="l">Interest paid${_finWhatIfExtra?` · saves ${_finFmt(Math.max(0,base.interest-sim.interest),0)}`:''}</div></div>
+      <div class="fin-kpi"><div class="n">${_finFmt(sim.budget,0)}</div><div class="l">Monthly toward debt</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--t3);line-height:1.7">${sim.payoffs.slice(0,12).map(p=>`<span class="fin-chip" style="margin:2px 3px 2px 0">${esc(p.name.slice(0,22))} → ${dateAt(p.month)}</span>`).join('')}</div>
+    <div style="font-size:11px;color:var(--t3);margin-top:6px">Payments roll: when a debt clears, its payment (plus the extra) attacks the next one. Interest uses each account's APR where set — add APRs in Accounts → ✏ for honest numbers.</div>
+  </div>`;
+}
+// ── extra reports: credit utilization + category trend explorer ────────
+if(typeof FIN_REPORTS!=='undefined'){
+  FIN_REPORTS.push(
+    {id:'credit-utilization',icon:'📊',name:'Credit utilization',desc:'Balance vs limit per card — utilization drives credit scores.',run(){
+      const cards=_finData().accounts.filter(a=>a.type==='credit');
+      if(!cards.length)return '<p style="font-size:12px;color:var(--t3)">No credit cards in Accounts.</p>';
+      const withLimit=cards.filter(c=>c.limit>0);
+      const totBal=cards.reduce((s,c)=>s+Math.abs(c.balance||0),0);
+      const totLim=withLimit.reduce((s,c)=>s+c.limit,0);
+      return _finRepTable(['Card','Balance','Limit','Utilization'],cards.map(c=>{
+        const u=c.limit>0?Math.round(Math.abs(c.balance||0)/c.limit*100):null;
+        const col=u==null?'var(--t3)':u>=90?'var(--red)':u>=30?'var(--warn)':'var(--ok)';
+        return [esc(c.name),_finFmt(Math.abs(c.balance||0),0),c.limit>0?_finFmt(c.limit,0):'<span style="color:var(--t3)">set in ✏</span>',u==null?'—':`<b style="color:${col}">${u}%</b>`];
+      }))+(totLim?`<p style="font-size:12px;margin-top:8px">Overall: <b>${Math.round(totBal/totLim*100)}%</b> of ${_finFmt(totLim,0)} across ${withLimit.length} card${withLimit.length===1?'':'s'} with limits. Under 30% helps your score; under 10% is ideal.</p>`:'<p style="font-size:11px;color:var(--t3);margin-top:8px">Add credit limits in Accounts → ✏ to see utilization.</p>');
+    }},
+    {id:'category-trend',icon:'📈',name:'Category trend explorer',desc:'Pick any category and see its 12-month spending history.',run(){
+      const f=_finData();
+      const sel=window._finTrendCat||'dl-groceries';
+      const ms=_finMonthsBack(12);
+      const vals=ms.map(m=>({m,v:(_finSpentByCat(m)[sel]||0),b:_finBudgetFor(sel,m)}));
+      const max=Math.max(1,...vals.map(x=>Math.max(x.v,x.b)));
+      return `<div style="margin-bottom:10px"><select class="inp" style="height:28px;font-size:12px;width:auto" onchange="window._finTrendCat=this.value;document.getElementById('fin-report-body').innerHTML=FIN_REPORTS.find(r=>r.id==='category-trend').run()">${_finCatOptions(sel)}</select></div>
+      <svg viewBox="0 0 560 110" style="width:100%;max-width:560px">
+        ${vals.map((x,i)=>{const bx=8+i*46;const h=Math.round(x.v/max*78);const bh=Math.round(x.b/max*78);return `
+          ${x.b?`<rect x="${bx}" y="${88-bh}" width="34" height="${Math.max(1,bh)}" fill="var(--s3)" rx="2"><title>budget ${_finFmt(x.b,0)}</title></rect>`:''}
+          <rect x="${bx+5}" y="${88-h}" width="24" height="${Math.max(1,h)}" rx="2" fill="${x.b&&x.v>x.b?'var(--red)':'var(--ac)'}" opacity=".9"><title>${x.m}: ${_finFmt(x.v,0)}</title></rect>
+          <text x="${bx+17}" y="102" font-size="8.5" fill="var(--t3)" text-anchor="middle">${x.m.slice(5)}</text>`;}).join('')}
+      </svg>
+      <p style="font-size:11px;color:var(--t3)">Grey = budget for that month · colored = actual spend (red when over).</p>`;
+    }}
+  );
 }
