@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-168`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-28-169`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,10 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-169 — Money first-run empty state** (user saw an empty Money page — the
+private-seed Import step was easy to miss; an all-empty own budget now shows
+a centered Import guide card).
 
 **-168 — Money: Income tab + per-month budget plan.** `finance.incomeStreams`
 (flat `expected` OR `perMonth` schedule; "+ Log payment" books an income tx
