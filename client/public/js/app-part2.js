@@ -10495,7 +10495,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks','finance']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -10922,6 +10922,14 @@ async function loadServerData(){
     } else if(!D.atlasAnnotations){
       D.atlasAnnotations={};
     }
+    // Money page data — a single OBJECT blob (accounts / transactions /
+    // budgets / bills / goals + share settings), so it replaces wholesale
+    // like atlas/prefs rather than going through the array merge above.
+    if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0){
+      D.finance=sd.finance;
+      try{localStorage.setItem('lu_finance',JSON.stringify(D.finance));}catch(_){}
+      changed=true;
+    }
     if(sd.prefs&&typeof sd.prefs==='object'&&Object.keys(sd.prefs).length>0){
       D.prefs=Object.assign({},D.prefs,sd.prefs);
       localStorage.setItem('lu_prefs',JSON.stringify(D.prefs));
@@ -10966,6 +10974,7 @@ function _ensureSyncReady(){
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 if(!D.mindmaps) D.mindmaps = JSON.parse(localStorage.getItem('lu_mindmaps') || 'null') || [];
+if(!D.finance) D.finance = JSON.parse(localStorage.getItem('lu_finance') || 'null') || null; // ensureFin() builds the default lazily
 
 function saveMindmaps(){ localStorage.setItem('lu_mindmaps', JSON.stringify(D.mindmaps)); _syncMindmapsDebounced(); }
 let _mmSyncTimer=null;
@@ -14276,4 +14285,676 @@ function _atlasSpawnTask(type,id){
   D.tasks.unshift(task);
   save('tasks');if(typeof _pushKeyToServer==='function')_pushKeyToServer('tasks');
   toast({type:'success',title:'✅ Task created',msg:title.slice(0,80),actions:[{label:'Open',primary:true,onClick:()=>{_atlasCloseDrawer();nav('tasks');}}]});
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════
+   MONEY — Mint-style personal finance page (screen s-money, nav 'money').
+   Data: D.finance — ONE OBJECT blob (migration 0049, server-synced via
+   save('finance')): { accounts, transactions, categories, budgets, bills,
+   goals, share, settings }. Sharing: whole-budget via the share block
+   {assignees, shareAll, shareMode} → appData.sharedFinanceForMe /
+   updateSharedFinance (view = read-only, edit = co-edit). Finance is NOT
+   owner/admin-visible by default — explicit shares only.
+   All writes go through _finSave(); every mutating handler checks _finRO().
+   ═════════════════════════════════════════════════════════════════════ */
+let _finTab='overview';
+let _finMonth=(function(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
+let _finShared=null;            // null = my budget; else index into D._sharedBudgets
+let _sharedFinLoaded=false;
+let _finPushTimer=null;
+let _finTxSearch='';let _finTxCat='';let _finTxAcct='';
+
+function _finDefaultCats(){
+  const mk=(id,name,group,icon,kind)=>({id,name,group,icon,kind:kind||'expense'});
+  return [
+    mk('inc-salary','Salary / Business Income','Income','💼','income'),
+    mk('inc-interest','Interest & Dividends','Income','🏦','income'),
+    mk('inc-other','Other Income','Income','💵','income'),
+    mk('sav-savings','To Savings','Savings','🏦'),
+    mk('sav-emergency','Emergency Fund','Savings','🛟'),
+    mk('sav-retirement','Retirement','Savings','🌴'),
+    mk('home-mortgage','Mortgage / Rent','Home','🏠'),
+    mk('home-electric','Electricity','Home','💡'),
+    mk('home-gas','Gas / Oil','Home','🔥'),
+    mk('home-water','Water / Sewer / Trash','Home','🚰'),
+    mk('home-phone','Phone','Home','📱'),
+    mk('home-internet','Internet / Cable','Home','🌐'),
+    mk('home-streaming','Streaming Services','Home','📺'),
+    mk('home-lawn','Lawn / Garden','Home','🌿'),
+    mk('home-hoa','HOA','Home','🏘'),
+    mk('home-maint','Maintenance / Repairs','Home','🔧'),
+    mk('dl-groceries','Groceries','Daily Living','🛒'),
+    mk('dl-dining','Dining Out','Daily Living','🍽'),
+    mk('dl-cleaning','Cleaning Services','Daily Living','🧹'),
+    mk('dl-personal','Personal Care','Daily Living','💇'),
+    mk('dl-clothing','Clothing','Daily Living','👕'),
+    mk('fam-medical','Family Medical','Family','🩺'),
+    mk('fam-kids','Kids / School','Family','🎒'),
+    mk('fam-toys','Toys / Games','Family','🧸'),
+    mk('tr-carpay','Car Payment','Transportation','🚗'),
+    mk('tr-fuel','Fuel','Transportation','⛽'),
+    mk('tr-repairs','Auto Repairs','Transportation','🛠'),
+    mk('tr-transit','Transit / Taxi','Transportation','🚌'),
+    mk('health-doctor','Doctor / Dentist','Health','🩺'),
+    mk('health-rx','Medicine','Health','💊'),
+    mk('health-gym','Gym / Fitness','Health','🏋'),
+    mk('ins-auto','Auto Insurance','Insurance','🚗'),
+    mk('ins-health','Health Insurance','Insurance','⚕'),
+    mk('ins-home','Home Insurance','Insurance','🏠'),
+    mk('ins-dental','Dental Insurance','Insurance','🦷'),
+    mk('ins-life','Life Insurance','Insurance','🕊'),
+    mk('edu-tuition','Tuition / Courses','Education','🎓'),
+    mk('char-gifts','Gifts Given','Charity & Gifts','🎁'),
+    mk('char-donations','Donations','Charity & Gifts','❤'),
+    mk('debt-cc','Credit Card Payment','Debt','💳'),
+    mk('debt-loan','Loan Payment','Debt','🏦'),
+    mk('debt-taxes','Taxes','Debt','🏛'),
+    mk('biz-expense','Business Expense','Business','💼'),
+    mk('biz-contractors','Contractors','Business','👷'),
+    mk('ent-fun','Entertainment','Entertainment','🎬'),
+    mk('ent-hobbies','Hobbies','Entertainment','🎨'),
+    mk('pets-food','Pet Food','Pets','🐾'),
+    mk('pets-vet','Pet Medical','Pets','🐕'),
+    mk('subs-subscriptions','Subscriptions / Dues','Subscriptions','🔁'),
+    mk('vac-travel','Travel / Vacation','Vacation','✈'),
+    mk('misc-fees','Bank Fees','Misc','🧾'),
+    mk('misc-other','Miscellaneous','Misc','📦'),
+  ];
+}
+function _finDefault(){
+  return { accounts:[],transactions:[],categories:_finDefaultCats(),budgets:{},bills:[],goals:[],
+    share:{assignees:[],assigneeNames:[],primaryAssigneeId:null,shareAll:false,shareMode:'view'},
+    settings:{currency:'$'} };
+}
+function ensureFin(){
+  if(!D.finance||typeof D.finance!=='object'||Array.isArray(D.finance))D.finance=_finDefault();
+  const f=D.finance;
+  if(!Array.isArray(f.accounts))f.accounts=[];
+  if(!Array.isArray(f.transactions))f.transactions=[];
+  if(!Array.isArray(f.categories)||!f.categories.length)f.categories=_finDefaultCats();
+  if(!f.budgets||typeof f.budgets!=='object')f.budgets={};
+  if(!Array.isArray(f.bills))f.bills=[];
+  if(!Array.isArray(f.goals))f.goals=[];
+  if(!f.share||typeof f.share!=='object')f.share={assignees:[],assigneeNames:[],primaryAssigneeId:null,shareAll:false,shareMode:'view'};
+  if(!f.settings||typeof f.settings!=='object')f.settings={currency:'$'};
+  return f;
+}
+function _finData(){
+  if(_finShared!=null&&Array.isArray(D._sharedBudgets)&&D._sharedBudgets[_finShared])return D._sharedBudgets[_finShared].finance;
+  return ensureFin();
+}
+function _finRO(){ return _finShared!=null&&D._sharedBudgets&&D._sharedBudgets[_finShared]&&D._sharedBudgets[_finShared]._readOnly===true; }
+function _finGuard(){ if(_finRO()){toast('👁 This budget was shared view-only.');return true;} return false; }
+function _finSave(){
+  if(_finShared!=null){
+    const b=D._sharedBudgets&&D._sharedBudgets[_finShared]; if(!b)return;
+    clearTimeout(_finPushTimer);
+    _finPushTimer=setTimeout(async()=>{
+      try{ const res=await _trpc('appData.updateSharedFinance',{ownerUserId:Number(b.ownerUserId)||0,finance:JSON.stringify(b.finance)},'mutation');
+        if(!res||!res.ok)toast({type:'error',title:'Budget not synced',msg:(res&&res.error)||'Try again.'});
+      }catch(e){ toast({type:'error',title:'Budget not synced',msg:String(e&&e.message||e).slice(0,120)}); }
+    },1200);
+  } else { try{save('finance');}catch(_){} }
+}
+async function _loadSharedFinance(){
+  try{ if(typeof _trpc!=='function')return; _sharedFinLoaded=true;
+    const res=await _trpc('appData.sharedFinanceForMe',undefined,'query');
+    if(res&&res.ok&&Array.isArray(res.budgets)){ D._sharedBudgets=res.budgets; if(curScreen==='money')renderMoney(); }
+  }catch(_){}
+}
+// ── formatting / date helpers ──────────────────────────────────────────
+function _finFmt(n,dec){ const neg=n<0; const v=Math.abs(Number(n)||0); const s='$'+v.toLocaleString('en-US',{minimumFractionDigits:dec==null?2:dec,maximumFractionDigits:dec==null?2:dec}); return neg?'-'+s:s; }
+function _finYM(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function _finMonthLabel(ym){ const p=ym.split('-'); return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
+function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(Number(p[0]),Number(p[1])-1+delta,1); _finMonth=_finYM(d); renderMoney(); }
+function _finCat(id){ return _finData().categories.find(c=>c.id===id)||{id,name:'(unknown)',group:'Misc',icon:'❓',kind:'expense'}; }
+function _finTxMonth(ym){ return _finData().transactions.filter(t=>String(t.date||'').slice(0,7)===ym); }
+function _finIncome(ym){ return _finTxMonth(ym).filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0); }
+function _finSpent(ym){ return -_finTxMonth(ym).filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0); }
+function _finSpentByCat(ym){ const m={}; _finTxMonth(ym).forEach(t=>{ if(t.amount<0)m[t.catId]=(m[t.catId]||0)-t.amount; }); return m; }
+function _finNetWorth(){ return _finData().accounts.reduce((s,a)=>s+(['credit','loan'].includes(a.type)?-Math.abs(a.balance||0):(a.balance||0)),0); }
+function _finDebt(){ return _finData().accounts.filter(a=>['credit','loan'].includes(a.type)).reduce((s,a)=>s+Math.abs(a.balance||0),0); }
+function _finBudgetTotal(){ const f=_finData(); return Object.keys(f.budgets).filter(id=>(_finCat(id).kind!=='income')).reduce((s,id)=>s+(Number(f.budgets[id])||0),0); }
+function _finBillNextDue(b){
+  const today=new Date();
+  const day=Math.min(Math.max(1,Number(b.dueDay)||1),28);
+  const paidThisMonth=b.lastPaidYM===_finYM(today);
+  let d=new Date(today.getFullYear(),today.getMonth(),day);
+  if(paidThisMonth||day<today.getDate())d=new Date(today.getFullYear(),today.getMonth()+1,day);
+  return d;
+}
+function _finModal(html){
+  const m=document.getElementById('modal-content'); const bg=document.getElementById('modal-capture');
+  if(!m||!bg){toast('Editor not available');return false;}
+  m.innerHTML=html; bg.classList.add('show'); return true;
+}
+function _finCloseModal(){ const bg=document.getElementById('modal-capture'); if(bg)bg.classList.remove('show'); }
+function _finCatOptions(sel,kind){
+  const f=_finData(); const groups={};
+  f.categories.forEach(c=>{ if(kind&&c.kind!==kind)return; (groups[c.group]=groups[c.group]||[]).push(c); });
+  return Object.keys(groups).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(c=>`<option value="${esc(c.id)}" ${c.id===sel?'selected':''}>${c.icon} ${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
+}
+function _finAcctOptions(sel){
+  const f=_finData();
+  return `<option value="">(no account)</option>`+f.accounts.map(a=>`<option value="${esc(String(a.id))}" ${String(a.id)===String(sel||'')?'selected':''}>${a.icon||'🏦'} ${esc(a.name)}</option>`).join('');
+}
+function _finCSS(){
+  if(document.getElementById('lu-money-css'))return;
+  const st=document.createElement('style'); st.id='lu-money-css';
+  st.textContent=[
+'#s-money .fin-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}',
+'#s-money .fin-kpi{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:12px 14px}',
+'#s-money .fin-kpi .n{font-size:20px;font-weight:750;line-height:1.1}',
+'#s-money .fin-kpi .l{font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px}',
+'#s-money .fin-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px}',
+'#s-money .fin-tab{height:30px;padding:0 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid var(--bd1);background:var(--s2);color:var(--t2);cursor:pointer}',
+'#s-money .fin-tab.on{background:var(--ac);border-color:var(--ac);color:#fff}',
+'#s-money .fin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}',
+'#s-money .fin-card{background:var(--s2);border:1px solid var(--bd1);border-radius:10px;padding:12px 14px;min-width:0}',
+'#s-money .fin-card h3{font-size:12px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}',
+'#s-money .fin-bar{height:7px;background:var(--s3);border-radius:4px;overflow:hidden;flex:1}',
+'#s-money .fin-bar>div{height:100%;border-radius:4px}',
+'#s-money .fin-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;min-width:0}',
+'#s-money .fin-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+'#s-money table.fin-tx{width:100%;border-collapse:collapse;font-size:12px}',
+'#s-money table.fin-tx th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--bd1)}',
+'#s-money table.fin-tx td{padding:7px 8px;border-bottom:1px solid var(--bd1);vertical-align:middle}',
+'#s-money table.fin-tx tr:hover td{background:var(--s3)}',
+'#s-money .fin-amount-pos{color:var(--ok);font-weight:650}',
+'#s-money .fin-amount-neg{color:var(--t1);font-weight:650}',
+'#s-money .fin-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--s3);color:var(--t2);white-space:nowrap}',
+'#s-money .fin-tx-wrap{overflow-x:auto}',
+'@media (max-width:900px){ #s-money .fin-kpi .n{font-size:17px} #s-money table.fin-tx th:nth-child(4),#s-money table.fin-tx td:nth-child(4){display:none} }'
+  ].join('\n');
+  document.head.appendChild(st);
+}
+// ── main render ────────────────────────────────────────────────────────
+function renderMoney(){
+  const m=document.getElementById('money-main'); if(!m)return;
+  _finCSS(); ensureFin();
+  if(!_sharedFinLoaded)_loadSharedFinance();
+  const shared=Array.isArray(D._sharedBudgets)?D._sharedBudgets:[];
+  const viewingShared=_finShared!=null&&shared[_finShared];
+  const ro=_finRO();
+  const switcher=shared.length?`<select class="inp" style="height:28px;font-size:11px;width:auto" onchange="_finSwitchBudget(this.value)">
+      <option value="mine" ${_finShared==null?'selected':''}>My budget</option>
+      ${shared.map((b,i)=>`<option value="${i}" ${_finShared===i?'selected':''}>${esc(b.ownerName)}'s budget${b._readOnly?' (view)':''}</option>`).join('')}
+    </select>`:'';
+  const tabs=[['overview','Overview'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals']];
+  m.innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div>
+      <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Money${viewingShared?` <span style="font-size:11px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 8px;border-radius:8px">${ro?'👁 SHARED · VIEW':'👥 SHARED · CO-EDIT'}</span>`:''}</h1>
+      <p style="font-size:12px;color:var(--t2)">Budgets, spending, accounts &amp; bills — your personal finance command center.</p></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      ${switcher}
+      <span style="display:inline-flex;align-items:center;gap:2px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;height:28px;padding:0 4px">
+        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" onclick="_finShiftMonth(-1)">‹</button>
+        <span style="font-size:11px;font-weight:600;min-width:104px;text-align:center">${_finMonthLabel(_finMonth)}</span>
+        <button class="btn btn-s" style="height:22px;border:none;background:none;font-size:12px" onclick="_finShiftMonth(1)">›</button>
+      </span>
+      ${viewingShared?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenShare()">👥 Share</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenImport()">📥 Import</button>
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finExport()">📤 Export</button>`}
+      ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
+    </div></div>
+    <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
+    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finGoalsHtml()}</div>`;
+}
+function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }
+// ── Overview ───────────────────────────────────────────────────────────
+function _finOverviewHtml(){
+  const f=_finData(); const ym=_finMonth;
+  const income=_finIncome(ym), spent=_finSpent(ym), budget=_finBudgetTotal();
+  const net=_finNetWorth(), debt=_finDebt();
+  const byCat=_finSpentByCat(ym);
+  const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxCat=catRows.length?catRows[0][1]:1;
+  const bills=f.bills.filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).sort((a,b)=>a.due-b.due).slice(0,6);
+  const recent=f.transactions.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
+  const months=[]; const yp=ym.split('-');
+  for(let i=5;i>=0;i--){ months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); }
+  const flow=months.map(m2=>({m:m2,inc:_finIncome(m2),exp:_finSpent(m2)}));
+  const maxFlow=Math.max(1,...flow.map(x=>Math.max(x.inc,x.exp)));
+  const budRows=Object.keys(f.budgets).filter(id=>_finCat(id).kind!=='income'&&Number(f.budgets[id])>0)
+    .map(id=>({id,b:Number(f.budgets[id]),s:byCat[id]||0})).sort((a,b)=>(b.s/b.b)-(a.s/a.b)).slice(0,6);
+  return `
+  <div class="fin-kpis">
+    <div class="fin-kpi"><div class="n" style="color:${net>=0?'var(--ok)':'var(--red)'}">${_finFmt(net,0)}</div><div class="l">Net worth</div></div>
+    <div class="fin-kpi"><div class="n" style="color:var(--ok)">${_finFmt(income,0)}</div><div class="l">Income · ${_finMonthLabel(ym).split(' ')[0]}</div></div>
+    <div class="fin-kpi"><div class="n">${_finFmt(spent,0)}</div><div class="l">Spent${budget?` of ${_finFmt(budget,0)} budget`:''}</div></div>
+    <div class="fin-kpi"><div class="n" style="color:${income-spent>=0?'var(--ok)':'var(--red)'}">${_finFmt(income-spent,0)}</div><div class="l">Cash flow</div></div>
+    <div class="fin-kpi"><div class="n" style="color:${debt?'var(--red)':'var(--t2)'}">${_finFmt(debt,0)}</div><div class="l">Total debt</div></div>
+  </div>
+  <div class="fin-grid">
+    <div class="fin-card"><h3>📊 Cash flow — last 6 months</h3>
+      <svg viewBox="0 0 300 110" style="width:100%;max-width:420px">
+        ${flow.map((x,i)=>{const bx=10+i*48;const ih=Math.round(x.inc/maxFlow*80);const eh=Math.round(x.exp/maxFlow*80);return `
+          <rect x="${bx}" y="${90-ih}" width="16" height="${Math.max(1,ih)}" rx="2" fill="var(--ok)" opacity=".85"><title>Income ${_finFmt(x.inc,0)}</title></rect>
+          <rect x="${bx+18}" y="${90-eh}" width="16" height="${Math.max(1,eh)}" rx="2" fill="var(--red)" opacity=".75"><title>Spent ${_finFmt(x.exp,0)}</title></rect>
+          <text x="${bx+17}" y="103" font-size="9" fill="var(--t3)" text-anchor="middle">${x.m.slice(5)}</text>`;}).join('')}
+      </svg>
+      <div style="display:flex;gap:12px;font-size:11px;color:var(--t3)"><span><span style="display:inline-block;width:9px;height:9px;background:var(--ok);border-radius:2px"></span> Income</span><span><span style="display:inline-block;width:9px;height:9px;background:var(--red);border-radius:2px"></span> Spending</span></div>
+    </div>
+    <div class="fin-card"><h3>🧾 Spending by category</h3>
+      ${catRows.length?catRows.map(cr=>{const c=_finCat(cr[0]);const v=cr[1];return `<div class="fin-row"><span>${c.icon}</span><span class="nm">${esc(c.name)}</span><div class="fin-bar" style="max-width:120px"><div style="width:${Math.round(v/maxCat*100)}%;background:var(--ac)"></div></div><span style="font-weight:650">${_finFmt(v,0)}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No spending logged this month yet. Add transactions or mark bills paid.</div>'}
+    </div>
+    <div class="fin-card"><h3>🎯 Budget status</h3>
+      ${budRows.length?budRows.map(r=>{const c=_finCat(r.id);const pct=Math.min(100,Math.round(r.s/r.b*100));const col=r.s>r.b?'var(--red)':pct>85?'var(--warn)':'var(--ok)';return `<div class="fin-row"><span>${c.icon}</span><span class="nm">${esc(c.name)}</span><div class="fin-bar" style="max-width:110px"><div style="width:${pct}%;background:${col}"></div></div><span style="color:${col};font-weight:650">${_finFmt(r.s,0)}<span style="color:var(--t3);font-weight:400">/${_finFmt(r.b,0)}</span></span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No budgets set. Head to the Budgets tab (or 📥 Import your budget planner).</div>'}
+    </div>
+    <div class="fin-card"><h3>📅 Upcoming bills</h3>
+      ${bills.length?bills.map(x=>{const days=Math.ceil((x.due-new Date())/86400000);return `<div class="fin-row"><span class="nm">${esc(x.b.name)}</span><span class="fin-chip">${x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}${days<=3?' ⚠':''}</span><span style="font-weight:650">${_finFmt(x.b.amount,0)}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No bills yet — add recurring bills in the Bills tab.</div>'}
+    </div>
+    <div class="fin-card"><h3>🕐 Recent transactions</h3>
+      ${recent.length?recent.map(t=>{const c=_finCat(t.catId);return `<div class="fin-row"><span>${c.icon}</span><span class="nm">${esc(t.payee||c.name)}</span><span style="font-size:11px;color:var(--t3)">${String(t.date||'').slice(5)}</span><span class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</span></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing yet.</div>'}
+    </div>
+    <div class="fin-card"><h3>🏦 Accounts</h3>
+      ${f.accounts.length?f.accounts.map(a=>`<div class="fin-row"><span>${a.icon||'🏦'}</span><span class="nm">${esc(a.name)}</span><span class="fin-chip">${esc(a.type)}</span><span style="font-weight:650;color:${['credit','loan'].includes(a.type)?'var(--red)':'var(--t1)'}">${_finFmt(['credit','loan'].includes(a.type)?-Math.abs(a.balance||0):(a.balance||0),0)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Add your accounts in the Accounts tab to track net worth.</div>'}
+    </div>
+  </div>`;
+}
+// ── Transactions ───────────────────────────────────────────────────────
+function _finTxHtml(){
+  const f=_finData(); const ym=_finMonth; const ro=_finRO();
+  let rows=_finTxMonth(ym);
+  if(_finTxSearch){const q=_finTxSearch.toLowerCase();rows=rows.filter(t=>String(t.payee||'').toLowerCase().includes(q)||String(t.notes||'').toLowerCase().includes(q)||_finCat(t.catId).name.toLowerCase().includes(q));}
+  if(_finTxCat)rows=rows.filter(t=>t.catId===_finTxCat);
+  if(_finTxAcct)rows=rows.filter(t=>String(t.accountId||'')===_finTxAcct);
+  rows=rows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const total=rows.reduce((s,t)=>s+t.amount,0);
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <input class="inp" placeholder="🔍 Search payee / notes…" value="${esc(_finTxSearch)}" style="flex:1;min-width:140px;height:28px;font-size:11px" oninput="_finTxSearch=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">
+    <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:180px" onchange="_finTxCat=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()"><option value="">All categories</option>${_finCatOptions(_finTxCat)}</select>
+    <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:150px" onchange="_finTxAcct=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">${_finAcctOptions(_finTxAcct).replace('(no account)','All accounts')}</select>
+    <span class="fin-chip">${rows.length} · net ${_finFmt(total,0)}</span>
+  </div>
+  <div class="fin-card fin-tx-wrap" style="padding:0">
+  <table class="fin-tx"><thead><tr><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
+  ${rows.length?rows.map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
+    <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
+    <td>${esc(t.payee||'')}</td>
+    <td><span class="fin-chip">${c.icon} ${esc(c.name)}</span></td>
+    <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
+    <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
+    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${_finMonthLabel(ym)}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
+  </tbody></table></div>`;
+}
+function finOpenTx(id){
+  if(_finGuard())return;
+  const f=_finData();
+  const t=id?f.transactions.find(x=>String(x.id)===String(id)):null;
+  const today=new Date().toISOString().slice(0,10);
+  const isIncome=t?t.amount>0:false;
+  _finModal(`<div style="padding:16px;max-width:440px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${t?'✏ Edit':'＋ New'} Transaction</h2>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select class="inp" id="ftx-type"><option value="expense" ${!isIncome?'selected':''}>Expense</option><option value="income" ${isIncome?'selected':''}>Income</option></select></div>
+      <div class="field"><label>Amount</label><input class="inp" id="ftx-amount" type="number" step="0.01" min="0" value="${t?Math.abs(t.amount):''}" placeholder="0.00"></div>
+      <div class="field"><label>Date</label><input class="inp" id="ftx-date" type="date" value="${esc(t?t.date:today)}"></div>
+    </div>
+    <div class="field"><label>Payee / description</label><input class="inp" id="ftx-payee" value="${esc(t?t.payee||'':'')}" placeholder="e.g. Costco, Verizon, Client payment…"></div>
+    <div class="field-row">
+      <div class="field"><label>Category</label><select class="inp" id="ftx-cat">${_finCatOptions(t?t.catId:'dl-groceries')}</select></div>
+      <div class="field"><label>Account</label><select class="inp" id="ftx-acct">${_finAcctOptions(t?t.accountId:'')}</select></div>
+    </div>
+    <div class="field"><label>Notes</label><input class="inp" id="ftx-notes" value="${esc(t?t.notes||'':'')}"></div>
+    <div class="dr-actions" style="margin-top:12px">
+      <button class="btn btn-p" onclick="finSaveTx('${t?esc(String(t.id)):''}')">Save</button>
+      ${t?`<button class="btn btn-d" onclick="finDeleteTx('${esc(String(t.id))}');_finCloseModal()">Delete</button>`:''}
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveTx(id){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const amt=parseFloat(g('ftx-amount').value);
+  if(isNaN(amt)||amt<=0){toast('Enter an amount.');return;}
+  const signed=g('ftx-type').value==='income'?amt:-amt;
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), date:g('ftx-date').value||new Date().toISOString().slice(0,10),
+    payee:g('ftx-payee').value.trim(), catId:g('ftx-cat').value, accountId:g('ftx-acct').value||null, notes:g('ftx-notes').value.trim(), amount:signed };
+  const i=f.transactions.findIndex(x=>String(x.id)===String(rec.id));
+  if(i>=0)f.transactions[i]=rec; else f.transactions.push(rec);
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'Saved',msg:(rec.payee||_finCat(rec.catId).name)+' · '+_finFmt(rec.amount),duration:1600});
+}
+function finDeleteTx(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.transactions.findIndex(x=>String(x.id)===String(id));
+  if(i<0)return; f.transactions.splice(i,1); _finSave(); renderMoney();
+}
+// ── Budgets ────────────────────────────────────────────────────────────
+function _finBudgetsHtml(){
+  const f=_finData(); const ym=_finMonth; const ro=_finRO();
+  const byCat=_finSpentByCat(ym);
+  const groups={}; const order=[];
+  f.categories.forEach(c=>{
+    if(c.kind==='income')return;
+    const b=Number(f.budgets[c.id])||0; const s=byCat[c.id]||0;
+    if(b<=0&&s<=0)return;
+    if(!(c.group in groups)){groups[c.group]=[];order.push(c.group);}
+    groups[c.group].push({c,b,s});
+  });
+  const totB=_finBudgetTotal(); const totS=_finSpent(ym);
+  const incomeCats=f.categories.filter(c=>c.kind==='income'&&(Number(f.budgets[c.id])||0)>0);
+  const expInc=incomeCats.reduce((s,c)=>s+Number(f.budgets[c.id]),0);
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm"><b>${_finMonthLabel(ym)}</b> — budgeted ${_finFmt(totB,0)} · spent ${_finFmt(totS,0)}${expInc?` · expected income ${_finFmt(expInc,0)}`:''}</span>
+      <div class="fin-bar" style="max-width:220px"><div style="width:${totB?Math.min(100,Math.round(totS/totB*100)):0}%;background:${totS>totB?'var(--red)':'var(--ok)'}"></div></div>
+      ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenBudgetLine()">＋ Budget line</button>`}
+    </div></div>
+    ${order.map(gname=>`<div class="fin-card" style="margin-bottom:10px"><h3>${esc(gname)} <span style="font-weight:400;color:var(--t3)">${_finFmt(groups[gname].reduce((s,r)=>s+r.s,0),0)} / ${_finFmt(groups[gname].reduce((s,r)=>s+r.b,0),0)}</span></h3>
+      ${groups[gname].map(r=>{const pct=r.b?Math.min(100,Math.round(r.s/r.b*100)):0;const col=r.b&&r.s>r.b?'var(--red)':pct>85?'var(--warn)':'var(--ok)';return `<div class="fin-row">
+        <span>${r.c.icon}</span><span class="nm">${esc(r.c.name)}</span>
+        ${ro?`<span style="font-size:11px;color:var(--t3)">${_finFmt(r.b,0)}</span>`:`<input class="inp" type="number" min="0" step="1" value="${r.b||''}" placeholder="—" style="width:84px;height:24px;font-size:11px;text-align:right" onchange="finSetBudget('${esc(r.c.id)}',this.value)">`}
+        <div class="fin-bar" style="max-width:130px"><div style="width:${pct}%;background:${col}"></div></div>
+        <span style="min-width:120px;text-align:right;font-size:11px"><b style="color:${col}">${_finFmt(r.s,0)}</b><span style="color:var(--t3)"> spent · ${_finFmt(Math.max(0,r.b-r.s),0)} left</span></span>
+      </div>`;}).join('')}
+    </div>`).join('')||'<div class="fin-card" style="color:var(--t3);font-size:12px">No budget lines yet. Click <b>＋ Budget line</b> or 📥 Import your budget planner.</div>'}`;
+}
+function finSetBudget(catId,val){
+  if(_finGuard())return;
+  const f=_finData(); const n=parseFloat(val);
+  if(!n||n<=0)delete f.budgets[catId]; else f.budgets[catId]=n;
+  _finSave(); renderMoney();
+}
+function finOpenBudgetLine(){
+  if(_finGuard())return;
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">＋ Budget line</h2>
+    <div class="field"><label>Category</label><select class="inp" id="fbl-cat">${_finCatOptions('')}</select></div>
+    <div class="field"><label>Monthly budget amount</label><input class="inp" id="fbl-amt" type="number" min="0" step="1" placeholder="e.g. 500"></div>
+    <div style="font-size:11px;color:var(--t3);margin:8px 0">Need a category that doesn't exist? Create one:</div>
+    <div class="field-row">
+      <div class="field"><label>New category name</label><input class="inp" id="fbl-newname" placeholder="(optional)"></div>
+      <div class="field"><label>Group</label><input class="inp" id="fbl-newgroup" placeholder="e.g. Home" list="fbl-groups"><datalist id="fbl-groups">${[...new Set(_finData().categories.map(c=>c.group))].map(gp=>`<option value="${esc(gp)}">`).join('')}</datalist></div>
+    </div>
+    <div class="dr-actions" style="margin-top:12px">
+      <button class="btn btn-p" onclick="finSaveBudgetLine()">Add</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveBudgetLine(){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const amt=parseFloat(g('fbl-amt').value)||0;
+  let catId=g('fbl-cat').value;
+  const newName=g('fbl-newname').value.trim();
+  if(newName){
+    catId='custom-'+Date.now();
+    f.categories.push({id:catId,name:newName,group:g('fbl-newgroup').value.trim()||'Misc',icon:'🏷',kind:'expense'});
+  }
+  if(amt>0)f.budgets[catId]=amt;
+  _finSave(); _finCloseModal(); renderMoney();
+}
+// ── Bills ──────────────────────────────────────────────────────────────
+function _finBillsHtml(){
+  const f=_finData(); const ro=_finRO();
+  const bills=f.bills.slice().map(b=>({b,due:_finBillNextDue(b)})).sort((a,b)=>a.due-b.due);
+  const monthly=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(Number(b.amount)||0),0);
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm"><b>${f.bills.length}</b> recurring bill${f.bills.length===1?'':'s'} · ${_finFmt(monthly,0)}/month</span>
+      ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenBill()">＋ Add bill</button>`}
+    </div></div>
+    ${bills.length?bills.map(x=>{const b=x.b;const c=_finCat(b.catId);const days=Math.ceil((x.due-new Date())/86400000);const paid=b.lastPaidYM===_finYM(new Date());return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
+      <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}</span>
+      <span class="fin-chip">day ${b.dueDay||1}</span>
+      <span class="fin-chip" style="${days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':'due '+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+      <span style="font-weight:650;min-width:76px;text-align:right">${_finFmt(b.amount,0)}</span>
+      ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${esc(String(b.id))}')">✓ Mark paid</button>`}
+      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenBill('${esc(String(b.id))}')">✏</button>`}
+    </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No bills yet. Add your mortgage, utilities, card payments — anything that recurs monthly.</div>'}`;
+}
+function finOpenBill(id){
+  if(_finGuard())return;
+  const f=_finData(); const b=id?f.bills.find(x=>String(x.id)===String(id)):null;
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${b?'✏ Edit':'＋ New'} Bill</h2>
+    <div class="field"><label>Name</label><input class="inp" id="fb-name" value="${esc(b?b.name:'')}" placeholder="e.g. Mortgage, Verizon, Chase card"></div>
+    <div class="field-row">
+      <div class="field"><label>Amount / month</label><input class="inp" id="fb-amount" type="number" min="0" step="0.01" value="${b?b.amount:''}"></div>
+      <div class="field"><label>Due day (1–28)</label><input class="inp" id="fb-day" type="number" min="1" max="28" value="${b?b.dueDay||1:1}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Category</label><select class="inp" id="fb-cat">${_finCatOptions(b?b.catId:'debt-cc')}</select></div>
+      <div class="field"><label>Pay from</label><select class="inp" id="fb-acct">${_finAcctOptions(b?b.accountId:'')}</select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fb-autopay" ${b&&b.autopay?'checked':''}> ⚡ On autopay</label>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0 0 8px"><input type="checkbox" id="fb-active" ${!b||b.active!==false?'checked':''}> Active</label>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finSaveBill('${b?esc(String(b.id)):''}')">Save</button>
+      ${b?`<button class="btn btn-d" onclick="finDeleteBill('${esc(String(b.id))}')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveBill(id){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const name=g('fb-name').value.trim(); if(!name){toast('Give the bill a name.');return;}
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, amount:parseFloat(g('fb-amount').value)||0,
+    dueDay:Math.min(28,Math.max(1,parseInt(g('fb-day').value)||1)), catId:g('fb-cat').value, accountId:g('fb-acct').value||null,
+    autopay:g('fb-autopay').checked, active:g('fb-active').checked };
+  const old=id?f.bills.find(x=>String(x.id)===String(id)):null;
+  if(old)rec.lastPaidYM=old.lastPaidYM;
+  const i=f.bills.findIndex(x=>String(x.id)===String(rec.id));
+  if(i>=0)f.bills[i]=rec; else f.bills.push(rec);
+  _finSave(); _finCloseModal(); renderMoney();
+}
+function finDeleteBill(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.bills.findIndex(x=>String(x.id)===String(id));
+  if(i<0)return; f.bills.splice(i,1); _finSave(); _finCloseModal(); renderMoney();
+}
+function finBillMarkPaid(id){
+  if(_finGuard())return;
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
+  const today=new Date();
+  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:today.toISOString().slice(0,10),
+    payee:b.name, catId:b.catId, accountId:b.accountId||null, notes:'Bill payment', amount:-Math.abs(Number(b.amount)||0) });
+  b.lastPaidYM=_finYM(today);
+  _finSave(); renderMoney();
+  toast({type:'success',title:'✓ '+b.name+' paid',msg:_finFmt(-Math.abs(b.amount))+' logged to transactions.',duration:2000});
+}
+// ── Accounts ───────────────────────────────────────────────────────────
+function _finAccountsHtml(){
+  const f=_finData(); const ro=_finRO();
+  const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type));
+  const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type));
+  const row=a=>{const isDebt=['credit','loan'].includes(a.type);return `<div class="fin-row">
+    <span>${a.icon||(isDebt?'💳':'🏦')}</span><span class="nm"><b>${esc(a.name)}</b>${a.apr?` <span class="fin-chip">${a.apr}% APR</span>`:''}${a.limit?` <span class="fin-chip">limit ${_finFmt(a.limit,0)}</span>`:''}</span>
+    <span class="fin-chip">${esc(a.type)}</span>
+    ${ro?`<span style="font-weight:650;color:${isDebt?'var(--red)':'var(--t1)'}">${_finFmt(isDebt?-Math.abs(a.balance||0):(a.balance||0),0)}</span>`
+        :`<input class="inp" type="number" step="0.01" value="${Math.abs(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${esc(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
+    ${ro?'':`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenAcct('${esc(String(a.id))}')">✏</button>`}
+  </div>`;};
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b> · assets ${_finFmt(assets.reduce((s,a)=>s+(a.balance||0),0),0)} · debt ${_finFmt(_finDebt(),0)}</span>
+      ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenAcct()">＋ Add account</button>`}
+    </div></div>
+    <div class="fin-grid">
+      <div class="fin-card"><h3>💰 Assets</h3>${assets.length?assets.map(row).join(''):'<div style="font-size:11px;color:var(--t3)">Add checking, savings, cash and investment accounts.</div>'}</div>
+      <div class="fin-card"><h3>💳 Debts</h3>${debts.length?debts.map(row).join(''):'<div style="font-size:11px;color:var(--t3)">Add credit cards and loans (balance = amount owed).</div>'}</div>
+    </div>`;
+}
+function finOpenAcct(id){
+  if(_finGuard())return;
+  const f=_finData(); const a=id?f.accounts.find(x=>String(x.id)===String(id)):null;
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${a?'✏ Edit':'＋ New'} Account</h2>
+    <div class="field"><label>Name</label><input class="inp" id="fa-name" value="${esc(a?a.name:'')}" placeholder="e.g. Chase Checking, CapOne Visa"></div>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select class="inp" id="fa-type">${['checking','savings','cash','investment','credit','loan'].map(t=>`<option ${a&&a.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Balance ${a&&['credit','loan'].includes(a.type)?'(owed)':''}</label><input class="inp" id="fa-balance" type="number" step="0.01" value="${a?Math.abs(a.balance||0):''}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Credit limit <span style="color:var(--t3);font-weight:400">(optional)</span></label><input class="inp" id="fa-limit" type="number" step="1" value="${a&&a.limit?a.limit:''}"></div>
+      <div class="field"><label>APR % <span style="color:var(--t3);font-weight:400">(optional)</span></label><input class="inp" id="fa-apr" type="number" step="0.01" value="${a&&a.apr?a.apr:''}"></div>
+    </div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finSaveAcct('${a?esc(String(a.id)):''}')">Save</button>
+      ${a?`<button class="btn btn-d" onclick="finDeleteAcct('${esc(String(a.id))}')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveAcct(id){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const name=g('fa-name').value.trim(); if(!name){toast('Give the account a name.');return;}
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, type:g('fa-type').value,
+    balance:Math.abs(parseFloat(g('fa-balance').value)||0), limit:parseFloat(g('fa-limit').value)||null, apr:parseFloat(g('fa-apr').value)||null };
+  const i=f.accounts.findIndex(x=>String(x.id)===String(rec.id));
+  if(i>=0)f.accounts[i]=Object.assign({},f.accounts[i],rec); else f.accounts.push(rec);
+  _finSave(); _finCloseModal(); renderMoney();
+}
+function finDeleteAcct(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.accounts.findIndex(x=>String(x.id)===String(id));
+  if(i<0)return; f.accounts.splice(i,1); _finSave(); _finCloseModal(); renderMoney();
+}
+function finSetAcctBalance(id,val){
+  if(_finGuard())return;
+  const f=_finData(); const a=f.accounts.find(x=>String(x.id)===String(id)); if(!a)return;
+  a.balance=Math.abs(parseFloat(val)||0); _finSave(); renderMoney();
+}
+// ── Goals ──────────────────────────────────────────────────────────────
+function _finGoalsHtml(){
+  const f=_finData(); const ro=_finRO();
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm"><b>${f.goals.length}</b> savings goal${f.goals.length===1?'':'s'}</span>
+      ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenGoal()">＋ Add goal</button>`}
+    </div></div>
+    <div class="fin-grid">
+    ${f.goals.length?f.goals.map(gl=>{const pct=gl.target?Math.min(100,Math.round((gl.saved||0)/gl.target*100)):0;return `<div class="fin-card">
+      <h3>${gl.icon||'🎯'} ${esc(gl.name)}</h3>
+      <div class="fin-row"><div class="fin-bar"><div style="width:${pct}%;background:var(--ok)"></div></div><span style="font-weight:650">${pct}%</span></div>
+      <div style="font-size:12px;color:var(--t2);margin-top:4px">${_finFmt(gl.saved||0,0)} of ${_finFmt(gl.target||0,0)}${gl.due?` · by ${esc(gl.due)}`:''}</div>
+      ${ro?'':`<div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="finGoalAddFunds('${esc(String(gl.id))}')">＋ Add funds</button>
+        <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenGoal('${esc(String(gl.id))}')">✏</button>
+      </div>`}
+    </div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No goals yet — e.g. Emergency fund, Vacation, Pay off Chase Amazon.</div>'}
+    </div>`;
+}
+function finOpenGoal(id){
+  if(_finGuard())return;
+  const f=_finData(); const gl=id?f.goals.find(x=>String(x.id)===String(id)):null;
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${gl?'✏ Edit':'＋ New'} Savings Goal</h2>
+    <div class="field"><label>Name</label><input class="inp" id="fg-name" value="${esc(gl?gl.name:'')}" placeholder="e.g. Emergency fund"></div>
+    <div class="field-row">
+      <div class="field"><label>Target</label><input class="inp" id="fg-target" type="number" min="0" step="1" value="${gl?gl.target:''}"></div>
+      <div class="field"><label>Saved so far</label><input class="inp" id="fg-saved" type="number" min="0" step="0.01" value="${gl?gl.saved||0:''}"></div>
+      <div class="field"><label>Target date</label><input class="inp" id="fg-due" type="date" value="${esc(gl&&gl.due?gl.due:'')}"></div>
+    </div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finSaveGoal('${gl?esc(String(gl.id)):''}')">Save</button>
+      ${gl?`<button class="btn btn-d" onclick="finDeleteGoal('${esc(String(gl.id))}')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveGoal(id){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const name=g('fg-name').value.trim(); if(!name){toast('Give the goal a name.');return;}
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, icon:'🎯',
+    target:parseFloat(g('fg-target').value)||0, saved:parseFloat(g('fg-saved').value)||0, due:g('fg-due').value||null };
+  const i=f.goals.findIndex(x=>String(x.id)===String(rec.id));
+  if(i>=0)f.goals[i]=rec; else f.goals.push(rec);
+  _finSave(); _finCloseModal(); renderMoney();
+}
+function finDeleteGoal(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.goals.findIndex(x=>String(x.id)===String(id));
+  if(i<0)return; f.goals.splice(i,1); _finSave(); _finCloseModal(); renderMoney();
+}
+function finGoalAddFunds(id){
+  if(_finGuard())return;
+  const f=_finData(); const gl=f.goals.find(x=>String(x.id)===String(id)); if(!gl)return;
+  _finModal(`<div style="padding:16px;max-width:340px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">＋ Add funds — ${esc(gl.name)}</h2>
+    <div class="field"><label>Amount</label><input class="inp" id="fgf-amt" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finGoalAddFundsSave('${esc(String(gl.id))}')">Add</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finGoalAddFundsSave(id){
+  if(_finGuard())return;
+  const f=_finData(); const gl=f.goals.find(x=>String(x.id)===String(id)); if(!gl)return;
+  const amt=parseFloat(document.getElementById('fgf-amt').value)||0;
+  if(amt<=0){toast('Enter an amount.');return;}
+  gl.saved=(gl.saved||0)+amt;
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'＋ '+_finFmt(amt,0)+' saved',msg:gl.name+' — '+_finFmt(gl.saved,0)+' of '+_finFmt(gl.target,0),duration:1800});
+}
+// ── Share / import / export ────────────────────────────────────────────
+function finOpenShare(){
+  const f=ensureFin(); const sh=f.share;
+  _finModal(`<div style="padding:16px;max-width:460px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">👥 Share your budget</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Shares your WHOLE Money workspace (accounts, transactions, budgets, bills, goals). Recipients see it as a separate budget in their Money page — your own budget stays theirs. Unlike other items, budgets are never visible to admins unless you share them.</div>
+    <div class="field"><label>Share with</label>${(typeof buildMultiAssignee==='function')?buildMultiAssignee('fin-ma',sh):'<div style="font-size:11px;color:var(--t3)">Roster unavailable</div>'}</div>
+    ${(typeof _shareControlsHtml==='function')?_shareControlsHtml('fin-share',sh,'view'):''}
+    <div class="dr-actions" style="margin-top:12px">
+      <button class="btn btn-p" onclick="finSaveShare()">Save sharing</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveShare(){
+  const f=ensureFin();
+  let g=null; try{ if(typeof _maGet==='function')g=_maGet('fin-ma'); }catch(_){}
+  if(g){ f.share.assignees=g.assignees||[]; f.share.assigneeNames=g.assigneeNames||[]; f.share.primaryAssigneeId=g.primaryAssigneeId||null; }
+  const sc=(typeof _shareControlsGet==='function')?_shareControlsGet('fin-share'):null;
+  if(sc){ f.share.shareAll=sc.shareAll; f.share.shareMode=sc.shareMode; }
+  _finSave(); _finCloseModal();
+  const n=(f.share.assignees||[]).length;
+  toast({type:'success',title:'👥 Sharing saved',msg:f.share.shareAll?('Everyone · '+(f.share.shareMode==='edit'?'can edit':'view only')):(n?(n+' member'+(n===1?'':'s')+' · '+(f.share.shareMode==='edit'?'can edit':'view only')):'Not shared'),duration:2200});
+}
+function finExport(){
+  const data=JSON.stringify(ensureFin(),null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='levelup-money-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('📤 Budget exported as JSON.');
+}
+function finOpenImport(){
+  _finModal(`<div style="padding:16px;max-width:520px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">📥 Import budget data</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Paste a LevelUp Money JSON export (or a seed file). Your data stays in your account — nothing is shared unless you share it.</div>
+    <div class="field"><label>Or pick a file</label><input class="inp" type="file" id="fim-file" accept=".json" onchange="(function(inp){const r=new FileReader();r.onload=()=>{document.getElementById('fim-text').value=r.result;};r.readAsText(inp.files[0]);})(this)"></div>
+    <div class="field"><label>JSON</label><textarea class="inp" id="fim-text" style="min-height:140px;font-family:monospace;font-size:11px" placeholder='{"accounts":[...],"budgets":{...}}'></textarea></div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fim-replace" checked> Replace my current Money data (uncheck to merge)</label>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finImport()">Import</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finImport(){
+  if(_finGuard())return;
+  let obj=null;
+  try{ obj=JSON.parse(document.getElementById('fim-text').value); }catch(e){ toast({type:'error',title:'Invalid JSON',msg:String(e.message).slice(0,120)}); return; }
+  if(!obj||typeof obj!=='object'||Array.isArray(obj)){ toast({type:'error',title:'Invalid data',msg:'Expected a Money JSON object.'}); return; }
+  const replace=document.getElementById('fim-replace').checked;
+  const cur=ensureFin();
+  if(replace){
+    const keepShare=cur.share;
+    const importedCats=Array.isArray(obj.categories)?obj.categories:[];
+    D.finance=obj; ensureFin();
+    // Categories are always defaults + imported extras — a seed that ships
+    // only its custom categories must not wipe the built-in set (budget
+    // lines reference default ids like home-mortgage).
+    D.finance.categories=_finDefaultCats();
+    importedCats.forEach(c=>{ if(c&&c.id&&!D.finance.categories.some(y=>y.id===c.id))D.finance.categories.push(c); });
+    if(!obj.share)D.finance.share=keepShare; // don't lose an existing share setup
+  }else{
+    const f=cur;
+    const addById=(dst,src)=>{ (Array.isArray(src)?src:[]).forEach(x=>{ if(x&&x.id!=null&&!dst.some(y=>String(y.id)===String(x.id)))dst.push(x); }); };
+    addById(f.accounts,obj.accounts); addById(f.transactions,obj.transactions);
+    addById(f.bills,obj.bills); addById(f.goals,obj.goals);
+    (Array.isArray(obj.categories)?obj.categories:[]).forEach(c=>{ if(c&&c.id&&!f.categories.some(y=>y.id===c.id))f.categories.push(c); });
+    Object.assign(f.budgets,(obj.budgets&&typeof obj.budgets==='object')?obj.budgets:{});
+  }
+  _finSave(); _finCloseModal(); renderMoney();
+  const f2=ensureFin();
+  toast({type:'success',title:'📥 Imported',msg:f2.accounts.length+' accounts · '+Object.keys(f2.budgets).length+' budget lines · '+f2.bills.length+' bills',duration:2600});
 }

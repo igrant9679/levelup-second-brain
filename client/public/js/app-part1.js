@@ -2044,7 +2044,7 @@ function setAccent(c){
 var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
 
 // ====== NAVIGATION ======
-const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas'};
+const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas',money:'s-money'};
 var curScreen='home';
 function nav(s){
   // A hidden page can still be reached by a deep link, the command palette or
@@ -5027,6 +5027,7 @@ function renderScreen(s){
   if(s==='standup')renderStandup();
   if(s==='pipeline')renderPipeline();
   if(s==='atlas')renderAtlas();
+  if(s==='money')renderMoney();
   if(s==='help')renderHelp();
   updateSidebarBadges();
   // Apply the user's per-page layout (rails / hidden sections) before paint.
@@ -6831,6 +6832,7 @@ const LU_PAGES=[
   {id:'calendar', label:'Calendar',        group:'life',  nav:true,  core:false, rail:true },
   {id:'goals',    label:'Goals',           group:'life',  nav:true,  core:false, rail:false},
   {id:'habits',   label:'Habits',          group:'life',  nav:true,  core:false, rail:true },
+  {id:'money',    label:'Money',           group:'life',  nav:true,  core:false, rail:false},
   {id:'coach',    label:'Coach',           group:'life',  nav:true,  core:false, rail:true },
   {id:'journal',  label:'Journal',         group:'life',  nav:true,  core:false, rail:true },
   {id:'mail',     label:'Mail',            group:'comms', nav:true,  core:false, rail:true },

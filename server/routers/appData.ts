@@ -51,7 +51,7 @@ async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Pro
 const TEAM_PRESET_KEY = 'teamStarterPreset';
 
 // Keys that can be saved/loaded
-const DATA_KEYS =['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks'] as const;
+const DATA_KEYS =['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -368,6 +368,7 @@ export const appDataRouter = router({
         mindmaps: z.string().optional(),
         sheets: z.string().optional(),
         decks: z.string().optional(),
+        finance: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1158,6 +1159,73 @@ export const appDataRouter = router({
         } else if (q.assignedTo != null) dk.assignedTo = q.assignedTo;
         dk.updatedAt = new Date().toISOString();
         await db.update(userAppData).set({ decks: JSON.stringify(arr) }).where(eq(userAppData.userId, input.ownerUserId));
+        return { ok: true as const };
+      } catch (e: any) {
+        return { ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+
+  /**
+   * Team-visibility for the MONEY page (personal finance). The finance blob
+   * is ONE OBJECT per user (accounts/transactions/budgets/bills/goals) with
+   * a `share` block {assignees, assigneeNames, primaryAssigneeId, shareAll,
+   * shareMode}. Deliberately NOT owner/admin-visible-by-default like other
+   * entities — finance is sensitive, so ONLY explicit shares (assignee or
+   * shareAll) are returned, and there is no admin override on writes.
+   * shareMode defaults to 'view' here (the safe default for money).
+   */
+  sharedFinanceForMe: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return { ok: false as const, budgets: [] as any[] };
+    try {
+      const { adminListAllUsers } = await import("../db");
+      const users = await adminListAllUsers();
+      const rows = await db.select({ userId: userAppData.userId, finance: userAppData.finance }).from(userAppData);
+      const meId = ctx.user.id;
+      const out: any[] = [];
+      for (const r of rows) {
+        if (r.userId === meId) continue;
+        let fin: any; try { fin = JSON.parse((r as any).finance || 'null'); } catch { continue; }
+        if (!fin || typeof fin !== 'object') continue;
+        const sh = fin.share || {};
+        const mine = (Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId)) || sh.shareAll === true;
+        if (!mine) continue;
+        const u = users.find(x => x.id === r.userId);
+        out.push({ ownerUserId: r.userId, ownerName: (u && (u.name || u.email)) || ('user ' + r.userId), finance: fin, _readOnly: effShareMode(sh, 'view') === 'view' });
+      }
+      return { ok: true as const, budgets: out };
+    } catch (e: any) {
+      return { ok: false as const, budgets: [] as any[], error: String(e?.message || e) };
+    }
+  }),
+
+  /**
+   * Co-edit a budget shared with you. Whole-object replace (the Money client
+   * works on the full object), EXCEPT the owner's `share` block, which is
+   * preserved unless the caller IS the owner — an edit-recipient can't grant
+   * themselves different permissions or reassign the share.
+   */
+  updateSharedFinance: protectedProcedure
+    .input(z.object({ ownerUserId: z.number().int(), finance: z.string().max(4000000) }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { ok: false as const, error: 'db unavailable' };
+      try {
+        const [row] = await db.select({ finance: userAppData.finance }).from(userAppData)
+          .where(eq(userAppData.userId, input.ownerUserId)).limit(1);
+        if (!row || !(row as any).finance) return { ok: false as const, error: 'budget not found' };
+        let cur: any; try { cur = JSON.parse((row as any).finance); } catch { return { ok: false as const, error: 'bad data' }; }
+        const sh = (cur && cur.share) || {};
+        const meId = ctx.user.id;
+        const isItemOwner = input.ownerUserId === meId;
+        const isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(meId);
+        if (!(isItemOwner || isAssignee || sh.shareAll === true)) return { ok: false as const, error: 'not authorized' };
+        if (!isItemOwner && effShareMode(sh, 'view') === 'view')
+          return { ok: false as const, error: 'view-only: the owner shared this budget without edit permission' };
+        let next: any; try { next = JSON.parse(input.finance); } catch { return { ok: false as const, error: 'bad payload' }; }
+        if (!next || typeof next !== 'object' || Array.isArray(next)) return { ok: false as const, error: 'bad payload' };
+        if (!isItemOwner) next.share = cur.share;
+        await db.update(userAppData).set({ finance: JSON.stringify(next) }).where(eq(userAppData.userId, input.ownerUserId));
         return { ok: true as const };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };

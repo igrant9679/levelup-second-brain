@@ -2430,6 +2430,7 @@ body.aurora.light-mode .scr.on > .bg::before{
 <div class="si" data-n="calendar" data-tour-id="nav-calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span class="l">Calendar</span></div>
 <div class="si" data-n="goals" data-tour-id="nav-goals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span class="l">Goals</span></div>
 <div class="si" data-n="habits" data-tour-id="nav-habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span class="l">Habits</span><span class="c" id="badge-habits"></span></div>
+<div class="si" data-n="money"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg><span class="l">Money</span></div>
 <div class="si" data-n="coach"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span class="l">Coach</span><span class="c" id="badge-coach"></span></div>
 <div class="si" data-n="journal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="l">Journal</span></div>
 </div></div>
@@ -2763,6 +2764,7 @@ body.sh-resizing{user-select:none!important}
 
 <!-- ===== S-18 HABITS ===== -->
 <div class="scr" id="s-habits"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="habits-main"></main><aside class="rr" id="habits-rail"></aside></div></div>
+<div class="scr" id="s-money"><div class="bg"><nav class="sb" data-sb></nav><main class="mn" id="money-main"></main></div></div>
 
 <!-- ===== S-19 COACH ===== -->
 <div class="scr" id="s-coach"><div class="bg wr"><nav class="sb" data-sb></nav><main class="mn" id="coach-main"></main><aside class="rr" id="coach-rail"></aside></div></div>
@@ -3060,7 +3062,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-08-21-166';
+  var APP_BUILD='2026-08-28-167';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
     var s=document.createElement('script');
