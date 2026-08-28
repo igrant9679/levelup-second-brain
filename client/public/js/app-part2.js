@@ -14527,6 +14527,19 @@ function _finOverviewHtml(){
   const budRows=_finBudgetIds(ym).filter(id=>_finCat(id).kind!=='income'&&_finBudgetFor(id,ym)>0)
     .map(id=>({id,b:_finBudgetFor(id,ym),s:byCat[id]||0})).sort((a,b)=>(b.s/b.b)-(a.s/a.b)).slice(0,6);
   const expIncome=(f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,ym),0);
+  // First-run: nothing anywhere → make the Import step impossible to miss.
+  const isEmpty=!f.accounts.length&&!f.transactions.length&&!f.bills.length&&!(f.incomeStreams||[]).length&&!Object.keys(f.budgets).length;
+  if(isEmpty&&_finShared==null){
+    return `<div class="fin-card" style="max-width:560px;margin:30px auto;text-align:center;padding:30px 26px">
+      <div style="font-size:38px;margin-bottom:10px">💸</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px">Your Money page is empty</div>
+      <div style="font-size:12px;color:var(--t2);line-height:1.7;margin-bottom:16px">If you have a budget seed file (a <b>.json</b> from your budget planner), import it now — it fills your accounts, budgets, bills and income streams in one step. Your financial data lives only in your account; nothing is shared unless you share it.</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-p" onclick="finOpenImport()">📥 Import my budget file</button>
+        <button class="btn btn-s" onclick="finOpenAcct()">＋ Add an account manually</button>
+      </div>
+    </div>`;
+  }
   return `
   <div class="fin-kpis">
     <div class="fin-kpi"><div class="n" style="color:${net>=0?'var(--ok)':'var(--red)'}">${_finFmt(net,0)}</div><div class="l">Net worth</div></div>
