@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-167`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-28-168`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,14 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-168 — Money: Income tab + per-month budget plan.** `finance.incomeStreams`
+(flat `expected` OR `perMonth` schedule; "+ Log payment" books an income tx
+tagged `streamId`) and `finance.budgetOverrides` `{'YYYY-MM':{catId:amt}}`
+layered over the flat base via `_finBudgetFor()` (• marker on override
+months; editing an amount clears that month's override). Both carried by the
+Import merge/replace paths. Seed v2 (private, not committed) holds the FULL
+13-month spreadsheet plan (92 override cells) + 9 income streams.
 
 **-167 — Money page: Mint-style personal finance** (user-requested, seeded
 from their family-budget xlsx — **the seed data itself was NOT committed**;
