@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-21-166`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-28-167`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,25 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-167 — Money page: Mint-style personal finance** (user-requested, seeded
+from their family-budget xlsx — **the seed data itself was NOT committed**;
+it was delivered as a private JSON the user imports via Money → 📥 Import).
+New LIFE-group page `money`/`s-money` → `renderMoney()` (module at the END of
+app-part2.js). Tabs: Overview / Transactions / Budgets / Bills / Accounts /
+Goals. Storage: `D.finance` — ONE OBJECT blob (`user_app_data.finance`,
+migration **0049**; wired through DATA_KEYS, save zod input, schema.ts,
+`_syncKeys`, and a wholesale-replace branch in loadServerData next to atlas —
+it does NOT go through the array merge). CSS is JS-injected `#lu-money-css`.
+Sharing: whole-budget via `finance.share {assignees,shareAll,shareMode}` →
+`sharedFinanceForMe`/`updateSharedFinance`; recipients get a budget switcher.
+⚠ Deliberate privacy exceptions vs every other shared entity: **no
+owner/admin default visibility and no admin write override** — explicit
+shares only; and `updateSharedFinance` preserves the owner's `share` block on
+recipient pushes. All mutating client handlers guard `_finRO()`.
+NB: `tsc` has 7 PRE-EXISTING errors in automations/externalSources/
+smartsheetAdapter/externalTasksCron (crept in after the 2026-07-24 "0
+errors" note; not from this arc — esbuild/Railway unaffected).
 
 **-166 — Share-with-everyone + per-item view/edit permissions** (user-requested
 follow-on to -165). Notes / sheets / decks items now carry `shareAll:true`
