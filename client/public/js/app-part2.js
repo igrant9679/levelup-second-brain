@@ -14376,6 +14376,11 @@ function ensureFin(){
   if(!f.budgets||typeof f.budgets!=='object')f.budgets={};
   if(!Array.isArray(f.bills))f.bills=[];
   if(!Array.isArray(f.goals))f.goals=[];
+  if(!Array.isArray(f.incomeStreams))f.incomeStreams=[];
+  // Per-month budget overrides {'YYYY-MM':{catId:amount}} — the flat
+  // f.budgets number is the base plan; an override wins for that month
+  // (quarterly HOA, seasonal utilities, a car that pays off mid-year…).
+  if(!f.budgetOverrides||typeof f.budgetOverrides!=='object')f.budgetOverrides={};
   if(!f.share||typeof f.share!=='object')f.share={assignees:[],assigneeNames:[],primaryAssigneeId:null,shareAll:false,shareMode:'view'};
   if(!f.settings||typeof f.settings!=='object')f.settings={currency:'$'};
   return f;
@@ -14415,7 +14420,11 @@ function _finSpent(ym){ return -_finTxMonth(ym).filter(t=>t.amount<0).reduce((s,
 function _finSpentByCat(ym){ const m={}; _finTxMonth(ym).forEach(t=>{ if(t.amount<0)m[t.catId]=(m[t.catId]||0)-t.amount; }); return m; }
 function _finNetWorth(){ return _finData().accounts.reduce((s,a)=>s+(['credit','loan'].includes(a.type)?-Math.abs(a.balance||0):(a.balance||0)),0); }
 function _finDebt(){ return _finData().accounts.filter(a=>['credit','loan'].includes(a.type)).reduce((s,a)=>s+Math.abs(a.balance||0),0); }
-function _finBudgetTotal(){ const f=_finData(); return Object.keys(f.budgets).filter(id=>(_finCat(id).kind!=='income')).reduce((s,id)=>s+(Number(f.budgets[id])||0),0); }
+function _finBudgetFor(catId,ym){ const f=_finData(); const ov=f.budgetOverrides&&f.budgetOverrides[ym]; if(ov&&ov[catId]!=null)return Number(ov[catId])||0; return Number(f.budgets[catId])||0; }
+function _finBudgetIds(ym){ const f=_finData(); const ids=new Set(Object.keys(f.budgets)); const ov=f.budgetOverrides&&f.budgetOverrides[ym]; if(ov)Object.keys(ov).forEach(id=>ids.add(id)); return [...ids]; }
+function _finBudgetTotal(ym){ ym=ym||_finMonth; return _finBudgetIds(ym).filter(id=>(_finCat(id).kind!=='income')).reduce((s,id)=>s+_finBudgetFor(id,ym),0); }
+function _finStreamExpected(st,ym){ if(st.active===false)return 0; if(st.perMonth&&typeof st.perMonth==='object'&&st.perMonth[ym]!=null)return Number(st.perMonth[ym])||0; if(st.perMonth&&typeof st.perMonth==='object'&&Object.keys(st.perMonth).length)return 0; return Number(st.expected)||0; }
+function _finStreamReceived(st,ym){ return _finTxMonth(ym).filter(t=>t.amount>0&&(String(t.streamId||'')===String(st.id)||(!t.streamId&&t.payee===st.name))).reduce((s,t)=>s+t.amount,0); }
 function _finBillNextDue(b){
   const today=new Date();
   const day=Math.min(Math.max(1,Number(b.dueDay)||1),28);
@@ -14481,7 +14490,7 @@ function renderMoney(){
       <option value="mine" ${_finShared==null?'selected':''}>My budget</option>
       ${shared.map((b,i)=>`<option value="${i}" ${_finShared===i?'selected':''}>${esc(b.ownerName)}'s budget${b._readOnly?' (view)':''}</option>`).join('')}
     </select>`:'';
-  const tabs=[['overview','Overview'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals']];
+  const tabs=[['overview','Overview'],['income','Income'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals']];
   m.innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Money${viewingShared?` <span style="font-size:11px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 8px;border-radius:8px">${ro?'👁 SHARED · VIEW':'👥 SHARED · CO-EDIT'}</span>`:''}</h1>
       <p style="font-size:12px;color:var(--t2)">Budgets, spending, accounts &amp; bills — your personal finance command center.</p></div>
@@ -14498,7 +14507,7 @@ function renderMoney(){
       ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
     </div></div>
     <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
-    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finGoalsHtml()}</div>`;
+    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finGoalsHtml()}</div>`;
 }
 function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }
 // ── Overview ───────────────────────────────────────────────────────────
@@ -14515,12 +14524,13 @@ function _finOverviewHtml(){
   for(let i=5;i>=0;i--){ months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); }
   const flow=months.map(m2=>({m:m2,inc:_finIncome(m2),exp:_finSpent(m2)}));
   const maxFlow=Math.max(1,...flow.map(x=>Math.max(x.inc,x.exp)));
-  const budRows=Object.keys(f.budgets).filter(id=>_finCat(id).kind!=='income'&&Number(f.budgets[id])>0)
-    .map(id=>({id,b:Number(f.budgets[id]),s:byCat[id]||0})).sort((a,b)=>(b.s/b.b)-(a.s/a.b)).slice(0,6);
+  const budRows=_finBudgetIds(ym).filter(id=>_finCat(id).kind!=='income'&&_finBudgetFor(id,ym)>0)
+    .map(id=>({id,b:_finBudgetFor(id,ym),s:byCat[id]||0})).sort((a,b)=>(b.s/b.b)-(a.s/a.b)).slice(0,6);
+  const expIncome=(f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,ym),0);
   return `
   <div class="fin-kpis">
     <div class="fin-kpi"><div class="n" style="color:${net>=0?'var(--ok)':'var(--red)'}">${_finFmt(net,0)}</div><div class="l">Net worth</div></div>
-    <div class="fin-kpi"><div class="n" style="color:var(--ok)">${_finFmt(income,0)}</div><div class="l">Income · ${_finMonthLabel(ym).split(' ')[0]}</div></div>
+    <div class="fin-kpi"><div class="n" style="color:var(--ok)">${_finFmt(income,0)}</div><div class="l">Income${expIncome?` of ${_finFmt(expIncome,0)} expected`:' · '+_finMonthLabel(ym).split(' ')[0]}</div></div>
     <div class="fin-kpi"><div class="n">${_finFmt(spent,0)}</div><div class="l">Spent${budget?` of ${_finFmt(budget,0)} budget`:''}</div></div>
     <div class="fin-kpi"><div class="n" style="color:${income-spent>=0?'var(--ok)':'var(--red)'}">${_finFmt(income-spent,0)}</div><div class="l">Cash flow</div></div>
     <div class="fin-kpi"><div class="n" style="color:${debt?'var(--red)':'var(--t2)'}">${_finFmt(debt,0)}</div><div class="l">Total debt</div></div>
@@ -14628,14 +14638,14 @@ function _finBudgetsHtml(){
   const groups={}; const order=[];
   f.categories.forEach(c=>{
     if(c.kind==='income')return;
-    const b=Number(f.budgets[c.id])||0; const s=byCat[c.id]||0;
+    const b=_finBudgetFor(c.id,ym); const s=byCat[c.id]||0;
     if(b<=0&&s<=0)return;
+    const ov=!!(f.budgetOverrides&&f.budgetOverrides[ym]&&f.budgetOverrides[ym][c.id]!=null);
     if(!(c.group in groups)){groups[c.group]=[];order.push(c.group);}
-    groups[c.group].push({c,b,s});
+    groups[c.group].push({c,b,s,ov});
   });
-  const totB=_finBudgetTotal(); const totS=_finSpent(ym);
-  const incomeCats=f.categories.filter(c=>c.kind==='income'&&(Number(f.budgets[c.id])||0)>0);
-  const expInc=incomeCats.reduce((s,c)=>s+Number(f.budgets[c.id]),0);
+  const totB=_finBudgetTotal(ym); const totS=_finSpent(ym);
+  const expInc=(f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,ym),0)||f.categories.filter(c=>c.kind==='income').reduce((s,c)=>s+_finBudgetFor(c.id,ym),0);
   return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
       <span class="nm"><b>${_finMonthLabel(ym)}</b> — budgeted ${_finFmt(totB,0)} · spent ${_finFmt(totS,0)}${expInc?` · expected income ${_finFmt(expInc,0)}`:''}</span>
       <div class="fin-bar" style="max-width:220px"><div style="width:${totB?Math.min(100,Math.round(totS/totB*100)):0}%;background:${totS>totB?'var(--red)':'var(--ok)'}"></div></div>
@@ -14643,7 +14653,7 @@ function _finBudgetsHtml(){
     </div></div>
     ${order.map(gname=>`<div class="fin-card" style="margin-bottom:10px"><h3>${esc(gname)} <span style="font-weight:400;color:var(--t3)">${_finFmt(groups[gname].reduce((s,r)=>s+r.s,0),0)} / ${_finFmt(groups[gname].reduce((s,r)=>s+r.b,0),0)}</span></h3>
       ${groups[gname].map(r=>{const pct=r.b?Math.min(100,Math.round(r.s/r.b*100)):0;const col=r.b&&r.s>r.b?'var(--red)':pct>85?'var(--warn)':'var(--ok)';return `<div class="fin-row">
-        <span>${r.c.icon}</span><span class="nm">${esc(r.c.name)}</span>
+        <span>${r.c.icon}</span><span class="nm">${esc(r.c.name)}${r.ov?' <span title="This month has its own amount (from your yearly plan); the input edits the base monthly amount" style="color:var(--ac);cursor:help">•</span>':''}</span>
         ${ro?`<span style="font-size:11px;color:var(--t3)">${_finFmt(r.b,0)}</span>`:`<input class="inp" type="number" min="0" step="1" value="${r.b||''}" placeholder="—" style="width:84px;height:24px;font-size:11px;text-align:right" onchange="finSetBudget('${esc(r.c.id)}',this.value)">`}
         <div class="fin-bar" style="max-width:130px"><div style="width:${pct}%;background:${col}"></div></div>
         <span style="min-width:120px;text-align:right;font-size:11px"><b style="color:${col}">${_finFmt(r.s,0)}</b><span style="color:var(--t3)"> spent · ${_finFmt(Math.max(0,r.b-r.s),0)} left</span></span>
@@ -14654,6 +14664,9 @@ function finSetBudget(catId,val){
   if(_finGuard())return;
   const f=_finData(); const n=parseFloat(val);
   if(!n||n<=0)delete f.budgets[catId]; else f.budgets[catId]=n;
+  // Editing the amount clears this month's override so the edit visibly
+  // takes effect right away (the rest of the yearly plan is untouched).
+  if(f.budgetOverrides&&f.budgetOverrides[_finMonth])delete f.budgetOverrides[_finMonth][catId];
   _finSave(); renderMoney();
 }
 function finOpenBudgetLine(){
@@ -14950,11 +14963,123 @@ function finImport(){
     const f=cur;
     const addById=(dst,src)=>{ (Array.isArray(src)?src:[]).forEach(x=>{ if(x&&x.id!=null&&!dst.some(y=>String(y.id)===String(x.id)))dst.push(x); }); };
     addById(f.accounts,obj.accounts); addById(f.transactions,obj.transactions);
-    addById(f.bills,obj.bills); addById(f.goals,obj.goals);
+    addById(f.bills,obj.bills); addById(f.goals,obj.goals); addById(f.incomeStreams,obj.incomeStreams);
     (Array.isArray(obj.categories)?obj.categories:[]).forEach(c=>{ if(c&&c.id&&!f.categories.some(y=>y.id===c.id))f.categories.push(c); });
     Object.assign(f.budgets,(obj.budgets&&typeof obj.budgets==='object')?obj.budgets:{});
+    if(obj.budgetOverrides&&typeof obj.budgetOverrides==='object'){
+      Object.keys(obj.budgetOverrides).forEach(ym=>{ f.budgetOverrides[ym]=Object.assign({},f.budgetOverrides[ym]||{},obj.budgetOverrides[ym]); });
+    }
   }
   _finSave(); _finCloseModal(); renderMoney();
   const f2=ensureFin();
   toast({type:'success',title:'📥 Imported',msg:f2.accounts.length+' accounts · '+Object.keys(f2.budgets).length+' budget lines · '+f2.bills.length+' bills',duration:2600});
+}
+
+// ── Income (household income streams) ──────────────────────────────────
+// Streams carry either a flat `expected` monthly amount or a `perMonth`
+// {'YYYY-MM': amount} schedule (imported from the yearly planner). Received
+// = income transactions carrying the stream's id (or matching its name).
+function _finIncomeHtml(){
+  const f=_finData(); const ym=_finMonth; const ro=_finRO();
+  const streams=(f.incomeStreams||[]).slice().sort((a,b)=>_finStreamExpected(b,ym)-_finStreamExpected(a,ym));
+  const totExp=streams.reduce((s,st)=>s+_finStreamExpected(st,ym),0);
+  const totRec=_finIncome(ym);
+  const y=ym.slice(0,4);
+  const ytdRec=f.transactions.filter(t=>t.amount>0&&String(t.date||'').slice(0,4)===y).reduce((s,t)=>s+t.amount,0);
+  const months=[]; const yp=ym.split('-');
+  for(let i=5;i>=0;i--){ months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); }
+  const maxBar=Math.max(1,...months.map(m2=>Math.max(_finIncome(m2),streams.reduce((s,st)=>s+_finStreamExpected(st,m2),0))));
+  return `<div class="fin-kpis">
+    <div class="fin-kpi"><div class="n" style="color:var(--ok)">${_finFmt(totExp,0)}</div><div class="l">Expected · ${_finMonthLabel(ym).split(' ')[0]}</div></div>
+    <div class="fin-kpi"><div class="n" style="color:${totRec>=totExp&&totExp?'var(--ok)':'var(--t1)'}">${_finFmt(totRec,0)}</div><div class="l">Received so far</div></div>
+    <div class="fin-kpi"><div class="n" style="color:${totExp-totRec>0?'var(--warn)':'var(--ok)'}">${_finFmt(Math.max(0,totExp-totRec),0)}</div><div class="l">Still expected</div></div>
+    <div class="fin-kpi"><div class="n">${_finFmt(ytdRec,0)}</div><div class="l">Received in ${y}</div></div>
+  </div>
+  <div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+    <span class="nm"><b>${streams.length}</b> income stream${streams.length===1?'':'s'} — the household plan</span>
+    ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenStream()">＋ Add stream</button>`}
+  </div></div>
+  ${streams.length?streams.map(st=>{
+    const exp=_finStreamExpected(st,ym); const rec=_finStreamReceived(st,ym);
+    const pct=exp?Math.min(100,Math.round(rec/exp*100)):(rec>0?100:0);
+    const scheduled=st.perMonth&&Object.keys(st.perMonth||{}).length;
+    return `<div class="fin-card" style="margin-bottom:8px;${st.active===false?'opacity:.55':''}"><div class="fin-row">
+      <span>${st.icon||'💼'}</span>
+      <span class="nm"><b>${esc(st.name)}</b>${st.active===false?' <span class="fin-chip">paused</span>':''}${scheduled?' <span class="fin-chip" title="Amount varies by month (imported schedule)">📅 scheduled</span>':''}</span>
+      <div class="fin-bar" style="max-width:130px"><div style="width:${pct}%;background:var(--ok)"></div></div>
+      <span style="min-width:150px;text-align:right;font-size:11px"><b style="color:${rec>=exp&&exp?'var(--ok)':'var(--t1)'}">${_finFmt(rec,0)}</b><span style="color:var(--t3)"> of ${_finFmt(exp,0)}</span></span>
+      ${ro?'':`${exp>rec?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finStreamLog('${esc(String(st.id))}')">＋ Log payment</button>`:''}
+      <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenStream('${esc(String(st.id))}')">✏</button>`}
+    </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No income streams yet — add each client / salary / side income, then log payments as they land.</div>'}
+  <div class="fin-card" style="margin-top:12px"><h3>📈 Income — expected vs received, last 6 months</h3>
+    <svg viewBox="0 0 300 110" style="width:100%;max-width:420px">
+      ${months.map((m2,i)=>{const bx=10+i*48;const e2=streams.reduce((s,st)=>s+_finStreamExpected(st,m2),0);const r2=_finIncome(m2);const eh=Math.round(e2/maxBar*80);const rh=Math.round(r2/maxBar*80);return `
+        <rect x="${bx}" y="${90-eh}" width="16" height="${Math.max(1,eh)}" rx="2" fill="var(--t3)" opacity=".45"><title>Expected ${_finFmt(e2,0)}</title></rect>
+        <rect x="${bx+18}" y="${90-rh}" width="16" height="${Math.max(1,rh)}" rx="2" fill="var(--ok)" opacity=".85"><title>Received ${_finFmt(r2,0)}</title></rect>
+        <text x="${bx+17}" y="103" font-size="9" fill="var(--t3)" text-anchor="middle">${m2.slice(5)}</text>`;}).join('')}
+    </svg>
+    <div style="display:flex;gap:12px;font-size:11px;color:var(--t3)"><span><span style="display:inline-block;width:9px;height:9px;background:var(--t3);opacity:.45;border-radius:2px"></span> Expected</span><span><span style="display:inline-block;width:9px;height:9px;background:var(--ok);border-radius:2px"></span> Received</span></div>
+  </div>`;
+}
+function finOpenStream(id){
+  if(_finGuard())return;
+  const f=_finData(); const st=id?f.incomeStreams.find(x=>String(x.id)===String(id)):null;
+  const scheduled=st&&st.perMonth&&Object.keys(st.perMonth||{}).length;
+  _finModal(`<div style="padding:16px;max-width:440px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${st?'✏ Edit':'＋ New'} Income Stream</h2>
+    <div class="field"><label>Name</label><input class="inp" id="fs-name" value="${esc(st?st.name:'')}" placeholder="e.g. LSI Media — VALA, Salary, Rental"></div>
+    <div class="field-row">
+      <div class="field"><label>Expected / month${scheduled?' <span style="color:var(--ac)" title="This stream has a per-month schedule from your import; this value is used for months outside the schedule">📅</span>':''}</label><input class="inp" id="fs-expected" type="number" min="0" step="1" value="${st?(st.expected||''):''}" placeholder="0 if irregular"></div>
+      <div class="field"><label>Category</label><select class="inp" id="fs-cat">${_finCatOptions(st?st.catId:'inc-salary','income')}</select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fs-active" ${!st||st.active!==false?'checked':''}> Active</label>
+    ${scheduled?`<div style="font-size:11px;color:var(--t3);margin-bottom:8px">This stream has an imported month-by-month schedule (${Object.keys(st.perMonth).length} months). Editing here keeps it.</div>`:''}
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finSaveStream('${st?esc(String(st.id)):''}')">Save</button>
+      ${st?`<button class="btn btn-d" onclick="finDeleteStream('${esc(String(st.id))}')">Delete</button>`:''}
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finSaveStream(id){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>document.getElementById(x);
+  const name=g('fs-name').value.trim(); if(!name){toast('Give the stream a name.');return;}
+  const old=id?f.incomeStreams.find(x=>String(x.id)===String(id)):null;
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, icon:(old&&old.icon)||'💼',
+    expected:parseFloat(g('fs-expected').value)||0, catId:g('fs-cat').value||'inc-salary', active:g('fs-active').checked };
+  if(old&&old.perMonth)rec.perMonth=old.perMonth;
+  const i=f.incomeStreams.findIndex(x=>String(x.id)===String(rec.id));
+  if(i>=0)f.incomeStreams[i]=rec; else f.incomeStreams.push(rec);
+  _finSave(); _finCloseModal(); renderMoney();
+}
+function finDeleteStream(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.incomeStreams.findIndex(x=>String(x.id)===String(id));
+  if(i<0)return; f.incomeStreams.splice(i,1); _finSave(); _finCloseModal(); renderMoney();
+}
+function finStreamLog(id){
+  if(_finGuard())return;
+  const f=_finData(); const st=f.incomeStreams.find(x=>String(x.id)===String(id)); if(!st)return;
+  const exp=_finStreamExpected(st,_finMonth); const rec=_finStreamReceived(st,_finMonth);
+  const remaining=Math.max(0,exp-rec);
+  _finModal(`<div style="padding:16px;max-width:360px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">＋ Log payment — ${esc(st.name)}</h2>
+    <div class="field-row">
+      <div class="field"><label>Amount</label><input class="inp" id="fsl-amt" type="number" min="0" step="0.01" value="${remaining||''}"></div>
+      <div class="field"><label>Date</label><input class="inp" id="fsl-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    </div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finStreamLogSave('${esc(String(st.id))}')">Log it</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finStreamLogSave(id){
+  if(_finGuard())return;
+  const f=_finData(); const st=f.incomeStreams.find(x=>String(x.id)===String(id)); if(!st)return;
+  const amt=parseFloat(document.getElementById('fsl-amt').value)||0;
+  if(amt<=0){toast('Enter an amount.');return;}
+  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:document.getElementById('fsl-date').value||new Date().toISOString().slice(0,10),
+    payee:st.name, catId:st.catId||'inc-salary', accountId:null, notes:'Income payment', amount:amt, streamId:st.id });
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'＋ '+_finFmt(amt,0)+' received',msg:st.name,duration:1800});
 }
