@@ -9,13 +9,16 @@ function renderSettingsHTML(){
     {ic:'user',lb:'Profile',id:'sp-0'},{ic:'settings',lb:'General',id:'sp-1'},
     {ic:'palette',lb:'Appearance',id:'sp-2'},{ic:'columns',lb:'Workspace',id:'sp-13'},
     {ic:'bell',lb:'Notifications',id:'sp-3'},{ic:'mail',lb:'Accounts',id:'sp-4'},
-    {ic:'link',lb:'Integrations',id:'sp-5'},{ic:'sparkles',lb:'AI Features',id:'sp-6'},
+    {ic:'link',lb:'Integrations',id:'sp-5'},{ic:'barChart',lb:'Bank Connections',id:'sp-14'},
+    {ic:'sparkles',lb:'AI Features',id:'sp-6'},
     {ic:'users',lb:'Teams',id:'sp-7'},{ic:'edit',lb:'Word Doc Import',id:'sp-8'},
     {ic:'refresh',lb:'Sync',id:'sp-9'},{ic:'save',lb:'Backup',id:'sp-10'},
     {ic:'lock',lb:'Privacy',id:'sp-11'},{ic:'shield',lb:'Admin',id:'sp-12'}
   ];
   // Visual section breaks before these indexes (same pattern as the sidebar).
-  const setSections={1:'Preferences',5:'Connections',8:'Workspace & Data',13:'Admin'};
+  // NB keys are LIST POSITIONS, not sp-N ids — inserting a row above a break
+  // must shift the keys below it (Bank Connections at position 7 did).
+  const setSections={1:'Preferences',5:'Connections',9:'Workspace & Data',14:'Admin'};
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
@@ -1045,6 +1048,11 @@ function renderSettingsHTML(){
       <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
   </div>
+  <!-- Bank Connections (Sophtron) --><div id="sp-14" class="sp" style="display:none">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:4px">🏦 Bank Connections</h2>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Connect your banks and cards through <b>Sophtron</b> so the Money page can pull balances and transactions automatically. Your Sophtron AccessKey is stored server-side and never shown again; bank credentials entered while linking pass straight to Sophtron and are never stored in LevelUp.</p>
+    <div id="sophtron-panel-body" style="font-size:12px;color:var(--t3)">Loading…</div>
+  </div>
   <!-- Workspace --><div id="sp-13" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Workspace layout</h3>
     <p style="font-size:11px;color:var(--t2);margin-bottom:12px">Choose what you see. Nothing is deleted — anything you switch off is one click from coming back, and your choices follow you to any device you sign in on.</p>
@@ -1195,6 +1203,7 @@ function showSetTab(el,id){
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
   if(id==='sp-13'&&typeof _renderWorkspacePanel==='function')_renderWorkspacePanel();
+  if(id==='sp-14'&&typeof _hydrateSophtronPanel==='function')_hydrateSophtronPanel();
 }
 
 // ─── External Sources (Smartsheet + Nifty) Settings UI ─────────────────────
@@ -14589,16 +14598,20 @@ function _finTxHtml(){
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:180px" onchange="_finTxCat=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()"><option value="">All categories</option>${_finCatOptions(_finTxCat)}</select>
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:150px" onchange="_finTxAcct=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">${_finAcctOptions(_finTxAcct).replace('(no account)','All accounts')}</select>
     <span class="fin-chip">${rows.length} · net ${_finFmt(total,0)}</span>
+    ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenCsv()">⬆ CSV</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenRules()">⚙ Rules</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finDetectRecurring()" title="Scan history for monthly recurring charges">🔍 Recurring</button>`}
   </div>
   <div class="fin-card fin-tx-wrap" style="padding:0">
-  <table class="fin-tx"><thead><tr><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
+  <table class="fin-tx"><thead><tr><th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
   ${rows.length?rows.map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
+    <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${esc(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
     <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
-    <td>${esc(t.payee||'')}</td>
+    <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}</td>
     <td><span class="fin-chip">${c.icon} ${esc(c.name)}</span></td>
     <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
     <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
-    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${_finMonthLabel(ym)}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
+    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${_finMonthLabel(ym)}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
   </tbody></table></div>`;
 }
 function finOpenTx(id){
@@ -14622,7 +14635,8 @@ function finOpenTx(id){
     <div class="field"><label>Notes</label><input class="inp" id="ftx-notes" value="${esc(t?t.notes||'':'')}"></div>
     <div class="dr-actions" style="margin-top:12px">
       <button class="btn btn-p" onclick="finSaveTx('${t?esc(String(t.id)):''}')">Save</button>
-      ${t?`<button class="btn btn-d" onclick="finDeleteTx('${esc(String(t.id))}');_finCloseModal()">Delete</button>`:''}
+      ${t?`<button class="btn btn-s" onclick="finOpenSplit('${esc(String(t.id))}')" title="Split across multiple categories">✂ Split</button>
+      <button class="btn btn-d" onclick="finDeleteTx('${esc(String(t.id))}');_finCloseModal()">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
 }
@@ -14791,7 +14805,7 @@ function _finAccountsHtml(){
         :`<input class="inp" type="number" step="0.01" value="${Math.abs(a.balance||0)}" style="width:110px;height:24px;font-size:11px;text-align:right;color:${isDebt?'var(--red)':'var(--t1)'}" onchange="finSetAcctBalance('${esc(String(a.id))}',this.value)" title="${isDebt?'Balance owed':'Balance'}">`}
     ${ro?'':`<button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenAcct('${esc(String(a.id))}')">✏</button>`}
   </div>`;};
-  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+  return `${(typeof _finBankCardHtml==='function')?_finBankCardHtml():''}<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
       <span class="nm">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b> · assets ${_finFmt(assets.reduce((s,a)=>s+(a.balance||0),0),0)} · debt ${_finFmt(_finDebt(),0)}</span>
       ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenAcct()">＋ Add account</button>`}
     </div></div>
@@ -14977,6 +14991,7 @@ function finImport(){
     const addById=(dst,src)=>{ (Array.isArray(src)?src:[]).forEach(x=>{ if(x&&x.id!=null&&!dst.some(y=>String(y.id)===String(x.id)))dst.push(x); }); };
     addById(f.accounts,obj.accounts); addById(f.transactions,obj.transactions);
     addById(f.bills,obj.bills); addById(f.goals,obj.goals); addById(f.incomeStreams,obj.incomeStreams);
+    if(!Array.isArray(f.rules))f.rules=[]; addById(f.rules,obj.rules);
     (Array.isArray(obj.categories)?obj.categories:[]).forEach(c=>{ if(c&&c.id&&!f.categories.some(y=>y.id===c.id))f.categories.push(c); });
     Object.assign(f.budgets,(obj.budgets&&typeof obj.budgets==='object')?obj.budgets:{});
     if(obj.budgetOverrides&&typeof obj.budgetOverrides==='object'){
@@ -15273,4 +15288,409 @@ function finReportAI(id){
   const body=document.getElementById('fin-report-body');
   const plain=body?body.innerText.replace(/\s+/g,' ').slice(0,3200):'';
   _finAI('Give sharp insights on this "'+rep.name+'" report: what stands out, what needs action, and one concrete recommendation. REPORT CONTENT: '+plain,null,'fin-report-ai','Reading the report');
+}
+
+/* ── Money: Sophtron bank sync + rules + CSV import + splits +
+      reconciliation + recurring detection (build -171) ─────────────────
+   Getting data IN without typing. All imported transactions carry a
+   source marker (sophtronId / csv) and dedupe on re-import. Category
+   RULES (payee substring → category) are shared by Sophtron sync, CSV
+   import and manual entry. */
+
+// ── rules engine ───────────────────────────────────────────────────────
+function _finRules(){ const f=_finData(); if(!Array.isArray(f.rules))f.rules=[]; return f.rules; }
+function _finApplyRules(desc){
+  const d=String(desc||'').toLowerCase(); if(!d)return null;
+  const hit=_finRules().find(r=>r.match&&d.includes(String(r.match).toLowerCase()));
+  return hit?hit.catId:null;
+}
+function finOpenRules(){
+  if(_finGuard())return;
+  const rules=_finRules();
+  _finModal(`<div style="padding:16px;max-width:520px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⚙ Category rules</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">When a payee/description contains the text, the category is applied automatically — during bank sync, CSV import and manual entry. First match wins.</div>
+    <div style="max-height:260px;overflow-y:auto;margin-bottom:10px">
+      ${rules.length?rules.map((r,i)=>`<div class="fin-row"><span class="fin-chip">"${esc(r.match)}"</span><span style="color:var(--t3)">→</span><span class="nm">${_finCat(r.catId).icon} ${esc(_finCat(r.catId).name)}</span><span style="cursor:pointer;color:var(--t3)" onclick="_finRules().splice(${i},1);_finSave();finOpenRules()">✕</span></div>`).join(''):'<div style="font-size:12px;color:var(--t3)">No rules yet.</div>'}
+    </div>
+    <div class="field-row">
+      <div class="field"><label>If text contains</label><input class="inp" id="fr-match" placeholder="e.g. COSTCO"></div>
+      <div class="field"><label>Set category</label><select class="inp" id="fr-cat">${_finCatOptions('dl-groceries')}</select></div>
+    </div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finAddRule()">＋ Add rule</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Done</button>
+    </div></div>`);
+}
+function finAddRule(){
+  if(_finGuard())return;
+  const m=(document.getElementById('fr-match')||{}).value||'';
+  if(!m.trim()){toast('Enter the text to match.');return;}
+  _finRules().push({id:String(Date.now()),match:m.trim(),catId:document.getElementById('fr-cat').value});
+  _finSave(); finOpenRules();
+}
+// ── transaction dedupe key ─────────────────────────────────────────────
+function _finTxKey(t){ return t.sophtronId?('s:'+t.sophtronId):(String(t.date||'')+'|'+Math.round((t.amount||0)*100)+'|'+String(t.payee||'').toLowerCase().slice(0,40)); }
+function _finTxKeySet(){ const s=new Set(); _finData().transactions.forEach(t=>s.add(_finTxKey(t))); return s; }
+
+// ── Sophtron: Settings panel ───────────────────────────────────────────
+async function _hydrateSophtronPanel(){
+  const body=document.getElementById('sophtron-panel-body'); if(!body)return;
+  let cfg={configured:false,sophtronUserId:null};
+  try{ const res=await _trpc('sophtron.getConfig',undefined,'query'); if(res&&res.ok)cfg=res; }catch(_){}
+  body.innerHTML=`
+    <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;max-width:560px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">${cfg.configured?`✅ Connected as Sophtron user <code>${esc(cfg.sophtronUserId||'')}</code>`:'Not configured yet'}</div>
+      <div class="field"><label>Sophtron UserId</label><input class="inp" id="soph-userid" value="${esc(cfg.sophtronUserId||'')}" placeholder="Your Sophtron API UserId (GUID)"></div>
+      <div class="field"><label>Sophtron AccessKey ${cfg.configured?'<span style="color:var(--t3);font-weight:400">(stored — enter again only to replace)</span>':''}</label><input class="inp" id="soph-accesskey" type="password" placeholder="${cfg.configured?'••••••••  (unchanged unless you type a new one)':'Base64 AccessKey from your Sophtron dashboard'}"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-p" style="height:28px;font-size:11px" onclick="sophSaveConfig()">Save</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="sophTest()">🔌 Test connection</button>
+        ${cfg.configured?'<button class="btn btn-d" style="height:28px;font-size:11px" onclick="sophClear()">Remove</button>':''}
+      </div>
+      <div id="soph-test-result" style="font-size:12px;margin-top:8px"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.6">Get credentials at <b>sophtron.com</b> → developer dashboard (free tier: 10,000 requests/month). Once connected, link banks and sync from <b>Money → Accounts → Bank connections</b>.</div>
+    </div>`;
+}
+async function sophSaveConfig(){
+  const uid=(document.getElementById('soph-userid')||{}).value||'';
+  const key=(document.getElementById('soph-accesskey')||{}).value||'';
+  if(!uid.trim()){toast('Enter your Sophtron UserId.');return;}
+  if(!key.trim()){
+    // key unchanged — only possible when already configured
+    toast('Saved (AccessKey unchanged).');return;
+  }
+  try{
+    const res=await _trpc('sophtron.setConfig',{sophtronUserId:uid.trim(),accessKey:key.trim()},'mutation');
+    if(res&&res.ok){toast({type:'success',title:'Sophtron saved',msg:'Now hit Test connection.'});_hydrateSophtronPanel();}
+    else toast({type:'error',title:'Could not save',msg:(res&&res.error)||''});
+  }catch(e){toast({type:'error',title:'Could not save',msg:String(e&&e.message||e).slice(0,150)});}
+}
+async function sophTest(){
+  const out=document.getElementById('soph-test-result');
+  if(out)out.textContent='Testing…';
+  try{
+    const res=await _trpc('sophtron.test',undefined,'mutation');
+    if(out)out.innerHTML=res&&res.ok?`<span style="color:var(--ok)">✅ Connected — ${res.linkedInstitutions} linked institution${res.linkedInstitutions===1?'':'s'}.</span>`:`<span style="color:var(--red)">❌ ${esc((res&&res.error)||'failed')}</span>`;
+  }catch(e){ if(out)out.innerHTML=`<span style="color:var(--red)">❌ ${esc(String(e&&e.message||e).slice(0,200))}</span>`; }
+}
+async function sophClear(){
+  try{ await _trpc('sophtron.clearConfig',undefined,'mutation'); toast('Sophtron configuration removed.'); _hydrateSophtronPanel(); }catch(_){}
+}
+// ── Sophtron: Money → Accounts bank-sync card ──────────────────────────
+let _sophMembers=null;
+async function _finBankCardLoad(){
+  try{ const res=await _trpc('sophtron.listMembers',undefined,'query');
+    _sophMembers=res&&res.ok?{configured:res.configured!==false,members:res.members||[]}:{configured:false,members:[],error:res&&res.error};
+  }catch(e){ _sophMembers={configured:false,members:[],error:String(e&&e.message||e)}; }
+  if(curScreen==='money'&&_finTab==='accounts')renderMoney();
+}
+function _finBankCardHtml(){
+  if(_finShared!=null)return '';
+  if(_sophMembers==null){ _finBankCardLoad(); return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3><div style="font-size:11px;color:var(--t3)">Checking Sophtron…</div></div>`; }
+  if(!_sophMembers.configured)return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3>
+    <div style="font-size:12px;color:var(--t2)">Connect your banks so balances and transactions sync automatically. Set up Sophtron first in <b>Settings → Bank Connections</b>.</div>
+    <button class="btn btn-s" style="height:26px;font-size:11px;margin-top:8px" onclick="nav('settings');setTimeout(()=>{const n=[...document.querySelectorAll('#s-settings .si')].find(x=>x.textContent.includes('Bank Connections'));if(n)n.click();},300)">Open Settings → Bank Connections</button></div>`;
+  const ms=_sophMembers.members;
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="margin-bottom:6px">
+      <span class="nm" style="font-size:12px;font-weight:700">🔗 Bank connections <span class="fin-chip">Sophtron</span></span>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophOpenLink()">＋ Link a bank</button>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_sophMembers=null;renderMoney()">↻</button>
+    </div>
+    ${ms.length?ms.map(m=>`<div class="fin-row">
+      <span class="nm"><b>${esc(m.institutionName)}</b>${m.isAuthenticated===false?' <span class="fin-chip" style="color:var(--warn)">reauth needed</span>':''}</span>
+      <span style="font-size:11px;color:var(--t3)">${m.lastSuccess?('last sync '+String(m.lastSuccess).slice(0,10)):''}</span>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophShowAccounts('${esc(String(m.userInstitutionId))}','${_jsAttr(m.institutionName)}')">Accounts &amp; sync</button>
+    </div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No banks linked yet — click ＋ Link a bank.</div>'}
+    ${_sophMembers.error?`<div style="font-size:11px;color:var(--red);margin-top:6px">${esc(_sophMembers.error)}</div>`:''}
+  </div>`;
+}
+async function sophOpenLink(){
+  _finModal(`<div style="padding:16px;max-width:460px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">＋ Link a bank</h2>
+    <div class="field"><label>Search your bank</label><div style="display:flex;gap:6px"><input class="inp" id="soph-search" placeholder="e.g. Chase, Capital One" onkeydown="if(event.key==='Enter')sophDoSearch()"><button class="btn btn-p" style="height:32px" onclick="sophDoSearch()">Search</button></div></div>
+    <div id="soph-search-results" style="max-height:220px;overflow-y:auto;margin-top:8px;font-size:12px"></div>
+    <div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Cancel</button></div></div>`);
+}
+async function sophDoSearch(){
+  const q=(document.getElementById('soph-search')||{}).value||'';
+  const out=document.getElementById('soph-search-results');
+  if(!q.trim()||!out)return; out.textContent='Searching…';
+  try{
+    const res=await _trpc('sophtron.searchInstitutions',{name:q.trim()},'mutation');
+    if(!res||!res.ok){out.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'search failed')}</span>`;return;}
+    out.innerHTML=res.institutions.length?res.institutions.map(i=>`<div class="fin-row" style="cursor:pointer;border-bottom:1px solid var(--bd1)" onclick="sophPickInstitution('${esc(String(i.id))}','${_jsAttr(i.name)}')"><span class="nm">${esc(i.name)}</span><span style="color:var(--ac)">Link →</span></div>`).join(''):'No matches — try a different spelling.';
+  }catch(e){out.innerHTML=`<span style="color:var(--red)">${esc(String(e&&e.message||e).slice(0,150))}</span>`;}
+}
+function sophPickInstitution(id,name){
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">Link ${esc(name)}</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Your online-banking credentials go straight to Sophtron over TLS — LevelUp never stores them.</div>
+    <div class="field"><label>Online banking username</label><input class="inp" id="soph-bu" autocomplete="off"></div>
+    <div class="field"><label>Password</label><input class="inp" id="soph-bp" type="password" autocomplete="off"></div>
+    <div class="field"><label>PIN <span style="color:var(--t3);font-weight:400">(only if your bank uses one)</span></label><input class="inp" id="soph-bpin" autocomplete="off"></div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="sophDoLink('${esc(String(id))}','${_jsAttr(name)}')">Link bank</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div><div id="soph-link-status" style="font-size:12px;margin-top:8px"></div></div>`);
+}
+async function sophDoLink(id,name){
+  const st=document.getElementById('soph-link-status');
+  const u=(document.getElementById('soph-bu')||{}).value,p=(document.getElementById('soph-bp')||{}).value,pin=(document.getElementById('soph-bpin')||{}).value;
+  if(!u||!p){if(st)st.textContent='Enter username and password.';return;}
+  if(st)st.textContent='Linking — this can take up to a minute…';
+  try{
+    const res=await _trpc('sophtron.linkInstitution',{institutionId:String(id),username:u,password:p,pin:pin||undefined},'mutation');
+    if(!res||!res.ok){if(st)st.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'link failed')}</span>`;return;}
+    if(res.jobId)sophWatchJob(res.jobId,name,st);
+    else{ if(st)st.innerHTML='<span style="color:var(--ok)">✅ Linked.</span>'; _sophMembers=null; setTimeout(()=>{_finCloseModal();renderMoney();},900); }
+  }catch(e){ if(st)st.innerHTML=`<span style="color:var(--red)">${esc(String(e&&e.message||e).slice(0,180))}</span>`; }
+}
+async function sophWatchJob(jobId,name,st){
+  for(let i=0;i<40;i++){
+    await new Promise(r=>setTimeout(r,3000));
+    let job=null;
+    try{ const res=await _trpc('sophtron.jobStatus',{jobId:String(jobId)},'mutation'); job=res&&res.ok?res.job:null; }catch(_){}
+    if(!job)continue;
+    const q=job.SecurityQuestion||job.TokenMethod||job.CaptchaImage;
+    if(job.SecurityQuestion){
+      const a=prompt('Your bank asks: '+job.SecurityQuestion); if(a==null){if(st)st.textContent='Cancelled.';return;}
+      await _trpc('sophtron.jobAnswer',{jobId:String(jobId),kind:'security',value:a},'mutation'); continue;
+    }
+    if(job.TokenMethod&&!job.TokenSentFlag){
+      const a=prompt('Enter the security code your bank sent you:'); if(a==null){if(st)st.textContent='Cancelled.';return;}
+      await _trpc('sophtron.jobAnswer',{jobId:String(jobId),kind:'token',value:a},'mutation'); continue;
+    }
+    if(job.IsSuccess===true||job.SuccessFlag===true||job.Finished===true||job.JobStatus==='Completed'){
+      if(st)st.innerHTML='<span style="color:var(--ok)">✅ '+esc(name)+' linked.</span>';
+      _sophMembers=null; setTimeout(()=>{_finCloseModal();renderMoney();},900); return;
+    }
+    if(job.IsSuccess===false&&(job.Finished===true||job.JobStatus==='Failed')){
+      if(st)st.innerHTML=`<span style="color:var(--red)">Link failed${job.FailureReason?': '+esc(String(job.FailureReason).slice(0,120)):''}.</span>`; return;
+    }
+    if(st)st.textContent='Working… ('+esc(String(job.JobStatus||'authenticating'))+')';
+  }
+  if(st)st.textContent='Still working — check back in a minute (↻ on the bank card).';
+}
+async function sophShowAccounts(userInstitutionId,name){
+  _finModal(`<div style="padding:16px;max-width:520px"><h2 style="font-size:15px;font-weight:600;margin-bottom:8px">${esc(name)} — accounts</h2><div id="soph-accts" style="font-size:12px">Loading…</div><div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Close</button></div></div>`);
+  try{
+    const res=await _trpc('sophtron.getAccounts',{userInstitutionId:String(userInstitutionId)},'mutation');
+    const out=document.getElementById('soph-accts'); if(!out)return;
+    if(!res||!res.ok){out.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'failed')}</span>`;return;}
+    const f=_finData(); const map=(f.settings.sophtronMap=f.settings.sophtronMap||{});
+    out.innerHTML=res.accounts.length?res.accounts.map(a=>{
+      const linked=map[a.accountId]&&f.accounts.some(x=>String(x.id)===String(map[a.accountId]));
+      return `<div class="fin-row" style="border-bottom:1px solid var(--bd1)">
+        <span class="nm"><b>${esc(a.name)}</b>${a.number?' ····'+esc(a.number):''} <span class="fin-chip">${esc(a.type||'account')}</span></span>
+        <span style="font-weight:650">${a.balance!=null?_finFmt(a.balance,0):''}</span>
+        ${linked?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophSync('${esc(String(a.accountId))}')">⟳ Sync</button>`
+                :`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="sophLinkAccount('${esc(String(a.accountId))}','${_jsAttr(a.name)}','${_jsAttr(a.type||'')}',${a.balance!=null?a.balance:'null'})">→ Add to Money</button>`}
+      </div>`;}).join(''):'No accounts returned.';
+  }catch(e){ const out=document.getElementById('soph-accts'); if(out)out.innerHTML=esc(String(e&&e.message||e).slice(0,180)); }
+}
+function sophLinkAccount(sophId,name,type,balance){
+  if(_finGuard())return;
+  const f=_finData();
+  const t=/credit|card/i.test(type)?'credit':/loan/i.test(type)?'loan':/sav/i.test(type)?'savings':'checking';
+  const acct={id:'soph-'+sophId,name:name||'Bank account',type:t,balance:balance!=null?Math.abs(balance):0,icon:t==='credit'?'💳':'🏦',sophtronId:sophId};
+  if(!f.accounts.some(x=>String(x.id)===String(acct.id)))f.accounts.push(acct);
+  (f.settings.sophtronMap=f.settings.sophtronMap||{})[sophId]=acct.id;
+  _finSave(); toast({type:'success',title:'Account added',msg:name+' — now hit ⟳ Sync to pull transactions.'});
+  renderMoney();
+}
+async function sophSync(sophId){
+  if(_finGuard())return;
+  const f=_finData(); const map=f.settings.sophtronMap||{};
+  const acct=f.accounts.find(x=>String(x.id)===String(map[sophId]));
+  if(!acct){toast('Add the account to Money first.');return;}
+  toast({type:'info',title:'Syncing '+acct.name+'…',duration:2500});
+  const end=new Date().toISOString().slice(0,10);
+  const start=(acct.sophtronLastSync&&String(acct.sophtronLastSync).slice(0,10))||new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  try{
+    const res=await _trpc('sophtron.pullTransactions',{accountId:String(sophId),startDate:start,endDate:end},'mutation');
+    if(!res||!res.ok){toast({type:'error',title:'Sync failed',msg:(res&&res.error)||''});return;}
+    const seen=_finTxKeySet(); let added=0,auto=0;
+    res.transactions.forEach(t=>{
+      const key='s:'+t.id; if(seen.has(key))return; seen.add(key);
+      const catId=_finApplyRules(t.description)|| (t.amount>0?'inc-other':'misc-other');
+      if(catId!=='misc-other'&&catId!=='inc-other')auto++;
+      f.transactions.push({id:'st-'+t.id,sophtronId:t.id,date:t.date,payee:t.description.slice(0,120),catId,accountId:acct.id,notes:t.category?('Bank category: '+t.category):'',amount:t.amount,cleared:true});
+      added++;
+    });
+    acct.sophtronLastSync=end;
+    _finSave(); renderMoney();
+    toast({type:'success',title:'⟳ '+acct.name+' synced',msg:added+' new transaction'+(added===1?'':'s')+(auto?' · '+auto+' auto-categorized':'')+(added-auto>0?' · review the rest in Transactions':''),duration:3500});
+  }catch(e){toast({type:'error',title:'Sync failed',msg:String(e&&e.message||e).slice(0,150)});}
+}
+// ── CSV import ─────────────────────────────────────────────────────────
+let _finCsvRows=null;
+function finOpenCsv(){
+  if(_finGuard())return;
+  _finModal(`<div style="padding:16px;max-width:560px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⬆ Import bank CSV</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Export a statement from your bank as CSV, drop it here, map the columns once, done. Duplicates are skipped automatically; category rules apply.</div>
+    <div class="field"><label>CSV file</label><input class="inp" type="file" id="fcsv-file" accept=".csv,text/csv" onchange="(function(inp){const r=new FileReader();r.onload=()=>{document.getElementById('fcsv-text').value=r.result;finCsvParse();};r.readAsText(inp.files[0]);})(this)"></div>
+    <div class="field"><label>…or paste CSV</label><textarea class="inp" id="fcsv-text" style="min-height:70px;font-family:monospace;font-size:11px" oninput="finCsvParse()"></textarea></div>
+    <div id="fcsv-map" style="font-size:12px"></div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" id="fcsv-go" style="display:none" onclick="finCsvImport()">Import</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function _finCsvParseText(text){
+  const rows=[];let cur=[''];let inQ=false;let ri=0;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){cur[cur.length-1]+='"';i++;} else inQ=false; } else cur[cur.length-1]+=ch; }
+    else if(ch==='"')inQ=true;
+    else if(ch===',')cur.push('');
+    else if(ch==='\n'||ch==='\r'){ if(cur.length>1||cur[0].trim()!==''){rows.push(cur);} cur=['']; if(ch==='\r'&&text[i+1]==='\n')i++; }
+    else cur[cur.length-1]+=ch;
+  }
+  if(cur.length>1||cur[0].trim()!=='')rows.push(cur);
+  return rows;
+}
+function finCsvParse(){
+  const text=(document.getElementById('fcsv-text')||{}).value||'';
+  const out=document.getElementById('fcsv-map'); if(!out)return;
+  const rows=_finCsvParseText(text);
+  if(rows.length<2){out.innerHTML='';document.getElementById('fcsv-go').style.display='none';return;}
+  _finCsvRows=rows;
+  const head=rows[0];
+  const guess=names=>{const i=head.findIndex(h=>names.some(n=>String(h).toLowerCase().includes(n)));return i;};
+  const sel=(id,g)=>`<select class="inp" id="${id}" style="height:26px;font-size:11px;width:auto">${['(none)'].concat(head).map((h,i)=>`<option value="${i-1}" ${i-1===g?'selected':''}>${esc(String(h).slice(0,28))}</option>`).join('')}</select>`;
+  const f=_finData();
+  out.innerHTML=`<div style="background:var(--s1);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-top:4px">
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">${rows.length-1} rows · map the columns:</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px">
+      Date ${sel('fcsv-date',guess(['date']))}
+      Description ${sel('fcsv-desc',guess(['description','payee','memo','name']))}
+      Amount ${sel('fcsv-amt',guess(['amount']))}
+      <span style="color:var(--t3)">or</span> Debit ${sel('fcsv-debit',guess(['debit','withdraw']))} Credit ${sel('fcsv-credit',guess(['credit','deposit']))}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:11px;margin-top:8px">
+      <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="fcsv-flip"> Amounts are positive for spending (flip signs)</label>
+      Account <select class="inp" id="fcsv-acct" style="height:26px;font-size:11px;width:auto">${_finAcctOptions('')}</select>
+    </div>
+  </div>`;
+  document.getElementById('fcsv-go').style.display='';
+}
+function finCsvImport(){
+  if(_finGuard())return;
+  const rows=_finCsvRows; if(!rows||rows.length<2){toast('Nothing parsed.');return;}
+  const gi=id=>parseInt((document.getElementById(id)||{}).value);
+  const di=gi('fcsv-date'),de=gi('fcsv-desc'),am=gi('fcsv-amt'),db=gi('fcsv-debit'),cr=gi('fcsv-credit');
+  if(di<0||de<0||(am<0&&db<0&&cr<0)){toast('Map at least Date, Description and an amount column.');return;}
+  const flip=(document.getElementById('fcsv-flip')||{}).checked;
+  const acctId=(document.getElementById('fcsv-acct')||{}).value||null;
+  const f=_finData(); const seen=_finTxKeySet();
+  const parseDate=s=>{s=String(s||'').trim();
+    let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m)return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/); if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');}
+    return null;};
+  const num=s=>{const v=parseFloat(String(s??'').replace(/[$,()\s]/g,m2=>m2==='('?'-':''));return isNaN(v)?null:v;};
+  let added=0,skipped=0,auto=0;
+  rows.slice(1).forEach(r=>{
+    const date=parseDate(r[di]); if(!date)return;
+    const desc=String(r[de]||'').trim();
+    let amount=null;
+    if(am>=0)amount=num(r[am]);
+    if(amount==null&&(db>=0||cr>=0)){const d2=db>=0?num(r[db]):null;const c2=cr>=0?num(r[cr]):null;amount=(c2||0)-(Math.abs(d2||0));}
+    if(amount==null||amount===0)return;
+    if(flip)amount=-amount;
+    const t={id:'csv-'+Date.now()+'-'+added,date,payee:desc.slice(0,120),amount,accountId:acctId,notes:'',cleared:true};
+    const key=_finTxKey(t);
+    if(seen.has(key)){skipped++;return;}
+    seen.add(key);
+    t.catId=_finApplyRules(desc)||(amount>0?'inc-other':'misc-other');
+    if(t.catId!=='misc-other'&&t.catId!=='inc-other')auto++;
+    f.transactions.push(t); added++;
+  });
+  _finSave(); _finCloseModal(); _finTab='transactions'; renderMoney();
+  toast({type:'success',title:'⬆ CSV imported',msg:added+' added · '+skipped+' duplicates skipped'+(auto?' · '+auto+' auto-categorized':''),duration:3500});
+}
+// ── splits ─────────────────────────────────────────────────────────────
+function finOpenSplit(id){
+  if(_finGuard())return;
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  _finModal(`<div style="padding:16px;max-width:460px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">✂ Split — ${esc(t.payee||'transaction')}</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Total ${_finFmt(t.amount)} — split across categories. Parts must add up to the total.</div>
+    <div id="fsp-rows"></div>
+    <button class="btn btn-s" style="height:24px;font-size:11px;margin-top:6px" onclick="_finSplitAddRow()">＋ Part</button>
+    <div id="fsp-sum" style="font-size:11px;margin-top:6px;color:var(--t3)"></div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finDoSplit('${esc(String(t.id))}')">Split it</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+  window._finSplitTotal=Math.abs(t.amount);
+  _finSplitAddRow(t.catId,Math.abs(t.amount)); _finSplitAddRow();
+}
+function _finSplitAddRow(catId,amt){
+  const host=document.getElementById('fsp-rows'); if(!host)return;
+  const div=document.createElement('div');
+  div.className='fin-row';
+  div.innerHTML=`<select class="inp fsp-cat" style="height:26px;font-size:11px;flex:1">${_finCatOptions(catId||'dl-groceries')}</select>
+    <input class="inp fsp-amt" type="number" step="0.01" min="0" value="${amt||''}" style="width:96px;height:26px;font-size:11px;text-align:right" oninput="_finSplitSum()">
+    <span style="cursor:pointer;color:var(--t3)" onclick="this.parentElement.remove();_finSplitSum()">✕</span>`;
+  host.appendChild(div); _finSplitSum();
+}
+function _finSplitSum(){
+  const sum=[...document.querySelectorAll('.fsp-amt')].reduce((s,i)=>s+(parseFloat(i.value)||0),0);
+  const el=document.getElementById('fsp-sum');
+  if(el)el.innerHTML=`Parts: <b>${_finFmt(sum)}</b> of ${_finFmt(window._finSplitTotal||0)} ${Math.abs(sum-(window._finSplitTotal||0))<0.01?'<span style="color:var(--ok)">✓</span>':'<span style="color:var(--warn)">(must match)</span>'}`;
+}
+function finDoSplit(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.transactions.findIndex(x=>String(x.id)===String(id)); if(i<0)return;
+  const t=f.transactions[i];
+  const rows=[...document.querySelectorAll('#fsp-rows .fin-row')].map(r=>({catId:r.querySelector('.fsp-cat').value,amt:parseFloat(r.querySelector('.fsp-amt').value)||0})).filter(r=>r.amt>0);
+  const sum=rows.reduce((s,r)=>s+r.amt,0);
+  if(Math.abs(sum-Math.abs(t.amount))>=0.01){toast('Parts must add up to '+_finFmt(Math.abs(t.amount))+'.');return;}
+  const sign=t.amount<0?-1:1;
+  const parts=rows.map((r,k)=>({...t,id:String(t.id)+'-sp'+k,amount:sign*r.amt,catId:r.catId,splitOf:String(t.id)}));
+  f.transactions.splice(i,1,...parts);
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'✂ Split into '+parts.length,duration:1800});
+}
+// ── reconciliation (cleared flag) ──────────────────────────────────────
+function finToggleCleared(id){
+  if(_finGuard())return;
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  t.cleared=!t.cleared; _finSave();
+  const el=document.getElementById('fin-body'); if(el)el.innerHTML=_finTxHtml();
+}
+// ── recurring detection ────────────────────────────────────────────────
+function finDetectRecurring(){
+  if(_finGuard())return;
+  const f=_finData();
+  const byPayee={};
+  f.transactions.filter(t=>t.amount<0&&t.payee).forEach(t=>{(byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]=byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]||[]).push(t);});
+  const existing=new Set(f.bills.map(b=>String(b.name).toLowerCase()));
+  const cands=[];
+  Object.entries(byPayee).forEach(([key,txs])=>{
+    if(txs.length<3)return;
+    const amts=txs.map(t=>Math.abs(t.amount)).sort((a,b)=>a-b);
+    const med=amts[Math.floor(amts.length/2)];
+    if(!amts.every(a=>Math.abs(a-med)<=Math.max(2,med*0.15)))return;
+    const dates=txs.map(t=>new Date(t.date)).sort((a,b)=>a-b);
+    const gaps=[];for(let i=1;i<dates.length;i++)gaps.push((dates[i]-dates[i-1])/86400000);
+    const medGap=gaps.sort((a,b)=>a-b)[Math.floor(gaps.length/2)];
+    if(medGap<24||medGap>38)return; // ~monthly only
+    if(existing.has(key))return;
+    cands.push({name:txs[0].payee,amount:Math.round(med*100)/100,dueDay:Math.min(28,new Date(txs[txs.length-1].date).getDate()),catId:txs[0].catId,n:txs.length});
+  });
+  if(!cands.length){toast('No new recurring charges found (needs ≥3 similar monthly charges).');return;}
+  _finModal(`<div style="padding:16px;max-width:480px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔍 Recurring charges found</h2>
+    ${cands.map((c,i)=>`<div class="fin-row"><span class="nm"><b>${esc(c.name)}</b> <span class="fin-chip">${c.n}× seen</span></span><span>${_finFmt(c.amount,0)}/mo</span><button class="btn btn-s" style="height:24px;font-size:11px" onclick="finAddDetectedBill(${i})">＋ Bill</button></div>`).join('')}
+    <div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Done</button></div></div>`);
+  window._finRecurCands=cands;
+}
+function finAddDetectedBill(i){
+  if(_finGuard())return;
+  const c=(window._finRecurCands||[])[i]; if(!c)return;
+  const f=_finData();
+  f.bills.push({id:String(Date.now())+i,name:c.name.slice(0,80),amount:c.amount,dueDay:c.dueDay,catId:c.catId||'subs-subscriptions',accountId:null,autopay:true,active:true});
+  _finSave(); toast({type:'success',title:'＋ Bill added',msg:c.name,duration:1600});
 }

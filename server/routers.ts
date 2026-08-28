@@ -31,6 +31,7 @@ import { weeklyReviewRouter } from "./routers/weeklyReview";
 import { customFieldsRouter } from "./routers/customFields";
 import { automationsRouter } from "./routers/automations";
 import { atlasRouter } from "./routers/atlas";
+import { sophtronRouter } from "./routers/sophtron";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -101,6 +102,7 @@ export const appRouter = router({
   customFields: customFieldsRouter,
   automations: automationsRouter,
   atlas: atlasRouter,
+  sophtron: sophtronRouter,
 });
 
 export type AppRouter = typeof appRouter;
