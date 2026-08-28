@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-170`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-28-172`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,25 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-172 — Money phase 2: notification-bell alerts (_finNotifs in buildNotifs,
+gate np.moneyAlerts), 💵 bill chips on the Calendar month grid+rails (derived,
+-158 pattern, color-mix path for var colours), Home 'Money Snapshot' card
+(default:false — stock invariant intact), monthly net-worth history snapshots
++ chart, debt what-if simulator (snowball/avalanche, payment rollover, APR
+accrual), Credit-utilization + Category-trend reports, weekly email 💰 block
+(empty for non-Money users).
+
+**-171 — Sophtron bank sync + ingestion layer.** server/routers/sophtron.ts
+(FIApiAUTH HMAC direct auth; config in external_source_credentials
+source='sophtron', NO migration; AccessKey never returned to the client; bank
+credentials pass through, never stored). Settings → Bank Connections = NEW
+**sp-14** panel (⚠ setSections keys are LIST POSITIONS and were shifted).
+Money → Accounts: link-bank flow with MFA-aware job polling, account mapping,
+⟳ Sync w/ dedupe by Sophtron tx id. Plus: category RULES engine, bank CSV
+import (quoted-field parser, column mapping, Debit/Credit pair, dup skip),
+✂ split transactions, cleared-flag reconciliation, 🔍 recurring-charge
+detection → bills.
 
 **-170 — Money: Forecast tab (12-mo projection + per-debt payoff w/ APR
 amortization, bill payments matched to debt accounts BY NAME), Reports tab
