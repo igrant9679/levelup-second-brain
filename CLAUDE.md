@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-172`** · everything committed AND pushed ·
+Live build at handoff: **`2026-08-28-173`** · everything committed AND pushed ·
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
@@ -19,6 +19,17 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+**-173 — Money: 🤖 Agents tab** — four daily-throttled monitors (Smart Bill
+Manager, Budgeting, Investment, Financial Health) with deterministic
+analyzers (findings deduped by fingerprint, dismissals sticky, warn-severity
+fed into the 🔔 bell via _finAgentNotifs), per-agent ✨ AI deep-dives,
+holdings editor + retirement projection, and a credit-health ESTIMATE
+labeled NOT-FICO. Unusual-transaction detector uses LEAVE-ONE-OUT z-scores
+(an outlier must not inflate its own baseline). Auto-runs ~daily from a boot
+hook next to the shared-data loaders. NB the -172/-173 deploys sat in a
+Railway 'deployments slow to start' incident for hours (user aborted stuck
+ones); the final -173 deploy succeeded and includes everything.
 
 **-172 — Money phase 2: notification-bell alerts (_finNotifs in buildNotifs,
 gate np.moneyAlerts), 💵 bill chips on the Calendar month grid+rails (derived,
