@@ -3036,6 +3036,7 @@ function buildNotifs(){
   // ---- Money alerts (bills due, over budget, low balance) ----
   if(np.moneyAlerts!==false&&!quiet&&typeof _finNotifs==='function'){
     try{_finNotifs().forEach(n=>notifs.push(n));}catch(_){}
+    try{if(typeof _finAgentNotifs==='function')_finAgentNotifs().forEach(n=>notifs.push(n));}catch(_){}
   }
   // ---- Habit Streak Alerts ----
   if(np.habitStreaks!==false&&!quiet){
@@ -4664,6 +4665,9 @@ function doLoginSuccess(member){
   setTimeout(()=>{ if(typeof _loadSharedMindMaps==='function')_loadSharedMindMaps(); },2200);
   setTimeout(()=>{ if(typeof _loadSharedReports==='function')_loadSharedReports(); },2400);
   setTimeout(()=>{ if(typeof _loadSharedNotes==='function')_loadSharedNotes(); },2600);
+  // Money agents: daily-throttled monitors (bills / budget / invest / health)
+  // run shortly after boot so 🔔 alerts appear without opening Money.
+  setTimeout(()=>{ try{ if(typeof _finAgentsAutoRun==='function')_finAgentsAutoRun(); }catch(_){ } },2800);
   // Load the real workspace roster so assignment dropdowns include invited
   // members (e.g. new hires) that aren't in the local D.teams blob.
   setTimeout(()=>{ if(typeof _loadWorkspaceMembers==='function')_loadWorkspaceMembers(); },900);
@@ -14390,6 +14394,9 @@ function ensureFin(){
   if(!Array.isArray(f.bills))f.bills=[];
   if(!Array.isArray(f.goals))f.goals=[];
   if(!Array.isArray(f.incomeStreams))f.incomeStreams=[];
+  if(!Array.isArray(f.investments))f.investments=[];
+  if(!Array.isArray(f.agentFindings))f.agentFindings=[];
+  if(!Array.isArray(f.creditEstimateHistory))f.creditEstimateHistory=[];
   // Per-month budget overrides {'YYYY-MM':{catId:amount}} — the flat
   // f.budgets number is the base plan; an override wins for that month
   // (quarterly HOA, seasonal utilities, a car that pays off mid-year…).
@@ -14504,7 +14511,7 @@ function renderMoney(){
       <option value="mine" ${_finShared==null?'selected':''}>My budget</option>
       ${shared.map((b,i)=>`<option value="${i}" ${_finShared===i?'selected':''}>${esc(b.ownerName)}'s budget${b._readOnly?' (view)':''}</option>`).join('')}
     </select>`:'';
-  const tabs=[['overview','Overview'],['income','Income'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals'],['forecast','Forecast'],['reports','Reports']];
+  const tabs=[['overview','Overview'],['income','Income'],['transactions','Transactions'],['budgets','Budgets'],['bills','Bills'],['accounts','Accounts'],['goals','Goals'],['forecast','Forecast'],['agents','🤖 Agents'],['reports','Reports']];
   m.innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div>
       <h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('barChart',22,'var(--page-accent)')}Money${viewingShared?` <span style="font-size:11px;font-weight:700;color:var(--purp);background:color-mix(in srgb,var(--purp) 14%,transparent);padding:2px 8px;border-radius:8px">${ro?'👁 SHARED · VIEW':'👥 SHARED · CO-EDIT'}</span>`:''}</h1>
       <p style="font-size:12px;color:var(--t2)">Budgets, spending, accounts &amp; bills — your personal finance command center.</p></div>
@@ -14521,7 +14528,7 @@ function renderMoney(){
       ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
     </div></div>
     <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
-    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
+    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='agents'?_finAgentsHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
 }
 function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }
 // ── Overview ───────────────────────────────────────────────────────────
@@ -15845,4 +15852,325 @@ if(typeof FIN_REPORTS!=='undefined'){
       <p style="font-size:11px;color:var(--t3)">Grey = budget for that month · colored = actual spend (red when over).</p>`;
     }}
   );
+}
+
+/* ── Money: AI agents (build -173) ─────────────────────────────────────
+   Four always-on monitors. Each runs a DETERMINISTIC analyzer (findings
+   with stable fingerprints, deduped, fed into the notification bell) and
+   offers an AI deep-dive through the user's configured provider.
+   Honesty lines, by design:
+   - Health Monitor's credit number is a transparent LevelUp ESTIMATE from
+     in-app data — labeled "not your FICO" with pointers to real sources.
+   - Investment Assistant has NO live market feed — it analyzes the
+     holdings/values the user enters; AI output is educational analysis
+     with a consult-a-professional disclaimer, never buy/sell calls. */
+
+function _finAgents(){ return [
+  {id:'bills',icon:'💵',name:'Smart Bill Manager',desc:'Watches every bill: reminders before due dates, missed bills, unusual charge amounts, and bills that keep creeping up.'},
+  {id:'budget',icon:'🎯',name:'Budgeting Agent',desc:'Analyzes spending patterns, finds saving opportunities, flags duplicate charges and subscriptions worth questioning.'},
+  {id:'invest',icon:'📈',name:'Investment Assistant',desc:'Tracks the holdings you enter: allocation vs your targets, concentration risk, retirement projection. Educational analysis — not licensed advice.'},
+  {id:'health',icon:'🛡',name:'Financial Health Monitor',desc:'Watches for unusual transactions and tracks a transparent credit-health estimate (clearly labeled — it is not your FICO score).'},
+];}
+function _finFindings(){ const f=_finData(); if(!Array.isArray(f.agentFindings))f.agentFindings=[]; return f.agentFindings; }
+function _finAgentPush(list,agent,severity,title,body,fingerprint){
+  list.push({agent,severity,title,body,fingerprint,at:new Date().toISOString().slice(0,10)});
+}
+function _finAgentCommit(fresh){
+  const f=_finData(); const old=_finFindings();
+  const dismissed=new Set(old.filter(x=>x.dismissed).map(x=>x.fingerprint));
+  const merged=fresh.filter(x=>!dismissed.has(x.fingerprint));
+  // keep dismissals so a dismissed finding stays gone until its data changes
+  f.agentFindings=old.filter(x=>x.dismissed).slice(-100).concat(merged).slice(-250);
+  f.settings.agentLastRun=new Date().toISOString();
+  _finSave();
+}
+function _finTxForBill(b,days){
+  const cut=new Date(Date.now()-(days||95)*86400000).toISOString().slice(0,10);
+  const key=String(b.name||'').toLowerCase().slice(0,14);
+  return _finData().transactions.filter(t=>t.amount<0&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
+}
+// ── analyzers ──────────────────────────────────────────────────────────
+function _finAgentBillsRun(out){
+  const f=_finData(); const ym=_finYM(new Date());
+  f.bills.filter(b=>b.active!==false).forEach(b=>{
+    const due=_finBillNextDue(b); const days=Math.ceil((due-new Date())/86400000);
+    const paid=b.lastPaidYM===ym;
+    if(!paid&&days<=5)_finAgentPush(out,'bills',days<=1?'warn':'info',days<=0?'Bill due today':'Bill due in '+days+' day'+(days===1?'':'s'),b.name+' · '+_finFmt(b.amount,0)+(b.autopay?' (autopay)':' — pay it or Mark paid'),'bill-due-'+b.id+'-'+_finYM(due));
+    // missed: due day earlier this month, not marked paid, no matching tx
+    const day=Math.min(Math.max(1,Number(b.dueDay)||1),28);
+    if(!paid&&day<new Date().getDate()-2){
+      const recent=_finTxForBill(b,35);
+      if(!recent.length)_finAgentPush(out,'bills','warn','Possible missed bill',b.name+' was due on the '+day+' — no payment found this month.','bill-missed-'+b.id+'-'+ym);
+    }
+    // unusual amount vs the bill's set amount
+    const hist=_finTxForBill(b,95);
+    const last=hist[hist.length-1];
+    if(last&&b.amount>0){
+      const dev=Math.abs(Math.abs(last.amount)-b.amount);
+      if(dev>Math.max(10,b.amount*0.15))_finAgentPush(out,'bills','warn','Unusual bill charge',b.name+': latest charge '+_finFmt(Math.abs(last.amount),0)+' vs expected '+_finFmt(b.amount,0)+' ('+(Math.abs(last.amount)>b.amount?'+':'−')+_finFmt(dev,0)+') on '+last.date,'bill-unusual-'+b.id+'-'+last.date);
+    }
+    // creep: 3+ charges strictly rising by >10% overall
+    if(hist.length>=3){
+      const a3=hist.slice(-3).map(t=>Math.abs(t.amount));
+      if(a3[0]<a3[1]&&a3[1]<a3[2]&&a3[2]>a3[0]*1.1)_finAgentPush(out,'bills','info','Bill creeping up',b.name+' rose '+_finFmt(a3[0],0)+' → '+_finFmt(a3[2],0)+' over the last 3 charges. Worth a call?','bill-creep-'+b.id+'-'+Math.round(a3[2]));
+    }
+  });
+}
+function _finAgentBudgetRun(out){
+  const f=_finData(); const ym=_finMonth;
+  // 3-month overspend pattern
+  const ms=_finMonthsBack(3);
+  _finBudgetIds(ym).forEach(id=>{
+    if(_finCat(id).kind==='income')return;
+    const b=_finBudgetFor(id,ym); if(b<=0)return;
+    const overs=ms.filter(m=>(_finSpentByCat(m)[id]||0)>_finBudgetFor(id,m)&&_finBudgetFor(id,m)>0);
+    if(overs.length>=2)_finAgentPush(out,'budget','warn','Repeatedly over budget',_finCat(id).name+' has been over budget '+overs.length+' of the last 3 months — cut the spending or raise the budget so the plan stays honest.','budget-over-'+id);
+  });
+  // subscriptions inventory (yearly framing)
+  const subs=f.bills.filter(b=>b.active!==false&&(b.catId==='subs-subscriptions'||b.catId==='home-streaming'));
+  const subTotal=subs.reduce((s,b)=>s+(b.amount||0),0);
+  if(subTotal>0)_finAgentPush(out,'budget','info','Subscription check',subs.length+' subscription'+(subs.length===1?'':'s')+' cost '+_finFmt(subTotal,0)+'/mo — that is '+_finFmt(subTotal*12,0)+'/year. Run 🔍 Recurring on Transactions to catch ones not tracked as bills.','budget-subs-'+Math.round(subTotal));
+  // duplicate charges (same payee+amount within 2 days, last 45d)
+  const cut=new Date(Date.now()-45*86400000).toISOString().slice(0,10);
+  const recent=f.transactions.filter(t=>t.amount<0&&String(t.date)>=cut&&t.payee);
+  for(let i=0;i<recent.length;i++)for(let j=i+1;j<recent.length;j++){
+    const a=recent[i],b2=recent[j];
+    if(a.payee===b2.payee&&Math.abs(a.amount-b2.amount)<0.01&&a.id!==b2.id&&!a.splitOf&&!b2.splitOf){
+      const d=Math.abs(new Date(a.date)-new Date(b2.date))/86400000;
+      if(d>0&&d<=2)_finAgentPush(out,'budget','warn','Possible duplicate charge',a.payee+' — '+_finFmt(a.amount)+' on '+a.date+' and again on '+b2.date+'. Real, or double-billed?','budget-dup-'+a.payee.slice(0,20)+'-'+Math.round(Math.abs(a.amount)));
+    }
+  }
+  // top discretionary saving levers
+  const disc=['dl-dining','ent-fun','ent-hobbies','subs-subscriptions','dl-clothing','misc-other'];
+  const spent3=disc.map(id=>({id,v:ms.reduce((s,m)=>s+(_finSpentByCat(m)[id]||0),0)/ms.length})).filter(x=>x.v>50).sort((a,b2)=>b2.v-a.v).slice(0,2);
+  spent3.forEach(x=>_finAgentPush(out,'budget','info','Saving lever',_finCat(x.id).name+' averages '+_finFmt(x.v,0)+'/mo ('+_finFmt(x.v*12,0)+'/yr). Trimming 25% frees '+_finFmt(x.v*0.25,0)+'/mo — enough to accelerate a card payoff.','budget-lever-'+x.id));
+}
+function _finAgentInvestRun(out){
+  const f=_finData();
+  if(!f.investments.length){_finAgentPush(out,'invest','info','No holdings yet','Add your investment holdings (401k, IRA, brokerage, crypto) in the Investment Assistant card to get allocation and retirement analysis.','invest-empty');return;}
+  const total=f.investments.reduce((s,h)=>s+(Number(h.value)||0),0);
+  if(total<=0)return;
+  const byClass={};
+  f.investments.forEach(h=>{byClass[h.class||'other']=(byClass[h.class||'other']||0)+(Number(h.value)||0);});
+  const target=(f.settings.targetAllocation&&typeof f.settings.targetAllocation==='object')?f.settings.targetAllocation:null;
+  if(target){
+    Object.keys(target).forEach(cls=>{
+      const actual=Math.round(((byClass[cls]||0)/total)*100);
+      const want=Number(target[cls])||0;
+      if(Math.abs(actual-want)>=8)_finAgentPush(out,'invest','info','Allocation drift',cls+' is '+actual+'% of the portfolio vs your '+want+'% target ('+(actual>want?'over':'under')+' by '+Math.abs(actual-want)+'pp). Rebalancing is usually done with new contributions first.','invest-drift-'+cls+'-'+Math.round(actual/5));
+    });
+  }
+  f.investments.forEach(h=>{
+    const share=(Number(h.value)||0)/total;
+    if(share>0.25&&f.investments.length>1)_finAgentPush(out,'invest','warn','Concentration risk',h.name+' is '+Math.round(share*100)+'% of your portfolio — a single-position swing moves everything.','invest-conc-'+String(h.id));
+  });
+  const cash=byClass['cash']||0;
+  if(cash/total>0.25)_finAgentPush(out,'invest','info','Cash drag',Math.round(cash/total*100)+'% of the portfolio sits in cash. Intentional buffer, or money not working?','invest-cash-'+Math.round(cash/total*10));
+  const r=f.settings.retirement||{};
+  if(r.targetAge&&r.currentAge){
+    const yrs=Math.max(0,r.targetAge-r.currentAge);
+    const g=(Number(r.growthPct)||6)/100;
+    const c=Number(r.monthlyContribution)||0;
+    const fv=total*Math.pow(1+g,yrs)+(g>0?c*12*((Math.pow(1+g,yrs)-1)/g):c*12*yrs);
+    _finAgentPush(out,'invest','info','Retirement projection','At '+_finFmt(c,0)+'/mo and '+(g*100).toFixed(0)+'%/yr growth, the portfolio projects to ~'+_finFmt(fv,0)+' at age '+r.targetAge+' — roughly '+_finFmt(fv*0.04/12,0)+'/mo at a 4% withdrawal rate. Projection, not a promise.','invest-retire-'+Math.round(fv/10000));
+  }
+}
+function _finAgentHealthRun(out){
+  const f=_finData();
+  // unusual transactions: z-score within category, last 90d, >= 5 samples
+  const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const byCat={};
+  f.transactions.filter(t=>t.amount<0&&String(t.date)>=cut).forEach(t=>{(byCat[t.catId]=byCat[t.catId]||[]).push(t);});
+  Object.values(byCat).forEach(txs=>{
+    if(txs.length<5)return;
+    txs.forEach(t=>{
+      // Leave-one-out stats: a big outlier must not inflate its own
+      // baseline's standard deviation and thereby hide itself.
+      const others=txs.filter(x=>x!==t).map(x=>Math.abs(x.amount));
+      if(others.length<4)return;
+      const mean=others.reduce((s,v)=>s+v,0)/others.length;
+      const sd=Math.sqrt(others.reduce((s,v)=>s+(v-mean)*(v-mean),0)/others.length)||1;
+      const z=(Math.abs(t.amount)-mean)/Math.max(sd,mean*0.15,5);
+      if(z>3&&Math.abs(t.amount)>150&&Math.abs(t.amount)>mean*2)_finAgentPush(out,'health','warn','Unusual transaction',_finFmt(t.amount)+' at '+(t.payee||_finCat(t.catId).name)+' on '+t.date+' — far above your usual '+_finCat(t.catId).name+' spend (~'+_finFmt(mean,0)+'). Recognize it?','health-z-'+t.id);
+    });
+  });
+  // credit-health estimate — transparent, in-app data only, NOT FICO
+  const est=_finCreditEstimate();
+  if(est){
+    const hist=f.creditEstimateHistory;
+    const ym=_finYM(new Date());
+    const cur=hist.find(h=>h.ym===ym);
+    if(cur)cur.score=est.score; else hist.push({ym,score:est.score});
+    if(hist.length>36)f.creditEstimateHistory=hist.slice(-36);
+    const prev=hist.length>1?hist[hist.length-2]:null;
+    if(prev&&est.score<prev.score-15)_finAgentPush(out,'health','warn','Credit-health estimate dropped',prev.score+' → '+est.score+'. Biggest factor: '+est.worst+'. (LevelUp estimate from in-app data — not your FICO.)','health-drop-'+ym);
+    est.factors.filter(x=>x.severity==='warn').forEach(x=>_finAgentPush(out,'health','warn',x.label,x.detail,'health-f-'+x.id));
+  }
+}
+function _finCreditEstimate(){
+  const f=_finData();
+  const cards=f.accounts.filter(a=>a.type==='credit');
+  if(!cards.length&&!f.bills.length)return null;
+  let score=850; const factors=[];
+  // utilization (biggest lever) — needs limits
+  const withLim=cards.filter(c=>c.limit>0);
+  if(withLim.length){
+    const u=withLim.reduce((s,c)=>s+Math.abs(c.balance||0),0)/withLim.reduce((s,c)=>s+c.limit,0);
+    const pen=u>=0.9?220:u>=0.7?170:u>=0.5?120:u>=0.3?70:u>=0.1?25:0;
+    score-=pen;
+    factors.push({id:'util',label:'Credit utilization '+Math.round(u*100)+'%',severity:u>=0.5?'warn':u>=0.3?'info':'ok',detail:'Cards carry '+_finFmt(withLim.reduce((s,c)=>s+Math.abs(c.balance||0),0),0)+' of '+_finFmt(withLim.reduce((s,c)=>s+c.limit,0),0)+' in limits. Under 30% helps most scores; under 10% is ideal.'});
+  } else if(cards.length){
+    factors.push({id:'nolim',label:'No credit limits set',severity:'info',detail:'Add limits in Accounts → ✏ so utilization (the biggest score factor) can be estimated.'});
+  }
+  // debt vs annual expected income
+  const debt=_finDebt();
+  const annualInc=(f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,_finYM(new Date())),0)*12;
+  if(annualInc>0&&debt>0){
+    const dti=debt/annualInc;
+    const pen=dti>=0.8?90:dti>=0.5?60:dti>=0.3?30:0;
+    score-=pen;
+    if(pen)factors.push({id:'dti',label:'Debt is '+Math.round(dti*100)+'% of annual income',severity:dti>=0.5?'warn':'info',detail:_finFmt(debt,0)+' debt against ~'+_finFmt(annualInc,0)+'/yr expected income.'});
+  }
+  // missed bills this month (payment-history proxy)
+  const ym=_finYM(new Date());
+  const missed=f.bills.filter(b=>b.active!==false&&b.lastPaidYM!==ym&&Math.min(28,Number(b.dueDay)||1)<new Date().getDate()-2&&!_finTxForBill(b,35).length);
+  if(missed.length){score-=Math.min(120,missed.length*40);factors.push({id:'missed',label:missed.length+' bill'+(missed.length===1?'':'s')+' possibly missed this month',severity:'warn',detail:missed.map(b=>b.name).slice(0,4).join(', ')+' — on-time payment history is the other big score factor.'});}
+  score=Math.max(300,Math.round(score));
+  const worst=factors.filter(x=>x.severity==='warn')[0];
+  return {score,factors,worst:worst?worst.label:'—'};
+}
+// ── run-all + auto-run ─────────────────────────────────────────────────
+function _finAgentsRunAll(){
+  const out=[];
+  try{_finAgentBillsRun(out);}catch(_){}
+  try{_finAgentBudgetRun(out);}catch(_){}
+  try{_finAgentInvestRun(out);}catch(_){}
+  try{_finAgentHealthRun(out);}catch(_){}
+  _finAgentCommit(out);
+  return out;
+}
+function _finAgentsAutoRun(){
+  try{
+    if(!D.finance||typeof D.finance!=='object')return;
+    if(_finShared!=null)return;
+    const f=ensureFin();
+    const last=f.settings.agentLastRun?new Date(f.settings.agentLastRun).getTime():0;
+    if(Date.now()-last<20*3600*1000)return; // ~daily
+    _finAgentsRunAll();
+  }catch(_){}
+}
+// ── UI ─────────────────────────────────────────────────────────────────
+function _finAgentsHtml(){
+  const f=_finData(); const ro=_finRO();
+  const findings=_finFindings().filter(x=>!x.dismissed);
+  const last=f.settings.agentLastRun?new Date(f.settings.agentLastRun).toLocaleString():null;
+  const est=_finCreditEstimate();
+  const byAgent=id=>findings.filter(x=>x.agent===id);
+  const sevChip=s=>s==='warn'?'<span class="fin-chip" style="color:var(--warn)">⚠</span>':'<span class="fin-chip" style="color:var(--ac)">ℹ</span>';
+  const findingRow=(x,gi)=>`<div class="fin-row" style="align-items:flex-start">${sevChip(x.severity)}<span class="nm" style="white-space:normal"><b>${esc(x.title)}</b><div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(x.body)}</div></span><span style="font-size:10px;color:var(--t3);flex-shrink:0">${esc(x.at||'')}</span>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Dismiss — stays hidden unless the data changes" onclick="finDismissFinding(${gi})">✕</span>`}</div>`;
+  const agentAI={
+    bills:'Review my bills: which look wrong, which are creeping, and what should I do this week?',
+    budget:'Act as my budgeting agent: analyze my spending patterns, name the top 3 saving opportunities with dollar amounts, and question any subscriptions.',
+    invest:'Review my portfolio allocation, concentration and retirement trajectory. Educational analysis only — no specific securities to buy or sell; remind me to confirm tax ideas with a professional.',
+    health:'Review my financial health: unusual activity, credit-health factors, and the top risks I should address this month.',
+  };
+  return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
+      <span class="nm"><b>4 agents</b> watch your money and post findings here + in the 🔔 bell.${last?` Last run ${esc(last)}.`:''} They re-run daily and whenever you press Run.</span>
+      ${ro?'':`<button class="btn btn-p" style="height:26px;font-size:11px" onclick="_finAgentsRunAll();renderMoney();toast('🤖 Agents ran — findings updated.')">▶ Run all now</button>`}
+    </div></div>
+  <div class="fin-grid">
+  ${_finAgents().map(a=>{
+    const rows=byAgent(a.id);
+    const extra=a.id==='invest'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">
+        <button class="btn btn-s" style="height:24px;font-size:11px" onclick="finOpenInvestments()">💼 Holdings (${f.investments.length})</button>
+        <span class="fin-chip">portfolio ${_finFmt(f.investments.reduce((s,h)=>s+(Number(h.value)||0),0),0)}</span>
+      </div><div style="font-size:10px;color:var(--t3);margin-bottom:6px">No live market data — values are what you enter. Educational analysis, not licensed financial advice; confirm decisions with a professional.</div>`
+      :a.id==='health'&&est?`<div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+        <div style="font-size:26px;font-weight:750;color:${est.score>=740?'var(--ok)':est.score>=650?'var(--warn)':'var(--red)'}">${est.score}</div>
+        <div style="font-size:10px;color:var(--t3);line-height:1.5">LevelUp credit-health <b>estimate</b> from in-app data —<br><b>NOT your FICO.</b> Real score free via your card issuer or annualcreditreport.com.</div>
+      </div>${est.factors.map(x=>`<div style="font-size:11px;color:${x.severity==='warn'?'var(--warn)':'var(--t2)'};margin:2px 0">• ${esc(x.label)}</div>`).join('')}`
+      :'';
+    return `<div class="fin-card"><h3>${a.icon} ${esc(a.name)}</h3>
+      <div style="font-size:11px;color:var(--t3);line-height:1.55;margin-bottom:6px">${esc(a.desc)}</div>
+      ${extra}
+      ${rows.length?rows.slice(0,8).map(x=>findingRow(x,_finFindings().indexOf(x))).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing to flag right now ✓</div>'}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-s" style="height:24px;font-size:11px;color:var(--purp)" onclick="_finAI('${_jsAttr(agentAI[a.id])}',null,'fin-agent-ai-${a.id}','${_jsAttr(a.name)} thinking')">✨ AI deep-dive</button>
+      </div><div id="fin-agent-ai-${a.id}"></div>
+    </div>`;}).join('')}
+  </div>
+  <div style="font-size:10px;color:var(--t3);margin-top:12px;line-height:1.6">Agents analyze only the data in this app. AI deep-dives use your configured AI provider (Settings → AI Features). Nothing here is licensed financial, investment, tax or credit advice.</div>`;
+}
+function finDismissFinding(i){
+  if(_finGuard())return;
+  const x=_finFindings()[i]; if(!x)return;
+  x.dismissed=true; _finSave(); renderMoney();
+}
+// ── holdings editor ────────────────────────────────────────────────────
+function finOpenInvestments(){
+  if(_finGuard())return;
+  const f=_finData();
+  const t=f.settings.targetAllocation||{stocks:60,bonds:30,cash:10};
+  const r=f.settings.retirement||{};
+  _finModal(`<div style="padding:16px;max-width:560px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">💼 Investment holdings</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Enter what you hold and its current value (no live feed — update values when you check your accounts). The agent analyzes allocation, concentration and your retirement trajectory.</div>
+    <div id="finv-rows" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
+      ${f.investments.map(h=>`<div class="fin-row"><span class="nm"><b>${esc(h.name)}</b> <span class="fin-chip">${esc(h.class||'other')}</span></span><span style="font-weight:650">${_finFmt(h.value||0,0)}</span><span style="cursor:pointer;color:var(--t3)" onclick="finDelHolding('${esc(String(h.id))}')">✕</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">No holdings yet.</div>'}
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Name</label><input class="inp" id="finv-name" placeholder="e.g. Fidelity 401k, VTI, Bitcoin"></div>
+      <div class="field"><label>Class</label><select class="inp" id="finv-class">${['stocks','bonds','cash','realestate','crypto','other'].map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="field"><label>Value</label><input class="inp" id="finv-value" type="number" min="0" step="1"></div>
+    </div>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="finAddHolding()">＋ Add holding</button>
+    <div style="border-top:1px dashed var(--bd1);margin:12px 0;padding-top:10px">
+      <div style="font-size:11px;font-weight:700;margin-bottom:6px">Target allocation (%)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
+        ${['stocks','bonds','cash'].map(c=>`<label>${c} <input class="inp" id="finv-t-${c}" type="number" min="0" max="100" value="${t[c]||0}" style="width:58px;height:24px;font-size:11px"></label>`).join('')}
+      </div>
+      <div style="font-size:11px;font-weight:700;margin:10px 0 6px">Retirement plan</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
+        <label>Current age <input class="inp" id="finv-r-age" type="number" min="18" max="90" value="${r.currentAge||''}" style="width:58px;height:24px;font-size:11px"></label>
+        <label>Retire at <input class="inp" id="finv-r-target" type="number" min="30" max="90" value="${r.targetAge||''}" style="width:58px;height:24px;font-size:11px"></label>
+        <label>Adding /mo <input class="inp" id="finv-r-contrib" type="number" min="0" value="${r.monthlyContribution||''}" style="width:76px;height:24px;font-size:11px"></label>
+        <label>Growth %/yr <input class="inp" id="finv-r-growth" type="number" min="0" max="15" step="0.5" value="${r.growthPct||6}" style="width:58px;height:24px;font-size:11px"></label>
+      </div>
+    </div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finSaveInvestSettings()">Save</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Close</button>
+    </div></div>`);
+}
+function finAddHolding(){
+  if(_finGuard())return;
+  const g=x=>document.getElementById(x);
+  const name=g('finv-name').value.trim(); const val=parseFloat(g('finv-value').value)||0;
+  if(!name||val<=0){toast('Name and value, please.');return;}
+  _finData().investments.push({id:String(Date.now()),name,class:g('finv-class').value,value:val});
+  _finSave(); finOpenInvestments();
+}
+function finDelHolding(id){
+  if(_finGuard())return;
+  const f=_finData(); const i=f.investments.findIndex(h=>String(h.id)===String(id));
+  if(i>=0){f.investments.splice(i,1);_finSave();finOpenInvestments();}
+}
+function finSaveInvestSettings(){
+  if(_finGuard())return;
+  const f=_finData(); const g=x=>parseFloat((document.getElementById(x)||{}).value)||0;
+  f.settings.targetAllocation={stocks:g('finv-t-stocks'),bonds:g('finv-t-bonds'),cash:g('finv-t-cash')};
+  f.settings.retirement={currentAge:g('finv-r-age')||null,targetAge:g('finv-r-target')||null,monthlyContribution:g('finv-r-contrib'),growthPct:g('finv-r-growth')||6};
+  _finSave(); _finCloseModal(); _finAgentsRunAll(); renderMoney();
+  toast({type:'success',title:'💼 Saved',msg:'Investment agent re-ran with the new plan.'});
+}
+// feed agent warn-findings into the notification bell
+function _finAgentNotifs(){
+  try{
+    if(!D.finance||typeof D.finance!=='object')return [];
+    return _finFindings().filter(x=>!x.dismissed&&x.severity==='warn').slice(-8).map(x=>({
+      id:'finag-'+x.fingerprint, type:'warning', icon:(_finAgents().find(a=>a.id===x.agent)||{}).icon||'🤖',
+      title:x.title, body:x.body.slice(0,120), time:x.at||'', read:false,
+      action:()=>{toggleNotifPanel();nav('money');setTimeout(()=>{_finTab='agents';renderMoney();},250);}
+    }));
+  }catch(_){return [];}
 }
