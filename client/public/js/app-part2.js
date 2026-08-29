@@ -15147,24 +15147,193 @@ function _finForecastRows(nMonths){
   }
   return rows;
 }
+/* Per-debt payment plans (build -175). Each credit/loan account may carry
+   a.payPlan = { mode:'auto'|'fixed'|'target'|'schedule',
+                 fixed:500, targetMonths:24,
+                 schedule:{'2026-09':800,...}, scheduleDefault:200 }.
+   Absent plan (or mode 'auto') = the original -170 behaviour: the payment
+   is the bill whose name matches the account. Because the plan hangs off
+   the account object itself, every FUTURE credit/loan (manual, CSV or
+   bank-synced) gets the ✎ Plan editor automatically. finSaveAcct merges
+   via Object.assign so ✏ edits never drop the plan. */
+function _finDebtBill(f,a){
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const an=norm(a.name);
+  return f.bills.find(b=>{const bn=norm(b.name);return bn&&(an.includes(bn)||bn.includes(an.split(' ').slice(0,2).join(' ')));})||null;
+}
+function _finTargetPay(B,apr,n){
+  if(!(n>0))return 0; const r=(apr||0)/100/12;
+  return r>0?B*r/(1-Math.pow(1+r,-n)):B/n;
+}
+function _finDebtPayAt(f,a,ym){
+  const p=a.payPlan;
+  if(!p||!p.mode||p.mode==='auto'){ const b=_finDebtBill(f,a); return b?Number(b.amount)||0:0; }
+  if(p.mode==='fixed')return Number(p.fixed)||0;
+  if(p.mode==='target')return _finTargetPay(Math.abs(a.balance||0),a.apr,Number(p.targetMonths)||0);
+  if(p.mode==='schedule'){ const s=p.schedule||{}; return (ym in s)?(Number(s[ym])||0):(Number(p.scheduleDefault)||0); }
+  return 0;
+}
+/* Month-stepping payoff sim (accrue interest, then pay — same convention
+   as the -172 what-if simulator). Handles varying per-month payments,
+   which the old closed-form amortization could not. 24 consecutive
+   months of no progress ⇒ the plan never clears the balance. */
+function _finDebtSim(a,f){
+  const B=Math.abs(a.balance||0); const r=(a.apr||0)/100/12;
+  const y0=new Date().getFullYear(),m0=new Date().getMonth();
+  let bal=B,interest=0,paid=0,stall=0;
+  for(let i=0;i<600&&bal>0.005;i++){
+    const ym=_finYM(new Date(y0,m0+i,1));
+    const acc=bal*r; bal+=acc; interest+=acc;
+    const p=Math.min(Number(_finDebtPayAt(f,a,ym))||0,bal); bal-=p; paid+=p;
+    if(p<=acc+0.005)stall++; else stall=0;
+    if(stall>=24)break;
+    if(bal<=0.005)return {months:i+1,interest:Math.round(interest),avgPay:paid/(i+1)};
+  }
+  return {months:null,interest:0,avgPay:0};
+}
 function _finDebtPayoff(){
   const f=_finData();
-  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const nowYM=_finYM(new Date());
   return f.accounts.filter(a=>['credit','loan'].includes(a.type)&&Math.abs(a.balance||0)>0).map(a=>{
-    const an=norm(a.name);
-    const bill=f.bills.find(b=>{const bn=norm(b.name);return bn&&(an.includes(bn)||bn.includes(an.split(' ').slice(0,2).join(' ')));});
-    const pay=bill?Number(bill.amount)||0:0;
-    let months=null,interest=0;
     const B=Math.abs(a.balance||0);
-    if(pay>0){
-      if(a.apr&&a.apr>0){
-        const r=a.apr/100/12;
-        if(pay>B*r){ months=Math.ceil(-Math.log(1-r*B/pay)/Math.log(1+r)); interest=Math.round(pay*months-B); }
-      } else months=Math.ceil(B/pay);
-    }
+    const mode=(a.payPlan&&a.payPlan.mode)||'auto';
+    const sim=_finDebtSim(a,f);
+    const curPay=Number(_finDebtPayAt(f,a,nowYM))||0;
+    const months=sim.months, interest=sim.interest;
+    // pay = representative monthly (what-if sim + reports treat it as level)
+    const pay=months!=null?Math.round(sim.avgPay):Math.round(curPay);
     const payoff=months!=null?_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+months,1)):null;
-    return {name:a.name,balance:B,pay,months,payoff,interest,apr:a.apr||null};
+    return {id:a.id,name:a.name,balance:B,pay,curPay:Math.round(curPay),months,payoff,interest,apr:a.apr||null,planMode:mode};
   }).sort((x,y)=>(x.months==null?1e9:x.months)-(y.months==null?1e9:y.months));
+}
+// ── per-debt payment-plan editor (build -175) ──────────────────────────
+const _FIN_PLAN_GRID=24; // months of explicit mapping; scheduleDefault covers the tail
+function finOpenPayPlan(accId){
+  if(_finGuard())return;
+  const f=_finData(); const a=f.accounts.find(x=>String(x.id)===String(accId)); if(!a)return;
+  const aid=_jsAttr(String(a.id));
+  const p=a.payPlan||{}; const mode=p.mode||'auto';
+  const bill=_finDebtBill(f,a);
+  const y0=new Date().getFullYear(),m0=new Date().getMonth();
+  const lbl=ym=>{const q=ym.split('-');return new Date(Number(q[0]),Number(q[1])-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'});};
+  const sched=p.schedule||{};
+  const cells=Array.from({length:_FIN_PLAN_GRID},(_,i)=>{
+    const ym=_finYM(new Date(y0,m0+i,1));
+    const v=(ym in sched)?sched[ym]:'';
+    return `<div><label style="font-size:10px;color:var(--t3);display:block">${lbl(ym)}</label>
+      <input class="inp" id="fpp-s-${i}" data-ym="${ym}" type="number" min="0" step="0.01" value="${v===''?'':v}" placeholder="default" style="height:24px;font-size:11px" oninput="finPayPlanPreview('${aid}')"></div>`;
+  }).join('');
+  const sec=m=>`display:${mode===m?'':'none'}`;
+  _finModal(`<div style="padding:16px;max-width:560px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">✎ Payment plan — ${esc(a.name)}</h2>
+    <div class="fin-row" style="font-size:12px;margin-bottom:10px">
+      <span class="nm">Owed <b style="color:var(--red)">${_finFmt(Math.abs(a.balance||0),0)}</b></span>
+      <span style="font-size:11px;color:var(--t3)">APR %</span>
+      <input class="inp" id="fpp-apr" type="number" min="0" step="0.01" value="${a.apr||''}" placeholder="e.g. 24.99" style="width:90px;height:26px;font-size:11px" oninput="finPayPlanPreview('${aid}')" title="Used for interest math everywhere — payoff, what-if, agents">
+    </div>
+    <div class="field"><label>How do you want to pay this down?</label>
+      <select class="inp" id="fpp-mode" onchange="finPayPlanMode('${aid}')">
+        <option value="auto" ${mode==='auto'?'selected':''}>Auto — use the bill that matches this account</option>
+        <option value="fixed" ${mode==='fixed'?'selected':''}>Fixed amount every month</option>
+        <option value="target" ${mode==='target'?'selected':''}>Pay off in N months (spread evenly)</option>
+        <option value="schedule" ${mode==='schedule'?'selected':''}>Map month by month</option>
+      </select></div>
+    <div id="fpp-sec-auto" style="${sec('auto')};font-size:12px;color:var(--t2);margin:8px 0">
+      ${bill?`Matched bill: <b>${esc(bill.name)}</b> — ${_finFmt(bill.amount||0,0)}/mo. Change the bill's amount in the Bills tab, or pick another mode here.`
+            :`<span style="color:var(--warn)">⚠ No bill name-matches this account.</span> Add a bill whose name contains "${esc(a.name)}", or pick another mode.`}</div>
+    <div id="fpp-sec-fixed" style="${sec('fixed')};margin:8px 0">
+      <div class="field"><label>Monthly payment</label><input class="inp" id="fpp-fixed" type="number" min="0" step="0.01" value="${p.fixed!=null?p.fixed:''}" oninput="finPayPlanPreview('${aid}')"></div></div>
+    <div id="fpp-sec-target" style="${sec('target')};margin:8px 0">
+      <div class="fin-row"><div class="field" style="flex:0 0 140px"><label>Months to payoff</label><input class="inp" id="fpp-target" type="number" min="1" step="1" value="${p.targetMonths||12}" oninput="finPayPlanPreview('${aid}')"></div>
+      <span id="fpp-target-pay" style="font-size:12px;font-weight:650"></span></div>
+      <div style="font-size:11px;color:var(--t3)">The required level payment is recomputed from the current balance and APR.</div></div>
+    <div id="fpp-sec-schedule" style="${sec('schedule')};margin:8px 0">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;margin-bottom:8px">
+        <input class="inp" id="fpp-fill" type="number" min="0" step="0.01" placeholder="amount" style="width:90px;height:24px;font-size:11px">
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanFillAll('${aid}')">Set all</button>
+        <span style="color:var(--t3)">·</span>
+        <input class="inp" id="fpp-spread-total" type="number" min="0" step="0.01" placeholder="total $" style="width:90px;height:24px;font-size:11px">
+        <span style="color:var(--t3)">over</span>
+        <input class="inp" id="fpp-spread-n" type="number" min="1" max="${_FIN_PLAN_GRID}" step="1" placeholder="months" style="width:70px;height:24px;font-size:11px">
+        <button class="btn btn-s" style="height:24px;font-size:10px" onclick="finPayPlanSpread('${aid}')">Spread</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px;max-height:200px;overflow-y:auto;padding:2px">${cells}</div>
+      <div class="fin-row" style="margin-top:8px;font-size:11px">
+        <span class="nm" style="color:var(--t3)">Months after ${lbl(_finYM(new Date(y0,m0+_FIN_PLAN_GRID-1,1)))} — and any month left blank — pay the default:</span>
+        <input class="inp" id="fpp-sdef" type="number" min="0" step="0.01" value="${p.scheduleDefault!=null?p.scheduleDefault:''}" placeholder="0" style="width:90px;height:24px;font-size:11px" oninput="finPayPlanPreview('${aid}')">
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Enter 0 to deliberately skip a month. Blank = use the default.</div></div>
+    <div id="fpp-preview" style="font-size:12px;margin:10px 0 2px;min-height:18px"></div>
+    <div class="dr-actions" style="margin-top:8px">
+      <button class="btn btn-p" onclick="finSavePayPlan('${aid}')">Save plan</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+  finPayPlanPreview(String(a.id));
+}
+function finPayPlanMode(accId){
+  const mode=(document.getElementById('fpp-mode')||{}).value;
+  ['auto','fixed','target','schedule'].forEach(m=>{const el=document.getElementById('fpp-sec-'+m);if(el)el.style.display=m===mode?'':'none';});
+  finPayPlanPreview(accId);
+}
+function _finPayPlanFromForm(){
+  const g=x=>document.getElementById(x);
+  const mode=(g('fpp-mode')||{}).value||'auto';
+  const aprV=parseFloat((g('fpp-apr')||{}).value);
+  const apr=isFinite(aprV)&&aprV>0?aprV:null;
+  let plan=null;
+  if(mode==='fixed')plan={mode:'fixed',fixed:Math.max(0,parseFloat((g('fpp-fixed')||{}).value)||0)};
+  else if(mode==='target')plan={mode:'target',targetMonths:Math.max(1,parseInt((g('fpp-target')||{}).value)||1)};
+  else if(mode==='schedule'){
+    const sched={};
+    document.querySelectorAll('[id^="fpp-s-"]').forEach(inp=>{const ym=inp.getAttribute('data-ym');if(!ym)return;if(inp.value!=='')sched[ym]=Math.max(0,parseFloat(inp.value)||0);});
+    plan={mode:'schedule',schedule:sched};
+    const def=parseFloat((g('fpp-sdef')||{}).value); if(isFinite(def)&&def>0)plan.scheduleDefault=def;
+  }
+  return {mode,apr,plan};
+}
+function finPayPlanFillAll(accId){
+  const v=parseFloat((document.getElementById('fpp-fill')||{}).value);
+  if(!isFinite(v)||v<0){toast('Enter an amount to fill with.');return;}
+  document.querySelectorAll('[id^="fpp-s-"]').forEach(inp=>{inp.value=String(Math.round(v*100)/100);});
+  finPayPlanPreview(accId);
+}
+function finPayPlanSpread(accId){
+  const tot=parseFloat((document.getElementById('fpp-spread-total')||{}).value);
+  const n=parseInt((document.getElementById('fpp-spread-n')||{}).value);
+  if(!isFinite(tot)||tot<=0||!(n>0)){toast('Enter the total and how many months to spread it over.');return;}
+  const cells=Array.from(document.querySelectorAll('[id^="fpp-s-"]'));
+  if(n>cells.length){toast('The grid maps '+cells.length+' months — for longer horizons use "Pay off in N months" mode.');return;}
+  const per=Math.round(tot/n*100)/100;
+  cells.forEach((inp,i)=>{if(i<n)inp.value=String(per);});
+  finPayPlanPreview(accId);
+}
+function finPayPlanPreview(accId){
+  const f=_finData(); const a=f.accounts.find(x=>String(x.id)===String(accId)); if(!a)return;
+  const r=_finPayPlanFromForm();
+  const tmp=Object.assign({},a,{apr:r.apr});
+  if(r.plan)tmp.payPlan=r.plan; else delete tmp.payPlan;
+  if(r.mode==='target'){
+    const el=document.getElementById('fpp-target-pay');
+    if(el)el.textContent='≈ '+_finFmt(_finTargetPay(Math.abs(a.balance||0),r.apr,(r.plan&&r.plan.targetMonths)||1),0)+'/mo required';
+  }
+  const out=document.getElementById('fpp-preview'); if(!out)return;
+  const sim=_finDebtSim(tmp,f);
+  const anyPay=r.mode==='fixed'?((r.plan.fixed||0)>0)
+    :r.mode==='target'?(Math.abs(a.balance||0)>0)
+    :r.mode==='schedule'?(Object.keys(r.plan.schedule||{}).some(k=>Number(r.plan.schedule[k])>0)||Number(r.plan.scheduleDefault||0)>0)
+    :(Number(_finDebtPayAt(f,tmp,_finYM(new Date())))||0)>0;
+  if(sim.months!=null)out.innerHTML=`<span style="color:var(--ok)">→ Paid off in <b>${sim.months} mo</b> (${_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+sim.months,1))}) · ~${_finFmt(sim.interest,0)} interest · avg ${_finFmt(sim.avgPay,0)}/mo</span>`;
+  else if(!anyPay)out.innerHTML=`<span style="color:var(--t3)">No payments mapped yet.</span>`;
+  else out.innerHTML=`<span style="color:var(--red)">⚠ These payments never clear the balance — interest outpaces them.</span>`;
+}
+function finSavePayPlan(accId){
+  if(_finGuard())return;
+  const f=_finData(); const a=f.accounts.find(x=>String(x.id)===String(accId)); if(!a)return;
+  const r=_finPayPlanFromForm();
+  a.apr=r.apr;
+  if(r.mode==='auto')delete a.payPlan; else a.payPlan=r.plan;
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'Payment plan saved',msg:a.name,duration:1800});
 }
 function _finForecastHtml(){
   const rows=_finForecastRows(12);
@@ -15189,13 +15358,19 @@ function _finForecastHtml(){
       <div style="font-size:11px;color:var(--t3)">Bars: monthly net (income − planned spend) · Line: running cash position (starts from current asset balances)</div>
     </div>
     <div class="fin-card"><h3>💳 Debt payoff at current payments</h3>
-      ${debts.length?debts.map(d=>`<div class="fin-row">
-        <span class="nm">${esc(d.name)}${d.apr?` <span class="fin-chip">${d.apr}%</span>`:''}</span>
+      ${debts.length?debts.map(d=>{
+        const payChip=d.planMode==='schedule'?((d.pay?'~'+_finFmt(d.pay,0)+'/mo':'no payments mapped')+' · 📅 mapped')
+          :d.planMode==='fixed'?(_finFmt(d.curPay,0)+'/mo · fixed')
+          :d.planMode==='target'?(_finFmt(d.curPay,0)+'/mo · target')
+          :(d.curPay?_finFmt(d.curPay,0)+'/mo':'no payment mapped');
+        return `<div class="fin-row">
+        <span class="nm">${esc(d.name)}${d.apr?` <span class="fin-chip">${d.apr}%</span>`:` <span class="fin-chip" style="color:var(--warn)" title="No APR set — interest is not modeled for this debt. Set it in ✎ Plan.">APR?</span>`}</span>
         <span style="color:var(--red);font-weight:650">${_finFmt(d.balance,0)}</span>
-        <span class="fin-chip">${d.pay?_finFmt(d.pay,0)+'/mo':'no payment mapped'}</span>
-        <span class="fin-chip" style="${d.months!=null?'color:var(--ok)':''}">${d.months!=null?(d.months+' mo → '+d.payoff):'—'}</span>
-      </div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No debts — nothing to pay off 🎉</div>'}
-      ${debts.some(d=>d.interest>0)?`<div style="font-size:11px;color:var(--t3);margin-top:6px">Interest estimates use each account's APR where set.</div>`:''}
+        <span class="fin-chip">${payChip}</span>
+        <span class="fin-chip" style="${d.months!=null?'color:var(--ok)':''}" title="${d.months!=null?('~'+_finFmt(d.interest,0)+' interest to payoff'):(d.curPay||d.pay?'These payments never clear the balance — interest outpaces them':'Map a payment with ✎ Plan')}">${d.months!=null?(d.months+' mo → '+d.payoff):'—'}</span>
+        ${_finRO()?'':`<button class="btn btn-s" style="height:22px;font-size:10px;padding:0 7px" onclick="finOpenPayPlan('${_jsAttr(String(d.id))}')">✎ Plan</button>`}
+      </div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No debts — nothing to pay off 🎉</div>'}
+      ${debts.length?`<div style="font-size:11px;color:var(--t3);margin-top:6px">✎ Plan maps each debt's payments: the matching bill (auto), a fixed amount, payoff-in-N-months, or month-by-month. Interest uses each account's APR where set.</div>`:''}
     </div>
   </div>
   <div id="fin-whatif">${(typeof _finWhatIfHtml==='function')?_finWhatIfHtml():''}</div>
