@@ -1048,10 +1048,10 @@ function renderSettingsHTML(){
       <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
   </div>
-  <!-- Bank Connections (Sophtron) --><div id="sp-14" class="sp" style="display:none">
+  <!-- Bank Connections (SimpleFIN Bridge) --><div id="sp-14" class="sp" style="display:none">
     <h2 style="font-size:16px;font-weight:700;margin-bottom:4px">🏦 Bank Connections</h2>
-    <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Connect your banks and cards through <b>Sophtron</b> so the Money page can pull balances and transactions automatically. Your Sophtron AccessKey is stored server-side and never shown again; bank credentials entered while linking pass straight to Sophtron and are never stored in LevelUp.</p>
-    <div id="sophtron-panel-body" style="font-size:12px;color:var(--t3)">Loading…</div>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:14px">Connect your banks and cards through <b>SimpleFIN Bridge</b> so the Money page can pull balances and transactions automatically. Your bank credentials and any MFA live entirely at the bridge — LevelUp only ever holds a read-only access key, stored server-side and never shown again.</p>
+    <div id="simplefin-panel-body" style="font-size:12px;color:var(--t3)">Loading…</div>
   </div>
   <!-- Workspace --><div id="sp-13" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">Workspace layout</h3>
@@ -1203,7 +1203,7 @@ function showSetTab(el,id){
   if(id==='sp-8')loadOnenoteStatus();
   if(id==='sp-9')loadSyncPanel();
   if(id==='sp-13'&&typeof _renderWorkspacePanel==='function')_renderWorkspacePanel();
-  if(id==='sp-14'&&typeof _hydrateSophtronPanel==='function')_hydrateSophtronPanel();
+  if(id==='sp-14'&&typeof _hydrateSimplefinPanel==='function')_hydrateSimplefinPanel();
 }
 
 // ─── External Sources (Smartsheet + Nifty) Settings UI ─────────────────────
@@ -15303,12 +15303,14 @@ function finReportAI(id){
   _finAI('Give sharp insights on this "'+rep.name+'" report: what stands out, what needs action, and one concrete recommendation. REPORT CONTENT: '+plain,null,'fin-report-ai','Reading the report');
 }
 
-/* ── Money: Sophtron bank sync + rules + CSV import + splits +
-      reconciliation + recurring detection (build -171) ─────────────────
+/* ── Money: SimpleFIN bank sync + rules + CSV import + splits +
+      reconciliation + recurring detection (build -171, SimpleFIN -174) ──
    Getting data IN without typing. All imported transactions carry a
-   source marker (sophtronId / csv) and dedupe on re-import. Category
-   RULES (payee substring → category) are shared by Sophtron sync, CSV
-   import and manual entry. */
+   source marker (bankTxId / csv) and dedupe on re-import. Category
+   RULES (payee substring → category) are shared by bank sync, CSV
+   import and manual entry. Bank data comes from SimpleFIN Bridge:
+   banks are linked at the bridge website, not in-app — the client just
+   lists accounts and pulls transactions through the server router. */
 
 // ── rules engine ───────────────────────────────────────────────────────
 function _finRules(){ const f=_finData(); if(!Array.isArray(f.rules))f.rules=[]; return f.rules; }
@@ -15343,197 +15345,141 @@ function finAddRule(){
   _finSave(); finOpenRules();
 }
 // ── transaction dedupe key ─────────────────────────────────────────────
-function _finTxKey(t){ return t.sophtronId?('s:'+t.sophtronId):(String(t.date||'')+'|'+Math.round((t.amount||0)*100)+'|'+String(t.payee||'').toLowerCase().slice(0,40)); }
+function _finTxKey(t){ const bid=t.bankTxId||t.sophtronId; return bid?('s:'+bid):(String(t.date||'')+'|'+Math.round((t.amount||0)*100)+'|'+String(t.payee||'').toLowerCase().slice(0,40)); }
 function _finTxKeySet(){ const s=new Set(); _finData().transactions.forEach(t=>s.add(_finTxKey(t))); return s; }
 
-// ── Sophtron: Settings panel ───────────────────────────────────────────
-async function _hydrateSophtronPanel(){
-  const body=document.getElementById('sophtron-panel-body'); if(!body)return;
-  let cfg={configured:false,sophtronUserId:null};
-  try{ const res=await _trpc('sophtron.getConfig',undefined,'query'); if(res&&res.ok)cfg=res; }catch(_){}
+// ── SimpleFIN: Settings panel ──────────────────────────────────────────
+async function _hydrateSimplefinPanel(){
+  const body=document.getElementById('simplefin-panel-body'); if(!body)return;
+  let cfg={configured:false,host:null};
+  try{ const res=await _trpc('simplefin.getConfig',undefined,'query'); if(res&&res.ok)cfg=res; }catch(_){}
   body.innerHTML=`
     <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;max-width:560px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:8px">${cfg.configured?`✅ Connected as Sophtron user <code>${esc(cfg.sophtronUserId||'')}</code>`:'Not configured yet'}</div>
-      <div class="field"><label>Sophtron UserId</label><input class="inp" id="soph-userid" value="${esc(cfg.sophtronUserId||'')}" placeholder="Your Sophtron API UserId (GUID)"></div>
-      <div class="field"><label>Sophtron AccessKey ${cfg.configured?'<span style="color:var(--t3);font-weight:400">(stored — enter again only to replace)</span>':''}</label><input class="inp" id="soph-accesskey" type="password" placeholder="${cfg.configured?'••••••••  (unchanged unless you type a new one)':'Base64 AccessKey from your Sophtron dashboard'}"></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        <button class="btn btn-p" style="height:28px;font-size:11px" onclick="sophSaveConfig()">Save</button>
-        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="sophTest()">🔌 Test connection</button>
-        ${cfg.configured?'<button class="btn btn-d" style="height:28px;font-size:11px" onclick="sophClear()">Remove</button>':''}
+      ${cfg.configured?`
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">✅ Connected to <code>${esc(cfg.host||'SimpleFIN Bridge')}</code></div>
+      <div style="font-size:11px;color:var(--t3);margin-bottom:10px;line-height:1.6">Add, fix or remove bank logins at the bridge website — changes show up here on the next sync. To move to a different bridge account, disconnect and paste a fresh setup token.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="sfTest()">🔌 Test connection</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="window.open('https://bridge.simplefin.org/','_blank')">🌐 Open SimpleFIN Bridge</button>
+        <button class="btn btn-d" style="height:28px;font-size:11px" onclick="sfDisconnect()">Disconnect</button>
       </div>
-      <div id="soph-test-result" style="font-size:12px;margin-top:8px"></div>
-      <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.6">Get credentials at <b>sophtron.com</b> → developer dashboard (free tier: 10,000 requests/month). Once connected, link banks and sync from <b>Money → Accounts → Bank connections</b>.</div>
+      <div id="sf-test-result" style="font-size:12px;margin-top:8px"></div>`
+      :`
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">Not connected yet</div>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:10px;line-height:1.7">
+        1. Create an account at <b>bridge.simplefin.org</b> and connect your banks there.<br>
+        2. On the bridge, choose <b>New App Connection</b> to get a <b>setup token</b> (a long code).<br>
+        3. Paste the token below — it's one-time and turns into a permanent read-only key stored on the server.</div>
+      <div class="field"><label>SimpleFIN setup token</label><textarea class="inp" id="sf-token" style="min-height:64px;font-family:monospace;font-size:11px" placeholder="Paste the setup token here" autocomplete="off"></textarea></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-p" style="height:28px;font-size:11px" onclick="sfConnect()">Connect</button>
+        <button class="btn btn-s" style="height:28px;font-size:11px" onclick="window.open('https://bridge.simplefin.org/','_blank')">🌐 Open SimpleFIN Bridge</button>
+      </div>
+      <div id="sf-test-result" style="font-size:12px;margin-top:8px"></div>`}
+      <div style="font-size:11px;color:var(--t3);margin-top:10px;line-height:1.6">Once connected, your bank accounts appear under <b>Money → Accounts → Bank connections</b> — add each to Money and hit ⟳ Sync to pull transactions.</div>
     </div>`;
 }
-async function sophSaveConfig(){
-  const uid=(document.getElementById('soph-userid')||{}).value||'';
-  const key=(document.getElementById('soph-accesskey')||{}).value||'';
-  if(!uid.trim()){toast('Enter your Sophtron UserId.');return;}
-  if(!key.trim()){
-    // key unchanged — only possible when already configured
-    toast('Saved (AccessKey unchanged).');return;
-  }
+async function sfConnect(){
+  const tok=((document.getElementById('sf-token')||{}).value||'').trim();
+  const out=document.getElementById('sf-test-result');
+  if(!tok){toast('Paste your SimpleFIN setup token first.');return;}
+  if(out)out.textContent='Claiming token…';
   try{
-    const res=await _trpc('sophtron.setConfig',{sophtronUserId:uid.trim(),accessKey:key.trim()},'mutation');
-    if(res&&res.ok){toast({type:'success',title:'Sophtron saved',msg:'Now hit Test connection.'});_hydrateSophtronPanel();}
-    else toast({type:'error',title:'Could not save',msg:(res&&res.error)||''});
-  }catch(e){toast({type:'error',title:'Could not save',msg:String(e&&e.message||e).slice(0,150)});}
-}
-async function sophTest(){
-  const out=document.getElementById('soph-test-result');
-  if(out)out.textContent='Testing…';
-  try{
-    const res=await _trpc('sophtron.test',undefined,'mutation');
-    if(out)out.innerHTML=res&&res.ok?`<span style="color:var(--ok)">✅ Connected — ${res.linkedInstitutions} linked institution${res.linkedInstitutions===1?'':'s'}.</span>`:`<span style="color:var(--red)">❌ ${esc((res&&res.error)||'failed')}</span>`;
+    const res=await _trpc('simplefin.setup',{setupToken:tok},'mutation');
+    if(res&&res.ok){toast({type:'success',title:'SimpleFIN connected',msg:'Linked to '+(res.host||'the bridge')+'. Now hit Test connection.'});_sfAccounts=null;_hydrateSimplefinPanel();}
+    else{ if(out)out.innerHTML=`<span style="color:var(--red)">❌ ${esc((res&&res.error)||'setup failed')}</span>`; }
   }catch(e){ if(out)out.innerHTML=`<span style="color:var(--red)">❌ ${esc(String(e&&e.message||e).slice(0,200))}</span>`; }
 }
-async function sophClear(){
-  try{ await _trpc('sophtron.clearConfig',undefined,'mutation'); toast('Sophtron configuration removed.'); _hydrateSophtronPanel(); }catch(_){}
+async function sfTest(){
+  const out=document.getElementById('sf-test-result');
+  if(out)out.textContent='Testing…';
+  try{
+    const res=await _trpc('simplefin.test',undefined,'mutation');
+    if(!out)return;
+    if(res&&res.ok){
+      const errs=(res.errors&&res.errors.length)?`<div style="color:var(--warn);margin-top:4px">⚠ ${res.errors.map(e=>esc(e)).join('<br>⚠ ')}</div>`:'';
+      out.innerHTML=`<span style="color:var(--ok)">✅ Connected — ${res.accountCount} account${res.accountCount===1?'':'s'}${res.orgs&&res.orgs.length?' at '+esc(res.orgs.join(', ')):''}.</span>${errs}`;
+    }else out.innerHTML=`<span style="color:var(--red)">❌ ${esc((res&&res.error)||'failed')}</span>`;
+  }catch(e){ if(out)out.innerHTML=`<span style="color:var(--red)">❌ ${esc(String(e&&e.message||e).slice(0,200))}</span>`; }
 }
-// ── Sophtron: Money → Accounts bank-sync card ──────────────────────────
-let _sophMembers=null;
+async function sfDisconnect(){
+  if(!confirm('Disconnect SimpleFIN? Already-imported transactions stay in Money; only the sync link is removed.'))return;
+  try{ await _trpc('simplefin.clearConfig',undefined,'mutation'); toast('SimpleFIN disconnected.'); _sfAccounts=null; _hydrateSimplefinPanel(); }catch(_){}
+}
+// ── SimpleFIN: Money → Accounts bank-sync card ─────────────────────────
+let _sfAccounts=null;
 async function _finBankCardLoad(){
-  try{ const res=await _trpc('sophtron.listMembers',undefined,'query');
-    _sophMembers=res&&res.ok?{configured:res.configured!==false,members:res.members||[]}:{configured:false,members:[],error:res&&res.error};
-  }catch(e){ _sophMembers={configured:false,members:[],error:String(e&&e.message||e)}; }
+  try{ const res=await _trpc('simplefin.listAccounts',undefined,'query');
+    _sfAccounts=res&&res.ok?{configured:res.configured!==false,accounts:res.accounts||[],errors:res.errors||[],error:res.error||null}
+                          :{configured:res?res.configured!==false:false,accounts:[],errors:[],error:(res&&res.error)||'could not reach the server'};
+  }catch(e){ _sfAccounts={configured:false,accounts:[],errors:[],error:String(e&&e.message||e)}; }
   if(curScreen==='money'&&_finTab==='accounts')renderMoney();
 }
 function _finBankCardHtml(){
   if(_finShared!=null)return '';
-  if(_sophMembers==null){ _finBankCardLoad(); return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3><div style="font-size:11px;color:var(--t3)">Checking Sophtron…</div></div>`; }
-  if(!_sophMembers.configured)return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3>
-    <div style="font-size:12px;color:var(--t2)">Connect your banks so balances and transactions sync automatically. Set up Sophtron first in <b>Settings → Bank Connections</b>.</div>
+  if(_sfAccounts==null){ _finBankCardLoad(); return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3><div style="font-size:11px;color:var(--t3)">Checking SimpleFIN…</div></div>`; }
+  if(!_sfAccounts.configured)return `<div class="fin-card" style="margin-bottom:12px"><h3>🔗 Bank connections</h3>
+    <div style="font-size:12px;color:var(--t2)">Connect your banks so balances and transactions sync automatically. Set up SimpleFIN first in <b>Settings → Bank Connections</b>.</div>
     <button class="btn btn-s" style="height:26px;font-size:11px;margin-top:8px" onclick="nav('settings');setTimeout(()=>{const n=[...document.querySelectorAll('#s-settings .si')].find(x=>x.textContent.includes('Bank Connections'));if(n)n.click();},300)">Open Settings → Bank Connections</button></div>`;
-  const ms=_sophMembers.members;
+  const as=_sfAccounts.accounts;
+  const f=_finData(); const map=f.settings.bankMap||{};
   return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="margin-bottom:6px">
-      <span class="nm" style="font-size:12px;font-weight:700">🔗 Bank connections <span class="fin-chip">Sophtron</span></span>
-      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophOpenLink()">＋ Link a bank</button>
-      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_sophMembers=null;renderMoney()">↻</button>
+      <span class="nm" style="font-size:12px;font-weight:700">🔗 Bank connections <span class="fin-chip">SimpleFIN</span></span>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="window.open('https://bridge.simplefin.org/','_blank')">🌐 Manage banks</button>
+      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_sfAccounts=null;renderMoney()">↻</button>
     </div>
-    ${ms.length?ms.map(m=>`<div class="fin-row">
-      <span class="nm"><b>${esc(m.institutionName)}</b>${m.isAuthenticated===false?' <span class="fin-chip" style="color:var(--warn)">reauth needed</span>':''}</span>
-      <span style="font-size:11px;color:var(--t3)">${m.lastSuccess?('last sync '+String(m.lastSuccess).slice(0,10)):''}</span>
-      <button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophShowAccounts('${esc(String(m.userInstitutionId))}','${_jsAttr(m.institutionName)}')">Accounts &amp; sync</button>
-    </div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No banks linked yet — click ＋ Link a bank.</div>'}
-    ${_sophMembers.error?`<div style="font-size:11px;color:var(--red);margin-top:6px">${esc(_sophMembers.error)}</div>`:''}
+    ${as.length?as.map(a=>{
+      const linked=map[a.id]&&f.accounts.some(x=>String(x.id)===String(map[a.id]));
+      const local=linked?f.accounts.find(x=>String(x.id)===String(map[a.id])):null;
+      return `<div class="fin-row" style="border-bottom:1px solid var(--bd1)">
+      <span class="nm"><b>${esc(a.name)}</b>${a.org?' <span class="fin-chip">'+esc(a.org)+'</span>':''}</span>
+      <span style="font-size:11px;color:var(--t3)">${local&&local.bankLastSync?('synced '+String(local.bankLastSync).slice(0,10)):(a.balanceDate?('as of '+a.balanceDate):'')}</span>
+      <span style="font-weight:650">${a.balance!=null?_finFmt(a.balance,0):''}</span>
+      ${linked?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="sfSync('${_jsAttr(String(a.id))}')">⟳ Sync</button>`
+              :`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="sfLinkAccount('${_jsAttr(String(a.id))}','${_jsAttr(a.name)}','${_jsAttr(a.org||'')}',${a.balance!=null?a.balance:'null'})">→ Add to Money</button>`}
+    </div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No accounts yet — connect your banks at the bridge (🌐 Manage banks), then ↻.</div>'}
+    ${(_sfAccounts.errors||[]).map(e=>`<div style="font-size:11px;color:var(--warn);margin-top:6px">⚠ ${esc(e)}</div>`).join('')}
+    ${_sfAccounts.error?`<div style="font-size:11px;color:var(--red);margin-top:6px">${esc(_sfAccounts.error)}</div>`:''}
   </div>`;
 }
-async function sophOpenLink(){
-  _finModal(`<div style="padding:16px;max-width:460px">
-    <h2 style="font-size:15px;font-weight:600;margin-bottom:8px">＋ Link a bank</h2>
-    <div class="field"><label>Search your bank</label><div style="display:flex;gap:6px"><input class="inp" id="soph-search" placeholder="e.g. Chase, Capital One" onkeydown="if(event.key==='Enter')sophDoSearch()"><button class="btn btn-p" style="height:32px" onclick="sophDoSearch()">Search</button></div></div>
-    <div id="soph-search-results" style="max-height:220px;overflow-y:auto;margin-top:8px;font-size:12px"></div>
-    <div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Cancel</button></div></div>`);
-}
-async function sophDoSearch(){
-  const q=(document.getElementById('soph-search')||{}).value||'';
-  const out=document.getElementById('soph-search-results');
-  if(!q.trim()||!out)return; out.textContent='Searching…';
-  try{
-    const res=await _trpc('sophtron.searchInstitutions',{name:q.trim()},'mutation');
-    if(!res||!res.ok){out.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'search failed')}</span>`;return;}
-    out.innerHTML=res.institutions.length?res.institutions.map(i=>`<div class="fin-row" style="cursor:pointer;border-bottom:1px solid var(--bd1)" onclick="sophPickInstitution('${esc(String(i.id))}','${_jsAttr(i.name)}')"><span class="nm">${esc(i.name)}</span><span style="color:var(--ac)">Link →</span></div>`).join(''):'No matches — try a different spelling.';
-  }catch(e){out.innerHTML=`<span style="color:var(--red)">${esc(String(e&&e.message||e).slice(0,150))}</span>`;}
-}
-function sophPickInstitution(id,name){
-  _finModal(`<div style="padding:16px;max-width:420px">
-    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">Link ${esc(name)}</h2>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Your online-banking credentials go straight to Sophtron over TLS — LevelUp never stores them.</div>
-    <div class="field"><label>Online banking username</label><input class="inp" id="soph-bu" autocomplete="off"></div>
-    <div class="field"><label>Password</label><input class="inp" id="soph-bp" type="password" autocomplete="off"></div>
-    <div class="field"><label>PIN <span style="color:var(--t3);font-weight:400">(only if your bank uses one)</span></label><input class="inp" id="soph-bpin" autocomplete="off"></div>
-    <div class="dr-actions" style="margin-top:10px">
-      <button class="btn btn-p" onclick="sophDoLink('${esc(String(id))}','${_jsAttr(name)}')">Link bank</button>
-      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
-    </div><div id="soph-link-status" style="font-size:12px;margin-top:8px"></div></div>`);
-}
-async function sophDoLink(id,name){
-  const st=document.getElementById('soph-link-status');
-  const u=(document.getElementById('soph-bu')||{}).value,p=(document.getElementById('soph-bp')||{}).value,pin=(document.getElementById('soph-bpin')||{}).value;
-  if(!u||!p){if(st)st.textContent='Enter username and password.';return;}
-  if(st)st.textContent='Linking — this can take up to a minute…';
-  try{
-    const res=await _trpc('sophtron.linkInstitution',{institutionId:String(id),username:u,password:p,pin:pin||undefined},'mutation');
-    if(!res||!res.ok){if(st)st.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'link failed')}</span>`;return;}
-    if(res.jobId)sophWatchJob(res.jobId,name,st);
-    else{ if(st)st.innerHTML='<span style="color:var(--ok)">✅ Linked.</span>'; _sophMembers=null; setTimeout(()=>{_finCloseModal();renderMoney();},900); }
-  }catch(e){ if(st)st.innerHTML=`<span style="color:var(--red)">${esc(String(e&&e.message||e).slice(0,180))}</span>`; }
-}
-async function sophWatchJob(jobId,name,st){
-  for(let i=0;i<40;i++){
-    await new Promise(r=>setTimeout(r,3000));
-    let job=null;
-    try{ const res=await _trpc('sophtron.jobStatus',{jobId:String(jobId)},'mutation'); job=res&&res.ok?res.job:null; }catch(_){}
-    if(!job)continue;
-    const q=job.SecurityQuestion||job.TokenMethod||job.CaptchaImage;
-    if(job.SecurityQuestion){
-      const a=prompt('Your bank asks: '+job.SecurityQuestion); if(a==null){if(st)st.textContent='Cancelled.';return;}
-      await _trpc('sophtron.jobAnswer',{jobId:String(jobId),kind:'security',value:a},'mutation'); continue;
-    }
-    if(job.TokenMethod&&!job.TokenSentFlag){
-      const a=prompt('Enter the security code your bank sent you:'); if(a==null){if(st)st.textContent='Cancelled.';return;}
-      await _trpc('sophtron.jobAnswer',{jobId:String(jobId),kind:'token',value:a},'mutation'); continue;
-    }
-    if(job.IsSuccess===true||job.SuccessFlag===true||job.Finished===true||job.JobStatus==='Completed'){
-      if(st)st.innerHTML='<span style="color:var(--ok)">✅ '+esc(name)+' linked.</span>';
-      _sophMembers=null; setTimeout(()=>{_finCloseModal();renderMoney();},900); return;
-    }
-    if(job.IsSuccess===false&&(job.Finished===true||job.JobStatus==='Failed')){
-      if(st)st.innerHTML=`<span style="color:var(--red)">Link failed${job.FailureReason?': '+esc(String(job.FailureReason).slice(0,120)):''}.</span>`; return;
-    }
-    if(st)st.textContent='Working… ('+esc(String(job.JobStatus||'authenticating'))+')';
-  }
-  if(st)st.textContent='Still working — check back in a minute (↻ on the bank card).';
-}
-async function sophShowAccounts(userInstitutionId,name){
-  _finModal(`<div style="padding:16px;max-width:520px"><h2 style="font-size:15px;font-weight:600;margin-bottom:8px">${esc(name)} — accounts</h2><div id="soph-accts" style="font-size:12px">Loading…</div><div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Close</button></div></div>`);
-  try{
-    const res=await _trpc('sophtron.getAccounts',{userInstitutionId:String(userInstitutionId)},'mutation');
-    const out=document.getElementById('soph-accts'); if(!out)return;
-    if(!res||!res.ok){out.innerHTML=`<span style="color:var(--red)">${esc((res&&res.error)||'failed')}</span>`;return;}
-    const f=_finData(); const map=(f.settings.sophtronMap=f.settings.sophtronMap||{});
-    out.innerHTML=res.accounts.length?res.accounts.map(a=>{
-      const linked=map[a.accountId]&&f.accounts.some(x=>String(x.id)===String(map[a.accountId]));
-      return `<div class="fin-row" style="border-bottom:1px solid var(--bd1)">
-        <span class="nm"><b>${esc(a.name)}</b>${a.number?' ····'+esc(a.number):''} <span class="fin-chip">${esc(a.type||'account')}</span></span>
-        <span style="font-weight:650">${a.balance!=null?_finFmt(a.balance,0):''}</span>
-        ${linked?`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="sophSync('${esc(String(a.accountId))}')">⟳ Sync</button>`
-                :`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="sophLinkAccount('${esc(String(a.accountId))}','${_jsAttr(a.name)}','${_jsAttr(a.type||'')}',${a.balance!=null?a.balance:'null'})">→ Add to Money</button>`}
-      </div>`;}).join(''):'No accounts returned.';
-  }catch(e){ const out=document.getElementById('soph-accts'); if(out)out.innerHTML=esc(String(e&&e.message||e).slice(0,180)); }
-}
-function sophLinkAccount(sophId,name,type,balance){
+function sfLinkAccount(sfId,name,org,balance){
   if(_finGuard())return;
   const f=_finData();
-  const t=/credit|card/i.test(type)?'credit':/loan/i.test(type)?'loan':/sav/i.test(type)?'savings':'checking';
-  const acct={id:'soph-'+sophId,name:name||'Bank account',type:t,balance:balance!=null?Math.abs(balance):0,icon:t==='credit'?'💳':'🏦',sophtronId:sophId};
+  const label=String(name||'')+' '+String(org||'');
+  const t=/credit|card|visa|amex|mastercard/i.test(label)?'credit':/loan|mortgage/i.test(label)?'loan':/sav/i.test(label)?'savings':'checking';
+  const acct={id:'sf-'+sfId,name:name||'Bank account',type:t,balance:balance!=null?Math.abs(balance):0,icon:t==='credit'?'💳':'🏦',bankId:sfId};
   if(!f.accounts.some(x=>String(x.id)===String(acct.id)))f.accounts.push(acct);
-  (f.settings.sophtronMap=f.settings.sophtronMap||{})[sophId]=acct.id;
+  (f.settings.bankMap=f.settings.bankMap||{})[sfId]=acct.id;
   _finSave(); toast({type:'success',title:'Account added',msg:name+' — now hit ⟳ Sync to pull transactions.'});
   renderMoney();
 }
-async function sophSync(sophId){
+async function sfSync(sfId){
   if(_finGuard())return;
-  const f=_finData(); const map=f.settings.sophtronMap||{};
-  const acct=f.accounts.find(x=>String(x.id)===String(map[sophId]));
+  const f=_finData(); const map=f.settings.bankMap||{};
+  const acct=f.accounts.find(x=>String(x.id)===String(map[sfId]));
   if(!acct){toast('Add the account to Money first.');return;}
   toast({type:'info',title:'Syncing '+acct.name+'…',duration:2500});
   const end=new Date().toISOString().slice(0,10);
-  const start=(acct.sophtronLastSync&&String(acct.sophtronLastSync).slice(0,10))||new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  // Re-pull a 7-day overlap before the last sync — dedupe-by-id makes the
+  // overlap free, and it catches transactions that posted late.
+  const last=acct.bankLastSync&&Date.parse(String(acct.bankLastSync).slice(0,10));
+  const start=last?new Date(last-7*86400000).toISOString().slice(0,10):new Date(Date.now()-90*86400000).toISOString().slice(0,10);
   try{
-    const res=await _trpc('sophtron.pullTransactions',{accountId:String(sophId),startDate:start,endDate:end},'mutation');
+    const res=await _trpc('simplefin.pullTransactions',{accountId:String(sfId),startDate:start,endDate:end},'mutation');
     if(!res||!res.ok){toast({type:'error',title:'Sync failed',msg:(res&&res.error)||''});return;}
     const seen=_finTxKeySet(); let added=0,auto=0;
     res.transactions.forEach(t=>{
       const key='s:'+t.id; if(seen.has(key))return; seen.add(key);
       const catId=_finApplyRules(t.description)|| (t.amount>0?'inc-other':'misc-other');
       if(catId!=='misc-other'&&catId!=='inc-other')auto++;
-      f.transactions.push({id:'st-'+t.id,sophtronId:t.id,date:t.date,payee:t.description.slice(0,120),catId,accountId:acct.id,notes:t.category?('Bank category: '+t.category):'',amount:t.amount,cleared:true});
+      f.transactions.push({id:'sf-'+t.id,bankTxId:t.id,date:t.date,payee:(t.payee||t.description).slice(0,120),catId,accountId:acct.id,notes:(t.memo&&t.memo!==t.description)?t.memo.slice(0,200):'',amount:t.amount,cleared:true});
       added++;
     });
-    acct.sophtronLastSync=end;
+    if(res.balance!=null)acct.balance=Math.abs(res.balance);
+    acct.bankLastSync=end;
     _finSave(); renderMoney();
-    toast({type:'success',title:'⟳ '+acct.name+' synced',msg:added+' new transaction'+(added===1?'':'s')+(auto?' · '+auto+' auto-categorized':'')+(added-auto>0?' · review the rest in Transactions':''),duration:3500});
+    const warn=(res.errors&&res.errors.length)?' · ⚠ '+res.errors[0]:'';
+    toast({type:'success',title:'⟳ '+acct.name+' synced',msg:added+' new transaction'+(added===1?'':'s')+(auto?' · '+auto+' auto-categorized':'')+(added-auto>0?' · review the rest in Transactions':'')+warn,duration:3500});
   }catch(e){toast({type:'error',title:'Sync failed',msg:String(e&&e.message||e).slice(0,150)});}
 }
 // ── CSV import ─────────────────────────────────────────────────────────
