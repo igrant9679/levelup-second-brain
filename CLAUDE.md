@@ -8,6 +8,51 @@ Live build at handoff: **`2026-08-28-173`** · everything committed AND pushed �
 working tree clean (only untracked `.claude/launch.json`, deliberately so — it
 holds machine-specific scratch paths).
 
+### Where things stand (read this before anything else)
+
+The 2026-08-28→29 arc built a full **Money page** (Mint/Quicken-class personal
+finance): 10 tabs — Overview / Income / Transactions / Budgets / Bills /
+Accounts / Goals / Forecast / 🤖 Agents / Reports. Storage is `D.finance`, ONE
+object blob (`user_app_data.finance`, migration **0049**), server-synced and
+whole-budget-shareable with deliberate privacy exceptions (no owner/admin
+default visibility). All client code sits at the END of app-part2.js (search
+`MONEY — Mint-style`); server pieces are `server/routers/sophtron.ts` plus the
+`sharedFinanceForMe`/`updateSharedFinance` procedures in appData.ts.
+⚠ **The user's real budget data lives only in their account** — it was
+imported from a private seed JSON (a copy sits on their Desktop). **Never
+commit personal financial data to this repo.**
+
+**Open items, in priority order:**
+1. **Sophtron live-API shakedown.** The bank-sync integration follows their
+   published contract (FIApiAUTH HMAC) but has NEVER touched the real API —
+   it needs the user's UserId/AccessKey in Settings → Bank Connections.
+   Expect an iteration pass: the response field mappings in
+   `listMembers`/`getAccounts`/`pullTransactions` are defensive guesses
+   (`InstitutionID||InstitutionId||Id` …) and the MFA job-poll loop
+   (`sophWatchJob`) is untested. First move when the user says they've
+   configured it: press **Test connection** and read the actual error.
+2. **OneNote first sync** — unresolved since 2026-07-24; see
+   `ONENOTE-SYNC-HANDOFF.md` (token likely lacks Notes.Read).
+3. **Blob migration Step 3b** — drop the frozen tasks/notes/ideas columns.
+   The soak window is long past. ⚠ The next migration number is **0050**
+   (0049 is taken by finance). IRREVERSIBLE — green Migration Health + no
+   `blob-rescue` in Railway logs + DB backup first.
+4. `tsc` carries **8 pre-existing errors** in external-source files
+   (externalTasksCron / smartsheetAdapter / automations / externalSources) —
+   not from these arcs. `pnpm build` (esbuild, what Railway runs) is the
+   gate that must stay clean, and it is.
+
+**Possibly pending on the USER's side** (ask, don't assume): investment
+holdings + retirement inputs (Agents → Investment → 💼 Holdings), APRs and
+credit limits on card accounts (powers payoff interest + utilization math),
+real bill due-days, Sophtron credentials.
+
+**Deploy note:** Railway had a "deployments slow to start" incident
+2026-08-28/29 — stuck deploys looked like failures and the user aborted
+several. If a push isn't live in ~5 min, check status.railway.com BEFORE
+suspecting the code, and verify with
+`curl -s https://levelupnow.tools/ | grep -o "APP_BUILD='[^']*'"`.
+
 ### Guard scripts — run these, they are cheap
 
 Three checks now exist that did not before. **Each was validated by deliberately
@@ -19,6 +64,8 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
+
+### Session log — 2026-08-28 → 08-29, builds -162 → -173 (ALL live on prod)
 
 **-173 — Money: 🤖 Agents tab** — four daily-throttled monitors (Smart Bill
 Manager, Budgeting, Investment, Financial Health) with deterministic
