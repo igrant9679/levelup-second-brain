@@ -4,10 +4,10 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-173`** on prod; **`-174` (SimpleFIN swap)
-is committed locally, UNPUSHED, awaiting the user's review** · working tree
-otherwise clean (only untracked `.claude/`, deliberately so — machine-specific
-scratch paths).
+Live build at handoff: **`2026-08-29-174`** (SimpleFIN swap) on prod, verified;
+**`-175` (debt payment plans) is committed UNPUSHED, awaiting review** ·
+working tree otherwise clean (only untracked `.claude/`, deliberately so —
+machine-specific scratch paths).
 
 ### Where things stand (read this before anything else)
 
@@ -71,7 +71,30 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
 
-### Session log — 2026-08-28 → 08-29, builds -162 → -174 (-174 UNPUSHED)
+### Session log — 2026-08-28 → 08-29, builds -162 → -175 (-175 UNPUSHED)
+
+**-175 — Money: per-debt payment plans + APR editing** (2026-08-29, commit
+`552387f`, UNPUSHED). Forecast → "Debt payoff at current payments" rows get
+a **✎ Plan** button (user-requested: "map payments month by month, spread
+over X months, for every future loan/card too"). `a.payPlan` on each
+credit/loan account: `mode:'auto'` (the -170 bill-name match — the default,
+absent = old behaviour) | `'fixed'` | `'target'` (payoff-in-N-months, level
+payment from balance+APR) | `'schedule'` (24-month grid + default for
+blank/later months; explicit 0 skips a month; Set-all / Spread-over-N fill
+tools). Modal also edits `a.apr` (the same field the what-if sim,
+utilization report and agents read) with a live payoff preview; rows
+without an APR show an "APR?" nudge chip. Payoff math moved from
+closed-form to a month-stepping sim (`_finDebtSim`, accrue-then-pay, the
+-172 what-if convention) because schedules have no closed form —
+**verified against the extracted real code with 10 deterministic cases**
+(stepper == closed-form for constant payments; target clears in exactly N;
+interest-only → never-clears, not an infinite loop). `_finDebtPayoff()`
+keeps its shape (what-if, 2 reports, AI prompt unchanged) + gains
+`id/curPay/planMode`. New future debts get the editor automatically
+(plan lives on the account object; `finSaveAcct` merges via Object.assign
+so ✏ edits never drop it — same reason bankId survives). NOT yet
+visually verified — screenshot the modal on prod after deploy
+(.btn-nowrap trap: its buttons are single-word, low risk).
 
 **-174 — Money: SimpleFIN Bridge replaces Sophtron** (2026-08-29, commit
 `e6e00a7`, committed UNPUSHED). The user signed up for SimpleFIN Bridge, so
