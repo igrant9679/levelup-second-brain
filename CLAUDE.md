@@ -4,9 +4,10 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-28-173`** · everything committed AND pushed ·
-working tree clean (only untracked `.claude/launch.json`, deliberately so — it
-holds machine-specific scratch paths).
+Live build at handoff: **`2026-08-28-173`** on prod; **`-174` (SimpleFIN swap)
+is committed locally, UNPUSHED, awaiting the user's review** · working tree
+otherwise clean (only untracked `.claude/`, deliberately so — machine-specific
+scratch paths).
 
 ### Where things stand (read this before anything else)
 
@@ -16,21 +17,25 @@ Accounts / Goals / Forecast / 🤖 Agents / Reports. Storage is `D.finance`, ONE
 object blob (`user_app_data.finance`, migration **0049**), server-synced and
 whole-budget-shareable with deliberate privacy exceptions (no owner/admin
 default visibility). All client code sits at the END of app-part2.js (search
-`MONEY — Mint-style`); server pieces are `server/routers/sophtron.ts` plus the
+`MONEY — Mint-style`); server pieces are `server/routers/simplefin.ts` (was
+sophtron.ts — replaced in -174) plus the
 `sharedFinanceForMe`/`updateSharedFinance` procedures in appData.ts.
 ⚠ **The user's real budget data lives only in their account** — it was
 imported from a private seed JSON (a copy sits on their Desktop). **Never
 commit personal financial data to this repo.**
 
 **Open items, in priority order:**
-1. **Sophtron live-API shakedown.** The bank-sync integration follows their
-   published contract (FIApiAUTH HMAC) but has NEVER touched the real API —
-   it needs the user's UserId/AccessKey in Settings → Bank Connections.
-   Expect an iteration pass: the response field mappings in
-   `listMembers`/`getAccounts`/`pullTransactions` are defensive guesses
-   (`InstitutionID||InstitutionId||Id` …) and the MFA job-poll loop
-   (`sophWatchJob`) is untested. First move when the user says they've
-   configured it: press **Test connection** and read the actual error.
+1. **SimpleFIN live verification.** The user signed up for **SimpleFIN
+   Bridge** (NOT Sophtron — that integration was replaced wholesale in
+   `-174`, commit `e6e00a7`). The protocol layer is already validated
+   against the public demo server (`demo:demo@beta-bridge.simplefin.org` —
+   string amounts, unix-second dates, undici's credentials-in-URL
+   rejection all confirmed and handled), so what remains is purely
+   user-side + deploy: **push `-174`**, have the user paste a setup token
+   from bridge.simplefin.org into Settings → Bank Connections → Connect,
+   press **Test connection**, then Money → Accounts → add each bank
+   account + ⟳ Sync. Setup tokens are ONE-TIME — a failed claim means
+   generating a fresh one at the bridge, not retrying the old token.
 2. **OneNote first sync** — unresolved since 2026-07-24; see
    `ONENOTE-SYNC-HANDOFF.md` (token likely lacks Notes.Read).
 3. **Blob migration Step 3b** — drop the frozen tasks/notes/ideas columns.
@@ -45,7 +50,8 @@ commit personal financial data to this repo.**
 **Possibly pending on the USER's side** (ask, don't assume): investment
 holdings + retirement inputs (Agents → Investment → 💼 Holdings), APRs and
 credit limits on card accounts (powers payoff interest + utilization math),
-real bill due-days, Sophtron credentials.
+real bill due-days, a SimpleFIN setup token (one-time, from
+bridge.simplefin.org → New App Connection).
 
 **Deploy note:** Railway had a "deployments slow to start" incident
 2026-08-28/29 — stuck deploys looked like failures and the user aborted
@@ -65,7 +71,28 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
 
-### Session log — 2026-08-28 → 08-29, builds -162 → -173 (ALL live on prod)
+### Session log — 2026-08-28 → 08-29, builds -162 → -174 (-174 UNPUSHED)
+
+**-174 — Money: SimpleFIN Bridge replaces Sophtron** (2026-08-29, commit
+`e6e00a7`, committed UNPUSHED). The user signed up for SimpleFIN Bridge, so
+the never-live Sophtron layer was swapped out. `server/routers/simplefin.ts`
+(sophtron.ts deleted): claim a one-time setup token → permanent access URL
+stored in `external_source_credentials` source='simplefin', never returned
+to the client. ⚠ Two protocol traps, both VERIFIED against the public demo
+server: (a) Node's fetch/undici **rejects URLs with embedded credentials** —
+the access URL's userinfo must be stripped into an `Authorization: Basic`
+header; (b) amounts/balances are decimal **strings** and `posted`/
+`balance-date` are unix **seconds** (tolerate ms). Pending transactions are
+deliberately not requested (ids can change on posting → would break
+dedupe-by-id); `end-date` is exclusive so the server adds a day. Client:
+sp-14 panel = paste-a-setup-token; Money → Accounts card lists bridge
+accounts directly (the whole in-app link/search/MFA flow is gone — banks
+are managed AT the bridge); ⟳ Sync now also updates the account balance and
+re-pulls a 7-day overlap. Neutral data markers: `settings.bankMap`,
+`acct.bankId`/`bankLastSync`, `tx.bankTxId` ('s:'-prefixed dedupe keys kept,
+`_finTxKey` retains a sophtronId fallback). tsc: simplefin.ts adds zero
+errors (7 pre-existing remain; the "8" noted earlier was off by one or one
+healed — recount, don't trust either number).
 
 **-173 — Money: 🤖 Agents tab** — four daily-throttled monitors (Smart Bill
 Manager, Budgeting, Investment, Financial Health) with deterministic
