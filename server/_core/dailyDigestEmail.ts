@@ -19,6 +19,8 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, users } from "../../drizzle/schema";
 import { sendEmail } from "./sendEmail";
+import { buildMoneySectionHtml } from "./financeEmail";
+import { readEntityArray } from "../routers/appData";
 
 interface DigestPref {
   enabled?: boolean;
@@ -79,9 +81,13 @@ async function buildRowsForUser(
   const today = ymd();
   const rows: DigestRow[] = [];
 
-  // Native tasks from the JSON blob.
+  // Native tasks from the LIVE relational store (post-Step-3a the
+  // user_app_data.tasks blob is a FROZEN snapshot — reading it here served
+  // stale tasks; same trap the image migration hit). Blob stays as a
+  // last-resort fallback if the table read throws.
   let nativeTasks: NativeTask[] = [];
-  try { nativeTasks = JSON.parse(tasksBlob ?? '[]') as NativeTask[]; } catch { nativeTasks = []; }
+  try { nativeTasks = await readEntityArray(db, userId, 'tasks') as NativeTask[]; }
+  catch { try { nativeTasks = JSON.parse(tasksBlob ?? '[]') as NativeTask[]; } catch { nativeTasks = []; } }
   for (const t of nativeTasks) {
     if (t.status === 'Done' || t.status === 'Someday') continue;
     const due = t.due || null;
@@ -184,8 +190,8 @@ function escHtml(s: string): string {
  * literally nothing to surface (so we skip sending and don't spam an empty
  * digest).
  */
-function renderDigestHtml(name: string, rows: DigestRow[]): string | null {
-  if (!rows.length) return null;
+function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = ''): string | null {
+  if (!rows.length && !moneyHtml) return null;
   const overdueN = rows.filter(r => r.overdue).length;
   const cfRows = rows.filter(r => r.source === 'CF');
   const lsiRows = rows.filter(r => r.source === 'LSI');
@@ -193,7 +199,8 @@ function renderDigestHtml(name: string, rows: DigestRow[]): string | null {
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const headline = overdueN > 0
     ? `${overdueN} overdue, ${rows.length - overdueN} more on today's plate`
-    : `${rows.length} item${rows.length === 1 ? '' : 's'} on today's plate`;
+    : rows.length ? `${rows.length} item${rows.length === 1 ? '' : 's'} on today's plate`
+    : `Nothing on the task plate — money update below`;
   return `<!DOCTYPE html>
 <html><body style="font-family:-apple-system,'Segoe UI',Inter,Arial,sans-serif;margin:0;padding:24px;background:#f3f4f6;color:#111827">
 <div style="max-width:720px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
@@ -210,6 +217,7 @@ function renderDigestHtml(name: string, rows: DigestRow[]): string | null {
   ${rowTableHtml(personalRows, '🟢 Personal', '#10b981')}
   ${rowTableHtml(cfRows, '🔵 CommunityForce (Smartsheet)', '#1f6feb')}
   ${rowTableHtml(lsiRows, '🟣 LSI Media (NiftyPM)', '#9333ea')}
+  ${moneyHtml}
   <p style="font-size:11px;color:#9ca3af;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px">
     Open LevelUp: <a href="https://levelupnow.tools/" style="color:#1f6feb">levelupnow.tools</a> · Disable this digest in Settings → Notifications
   </p>
@@ -260,7 +268,13 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
 
       const digestRows = await buildRowsForUser(db, row.userId, row.tasks);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
-      const html = renderDigestHtml(name, digestRows);
+      // 💰 Money block (bills heads-up, nudges, AI insight) — empty string
+      // for non-Money users, so their digest is unchanged. Opt out via
+      // prefs.dailyDigest.money === false.
+      const money = (digestPref as DigestPref & { money?: boolean }).money === false
+        ? { html: '', billsDueCount: 0, nudgeCount: 0 }
+        : await buildMoneySectionHtml((row as { finance?: string | null }).finance, 'daily');
+      const html = renderDigestHtml(name, digestRows, money.html);
       if (!html) {
         // Nothing on the plate today — don't send an empty email but DO mark
         // lastSentDate so we don't reconsider every 15 min for the rest of the day.
@@ -270,11 +284,16 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
         continue;
       }
 
+      const subjectBits = [
+        `${digestRows.length} item${digestRows.length === 1 ? '' : 's'}`,
+        digestRows.filter(r => r.overdue).length ? `${digestRows.filter(r => r.overdue).length} overdue` : null,
+        money.billsDueCount ? `💰 ${money.billsDueCount} bill${money.billsDueCount === 1 ? '' : 's'} due soon` : null,
+      ].filter(Boolean);
       const ok = await sendEmail({
         to: recipient,
-        subject: `☀ Daily plate — ${digestRows.length} item${digestRows.length === 1 ? '' : 's'}${digestRows.filter(r => r.overdue).length ? ` (${digestRows.filter(r => r.overdue).length} overdue)` : ''}`,
+        subject: `☀ Daily plate — ${subjectBits.join(' · ')}`,
         html,
-        text: `${digestRows.length} items on today's plate. Open https://levelupnow.tools/`,
+        text: `${digestRows.length} items on today's plate${money.billsDueCount ? `, ${money.billsDueCount} bills due in the next 7 days` : ''}. Open https://levelupnow.tools/`,
         senderUserId: null,
         recipientUserId: row.userId,
       });

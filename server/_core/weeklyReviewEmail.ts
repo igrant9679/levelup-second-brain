@@ -23,6 +23,8 @@ import { and, eq, gte, isNotNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, users, type UserAppData } from "../../drizzle/schema";
 import { sendEmail } from "./sendEmail";
+import { buildMoneySectionHtml } from "./financeEmail";
+import { readEntityArray } from "../routers/appData";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -126,8 +128,12 @@ async function buildRowsForUser(
   const nextWeek: WeeklyRow[] = [];
   let totalOpen = 0;
 
+  // LIVE relational store first — the user_app_data.tasks blob is a FROZEN
+  // pre-Step-3a snapshot (reading it here served stale tasks). Blob stays
+  // as a last-resort fallback if the table read throws.
   let nativeTasks: NativeTask[] = [];
-  try { nativeTasks = JSON.parse(tasksBlob ?? '[]') as NativeTask[]; } catch { nativeTasks = []; }
+  try { nativeTasks = await readEntityArray(db, userId, 'tasks') as NativeTask[]; }
+  catch { try { nativeTasks = JSON.parse(tasksBlob ?? '[]') as NativeTask[]; } catch { nativeTasks = []; } }
 
   for (const t of nativeTasks) {
     if (t.status === 'Done') {
@@ -323,32 +329,9 @@ function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
   }).join('')}${rows.length > 40 ? `<tr><td style="padding:6px;font-size:10px;color:#9ca3af;text-align:center">… and ${rows.length - 40} more</td></tr>` : ''}</table>`;
 }
 
-/**
- * Compact Money section for the weekly review. Empty string when the user
- * has no finance data — the email is unchanged for non-Money users.
- */
-function buildFinanceHtml(rawFinance: string | null): string {
-  if (!rawFinance) return '';
-  let f: any; try { f = JSON.parse(rawFinance); } catch { return ''; }
-  if (!f || typeof f !== 'object') return '';
-  const accounts = Array.isArray(f.accounts) ? f.accounts : [];
-  const bills = Array.isArray(f.bills) ? f.bills : [];
-  if (!accounts.length && !bills.length) return '';
-  const isDebt = (a: any) => ['credit', 'loan'].includes(a.type);
-  const net = accounts.reduce((s: number, a: any) => s + (isDebt(a) ? -Math.abs(a.balance || 0) : (a.balance || 0)), 0);
-  const debt = accounts.filter(isDebt).reduce((s: number, a: any) => s + Math.abs(a.balance || 0), 0);
-  const fmt = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString('en-US');
-  const now = new Date();
-  const due7 = bills.filter((b: any) => b.active !== false).map((b: any) => {
-    const day = Math.min(Math.max(1, Number(b.dueDay) || 1), 28);
-    let d = new Date(now.getFullYear(), now.getMonth(), day);
-    if (day < now.getDate()) d = new Date(now.getFullYear(), now.getMonth() + 1, day);
-    return { b, d };
-  }).filter((x: any) => (x.d.getTime() - now.getTime()) / 86400000 <= 7).sort((a: any, b: any) => a.d.getTime() - b.d.getTime());
-  return `<h2 style="font-size:15px;color:#0d9488;border-bottom:2px solid #0d9488;padding-bottom:4px;margin:20px 0 6px">💰 Money</h2>
-  <div style="font-size:13px;color:#374151;margin-bottom:6px">Net worth <strong style="color:${net >= 0 ? '#10b981' : '#dc2626'}">${fmt(net)}</strong>${debt ? ` · total debt <strong style="color:#dc2626">${fmt(debt)}</strong>` : ''}</div>
-  ${due7.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">${due7.slice(0, 8).map((x: any) => `<tr><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6">${escHtml(String(x.b.name || ''))}${x.b.autopay ? ' <span style="font-size:10px;color:#6b7280">⚡ autopay</span>' : ''}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;color:#6b7280">${x.d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td><td style="padding:4px 8px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600">${fmt(Number(x.b.amount) || 0)}</td></tr>`).join('')}</table>` : '<div style="font-size:12px;color:#9ca3af">No bills due in the next 7 days.</div>'}`;
-}
+// The 💰 Money section moved to _core/financeEmail.ts (build -176) — shared
+// with the daily digest, and richer: net-worth movement, budget status,
+// nudges and an AI insight box. Still '' for non-Money users.
 
 function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = ""): string {
   const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
@@ -448,7 +431,8 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       }
       const aiBlock = await generateAIBlock(built);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
-      const html = renderWeeklyHtml(name, built, aiBlock, buildFinanceHtml((row as any).finance));
+      const money = await buildMoneySectionHtml((row as any).finance, 'weekly');
+      const html = renderWeeklyHtml(name, built, aiBlock, money.html);
       const ok = await sendEmail({
         to: recipient,
         subject: `📊 Weekly review — ${built.shipped.length} shipped, ${built.overdue.length} overdue, ${built.nextWeek.length} ahead`,
