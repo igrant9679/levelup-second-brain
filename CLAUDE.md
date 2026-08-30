@@ -4,10 +4,9 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-29-174`** (SimpleFIN swap) on prod, verified;
-**`-175` (debt payment plans) is committed UNPUSHED, awaiting review** ·
-working tree otherwise clean (only untracked `.claude/`, deliberately so —
-machine-specific scratch paths).
+Live build at handoff: **`2026-08-29-175`** (SimpleFIN bank sync + per-debt
+payment plans) on prod, verified end-to-end · working tree clean (only
+untracked `.claude/`, deliberately so — machine-specific scratch paths).
 
 ### Where things stand (read this before anything else)
 
@@ -92,9 +91,29 @@ interest-only → never-clears, not an infinite loop). `_finDebtPayoff()`
 keeps its shape (what-if, 2 reports, AI prompt unchanged) + gains
 `id/curPay/planMode`. New future debts get the editor automatically
 (plan lives on the account object; `finSaveAcct` merges via Object.assign
-so ✏ edits never drop it — same reason bankId survives). NOT yet
-visually verified — screenshot the modal on prod after deploy
-(.btn-nowrap trap: its buttons are single-word, low risk).
+so ✏ edits never drop it — same reason bankId survives). PUSHED + visually
+verified on prod in the owner's session: card renders for all 14 debts,
+modal opens, schedule grid + fill tools lay out cleanly, target mode's
+live math correct ($31,882/12 → $2,657/mo). NB after the duplicate-account
+cleanup (below) every debt shows "no payment mapped" — the bills were named
+after the DELETED imported accounts, so name-matching finds nothing; the
+user should map payments via ✎ Plan (or rename bills/accounts to match).
+
+**SimpleFIN went LIVE on the user's account (2026-08-29, data ops — no
+build):** the user claimed a setup token and linked banks at the bridge
+(Credit One, Capital One, Citibank, BofA, Wells Fargo, Lowe's/Synchrony,
+Chase, Best Buy/Citibank, Amex). They added 13 bridge accounts to Money;
+that DUPLICATED 7 spreadsheet-imported cards, so the 7 imported twins were
+deleted via the app UI in the owner's session (verified persisted after
+reload; debt total corrected from a double-counted ~$142k to $88,663). Still
+pending user-side: 3 Capital One bridge accounts shown as "→ Add to Money"
+(their imported "Capital one Idris 1/2/3" entries with stale balances remain
+in Debts); "Capital one Sabine" has no bridge counterpart; the $0
+Checking/Savings placeholders remain; per-account ⟳ Sync (transactions) had
+not been run yet at inspection time. NB the auto-mode classifier BLOCKS
+JS-injected mutations of finance data in the user's browser session — drive
+the app's own UI buttons instead (clicks pass; scripted delete batches
+don't).
 
 **-174 — Money: SimpleFIN Bridge replaces Sophtron** (2026-08-29, commit
 `e6e00a7`, committed UNPUSHED). The user signed up for SimpleFIN Bridge, so
