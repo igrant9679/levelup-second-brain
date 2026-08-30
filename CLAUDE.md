@@ -4,14 +4,14 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-29-175`** on prod; **`-176` (email Money
-blocks) + `-177` (recurring/reminder transactions) committed UNPUSHED,
-awaiting review** · working tree otherwise clean (only untracked `.claude/`,
-deliberately so — machine-specific scratch paths).
-⚠ After pushing -176: check whether the user's `prefs.dailyDigest.enabled`
-and `prefs.weeklyReview.enabled` are ON (Settings → Notifications) — the new
-Money email blocks ride those existing sends; enabled=false means no email
-at all. Use the panel's send-now/test action to prove delivery end-to-end.
+Live build at handoff: **`2026-08-30-177`** on prod (email Money blocks +
+recurring/reminder transactions) · working tree clean (only untracked
+`.claude/`, deliberately so — machine-specific scratch paths).
+Email go-live 2026-08-30: the user's daily digest (07:00) + weekly review
+(Fri 16:30) toggles were BOTH off ("Not yet sent" — never enabled) — turned
+ON in Settings → Notifications via the owner's session, and both Send-now
+tests fired successfully (cards show "Last sent: 2026-08-30"; the stamp is
+only written after sendEmail returns true). Recipient idris.grant@gmail.com.
 
 ### Where things stand (read this before anything else)
 
