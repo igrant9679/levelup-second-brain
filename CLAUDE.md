@@ -4,9 +4,21 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-30-177`** on prod (email Money blocks +
-recurring/reminder transactions) · working tree clean (only untracked
-`.claude/`, deliberately so — machine-specific scratch paths).
+Live build at handoff: **`2026-08-30-177`** on prod; **`-178` (bank-account
+type inference fix) committed UNPUSHED, awaiting review** · working tree
+otherwise clean (only untracked `.claude/`, deliberately so).
+
+**-178 — smarter sfLinkAccount type inference** (commit `d969686`): the old
+guesser typed Capital One "Quicksilver" cards as CHECKING (+$22.7k debt
+counted as assets). New order: deposit words → loan words → card product
+names → balance SIGN (SimpleFIN cards are negative). 17/17 against the
+user's real account names. Their live data was hand-fixed in-session
+(3 Quicksilvers retyped credit, 3 imported CapOne twins deleted; net worth
+−$39,841 → true −$62,253). Also 2026-08-30: user chose to keep Money
+UNSHARED (assignees:[], shareAll:false) with shareMode preset to 'edit' —
+individual shares only, NO admin auto-visibility (they briefly considered
+sub-page-level share permissions, then chose the existing whole-budget
+share; a partial -178 sub-page implementation was reverted uncommitted).
 Email go-live 2026-08-30: the user's daily digest (07:00) + weekly review
 (Fri 16:30) toggles were BOTH off ("Not yet sent" — never enabled) — turned
 ON in Settings → Notifications via the owner's session, and both Send-now
