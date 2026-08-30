@@ -14619,7 +14619,7 @@ function _finTxHtml(){
   ${rows.length?rows.map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
     <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${esc(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
     <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
-    <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}</td>
+    <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}${t.recurringBillId?' <span class="fin-chip" title="Recurring — tracked in the Bills tab">↻</span>':''}${t.notes?` <span title="${esc(String(t.notes).slice(0,160))}" style="cursor:help;font-size:11px">📝</span>`:''}</td>
     <td><span class="fin-chip">${c.icon} ${esc(c.name)}</span></td>
     <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
     <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
@@ -14644,10 +14644,14 @@ function finOpenTx(id){
       <div class="field"><label>Category</label><select class="inp" id="ftx-cat">${_finCatOptions(t?t.catId:'dl-groceries')}</select></div>
       <div class="field"><label>Account</label><select class="inp" id="ftx-acct">${_finAcctOptions(t?t.accountId:'')}</select></div>
     </div>
-    <div class="field"><label>Notes</label><input class="inp" id="ftx-notes" value="${esc(t?t.notes||'':'')}"></div>
+    <div class="field"><label>Notes / description</label><textarea class="inp" id="ftx-notes" style="min-height:56px" placeholder="What was this? Context, receipt info, who it was for…">${esc(t?t.notes||'':'')}</textarea></div>
+    ${t&&t.recurringBillId&&f.bills.some(b=>String(b.id)===String(t.recurringBillId))?`<div style="font-size:11px;color:var(--t2);margin-bottom:6px"><span class="fin-chip">↻ Recurring</span> tracked as bill <b>${esc((f.bills.find(b=>String(b.id)===String(t.recurringBillId))||{}).name||'')}</b> — edit amount/due day in the Bills tab.</div>`:''}
     <div class="dr-actions" style="margin-top:12px">
       <button class="btn btn-p" onclick="finSaveTx('${t?esc(String(t.id)):''}')">Save</button>
       ${t?`<button class="btn btn-s" onclick="finOpenSplit('${esc(String(t.id))}')" title="Split across multiple categories">✂ Split</button>
+      ${t.recurringBillId?`<button class="btn btn-s" onclick="finTxUnrecur('${esc(String(t.id))}')" title="Remove the recurring mark (the bill stays in the Bills tab)">↻ Un-mark</button>`
+                         :`<button class="btn btn-s" onclick="finTxMakeRecurring('${esc(String(t.id))}')" title="Mark as a recurring charge — creates a bill so it shows on the calendar, forecasts and email reminders">↻ Recurring</button>`}
+      <button class="btn btn-s" onclick="finTxReminder('${esc(String(t.id))}')" title="Create a reminder task from this transaction">⏰ Reminder</button>
       <button class="btn btn-d" onclick="finDeleteTx('${esc(String(t.id))}');_finCloseModal()">Delete</button>`:''}
       <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
     </div></div>`);
@@ -14661,7 +14665,10 @@ function finSaveTx(id){
   const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), date:g('ftx-date').value||new Date().toISOString().slice(0,10),
     payee:g('ftx-payee').value.trim(), catId:g('ftx-cat').value, accountId:g('ftx-acct').value||null, notes:g('ftx-notes').value.trim(), amount:signed };
   const i=f.transactions.findIndex(x=>String(x.id)===String(rec.id));
-  if(i>=0)f.transactions[i]=rec; else f.transactions.push(rec);
+  // Merge on edit — a wholesale replace silently dropped cleared/bankTxId/
+  // splitOf/streamId/recurringBillId (a bank-synced tx losing bankTxId would
+  // re-import as a duplicate on the next ⟳ Sync).
+  if(i>=0)f.transactions[i]=Object.assign({},f.transactions[i],rec); else f.transactions.push(rec);
   _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'Saved',msg:(rec.payee||_finCat(rec.catId).name)+' · '+_finFmt(rec.amount),duration:1600});
 }
@@ -14669,6 +14676,74 @@ function finDeleteTx(id){
   if(_finGuard())return;
   const f=_finData(); const i=f.transactions.findIndex(x=>String(x.id)===String(id));
   if(i<0)return; f.transactions.splice(i,1); _finSave(); renderMoney();
+}
+// ── recurring mark + reminder tasks (build -177) ───────────────────────
+/* "↻ Recurring" links a transaction to a Bill (the app's recurring-expense
+   entity — bills drive the calendar chips, forecasts, payoff mapping and
+   the -176 email reminders). Creates the bill from the transaction when no
+   same-named one exists, then tags every same-payee transaction so the ↻
+   chip shows across history. Un-mark clears the tag but leaves the bill. */
+function finTxMakeRecurring(id){
+  if(_finGuard())return;
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const name=(t.payee||_finCat(t.catId).name||'Recurring charge').slice(0,80);
+  let bill=f.bills.find(b=>norm(b.name)===norm(name));
+  let created=false;
+  if(!bill){
+    const day=Math.min(28,Math.max(1,parseInt(String(t.date||'').slice(8,10),10)||1));
+    bill={id:'bill-'+Date.now(),name,amount:Math.abs(t.amount)||0,dueDay:day,catId:t.catId,accountId:t.accountId||null,active:true,autopay:false};
+    f.bills.push(bill); created=true;
+  }
+  const pn=norm(t.payee);
+  f.transactions.forEach(x=>{ if(!x.recurringBillId&&pn&&norm(x.payee)===pn)x.recurringBillId=bill.id; });
+  t.recurringBillId=bill.id;
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'↻ Marked recurring',msg:name+(created?' — added to Bills ('+_finFmt(bill.amount,0)+'/mo, day '+bill.dueDay+'). Adjust it in the Bills tab.':' — linked to the existing "'+bill.name+'" bill.'),duration:3200});
+}
+function finTxUnrecur(id){
+  if(_finGuard())return;
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  delete t.recurringBillId;
+  _finSave(); _finCloseModal(); renderMoney();
+  toast('↻ Recurring mark removed (the bill stays in the Bills tab — delete it there if it should go too).');
+}
+/* "⏰ Reminder" creates a native LevelUp task from the transaction, so it
+   flows into My Day, the calendar and the daily digest like any other task.
+   Writes D.tasks, not finance — works on shared budgets too. */
+function finTxReminder(id){
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const title='Follow up: '+(t.payee||_finCat(t.catId).name)+' ('+_finFmt(t.amount,0)+')';
+  _finModal(`<div style="padding:16px;max-width:420px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⏰ Reminder from transaction</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Creates a normal LevelUp task — it shows up in Tasks, My Day and your daily email.</div>
+    <div class="field"><label>Task title</label><input class="inp" id="ftr-title" value="${esc(title)}"></div>
+    <div class="field-row">
+      <div class="field"><label>Due</label><input class="inp" id="ftr-due" type="date" value="${tomorrow}"></div>
+      <div class="field"><label>Priority</label><select class="inp" id="ftr-pri"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0 2px"><input type="checkbox" id="ftr-myday"> Add to My Day</label>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" onclick="finTxReminderSave('${_jsAttr(String(t.id))}')">Create task</button>
+      <button class="btn btn-s" onclick="_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finTxReminderSave(id){
+  const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
+  const g=x=>document.getElementById(x);
+  const title=((g('ftr-title')||{}).value||'').trim();
+  if(!title){toast('Give the reminder a title.');return;}
+  const newId=Date.now();
+  D.tasks=D.tasks||[];
+  D.tasks.unshift({ id:newId, title,
+    description:'From Money transaction: '+(t.payee||'(no payee)')+' · '+_finFmt(t.amount)+' on '+(t.date||'?')+(t.notes?' — '+String(t.notes).slice(0,200):''),
+    status:'Not Started', priority:(g('ftr-pri')||{}).value||'Medium', due:(g('ftr-due')||{}).value||'',
+    myDay:!!((g('ftr-myday')||{}).checked),
+    createdAt:new Date().toISOString(), createdBy:(D.creds&&D.creds.userName)||'' });
+  save('tasks');
+  _finCloseModal();
+  toast({type:'success',title:'⏰ Reminder created',msg:title.slice(0,60)+((g('ftr-due')||{}).value?' · due '+(g('ftr-due')||{}).value:''),duration:2600});
 }
 // ── Budgets ────────────────────────────────────────────────────────────
 function _finBudgetsHtml(){
