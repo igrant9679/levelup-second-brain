@@ -4,9 +4,14 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-29-175`** (SimpleFIN bank sync + per-debt
-payment plans) on prod, verified end-to-end · working tree clean (only
-untracked `.claude/`, deliberately so — machine-specific scratch paths).
+Live build at handoff: **`2026-08-29-175`** on prod; **`-176` (email Money
+blocks) + `-177` (recurring/reminder transactions) committed UNPUSHED,
+awaiting review** · working tree otherwise clean (only untracked `.claude/`,
+deliberately so — machine-specific scratch paths).
+⚠ After pushing -176: check whether the user's `prefs.dailyDigest.enabled`
+and `prefs.weeklyReview.enabled` are ON (Settings → Notifications) — the new
+Money email blocks ride those existing sends; enabled=false means no email
+at all. Use the panel's send-now/test action to prove delivery end-to-end.
 
 ### Where things stand (read this before anything else)
 
@@ -98,6 +103,36 @@ live math correct ($31,882/12 → $2,657/mo). NB after the duplicate-account
 cleanup (below) every debt shows "no payment mapped" — the bills were named
 after the DELETED imported accounts, so name-matching finds nothing; the
 user should map payments via ✎ Plan (or rename bills/accounts to match).
+
+**-177 — Money: recurring marks + tx descriptions + reminder tasks**
+(2026-08-30, commit `0540fa9`, UNPUSHED). Transaction editor gains
+**↻ Recurring** (links the expense to a Bill — creates one from the tx when
+no same-named bill exists, tags all same-payee txs with `recurringBillId`
+for the ↻ chip; Un-mark clears the tag, bill stays), a **⏰ Reminder**
+button (creates a native task from the tx → Tasks/My Day/digest), and a
+multi-line notes textarea + 📝/↻ row indicators. ⚠ Fixed en route:
+`finSaveTx` replaced the record wholesale on edit — dropped
+cleared/bankTxId/splitOf/streamId (a bank-synced tx would lose its
+`bankTxId` and re-import as a duplicate on next ⟳ Sync). Now merges via
+Object.assign, same as finSaveAcct.
+
+**-176 — Email: Rocket-Money-style 💰 blocks in daily digest + weekly
+review** (2026-08-30, commit `31492f1`, UNPUSHED; user-requested daily +
+weekly nudges/insights emails). New `server/_core/financeEmail.ts` shared by
+both senders: bills due in next 7 days (TODAY highlight, autopay/paid tags,
+**unpaid past-due bills stay visible as "was due <date>"** — the -172 logic
+silently rolled them to next month on the 29th–31st), budget-status chips,
+deterministic nudges (past-due, due-today-no-autopay, over-budget cats,
+bills-exceed-cash), failure-safe AI insight via callAIProvider (daily = 1-2
+sentence nudge; weekly = insight + up to 3 recommendations), weekly extras
+(net worth Δ vs networthHistory, biggest debts w/ APR). Daily digest now
+sends on task-empty days when there's money to report; subject gains bill
+count; opt-out `prefs.dailyDigest.money=false`. ⚠ Also fixed in BOTH
+emails: native tasks were read from the **frozen** `user_app_data.tasks`
+blob (stale since Step 3a) — now `readEntityArray()` from the live tables,
+blob as last-resort fallback. Verified with 26 tsx tests against the real
+module (date logic pinned to fixed 'now's — caught the weeklyExtras block
+never being interpolated + the day-29-31 bill trap).
 
 **SimpleFIN went LIVE on the user's account (2026-08-29, data ops — no
 build):** the user claimed a setup token and linked banks at the bridge
