@@ -15696,7 +15696,17 @@ function sfLinkAccount(sfId,name,org,balance){
   if(_finGuard())return;
   const f=_finData();
   const label=String(name||'')+' '+String(org||'');
-  const t=/credit|card|visa|amex|mastercard/i.test(label)?'credit':/loan|mortgage/i.test(label)?'loan':/sav/i.test(label)?'savings':'checking';
+  /* Type inference (build -178). Order matters: deposit words are decisive
+     (a "Rewards Checking" is checking, not a card), then loans, then card
+     product names, and finally the BALANCE SIGN — SimpleFIN reports card/
+     loan balances as negative, so a negative balance with no keyword match
+     is still a liability. The old guesser typed "Quicksilver" as checking
+     and counted $22.7k of card debt as assets. */
+  const t=/checking/i.test(label)?'checking'
+        :/\bsav|savings/i.test(label)?'savings'
+        :/loan|mortgage|heloc/i.test(label)?'loan'
+        :/credit|card|visa|amex|american express|mastercard|discover|quicksilver|venture|savor|platinum|freedom|sapphire|slate|rewards/i.test(label)?'credit'
+        :(Number(balance)<0?'credit':'checking');
   const acct={id:'sf-'+sfId,name:name||'Bank account',type:t,balance:balance!=null?Math.abs(balance):0,icon:t==='credit'?'💳':'🏦',bankId:sfId};
   if(!f.accounts.some(x=>String(x.id)===String(acct.id)))f.accounts.push(acct);
   (f.settings.bankMap=f.settings.bankMap||{})[sfId]=acct.id;
