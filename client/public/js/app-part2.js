@@ -14321,6 +14321,9 @@ let _finShared=null;            // null = my budget; else index into D._sharedBu
 let _sharedFinLoaded=false;
 let _finPushTimer=null;
 let _finTxSearch='';let _finTxCat='';let _finTxAcct='';
+// Transactions range view (build -180): 'month' follows the header month
+// picker (original behaviour); the others ignore it.
+let _finTxRange='month';let _finTxFrom='';let _finTxTo='';
 
 function _finDefaultCats(){
   const mk=(id,name,group,icon,kind)=>({id,name,group,icon,kind:kind||'expense'});
@@ -14599,13 +14602,35 @@ function _finOverviewHtml(){
 // ── Transactions ───────────────────────────────────────────────────────
 function _finTxHtml(){
   const f=_finData(); const ym=_finMonth; const ro=_finRO();
-  let rows=_finTxMonth(ym);
+  // Range source (build -180): month view follows the header ‹month› picker;
+  // the other ranges are anchored to today and ignore it.
+  const _ymdAgo=n=>new Date(Date.now()-n*86400000).toISOString().slice(0,10);
+  let rows,rangeLabel;
+  if(_finTxRange==='month'){ rows=_finTxMonth(ym); rangeLabel=_finMonthLabel(ym); }
+  else{
+    let from='',to='';
+    if(_finTxRange==='30d'){from=_ymdAgo(30);rangeLabel='the last 30 days';}
+    else if(_finTxRange==='90d'){from=_ymdAgo(90);rangeLabel='the last 90 days';}
+    else if(_finTxRange==='all'){rangeLabel='all time';}
+    else{ if(!_finTxFrom&&!_finTxTo)_finTxFrom=_ymdAgo(90); from=_finTxFrom;to=_finTxTo; rangeLabel='the selected dates'; }
+    rows=(f.transactions||[]).filter(t=>{const d=String(t.date||'').slice(0,10);return d&&(!from||d>=from)&&(!to||d<=to);});
+  }
   if(_finTxSearch){const q=_finTxSearch.toLowerCase();rows=rows.filter(t=>String(t.payee||'').toLowerCase().includes(q)||String(t.notes||'').toLowerCase().includes(q)||_finCat(t.catId).name.toLowerCase().includes(q));}
   if(_finTxCat)rows=rows.filter(t=>t.catId===_finTxCat);
   if(_finTxAcct)rows=rows.filter(t=>String(t.accountId||'')===_finTxAcct);
   rows=rows.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const total=rows.reduce((s,t)=>s+t.amount,0);
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <select class="inp" style="height:28px;font-size:11px;width:auto" onchange="_finTxRange=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()" title="Which period to show — 'Selected month' follows the ‹ month › picker in the page header">
+      <option value="month" ${_finTxRange==='month'?'selected':''}>Selected month</option>
+      <option value="30d" ${_finTxRange==='30d'?'selected':''}>Last 30 days</option>
+      <option value="90d" ${_finTxRange==='90d'?'selected':''}>Last 90 days</option>
+      <option value="custom" ${_finTxRange==='custom'?'selected':''}>Date range…</option>
+      <option value="all" ${_finTxRange==='all'?'selected':''}>All time</option>
+    </select>
+    ${_finTxRange==='custom'?`<input class="inp" type="date" value="${esc(_finTxFrom)}" style="height:28px;font-size:11px;width:auto" onchange="_finTxFrom=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">
+    <span style="font-size:11px;color:var(--t3)">→</span>
+    <input class="inp" type="date" value="${esc(_finTxTo)}" style="height:28px;font-size:11px;width:auto" onchange="_finTxTo=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()" title="Leave empty for 'through today'">`:''}
     <input class="inp" placeholder="🔍 Search payee / notes…" value="${esc(_finTxSearch)}" style="flex:1;min-width:140px;height:28px;font-size:11px" oninput="_finTxSearch=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:180px" onchange="_finTxCat=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()"><option value="">All categories</option>${_finCatOptions(_finTxCat)}</select>
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:150px" onchange="_finTxAcct=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">${_finAcctOptions(_finTxAcct).replace('(no account)','All accounts')}</select>
@@ -14616,14 +14641,14 @@ function _finTxHtml(){
   </div>
   <div class="fin-card fin-tx-wrap" style="padding:0">
   <table class="fin-tx"><thead><tr><th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
-  ${rows.length?rows.map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
+  ${rows.length?rows.slice(0,500).map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
     <td><span title="${t.cleared?'Cleared — matches your statement':'Uncleared'}" style="cursor:pointer;font-size:13px;color:${t.cleared?'var(--ok)':'var(--bd2)'}" onclick="event.stopPropagation();finToggleCleared('${esc(String(t.id))}')">${t.cleared?'●':'○'}</span></td>
     <td style="white-space:nowrap">${esc(String(t.date||''))}</td>
     <td>${esc(t.payee||'')}${t.splitOf?' <span class="fin-chip" title="Part of a split">✂</span>':''}${t.recurringBillId?' <span class="fin-chip" title="Recurring — tracked in the Bills tab">↻</span>':''}${t.notes?` <span title="${esc(String(t.notes).slice(0,160))}" style="cursor:help;font-size:11px">📝</span>`:''}</td>
     <td><span class="fin-chip">${c.icon} ${esc(c.name)}</span></td>
     <td style="font-size:11px;color:var(--t3)">${a?esc(a.name):''}</td>
     <td style="text-align:right" class="${t.amount>0?'fin-amount-pos':'fin-amount-neg'}">${_finFmt(t.amount)}</td>
-    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join(''):`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${_finMonthLabel(ym)}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
+    <td>${ro?'':`<span style="cursor:pointer;color:var(--t3)" title="Delete" onclick="event.stopPropagation();finDeleteTx('${esc(String(t.id))}')">✕</span>`}</td></tr>`;}).join('')+(rows.length>500?`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:10px;font-size:11px">Showing the newest 500 of ${rows.length} — narrow the range or filters to see the rest.</td></tr>`:''):`<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:22px">No transactions in ${rangeLabel}.${ro?'':' Click <b>+ Transaction</b> to add one.'}</td></tr>`}
   </tbody></table></div>`;
 }
 function finOpenTx(id){
