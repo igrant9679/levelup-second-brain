@@ -4,9 +4,23 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-30-177`** on prod; **`-178` (bank-account
-type inference fix) committed UNPUSHED, awaiting review** · working tree
+Live build at handoff: **`2026-08-30-178`** on prod; **`-179` (SimpleFIN
+daily auto-sync) committed UNPUSHED, awaiting review** · working tree
 otherwise clean (only untracked `.claude/`, deliberately so).
+
+**-179 — SimpleFIN daily auto-sync** (2026-09-02, commit `2f5c24d`):
+`server/_core/simplefinAutoSync.ts` — 30-min cron, 10-hour per-user gate
+(~2 pulls/day), ONE bridge request per user covers all accounts;
+`mergeSimplefinPull` mirrors client sfSync (dedupe 's:'+id, rules,
+cleared:true, abs balances; matches by acct.bankId OR settings.bankMap;
+unlinked skipped; marker `finance.settings._autoSyncLastAt`).
+`simplefin.autoSyncNow` mutation + "⟳ Sync all now" button in the bank
+card (calls it, then loadServerData). ⚠ Server writes the whole finance
+blob — a stale open client tab saving after the cron ran can clobber the
+cron's additions (whole-blob save model); blob is re-read just before
+writing to shrink the window. 12 tsx tests against the real merge fn.
+Same session (data ops): first manual sync of all 16 accounts in the
+owner's session — 887 transactions imported (Jun 222/Jul 337/Aug 327).
 
 **-178 — smarter sfLinkAccount type inference** (commit `d969686`): the old
 guesser typed Capital One "Quicksilver" cards as CHECKING (+$22.7k debt
