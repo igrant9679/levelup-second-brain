@@ -4,9 +4,12 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-08-30-178`** on prod; **`-179` (SimpleFIN
-daily auto-sync) committed UNPUSHED, awaiting review** · working tree
-otherwise clean (only untracked `.claude/`, deliberately so).
+Live build at handoff: **`2026-09-02-179`** on prod (auto-sync cron verified
+running — first pass 2026-09-02T20:40Z); **`-180` (Transactions range views:
+last 30/90 days, all time, custom from/to; commit `4d8a6ac`) committed
+UNPUSHED, awaiting review** · working tree otherwise clean (only untracked
+`.claude/`, deliberately so). Owner data note: all 16 bank accounts synced
+2026-09-02 — 887 transactions (Jun 222/Jul 337/Aug 327).
 
 **-179 — SimpleFIN daily auto-sync** (2026-09-02, commit `2f5c24d`):
 `server/_core/simplefinAutoSync.ts` — 30-min cron, 10-hour per-user gate
