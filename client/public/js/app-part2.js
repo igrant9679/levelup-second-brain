@@ -15674,7 +15674,8 @@ function _finBankCardHtml(){
   const as=_sfAccounts.accounts;
   const f=_finData(); const map=f.settings.bankMap||{};
   return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="margin-bottom:6px">
-      <span class="nm" style="font-size:12px;font-weight:700">🔗 Bank connections <span class="fin-chip">SimpleFIN</span></span>
+      <span class="nm" style="font-size:12px;font-weight:700">🔗 Bank connections <span class="fin-chip">SimpleFIN</span> <span style="font-size:10px;color:var(--t3);font-weight:400" title="A server job pulls every linked account's transactions and balances roughly twice a day — no clicking needed. The buttons below are for an immediate pull.">· auto-syncs ~twice daily</span></span>
+      <button class="btn btn-p" style="height:24px;font-size:11px" onclick="sfSyncAll(this)">⟳ Sync all now</button>
       <button class="btn btn-s" style="height:24px;font-size:11px" onclick="window.open('https://bridge.simplefin.org/','_blank')">🌐 Manage banks</button>
       <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_sfAccounts=null;renderMoney()">↻</button>
     </div>
@@ -15712,6 +15713,22 @@ function sfLinkAccount(sfId,name,org,balance){
   (f.settings.bankMap=f.settings.bankMap||{})[sfId]=acct.id;
   _finSave(); toast({type:'success',title:'Account added',msg:name+' — now hit ⟳ Sync to pull transactions.'});
   renderMoney();
+}
+/* One click = the server's auto-sync pass for this user: a single bridge
+   request pulls ALL linked accounts, dedupes, applies rules and updates
+   balances server-side; we then reload the fresh blob. Only works on your
+   OWN budget (the server routine runs as the caller). */
+async function sfSyncAll(btn){
+  if(_finShared!=null){toast('Switch to your own budget to sync banks.');return;}
+  if(btn){btn.disabled=true;btn.textContent='⟳ Syncing…';}
+  try{
+    const res=await _trpc('simplefin.autoSyncNow',undefined,'mutation');
+    if(!res||!res.ok){toast({type:'error',title:'Sync failed',msg:(res&&res.error)||'Try again.'});return;}
+    if(typeof loadServerData==='function')await loadServerData();
+    renderMoney();
+    toast({type:'success',title:'⟳ All accounts synced',msg:(res.added||0)+' new transaction'+(res.added===1?'':'s')+' · balances updated',duration:3200});
+  }catch(e){toast({type:'error',title:'Sync failed',msg:String(e&&e.message||e).slice(0,150)});}
+  finally{if(btn){btn.disabled=false;btn.textContent='⟳ Sync all now';}}
 }
 async function sfSync(sfId){
   if(_finGuard())return;

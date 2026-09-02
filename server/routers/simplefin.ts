@@ -35,14 +35,14 @@ function parseAccessUrl(accessUrl: string): { base: string; auth: string; host: 
   return { base, auth: "Basic " + Buffer.from(user + ":" + pass).toString("base64"), host };
 }
 
-async function getAccess(db: any, userId: number): Promise<string | null> {
+export async function getAccess(db: any, userId: number): Promise<string | null> {
   const [row] = await db.select().from(externalSourceCredentials)
     .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, "simplefin"))).limit(1);
   return row && row.apiToken ? (row.apiToken as string) : null;
 }
 
 /** GET {accessUrl}/accounts with the given query params. */
-async function sfGet(accessUrl: string, params: Record<string, string>): Promise<any> {
+export async function sfGet(accessUrl: string, params: Record<string, string>): Promise<any> {
   const { base, auth } = parseAccessUrl(accessUrl);
   const qs = new URLSearchParams(params).toString();
   const url = base + "/accounts" + (qs ? "?" + qs : "");
@@ -196,6 +196,23 @@ export const simplefinRouter = router({
       };
     } catch (e: any) {
       return { ok: false as const, configured: true, accounts: [] as any[], error: String(e?.message || e).slice(0, 300) };
+    }
+  }),
+
+  /**
+   * On-demand run of the daily auto-sync for the calling user: one bridge
+   * request pulls ALL linked accounts' transactions + balances into the
+   * finance blob server-side. The client reloads its data afterwards.
+   */
+  autoSyncNow: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { runSimplefinAutoSync } = await import("../_core/simplefinAutoSync");
+      const res = await runSimplefinAutoSync({ userId: ctx.user.id, force: true });
+      if (res.errors) return { ok: false as const, error: "sync failed — check the server logs" };
+      if (!res.synced) return { ok: false as const, error: "nothing to sync — connect SimpleFIN and add accounts to Money first" };
+      return { ok: true as const, added: res.added };
+    } catch (e: any) {
+      return { ok: false as const, error: String(e?.message || e).slice(0, 300) };
     }
   }),
 
