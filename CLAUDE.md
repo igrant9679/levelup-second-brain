@@ -5,9 +5,13 @@
 ## ▶ START NEXT SESSION HERE
 
 Live build at handoff: **`2026-09-02-181`** on prod; **`-182` (charts +
-insight strips on every Money data tab; commit `17583f0`) committed
-UNPUSHED, awaiting review** · working tree otherwise clean (only untracked
-`.claude/`).
+insight strips on every Money data tab; commit `17583f0`) and `-183`
+(bill `matchText` "bank payee contains" + 🔗 Link-payment picker)
+committed UNPUSHED, awaiting review** · working tree otherwise clean (only
+untracked `.claude/`). Owner data 2026-09-02 (late): 24 bills, 893 txs,
+Sync-all ran 01:46Z; **0 bills name-matched** their bank payees — the user
+said they'll link them manually via the -183 picker (each Link stores the
+payee as `matchText`, which the server reconciler honours on every sync).
 
 **-182 — Money visuals**: pure-SVG chart engine (`_finDonut/_finBars/
 _finLine/_finRankBars`) + per-tab strips (`_finTabInsightsHtml`, injected at
