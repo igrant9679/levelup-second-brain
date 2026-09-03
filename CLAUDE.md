@@ -4,12 +4,24 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-02-179`** on prod (auto-sync cron verified
-running — first pass 2026-09-02T20:40Z); **`-180` (Transactions range views:
-last 30/90 days, all time, custom from/to; commit `4d8a6ac`) committed
-UNPUSHED, awaiting review** · working tree otherwise clean (only untracked
-`.claude/`, deliberately so). Owner data note: all 16 bank accounts synced
-2026-09-02 — 887 transactions (Jun 222/Jul 337/Aug 327).
+Live build at handoff: **`2026-09-02-180`** on prod (range views verified by
+the user); **`-181` (bill↔transaction auto-matching + per-bill insights;
+commit `ffbfa92`) committed UNPUSHED, awaiting review** · working tree
+otherwise clean (only untracked `.claude/`). Owner data: all 16 bank
+accounts synced 2026-09-02 — 887 transactions; auto-sync cron verified
+(first pass 20:40Z).
+
+**-181 — Bills auto-match + insights**: matching rule mirrored in TWO
+places — client `_finBillTxMatch`/`_finReconcileBills` and server
+`reconcileBills` (simplefinAutoSync.ts) — explicit `recurringBillId` link
+OR payee name-match + amount within max($10,40%); expenses only; largest
+match per month. Server reconciler runs inside the auto-sync pass →
+lastPaidYM auto-updates with the app closed (feeds the -176 emails). Bills
+cards: 6-month dots, last-paid, 3-mo actual avg + "set as amount", 📈
+price-up chip, 📎 payments (jumps to Transactions w/ 90d range + search).
+Also: header ‹ month › arrows now snap `_finTxRange` back to 'month' on
+the Transactions tab (user-reported: sticky 90d range made the arrows look
+broken). 8 tsx tests on the real reconcileBills.
 
 **-179 — SimpleFIN daily auto-sync** (2026-09-02, commit `2f5c24d`):
 `server/_core/simplefinAutoSync.ts` — 30-min cron, 10-hour per-user gate
