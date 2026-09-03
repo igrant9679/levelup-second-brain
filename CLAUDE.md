@@ -4,11 +4,18 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-02-181`** on prod; **`-182` (charts +
-insight strips on every Money data tab; commit `17583f0`) and `-183`
-(bill `matchText` "bank payee contains" + 🔗 Link-payment picker)
-committed UNPUSHED, awaiting review** · working tree otherwise clean (only
-untracked `.claude/`). Owner data 2026-09-02 (late): 24 bills, 893 txs,
+Live build at handoff: **`2026-09-02-183`** on prod (charts verified in the
+owner's Browser pane on real data); **`-184` (✨ AI categorize pass on the
+Transactions tab) committed UNPUSHED, awaiting review** · working tree
+otherwise clean (only untracked `.claude/`).
+
+**-184 — AI auto-categorization**: `finAICategorize` groups uncategorized
+payees → `ai.assist` in chunks of 70 (clamped) with the user's category
+list → strict JSON {payee, match, catId, confidence} → review table
+(`_finRenderAICatReview`) → `finAICatApply` writes RULES (`f.rules`,
+deduped by match text) and recategorizes only still-uncategorized txs via
+`_finApplyRules`. Motivation: all 893 synced txs were `misc-other` (no
+rules existed), so every category chart was one slice. Owner data 2026-09-02 (late): 24 bills, 893 txs,
 Sync-all ran 01:46Z; **0 bills name-matched** their bank payees — the user
 said they'll link them manually via the -183 picker (each Link stores the
 payee as `matchText`, which the server reconciler honours on every sync).
