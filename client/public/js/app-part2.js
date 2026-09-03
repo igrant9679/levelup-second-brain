@@ -14649,7 +14649,7 @@ function _finTxInsightsHtml(rows,rangeLabel){
   const tot=_finSum(spend,t=>-t.amount); const days=Math.max(1,Math.round(span)+1);
   const topCat=Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
   return `<div class="fin-grid" style="margin-bottom:12px">
-    ${_finVizCard('🥧 Spending by category',_finDonut(Object.entries(byCat).map(([label,value])=>({label,value})),_finFmt(tot,0)),topCat?`<b>${esc(topCat[0])}</b> is ${Math.round(topCat[1]/tot*100)}% of spending in ${esc(rangeLabel)} · ${spend.length} transactions.`:'')}
+    ${_finVizCard('🥧 Spending by category',_finDonut(Object.entries(byCat).map(([label,value])=>({label,value})),_finFmt(tot,0)),topCat?`<b>${esc(topCat[0])}</b> is ${Math.round(topCat[1]/tot*100)}% of spending in ${esc(rangeLabel)} · ${spend.length} transactions.${(spend.filter(_finIsUncat).length/spend.length)>0.5&&!_finRO()?` <span style="cursor:pointer;color:var(--purp);text-decoration:underline" onclick="finAICategorize()">Most are uncategorized — run ✨ AI categorize.</span>`:''}`:'')}
     ${_finVizCard(weekly?'📈 Spending by week':'📈 Spending by day',_finBars([{name:'Spent',values:keys.map(k=>byB[k])}],keys.map(k=>k.slice(5))),`Averages <b style="color:var(--t2)">${_finFmt(tot/days,0)}/day</b> over ${days} day${days===1?'':'s'}${weekly?' — bars are Monday-start weeks.':'.'}`)}
     ${_finVizCard('🏷 Top payees',_finRankBars(topP),topP.length?`Top payee accounts for ${Math.round(topP[0].value/tot*100)}% of the range's spending.`:'')}
   </div>`;
@@ -14801,6 +14801,7 @@ function _finTxHtml(){
     <span class="fin-chip">${rows.length} · net ${_finFmt(total,0)}</span>
     ${ro?'':`<button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenCsv()">⬆ CSV</button>
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenRules()">⚙ Rules</button>
+    <button class="btn btn-s" style="height:28px;font-size:11px;color:var(--purp)" onclick="finAICategorize()" title="AI proposes a category + rule for every uncategorized payee; you approve before anything is written">✨ AI categorize</button>
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finDetectRecurring()" title="Scan history for monthly recurring charges">🔍 Recurring</button>`}
   </div>
   ${_finTxInsightsHtml(rows,rangeLabel)}
@@ -15885,6 +15886,85 @@ function finAddRule(){
   if(!m.trim()){toast('Enter the text to match.');return;}
   _finRules().push({id:String(Date.now()),match:m.trim(),catId:document.getElementById('fr-cat').value});
   _finSave(); finOpenRules();
+}
+// ── AI auto-categorization (build -184) ────────────────────────────────
+/* Groups every uncategorized payee (misc-other / inc-other / none), asks
+   the AI — in chunks that respect the ai.assist size caps — for a
+   category AND a short stable merchant substring per payee, then shows a
+   review table. Approved rows become RULES (payee-substring → category),
+   which recategorize existing uncategorized transactions and apply to
+   every future bank sync (client + server both run the rules engine).
+   Manual categorizations are never touched. */
+let _finAICatProposals=null;
+function _finIsUncat(t){ return !t.catId||t.catId==='misc-other'||t.catId==='inc-other'; }
+async function finAICategorize(){
+  if(_finGuard())return;
+  const f=_finData();
+  const groups={};
+  (f.transactions||[]).forEach(t=>{ if(!_finIsUncat(t))return; const p=String(t.payee||'').trim(); if(!p)return; const g=groups[p]=groups[p]||{payee:p,n:0,total:0,income:0}; g.n++; g.total+=Math.abs(t.amount||0); if(t.amount>0)g.income++; });
+  const list=Object.values(groups).sort((a,b)=>b.n-a.n||b.total-a.total).slice(0,240);
+  if(!list.length){toast('Nothing to categorize — every transaction already has a category.');return;}
+  const cats=f.categories.map(c=>`${c.id}=${c.name}${c.kind==='income'?' (income)':''}`).join(', ');
+  _finModal(`<div style="padding:16px;max-width:520px"><h2 style="font-size:15px;font-weight:600;margin-bottom:6px">✨ AI categorization</h2>
+    <div id="fac-status" style="font-size:12px;color:var(--t2);line-height:1.6">Reading ${list.length} uncategorized payee${list.length===1?'':'s'}…</div>
+    <div class="dr-actions" style="margin-top:12px"><button class="btn btn-s" onclick="_finAICatProposals=null;_finCloseModal()">Cancel</button></div></div>`);
+  const props=[]; const CHUNK=70; let failed=0;
+  for(let i=0;i<list.length;i+=CHUNK){
+    if(!document.getElementById('fac-status'))return; // user cancelled
+    const part=list.slice(i,i+CHUNK);
+    document.getElementById('fac-status').textContent=`Analyzing payees ${i+1}–${Math.min(list.length,i+CHUNK)} of ${list.length}… (${props.length} proposed so far)`;
+    const lines=part.map(g=>`${g.income>=g.n/2?'+':'-'} ${g.payee} (x${g.n}, $${Math.round(g.total)})`).join('\n');
+    const sys=`You categorize bank transactions for a personal-budget app. Input: PAYEE strings (prefix + = money IN, - = money OUT, with count and total) and the user's CATEGORY list as id=name. Return STRICTLY a JSON array, no prose, one object per payee: {"payee":"<exact payee string from the list>","match":"<the shortest substring of that payee that identifies the merchant across its variants, e.g. AMAZON, PAYPAL *SPOTIFY, APS ELECTRIC>","catId":"<an id from CATEGORIES>","confidence":"high"|"medium"|"low"}. Money IN must use income categories. Card/loan payments and transfers go to the debt or transfer category if one exists. Use misc-other only when the merchant is truly unknowable.`;
+    const user=`CATEGORIES: ${cats}\n\nPAYEES:\n${lines}`;
+    try{
+      const {provider,apiKey}=_getAIConfig();
+      const res=await _trpc('ai.assist',{systemPrompt:_aiClampStr(sys,3900),userContent:_aiClampStr(user,7900),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      const text=String(res?.result||res?.text||''); const m=text.match(/\[[\s\S]*\]/);
+      const arr=m?JSON.parse(m[0]):[];
+      if(!Array.isArray(arr))throw new Error('AI returned no list');
+      arr.forEach(x=>{
+        const g=part.find(p=>p.payee===x.payee)||part.find(p=>p.payee.toLowerCase()===String(x.payee||'').toLowerCase()); if(!g)return;
+        if(!f.categories.some(c=>c.id===x.catId))return;
+        let match=String(x.match||'').trim(); if(!match||!g.payee.toLowerCase().includes(match.toLowerCase()))match=g.payee;
+        props.push({payee:g.payee,n:g.n,total:g.total,match:match.slice(0,60),catId:x.catId,conf:['high','medium','low'].includes(x.confidence)?x.confidence:'medium'});
+      });
+    }catch(e){ failed++; console.warn('[money] AI categorize chunk failed',e); }
+  }
+  if(!props.length){ const st=document.getElementById('fac-status'); if(st)st.innerHTML=`<span style="color:var(--red)">No proposals came back${failed?' — the AI call failed (check Settings → AI Features)':''}.</span>`; return; }
+  _finAICatProposals=props; _finRenderAICatReview(failed);
+}
+function _finRenderAICatReview(failed){
+  const props=_finAICatProposals||[];
+  const confColor=c=>c==='high'?'var(--ok)':c==='medium'?'var(--warn)':'var(--t3)';
+  _finModal(`<div style="padding:16px;max-width:760px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">✨ Review ${props.length} proposed categor${props.length===1?'y':'ies'}</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:8px">Each checked row becomes a rule: any transaction whose bank payee contains the <b>match</b> text gets the category — existing uncategorized ones now, and every future sync. Edit the match or category first if needed. Low-confidence rows start unchecked.${failed?` <span style="color:var(--warn)">${failed} chunk${failed===1?'':'s'} failed — run again later for the rest.</span>`:''}</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;font-size:11px"><span style="cursor:pointer;color:var(--ac)" onclick="document.querySelectorAll('.fac-chk').forEach(c=>c.checked=true)">Select all</span> · <span style="cursor:pointer;color:var(--ac)" onclick="document.querySelectorAll('.fac-chk').forEach(c=>c.checked=false)">None</span> · <span style="cursor:pointer;color:var(--ac)" onclick="document.querySelectorAll('.fac-chk').forEach(c=>c.checked=c.dataset.conf==='high')">High confidence only</span></div>
+    <div class="fin-tx-wrap" style="max-height:52vh;overflow-y:auto"><table class="fin-tx"><thead><tr><th></th><th>Bank payee</th><th>Match text</th><th>Category</th><th></th></tr></thead><tbody>
+    ${props.map((p,i)=>`<tr>
+      <td><input type="checkbox" class="fac-chk" data-i="${i}" data-conf="${p.conf}" ${p.conf!=='low'?'checked':''}></td>
+      <td><div style="font-size:12px">${esc(p.payee)}</div><div style="font-size:10px;color:var(--t3)">×${p.n} · ${_finFmt(p.total,0)}</div></td>
+      <td><input class="inp fac-match" data-i="${i}" value="${esc(p.match)}" style="height:24px;font-size:11px;min-width:120px"></td>
+      <td><select class="inp fac-cat" data-i="${i}" style="height:24px;font-size:11px;max-width:190px">${_finCatOptions(p.catId)}</select></td>
+      <td><span class="fin-chip" style="color:${confColor(p.conf)}">${p.conf}</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>
+    <div class="dr-actions" style="margin-top:12px">
+      <button class="btn btn-p" onclick="finAICatApply()">Apply selected</button>
+      <button class="btn btn-s" onclick="_finAICatProposals=null;_finCloseModal()">Cancel</button>
+    </div></div>`);
+}
+function finAICatApply(){
+  if(_finGuard())return;
+  const f=_finData(); const props=_finAICatProposals||[]; if(!Array.isArray(f.rules))f.rules=[];
+  const matches=[...document.querySelectorAll('.fac-match')].reduce((m,el)=>{m[el.dataset.i]=el.value.trim();return m;},{});
+  const catsSel=[...document.querySelectorAll('.fac-cat')].reduce((m,el)=>{m[el.dataset.i]=el.value;return m;},{});
+  const seen=new Set(f.rules.map(r=>String(r.match||'').toLowerCase())); let added=0;
+  document.querySelectorAll('.fac-chk').forEach(chk=>{ if(!chk.checked)return; const i=chk.dataset.i; const match=matches[i]||props[i].match; const catId=catsSel[i]||props[i].catId; const key=match.toLowerCase(); if(!match||seen.has(key))return; seen.add(key); f.rules.push({id:String(Date.now())+Math.floor(Math.random()*100000),match,catId}); added++; });
+  let recat=0;
+  (f.transactions||[]).forEach(t=>{ if(!_finIsUncat(t))return; const c=_finApplyRules(t.payee); if(c&&c!==t.catId){t.catId=c;recat++;} });
+  _finAICatProposals=null; _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'✨ '+added+' rule'+(added===1?'':'s')+' added',msg:recat+' transaction'+(recat===1?'':'s')+' recategorized · rules apply to every future sync (edit them under ⚙ Rules).',duration:4200});
 }
 // ── transaction dedupe key ─────────────────────────────────────────────
 function _finTxKey(t){ const bid=t.bankTxId||t.sophtronId; return bid?('s:'+bid):(String(t.date||'')+'|'+Math.round((t.amount||0)*100)+'|'+String(t.payee||'').toLowerCase().slice(0,40)); }
