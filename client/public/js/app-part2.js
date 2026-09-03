@@ -15016,6 +15016,9 @@ function _finBillTxMatch(b,t){
   if(t.recurringBillId&&String(t.recurringBillId)===String(b.id))return true;
   const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const bn=norm(b.name),pn=norm(t.payee);
+  // Explicit "bank payee contains" text (build -183) trusts the payee alone —
+  // card payments swing too much month to month for an amount tolerance.
+  const mt=norm(b.matchText); if(mt)return pn.includes(mt);
   if(!bn||!pn||!(pn.includes(bn)||bn.includes(pn)))return false;
   const amt=Math.abs(t.amount),plan=Number(b.amount)||0;
   if(plan<=0)return true;
@@ -15044,6 +15047,38 @@ function _finReconcileBills(f){
 function finBillViewPayments(id){
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
   _finTxSearch=b.name; _finTxRange='90d'; _finTxCat=''; _finTxAcct=''; _finTab='transactions'; renderMoney();
+}
+/* Link picker (build -183): suggests recent charges for a bill, ranked by
+   how close the amount is to the plan. Linking stores the payee as the
+   bill's matchText (so every future charge from that payee reconciles)
+   and stamps the chosen transaction. */
+function finBillLinkPicker(id){
+  if(_finGuard())return;
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
+  const since=new Date(Date.now()-120*86400000).toISOString().slice(0,10);
+  const plan=Number(b.amount)||0;
+  const cands=(f.transactions||[]).filter(t=>t.amount<0&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
+    .map(t=>({t,d:plan>0?Math.abs(Math.abs(t.amount)-plan)/plan:0}))
+    .sort((a,b2)=>a.d-b2.d||String(b2.t.date).localeCompare(String(a.t.date))).slice(0,25);
+  _finModal(`<div style="padding:16px;max-width:560px">
+    <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">🔗 Link a payment — ${esc(b.name)}</h2>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Pick the bank charge that pays this bill (planned ${_finFmt(plan,0)}/mo). Its payee becomes the bill's match text, so future charges reconcile automatically. Closest amounts first.</div>
+    <div style="max-height:320px;overflow-y:auto">${cands.length?cands.map(c=>`<div class="fin-row" style="border-bottom:1px solid var(--bd1)">
+      <span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(String(c.t.date||''))}</span>
+      <span class="nm" style="font-size:12px">${esc(c.t.payee||'(no payee)')}</span>
+      <span style="font-weight:650;white-space:nowrap">${_finFmt(Math.abs(c.t.amount))}</span>
+      <button class="btn btn-p" style="height:22px;font-size:10px;padding:0 8px" onclick="finBillLinkTo('${_jsAttr(String(b.id))}','${_jsAttr(String(c.t.id))}')">Link</button>
+    </div>`).join(''):'<div style="font-size:12px;color:var(--t3)">No expense transactions in the last 120 days — sync your accounts first.</div>'}</div>
+    <div class="dr-actions" style="margin-top:10px"><button class="btn btn-s" onclick="_finCloseModal()">Cancel</button></div></div>`);
+}
+function finBillLinkTo(billId,txId){
+  if(_finGuard())return;
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(billId)); const t=(f.transactions||[]).find(x=>String(x.id)===String(txId)); if(!b||!t)return;
+  b.matchText=String(t.payee||'').trim().slice(0,80)||b.matchText;
+  t.recurringBillId=b.id;
+  const ym=String(t.date||'').slice(0,7); if(ym===_finYM(new Date()))b.lastPaidYM=ym;
+  _finSave(); _finCloseModal(); renderMoney();
+  toast({type:'success',title:'🔗 Linked',msg:b.name+' now matches "'+b.matchText+'" — future charges reconcile automatically.',duration:3200});
 }
 function finBillAdoptActual(id,amt){
   if(_finGuard())return;
@@ -15079,7 +15114,8 @@ function _finBillsHtml(){
     </div>
     <div class="fin-row" style="font-size:11px;color:var(--t3);margin-top:4px">
       <span style="letter-spacing:2px" title="Last 6 months — matched payments">${dots}</span>
-      ${last?`<span>last paid ${esc(String(last.tx.date||''))} · <b style="color:var(--t2)">${_finFmt(Math.abs(last.tx.amount))}</b></span>`:'<span>no payments matched yet — transactions link by payee name, or mark one ↻ Recurring</span>'}
+      ${last?`<span>last paid ${esc(String(last.tx.date||''))} · <b style="color:var(--t2)">${_finFmt(Math.abs(last.tx.amount))}</b></span>`:`<span>no payments matched yet</span>${ro?'':`<button class="btn btn-p" style="height:20px;font-size:10px;padding:0 7px" onclick="finBillLinkPicker('${esc(String(b.id))}')" title="Pick the bank charge that pays this bill">🔗 Link payment</button>`}`}
+      ${b.matchText?`<span class="fin-chip" title="Transactions whose bank payee contains this text count as payments of this bill">matches "${esc(b.matchText)}"</span>`:''}
       ${avg!=null?`<span title="Average of the last ${actuals.length} matched payment${actuals.length===1?'':'s'}">avg <b style="color:${Math.abs(drift)>Math.max(2,b.amount*0.1)?'var(--warn)':'var(--t2)'}">${_finFmt(avg)}</b>${Math.abs(drift)>Math.max(2,b.amount*0.1)&&!ro?` <span style="cursor:pointer;color:var(--ac);text-decoration:underline" title="Set the planned amount to the 3-month actual average" onclick="finBillAdoptActual('${esc(String(b.id))}',${Math.round(avg*100)/100})">set as amount</span>`:''}</span>`:''}
       ${hist.length?`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="finBillViewPayments('${esc(String(b.id))}')" title="Open Transactions filtered to this bill's payments">📎 payments</button>`:''}
     </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No bills yet. Add your mortgage, utilities, card payments — anything that recurs monthly. Or mark a transaction ↻ Recurring and it becomes a bill automatically.</div>'}`;
@@ -15098,6 +15134,7 @@ function finOpenBill(id){
       <div class="field"><label>Category</label><select class="inp" id="fb-cat">${_finCatOptions(b?b.catId:'debt-cc')}</select></div>
       <div class="field"><label>Pay from</label><select class="inp" id="fb-acct">${_finAcctOptions(b?b.accountId:'')}</select></div>
     </div>
+    <div class="field"><label>Bank payee contains <span style="color:var(--t3);font-weight:400">(links transactions — e.g. "APS", "CHASE CARD")</span></label><input class="inp" id="fb-match" value="${esc(b&&b.matchText?b.matchText:'')}" placeholder="text that appears in the bank's description"></div>
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:8px 0"><input type="checkbox" id="fb-autopay" ${b&&b.autopay?'checked':''}> ⚡ On autopay</label>
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin:0 0 8px"><input type="checkbox" id="fb-active" ${!b||b.active!==false?'checked':''}> Active</label>
     <div class="dr-actions" style="margin-top:10px">
@@ -15113,6 +15150,7 @@ function finSaveBill(id){
   const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), name, amount:parseFloat(g('fb-amount').value)||0,
     dueDay:Math.min(28,Math.max(1,parseInt(g('fb-day').value)||1)), catId:g('fb-cat').value, accountId:g('fb-acct').value||null,
     autopay:g('fb-autopay').checked, active:g('fb-active').checked };
+  const mt=((g('fb-match')||{}).value||'').trim(); if(mt)rec.matchText=mt;
   const old=id?f.bills.find(x=>String(x.id)===String(id)):null;
   if(old)rec.lastPaidYM=old.lastPaidYM;
   const i=f.bills.findIndex(x=>String(x.id)===String(rec.id));

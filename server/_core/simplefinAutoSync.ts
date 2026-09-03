@@ -107,6 +107,8 @@ export function reconcileBills(fin: any, nowYm: string): number {
     if ((t.amount || 0) >= 0) return false;
     if (t.recurringBillId && String(t.recurringBillId) === String(b.id)) return true;
     const bn = norm(b.name), pn = norm(t.payee);
+    // Explicit "bank payee contains" text (-183) trusts the payee alone.
+    const mt = norm(b.matchText); if (mt) return pn.includes(mt);
     if (!bn || !pn || !(pn.includes(bn) || bn.includes(pn))) return false;
     const amt = Math.abs(t.amount), plan = Number(b.amount) || 0;
     if (plan <= 0) return true;
