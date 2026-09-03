@@ -4,10 +4,23 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-02-180`** on prod (range views verified by
-the user); **`-181` (bill↔transaction auto-matching + per-bill insights;
-commit `ffbfa92`) committed UNPUSHED, awaiting review** · working tree
-otherwise clean (only untracked `.claude/`). Owner data: all 16 bank
+Live build at handoff: **`2026-09-02-181`** on prod; **`-182` (charts +
+insight strips on every Money data tab; commit `17583f0`) committed
+UNPUSHED, awaiting review** · working tree otherwise clean (only untracked
+`.claude/`).
+
+**-182 — Money visuals**: pure-SVG chart engine (`_finDonut/_finBars/
+_finLine/_finRankBars`) + per-tab strips (`_finTabInsightsHtml`, injected at
+ONE point in `renderMoney`; Transactions' strip lives inside `_finTxHtml`
+so it follows the range/filters). Palette `FIN_PAL` = the dataviz skill's
+reference categorical set, validated with its `validate_palette.js` on both
+app card surfaces (light #fff / dark #0f1525). Rules kept: fixed slot
+order (never cycled), one axis, legend for ≥2 series, only the max bar
+direct-labelled, `<title>` hover on every mark, text in theme ink tokens.
+Strips fail soft (try/catch → '') so data oddities can't blank a tab.
+NB the Claude desktop Browser pane (`mcp__Claude_Browser__*`) is signed
+into prod as the owner — use it for in-app verification when the Chrome
+extension browsers are signed out. Owner data: all 16 bank
 accounts synced 2026-09-02 — 887 transactions; auto-sync cron verified
 (first pass 20:40Z).
 
