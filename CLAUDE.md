@@ -4,9 +4,10 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-02-185`** on prod; **`2026-09-03-186`
-(Notes: Type=Meeting → Meeting Notes folder) committed UNPUSHED, awaiting
-review** · working tree otherwise clean (only untracked `.claude/`).
+Live build at handoff: **`2026-09-03-186`** on prod (deployed + classifier
+verified on the live bundle 2026-09-03) · everything pushed · working tree
+clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is now
+SIGNED OUT of prod — ask the user to sign it in before in-app verification.
 
 **-186 — Notes folder classification**: the editor's Type dropdown
 (`_NOTE_TYPES`, sets `n.noteType='Meeting'`) never fed the sidebar folders,
