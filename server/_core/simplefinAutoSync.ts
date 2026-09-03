@@ -90,6 +90,40 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
 }
 
 /**
+ * Bill ↔ transaction reconciliation (build -181). Mirror of the client's
+ * _finBillTxMatch/_finReconcileBills — keep the rules in agreement: a tx
+ * belongs to a bill when explicitly linked (recurringBillId) OR the payee
+ * name-matches AND the amount is within max($10, 40%) of the plan;
+ * expenses only. A current-month match auto-marks the bill paid, so the
+ * Bills page and the -176 emails update with the app closed. Pure —
+ * exported for tsx tests. Returns bills flipped to paid.
+ */
+export function reconcileBills(fin: any, nowYm: string): number {
+  if (!fin || typeof fin !== 'object') return 0;
+  const bills: any[] = Array.isArray(fin.bills) ? fin.bills : [];
+  const txs: any[] = Array.isArray(fin.transactions) ? fin.transactions : [];
+  const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const match = (b: any, t: any): boolean => {
+    if ((t.amount || 0) >= 0) return false;
+    if (t.recurringBillId && String(t.recurringBillId) === String(b.id)) return true;
+    const bn = norm(b.name), pn = norm(t.payee);
+    if (!bn || !pn || !(pn.includes(bn) || bn.includes(pn))) return false;
+    const amt = Math.abs(t.amount), plan = Number(b.amount) || 0;
+    if (plan <= 0) return true;
+    return Math.abs(amt - plan) <= Math.max(10, plan * 0.4);
+  };
+  let flipped = 0;
+  for (const b of bills) {
+    if (b.active === false) continue;
+    const hit = txs.find(t => String(t.date || '').slice(0, 7) === nowYm && match(b, t));
+    if (!hit) continue;
+    if (!hit.recurringBillId) hit.recurringBillId = b.id;
+    if (b.lastPaidYM !== nowYm) { b.lastPaidYM = nowYm; flipped++; }
+  }
+  return flipped;
+}
+
+/**
  * Run one auto-sync pass. opts.userId scopes to one user; opts.force
  * ignores the 10-hour freshness gate (the simplefin.autoSyncNow mutation
  * and the client's "Sync all" button use it).
@@ -131,12 +165,13 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
       if (!cur || typeof cur !== 'object') { out.skipped++; continue; }
       const nowYmd = new Date().toISOString().slice(0, 10);
       const res = mergeSimplefinPull(cur, sfAccounts, nowYmd);
+      const billsPaid = reconcileBills(cur, nowYmd.slice(0, 7));
       cur.settings = cur.settings && typeof cur.settings === 'object' ? cur.settings : {};
       cur.settings._autoSyncLastAt = new Date().toISOString();
       await db.update(userAppData).set({ finance: JSON.stringify(cur) }).where(eq(userAppData.userId, row.userId));
       out.synced++; out.added += res.added;
       const errs = (Array.isArray(payload?.errors) ? payload.errors : []).map((e: any) => String(e).slice(0, 120));
-      console.log(`[simplefin-sync] user ${row.userId}: ${res.linked} accounts, +${res.added} tx, ${res.balances} balances${errs.length ? ' · bridge says: ' + errs.join(' | ') : ''}`);
+      console.log(`[simplefin-sync] user ${row.userId}: ${res.linked} accounts, +${res.added} tx, ${res.balances} balances${billsPaid ? `, ${billsPaid} bills auto-marked paid` : ''}${errs.length ? ' · bridge says: ' + errs.join(' | ') : ''}`);
     } catch (err) {
       out.errors++;
       console.error(`[simplefin-sync] user ${row.userId} failed:`, (err as Error).message);

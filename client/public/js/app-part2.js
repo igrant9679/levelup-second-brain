@@ -14435,7 +14435,12 @@ async function _loadSharedFinance(){
 function _finFmt(n,dec){ const neg=n<0; const v=Math.abs(Number(n)||0); const s='$'+v.toLocaleString('en-US',{minimumFractionDigits:dec==null?2:dec,maximumFractionDigits:dec==null?2:dec}); return neg?'-'+s:s; }
 function _finYM(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function _finMonthLabel(ym){ const p=ym.split('-'); return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}); }
-function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(Number(p[0]),Number(p[1])-1+delta,1); _finMonth=_finYM(d); renderMoney(); }
+function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(Number(p[0]),Number(p[1])-1+delta,1); _finMonth=_finYM(d);
+  // Using the ‹ month › arrows means "browse by month" — snap the
+  // Transactions range back to month view so the arrows always respond
+  // (a sticky 'Last 90 days' range otherwise ignores them and looks broken).
+  if(_finTab==='transactions'&&_finTxRange!=='month')_finTxRange='month';
+  renderMoney(); }
 function _finCat(id){ return _finData().categories.find(c=>c.id===id)||{id,name:'(unknown)',group:'Misc',icon:'❓',kind:'expense'}; }
 function _finTxMonth(ym){ return _finData().transactions.filter(t=>String(t.date||'').slice(0,7)===ym); }
 function _finIncome(ym){ return _finTxMonth(ym).filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0); }
@@ -14838,22 +14843,86 @@ function finSaveBudgetLine(){
   _finSave(); _finCloseModal(); renderMoney();
 }
 // ── Bills ──────────────────────────────────────────────────────────────
+// ── bill ↔ transaction linking (build -181) ────────────────────────────
+/* A transaction "belongs" to a bill when the user linked it explicitly
+   (t.recurringBillId, build -177) OR the payee name-matches the bill AND
+   the amount is in the ballpark (within 40% or $10 of the planned amount
+   — utilities drift, card payments vary). Expenses only. Mirrored
+   server-side in simplefinAutoSync.ts (reconcileBills) so the twice-daily
+   cron auto-marks bills paid with the app closed — keep the rules in
+   agreement. */
+function _finBillTxMatch(b,t){
+  if((t.amount||0)>=0)return false;
+  if(t.recurringBillId&&String(t.recurringBillId)===String(b.id))return true;
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const bn=norm(b.name),pn=norm(t.payee);
+  if(!bn||!pn||!(pn.includes(bn)||bn.includes(pn)))return false;
+  const amt=Math.abs(t.amount),plan=Number(b.amount)||0;
+  if(plan<=0)return true;
+  return Math.abs(amt-plan)<=Math.max(10,plan*0.4);
+}
+/* Newest-first [{ym,tx}], one payment per month (largest match wins). */
+function _finBillHistory(f,b,months){
+  const byYm={};
+  (f.transactions||[]).forEach(t=>{ if(!_finBillTxMatch(b,t))return; const ym=String(t.date||'').slice(0,7); if(!ym)return;
+    if(!byYm[ym]||Math.abs(t.amount)>Math.abs(byYm[ym].amount))byYm[ym]=t; });
+  return Object.keys(byYm).sort().reverse().slice(0,months||12).map(ym=>({ym,tx:byYm[ym]}));
+}
+/* Run after new bank data lands (manual sfSync; the server cron does the
+   same during auto-sync): mark bills paid when this month has a matching
+   transaction, and stamp the link on it. Returns bills flipped. */
+function _finReconcileBills(f){
+  const nowYm=_finYM(new Date()); let flipped=0;
+  (f.bills||[]).forEach(b=>{ if(b.active===false)return;
+    const hit=(f.transactions||[]).find(t=>String(t.date||'').slice(0,7)===nowYm&&_finBillTxMatch(b,t));
+    if(!hit)return;
+    if(!hit.recurringBillId)hit.recurringBillId=b.id;
+    if(b.lastPaidYM!==nowYm){b.lastPaidYM=nowYm;flipped++;}
+  });
+  return flipped;
+}
+function finBillViewPayments(id){
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
+  _finTxSearch=b.name; _finTxRange='90d'; _finTxCat=''; _finTxAcct=''; _finTab='transactions'; renderMoney();
+}
+function finBillAdoptActual(id,amt){
+  if(_finGuard())return;
+  const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
+  b.amount=Math.round(Number(amt)*100)/100; _finSave(); renderMoney();
+  toast({type:'success',title:'Amount updated',msg:b.name+' → '+_finFmt(b.amount)+'/mo (3-month actual average)',duration:2400});
+}
 function _finBillsHtml(){
   const f=_finData(); const ro=_finRO();
   const bills=f.bills.slice().map(b=>({b,due:_finBillNextDue(b)})).sort((a,b)=>a.due-b.due);
   const monthly=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(Number(b.amount)||0),0);
+  const nowYm=_finYM(new Date());
   return `<div class="fin-card" style="margin-bottom:12px"><div class="fin-row" style="font-size:13px">
-      <span class="nm"><b>${f.bills.length}</b> recurring bill${f.bills.length===1?'':'s'} · ${_finFmt(monthly,0)}/month</span>
+      <span class="nm"><b>${f.bills.length}</b> recurring bill${f.bills.length===1?'':'s'} · ${_finFmt(monthly,0)}/month <span style="font-size:10px;color:var(--t3);font-weight:400" title="Bills link to bank transactions by payee name (or the ↻ Recurring mark on a transaction). A matching charge auto-marks the bill paid — including during the twice-daily background sync.">· auto-matched to transactions</span></span>
       ${ro?'':`<button class="btn btn-s" style="height:26px;font-size:11px" onclick="finOpenBill()">＋ Add bill</button>`}
     </div></div>
-    ${bills.length?bills.map(x=>{const b=x.b;const c=_finCat(b.catId);const days=Math.ceil((x.due-new Date())/86400000);const paid=b.lastPaidYM===_finYM(new Date());return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
-      <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}</span>
+    ${bills.length?bills.map(x=>{const b=x.b;const c=_finCat(b.catId);const days=Math.ceil((x.due-new Date())/86400000);
+      const hist=_finBillHistory(f,b,13);
+      const paid=b.lastPaidYM===nowYm||hist.some(h=>h.ym===nowYm);
+      const last=hist[0]||null,prev=hist[1]||null;
+      const actuals=hist.slice(0,3).map(h=>Math.abs(h.tx.amount));
+      const avg=actuals.length?actuals.reduce((s,v)=>s+v,0)/actuals.length:null;
+      const drift=avg!=null&&b.amount>0?avg-b.amount:0;
+      const jump=last&&prev&&Math.abs(last.tx.amount)>Math.abs(prev.tx.amount)*1.08&&(Math.abs(last.tx.amount)-Math.abs(prev.tx.amount))>=2;
+      const dots=Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-(5-i));const ym=_finYM(d);const hit=hist.some(h=>h.ym===ym)||b.lastPaidYM===ym;return `<span title="${ym}${hit?' · paid':' · no matched payment'}" style="color:${hit?'var(--ok)':'var(--bd2)'}">${hit?'●':'○'}</span>`;}).join('');
+      return `<div class="fin-card" style="margin-bottom:8px"><div class="fin-row">
+      <span>${c.icon}</span><span class="nm"><b>${esc(b.name)}</b>${b.active===false?' <span class="fin-chip">paused</span>':''}${b.autopay?' <span class="fin-chip">⚡ autopay</span>':''}${jump?` <span class="fin-chip" style="color:var(--warn)" title="Latest payment ${_finFmt(Math.abs(last.tx.amount))} vs ${_finFmt(Math.abs(prev.tx.amount))} the month before">📈 price up</span>`:''}</span>
       ${ro?`<span class="fin-chip">day ${b.dueDay||1}</span>`:`<span class="fin-chip" title="Due day of the month — edit directly">due day <input type="number" min="1" max="28" value="${b.dueDay||1}" style="width:44px;height:20px;font-size:11px;text-align:center;background:var(--s1);border:1px solid var(--bd1);border-radius:4px;color:var(--t1)" onchange="finSetBillDay('${esc(String(b.id))}',this.value)"></span>`}
       <span class="fin-chip" style="${days<=3&&!paid?'color:var(--warn)':''}">${paid?'✓ paid this month':'due '+x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
       <span style="font-weight:650;min-width:76px;text-align:right">${_finFmt(b.amount,0)}</span>
       ${ro?'':`${paid?'':`<button class="btn btn-s" style="height:24px;font-size:11px" onclick="finBillMarkPaid('${esc(String(b.id))}')">✓ Mark paid</button>`}
       <button class="btn btn-s" style="height:24px;font-size:11px;padding:0 7px" onclick="finOpenBill('${esc(String(b.id))}')">✏</button>`}
-    </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No bills yet. Add your mortgage, utilities, card payments — anything that recurs monthly.</div>'}`;
+    </div>
+    <div class="fin-row" style="font-size:11px;color:var(--t3);margin-top:4px">
+      <span style="letter-spacing:2px" title="Last 6 months — matched payments">${dots}</span>
+      ${last?`<span>last paid ${esc(String(last.tx.date||''))} · <b style="color:var(--t2)">${_finFmt(Math.abs(last.tx.amount))}</b></span>`:'<span>no payments matched yet — transactions link by payee name, or mark one ↻ Recurring</span>'}
+      ${avg!=null?`<span title="Average of the last ${actuals.length} matched payment${actuals.length===1?'':'s'}">avg <b style="color:${Math.abs(drift)>Math.max(2,b.amount*0.1)?'var(--warn)':'var(--t2)'}">${_finFmt(avg)}</b>${Math.abs(drift)>Math.max(2,b.amount*0.1)&&!ro?` <span style="cursor:pointer;color:var(--ac);text-decoration:underline" title="Set the planned amount to the 3-month actual average" onclick="finBillAdoptActual('${esc(String(b.id))}',${Math.round(avg*100)/100})">set as amount</span>`:''}</span>`:''}
+      ${hist.length?`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 6px" onclick="finBillViewPayments('${esc(String(b.id))}')" title="Open Transactions filtered to this bill's payments">📎 payments</button>`:''}
+    </div></div>`;}).join(''):'<div class="fin-card" style="color:var(--t3);font-size:12px">No bills yet. Add your mortgage, utilities, card payments — anything that recurs monthly. Or mark a transaction ↻ Recurring and it becomes a bill automatically.</div>'}`;
 }
 function finOpenBill(id){
   if(_finGuard())return;
@@ -15779,9 +15848,10 @@ async function sfSync(sfId){
     });
     if(res.balance!=null)acct.balance=Math.abs(res.balance);
     acct.bankLastSync=end;
+    const billsPaid=(typeof _finReconcileBills==='function')?_finReconcileBills(f):0;
     _finSave(); renderMoney();
     const warn=(res.errors&&res.errors.length)?' · ⚠ '+res.errors[0]:'';
-    toast({type:'success',title:'⟳ '+acct.name+' synced',msg:added+' new transaction'+(added===1?'':'s')+(auto?' · '+auto+' auto-categorized':'')+(added-auto>0?' · review the rest in Transactions':'')+warn,duration:3500});
+    toast({type:'success',title:'⟳ '+acct.name+' synced',msg:added+' new transaction'+(added===1?'':'s')+(auto?' · '+auto+' auto-categorized':'')+(billsPaid?' · '+billsPaid+' bill'+(billsPaid===1?'':'s')+' auto-marked paid':'')+warn,duration:3500});
   }catch(e){toast({type:'error',title:'Sync failed',msg:String(e&&e.message||e).slice(0,150)});}
 }
 // ── CSV import ─────────────────────────────────────────────────────────
