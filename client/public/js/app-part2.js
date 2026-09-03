@@ -15908,7 +15908,9 @@ async function finAICategorize(){
   _finModal(`<div style="padding:16px;max-width:520px"><h2 style="font-size:15px;font-weight:600;margin-bottom:6px">✨ AI categorization</h2>
     <div id="fac-status" style="font-size:12px;color:var(--t2);line-height:1.6">Reading ${list.length} uncategorized payee${list.length===1?'':'s'}…</div>
     <div class="dr-actions" style="margin-top:12px"><button class="btn btn-s" onclick="_finAICatProposals=null;_finCloseModal()">Cancel</button></div></div>`);
-  const props=[]; const CHUNK=70; let failed=0;
+  // 25 per call: the model's reply is capped in tokens, and 70 payees'
+  // worth of JSON got truncated (first live run: 3 of 4 chunks lost).
+  const props=[]; const CHUNK=25; let failed=0;
   for(let i=0;i<list.length;i+=CHUNK){
     if(!document.getElementById('fac-status'))return; // user cancelled
     const part=list.slice(i,i+CHUNK);
@@ -15919,9 +15921,11 @@ async function finAICategorize(){
     try{
       const {provider,apiKey}=_getAIConfig();
       const res=await _trpc('ai.assist',{systemPrompt:_aiClampStr(sys,3900),userContent:_aiClampStr(user,7900),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
-      const text=String(res?.result||res?.text||''); const m=text.match(/\[[\s\S]*\]/);
-      const arr=m?JSON.parse(m[0]):[];
-      if(!Array.isArray(arr))throw new Error('AI returned no list');
+      const text=String(res?.result||res?.text||'');
+      // Salvage parser: a truncated reply still yields every COMPLETE object.
+      let arr=[]; const m=text.match(/\[[\s\S]*\]/);
+      try{ arr=m?JSON.parse(m[0]):[]; }catch(_){ arr=(text.match(/\{[^{}]*\}/g)||[]).map(s=>{try{return JSON.parse(s);}catch(_2){return null;}}).filter(Boolean); }
+      if(!Array.isArray(arr)||!arr.length)throw new Error('AI returned no usable list');
       arr.forEach(x=>{
         const g=part.find(p=>p.payee===x.payee)||part.find(p=>p.payee.toLowerCase()===String(x.payee||'').toLowerCase()); if(!g)return;
         if(!f.categories.some(c=>c.id===x.catId))return;
