@@ -4,10 +4,26 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-02-183`** on prod (charts verified in the
-owner's Browser pane on real data); **`-184` (✨ AI categorize pass on the
-Transactions tab) committed UNPUSHED, awaiting review** · working tree
-otherwise clean (only untracked `.claude/`).
+Live build at handoff: **`2026-09-02-185`** on prod; **`2026-09-03-186`
+(Notes: Type=Meeting → Meeting Notes folder) committed UNPUSHED, awaiting
+review** · working tree otherwise clean (only untracked `.claude/`).
+
+**-186 — Notes folder classification**: the editor's Type dropdown
+(`_NOTE_TYPES`, sets `n.noteType='Meeting'`) never fed the sidebar folders,
+which only checked `source==='Meeting Notes'` / `meetings` tag. New shared
+helpers `_noteIsMeeting(n)` / `_noteIsJournal(n)` (app-part1.js, just above
+`_noteBreadcrumb`) honour `noteType` ('Meeting' or the quick-add form's
+'Meeting Notes'), source and tag; used by the folder `catMap`, Resources
+exclusion and the breadcrumb. `setNoteType` now calls `applyNotesFilters()`
+so the note moves folders immediately. Two Type vocabularies still exist
+(editor `_NOTE_TYPES` vs quick-add `fa-notetype`) — not unified.
+
+**-185 — AI categorize hotfix** (live): chunks 70→25 + truncation-salvage
+parser (`/{[^{}]*}/g`) — 3 of 4 chunks were silently lost to the response
+cap on the first live run. Ran the pass with the owner watching: 145 rules,
+893→259 uncategorized. Remaining ~$80k of Miscellaneous is TRANSFERS
+(Online Transfer, checks, CapOne balance transfer, Wise) — **no Transfer
+category exists**; offered to add one + rules, user hasn't answered.
 
 **-184 — AI auto-categorization**: `finAICategorize` groups uncategorized
 payees → `ai.assist` in chunks of 70 (clamped) with the user's category

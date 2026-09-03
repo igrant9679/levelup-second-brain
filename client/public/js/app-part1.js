@@ -12484,6 +12484,8 @@ function setNoteStatus(id,status){
 function setNoteType(id,t){
   const n=D.notes.find(x=>x.id===id);if(!n)return;
   n.noteType=t||'';n.updated=new Date().toISOString();save('notes');
+  // Type drives the Meeting Notes / Journal folders  refresh the list so the note moves immediately.
+  if(typeof applyNotesFilters==='function')applyNotesFilters();
   if(typeof showNoteInEditor==='function'&&_noteInlineEditId!==id)showNoteInEditor(id);
 }
 function _noteStatusPickerHTML(id,cur){
@@ -12530,13 +12532,19 @@ function _readingTime(text){
   const mins=wc?Math.max(1,Math.round(wc/200)):0;
   return {wc,mins};
 }
+// Folder classification shared by the Notes sidebar folders + breadcrumb.
+// A note is a "meeting" note if its Type is Meeting (editor dropdown) or
+// Meeting Notes (quick-add form / OneNote sync), OR its source is Meeting
+// Notes, OR it carries the `meetings` tag. Journal likewise honors the Type.
+function _noteIsMeeting(n){const t=n.noteType||'';return t==='Meeting'||t==='Meeting Notes'||n.source==='Meeting Notes'||(n.tags||[]).includes('meetings');}
+function _noteIsJournal(n){return (n.noteType||'')==='Journal'||(n.tags||[]).includes('journal');}
 // Build a breadcrumb path for a note based on its category + first tag.
 function _noteBreadcrumb(n){
   const parts=['Notes'];
   if(n.starred)parts.push('Favorites');
   else if(n.source==='Web Clipper')parts.push('Web Clips');
-  else if(n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'))parts.push('Meeting Notes');
-  else if((n.tags||[]).includes('journal'))parts.push('Journal');
+  else if(_noteIsMeeting(n))parts.push('Meeting Notes');
+  else if(_noteIsJournal(n))parts.push('Journal');
   else if(!n.source||n.source==='Manual')parts.push('Resources');
   else parts.push(n.source);
   if((n.tags||[]).length)parts.push('#'+n.tags[0]);
@@ -12668,9 +12676,9 @@ function applyNotesFilters(){
       'Recent': n=>true,
       'Favorites': n=>n.starred,
       'Web Clips': n=>n.source==='Web Clipper',
-      'Meeting Notes': n=>n.source==='Meeting Notes'||(n.tags||[]).includes('meetings'),
-      'Journal': n=>(n.tags||[]).includes('journal'),
-      'Resources': n=>n.source==='Manual'&&!(n.tags||[]).includes('meetings'),
+      'Meeting Notes': n=>_noteIsMeeting(n),
+      'Journal': n=>_noteIsJournal(n),
+      'Resources': n=>n.source==='Manual'&&!_noteIsMeeting(n),
     };
     const catFilter=catMap[_notesFilterCategory]||(()=>true);
     notes=notes.filter(catFilter);
