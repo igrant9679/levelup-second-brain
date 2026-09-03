@@ -14506,6 +14506,165 @@ function _finCSS(){
   ].join('\n');
   document.head.appendChild(st);
 }
+// ── Money visuals: per-tab insight strips (build -182) ─────────────────
+/* Small pure-SVG charts. Palette = the dataviz reference categorical set,
+   validated on BOTH app card surfaces (light #fff / dark #0f1525) with the
+   skill's validator: every adjacent pair clears the CVD and normal-vision
+   floors. Three light slots sit under 3:1 contrast, so every chart ships a
+   legend WITH values (the relief rule) — identity never rides on colour
+   alone. Hues are assigned in fixed slot order per chart, never cycled or
+   re-ranked. Hover detail = <title>. One axis per chart, always. */
+const FIN_PAL={light:['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'],dark:['#3987e5','#d95926','#199e70','#c98500','#d55181','#008300','#9085e9','#e66767']};
+function _finPal(i){ return FIN_PAL[document.body.classList.contains('light-mode')?'light':'dark'][i%8]; }
+function _finMonShort(ym){ const p=ym.split('-'); return new Date(Number(p[0]),Number(p[1])-1,1).toLocaleDateString('en-US',{month:'short'}); }
+const _FIN_EMPTY_CHART='<div style="font-size:11px;color:var(--t3);padding:8px 0">Nothing to chart yet.</div>';
+/* items [{label,value>=0}] → donut (top 6 + Other) with a valued legend. */
+function _finDonut(items,centerLabel){
+  const src=items.filter(x=>x.value>0).sort((a,b)=>b.value-a.value);
+  if(!src.length)return _FIN_EMPTY_CHART;
+  const top=src.slice(0,6); const rest=src.slice(6).reduce((s,x)=>s+x.value,0); if(rest>0)top.push({label:'Other',value:rest});
+  const total=top.reduce((s,x)=>s+x.value,0); const C=2*Math.PI*40; let off=0;
+  const arcs=top.map((x,i)=>{const len=x.value/total*C; const gap=Math.min(2,len/2);
+    const s=`<circle r="40" cx="50" cy="50" fill="none" stroke="${_finPal(i)}" stroke-width="14" stroke-dasharray="${(len-gap).toFixed(2)} ${(C-len+gap).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 50 50)"><title>${esc(x.label)}: ${_finFmt(x.value,0)} (${Math.round(x.value/total*100)}%)</title></circle>`; off+=len; return s;}).join('');
+  return `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <svg viewBox="0 0 100 100" width="96" height="96" style="flex:0 0 auto">${arcs}<text x="50" y="50" text-anchor="middle" dominant-baseline="middle" font-size="11" font-weight="700" fill="var(--t1)">${esc(centerLabel||_finFmt(total,0))}</text></svg>
+    <div style="font-size:11px;line-height:1.7;min-width:0;flex:1">${top.map((x,i)=>`<div style="display:flex;gap:6px;align-items:center"><span style="width:9px;height:9px;border-radius:2px;background:${_finPal(i)};flex:0 0 auto"></span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)">${esc(x.label)}</span><b style="color:var(--t1)">${_finFmt(x.value,0)}</b><span style="color:var(--t3);width:34px;text-align:right">${Math.round(x.value/total*100)}%</span></div>`).join('')}</div></div>`;
+}
+/* Vertical bars. series [{name,values,color?}] (1 or 2 → paired), labels[].
+   Legend for 2 series; only the max bar is direct-labelled (hover the rest). */
+function _finBars(series,labels){
+  const n=labels.length; if(!n||!series.some(s=>s.values.some(v=>v)))return _FIN_EMPTY_CHART;
+  const max=Math.max(1,...series.flatMap(s=>s.values).map(v=>Math.abs(v||0)));
+  const W=Math.max(260,n*44),H=110,base=88,top=12,slot=W/n; const bw=series.length>1?Math.min(14,slot*0.32):Math.min(22,slot*0.55);
+  const colors=series.map((s,i)=>s.color||_finPal(i));
+  const bars=labels.map((lb,i)=>series.map((s,k)=>{const v=s.values[i]||0; const h=Math.round(Math.abs(v)/max*(base-top)); const x=series.length>1?slot*i+slot/2-(bw*2+2)/2+k*(bw+2):slot*i+slot/2-bw/2; const isMax=Math.abs(v)===max&&v!==0;
+    return `<rect x="${x.toFixed(1)}" y="${base-h}" width="${bw.toFixed(1)}" height="${Math.max(0,h)}" rx="2" fill="${colors[k]}"><title>${esc(lb)} · ${esc(s.name)}: ${_finFmt(v,0)}</title></rect>${isMax?`<text x="${(x+bw/2).toFixed(1)}" y="${base-h-3}" font-size="9" text-anchor="middle" fill="var(--t2)">${_finFmt(v,0)}</text>`:''}`;}).join('')).join('');
+  const xl=labels.map((lb,i)=>`<text x="${(slot*i+slot/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--t3)">${esc(lb)}</text>`).join('');
+  const legend=series.length>1?`<div style="display:flex;gap:12px;font-size:10px;color:var(--t3);margin-top:2px">${series.map((s,i)=>`<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${colors[i]};vertical-align:middle;margin-right:4px"></span>${esc(s.name)}</span>`).join('')}</div>`:'';
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/>${bars}${xl}</svg>${legend}`;
+}
+/* Single-series line with markers (one series → no legend; the title names it). */
+function _finLine(points,labels){
+  const n=points.length; if(n<2||!points.some(v=>v))return '<div style="font-size:11px;color:var(--t3);padding:8px 0">Needs a couple of months of history.</div>';
+  const W=Math.max(260,n*44),H=110,base=88,top=14; const min=Math.min(0,...points),max=Math.max(...points); const y=v=>base-Math.round((v-min)/Math.max(1,max-min)*(base-top)); const step=W/n;
+  const pts=points.map((v,i)=>`${(step*i+step/2).toFixed(1)},${y(v)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-height:150px"><line x1="0" x2="${W}" y1="${base}" y2="${base}" stroke="var(--bd1)"/><polyline fill="none" stroke="${_finPal(0)}" stroke-width="2" points="${pts}"/>${points.map((v,i)=>`<circle cx="${(step*i+step/2).toFixed(1)}" cy="${y(v)}" r="4" fill="${_finPal(0)}" stroke="var(--s1)" stroke-width="2"><title>${esc(labels[i])}: ${_finFmt(v,0)}</title></circle>`).join('')}${labels.map((lb,i)=>`<text x="${(step*i+step/2).toFixed(1)}" y="${H-8}" font-size="9" text-anchor="middle" fill="var(--t3)">${esc(lb)}</text>`).join('')}</svg>`;
+}
+/* Horizontal ranked list with proportional bars (top payees etc.). */
+function _finRankBars(items,max){
+  if(!items.length)return _FIN_EMPTY_CHART;
+  const m=max||Math.max(1,...items.map(x=>x.value));
+  return items.map((x,i)=>`<div style="display:flex;align-items:center;gap:8px;font-size:11px;margin:3px 0"><span style="flex:0 0 120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t2)" title="${esc(x.label)}">${esc(x.label)}</span><div style="flex:1;height:10px;background:var(--s3);border-radius:5px;overflow:hidden"><div style="width:${Math.round(x.value/m*100)}%;height:100%;background:${_finPal(0)}"></div></div><b style="flex:0 0 64px;text-align:right;color:var(--t1)">${_finFmt(x.value,0)}</b></div>`).join('');
+}
+function _finVizCard(title,body,note){ return `<div class="fin-card"><h3>${title}</h3>${body}${note?`<div style="font-size:11px;color:var(--t3);margin-top:8px;line-height:1.5">${note}</div>`:''}</div>`; }
+const _finSum=(arr,fn)=>arr.reduce((s,x)=>s+(fn?fn(x):x),0);
+
+function _finIncomeInsights(f,ym){
+  const streams=(f.incomeStreams||[]).filter(s=>s.active!==false);
+  const exp=streams.map(st=>({label:st.name||'(stream)',value:_finStreamExpected(st,ym)}));
+  const yp=ym.split('-'); const months=[]; for(let i=5;i>=0;i--)months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1)));
+  const rec=months.map(m=>_finIncome(m));
+  const totExp=_finSum(exp,x=>x.value), totRec=_finIncome(ym);
+  const best=exp.slice().sort((a,b)=>b.value-a.value)[0];
+  const avg6=_finSum(rec)/6;
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('🥧 Expected income by stream',_finDonut(exp,_finFmt(totExp,0)),best&&totExp?`<b>${esc(best.label)}</b> is ${Math.round(best.value/totExp*100)}% of expected income — ${best.value/totExp>0.5?'a lot riding on one source.':'a reasonably diversified mix.'}`:'Add income streams on this tab to see the mix.')}
+    ${_finVizCard('📈 Income received — last 6 months',_finBars([{name:'Received',values:rec}],months.map(_finMonShort)),`${_finMonthLabel(ym)}: <b style="color:var(--t2)">${_finFmt(totRec,0)}</b> of ${_finFmt(totExp,0)} expected${totExp?` (${Math.round(totRec/totExp*100)}%)`:''}. 6-month average <b style="color:var(--t2)">${_finFmt(avg6,0)}</b>/mo${totExp&&avg6<totExp*0.9?' — running below plan.':'.'}`)}
+  </div>`;
+}
+function _finBudgetInsights(f,ym){
+  const byCat=_finSpentByCat(ym); const groups={};
+  f.categories.forEach(c=>{ if(c.kind==='income')return; const b=_finBudgetFor(c.id,ym),s=byCat[c.id]||0; if(b<=0&&s<=0)return; const g=c.group||'Other'; groups[g]=groups[g]||{b:0,s:0}; groups[g].b+=b; groups[g].s+=s; });
+  const names=Object.keys(groups).sort((a,b)=>groups[b].b-groups[a].b).slice(0,8);
+  const totB=_finBudgetTotal(ym), totS=_finSpent(ym);
+  const now=_finYM(new Date()); const dim=new Date(Number(ym.slice(0,4)),Number(ym.slice(5,7)),0).getDate();
+  const elapsed=ym===now?new Date().getDate()/dim*100:(ym<now?100:0);
+  const spentPct=totB?totS/totB*100:0;
+  const paceColor=spentPct>elapsed+5?'var(--red)':spentPct>elapsed-5?'var(--warn)':'var(--ok)';
+  const pace=`<div style="position:relative;height:14px;background:var(--s3);border-radius:7px;overflow:visible;margin:14px 0 6px"><div style="width:${Math.min(100,spentPct)}%;height:100%;background:${paceColor};border-radius:7px"></div><div style="position:absolute;top:-4px;left:${Math.min(100,elapsed)}%;width:2px;height:22px;background:var(--t1)" title="Today — ${Math.round(elapsed)}% of the month elapsed"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3)"><span>spent <b style="color:${paceColor}">${Math.round(spentPct)}%</b> of ${_finFmt(totB,0)}</span><span>month <b style="color:var(--t2)">${Math.round(elapsed)}%</b> elapsed</span></div>`;
+  const over=names.filter(n=>groups[n].s>groups[n].b&&groups[n].b>0);
+  const spendItems=Object.entries(byCat).map(([id,v])=>({label:_finCat(id).name,value:v}));
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('📊 Planned vs spent by group',_finBars([{name:'Planned',values:names.map(n=>groups[n].b),color:'var(--bd2)'},{name:'Spent',values:names.map(n=>groups[n].s)}],names.map(n=>n.length>9?n.slice(0,8)+'…':n)),over.length?`Over plan: <b style="color:var(--red)">${over.map(esc).join(', ')}</b>.`:'Every group is within plan so far.')}
+    ${_finVizCard('⏱ Month pace',pace,spentPct>elapsed+5?`Spending is <b style="color:var(--red)">ahead of the calendar</b> — at this pace the month lands around ${_finFmt(elapsed?totS/elapsed*100:totS,0)}.`:spentPct<elapsed-5?`Spending is <b style="color:var(--ok)">behind the calendar</b> — projected ${_finFmt(elapsed?totS/elapsed*100:totS,0)} vs ${_finFmt(totB,0)} planned.`:'Spending is tracking the calendar almost exactly.')}
+    ${_finVizCard('🥧 Where the money went',_finDonut(spendItems,_finFmt(totS,0)),spendItems.length?`Top category takes ${Math.round(Math.max(...spendItems.map(x=>x.value))/Math.max(1,totS)*100)}% of ${_finMonthLabel(ym)} spending.`:'')}
+  </div>`;
+}
+function _finBillInsights(f){
+  const bills=(f.bills||[]).filter(b=>b.active!==false); if(!bills.length)return '';
+  const byCat={}; bills.forEach(b=>{const c=_finCat(b.catId);byCat[c.name]=(byCat[c.name]||0)+(Number(b.amount)||0);});
+  const months=[]; for(let i=5;i>=0;i--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-i);months.push(_finYM(d));}
+  const hists=bills.map(b=>_finBillHistory(f,b,13));
+  const paid=months.map(m=>_finSum(hists,h=>{const x=h.find(y=>y.ym===m);return x?Math.abs(x.tx.amount):0;}));
+  const monthly=_finSum(bills,b=>Number(b.amount)||0); const autop=bills.filter(b=>b.autopay).length;
+  const today=new Date().getDate(); const maxAmt=Math.max(1,...bills.map(b=>Number(b.amount)||0));
+  const timeline=`<div style="display:flex;gap:2px;margin-top:6px">${Array.from({length:28},(_,i)=>{const d=i+1;const due=bills.filter(b=>(b.dueDay||1)===d);const amt=_finSum(due,b=>Number(b.amount)||0);
+    return `<div title="Day ${d}${due.length?': '+due.map(b=>b.name).join(', ')+' — '+_finFmt(amt,0):''}" style="flex:1;height:30px;border-radius:3px;background:${due.length?_finPal(0):'var(--s3)'};opacity:${due.length?(0.35+amt/maxAmt*0.65).toFixed(2):'1'};outline:${d===today?'2px solid var(--t1)':'none'};outline-offset:-2px"></div>`;}).join('')}</div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:2px"><span>1st</span><span>15th</span><span>28th</span></div>`;
+  const heavyDay=Array.from({length:28},(_,i)=>i+1).map(d=>({d,amt:_finSum(bills.filter(b=>(b.dueDay||1)===d),b=>Number(b.amount)||0)})).sort((a,b)=>b.amt-a.amt)[0];
+  const matched=_finSum(hists,h=>h.some(x=>x.ym===months[5])?1:0);
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('🥧 Monthly bills by category',_finDonut(Object.entries(byCat).map(([label,value])=>({label,value})),_finFmt(monthly,0)),`${bills.length} active bill${bills.length===1?'':'s'} · ${autop} on ⚡ autopay${bills.length-autop?` · <b style="color:var(--warn)">${bills.length-autop} need manual payment</b>`:''}.`)}
+    ${_finVizCard('📅 Due-day map (this month)',timeline,heavyDay&&heavyDay.amt?`Heaviest day is the <b>${heavyDay.d}${['st','nd','rd'][((heavyDay.d+90)%100-10)%10-1]||'th'}</b> at ${_finFmt(heavyDay.amt,0)}. Today is outlined; darker = more due.`:'')}
+    ${_finVizCard('📈 Actually paid — last 6 months',_finLine(paid,months.map(_finMonShort)),`${matched} of ${bills.length} bills have a matched payment this month. Matching links bank transactions by payee — mark stragglers ↻ Recurring.`)}
+  </div>`;
+}
+function _finAccountInsights(f){
+  const isDebt=a=>['credit','loan'].includes(a.type);
+  const assets=f.accounts.filter(a=>!isDebt(a)).map(a=>({label:a.name,value:a.balance||0}));
+  const debts=f.accounts.filter(isDebt).map(a=>({label:a.name,value:Math.abs(a.balance||0)}));
+  if(!assets.length&&!debts.length)return '';
+  const A=_finSum(assets,x=>x.value),Dd=_finSum(debts,x=>x.value);
+  const big=debts.slice().sort((a,b)=>b.value-a.value)[0];
+  const cards=f.accounts.filter(a=>a.type==='credit').map(a=>({value:Math.abs(a.balance||0)}));
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('⚖ Assets vs debt',_finBars([{name:'Balance',values:[A,Dd]}],['Assets','Debt']),`Net worth <b style="color:${A-Dd>=0?'var(--ok)':'var(--red)'}">${_finFmt(A-Dd,0)}</b>. ${A?`Debt is <b>${Math.round(Dd/A*100)}%</b> of assets`:'No asset balances yet'}${Dd&&A?` — every $1 you own is matched by ${(Dd/A).toFixed(2)} owed.`:'.'}`)}
+    ${_finVizCard('🥧 Where the debt sits',_finDonut(debts,_finFmt(Dd,0)),big?`<b>${esc(big.label)}</b> alone is ${Math.round(big.value/Math.max(1,Dd)*100)}% of your debt${cards.length?` · ${cards.length} card${cards.length===1?'':'s'} carry ${_finFmt(_finSum(cards,x=>x.value),0)}`:''}.`:'')}
+    ${_finVizCard('🥧 Where the cash sits',_finDonut(assets,_finFmt(A,0)),assets.length?`${assets.length} asset account${assets.length===1?'':'s'} · largest holds ${Math.round(Math.max(...assets.map(x=>x.value))/Math.max(1,A)*100)}% of cash.`:'')}
+  </div>`;
+}
+function _finGoalInsights(f){
+  const goals=(f.goals||[]).filter(g=>g.target>0); if(!goals.length)return '';
+  const saved=_finSum(goals,g=>g.saved||0), target=_finSum(goals,g=>g.target||0);
+  const pct=target?Math.round(saved/target*100):0;
+  const lbl=g=>String(g.name||'goal').length>10?String(g.name).slice(0,9)+'…':String(g.name||'goal');
+  const nearest=goals.slice().sort((a,b)=>((b.saved||0)/b.target)-((a.saved||0)/a.target))[0];
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('🎯 All goals — saved vs remaining',_finDonut([{label:'Saved',value:saved},{label:'Remaining',value:Math.max(0,target-saved)}],pct+'%'),`${_finFmt(saved,0)} of ${_finFmt(target,0)} across ${goals.length} goal${goals.length===1?'':'s'}. Closest to done: <b>${esc(nearest.name||'')}</b> at ${Math.round((nearest.saved||0)/nearest.target*100)}%.`)}
+    ${_finVizCard('📊 Per goal — saved vs target',_finBars([{name:'Target',values:goals.map(g=>g.target||0),color:'var(--bd2)'},{name:'Saved',values:goals.map(g=>g.saved||0)}],goals.map(lbl)),`Remaining to fund everything: <b style="color:var(--t2)">${_finFmt(Math.max(0,target-saved),0)}</b>.`)}
+  </div>`;
+}
+/* Transactions: range-aware (called from _finTxHtml with its filtered rows). */
+function _finTxInsightsHtml(rows,rangeLabel){
+  const spend=rows.filter(t=>t.amount<0); if(!spend.length)return '';
+  const byCat={}; spend.forEach(t=>{const c=_finCat(t.catId);byCat[c.name]=(byCat[c.name]||0)-t.amount;});
+  const dates=spend.map(t=>String(t.date).slice(0,10)).sort(); const span=Math.max(0,(Date.parse(dates[dates.length-1])-Date.parse(dates[0]))/86400000);
+  const weekly=span>45;
+  const bucket=d=>{ if(!weekly)return d; const x=new Date(d+'T00:00:00'); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x.toISOString().slice(0,10); };
+  const byB={}; spend.forEach(t=>{const k=bucket(String(t.date).slice(0,10)); byB[k]=(byB[k]||0)-t.amount;});
+  let keys=Object.keys(byB).sort(); if(keys.length>31)keys=keys.slice(-31);
+  const byP={}; spend.forEach(t=>{const p=String(t.payee||'(no payee)').slice(0,40); byP[p]=(byP[p]||0)-t.amount;});
+  const topP=Object.entries(byP).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value).slice(0,6);
+  const tot=_finSum(spend,t=>-t.amount); const days=Math.max(1,Math.round(span)+1);
+  const topCat=Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+  return `<div class="fin-grid" style="margin-bottom:12px">
+    ${_finVizCard('🥧 Spending by category',_finDonut(Object.entries(byCat).map(([label,value])=>({label,value})),_finFmt(tot,0)),topCat?`<b>${esc(topCat[0])}</b> is ${Math.round(topCat[1]/tot*100)}% of spending in ${esc(rangeLabel)} · ${spend.length} transactions.`:'')}
+    ${_finVizCard(weekly?'📈 Spending by week':'📈 Spending by day',_finBars([{name:'Spent',values:keys.map(k=>byB[k])}],keys.map(k=>k.slice(5))),`Averages <b style="color:var(--t2)">${_finFmt(tot/days,0)}/day</b> over ${days} day${days===1?'':'s'}${weekly?' — bars are Monday-start weeks.':'.'}`)}
+    ${_finVizCard('🏷 Top payees',_finRankBars(topP),topP.length?`Top payee accounts for ${Math.round(topP[0].value/tot*100)}% of the range's spending.`:'')}
+  </div>`;
+}
+function _finTabInsightsHtml(tab){
+  try{
+    const f=_finData(); const ym=_finMonth;
+    if(tab==='income')return _finIncomeInsights(f,ym);
+    if(tab==='budgets')return _finBudgetInsights(f,ym);
+    if(tab==='bills')return _finBillInsights(f);
+    if(tab==='accounts')return _finAccountInsights(f);
+    if(tab==='goals')return _finGoalInsights(f);
+  }catch(e){ console.warn('[money] insight strip failed for',tab,e); }
+  return '';
+}
 // ── main render ────────────────────────────────────────────────────────
 function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
@@ -14536,7 +14695,7 @@ function renderMoney(){
       ${ro?'':`<button class="btn btn-p" style="height:28px;font-size:11px" onclick="finOpenTx()">+ Transaction</button>`}
     </div></div>
     <div class="fin-tabs">${tabs.map(t=>`<button class="fin-tab ${_finTab===t[0]?'on':''}" onclick="_finTab='${t[0]}';renderMoney()">${t[1]}</button>`).join('')}</div>
-    <div id="fin-body">${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='agents'?_finAgentsHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
+    <div id="fin-body">${_finTabInsightsHtml(_finTab)}${_finTab==='overview'?_finOverviewHtml():_finTab==='income'?_finIncomeHtml():_finTab==='transactions'?_finTxHtml():_finTab==='budgets'?_finBudgetsHtml():_finTab==='bills'?_finBillsHtml():_finTab==='accounts'?_finAccountsHtml():_finTab==='forecast'?_finForecastHtml():_finTab==='agents'?_finAgentsHtml():_finTab==='reports'?_finReportsHtml():_finGoalsHtml()}</div>`;
 }
 function _finSwitchBudget(v){ _finShared=(v==='mine')?null:Number(v); _finTab='overview'; renderMoney(); }
 // ── Overview ───────────────────────────────────────────────────────────
@@ -14644,6 +14803,7 @@ function _finTxHtml(){
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finOpenRules()">⚙ Rules</button>
     <button class="btn btn-s" style="height:28px;font-size:11px" onclick="finDetectRecurring()" title="Scan history for monthly recurring charges">🔍 Recurring</button>`}
   </div>
+  ${_finTxInsightsHtml(rows,rangeLabel)}
   <div class="fin-card fin-tx-wrap" style="padding:0">
   <table class="fin-tx"><thead><tr><th title="Cleared / reconciled against your statement">✓</th><th>Date</th><th>Payee</th><th>Category</th><th>Account</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
   ${rows.length?rows.slice(0,500).map(t=>{const c=_finCat(t.catId);const a=f.accounts.find(x=>String(x.id)===String(t.accountId||''));return `<tr style="cursor:pointer" onclick="finOpenTx('${esc(String(t.id))}')">
