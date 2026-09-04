@@ -14468,6 +14468,12 @@ function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(N
    card opens with a bold heading so Settings → Workspace can toggle it by
    name (see _luRailModules). Rendered via setTimeout from renderMoney so it
    never blocks or breaks the main render. */
+let _moneyRailExtra='';
+function finRailAskAI(){
+  const el=document.getElementById('money-rail-q'); const q=((el&&el.value)||'').trim();
+  if(!q){toast('Type a question first.');return;}
+  _finAI(q,_moneyRailExtra||null,'money-rail-ai','Thinking about “'+q.slice(0,32)+'”');
+}
 function _populateMoneyRail(){
   const r=document.getElementById('money-rail'); if(!r)return;
   const f=_finData(); const ro=_finRO(); const ym=_finMonth; const today=new Date(); today.setHours(0,0,0,0);
@@ -14506,7 +14512,15 @@ function _populateMoneyRail(){
     <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="_finTab='transactions';renderMoney();setTimeout(()=>finAICategorize(),50)">✨ AI categorize</button>
     <button class="btn btn-s" style="font-size:11px" onclick="${go('reports')}">📊 Reports</button>
   </div>`;
+  const railQs=['Where did my money go this month?','What should I pay first?','Can I afford a $500 purchase this week?'];
+  const askHtml=`<input class="inp" id="money-rail-q" placeholder="Ask about your data… (answers from YOUR numbers)" style="width:100%;height:30px;font-size:11.5px;margin-bottom:6px" onkeydown="if(event.key==='Enter')finRailAskAI()">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="finRailAskAI()">✨ Ask</button><span style="font-size:11px;color:var(--t3)">or try:</span></div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">${railQs.map(q=>`<span class="fin-chip" style="cursor:pointer;font-size:10.5px" onclick="document.getElementById('money-rail-q').value='${_jsAttr(q)}';finRailAskAI()">${esc(q)}</span>`).join('')}</div>
+    <div id="money-rail-ai"></div>`;
+  // Kept for finRailAskAI: the rail's own view of what's due and what the agents flagged.
+  _moneyRailExtra='BILLS DUE NEXT 7 DAYS: '+(due.length?due.map(x=>`${x.b.name} ${Math.round(x.b.amount||0)}${x.overdue?' (OVERDUE)':''}`).join('; '):'none')+'. CASH IN CHECKING/SAVINGS: '+Math.round(cash)+'. OPEN FINDINGS: '+(findings.length?findings.map(x=>x.title+' — '+(x.body||'')).join('; ').slice(0,900):'none')+'.';
   r.innerHTML=card('💰 '+_finMonthLabel(ym),monthHtml,'money-month')
+    +card('✨ Ask about your money',askHtml,'money-ask')
     +card('📅 Bills — next 7 days',billsHtml,'money-bills')
     +card('🔔 Agent findings',findHtml,'money-findings')
     +(goals.length?card('🎯 Goals',goalsHtml,'money-goals'):'')
