@@ -14462,6 +14462,56 @@ function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(N
   // (a sticky 'Last 90 days' range otherwise ignores them and looks broken).
   if(_finTab==='transactions'&&_finTxRange!=='month')_finTxRange='month';
   renderMoney(); }
+/* ── Money right rail (build -192) ─────────────────────────────────────
+   Glanceable, tab-independent cards in the 280px .rr column: month status,
+   bills due in 7 days, latest agent findings, goals, quick actions. Each
+   card opens with a bold heading so Settings → Workspace can toggle it by
+   name (see _luRailModules). Rendered via setTimeout from renderMoney so it
+   never blocks or breaks the main render. */
+function _populateMoneyRail(){
+  const r=document.getElementById('money-rail'); if(!r)return;
+  const f=_finData(); const ro=_finRO(); const ym=_finMonth; const today=new Date(); today.setHours(0,0,0,0);
+  const card=(title,body,mod)=>`<div data-mod="${mod}" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:700;margin-bottom:6px">${title}</div>${body}</div>`;
+  const go=tab=>`_finTab='${tab}';renderMoney()`;
+  const pct=(a,b)=>b>0?Math.min(100,Math.round(a/b*100)):0;
+  const bar=(p,color)=>`<div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin:3px 0 6px"><div style="width:${p}%;height:100%;background:${color}"></div></div>`;
+  // ── Month status
+  const spent=_finSpent(ym), budget=_finBudgetTotal(ym), income=_finIncome(ym);
+  const expected=(f.incomeStreams||[]).reduce((s,st)=>s+_finStreamExpected(st,ym),0);
+  const spentP=pct(spent,budget), incP=pct(income,expected);
+  const dayOfMonth=today.getDate(), daysInMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const isCurMonth=ym===_finYM(today);
+  const paceNote=isCurMonth&&budget>0?`<div style="font-size:11px;color:var(--t3)">Day ${dayOfMonth} of ${daysInMonth} · ${spentP>Math.round(dayOfMonth/daysInMonth*100)+5?'<span style="color:var(--warn)">ahead of pace</span>':'on pace'}</div>`:'';
+  const monthHtml=`<div style="font-size:11px;display:flex;justify-content:space-between"><span>Spent</span><b style="color:${spent>budget&&budget>0?'var(--red)':'var(--t1)'}">${_finFmt(spent,0)}${budget>0?' <span style="color:var(--t3);font-weight:400">/ '+_finFmt(budget,0)+'</span>':''}</b></div>${bar(spentP,spent>budget&&budget>0?'var(--red)':'var(--ac)')}
+    <div style="font-size:11px;display:flex;justify-content:space-between"><span>Income</span><b style="color:var(--ok)">${_finFmt(income,0)}${expected>0?' <span style="color:var(--t3);font-weight:400">/ '+_finFmt(expected,0)+'</span>':''}</b></div>${bar(incP,'var(--ok)')}
+    <div style="font-size:11px;display:flex;justify-content:space-between"><span>Cash flow</span><b style="color:${income-spent>=0?'var(--ok)':'var(--red)'}">${income-spent>=0?'+':'−'}${_finFmt(Math.abs(income-spent),0)}</b></div>${paceNote}`;
+  // ── Bills due in the next 7 days (unpaid; overdue stays visible)
+  const horizon=new Date(today.getTime()+7*86400000);
+  const curYm=_finYM(today);
+  const due=(f.bills||[]).filter(b=>b.active!==false&&b.lastPaidYM!==curYm).map(b=>{const d=_finBillNextDue(b);const dayN=Math.min(Math.max(1,Number(b.dueDay)||1),28);const thisMonth=new Date(today.getFullYear(),today.getMonth(),dayN);const overdue=thisMonth<today;return {b,d:overdue?thisMonth:d,overdue};}).filter(x=>x.overdue||x.d<=horizon).sort((a,b)=>a.d-b.d);
+  const dueTotal=due.reduce((s,x)=>s+(Number(x.b.amount)||0),0);
+  const cash=(f.accounts||[]).filter(a=>['checking','savings','cash'].includes(a.type)).reduce((s,a)=>s+(Number(a.balance)||0),0);
+  const billsHtml=(due.length?due.slice(0,7).map(x=>{const days=Math.round((x.d-today)/86400000);const when=x.overdue?'<span style="color:var(--red);font-weight:600">overdue</span>':days===0?'<span style="color:var(--warn);font-weight:600">today</span>':days===1?'tomorrow':'in '+days+'d';return `<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="${go('bills')}"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.b.autopay?'⚡ ':''}${esc(x.b.name)}</span><span style="color:var(--t3);margin:0 6px;white-space:nowrap">${when}</span><b>${_finFmt(x.b.amount,0)}</b></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing due in the next 7 days.</div>')
+    +(due.length?`<div style="font-size:11px;color:var(--t2);margin-top:6px;display:flex;justify-content:space-between"><span>${due.length} bill${due.length===1?'':'s'} · <b>${_finFmt(dueTotal,0)}</b></span><span style="color:${cash>=dueTotal?'var(--ok)':'var(--red)'}">cash ${_finFmt(cash,0)}</span></div>`:'');
+  // ── Agent findings (latest, warnings first)
+  const findings=_finFindings().filter(x=>!x.dismissed).slice().sort((a,b)=>(b.severity==='warn')-(a.severity==='warn')).slice(0,4);
+  const findHtml=findings.length?findings.map(x=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="${go('agents')}"><span style="color:${x.severity==='warn'?'var(--warn)':'var(--ac)'}">${x.severity==='warn'?'⚠':'ℹ'}</span> <b>${esc(x.title)}</b><div style="color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.body||'')}</div></div>`).join('')+`<div style="font-size:11px;color:var(--ac);margin-top:6px;cursor:pointer" onclick="${go('agents')}">All findings →</div>`:'<div style="font-size:11px;color:var(--t3)">No open findings. Agents run about once a day.</div>';
+  // ── Goals
+  const goals=(f.goals||[]).filter(g=>(Number(g.target)||0)>0).slice(0,3);
+  const goalsHtml=goals.map(g=>{const p=pct(Number(g.saved)||0,Number(g.target)||0);return `<div style="font-size:11px;display:flex;justify-content:space-between"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name||'Goal')}</span><span style="color:var(--t3)">${p}%</span></div>${bar(p,'var(--purp)')}`;}).join('');
+  // ── Quick actions
+  const actions=ro?'':`<div style="display:flex;flex-direction:column;gap:6px">
+    <button class="btn btn-p" style="font-size:11px" onclick="finOpenTx()">＋ Transaction</button>
+    <button class="btn btn-s" style="font-size:11px" onclick="sfSyncAll(this)">⟳ Sync all accounts</button>
+    <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="_finTab='transactions';renderMoney();setTimeout(()=>finAICategorize(),50)">✨ AI categorize</button>
+    <button class="btn btn-s" style="font-size:11px" onclick="${go('reports')}">📊 Reports</button>
+  </div>`;
+  r.innerHTML=card('💰 '+_finMonthLabel(ym),monthHtml,'money-month')
+    +card('📅 Bills — next 7 days',billsHtml,'money-bills')
+    +card('🔔 Agent findings',findHtml,'money-findings')
+    +(goals.length?card('🎯 Goals',goalsHtml,'money-goals'):'')
+    +(actions?card('⚡ Quick actions',actions,'money-actions'):'');
+}
 function _finCat(id){ return _finData().categories.find(c=>c.id===id)||{id,name:'(unknown)',group:'Misc',icon:'❓',kind:'expense'}; }
 function _finTxMonth(ym){ return _finData().transactions.filter(t=>String(t.date||'').slice(0,7)===ym); }
 // Transfers (category kind 'transfer') are money moving between the user's own
@@ -14694,6 +14744,8 @@ function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
   _finCSS(); ensureFin();
   if(_finShared==null){try{_finSeedTransferRules();_finSeedCheckRule();}catch(e){console.warn('[money] transfer seed failed',e);}}
+  // Right rail (build -192) — populated after the synchronous render below.
+  setTimeout(()=>{try{_populateMoneyRail();}catch(e){console.warn('[money] rail failed',e);}},0);
   if(typeof _finSnapshotNetWorth==='function'){try{_finSnapshotNetWorth();}catch(_){}}
   if(!_sharedFinLoaded)_loadSharedFinance();
   const shared=Array.isArray(D._sharedBudgets)?D._sharedBudgets:[];

@@ -4,6 +4,19 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-192 (committed, awaiting push) — Money right rail.** The user pointed at
+the empty column right of the Money page on a wide screen (`.bg:not(.wr)
+.mn` caps main at 1280px). `#s-money` is now `.bg.wr` with
+`<aside class="rr" id="money-rail">`; `LU_PAGES` money `rail:true` so
+Settings → Workspace can hide it and toggle its cards. `_populateMoneyRail()`
+(app-part2.js, just above `_finCat`; called via setTimeout(0) from
+`renderMoney`) renders 5 data-mod cards: month status (spent/budget,
+income/expected, cash flow, pace), bills due in 7 days (overdue kept, paid
+excluded, total vs cash), agent findings (warn first), goals, quick actions
+(＋ Transaction, ⟳ Sync all, ✨ AI categorize, Reports; hidden on read-only
+shared budgets). Mini-week strip + shortcuts legend auto-inject like every
+other rail. Unit-tested with a fake DOM; not yet seen on prod.
+
 **-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User added the redirect URI, reconnected, and confirmed a PDF re-import opens in the 📄 Original view (2026-09-04). Original-document viewer VERIFIED end-to-end. -190's
 toast revealed the cause: `Google Drive token refresh failed (400):
 invalid_grant` — the env refresh token is dead again (consent screen was

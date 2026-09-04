@@ -6832,7 +6832,7 @@ const LU_PAGES=[
   {id:'calendar', label:'Calendar',        group:'life',  nav:true,  core:false, rail:true },
   {id:'goals',    label:'Goals',           group:'life',  nav:true,  core:false, rail:false},
   {id:'habits',   label:'Habits',          group:'life',  nav:true,  core:false, rail:true },
-  {id:'money',    label:'Money',           group:'life',  nav:true,  core:false, rail:false},
+  {id:'money',    label:'Money',           group:'life',  nav:true,  core:false, rail:true },
   {id:'coach',    label:'Coach',           group:'life',  nav:true,  core:false, rail:true },
   {id:'journal',  label:'Journal',         group:'life',  nav:true,  core:false, rail:true },
   {id:'mail',     label:'Mail',            group:'comms', nav:true,  core:false, rail:true },
