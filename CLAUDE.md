@@ -10,8 +10,10 @@ the empty column right of the Money page on a wide screen (`.bg:not(.wr)
 `<aside class="rr" id="money-rail">`; `LU_PAGES` money `rail:true` so
 Settings → Workspace can hide it and toggle its cards. `_populateMoneyRail()`
 (app-part2.js, just above `_finCat`; called via setTimeout(0) from
-`renderMoney`) renders 5 data-mod cards: month status (spent/budget,
-income/expected, cash flow, pace), bills due in 7 days (overdue kept, paid
+`renderMoney`) renders 6 data-mod cards: month status (spent/budget,
+income/expected, cash flow, pace), ✨ Ask about your money (`finRailAskAI` →
+the Reports-tab `_finAI` pipeline with the rail's bills-due + findings as
+extra context, answer renders in `#money-rail-ai`), bills due in 7 days (overdue kept, paid
 excluded, total vs cash), agent findings (warn first), goals, quick actions
 (＋ Transaction, ⟳ Sync all, ✨ AI categorize, Reports; hidden on read-only
 shared budgets). Mini-week strip + shortcuts legend auto-inject like every
