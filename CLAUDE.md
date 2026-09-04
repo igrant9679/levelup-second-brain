@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User still has to add the redirect URI + click Reconnect. -190's
+**-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User added the redirect URI, reconnected, and confirmed a PDF re-import opens in the 📄 Original view (2026-09-04). Original-document viewer VERIFIED end-to-end. -190's
 toast revealed the cause: `Google Drive token refresh failed (400):
 invalid_grant` — the env refresh token is dead again (consent screen was
 already In production, so not the 7-day expiry; cause unknown). Fix: no
