@@ -4,6 +4,24 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-191 (committed, awaiting push) — Google Drive in-app Reconnect.** -190's
+toast revealed the cause: `Google Drive token refresh failed (400):
+invalid_grant` — the env refresh token is dead again (consent screen was
+already In production, so not the 7-day expiry; cause unknown). Fix: no
+more OAuth-Playground re-mints. `GET /api/oauth/drive/start` (admin/owner,
+cookie-authenticated) → Google consent (scope drive.file, offline,
+prompt=consent) → `/api/oauth/drive/callback` exchanges the code, stores the
+refresh token in `external_source_credentials` (source `drive-storage`,
+`refreshToken` column), calls `resetDriveTokenCache()`, runs
+`storageSelfTest`, redirects `/?oauth_success=drive`. `storage.ts`
+`resolveDriveRefreshToken()` prefers the newest DB row over
+`GOOGLE_DRIVE_REFRESH_TOKEN` (5-min cache); `hasDriveConfig` no longer
+requires the env token. Settings → Sync → File Storage Health has a
+🔌 Reconnect Google Drive button. ⚠ ONE-TIME Google Cloud step the user
+must do: add https://levelupnow.tools/api/oauth/drive/callback as an
+authorized redirect URI on the GOOGLE_DRIVE OAuth client (otherwise Google
+returns redirect_uri_mismatch). Mocked test covers env→DB preference.
+
 **-190 (LIVE 2026-09-04) — import storage errors surfaced.** The user's
 re-import after -189 STILL came back without an original (source "PDF
 Import", note created 15:51Z; Drive app folder 1AOCrXh8x_xWelQ7joHwqne2x2tdSYaz3
