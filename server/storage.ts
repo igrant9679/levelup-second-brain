@@ -80,28 +80,17 @@ async function getDriveAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function storagePutDrive(
-  relKey: string,
-  data: Buffer | Uint8Array | string,
-  contentType: string,
-): Promise<{ key: string; url: string }> {
-  const key = appendHashSuffix(normalizeKey(relKey));
-  const filename = key.split("/").pop() ?? key;
-  const body =
-    typeof data === "string"
-      ? Buffer.from(data, "utf-8")
-      : data instanceof Buffer
-        ? data
-        : Buffer.from(data);
-  const token = await getDriveAccessToken();
+// Drive rejects multipart bodies above ~5 MB; stay comfortably under it.
+const DRIVE_MULTIPART_LIMIT = 4 * 1024 * 1024;
 
+async function driveMultipartUpload(
+  token: string,
+  metadata: Record<string, unknown>,
+  body: Buffer,
+  contentType: string,
+): Promise<string> {
   // Multipart upload: metadata + media in one POST
   const boundary = "lvl_" + crypto.randomUUID().replace(/-/g, "");
-  const metadata = {
-    name: filename,
-    parents: [ENV.googleDriveFolderId],
-    mimeType: contentType,
-  };
   const head =
     `--${boundary}\r\n` +
     `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
@@ -114,7 +103,6 @@ async function storagePutDrive(
     body,
     Buffer.from(tail, "utf-8"),
   ]);
-
   const uploadResp = await fetch(
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",
     {
@@ -130,7 +118,82 @@ async function storagePutDrive(
     const msg = await uploadResp.text().catch(() => uploadResp.statusText);
     throw new Error(`Drive upload failed (${uploadResp.status}): ${msg}`);
   }
-  const { id: fileId } = (await uploadResp.json()) as { id: string };
+  const { id } = (await uploadResp.json()) as { id?: string };
+  return id ?? "";
+}
+
+// Resumable upload: open a session with the metadata, then PUT the bytes
+// in one request (Drive accepts the whole body at once; chunking is only
+// needed to survive flaky links, and Railway → Google is not one).
+async function driveResumableUpload(
+  token: string,
+  metadata: Record<string, unknown>,
+  body: Buffer,
+  contentType: string,
+): Promise<string> {
+  const openResp = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": contentType,
+        "X-Upload-Content-Length": String(body.length),
+      },
+      body: JSON.stringify(metadata),
+    },
+  );
+  if (!openResp.ok) {
+    const msg = await openResp.text().catch(() => openResp.statusText);
+    throw new Error(`Drive resumable session failed (${openResp.status}): ${msg}`);
+  }
+  const sessionUrl = openResp.headers.get("location");
+  if (!sessionUrl) throw new Error("Drive resumable session returned no Location header");
+  const putResp = await fetch(sessionUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(body.length),
+    },
+    body: body as any,
+  });
+  if (!putResp.ok) {
+    const msg = await putResp.text().catch(() => putResp.statusText);
+    throw new Error(`Drive resumable upload failed (${putResp.status}): ${msg}`);
+  }
+  const { id } = (await putResp.json()) as { id?: string };
+  return id ?? "";
+}
+
+async function storagePutDrive(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  contentType: string,
+): Promise<{ key: string; url: string }> {
+  const key = appendHashSuffix(normalizeKey(relKey));
+  const filename = key.split("/").pop() ?? key;
+  const body =
+    typeof data === "string"
+      ? Buffer.from(data, "utf-8")
+      : data instanceof Buffer
+        ? data
+        : Buffer.from(data);
+  const token = await getDriveAccessToken();
+  const metadata = {
+    name: filename,
+    parents: [ENV.googleDriveFolderId],
+    mimeType: contentType,
+  };
+
+  // Drive's multipart upload is documented for files up to 5 MB — larger
+  // bodies (a Word doc with photos, a scanned PDF) must use the resumable
+  // protocol, otherwise the upload fails and note originals silently go
+  // missing (build -189). Both paths return the new file id.
+  const fileId =
+    body.length > DRIVE_MULTIPART_LIMIT
+      ? await driveResumableUpload(token, metadata, body, contentType)
+      : await driveMultipartUpload(token, metadata, body, contentType);
   if (!fileId) throw new Error("Drive upload returned empty file id");
 
   // Share "anyone with the link can view" so the public uc URL works.

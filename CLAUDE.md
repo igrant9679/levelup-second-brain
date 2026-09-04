@@ -4,7 +4,16 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-188 (committed, awaiting push)** — rules engine accepts /regex/ patterns
+**-189 (committed, awaiting push) — Drive resumable upload.** The user's first
+real -187 import came back text-only: the app's Drive folder received NO
+PDF/DOCX that day. Root cause (high confidence): `storagePutDrive` used
+uploadType=multipart, which Google caps at ~5 MB — extracted images are
+tiny so it never showed. Bodies > 4 MB (`DRIVE_MULTIPART_LIMIT`) now go
+through `driveResumableUpload` (session POST → Location → single PUT);
+smaller ones keep `driveMultipartUpload`. Mocked-fetch test passed.
+Verify: import a >5 MB PDF, the note should open in 📄 Original.
+
+**-188 (LIVE 2026-09-04)** — rules engine accepts /regex/ patterns
 (client `_finRuleTest` + server `ruleTest` in simplefinAutoSync.ts, keep in
 agreement; malformed pattern = no match); one-time seed `_finSeedCheckRule`
 (flag `settings._chkSeeded`) adds `/^checks*#?s*d+/` → Transfer only if an
