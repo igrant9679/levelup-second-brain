@@ -382,8 +382,9 @@ export const wordImportRouter = router({
           const { url } = await storagePut(`note-originals/${Date.now()}-${safe}.docx`, buffer, mime);
           original = { url, name: input.fileName ?? `${docTitle}.docx`, mime, size: buffer.length };
         } catch (e) {
-          console.warn("[wordImport] original .docx upload failed:", e);
-          originalWarnings.push("The original .docx could not be stored — notes keep the converted text only.");
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn("[wordImport] original .docx upload failed:", msg);
+          originalWarnings.push(`The original .docx could not be stored — notes keep the converted text only. (${msg})`);
         }
       }
 

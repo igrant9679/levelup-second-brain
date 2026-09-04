@@ -13242,6 +13242,12 @@ async function importDocumentsBatch(fileList){
     try{
       const result=await _parseDocumentFile(f);
       (result.warnings||[]).forEach(w=>_docImportWarnings.push(`${f.name}: ${w}`));
+      // Build -190: a PDF/Word file whose original was NOT stored means the
+      // 📄 Original view will be missing — say so loudly, with the server's reason.
+      if(/\.(pdf|docx?)$/i.test(f.name)&&(result.notes||[]).length&&!(result.notes||[]).some(n=>n.original&&n.original.url)){
+        const why=(result.warnings||[]).find(w=>/could not be stored/i.test(w))||'storage rejected the file';
+        toast({type:'error',title:'⚠ Original file not stored — '+f.name,msg:why.replace(/^.*?\(/,'(').slice(0,220),duration:12000});
+      }
       (result.notes||[]).forEach(n=>{
         _docImportStaged.push({
           title:((n.title||'').trim()||f.name.replace(/\.[^.]+$/,'')||'Imported Document'),

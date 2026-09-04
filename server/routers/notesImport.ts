@@ -46,16 +46,18 @@ interface ImportedNote {
 /** Store the untouched source document so the note can show it exactly as
  *  imported (build -187). Returns null when the storage backend refuses —
  *  the import still succeeds with the extracted text. */
-async function uploadOriginal(buffer: Buffer, fileName: string, mimeType: string): Promise<OriginalFile | null> {
+async function uploadOriginal(buffer: Buffer, fileName: string, mimeType: string): Promise<{ file: OriginalFile | null; error?: string }> {
   try {
     const ext = (fileName.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
     const base = fileName.replace(/\.[^.]+$/, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/gi, "").slice(0, 48) || "document";
     const key = `note-originals/${Date.now()}-${base}.${ext}`;
     const { url } = await storagePut(key, buffer, mimeType);
-    return { url, name: fileName, mime: mimeType, size: buffer.length };
+    console.log(`[notesImport] original stored: ${key} (${Math.round(buffer.length / 1024)} KB) → ${url}`);
+    return { file: { url, name: fileName, mime: mimeType, size: buffer.length } };
   } catch (e) {
-    console.warn("[notesImport] original file upload failed:", e);
-    return null;
+    const error = e instanceof Error ? e.message : String(e);
+    console.warn(`[notesImport] original file upload FAILED for ${fileName} (${Math.round(buffer.length / 1024)} KB):`, error);
+    return { file: null, error };
   }
 }
 
@@ -237,8 +239,9 @@ export const notesImportRouter = router({
           };
         }
         const cleanText = pdfData.text.replace(/\n{3,}/g, "\n\n").trim();
-        original = await uploadOriginal(buffer, input.fileName, "application/pdf");
-        if (!original) warnings.push("The original PDF could not be stored — the note keeps the extracted text only.");
+        const up = await uploadOriginal(buffer, input.fileName, "application/pdf");
+        original = up.file;
+        if (!original) warnings.push(`The original PDF could not be stored — the note keeps the extracted text only. (${up.error || "unknown storage error"})`);
 
         // Extract embedded images
         let imageMarkdown = "";
@@ -259,8 +262,9 @@ export const notesImportRouter = router({
         ext === "doc"
       ) {
         source = "Word Import";
-        original = await uploadOriginal(buffer, input.fileName, MIME_BY_EXT[ext] || mime || "application/octet-stream");
-        if (!original) warnings.push("The original Word file could not be stored — the note keeps the converted text only.");
+        const up = await uploadOriginal(buffer, input.fileName, MIME_BY_EXT[ext] || mime || "application/octet-stream");
+        original = up.file;
+        if (!original) warnings.push(`The original Word file could not be stored — the note keeps the converted text only. (${up.error || "unknown storage error"})`);
         try {
           const { plainText, imageMarkdown, html } = await extractDocxContent(buffer, fileTitle);
           body = plainText + imageMarkdown;
@@ -315,7 +319,7 @@ export const notesImportRouter = router({
       const buffer = Buffer.from(input.fileBase64, "base64");
       const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "";
       const mime = input.mimeType || MIME_BY_EXT[ext] || "application/octet-stream";
-      const original = await uploadOriginal(buffer, input.fileName, mime);
-      return { original };
+      const up = await uploadOriginal(buffer, input.fileName, mime);
+      return { original: up.file, error: up.error ?? null };
     }),
 });
