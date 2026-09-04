@@ -4,6 +4,17 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-190 (LIVE 2026-09-04) — import storage errors surfaced.** The user's
+re-import after -189 STILL came back without an original (source "PDF
+Import", note created 15:51Z; Drive app folder 1AOCrXh8x_xWelQ7joHwqne2x2tdSYaz3
+received nothing from LevelUp since 2026-09-01 — checked via the user's
+Drive connector). So `storagePut` is failing server-side for a reason not
+yet known (Drive token expiry is the historical culprit; Railway CLI is
+logged out on this machine, no local .env). -190 makes the reason visible:
+`uploadOriginal` returns `{file,error}`, the warning + a red toast carry the
+storage error text. NEXT: get the user's /api/storage-status result or the
+toast text, then fix the actual cause.
+
 **-189 (LIVE 2026-09-04) — Drive resumable upload.** The user's first
 real -187 import came back text-only: the app's Drive folder received NO
 PDF/DOCX that day. Root cause (high confidence): `storagePutDrive` used
@@ -21,7 +32,7 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-189`** on prod (-187 Transfer seed
+Live build at handoff: **`2026-09-04-190`** on prod (-187 Transfer seed
 confirmed by the user; -188 check rule + -189 resumable upload deployed,
 re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
