@@ -17,7 +17,7 @@ extra context, answer renders in `#money-rail-ai`), bills due in 7 days (overdue
 excluded, total vs cash), agent findings (warn first), goals, quick actions
 (＋ Transaction, ⟳ Sync all, ✨ AI categorize, Reports; hidden on read-only
 shared budgets). Mini-week strip + shortcuts legend auto-inject like every
-other rail. Unit-tested with a fake DOM; live bundle probed (rail markup, LU_PAGES rail:true, functions present) — the user has not yet confirmed the look on their wide monitor.
+other rail. Unit-tested with a fake DOM; live bundle probed (rail markup, LU_PAGES rail:true, functions present) — user confirmed the look on their wide monitor ("looks good").
 
 **-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User added the redirect URI, reconnected, and confirmed a PDF re-import opens in the 📄 Original view (2026-09-04). Original-document viewer VERIFIED end-to-end. -190's
 toast revealed the cause: `Google Drive token refresh failed (400):
