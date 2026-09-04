@@ -40,10 +40,20 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
   const rules: any[] = Array.isArray(fin.rules) ? fin.rules : [];
   const bankMap = (fin.settings && fin.settings.bankMap) || {};
 
+  // Substring match, or a /regex/ pattern when the rule text is wrapped in
+  // slashes (mirrors client _finRuleTest — keep both in agreement).
+  const ruleTest = (r: any, d: string): boolean => {
+    const m = String((r && r.match) || '');
+    if (!m) return false;
+    if (m.length > 2 && m[0] === '/' && m.lastIndexOf('/') > 0) {
+      try { return new RegExp(m.slice(1, m.lastIndexOf('/')), 'i').test(d); } catch { return false; }
+    }
+    return d.includes(m.toLowerCase());
+  };
   const applyRules = (desc: string): string | null => {
     const d = String(desc || '').toLowerCase();
     if (!d) return null;
-    const hit = rules.find(r => r && r.match && d.includes(String(r.match).toLowerCase()));
+    const hit = rules.find(r => ruleTest(r, d));
     return hit ? hit.catId : null;
   };
   const tsToDate = (v: any): string | null => {

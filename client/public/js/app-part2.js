@@ -14689,7 +14689,7 @@ function _finTabInsightsHtml(tab){
 function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
   _finCSS(); ensureFin();
-  if(_finShared==null){try{_finSeedTransferRules();}catch(e){console.warn('[money] transfer seed failed',e);}}
+  if(_finShared==null){try{_finSeedTransferRules();_finSeedCheckRule();}catch(e){console.warn('[money] transfer seed failed',e);}}
   if(typeof _finSnapshotNetWorth==='function'){try{_finSnapshotNetWorth();}catch(_){}}
   if(!_sharedFinLoaded)_loadSharedFinance();
   const shared=Array.isArray(D._sharedBudgets)?D._sharedBudgets:[];
@@ -15879,10 +15879,36 @@ function finReportAI(id){
 
 // ── rules engine ───────────────────────────────────────────────────────
 function _finRules(){ const f=_finData(); if(!Array.isArray(f.rules))f.rules=[]; return f.rules; }
+// A rule's text is a case-insensitive SUBSTRING of the payee, or — when
+// wrapped in /slashes/ — a regular expression (build -188). Patterns let a
+// rule stay precise where a substring can't: /^check\s*#?\s*\d+/ catches
+// "Check 1234" but not "Check Card Purchase" or "Checking". Mirrored in
+// server/_core/simplefinAutoSync.ts applyRules — keep both in agreement.
+function _finRuleTest(r,d){
+  const m=String(r&&r.match||''); if(!m)return false;
+  if(m.length>2&&m[0]==='/'&&m.lastIndexOf('/')>0){
+    try{return new RegExp(m.slice(1,m.lastIndexOf('/')),'i').test(d);}catch(_){return false;}
+  }
+  return d.includes(m.toLowerCase());
+}
 function _finApplyRules(desc){
   const d=String(desc||'').toLowerCase(); if(!d)return null;
-  const hit=_finRules().find(r=>r.match&&d.includes(String(r.match).toLowerCase()));
+  const hit=_finRules().find(r=>_finRuleTest(r,d));
   return hit?hit.catId:null;
+}
+/* Build -188: seed one anchored pattern rule for paper checks → Transfer
+   (the user asked for it after -187). Gated on settings._chkSeeded and on
+   at least one uncategorized payee actually matching. */
+function _finSeedCheckRule(){
+  const f=ensureFin(); const s=f.settings=f.settings||{}; if(s._chkSeeded)return;
+  const xfer=f.categories.find(c=>c&&c.kind==='transfer'); if(!xfer)return;
+  if(!Array.isArray(f.rules))f.rules=[];
+  const rule={id:String(Date.now()),match:'/^check\\s*#?\\s*\\d+/',catId:xfer.id};
+  const hits=(f.transactions||[]).filter(t=>_finIsUncat(t)&&_finRuleTest(rule,String(t.payee||'').toLowerCase()));
+  s._chkSeeded=true;
+  if(!hits.length||f.rules.some(r=>r.match===rule.match)){_finSave();return;}
+  f.rules.push(rule); hits.forEach(t=>t.catId=xfer.id); _finSave();
+  setTimeout(()=>toast('🔁 Check rule added · '+hits.length+' check'+(hits.length===1?'':'s')+' → Transfer'),900);
 }
 /* Build -187: one-time seed of transfer rules. Only rules whose text actually
    matches an UNCATEGORIZED payee in this budget are added (so budgets
@@ -15912,7 +15938,7 @@ function finOpenRules(){
   const rules=_finRules();
   _finModal(`<div style="padding:16px;max-width:520px">
     <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⚙ Category rules</h2>
-    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">When a payee/description contains the text, the category is applied automatically — during bank sync, CSV import and manual entry. First match wins.</div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:10px">When a payee/description contains the text, the category is applied automatically — during bank sync, CSV import and manual entry. First match wins. Wrap the text in /slashes/ for a pattern, e.g. <code>/^check\s*\d+/</code> matches "Check 1234" but not "Check Card".</div>
     <div style="max-height:260px;overflow-y:auto;margin-bottom:10px">
       ${rules.length?rules.map((r,i)=>`<div class="fin-row"><span class="fin-chip">"${esc(r.match)}"</span><span style="color:var(--t3)">→</span><span class="nm">${_finCat(r.catId).icon} ${esc(_finCat(r.catId).name)}</span><span style="cursor:pointer;color:var(--t3)" onclick="_finRules().splice(${i},1);_finSave();finOpenRules()">✕</span></div>`).join(''):'<div style="font-size:12px;color:var(--t3)">No rules yet.</div>'}
     </div>

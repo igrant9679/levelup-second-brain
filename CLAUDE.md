@@ -4,6 +4,14 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-188 (committed, awaiting push)** — rules engine accepts /regex/ patterns
+(client `_finRuleTest` + server `ruleTest` in simplefinAutoSync.ts, keep in
+agreement; malformed pattern = no match); one-time seed `_finSeedCheckRule`
+(flag `settings._chkSeeded`) adds `/^checks*#?s*d+/` → Transfer only if an
+uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
+or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
+with the Write tool when they contain regex literals.
+
 Live build at handoff: **`2026-09-04-187`** on prod (deployed 2026-09-04,
 client helpers verified on the live bundle; the Transfer seed ran on the
 owner's account — user confirmed the toast 2026-09-04) · everything pushed ·
