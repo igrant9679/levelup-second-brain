@@ -4,6 +4,13 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-193 (committed, awaiting push) — Notes reading column fills the pane.**
+`.note-doc` was `max-width:720px;margin:0 auto` (index.html ~1493) so on a
+wide monitor the middle pane was mostly empty; now `max-width:none`. Focus
+mode keeps its 760px measure. index.html-only change — verified the rule
+landed in `dist/public/index.html` (the CSS build trap); check live computed
+style after deploy.
+
 **-192 (LIVE 2026-09-04) — Money right rail.** The user pointed at
 the empty column right of the Money page on a wide screen (`.bg:not(.wr)
 .mn` caps main at 1280px). `#s-money` is now `.bg.wr` with
