@@ -22,6 +22,15 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { ENV } from "./_core/env";
+import { desc, eq } from "drizzle-orm";
+import { getDb } from "./db";
+import { externalSourceCredentials } from "../drizzle/schema";
+
+// Source key of the app-wide Google Drive storage token when it was minted
+// in-app (Settings → Sync → Reconnect Google Drive, build -191). A DB token
+// always wins over GOOGLE_DRIVE_REFRESH_TOKEN so a dead env token can be
+// replaced without touching Railway.
+export const DRIVE_STORAGE_SOURCE = "drive-storage";
 
 function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
@@ -43,12 +52,45 @@ function hasForgeConfig(): boolean {
 }
 
 function hasDriveConfig(): boolean {
+  // The refresh token itself may live in the DB (in-app reconnect) instead
+  // of the env — only the client pair + folder must be configured here.
   return !!(
     ENV.googleDriveClientId &&
     ENV.googleDriveClientSecret &&
-    ENV.googleDriveRefreshToken &&
     ENV.googleDriveFolderId
   );
+}
+
+let _driveRefreshCache: { token: string; at: number } | null = null;
+/** Drop cached Drive tokens — called after a reconnect stores a new refresh token. */
+export function resetDriveTokenCache(): void {
+  _driveTokenCache = null;
+  _driveRefreshCache = null;
+}
+// Test seam: lets a unit test supply the DB lookup without a database.
+let _driveRefreshLookupOverride: (() => Promise<string | null>) | null = null;
+export function _setDriveRefreshLookupForTests(fn: (() => Promise<string | null>) | null): void { _driveRefreshLookupOverride = fn; }
+async function resolveDriveRefreshToken(): Promise<string> {
+  if (_driveRefreshCache && Date.now() - _driveRefreshCache.at < 5 * 60 * 1000) return _driveRefreshCache.token;
+  let token = "";
+  if (_driveRefreshLookupOverride) token = (await _driveRefreshLookupOverride()) || "";
+  else try {
+    const db = await getDb();
+    if (db) {
+      const [row] = await db
+        .select({ refreshToken: externalSourceCredentials.refreshToken })
+        .from(externalSourceCredentials)
+        .where(eq(externalSourceCredentials.source, DRIVE_STORAGE_SOURCE))
+        .orderBy(desc(externalSourceCredentials.updatedAt))
+        .limit(1);
+      if (row && row.refreshToken) token = String(row.refreshToken).trim();
+    }
+  } catch (e) {
+    console.warn("[storage:drive] refresh-token lookup failed — using env token:", e);
+  }
+  if (!token) token = ENV.googleDriveRefreshToken;
+  _driveRefreshCache = { token, at: Date.now() };
+  return token;
 }
 
 // Cache the minted access token until ~5 min before expiry.
@@ -57,10 +99,14 @@ async function getDriveAccessToken(): Promise<string> {
   if (_driveTokenCache && _driveTokenCache.expiresAt > Date.now() + 5 * 60 * 1000) {
     return _driveTokenCache.token;
   }
+  const refreshToken = await resolveDriveRefreshToken();
+  if (!refreshToken) {
+    throw new Error("No Google Drive refresh token — open Settings → Sync → Reconnect Google Drive (or set GOOGLE_DRIVE_REFRESH_TOKEN).");
+  }
   const params = new URLSearchParams({
     client_id: ENV.googleDriveClientId,
     client_secret: ENV.googleDriveClientSecret,
-    refresh_token: ENV.googleDriveRefreshToken,
+    refresh_token: refreshToken,
     grant_type: "refresh_token",
   });
   const resp = await fetch("https://oauth2.googleapis.com/token", {
@@ -70,6 +116,7 @@ async function getDriveAccessToken(): Promise<string> {
   });
   if (!resp.ok) {
     const msg = await resp.text().catch(() => resp.statusText);
+    _driveRefreshCache = null; // a reconnect may already have stored a fresh token
     throw new Error(`Google Drive token refresh failed (${resp.status}): ${msg}`);
   }
   const data = (await resp.json()) as { access_token: string; expires_in: number };

@@ -8,6 +8,9 @@
 
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
+import { sdk } from "../_core/sdk";
+import { ENV } from "../_core/env";
+import { DRIVE_STORAGE_SOURCE, resetDriveTokenCache, storageSelfTest } from "../storage";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -42,6 +45,99 @@ function parseState(state: string): { userId: number; origin: string; tenantId?:
 const MS_PROVIDER_SLOTS = ["microsoft", "microsoft2", "microsoft3"];
 
 export function registerProviderOAuthCallbacks(app: Express) {
+  // ---- Google Drive file storage (app-wide) — admin/owner reconnect ----
+  // Replaces the manual OAuth-Playground re-mint: the admin signs in with the
+  // Google account that owns the Drive folder, the refresh token lands in
+  // external_source_credentials (source 'drive-storage') and storage.ts
+  // prefers it over GOOGLE_DRIVE_REFRESH_TOKEN. One-time Google Cloud setup:
+  // add {origin}/api/oauth/drive/callback as an authorized redirect URI on
+  // the GOOGLE_DRIVE client.
+  const driveOrigin = (req: Request): string => {
+    const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0].trim();
+    return `${proto}://${req.get("host")}`;
+  };
+  app.get("/api/oauth/drive/start", async (req: Request, res: Response) => {
+    try {
+      const user = await sdk.authenticateRequest(req).catch(() => null);
+      const isOwner = !!(ENV.ownerOpenId && user && user.openId === ENV.ownerOpenId);
+      if (!user || (user.role !== "admin" && !isOwner)) {
+        res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Admins only</h2><p>Sign in to LevelUp as a workspace admin, then open Settings → Sync → Reconnect Google Drive.</p></body></html>");
+        return;
+      }
+      if (!ENV.googleDriveClientId || !ENV.googleDriveClientSecret) {
+        res.status(500).send("GOOGLE_DRIVE_CLIENT_ID / GOOGLE_DRIVE_CLIENT_SECRET are not set on the server.");
+        return;
+      }
+      const origin = driveOrigin(req);
+      const state = Buffer.from(JSON.stringify({ userId: user.id, origin }), "utf-8").toString("base64url");
+      const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+      u.searchParams.set("client_id", ENV.googleDriveClientId);
+      u.searchParams.set("redirect_uri", `${origin}/api/oauth/drive/callback`);
+      u.searchParams.set("response_type", "code");
+      u.searchParams.set("scope", "https://www.googleapis.com/auth/drive.file");
+      u.searchParams.set("access_type", "offline");
+      u.searchParams.set("prompt", "consent");
+      u.searchParams.set("state", state);
+      res.redirect(u.toString());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      res.status(500).send("Could not start the Google Drive reconnect: " + msg.slice(0, 200));
+    }
+  });
+  app.get("/api/oauth/drive/callback", async (req: Request, res: Response) => {
+    const code = getQueryParam(req, "code");
+    const state = getQueryParam(req, "state");
+    const error = getQueryParam(req, "error");
+    if (error) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(error)}`); return; }
+    const st = state ? parseState(state) : null;
+    if (!code || !st) { res.redirect("/?oauth_error=drive&detail=missing_code_or_state"); return; }
+    try {
+      const redirectUri = `${st.origin}/api/oauth/drive/callback`;
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: ENV.googleDriveClientId,
+          client_secret: ENV.googleDriveClientSecret,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        }).toString(),
+      });
+      const body = await tokenResp.text();
+      if (!tokenResp.ok) {
+        console.error("[Drive OAuth] token exchange failed:", tokenResp.status, body.slice(0, 300));
+        res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(body.slice(0, 200))}`);
+        return;
+      }
+      const tok = JSON.parse(body) as { refresh_token?: string; scope?: string };
+      if (!tok.refresh_token) {
+        res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Google returned no refresh token. Remove LevelUp's Drive access at myaccount.google.com/permissions and try again.")}`);
+        return;
+      }
+      await db.upsertExternalSourceCredential({
+        userId: st.userId,
+        source: DRIVE_STORAGE_SOURCE,
+        refreshToken: tok.refresh_token,
+        scope: tok.scope ?? null,
+        apiToken: null,
+        accountDisplayName: "Google Drive file storage",
+      });
+      resetDriveTokenCache();
+      const test = await storageSelfTest();
+      if (!test.ok) {
+        console.error("[Drive OAuth] token stored but upload test failed:", test.error);
+        res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Token saved, but the upload test failed: " + String(test.error || "").slice(0, 160))}`);
+        return;
+      }
+      console.log(`[Drive OAuth] file storage reconnected by user ${st.userId}`);
+      res.redirect("/?oauth_success=drive");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[Drive OAuth] callback error:", msg);
+      res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(msg.slice(0, 200))}`);
+    }
+  });
   // ---- Microsoft ----
   app.get("/api/oauth/microsoft/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");

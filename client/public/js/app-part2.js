@@ -4725,7 +4725,10 @@ function doLoginSuccess(member){
     const _prov=window._pendingOAuthSuccess;
     window._pendingOAuthSuccess=null;
     // Nifty lands on the Integrations tab (sp-5) \u2014 not Accounts.
-    if(_prov==='nifty'){
+    if(_prov==='drive'){
+      toast({type:'success',title:'✓ Google Drive reconnected — file storage is back',msg:'Imported PDFs and Word files will keep their originals again.',duration:5000});
+      setTimeout(()=>{nav('settings');setTimeout(()=>{const b=Array.from(document.querySelectorAll('.si')).find(x=>x.textContent.trim()==='Sync');if(b)b.click();},300);},200);
+    } else if(_prov==='nifty'){
       toast({type:'success',title:'\u2713 NiftyPM connected \u2014 pulling tasks\u2026',duration:3500});
       setTimeout(()=>{
         nav('settings');
@@ -8700,14 +8703,15 @@ async function loadStorageHealth(){
         :'<span style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:10px;background:var(--reds);color:var(--red)">✕ FAILING</span>');
     let hint='';
     if(!ok&&!unconfigured){
-      hint=/invalid_grant/i.test(r.error||'')
-        ?'The Google Drive refresh token has expired or been revoked. Mint a new one at developers.google.com/oauthplayground (gear icon → use your own credentials → paste the GOOGLE_DRIVE client ID + secret from Railway), then update GOOGLE_DRIVE_REFRESH_TOKEN on Railway.'
+      hint=/invalid_grant|No Google Drive refresh token/i.test(r.error||'')
+        ?'The Google Drive token has expired or been revoked. Click 🔌 Reconnect Google Drive and sign in with the Google account that owns the Drive folder — the new token is stored in the app, no Railway change needed. First time only: add '+location.origin+'/api/oauth/drive/callback as an authorized redirect URI on the GOOGLE_DRIVE OAuth client in Google Cloud Console.'
         :'Check the storage variables on Railway (see the full report for masked values), then Re-check.';
     }
     body.innerHTML=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       ${badge}
       <span style="font-size:12px;font-weight:500">${esc(labels[r.backend]||r.backend||'?')}</span>
       <span style="font-size:11px;color:var(--t3)">live upload test · checked ${new Date().toLocaleTimeString()}</span>
+      ${r.backend==='drive'?`<a class="btn ${ok?'btn-s':'btn-p'}" href="/api/oauth/drive/start" style="height:22px;font-size:11px;padding:0 8px;display:inline-flex;align-items:center;text-decoration:none;margin-left:auto" title="Sign in with the Google account that owns the Drive folder — the new token is stored in the app">🔌 Reconnect Google Drive</a>`:''}
     </div>
     ${!ok&&r.error?`<pre style="margin:8px 0 0;background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:8px;font-size:11px;white-space:pre-wrap;color:var(--red)">${esc(String(r.error).slice(0,400))}</pre>`:''}
     ${hint?`<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5">${esc(hint)}</div>`:''}
