@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-191 (committed, awaiting push) — Google Drive in-app Reconnect.** -190's
+**-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User still has to add the redirect URI + click Reconnect. -190's
 toast revealed the cause: `Google Drive token refresh failed (400):
 invalid_grant` — the env refresh token is dead again (consent screen was
 already In production, so not the 7-day expiry; cause unknown). Fix: no
@@ -50,7 +50,7 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-190`** on prod (-187 Transfer seed
+Live build at handoff: **`2026-09-04-191`** on prod (-187 Transfer seed
 confirmed by the user; -188 check rule + -189 resumable upload deployed,
 re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
