@@ -5,8 +5,8 @@
 ## ▶ START NEXT SESSION HERE
 
 Live build at handoff: **`2026-09-04-187`** on prod (deployed 2026-09-04,
-client helpers verified on the live bundle; the Transfer seed runs on the
-owner's next Money-page load — not yet observed) · everything pushed ·
+client helpers verified on the live bundle; the Transfer seed ran on the
+owner's account — user confirmed the toast 2026-09-04) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
 the user to sign it in before in-app verification.
 
