@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-192 (committed, awaiting push) — Money right rail.** The user pointed at
+**-192 (LIVE 2026-09-04) — Money right rail.** The user pointed at
 the empty column right of the Money page on a wide screen (`.bg:not(.wr)
 .mn` caps main at 1280px). `#s-money` is now `.bg.wr` with
 `<aside class="rr" id="money-rail">`; `LU_PAGES` money `rail:true` so
@@ -17,7 +17,7 @@ extra context, answer renders in `#money-rail-ai`), bills due in 7 days (overdue
 excluded, total vs cash), agent findings (warn first), goals, quick actions
 (＋ Transaction, ⟳ Sync all, ✨ AI categorize, Reports; hidden on read-only
 shared budgets). Mini-week strip + shortcuts legend auto-inject like every
-other rail. Unit-tested with a fake DOM; not yet seen on prod.
+other rail. Unit-tested with a fake DOM; live bundle probed (rail markup, LU_PAGES rail:true, functions present) — the user has not yet confirmed the look on their wide monitor.
 
 **-191 (LIVE 2026-09-04) — Google Drive in-app Reconnect.** Endpoints probed on prod (start → 403 Admins only unauthenticated; callback → oauth_error redirect). User added the redirect URI, reconnected, and confirmed a PDF re-import opens in the 📄 Original view (2026-09-04). Original-document viewer VERIFIED end-to-end. -190's
 toast revealed the cause: `Google Drive token refresh failed (400):
@@ -65,7 +65,7 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-191`** on prod (-187 Transfer seed
+Live build at handoff: **`2026-09-04-192`** on prod (-187 Transfer seed
 confirmed by the user; -188 check rule + -189 resumable upload deployed,
 re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
