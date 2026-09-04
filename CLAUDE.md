@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-189 (committed, awaiting push) — Drive resumable upload.** The user's first
+**-189 (LIVE 2026-09-04) — Drive resumable upload.** The user's first
 real -187 import came back text-only: the app's Drive folder received NO
 PDF/DOCX that day. Root cause (high confidence): `storagePutDrive` used
 uploadType=multipart, which Google caps at ~5 MB — extracted images are
@@ -21,9 +21,9 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-187`** on prod (deployed 2026-09-04,
-client helpers verified on the live bundle; the Transfer seed ran on the
-owner's account — user confirmed the toast 2026-09-04) · everything pushed ·
+Live build at handoff: **`2026-09-04-189`** on prod (-187 Transfer seed
+confirmed by the user; -188 check rule + -189 resumable upload deployed,
+re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
 the user to sign it in before in-app verification.
 
