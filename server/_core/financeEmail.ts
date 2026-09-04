@@ -102,7 +102,10 @@ interface MoneyStats {
 
 export function computeMoneyStats(f: Finance, now = new Date()): MoneyStats {
   const ym = ymOf(now);
-  const monthTx = f.transactions.filter(t => String(t.date || '').slice(0, 7) === ym);
+  // Transfers (category kind 'transfer') move money between the user's own
+  // accounts — never spending or income (mirrors client _finIsXfer).
+  const isXfer = (t: { catId?: string }) => catKind(f, t.catId) === 'transfer';
+  const monthTx = f.transactions.filter(t => String(t.date || '').slice(0, 7) === ym && !isXfer(t));
   const spent = -monthTx.filter(t => (t.amount || 0) < 0).reduce((s, t) => s + (t.amount || 0), 0);
   const income = monthTx.filter(t => (t.amount || 0) > 0).reduce((s, t) => s + (t.amount || 0), 0);
   const budgetTotal = budgetIds(f, ym).filter(id => catKind(f, id) !== 'income').reduce((s, id) => s + budgetFor(f, id, ym), 0);

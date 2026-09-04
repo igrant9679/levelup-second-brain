@@ -370,6 +370,23 @@ export const wordImportRouter = router({
       const docTitle = (input.fileName ?? "doc").replace(/\.[^.]+$/, "");
       const skipBinaries = input.skipBinaries === true;
 
+      // 0. Store the untouched .docx once (build -187) so every note split
+      //    from it can show the original with its real formatting. Skipped in
+      //    bypass mode (storage is presumed unavailable there).
+      let original: { url: string; name: string; mime: string; size: number } | null = null;
+      const originalWarnings: string[] = [];
+      if (!skipBinaries) {
+        try {
+          const safe = docTitle.replace(/\s+/g, "-").replace(/[^a-z0-9-]/gi, "").slice(0, 48) || "document";
+          const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          const { url } = await storagePut(`note-originals/${Date.now()}-${safe}.docx`, buffer, mime);
+          original = { url, name: input.fileName ?? `${docTitle}.docx`, mime, size: buffer.length };
+        } catch (e) {
+          console.warn("[wordImport] original .docx upload failed:", e);
+          originalWarnings.push("The original .docx could not be stored — notes keep the converted text only.");
+        }
+      }
+
       // 1. Convert the doc to HTML, uploading every embedded image as we go.
       //    If storage upload fails (e.g. Forge config missing on this env),
       //    fall back to a data: URI so the image still renders in the note
@@ -484,12 +501,14 @@ export const wordImportRouter = router({
         );
       }
 
+      warnings.push(...originalWarnings);
       return {
         notes,
         warnings,
         skippedParagraphs,
         totalNotes: notes.length,
         attachmentsCount: attachments.length,
+        original,
       };
     }),
 });

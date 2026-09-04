@@ -26,13 +26,44 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
 
+interface OriginalFile {
+  url: string;
+  name: string;
+  mime: string;
+  size: number;
+}
+
 interface ImportedNote {
   title: string;
   body: string;
   bodyHtml?: string;
   source: string;
   tags: string[];
+  /** The untouched source file (PDF / DOCX) — shown with its real formatting by the note editor. */
+  original?: OriginalFile | null;
 }
+
+/** Store the untouched source document so the note can show it exactly as
+ *  imported (build -187). Returns null when the storage backend refuses —
+ *  the import still succeeds with the extracted text. */
+async function uploadOriginal(buffer: Buffer, fileName: string, mimeType: string): Promise<OriginalFile | null> {
+  try {
+    const ext = (fileName.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+    const base = fileName.replace(/\.[^.]+$/, "").replace(/\s+/g, "-").replace(/[^a-z0-9-]/gi, "").slice(0, 48) || "document";
+    const key = `note-originals/${Date.now()}-${base}.${ext}`;
+    const { url } = await storagePut(key, buffer, mimeType);
+    return { url, name: fileName, mime: mimeType, size: buffer.length };
+  } catch (e) {
+    console.warn("[notesImport] original file upload failed:", e);
+    return null;
+  }
+}
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  doc: "application/msword",
+};
 
 /** Upload a raw image buffer to storage and return its public URL */
 async function uploadImage(
@@ -187,6 +218,7 @@ export const notesImportRouter = router({
       let bodyHtml: string | undefined;
       let source = "Document Import";
       const warnings: string[] = [];
+      let original: OriginalFile | null = null;
 
       // ── PDF ──────────────────────────────────────────────────────────────
       if (mime.includes("pdf") || ext === "pdf") {
@@ -205,6 +237,8 @@ export const notesImportRouter = router({
           };
         }
         const cleanText = pdfData.text.replace(/\n{3,}/g, "\n\n").trim();
+        original = await uploadOriginal(buffer, input.fileName, "application/pdf");
+        if (!original) warnings.push("The original PDF could not be stored — the note keeps the extracted text only.");
 
         // Extract embedded images
         let imageMarkdown = "";
@@ -225,6 +259,8 @@ export const notesImportRouter = router({
         ext === "doc"
       ) {
         source = "Word Import";
+        original = await uploadOriginal(buffer, input.fileName, MIME_BY_EXT[ext] || mime || "application/octet-stream");
+        if (!original) warnings.push("The original Word file could not be stored — the note keeps the converted text only.");
         try {
           const { plainText, imageMarkdown, html } = await extractDocxContent(buffer, fileTitle);
           body = plainText + imageMarkdown;
@@ -256,9 +292,30 @@ export const notesImportRouter = router({
             bodyHtml,
             source,
             tags: [source.toLowerCase().replace(/\s+/g, "-")],
+            original,
           },
         ] as ImportedNote[],
         warnings,
       };
+    }),
+
+  /**
+   * Store an untouched source file (used by client-side importers such as
+   * the OneNote PDF export path) and return its storage record.
+   */
+  storeOriginal: protectedProcedure
+    .input(
+      z.object({
+        fileBase64: z.string().max(100 * 1024 * 1024),
+        fileName: z.string().min(1),
+        mimeType: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const buffer = Buffer.from(input.fileBase64, "base64");
+      const ext = input.fileName.split(".").pop()?.toLowerCase() ?? "";
+      const mime = input.mimeType || MIME_BY_EXT[ext] || "application/octet-stream";
+      const original = await uploadOriginal(buffer, input.fileName, mime);
+      return { original };
     }),
 });

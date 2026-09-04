@@ -103,8 +103,11 @@ export function reconcileBills(fin: any, nowYm: string): number {
   const bills: any[] = Array.isArray(fin.bills) ? fin.bills : [];
   const txs: any[] = Array.isArray(fin.transactions) ? fin.transactions : [];
   const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const cats: any[] = Array.isArray(fin.categories) ? fin.categories : [];
+  const isXfer = (t: any) => { const c = cats.find(c => c && c.id === t.catId); return !!c && c.kind === 'transfer'; };
   const match = (b: any, t: any): boolean => {
     if ((t.amount || 0) >= 0) return false;
+    if (isXfer(t)) return false; // transfers are never bill payments
     if (t.recurringBillId && String(t.recurringBillId) === String(b.id)) return true;
     const bn = norm(b.name), pn = norm(t.payee);
     // Explicit "bank payee contains" text (-183) trusts the payee alone.

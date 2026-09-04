@@ -4,10 +4,48 @@
 
 ## ▶ START NEXT SESSION HERE
 
-Live build at handoff: **`2026-09-03-186`** on prod (deployed + classifier
-verified on the live bundle 2026-09-03) · everything pushed · working tree
-clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is now
-SIGNED OUT of prod — ask the user to sign it in before in-app verification.
+Live build at handoff: **`2026-09-03-186`** on prod; **`2026-09-04-187`
+(Money Transfer category + Notes original-document viewer) committed
+UNPUSHED, awaiting review** · working tree otherwise clean (only untracked
+`.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
+the user to sign it in before in-app verification.
+
+**-187 — Money: Transfer category.** New category kind `'transfer'`
+(`xfer-transfer`, group Transfers, 🔁) added to `_finDefaultCats` AND
+back-filled by `ensureFin` into every existing budget. `_finIsXfer(t)`
+excludes transfer-category txs from `_finIncome/_finSpent/_finSpentByCat`
+(→ Overview, Budgets, charts, alerts), the Transactions insight strip,
+the largest-expenses / YTD reports, Income YTD, agent analyzers, the
+bill-payment picker and `_finBillTxMatch`; server mirrors in
+`computeMoneyStats` (emails) and `reconcileBills` (sync cron).
+`_finCatOptions(sel,kind)` always includes transfer cats. AI-categorize
+prompt labels the category. **One-time seed** `_finSeedTransferRules`
+(renderMoney, own budget only, flag `settings._xferSeeded`): candidate
+rules online transfer / transfer to|from / internal|balance transfer /
+offer moved to standard / wise → Transfer, genesis fi → Loan Payment —
+each added ONLY if an uncategorized payee in that budget contains it;
+then uncategorized txs are re-run through rules and a toast reports the
+count. Checks (`Check ####`) deliberately NOT auto-ruled (could be real
+spending) — user decides in ⚙ Rules.
+
+**-187 — Notes: original-document viewer.** Every PDF/Word importer now
+stores the untouched file via `storagePut` (`note-originals/…`, Drive or
+S3) and records `n.original {url,name,mime,size,whole?}`:
+`notesImport.importDocument` (Notes ⋯ → Import documents), new
+`notesImport.storeOriginal` (used by the client-side OneNote-PDF path in
+`handleOneNoteFiles`), and `wordImport.parseDocx` (Settings → Word
+import; returns `original` once, every split note carries it with
+`whole:true`). `renderNoteEditor` shows a 📄 Original / ✎ Text toggle
+(`_noteOriginalHtml`, session choice in `_noteOrigView`, default Original
+for single-file imports, Text for whole-doc splits); the Original view is
+an `<iframe>` — Drive files use `drive.google.com/file/d/ID/preview`
+(renders PDF + DOCX with real formatting), S3 PDFs embed directly, S3 DOCX
+goes through view.officeapps.live.com. Body text stays the searchable/
+editable extraction. Storage failure → warning, text-only note (never
+blocks the import). `pdfImport.parsePdf` router has NO client caller —
+untouched. NOT yet verified end-to-end on prod (needs a signed-in pane +
+a real import).
+
 
 **-186 — Notes folder classification**: the editor's Type dropdown
 (`_NOTE_TYPES`, sets `n.noteType='Meeting'`) never fed the sidebar folders,

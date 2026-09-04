@@ -12538,6 +12538,37 @@ function _readingTime(text){
 // Notes, OR it carries the `meetings` tag. Journal likewise honors the Type.
 function _noteIsMeeting(n){const t=n.noteType||'';return t==='Meeting'||t==='Meeting Notes'||n.source==='Meeting Notes'||(n.tags||[]).includes('meetings');}
 function _noteIsJournal(n){return (n.noteType||'')==='Journal'||(n.tags||[]).includes('journal');}
+// ── Original-document viewer (build -187) ────────────────────────────
+// Every PDF / Word importer stores the untouched source file in storage
+// (Drive / S3) and records it on the note as n.original {url,name,mime,
+// size,whole?}. The note body stays the extracted text (searchable,
+// editable); the editor shows the original with its real formatting in an
+// embedded viewer. `whole` marks a Word doc that was split into several
+// notes (Settings → Word import) — those default to the Text view.
+let _noteOrigView={}; // noteId -> 'original' | 'text' (session choice)
+function _noteOriginalEmbedUrl(o){
+  const u=String(o&&o.url||''); if(!u)return '';
+  const drive=u.match(/drive\.google\.com\/(?:uc\?[^#]*?\bid=|file\/d\/|thumbnail\?[^#]*?\bid=)([A-Za-z0-9_-]+)/);
+  if(drive)return 'https://drive.google.com/file/d/'+drive[1]+'/preview';
+  if(_noteOriginalIsPdf(o))return u; // browsers render PDFs natively
+  return 'https://view.officeapps.live.com/op/view.aspx?src='+encodeURIComponent(u);
+}
+function _noteOriginalIsPdf(o){ return /pdf/i.test(o&&o.mime||'')||/\.pdf(\?|$)/i.test(String(o&&(o.name||o.url)||'')); }
+function _noteOrigMode(n){ const o=n&&n.original; if(!o||!o.url)return ''; return _noteOrigView[n.id]||(o.whole?'text':'original'); }
+function _noteOriginalHtml(n){
+  const o=n.original; if(!o||!o.url)return '';
+  const mode=_noteOrigMode(n);
+  const isPdf=_noteOriginalIsPdf(o);
+  const size=o.size?' · '+(o.size>1048576?(o.size/1048576).toFixed(1)+' MB':Math.max(1,Math.round(o.size/1024))+' KB'):'';
+  const seg=(k,l)=>'<button class="btn btn-s" style="height:24px;font-size:11px;'+(mode===k?'background:var(--page-accent);color:#fff;border-color:transparent':'')+'" onclick="_noteOrigView['+n.id+']=\''+k+'\';showNoteInEditor('+n.id+')">'+l+'</button>';
+  const head='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+    '<span style="font-size:11px;color:var(--t3)">'+(isPdf?'📕':'📘')+' '+esc(o.name||'Original document')+size+(o.whole?' · whole document':'')+'</span>'+
+    '<span style="display:inline-flex;gap:4px;margin-left:auto">'+seg('original','📄 Original')+seg('text','✎ Text')+'</span>'+
+    '<a class="btn btn-s" style="height:24px;font-size:11px;text-decoration:none" href="'+esc(o.url)+'" target="_blank" rel="noopener">⬇ Download</a></div>';
+  const frame=mode==='original'?'<iframe src="'+esc(_noteOriginalEmbedUrl(o))+'" style="width:100%;height:72vh;min-height:420px;border:1px solid var(--bd1);border-radius:8px;background:#fff" allow="fullscreen" title="'+esc(o.name||'Original document')+'"></iframe>'+
+    '<div style="font-size:11px;color:var(--t3);margin-top:4px">Shown exactly as the file was imported. Switch to ✎ Text to read, search or edit the extracted content.</div>':'';
+  return '<div class="note-original" style="margin-bottom:12px">'+head+frame+'</div>';
+}
 // Build a breadcrumb path for a note based on its category + first tag.
 function _noteBreadcrumb(n){
   const parts=['Notes'];
@@ -13218,6 +13249,7 @@ async function importDocumentsBatch(fileList){
           bodyHtml:n.bodyHtml||'',
           source:n.source||'Document Import',
           tags:Array.isArray(n.tags)?n.tags:[],
+          original:n.original||null,
           fileName:f.name
         });
       });
@@ -13449,6 +13481,7 @@ async function confirmDocImport(){
       const ex=D.notes.find(x=>(x.title||'').trim().toLowerCase()===t);
       if(ex){
         ex.body=n.body;ex.bodyHtml=n.bodyHtml;ex.source=n.source;
+        if(n.original)ex.original=n.original;
         if(n.tags.length)ex.tags=[...new Set([...(ex.tags||[]),...n.tags])];
         ex.updated=now;
         overwritten++;
@@ -13463,6 +13496,7 @@ async function confirmDocImport(){
       bodyHtml:n.bodyHtml,
       tags:n.tags,
       source:n.source,
+      original:n.original||null,
       updated:now,
       starred:false,
       createdBy:D.creds.userName||'Idris Grant',
@@ -13754,7 +13788,7 @@ function renderNotes(){
       <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;margin-bottom:4px">Source <span style="font-weight:400;color:var(--t3)">(multi-select, OR)</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">
         ${_allNoteSources.map(src=>{
-          const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖'};
+          const icons={'Manual':'✍','Meeting Notes':'📋','Web Clipper':'🔗','Template':'📄','OneNote Import':'📓','Markdown Import':'📥','Quick Capture':'⚡','AI':'🤖','PDF Import':'📕','Word Import':'📘','Document Import':'📄','Text Import':'📃'};
           const icon=icons[src]||'📝';
           const _on=_notesFilterSources.has(String(src).toLowerCase());
           return `<span class="nf-src-chip" data-active="${_on?'1':''}" style="font-size:11px;padding:2px 7px;border-radius:10px;background:${_on?'var(--ac)':'var(--s3)'};color:${_on?'#fff':'var(--t2)'};cursor:pointer;border:1px solid var(--bd2)" onclick="toggleNotesFilterSource('${esc(src)}',this)">${icon} ${esc(src)}</span>`;
@@ -14196,7 +14230,8 @@ function renderNoteEditor(n){
   </div>
   ${(n.versions&&n.versions.length)?`<div style="margin-bottom:14px">${_renderNoteVersionSparkline(n)}</div>`:''}
   ${(()=>{const o=_renderNoteOutline(n,bodyHtml);bodyHtml=o.htmlWithIds;return o.toc;})()}
-  <div class="note-body" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>
+  ${_noteOriginalHtml(n)}
+  ${_noteOrigMode(n)==='original'?'':`<div class="note-body" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`}
   <!-- Chip-based linker — Projects / Goals / Tasks / Other Notes / Bookmarks /
        Journal. Hydrated by showNoteInEditor() so it persists across re-renders. -->
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--bd1)">

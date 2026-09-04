@@ -2551,6 +2551,13 @@ function editPerms(teamId,memberId){
 function addTeam(){const n=prompt('Team name:');if(n){D.teams.push({id:nextId(D.teams),name:n,members:[]});save('teams');renderScreen('settings');toast('Team created!')}}
 
 // ====== ONENOTE PDF IMPORT ======
+function _bufToB64(buf){ const bytes=new Uint8Array(buf); let s=''; const chunk=8192; for(let c=0;c<bytes.length;c+=chunk)s+=String.fromCharCode.apply(null,bytes.subarray(c,c+chunk)); return btoa(s); }
+// Store the untouched PDF so the note can show it with its real formatting
+// (build -187). Best-effort: a storage failure just means text-only.
+async function _storeOriginalFile(arrayBuffer,fileName,mimeType){
+  try{ const r=await _trpc('notesImport.storeOriginal',{fileBase64:_bufToB64(arrayBuffer),fileName,mimeType},'mutation'); return r&&r.original||null; }
+  catch(e){ console.warn('[import] original not stored:',e&&e.message); return null; }
+}
 async function extractPdfText(arrayBuffer){
   // Use pdf.js if available (best quality)
   if(typeof pdfjsLib!=='undefined'){
@@ -2612,6 +2619,7 @@ function handleOneNoteFiles(files){
     else if(nameNoExt.includes('_')){const parts=nameNoExt.split('_');tag=parts[0].trim();title=parts.slice(1).join('_').trim()}
     try{
       const arrayBuffer=await file.arrayBuffer();
+      const original=await _storeOriginalFile(arrayBuffer,file.name,'application/pdf');
       let bodyText=await extractPdfText(arrayBuffer);
       if(!bodyText||bodyText.length<20){
         bodyText='[PDF imported: '+file.name+']\n\nFile size: '+(file.size/1024).toFixed(1)+' KB\n\nThe PDF did not contain extractable text (it may be a scanned image). For best results, export from OneNote as a Word document and paste the text here.';
@@ -2619,7 +2627,7 @@ function handleOneNoteFiles(files){
         bodyText=bodyText.substring(0,8000)+(bodyText.length>8000?'\n\n[...truncated at 8000 chars]':'');
       }
       const noteId=nextId(D.notes);
-      D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
+      D.notes.push({id:noteId,title:title||nameNoExt,tags:[tag.toLowerCase().replace(/\s+/g,'-'),'onenote'],source:'OneNote Import',original,updated:'Just now',starred:false,body:bodyText,createdBy:D.creds.userName||'Idris Grant'});
       save('notes');imported++;
       invalidateSearchIndex();
       const statusEl=res.querySelector('.import-status');
@@ -7322,6 +7330,9 @@ async function wdiParseFile(){
     const skipBinaries=!!document.getElementById('wdi-skip-binaries')?.checked;
     const result=await _trpc('wordImport.parseDocx',{fileBase64:base64,fileName:_wdiFile.name,skipBinaries},'mutation');
     _wdiParsedNotes=result.notes||[];
+    // The untouched .docx (stored once) — every note split from it links back
+    // to the whole document (build -187 original-document viewer).
+    _wdiOriginal=result.original?Object.assign({},result.original,{whole:true}):null;
     document.getElementById('wdi-progress').style.display='none';
     // Show warnings
     if(result.warnings&&result.warnings.length){
@@ -7361,6 +7372,7 @@ async function wdiParseFile(){
   }
 }
 
+let _wdiOriginal=null;
 function wdiSelectAll(sel){
   _wdiParsedNotes.forEach((_,i)=>{
     const chk=document.getElementById('wdi-chk-'+i);
@@ -7383,12 +7395,12 @@ async function wdiImportSelected(){
       if(dupMode==='skip'){skipped++;continue;}
       if(dupMode==='overwrite'){
         const idx=D.notes.findIndex(x=>x.title===n.name);
-        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].bodyHtml=n.contentHtml||'';D.notes[idx].updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});overwritten++;continue;}
+        if(idx>=0){D.notes[idx].body=n.content;D.notes[idx].bodyHtml=n.contentHtml||'';if(_wdiOriginal)D.notes[idx].original=_wdiOriginal;D.notes[idx].updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});overwritten++;continue;}
       }
       // rename mode: fall through with modified name
     }
     const finalName=isDup&&dupMode==='rename'?n.name+' (imported)':n.name;
-    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,bodyHtml:n.contentHtml||'',tags:[],source:'Word Import',created:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
+    D.notes.push({id:Date.now()+Math.random(),title:finalName,body:n.content,bodyHtml:n.contentHtml||'',tags:[],source:'Word Import',original:_wdiOriginal||null,created:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),updated:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
     imported++;
   }
   save('notes');
@@ -14331,6 +14343,8 @@ function _finDefaultCats(){
     mk('inc-salary','Salary / Business Income','Income','💼','income'),
     mk('inc-interest','Interest & Dividends','Income','🏦','income'),
     mk('inc-other','Other Income','Income','💵','income'),
+    // Money moved between the user's own accounts — never spending or income.
+    mk('xfer-transfer','Transfer','Transfers','🔁','transfer'),
     mk('sav-savings','To Savings','Savings','🏦'),
     mk('sav-emergency','Emergency Fund','Savings','🛟'),
     mk('sav-retirement','Retirement','Savings','🌴'),
@@ -14393,6 +14407,9 @@ function ensureFin(){
   if(!Array.isArray(f.accounts))f.accounts=[];
   if(!Array.isArray(f.transactions))f.transactions=[];
   if(!Array.isArray(f.categories)||!f.categories.length)f.categories=_finDefaultCats();
+  // Build -187: every budget gets a Transfer category (kind:'transfer') —
+  // excluded from spend/income totals, charts, budgets and bill matching.
+  if(!f.categories.some(c=>c&&c.kind==='transfer'))f.categories.push({id:'xfer-transfer',name:'Transfer',group:'Transfers',icon:'🔁',kind:'transfer'});
   if(!f.budgets||typeof f.budgets!=='object')f.budgets={};
   if(!Array.isArray(f.bills))f.bills=[];
   if(!Array.isArray(f.goals))f.goals=[];
@@ -14443,9 +14460,12 @@ function _finShiftMonth(delta){ const p=_finMonth.split('-'); const d=new Date(N
   renderMoney(); }
 function _finCat(id){ return _finData().categories.find(c=>c.id===id)||{id,name:'(unknown)',group:'Misc',icon:'❓',kind:'expense'}; }
 function _finTxMonth(ym){ return _finData().transactions.filter(t=>String(t.date||'').slice(0,7)===ym); }
-function _finIncome(ym){ return _finTxMonth(ym).filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0); }
-function _finSpent(ym){ return -_finTxMonth(ym).filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0); }
-function _finSpentByCat(ym){ const m={}; _finTxMonth(ym).forEach(t=>{ if(t.amount<0)m[t.catId]=(m[t.catId]||0)-t.amount; }); return m; }
+// Transfers (category kind 'transfer') are money moving between the user's own
+// accounts — they never count as spending or income anywhere in Money.
+function _finIsXfer(t){ return !!t&&_finCat(t.catId).kind==='transfer'; }
+function _finIncome(ym){ return _finTxMonth(ym).filter(t=>t.amount>0&&!_finIsXfer(t)).reduce((s,t)=>s+t.amount,0); }
+function _finSpent(ym){ return -_finTxMonth(ym).filter(t=>t.amount<0&&!_finIsXfer(t)).reduce((s,t)=>s+t.amount,0); }
+function _finSpentByCat(ym){ const m={}; _finTxMonth(ym).forEach(t=>{ if(t.amount<0&&!_finIsXfer(t))m[t.catId]=(m[t.catId]||0)-t.amount; }); return m; }
 function _finNetWorth(){ return _finData().accounts.reduce((s,a)=>s+(['credit','loan'].includes(a.type)?-Math.abs(a.balance||0):(a.balance||0)),0); }
 function _finDebt(){ return _finData().accounts.filter(a=>['credit','loan'].includes(a.type)).reduce((s,a)=>s+Math.abs(a.balance||0),0); }
 function _finBudgetFor(catId,ym){ const f=_finData(); const ov=f.budgetOverrides&&f.budgetOverrides[ym]; if(ov&&ov[catId]!=null)return Number(ov[catId])||0; return Number(f.budgets[catId])||0; }
@@ -14469,7 +14489,7 @@ function _finModal(html){
 function _finCloseModal(){ const bg=document.getElementById('modal-capture'); if(bg)bg.classList.remove('show'); }
 function _finCatOptions(sel,kind){
   const f=_finData(); const groups={};
-  f.categories.forEach(c=>{ if(kind&&c.kind!==kind)return; (groups[c.group]=groups[c.group]||[]).push(c); });
+  f.categories.forEach(c=>{ if(kind&&c.kind!==kind&&c.kind!=='transfer')return; (groups[c.group]=groups[c.group]||[]).push(c); });
   return Object.keys(groups).map(g=>`<optgroup label="${esc(g)}">${groups[g].map(c=>`<option value="${esc(c.id)}" ${c.id===sel?'selected':''}>${c.icon} ${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
 }
 function _finAcctOptions(sel){
@@ -14637,7 +14657,7 @@ function _finGoalInsights(f){
 }
 /* Transactions: range-aware (called from _finTxHtml with its filtered rows). */
 function _finTxInsightsHtml(rows,rangeLabel){
-  const spend=rows.filter(t=>t.amount<0); if(!spend.length)return '';
+  const spend=rows.filter(t=>t.amount<0&&!_finIsXfer(t)); if(!spend.length)return '';
   const byCat={}; spend.forEach(t=>{const c=_finCat(t.catId);byCat[c.name]=(byCat[c.name]||0)-t.amount;});
   const dates=spend.map(t=>String(t.date).slice(0,10)).sort(); const span=Math.max(0,(Date.parse(dates[dates.length-1])-Date.parse(dates[0]))/86400000);
   const weekly=span>45;
@@ -14669,6 +14689,7 @@ function _finTabInsightsHtml(tab){
 function renderMoney(){
   const m=document.getElementById('money-main'); if(!m)return;
   _finCSS(); ensureFin();
+  if(_finShared==null){try{_finSeedTransferRules();}catch(e){console.warn('[money] transfer seed failed',e);}}
   if(typeof _finSnapshotNetWorth==='function'){try{_finSnapshotNetWorth();}catch(_){}}
   if(!_sharedFinLoaded)_loadSharedFinance();
   const shared=Array.isArray(D._sharedBudgets)?D._sharedBudgets:[];
@@ -15014,6 +15035,7 @@ function finSaveBudgetLine(){
    agreement. */
 function _finBillTxMatch(b,t){
   if((t.amount||0)>=0)return false;
+  if(_finIsXfer(t))return false; // transfers are never bill payments
   if(t.recurringBillId&&String(t.recurringBillId)===String(b.id))return true;
   const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const bn=norm(b.name),pn=norm(t.payee);
@@ -15058,7 +15080,7 @@ function finBillLinkPicker(id){
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
   const since=new Date(Date.now()-120*86400000).toISOString().slice(0,10);
   const plan=Number(b.amount)||0;
-  const cands=(f.transactions||[]).filter(t=>t.amount<0&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
+  const cands=(f.transactions||[]).filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
     .map(t=>({t,d:plan>0?Math.abs(Math.abs(t.amount)-plan)/plan:0}))
     .sort((a,b2)=>a.d-b2.d||String(b2.t.date).localeCompare(String(a.t.date))).slice(0,25);
   _finModal(`<div style="padding:16px;max-width:560px">
@@ -15393,7 +15415,7 @@ function _finIncomeHtml(){
   const totExp=streams.reduce((s,st)=>s+_finStreamExpected(st,ym),0);
   const totRec=_finIncome(ym);
   const y=ym.slice(0,4);
-  const ytdRec=f.transactions.filter(t=>t.amount>0&&String(t.date||'').slice(0,4)===y).reduce((s,t)=>s+t.amount,0);
+  const ytdRec=f.transactions.filter(t=>t.amount>0&&!_finIsXfer(t)&&String(t.date||'').slice(0,4)===y).reduce((s,t)=>s+t.amount,0);
   const months=[]; const yp=ym.split('-');
   for(let i=5;i>=0;i--){ months.push(_finYM(new Date(Number(yp[0]),Number(yp[1])-1-i,1))); }
   const maxBar=Math.max(1,...months.map(m2=>Math.max(_finIncome(m2),streams.reduce((s,st)=>s+_finStreamExpected(st,m2),0))));
@@ -15803,9 +15825,9 @@ const FIN_REPORTS=[
  {id:'debt-overview',icon:'💳',name:'Debt overview',desc:'Every card and loan: balance, payment, payoff estimate.',run(){const ds=_finDebtPayoff();return ds.length?_finRepTable(['Debt','Balance','Payment/mo','Payoff'],ds.map(d=>[esc(d.name)+(d.apr?` (${d.apr}%)`:''),`<span style="color:var(--red)">${_finFmt(d.balance,0)}</span>`,d.pay?_finFmt(d.pay,0):'—',d.months!=null?`${d.months} mo (${d.payoff})`:'no payment mapped']))+`<p style="font-size:12px;margin-top:8px">Total debt <b style="color:var(--red)">${_finFmt(_finDebt(),0)}</b> · total payments ${_finFmt(ds.reduce((s,d)=>s+d.pay,0),0)}/mo</p>`:'<p style="font-size:12px;color:var(--t3)">No debts 🎉</p>';}},
  {id:'debt-payoff-plan',icon:'🏁',name:'Debt payoff order',desc:'Snowball order (smallest balance first) with cumulative freed-up cash.',run(){const ds=_finDebtPayoff().slice().sort((a,b)=>a.balance-b.balance);let freed=0;return _finRepTable(['Order','Debt','Balance','Payment','Cash freed after payoff'],ds.map((d,i)=>{freed+=d.pay;return [String(i+1),esc(d.name),_finFmt(d.balance,0),d.pay?_finFmt(d.pay,0):'—',_finFmt(freed,0)+'/mo'];}))+'<p style="font-size:11px;color:var(--t3);margin-top:6px">Snowball: clear the smallest balance first, then roll its payment into the next debt.</p>';}},
  {id:'upcoming-bills',icon:'📅',name:'Upcoming bills (30 days)',desc:'What\'s due in the next month, in order, with the total.',run(){const f=_finData();const now=new Date();const horizon=new Date(now.getTime()+30*86400000);const list=f.bills.filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).filter(x=>x.due<=horizon).sort((a,b)=>a.due-b.due);return list.length?_finRepTable(['Due','Bill','Category','Amount'],list.map(x=>[x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),esc(x.b.name)+(x.b.autopay?' ⚡':''),esc(_finCat(x.b.catId).name),_finFmt(x.b.amount,0)]))+`<p style="font-size:12px;margin-top:8px">Total due in 30 days: <b>${_finFmt(list.reduce((s,x)=>s+(x.b.amount||0),0),0)}</b></p>`:'<p style="font-size:12px;color:var(--t3)">Nothing due in the next 30 days.</p>';}},
- {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);const rows=f.transactions.filter(t=>t.amount<0&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
+ {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);const rows=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
  {id:'net-worth',icon:'🏦',name:'Net worth statement',desc:'Assets and debts, line by line, with the bottom line.',run(){const f=_finData();const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type));const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type));return _finRepTable(['Assets','Balance'],assets.map(a=>[esc(a.name),_finFmt(a.balance||0,0)]))+_finRepTable(['Debts','Owed'],debts.map(a=>[esc(a.name),`<span style="color:var(--red)">${_finFmt(a.balance||0,0)}</span>`]))+`<p style="font-size:13px;margin-top:8px">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b></p>`;}},
- {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tx=f.transactions.filter(t=>String(t.date||'').slice(0,4)===y);const inc=tx.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);const sp=-tx.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0);const by={};tx.forEach(t=>{if(t.amount<0)by[t.catId]=(by[t.catId]||0)-t.amount;});const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${tx.length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
+ {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tx=f.transactions.filter(t=>String(t.date||'').slice(0,4)===y&&!_finIsXfer(t));const inc=tx.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);const sp=-tx.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0);const by={};tx.forEach(t=>{if(t.amount<0)by[t.catId]=(by[t.catId]||0)-t.amount;});const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${tx.length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
  {id:'savings-goals',icon:'🎯',name:'Savings goals check',desc:'Progress on each goal and the monthly amount needed to hit its date.',run(){const f=_finData();const rows=f.goals.map(g=>{const left=Math.max(0,(g.target||0)-(g.saved||0));let need='—';if(g.due){const months=Math.max(1,Math.ceil((new Date(g.due)-new Date())/(30.4*86400000)));need=_finFmt(left/months,0)+'/mo';}return [esc(g.name),_finFmt(g.saved||0,0),_finFmt(g.target||0,0),_finFmt(left,0),need];});return rows.length?_finRepTable(['Goal','Saved','Target','Remaining','Needed'],rows):'<p style="font-size:12px;color:var(--t3)">No goals yet — add them in the Goals tab.</p>';}},
  {id:'bills-vs-budget',icon:'🧮',name:'Fixed vs flexible spending',desc:'How much of the budget is locked in bills vs discretionary.',run(){const ym=_finMonth;const f=_finData();const fixed=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(b.amount||0),0);const tot=_finBudgetTotal(ym);const flex=Math.max(0,tot-fixed);return `<p style="font-size:12.5px">Planned spend ${_finFmt(tot,0)} · <b>fixed bills ${_finFmt(fixed,0)}</b> (${tot?Math.round(fixed/tot*100):0}%) · <b>flexible ${_finFmt(flex,0)}</b></p><div class="fin-bar" style="max-width:420px;height:12px"><div style="width:${tot?Math.min(100,Math.round(fixed/tot*100)):0}%;background:var(--warn)"></div></div><p style="font-size:11px;color:var(--t3);margin-top:8px">A high fixed share means less room to adjust in a tight month — debt payments are usually the biggest lever.</p>`;}},
 ];
@@ -15862,6 +15884,29 @@ function _finApplyRules(desc){
   const hit=_finRules().find(r=>r.match&&d.includes(String(r.match).toLowerCase()));
   return hit?hit.catId:null;
 }
+/* Build -187: one-time seed of transfer rules. Only rules whose text actually
+   matches an UNCATEGORIZED payee in this budget are added (so budgets
+   without such payees get nothing), then still-uncategorized transactions
+   are re-run through the rules. Guarded by settings._xferSeeded. */
+function _finSeedTransferRules(){
+  const f=ensureFin(); const s=f.settings=f.settings||{}; if(s._xferSeeded)return;
+  const xfer=f.categories.find(c=>c&&c.kind==='transfer'); if(!xfer)return;
+  if(!Array.isArray(f.rules))f.rules=[];
+  const cands=[['online transfer',xfer.id],['transfer to',xfer.id],['transfer from',xfer.id],['internal transfer',xfer.id],['balance transfer',xfer.id],['offer moved to standard',xfer.id],['wise',xfer.id],['genesis fi','debt-loan']];
+  const have=new Set(f.rules.map(r=>String(r.match||'').toLowerCase()));
+  const uncat=(f.transactions||[]).filter(t=>_finIsUncat(t));
+  let added=0;
+  cands.forEach(([m,catId])=>{
+    if(have.has(m))return;
+    if(catId!==xfer.id&&!f.categories.some(c=>c.id===catId))return;
+    if(!uncat.some(t=>String(t.payee||'').toLowerCase().includes(m)))return;
+    f.rules.push({id:String(Date.now()+added),match:m,catId}); have.add(m); added++;
+  });
+  let recat=0;
+  if(added)uncat.forEach(t=>{ const c=_finApplyRules(t.payee); if(c&&c!==t.catId){t.catId=c;recat++;} });
+  s._xferSeeded=true; _finSave();
+  if(added)setTimeout(()=>toast('🔁 Transfer category added · '+added+' rule'+(added===1?'':'s')+' · '+recat+' transaction'+(recat===1?'':'s')+' moved out of spending'),600);
+}
 function finOpenRules(){
   if(_finGuard())return;
   const rules=_finRules();
@@ -15904,7 +15949,7 @@ async function finAICategorize(){
   (f.transactions||[]).forEach(t=>{ if(!_finIsUncat(t))return; const p=String(t.payee||'').trim(); if(!p)return; const g=groups[p]=groups[p]||{payee:p,n:0,total:0,income:0}; g.n++; g.total+=Math.abs(t.amount||0); if(t.amount>0)g.income++; });
   const list=Object.values(groups).sort((a,b)=>b.n-a.n||b.total-a.total).slice(0,240);
   if(!list.length){toast('Nothing to categorize — every transaction already has a category.');return;}
-  const cats=f.categories.map(c=>`${c.id}=${c.name}${c.kind==='income'?' (income)':''}`).join(', ');
+  const cats=f.categories.map(c=>`${c.id}=${c.name}${c.kind==='income'?' (income)':c.kind==='transfer'?' (TRANSFER between the user\'s own accounts / card-payment credits / balance transfers — not spending)':''}`).join(', ');
   _finModal(`<div style="padding:16px;max-width:520px"><h2 style="font-size:15px;font-weight:600;margin-bottom:6px">✨ AI categorization</h2>
     <div id="fac-status" style="font-size:12px;color:var(--t2);line-height:1.6">Reading ${list.length} uncategorized payee${list.length===1?'':'s'}…</div>
     <div class="dr-actions" style="margin-top:12px"><button class="btn btn-s" onclick="_finAICatProposals=null;_finCloseModal()">Cancel</button></div></div>`);
@@ -16278,7 +16323,7 @@ function finDetectRecurring(){
   if(_finGuard())return;
   const f=_finData();
   const byPayee={};
-  f.transactions.filter(t=>t.amount<0&&t.payee).forEach(t=>{(byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]=byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]||[]).push(t);});
+  f.transactions.filter(t=>t.amount<0&&t.payee&&!_finIsXfer(t)).forEach(t=>{(byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]=byPayee[t.payee.toLowerCase().replace(/\d{4,}/g,'').trim()]||[]).push(t);});
   const existing=new Set(f.bills.map(b=>String(b.name).toLowerCase()));
   const cands=[];
   Object.entries(byPayee).forEach(([key,txs])=>{
@@ -16487,7 +16532,7 @@ function _finAgentCommit(fresh){
 function _finTxForBill(b,days){
   const cut=new Date(Date.now()-(days||95)*86400000).toISOString().slice(0,10);
   const key=String(b.name||'').toLowerCase().slice(0,14);
-  return _finData().transactions.filter(t=>t.amount<0&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
+  return _finData().transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
 }
 // ── analyzers ──────────────────────────────────────────────────────────
 function _finAgentBillsRun(out){
@@ -16532,7 +16577,7 @@ function _finAgentBudgetRun(out){
   if(subTotal>0)_finAgentPush(out,'budget','info','Subscription check',subs.length+' subscription'+(subs.length===1?'':'s')+' cost '+_finFmt(subTotal,0)+'/mo — that is '+_finFmt(subTotal*12,0)+'/year. Run 🔍 Recurring on Transactions to catch ones not tracked as bills.','budget-subs-'+Math.round(subTotal));
   // duplicate charges (same payee+amount within 2 days, last 45d)
   const cut=new Date(Date.now()-45*86400000).toISOString().slice(0,10);
-  const recent=f.transactions.filter(t=>t.amount<0&&String(t.date)>=cut&&t.payee);
+  const recent=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut&&t.payee);
   for(let i=0;i<recent.length;i++)for(let j=i+1;j<recent.length;j++){
     const a=recent[i],b2=recent[j];
     if(a.payee===b2.payee&&Math.abs(a.amount-b2.amount)<0.01&&a.id!==b2.id&&!a.splitOf&&!b2.splitOf){
@@ -16580,7 +16625,7 @@ function _finAgentHealthRun(out){
   // unusual transactions: z-score within category, last 90d, >= 5 samples
   const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
   const byCat={};
-  f.transactions.filter(t=>t.amount<0&&String(t.date)>=cut).forEach(t=>{(byCat[t.catId]=byCat[t.catId]||[]).push(t);});
+  f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut).forEach(t=>{(byCat[t.catId]=byCat[t.catId]||[]).push(t);});
   Object.values(byCat).forEach(txs=>{
     if(txs.length<5)return;
     txs.forEach(t=>{
