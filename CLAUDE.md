@@ -4,12 +4,12 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-193 (committed, awaiting push) — Notes reading column fills the pane.**
+**-193 (LIVE 2026-09-04) — Notes reading column fills the pane.**
 `.note-doc` was `max-width:720px;margin:0 auto` (index.html ~1493) so on a
 wide monitor the middle pane was mostly empty; now `max-width:none`. Focus
 mode keeps its 760px measure. index.html-only change — verified the rule
-landed in `dist/public/index.html` (the CSS build trap); check live computed
-style after deploy.
+landed in `dist/public/index.html` (the CSS build trap); live computed style
+verified on prod (max-width:none).
 
 **-192 (LIVE 2026-09-04) — Money right rail.** The user pointed at
 the empty column right of the Money page on a wide screen (`.bg:not(.wr)
@@ -72,7 +72,7 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-192`** on prod (-187 Transfer seed
+Live build at handoff: **`2026-09-04-193`** on prod (-187 Transfer seed
 confirmed by the user; -188 check rule + -189 resumable upload deployed,
 re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
