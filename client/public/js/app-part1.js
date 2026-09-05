@@ -12554,7 +12554,10 @@ function _noteOriginalEmbedUrl(o){
   return 'https://view.officeapps.live.com/op/view.aspx?src='+encodeURIComponent(u);
 }
 function _noteOriginalIsPdf(o){ return /pdf/i.test(o&&o.mime||'')||/\.pdf(\?|$)/i.test(String(o&&(o.name||o.url)||'')); }
-function _noteOrigMode(n){ const o=n&&n.original; if(!o||!o.url)return ''; return _noteOrigView[n.id]||(o.whole?'text':'original'); }
+// Views (build -194): 'both' = original viewer + the imported formatted text
+// underneath (default for single-file imports — the user wants both at once),
+// 'original' = viewer only, 'text' = text only (default for whole-doc splits).
+function _noteOrigMode(n){ const o=n&&n.original; if(!o||!o.url)return ''; return _noteOrigView[n.id]||(o.whole?'text':'both'); }
 function _noteOriginalHtml(n){
   const o=n.original; if(!o||!o.url)return '';
   const mode=_noteOrigMode(n);
@@ -12563,10 +12566,10 @@ function _noteOriginalHtml(n){
   const seg=(k,l)=>'<button class="btn btn-s" style="height:24px;font-size:11px;'+(mode===k?'background:var(--page-accent);color:#fff;border-color:transparent':'')+'" onclick="_noteOrigView['+n.id+']=\''+k+'\';showNoteInEditor('+n.id+')">'+l+'</button>';
   const head='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
     '<span style="font-size:11px;color:var(--t3)">'+(isPdf?'📕':'📘')+' '+esc(o.name||'Original document')+size+(o.whole?' · whole document':'')+'</span>'+
-    '<span style="display:inline-flex;gap:4px;margin-left:auto">'+seg('original','📄 Original')+seg('text','✎ Text')+'</span>'+
+    '<span style="display:inline-flex;gap:4px;margin-left:auto">'+seg('both','📄+✎ Both')+seg('original','📄 Original')+seg('text','✎ Text')+'</span>'+
     '<a class="btn btn-s" style="height:24px;font-size:11px;text-decoration:none" href="'+esc(o.url)+'" target="_blank" rel="noopener">⬇ Download</a></div>';
-  const frame=mode==='original'?'<iframe src="'+esc(_noteOriginalEmbedUrl(o))+'" style="width:100%;height:72vh;min-height:420px;border:1px solid var(--bd1);border-radius:8px;background:#fff" allow="fullscreen" title="'+esc(o.name||'Original document')+'"></iframe>'+
-    '<div style="font-size:11px;color:var(--t3);margin-top:4px">Shown exactly as the file was imported. Switch to ✎ Text to read, search or edit the extracted content.</div>':'';
+  const frame=mode!=='text'?'<iframe src="'+esc(_noteOriginalEmbedUrl(o))+'" style="width:100%;height:'+(mode==='both'?'60vh':'72vh')+';min-height:420px;border:1px solid var(--bd1);border-radius:8px;background:#fff" allow="fullscreen" title="'+esc(o.name||'Original document')+'"></iframe>'+
+    '<div style="font-size:11px;color:var(--t3);margin-top:4px">'+(mode==='both'?'The original file above; the imported text below is what search, links and editing use.':'Shown exactly as the file was imported. Switch to ✎ Text or Both for the extracted content.')+'</div>':'';
   return '<div class="note-original" style="margin-bottom:12px">'+head+frame+'</div>';
 }
 // Build a breadcrumb path for a note based on its category + first tag.
