@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-194 (committed, awaiting push) — imported notes show Original AND text.**
+**-194 (LIVE 2026-09-04, probed on the live bundle) — imported notes show Original AND text.**
 User asked for the formatted text back alongside the document image. Views
 in `_noteOrigMode`: 'both' (default for single-file imports: viewer 60vh on
 top, `.note-body` below), 'original' (viewer only), 'text' (only text;
@@ -81,7 +81,7 @@ uncategorized payee matches ("Check 1234" / "CHECK # 42", never "Check Card"
 or "Checking"). ⚠ Bash-tool heredocs strip backslashes — write test files
 with the Write tool when they contain regex literals.
 
-Live build at handoff: **`2026-09-04-193`** on prod (-187 Transfer seed
+Live build at handoff: **`2026-09-04-194`** on prod (-187 Transfer seed
 confirmed by the user; -188 check rule + -189 resumable upload deployed,
 re-import NOT yet confirmed by the user) · everything pushed ·
 working tree clean (only untracked `.claude/`). ⚠ The Claude desktop Browser pane is SIGNED OUT of prod — ask
