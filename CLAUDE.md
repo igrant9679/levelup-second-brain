@@ -4,6 +4,15 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-194 (committed, awaiting push) — imported notes show Original AND text.**
+User asked for the formatted text back alongside the document image. Views
+in `_noteOrigMode`: 'both' (default for single-file imports: viewer 60vh on
+top, `.note-body` below), 'original' (viewer only), 'text' (only text;
+default for whole-doc Word splits). Toggle `📄+✎ Both / 📄 Original / ✎ Text`
+in `_noteOriginalHtml`; the body is hidden only in 'original'. Text quality
+note: DOCX text is mammoth HTML (headings/tables/bold), PDF text is
+pdf-parse plain text — the viewer is what carries a PDF's layout.
+
 **-193 (LIVE 2026-09-04) — Notes reading column fills the pane.**
 `.note-doc` was `max-width:720px;margin:0 auto` (index.html ~1493) so on a
 wide monitor the middle pane was mostly empty; now `max-width:none`. Focus
