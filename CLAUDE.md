@@ -670,7 +670,7 @@ to dark to see it — do not "helpfully" flip their theme.
 ### Demo account (for showing the app to prospects)
 
 A fully-populated **demo user** exists on prod: **idris.a.grant@hotmail.com**
-(user id 103448, role , name "Idris Grant"). Password is NOT recorded
+(user id 103448, role `user`, name "Idris Grant"). Password is NOT recorded
 here — ask the owner. Seeded 2026-09-07 with every page filled: 14 tasks (3
 overdue / 2 today / 2 done), 8 notes, 6 projects, 5 goals, 4 journal entries,
 6 habits, 8 contacts, 3 ideas, 3 clusters, 3 programs, 13 calendar events,
@@ -678,16 +678,20 @@ overdue / 2 today / 2 done), 8 notes, 6 projects, 5 goals, 4 journal entries,
 budget (4 accounts, 45 transactions, 8 bills, 26 budgets, 3 savings goals).
 
 How it was built (repeat this rather than hand-typing records): the app
-already ships correctly-shaped demo records inside  (the 
-defaults that build -76 clears for new members). The seeder extracts those by
+already ships correctly-shaped demo records inside `app-part1.js` — the `D`
+defaults that build -76 clears for new members. The seeder extracts those by
 brace-matching + eval, refreshes their dates relative to today, authors the
 entities that ship EMPTY (opportunities, finance, mindmaps, prefs), and builds
-Sheets/Decks through the app's own /
-builders. Then  + one . Scripts were in the
-session scratchpad (, , ).
+Sheets/Decks through the app's own `SHEET_TEMPLATES` / `DECK_TEMPLATES`
+builders. Then `emailAuth.register` + one `appData.save`. Scripts were in the
+session scratchpad: `extract-defaults.js`, `build-seed.js`, `seed-demo.js`.
 
-⚠ **Profile text fields do NOT sync.**  has no bio/jobTitle/avatar
-column and  is not in , so job title, bio and photo are
+Validate before trusting a seed: every `catId` / `accountId` / `projectId` must
+resolve, and journal dates must survive `_parseJournalDate` — note that takes
+the ENTRY OBJECT, not a string, and prefers `createdAt`.
+
+⚠ **Profile text fields do NOT sync.** `users` has no bio/jobTitle/avatar
+column and `creds` is not in `_syncKeys`, so job title, bio and photo are
 per-browser localStorage. They must be typed once on the demo machine.
 
 ### 2. Still open: OneNote first sync
