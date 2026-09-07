@@ -667,6 +667,29 @@ to dark to see it — do not "helpfully" flip their theme.
 - **Screenshot new multi-column panels** — `.btn` is `white-space:nowrap`, and
   DOM assertions cannot see overlap (this shipped a real bug in -142 → -143).
 
+### Demo account (for showing the app to prospects)
+
+A fully-populated **demo user** exists on prod: **idris.a.grant@hotmail.com**
+(user id 103448, role , name "Idris Grant"). Password is NOT recorded
+here — ask the owner. Seeded 2026-09-07 with every page filled: 14 tasks (3
+overdue / 2 today / 2 done), 8 notes, 6 projects, 5 goals, 4 journal entries,
+6 habits, 8 contacts, 3 ideas, 3 clusters, 3 programs, 13 calendar events,
+6 pipeline opportunities, 2 mind maps, 2 sheets, 2 decks, and a full Money
+budget (4 accounts, 45 transactions, 8 bills, 26 budgets, 3 savings goals).
+
+How it was built (repeat this rather than hand-typing records): the app
+already ships correctly-shaped demo records inside  (the 
+defaults that build -76 clears for new members). The seeder extracts those by
+brace-matching + eval, refreshes their dates relative to today, authors the
+entities that ship EMPTY (opportunities, finance, mindmaps, prefs), and builds
+Sheets/Decks through the app's own /
+builders. Then  + one . Scripts were in the
+session scratchpad (, , ).
+
+⚠ **Profile text fields do NOT sync.**  has no bio/jobTitle/avatar
+column and  is not in , so job title, bio and photo are
+per-browser localStorage. They must be typed once on the demo machine.
+
 ### 2. Still open: OneNote first sync
 
 Unresolved since the START of the 2026-07-24 session. The primary Microsoft
