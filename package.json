@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
-    "check:ai-prompt": "node scripts/check-ai-prompt-budget.mjs"
+    "check:ai-prompt": "node scripts/check-ai-prompt-budget.mjs",
+    "check:ai-knowledge": "node scripts/check-ai-knowledge.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

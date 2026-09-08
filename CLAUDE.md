@@ -4,7 +4,7 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-195 (2026-09-08, COMMITTED — NOT PUSHED) — the app teaches itself.**
+**-195 (LIVE 2026-09-08, verified against the live bundle) — the app teaches itself.**
 User asked for a LevelUp skill file "so any Claude instance can operate,
 control, use, manage and be an expert in its usage", including daily/weekly/
 monthly routines, and for that same knowledge to live inside the AI Assistant
@@ -48,11 +48,20 @@ Three pieces:
 - `_luIsProductQuestion` needs the PLURALS (`shortcuts?`, `tips?`, `routines?`)
   — `\bshortcut\b` does not match "keyboard shortcuts".
 
-Verified: `node scratchpad/test-ai-knowledge.js` → **8/8 retrieval, 7/7
-product-question detection, prompt 3622/3900 chars** with a 30-turn transcript;
-`pnpm check:ai-prompt` still green; help data clean (no dup ids/slugs, no
+Verified: the retrieval suite was re-run **against the bundles downloaded from
+prod** (not the working copy) after the deploy — **8/8 retrieval, 7/7
+product-question detection, prompt 3622/3900 chars** with a 30-turn transcript.
+Also: `pnpm check:ai-prompt` green; help data clean (no dup ids/slugs, no
 orphans, tour targets all resolve); both bundles `node -c`, **12 NUL bytes**
-intact; `vite build` output re-checked for every new symbol.
+intact. Deploy went live ~120s after push.
+
+**How to re-verify after touching any of this: `pnpm check:ai-knowledge`.**
+It extracts `HC_ARTICLES`, `LU_AI_PRIMER`, the four retrieval helpers and
+`_aiChatSystemPrompt` out of the real bundle TEXT and runs them, so it cannot
+pass against a build that never shipped. Pass a URL to run it against prod:
+`node scripts/check-ai-knowledge.mjs https://levelupnow.tools`. Validated the
+way the other guards were — deliberately removing the `-ily` stem rule and the
+regex plurals makes it fail with exactly those two symptoms (exit 1).
 
 **-194 (LIVE 2026-09-04, probed on the live bundle) — imported notes show Original AND text.**
 User asked for the formatted text back alongside the document image. Views
@@ -320,6 +329,7 @@ two of these passed against a broken build until they were strengthened.
 |---|---|
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
+| `pnpm check:ai-knowledge` | the -195 AI product-knowledge layer: help-data integrity, product-question detection, that retrieval picks the right article, and that the excerpt does not blow the prompt cap. Takes a directory OR a URL — `node scripts/check-ai-knowledge.mjs https://levelupnow.tools` runs it against the LIVE bundles. |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
 
 ### Session log — 2026-08-28 → 08-29, builds -162 → -175 (-175 UNPUSHED)
