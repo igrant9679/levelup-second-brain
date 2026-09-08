@@ -4,6 +4,56 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-195 (2026-09-08, COMMITTED — NOT PUSHED) — the app teaches itself.**
+User asked for a LevelUp skill file "so any Claude instance can operate,
+control, use, manage and be an expert in its usage", including daily/weekly/
+monthly routines, and for that same knowledge to live inside the AI Assistant
+and Help Center.
+
+Three pieces:
+1. **Skill** at `.claude/skills/levelup-app/SKILL.md` (commit `2867212`).
+   6 parts: mental model · all 32 pages · routines (daily/weekly/monthly/
+   quarterly/first-week) · coaching playbook · power features · **Part 6 =
+   developing the app** (architecture, data model, the rules that exist
+   because something broke, verification traps, the demo-seed recipe).
+2. **Help Center category 14 "Routines & Mastery"** — 9 articles (ids 52-60:
+   daily / weekly / monthly / quarterly routines, first two weeks, where does
+   this go, when it stops working, getting the most from the AI, power moves)
+   + **tour 5 "Build your routine"** (7 steps). Now **14 cats / 59 articles /
+   5 tours**.
+3. **AI knowledge layer — RETRIEVAL, not prompt-stuffing.** `ai.assist` caps
+   systemPrompt at 4000 chars, so the manual cannot be pasted in. Instead
+   `LU_AI_PRIMER` (a ~1.2k capability map + rhythm + coaching stance) rides in
+   the head, and `_luKnowledgeHits(q,budget)` pulls the RELEVANT Help article
+   in on demand. **The Help Center stays the single source of truth — editing
+   an article changes what the AI knows, with no prompt edit.** Wired into
+   both surfaces: the chat (`_aiChatSystemPrompt`, budget now subtracts
+   `know.length` so the snapshot shrinks instead of the transcript being
+   silently dropped) and Ask LevelUp (which used to dead-end on "No relevant
+   content found" for every question about the app itself — the most natural
+   thing to ask it).
+
+⚠ **Retrieval traps, each found by a failing test — do not "simplify" these back:**
+- **Substring matching is wrong.** Scoring `head.indexOf(word)` made
+  **"display" a hit for "day"**, so "what should I do every day" retrieved
+  *Themes & Color Profiles*. Match on TOKENS (`_luTokens` → `_luTokHit`).
+- **`daily` is not prefixed by `day`** (the y becomes an i) — prefix matching
+  alone still misses the single most common question in the app. `_luStem`
+  undoes `-ily → y` explicitly (and `-ly`, so weekly→week, monthly→month).
+- **Body hits must be capped** (`Math.min(bodyHits,3)`) or a long article wins
+  on sheer volume of incidental words rather than on being about the topic.
+- **Interrogatives are position, not topic.** `where/when/why/which/who` are
+  scored down (`WEAK`), or "where do I start" outranks the onboarding article
+  on *"Where does this go?"* purely because both contain "where".
+- `_luIsProductQuestion` needs the PLURALS (`shortcuts?`, `tips?`, `routines?`)
+  — `\bshortcut\b` does not match "keyboard shortcuts".
+
+Verified: `node scratchpad/test-ai-knowledge.js` → **8/8 retrieval, 7/7
+product-question detection, prompt 3622/3900 chars** with a 30-turn transcript;
+`pnpm check:ai-prompt` still green; help data clean (no dup ids/slugs, no
+orphans, tour targets all resolve); both bundles `node -c`, **12 NUL bytes**
+intact; `vite build` output re-checked for every new symbol.
+
 **-194 (LIVE 2026-09-04, probed on the live bundle) — imported notes show Original AND text.**
 User asked for the formatted text back alongside the document image. Views
 in `_noteOrigMode`: 'both' (default for single-file imports: viewer 60vh on

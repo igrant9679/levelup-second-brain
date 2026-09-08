@@ -2791,15 +2791,32 @@ Rules:
 - Refer to the workspace context below when answering. Mention specific items by name when relevant.
 - When the user asks you to do something (create a task, schedule a focus block, summarise notes), describe what you'd do — the app's automation tools aren't directly hooked up yet, so propose a clear plan they can execute.
 - Use light Markdown: bullet lists, **bold** for emphasis, headings only when you really need them.
-- Speak in the second person ("you"). Encouraging tone, not corporate.`;
+- Speak in the second person ("you"). Encouraging tone, not corporate.
+- You are an EXPERT in this app. Use the product knowledge below to answer "how do I…" and "what should I do…" questions concretely, naming the actual page and the actual keystroke.
+
+${typeof LU_AI_PRIMER!=='undefined'?LU_AI_PRIMER:''}`;
   let ctx='';
   try{ctx=typeof _buildAIContext==='function'?_buildAIContext():'';}catch(_){ctx='';}
+  // Questions about the APP (rather than about the user's data) get the matching
+  // Help Center article pulled in, so the assistant answers from the real docs
+  // instead of improvising. Paid for out of the snapshot's allowance below, so
+  // the total still lands under AI_SYS_MAX.
+  let know='';
+  try{
+    const hist=history||[];
+    let lastUser=null;
+    for(let i=hist.length-1;i>=0;i--){ if(hist[i]&&hist[i].role==='user'){lastUser=hist[i];break;} }
+    if(lastUser&&typeof _luIsProductQuestion==='function'&&_luIsProductQuestion(lastUser.content)
+       &&typeof _luKnowledgeHits==='function'){
+      know=_luKnowledgeHits(lastUser.content,900);
+    }
+  }catch(_){know='';}
   // The snapshot may only use what is left after the transcript floor. With a
   // real workspace the snapshot is well under this, so the transcript simply
   // gets the slack — the floor only bites when the snapshot is huge.
-  const ctxRoom=Math.max(0,AI_SYS_MAX-head.length-AI_HISTORY_FLOOR);
+  const ctxRoom=Math.max(0,AI_SYS_MAX-head.length-AI_HISTORY_FLOOR-know.length);
   ctx=_aiClampStr(ctx,ctxRoom);
-  let out=head+(ctx?'\n\n'+ctx:'');
+  let out=head+(know?'\n\nRELEVANT HELP ARTICLE(S):\n'+know:'')+(ctx?'\n\n'+ctx:'');
   const HDR='\n\nPrevious conversation turns (oldest first):\n';
   const turns=[];
   let used=out.length+HDR.length;
