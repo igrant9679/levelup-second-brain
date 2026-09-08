@@ -111,3 +111,6 @@ temp/
 
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
+
+# Machine-specific dev server config (absolute scratch paths)
+.claude/launch.json
