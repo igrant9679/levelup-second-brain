@@ -70,20 +70,53 @@ function _col(v: unknown, max: number): string | null {
 // NAME strings to stable userIds. Cached ~60s so we don't re-query users on
 // every save. Empty map on failure → ids fall back to null/owner (harmless).
 let _uidMapCache: { map: Map<string, number>; at: number } | null = null;
-async function _resolveUserIdMap(): Promise<Map<string, number>> {
+export async function _resolveUserIdMap(): Promise<Map<string, number>> {
   const now = Date.now();
   if (_uidMapCache && now - _uidMapCache.at < 60000) return _uidMapCache.map;
   const map = new Map<string, number>();
   try {
     const { adminListAllUsers } = await import("../db");
     const users = await adminListAllUsers();
+    // Display names are NOT unique. Two accounts named "Idris Grant" (the
+    // owner and the demo account) once made this last-writer-wins map stamp
+    // the owner's tasks with the demo account as assignee, so 71 personal
+    // tasks showed up in the demo account's "Shared & delegated" section.
+    // An ambiguous name must resolve to NOTHING; emails stay unique.
+    const nameCount = new Map<string, number>();
     for (const u of users) {
-      if (u.name) map.set(String(u.name).trim().toLowerCase(), u.id);
+      const n = u.name ? String(u.name).trim().toLowerCase() : "";
+      if (n) nameCount.set(n, (nameCount.get(n) ?? 0) + 1);
+    }
+    for (const u of users) {
+      const n = u.name ? String(u.name).trim().toLowerCase() : "";
+      if (n && nameCount.get(n) === 1) map.set(n, u.id);
       if (u.email) map.set(String(u.email).trim().toLowerCase(), u.id);
     }
   } catch { /* leave empty — ids stay null, no harm */ }
   _uidMapCache = { map, at: now };
   return map;
+}
+
+/**
+ * The strings under which the current user may be named as `assignedTo` on a
+ * blob-stored item: their email, and their display name ONLY when no other
+ * account shares it. Every shared*ForMe reader and share-permission check
+ * goes through this so a name collision can never grant visibility.
+ */
+export function _myAssigneeKeys(
+  users: Array<{ id: number; name?: string | null; email?: string | null }>,
+  me: { name?: string | null; email?: string | null } | undefined
+): string[] {
+  const out: string[] = [];
+  if (!me) return out;
+  const email = me.email ? String(me.email).trim().toLowerCase() : "";
+  if (email) out.push(email);
+  const name = me.name ? String(me.name).trim().toLowerCase() : "";
+  if (name) {
+    const shared = users.filter((u) => u.name && String(u.name).trim().toLowerCase() === name).length;
+    if (shared <= 1) out.push(name);
+  }
+  return out;
 }
 
 async function mirrorTasksToRelational(db: any, userId: number, tasksJson: string) {
@@ -593,15 +626,28 @@ export const appDataRouter = router({
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
-      // A task is "assigned to me" if I'm the relational primary (assigneeId)
-      // OR I'm in the multi-assignee array / primaryAssigneeId stored in raw.
+      // A task is "assigned to me" if I'm in the multi-assignee array /
+      // primaryAssigneeId stored in raw, or the legacy `assignedTo` NAME
+      // resolves unambiguously to me. The relational `assigneeId` column is
+      // only a derived mirror of those — it is NOT trusted on its own, because
+      // a stale stamp from a display-name collision (owner + demo account both
+      // "Idris Grant") once handed 71 of the owner's personal tasks to the demo
+      // account. Cross-checking against raw makes the read correct even before
+      // the column is re-stamped.
+      const idMap = await _resolveUserIdMap();
       const isMineAssigned = (r: any): boolean => {
-        if (r.assigneeId === ctx.user.id) return true;
         try {
           const t = JSON.parse(r.raw || '{}');
           if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
           if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
-        } catch {}
+          const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : "";
+          if (nm && idMap.get(nm) === ctx.user.id) return true;
+          // Column agrees AND raw does not name someone else: legacy rows that
+          // were stamped from an email rather than a name.
+          if (r.assigneeId === ctx.user.id && !nm && !Array.isArray(t.assignees)) return true;
+        } catch {
+          if (r.assigneeId === ctx.user.id) return true;
+        }
         return false;
       };
       // Tasks owned by OTHERS: assigned to me (any assignee), or all if OWNER.
@@ -651,7 +697,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -704,7 +750,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -777,8 +823,9 @@ export const appDataRouter = router({
           || (Array.isArray(prog.assignees) && prog.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(prog.assignedTo || '').trim().toLowerCase();
           allowed = !!cur && myKeys.includes(cur);
         }
@@ -812,7 +859,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -883,8 +930,9 @@ export const appDataRouter = router({
           || (Array.isArray(mm.assignees) && mm.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(mm.assignedTo || '').trim().toLowerCase();
           allowed = !!cur && myKeys.includes(cur);
         }
@@ -919,7 +967,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -1000,8 +1048,9 @@ export const appDataRouter = router({
         let isAssignee = Array.isArray(sh.assignees) && sh.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
         if (!isAssignee) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(sh.assignedTo || '').trim().toLowerCase();
           isAssignee = !!cur && myKeys.includes(cur);
         }
@@ -1052,7 +1101,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -1129,8 +1178,9 @@ export const appDataRouter = router({
         let isAssignee = Array.isArray(dk.assignees) && dk.assignees.map((x: any) => Number(x)).includes(ctx.user.id);
         if (!isAssignee) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(dk.assignedTo || '').trim().toLowerCase();
           isAssignee = !!cur && myKeys.includes(cur);
         }
@@ -1243,7 +1293,7 @@ export const appDataRouter = router({
       const { adminListAllUsers } = await import("../db");
       const users = await adminListAllUsers();
       const me = users.find(u => u.id === ctx.user.id);
-      const myKeys = new Set([me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase()));
+      const myKeys = new Set(_myAssigneeKeys(users, me));
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -1308,8 +1358,9 @@ export const appDataRouter = router({
           || (Array.isArray(rep.assignees) && rep.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(rep.assignedTo || '').trim().toLowerCase();
           allowed = !!cur && myKeys.includes(cur);
         }
@@ -1399,14 +1450,21 @@ export const appDataRouter = router({
     try {
       const { isAdminUser } = await import("../_core/access");
       const admin = isAdminUser(ctx.user as any);
+      const idMapNotes = await _resolveUserIdMap();
       const isMineAssigned = (r: any): boolean => {
-        if (r.assigneeId === ctx.user.id) return true;
+        // Same rule as tasks: raw is the truth, the assigneeId column is a
+        // derived mirror that a display-name collision can leave stale.
         try {
           const t = JSON.parse(r.raw || '{}');
           if (t.shareAll === true) return true;
           if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(ctx.user.id)) return true;
           if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === ctx.user.id) return true;
-        } catch {}
+          const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : "";
+          if (nm && idMapNotes.get(nm) === ctx.user.id) return true;
+          if (r.assigneeId === ctx.user.id && !nm && !Array.isArray(t.assignees)) return true;
+        } catch {
+          if (r.assigneeId === ctx.user.id) return true;
+        }
         return false;
       };
       const owner = await isOwnerCtxUser(ctx.user as any);
@@ -1699,8 +1757,9 @@ export const appDataRouter = router({
           || (Array.isArray(proj.assignees) && proj.assignees.map((x: any) => Number(x)).includes(ctx.user.id));
         if (!allowed) {
           const { adminListAllUsers } = await import("../db");
-          const me = (await adminListAllUsers()).find(u => u.id === ctx.user.id);
-          const myKeys = [me?.name, me?.email].filter(Boolean).map(s => String(s).trim().toLowerCase());
+          const _all = await adminListAllUsers();
+          const me = _all.find(u => u.id === ctx.user.id);
+          const myKeys = _myAssigneeKeys(_all, me);
           const cur = String(proj.assignee || proj.assignedTo || '').trim().toLowerCase();
           allowed = !!cur && myKeys.includes(cur);
         }
@@ -1945,8 +2004,17 @@ export const appDataRouter = router({
       const usersList = await adminListAllUsers();
       const nameToId = new Map<string, number>();
       const emailToId = new Map<string, number>();
+      // Same rule as _resolveUserIdMap: a display name shared by two accounts
+      // resolves to nothing, or this backfill re-creates the exact leak it is
+      // used to repair.
+      const nameCount = new Map<string, number>();
       for (const u of usersList) {
-        if (u.name) nameToId.set(u.name.trim().toLowerCase(), u.id);
+        const n = u.name ? u.name.trim().toLowerCase() : "";
+        if (n) nameCount.set(n, (nameCount.get(n) ?? 0) + 1);
+      }
+      for (const u of usersList) {
+        const n = u.name ? u.name.trim().toLowerCase() : "";
+        if (n && nameCount.get(n) === 1) nameToId.set(n, u.id);
         if (u.email) emailToId.set(u.email.trim().toLowerCase(), u.id);
       }
       const resolve = (s: string | null | undefined): number | null => {

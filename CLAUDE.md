@@ -4,6 +4,40 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-198 (2026-09-09) — display-name collision could leak one user's items to
+another. FIXED in code + data.** Found while walking the demo account: its
+"Shared & delegated" section held **71 of the owner's personal tasks**. Cause:
+the demo account was ALSO named "Idris Grant", and `_resolveUserIdMap`
+(`server/routers/appData.ts`) keyed a flat Map by lower-cased display name,
+last writer wins — so on the owner's next task save the mirror stamped
+`tasks.assigneeId = <demo id>` and `sharedTasksForMe` handed the list over.
+Six more `shared*ForMe` readers (projects, programs, mindmaps, reports,
+sheets/decks) matched `assignedTo` against `[me.name, me.email]` and had the
+same hole (one mind map leaked that way).
+
+Three-part fix:
+1. **`_resolveUserIdMap` and `backfillTeamVisibilityIds`: a display name
+   shared by two accounts resolves to NOTHING.** Emails stay unique.
+2. **`_myAssigneeKeys(users, me)`** — the only way a reader may now ask "what
+   strings name me": email always, display name only when nobody else has
+   it. All 8 former `[me?.name, me?.email]` sites go through it.
+3. **`sharedTasksForMe` / `sharedNotesForMe` no longer trust the stamped
+   `assigneeId` column on its own** — raw `assignees` / `primaryAssigneeId` /
+   an unambiguous `assignedTo` name decide; the column only counts when raw
+   names nobody. So the read is correct even before the column is re-stamped.
+Data: the demo persona is now **"Jordan Ellis"** (`emailAuth.updateName` from
+its own session) and its 32 seeded `createdBy`/`owner`/`assignedTo` strings
+were rewritten. Tests: `server/visibility.nameCollision.test.ts` (vitest, 5
+cases incl. the exact collision). `tsc` adds no new errors; esbuild clean.
+
+⚠ **Still stamped:** the owner's `tasks.assigneeId` column still says
+`103448` on those 71 rows until the owner's tasks re-mirror (their next task
+save) or an admin runs `appData.backfillTeamVisibilityIds` from the OWNER's
+session. With fix 3 deployed that stale column no longer leaks anything; it
+only makes those rows look "delegated to Jordan Ellis" in the OWNER's own
+shared section until re-stamped. Verify after deploy: in the demo session
+`_loadSharedTasks()` → `D._sharedTasks.length` should be 0 (was 72).
+
 **-196 (2026-09-09) — the assistant can ACT.** User asked for an assistant
 that can "create tasks/subtasks, Programs, Projects, Notes, Mindmaps, Ideas,
 Goals, Habits, work with Money items, and Journal entries … make
@@ -803,8 +837,14 @@ to dark to see it — do not "helpfully" flip their theme.
 ### Demo account (for showing the app to prospects)
 
 A fully-populated **demo user** exists on prod: **idris.a.grant@hotmail.com**
-(user id 103448, role `user`, name "Idris Grant"). Password is NOT recorded
-here — ask the owner. Seeded 2026-09-07 with every page filled: 14 tasks (3
+(user id 103448, role `user`, display name **"Jordan Ellis"** — a persona,
+renamed 2026-09-09). Password is NOT recorded here — ask the owner.
+
+⚠ **Never give a demo or test account a real person's display name.** It was
+"Idris Grant" for two days — the owner's name — and 71 of the owner's personal
+tasks leaked into its "Shared & delegated" section through the name→id map
+(see the -198 block at the top). All `createdBy` / `owner` / `assignedTo`
+strings on the seeded records were rewritten to the persona too. Seeded 2026-09-07 with every page filled: 14 tasks (3
 overdue / 2 today / 2 done), 8 notes, 6 projects, 5 goals, 4 journal entries,
 6 habits, 8 contacts, 3 ideas, 3 clusters, 3 programs, 13 calendar events,
 6 pipeline opportunities, 2 mind maps, 2 sheets, 2 decks, and a full Money
