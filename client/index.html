@@ -3059,16 +3059,16 @@ body.sh-resizing{user-select:none!important}
 <!-- Cache-buster: the two app bundles are versioned with APP_BUILD so a new
      deploy is never served stale from Safari / iOS PWA caches (this was
      causing fixes to never reach the device). Bump APP_BUILD on every
-     change to client/public/js/app-part*.js. index.html itself revalidates
+     change to client/public/js/app-part*.js or app-agent.js. index.html itself revalidates
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-09-08-195';
+  var APP_BUILD='2026-09-09-196';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
-  ['/js/app-part1.js','/js/app-part2.js'].forEach(function(src){
+  ['/js/app-part1.js','/js/app-part2.js','/js/app-agent.js'].forEach(function(src){
     var s=document.createElement('script');
     s.src=src+'?v='+APP_BUILD;
-    s.defer=true;s.async=false; // preserve execution order (part1 then part2)
+    s.defer=true;s.async=false; // preserve execution order (part1, part2, then agent)
     document.head.appendChild(s);
   });
 })();

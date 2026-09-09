@@ -1,6 +1,6 @@
 ---
 name: levelup-app
-description: "Operate, manage and coach on LevelUp — the personal second-brain web app at levelupnow.tools (tasks, notes, projects, goals, habits, journal, calendar, Money/budgeting, sales pipeline, mind maps, sheets, slides, contacts, reports). Use for: how to use any LevelUp page, what to do daily/weekly/monthly, capture and review routines, GTD processing, planning a day or week, budgeting and bill tracking, keeping the workspace trustworthy, decluttering an overwhelming workspace, onboarding a new teammate, troubleshooting, and for DEVELOPING the app itself (architecture, data model, deploy rules, verification traps). Triggers: LevelUp, second brain, levelupnow, My Day, Planner, Command Center, Money page, Pipeline, Clusters, Process GTD, daily review, weekly review."
+description: "Operate, manage and coach on LevelUp — the personal second-brain web app at levelupnow.tools (tasks, notes, projects, goals, habits, journal, calendar, Money/budgeting, sales pipeline, mind maps, sheets, slides, contacts, reports). Use for: how to use any LevelUp page, what to do daily/weekly/monthly, capture and review routines, GTD processing, planning a day or week, budgeting and bill tracking, keeping the workspace trustworthy, decluttering an overwhelming workspace, onboarding a new teammate, troubleshooting, and for DEVELOPING the app itself (architecture, data model, deploy rules, verification traps). Triggers: LevelUp, second brain, levelupnow, My Day, Planner, Command Center, Money page, Pipeline, Clusters, Process GTD, daily review, weekly review; the in-app assistant/agent that takes actions (create/edit/link/report, approve, undo, what should I do next)."
 ---
 
 # LevelUp — operating and coaching manual
@@ -206,6 +206,43 @@ guide, or `Ctrl/⌘ K`) walks role → detail level → pages → connections.
   Google Drive (file storage).
 
 ---
+
+## Part 5b — The assistant can ACT (build -196)
+
+The chat assistant (Ctrl/⌘ J, the ⚡ button, the topbar ✨ menu — reachable
+from every page) is an **agent**, not just an answerer. Teach users to talk to
+it in plain words and let it drive:
+
+**What it does.** Creates tasks (with subtasks), projects (with first tasks),
+programs, notes, mind maps, ideas, goals (with milestones), habits, journal
+entries, contacts, opportunities, calendar events and time blocks. Works with
+Money: log transactions, add/pay bills, set budgets, add accounts and savings
+goals. Edits and advances things: complete tasks, goal check-ins, tick habits,
+move deals and ideas along. Links items (task↔note, task↔goal, task↔project,
+note↔project, project↔program). Reports: add widgets, save/open reports,
+summarise the numbers. Navigates, sets the detail level, shows/hides pages.
+And it **recommends**: "what should I do next?" reads overdue / today /
+capacity / goals / habits / bills and proposes ONE concrete step, then offers
+to do it.
+
+**How it behaves.** Ambiguity → it ASKS with tappable options rather than
+guessing. Every change appears as an *Approve these actions?* card (untick,
+Run selected, Skip). Reads and navigation run instantly. Deletes always ask.
+Every change is undoable for the session (per action, or ↶ in the header).
+Names work anywhere an id is expected; a name that matches two things comes
+back as candidates. Multi-step setups narrate, act, then offer the next step.
+
+**How it is built** (for Part 6 readers): `client/public/js/app-agent.js`
+(loads after part1/part2, overrides `sendAIMsg` / `_renderAIChatHistory` /
+`_renderAISuggestions` by global reassignment). The model replies with one
+JSON object `{say, actions[], ask, next}`; the client executes actions through
+the app's OWN mutation paths (same record shapes as `doFASave`, `finSaveTx`,
+`mmCreate`), relays TOOL RESULTS as a hidden user turn, and loops at most 6
+steps. Server: `ai.agent` (real multi-turn `messages[]`, 16k system cap) via
+`callAIProviderChat` in `server/_core/aiProviders.ts`. If the server predates
+`ai.agent`, the panel degrades to the answer-only `ai.assist` path. Guard:
+`pnpm check:ai-agent` runs every tool against a fake workspace and exercises
+the approve / skip / continue / fallback paths.
 
 ## Part 6 — For developing the app
 

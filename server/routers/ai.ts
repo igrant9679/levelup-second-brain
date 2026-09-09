@@ -171,4 +171,59 @@ export const aiRouter = router({
 
       return { result, provider };
     }),
+
+  /**
+   * Multi-turn endpoint for the in-app agent (build -196). Unlike `assist`
+   * this takes a real messages[] array, so the model sees its own proposed
+   * actions and the tool results that followed. Caps are wider than assist's
+   * because the system prompt now carries a tool catalog, but they are still
+   * hard caps — a runaway transcript is the client's problem to budget.
+   */
+  agent: publicProcedure
+    .input(
+      z.object({
+        system: z.string().max(16000),
+        messages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              content: z.string().max(6000),
+            })
+          )
+          .min(1)
+          .max(30),
+        provider: z
+          .enum(["manus", "openai", "claude", "gemini"])
+          .optional()
+          .default("manus"),
+        apiKey: z.string().max(512).optional(),
+        jsonMode: z.boolean().optional().default(true),
+        maxTokens: z.number().int().min(256).max(4000).optional().default(2000),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const total =
+        input.system.length +
+        input.messages.reduce((n, m) => n + m.content.length, 0);
+      if (total > 60000) {
+        throw new Error(`agent payload too large (${total} chars; max 60000)`);
+      }
+      const { callAIProviderChat } = await import("../_core/aiProviders");
+      try {
+        const { text, providerUsed } = await callAIProviderChat({
+          provider: input.provider,
+          apiKey: input.apiKey,
+          system: input.system,
+          messages: input.messages,
+          jsonMode: input.jsonMode,
+          maxTokens: input.maxTokens,
+        });
+        return { result: text, provider: providerUsed };
+      } catch (err) {
+        console.error(`[ai.agent] provider "${input.provider}" failed:`, err);
+        throw new Error(
+          `AI request failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }),
 });

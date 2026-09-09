@@ -4,6 +4,65 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-196 (2026-09-09) — the assistant can ACT.** User asked for an assistant
+that can "create tasks/subtasks, Programs, Projects, Notes, Mindmaps, Ideas,
+Goals, Habits, work with Money items, and Journal entries … make
+recommendations … create/run reports and virtually any action that I can do
+within the app … accessible from anywhere … interactive and ask me questions
+and walk me thru things … so that I'm never lost."
+
+**There are now THREE client bundles.** `client/public/js/app-agent.js`
+(~1,100 lines) loads after part1/part2 from the same index.html loader array.
+⚠ Pre-push: `node -c` ALL THREE. Bump APP_BUILD for changes to any of them.
+
+How it works (read `app-agent.js`'s header comment first):
+- **Protocol, not prompt-stuffing.** The model returns ONE JSON object
+  `{say, actions[], ask, next}`. `say` renders as the reply; `actions` are
+  proposals executed by the client through the app's OWN mutation paths (the
+  record shapes are copied from `doFASave` / `finSaveTx` / `mmCreate` /
+  `_newProgram` / `saveGoalCheckIn` / `toggleHabit` — if one of those changes
+  shape, change the matching builder in `LU_AGENT_TOOLS`); `ask` renders
+  tappable options; `next:"continue"` lets the model take another step after
+  seeing TOOL RESULTS (relayed as a hidden user turn), bounded at 6.
+- **Confirmation policy:** `read`/`nav` tools run instantly; `write` tools show
+  an *Approve these actions?* card unless `D.prefs.aiAgent.autoWrite`;
+  `destructive` (the `delete` tool) ALWAYS confirms. Every write returns an
+  `undo` closure (session stack, per-action ↶ + header ↶).
+- **Names resolve to ids** (`_agentFind`): unique → item; several → the
+  candidates go back to the model so it asks; none → error. This is what
+  stops "mark the auth task done" from touching the wrong task.
+- **Server:** `ai.agent` in `server/routers/ai.ts` — real multi-turn
+  `messages[]`, system ≤16k, each turn ≤6k, ≤30 turns, total ≤60k, default
+  maxTokens 2000, jsonMode. Dispatch is `callAIProviderChat` in
+  `server/_core/aiProviders.ts` (`normalizeTurns` merges same-role turns —
+  Anthropic rejects non-alternating transcripts). `ai.assist` is untouched.
+- **Overrides by global reassignment:** app-agent.js sets
+  `window.sendAIMsg`, `window._renderAIChatHistory`,
+  `window._renderAISuggestions`, and wraps `_cmdpActions` (adds "What should
+  I do next?" + "Ask the assistant…"). The part2 originals stay in place, so
+  `check:ai-prompt` / `check:ai-knowledge` still extract and pass. If the
+  server lacks `ai.agent` (deploy skew) the panel falls back to the
+  answer-only `ai.assist` path with an "answer-only mode" tag.
+- **Where it is reachable:** Ctrl/⌘ J, the pre-existing `#ai-fab` ⚡ button,
+  the topbar ✨ menu, and two command-palette entries. The panel header
+  gained ⚙ (auto-run toggle, undo last, help link) and ↶.
+- **Help:** article 61 "Assistant actions — let it do the work" (cat 7 AI &
+  Automation, slug `assistant-actions`); article 59 points at it. Now
+  **14 cats / 60 articles / 5 tours**. Skill file gained Part 5b.
+- **Guard:** `pnpm check:ai-agent` (also takes a dir or a URL). Loads the
+  module in a `vm` sandbox with a fake workspace + stubs for every app global
+  it touches, then runs EVERY tool (shape assertions), ambiguity, undo, the
+  parser (fenced / embedded / prose / junk), prompt cap, and the send loop
+  (instant reads, pending writes, approve, skip, autoWrite, bounded continue,
+  fallback, provider error, transcript budget). 100+ assertions.
+- **Latent bug noticed, not fixed:** the NL "Quick event" modal in part1
+  (~19146) saves `_calEvents` to `lu_cal_events` while everything else uses
+  `lu_calEvents` — its events do not survive a reload. The agent uses the
+  correct key.
+
+NOT yet verified live at the time of writing — see the status line below
+this block once deployed.
+
 **-195 (LIVE 2026-09-08, verified against the live bundle) — the app teaches itself.**
 User asked for a LevelUp skill file "so any Claude instance can operate,
 control, use, manage and be an expert in its usage", including daily/weekly/
@@ -330,6 +389,7 @@ two of these passed against a broken build until they were strengthened.
 | `pnpm check:mobile-nav` | the phone sidebar contract (7 invariants). Takes an optional URL to check LIVE prod, not just disk. |
 | `pnpm check:ai-prompt` | `ai.assist` payload limits + the chat's transcript budget |
 | `pnpm check:ai-knowledge` | the -195 AI product-knowledge layer: help-data integrity, product-question detection, that retrieval picks the right article, and that the excerpt does not blow the prompt cap. Takes a directory OR a URL — `node scripts/check-ai-knowledge.mjs https://levelupnow.tools` runs it against the LIVE bundles. |
+| `pnpm check:ai-agent` | the -196 in-app agent (`app-agent.js`): every tool runs and produces the app's record shapes, names resolve / ambiguity asks, every write undoes, the parser survives junk, the prompt fits `ai.agent`, and the send loop honours approve / skip / auto-run / bounded continue / fallback. Takes a directory OR a URL. |
 | `node scripts/check-electric-contrast.mjs` | Electric Ink WCAG AA on every surface |
 
 ### Session log — 2026-08-28 → 08-29, builds -162 → -175 (-175 UNPUSHED)
