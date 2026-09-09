@@ -126,8 +126,8 @@ const sandbox = {
   applyBidirectionalLinks: () => {},
   luApplyLevel: (n) => { D.prefs.workspace = { level: n }; }, luSetPageOn: (id, on) => { D.prefs.workspace = D.prefs.workspace || {}; D.prefs.workspace[id] = on; },
   _luRebuildLayoutCSS: () => {}, initSidebars: () => {},
-  LU_PAGES: [{ id: 'home', label: 'Home', core: true }, { id: 'tasks', label: 'Tasks' }, { id: 'money', label: 'Money' }, { id: 'reports', label: 'Reports' }],
-  SM: { home: 's-home', tasks: 's-tasks', money: 's-money', reports: 's-reports', calendar: 's-calendar', notes: 's-notes', projects: 's-projects' },
+  LU_PAGES: [{ id: 'home', label: 'Home', core: true }, { id: 'myday', label: 'Planner' }, { id: 'tasks', label: 'Tasks' }, { id: 'money', label: 'Money' }, { id: 'reports', label: 'Reports' }, { id: 'mindmaps', label: 'Mind Maps' }],
+  SM: { home: 's-home', myday: 's-myday', tasks: 's-tasks', money: 's-money', reports: 's-reports', calendar: 's-calendar', notes: 's-notes', projects: 's-projects', mindmaps: 's-mindmaps', pipeline: 's-pipeline' },
   _dayCapacityCheck: () => ({ plannedMins: 120, bookedMins: 60, freeMins: 300, deltaMins: 180 }),
   _gtdBuckets: () => ({ Inbox: [1, 2] }),
   _parseJournalDate: (j) => j.date || null,
@@ -307,6 +307,13 @@ t('link unsupported pair errors', !exec('link', { fromType: 'habit', fromId: 30,
 r = exec('navigate', { page: 'tasks' });
 t('navigate', r.ok && sandbox.curScreen === 'tasks');
 t('navigate unknown page errors', !exec('navigate', { page: 'nowhere' }).ok);
+// Seen on the first live run: the model sends the sidebar LABEL, not the id.
+t('navigate by label (Planner → myday)', exec('navigate', { page: 'Planner' }).ok && sandbox.curScreen === 'myday');
+t('navigate by synonym (deals → pipeline)', exec('navigate', { page: 'deals' }).ok && sandbox.curScreen === 'pipeline');
+t('navigate "the Mind Maps page"', exec('navigate', { page: 'the Mind Maps page' }).ok && sandbox.curScreen === 'mindmaps');
+t('show_page accepts a label', exec('show_page', { page: 'Money', on: true }).ok);
+// A question posed alongside actions must not linger once they have run.
+t('ask hidden after actions ran', sandbox._agentRenderAsk({ ask: { question: 'Which?', options: ['a'] }, actions: [{ tool: 'x', ok: true }] }) === '' && sandbox._agentRenderAsk({ ask: { question: 'Which?', options: ['a'] }, actions: [] }) !== '');
 r = exec('set_detail_level', { level: 2 });
 t('set_detail_level', r.ok && D.prefs.workspace.level === 2);
 t('show_page refuses core pages', !exec('show_page', { page: 'home', on: false }).ok);

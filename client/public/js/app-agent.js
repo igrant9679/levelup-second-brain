@@ -337,10 +337,13 @@ var LU_AGENT_TOOLS=[
       return {ok:true,summary:'Read '+out.length+' report widget(s)',data:out};}},
 
   // ── navigation ──────────────────────────────────────────────────────────
-  {name:'navigate',kind:'nav',sig:'navigate{page,id?,type?}  page∈'+(typeof LU_PAGES!=='undefined'?LU_PAGES.map(function(p){return p.id;}).join('|'):'home|tasks|notes'),
-    desc:'Go to a page; with type+id also open that item.',
+  // The sig lists id AND label: on the first live run the model sent
+  // navigate{page:"planner"} (the sidebar label) and the tool only knew the
+  // route id "myday". _agentPageId now accepts either, plus common synonyms.
+  {name:'navigate',kind:'nav',sig:'navigate{page,id?,type?}  page∈'+(typeof LU_PAGES!=='undefined'?LU_PAGES.map(function(p){return p.id+(p.label&&p.label.toLowerCase()!==p.id?'('+p.label+')':'');}).join('|'):'home|tasks|notes'),
+    desc:'Go to a page (id or label); with type+id also open that item.',
     describe:function(a){return 'Go to '+(a.page||'')+(a.id?' and open '+(a.type||'item')+' '+a.id:'');},
-    run:function(a){var page=String(a.page||'').toLowerCase();if(typeof SM!=='undefined'&&!SM[page])return {ok:false,error:'Unknown page "'+page+'"'};
+    run:function(a){var page=_agentPageId(a.page);if(!page)return {ok:false,error:'Unknown page "'+a.page+'". Pages: '+(typeof LU_PAGES!=='undefined'?LU_PAGES.map(function(p){return p.id;}).join(', '):'')};
       if(a.type&&a.id){var ok=_agentOpen({type:a.type,id:a.id});return {ok:true,summary:(ok?'Opened ':'Went to ')+page};}
       nav(page);return {ok:true,summary:'Went to '+page};}},
 
@@ -630,7 +633,7 @@ var LU_AGENT_TOOLS=[
       return {ok:true,summary:'Detail level set to '+n,undo:undo};}},
   {name:'show_page',kind:'write',sig:'show_page{page,on(true|false)}',desc:'Show or hide a page in the sidebar.',
     describe:function(a){return (a.on===false||a.on==='false'?'Hide':'Show')+' the '+a.page+' page';},
-    run:function(a){var page=String(a.page||'').toLowerCase();var def=(typeof LU_PAGES!=='undefined'?LU_PAGES:[]).find(function(p){return p.id===page;});if(!def)return {ok:false,error:'Unknown page "'+page+'"'};if(def.core)return {ok:false,error:def.label+' cannot be hidden.'};
+    run:function(a){var page=_agentPageId(a.page);var def=(typeof LU_PAGES!=='undefined'?LU_PAGES:[]).find(function(p){return p.id===page;});if(!def)return {ok:false,error:'Unknown page "'+a.page+'"'};if(def.core)return {ok:false,error:def.label+' cannot be hidden.'};
       var on=!(a.on===false||a.on==='false');luSetPageOn(page,on);var undo=_agentPushUndo((on?'show':'hide')+' '+def.label,function(){luSetPageOn(page,!on);});
       return {ok:true,summary:(on?'Showing':'Hid')+' '+def.label,undo:undo};}},
   {name:'delete',kind:'destructive',sig:'delete{entity(task|note|project|program|goal|habit|idea|journal|contact|opportunity|mindmap|event|bill|transaction),id}',desc:'Delete an item. Always confirmed by the user; undoable this session.',
@@ -639,6 +642,20 @@ var LU_AGENT_TOOLS=[
 ];
 function _agentTool(name){return LU_AGENT_TOOLS.find(function(t){return t.name===name;});}
 function _agentMinsToTime(m){m=Math.max(0,Math.min(24*60,m));return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+// Route id from an id, a sidebar label, or the words people use for a page.
+function _agentPageId(ref){
+  var s=String(ref==null?'':ref).trim().toLowerCase().replace(/^the /,'').replace(/ page$/,'');
+  if(!s)return null;
+  if(typeof SM!=='undefined'&&SM[s])return s;
+  var pages=typeof LU_PAGES!=='undefined'?LU_PAGES:[];
+  var byLabel=pages.find(function(p){return String(p.label||'').toLowerCase()===s;});
+  if(byLabel)return byLabel.id;
+  var syn={'planner':'myday','my day':'myday','today':'myday','dashboard':'home','deals':'pipeline','sales':'pipeline','budget':'money','finance':'money','finances':'money','mind maps':'mindmaps','mind map':'mindmaps','mindmap':'mindmaps','gtd':'process','inbox':'process','command center':'command','knowledge graph':'graph','week':'myweek','year':'myyear','people':'contacts','email':'mail','help':'help','learning':'help','preferences':'settings'};
+  if(syn[s]&&(typeof SM==='undefined'||SM[syn[s]]))return syn[s];
+  var loose=pages.filter(function(p){return String(p.label||'').toLowerCase().indexOf(s)>=0||p.id.indexOf(s)===0;});
+  if(loose.length===1)return loose[0].id;
+  return null;
+}
 function _agentSaveCal(){try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}try{if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();}catch(_){}}
 
 // ─── list / get / link / delete implementations ────────────────────────────
@@ -980,6 +997,10 @@ function _agentRenderActions(m,mi){
 }
 function _agentRenderAsk(m){
   if(!m.ask||!m.ask.question)return '';
+  // A question posed alongside proposed actions is moot once those actions
+  // have run (seen live: "which three?" still showing under a card that had
+  // already set all three) — only render it while nothing has executed.
+  if(Array.isArray(m.actions)&&m.actions.some(function(a){return a.ok===true;}))return '';
   var html='<div class="agent-ask" style="width:100%"><div style="width:100%;font-weight:600;margin-bottom:2px">'+esc(m.ask.question)+'</div>';
   (m.ask.options||[]).forEach(function(o){html+='<button onclick="_aiQuickSend(\''+esc(String(o)).replace(/'/g,'&#39;').replace(/\n/g,' ')+'\')">'+esc(String(o))+'</button>';});
   return html+'</div>';

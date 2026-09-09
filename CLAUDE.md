@@ -60,8 +60,21 @@ How it works (read `app-agent.js`'s header comment first):
   `lu_calEvents` — its events do not survive a reload. The agent uses the
   correct key.
 
-NOT yet verified live at the time of writing — see the status line below
-this block once deployed.
+**LIVE and verified end-to-end on prod (2026-09-09, demo account, OpenAI
+provider).** Real round-trip: "What should I do next?" → the model called
+`list` (ran instantly), the results were relayed, it proposed three
+`update_task` writes → approval card → approved → all three tasks flipped
+`myDay:true` → three undo entries → undone, all three back to `false`, no
+console errors. `check:ai-agent` + `check:ai-knowledge` both pass against
+the LIVE bundles (URL mode). The deploy went live ~100s after push.
+
+**-197 hotfix from that live run:** the model sent `navigate{page:"planner"}`
+— the sidebar LABEL — and the tool only knew route ids. `_agentPageId()`
+now resolves id / label / synonyms ("deals"→pipeline, "the Mind Maps
+page"→mindmaps) and the sig lists `id(Label)` pairs; `show_page` uses it
+too. Also: an `ask` posed alongside actions is no longer rendered once
+those actions have run (it showed "which three?" under a card that had
+already set all three). Both covered by new guard assertions.
 
 **-195 (LIVE 2026-09-08, verified against the live bundle) — the app teaches itself.**
 User asked for a LevelUp skill file "so any Claude instance can operate,
