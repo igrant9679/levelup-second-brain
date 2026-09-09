@@ -4,8 +4,13 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-199 (2026-09-09, COMMITTED — NOT PUSHED) — account switch on a shared
-browser leaked the previous account's prefs into the next one.** Found
+**-199 (LIVE 2026-09-09; guard passes against the live bundle; the demo
+session re-booted on it with the same cached account → no wipe, no reload
+loop, `lu_last_uid` recorded) — account switch on a shared browser leaked
+the previous account's prefs into the next one.** (Latent, not fixed: the
+60-second `oauthSync.status` token-expiry poller that `doLoginSuccess`
+starts keeps firing after logout, so a browser parked on the login screen
+logs a 401 a minute — harmless noise, but `doLogout` could clear it.) Found
 right after -198: signing the owner out of the Claude Browser pane and the
 demo account in left the demo with the OWNER's stored theme (`#F4F6FA`),
 two AI portfolio briefings (LSI/CF business content), note folders
