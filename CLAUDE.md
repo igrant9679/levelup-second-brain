@@ -32,13 +32,12 @@ its own session) and its 32 seeded `createdBy`/`owner`/`assignedTo` strings
 were rewritten. Tests: `server/visibility.nameCollision.test.ts` (vitest, 5
 cases incl. the exact collision). `tsc` adds no new errors; esbuild clean.
 
-⚠ **Still stamped:** the owner's `tasks.assigneeId` column still says
-`103448` on those 71 rows until the owner's tasks re-mirror (their next task
-save) or an admin runs `appData.backfillTeamVisibilityIds` from the OWNER's
-session. With fix 3 deployed that stale column no longer leaks anything; it
-only makes those rows look "delegated to Jordan Ellis" in the OWNER's own
-shared section until re-stamped. Verify after deploy: in the demo session
-`_loadSharedTasks()` → `D._sharedTasks.length` should be 0 (was 72).
+**Stale stamps repaired too** (2026-09-09, `appData.backfillTeamVisibilityIds`
+run from the owner's session in the Claude Browser pane): 129 tasks + 223
+notes re-stamped across 8 users. Owner's shared section went 98 → 26 rows,
+"delegated" 74 → 2 (both genuine: Khaja Syed, Lucas Grant), false
+"delegated to the demo" 72 → 0. Demo session: `D._sharedTasks.length` 72 → 0.
+Nothing left over from this incident.
 
 **-196 (2026-09-09) — the assistant can ACT.** User asked for an assistant
 that can "create tasks/subtasks, Programs, Projects, Notes, Mindmaps, Ideas,
