@@ -4,8 +4,10 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-198 (2026-09-09) — display-name collision could leak one user's items to
-another. FIXED in code + data.** Found while walking the demo account: its
+**-198 (LIVE 2026-09-09, verified in the demo session after deploy: shared
+tasks 72 → 0, shared mind maps 1 → 0, "Shared & delegated" section gone) —
+display-name collision could leak one user's items to another. FIXED in
+code + data.** Found while walking the demo account: its
 "Shared & delegated" section held **71 of the owner's personal tasks**. Cause:
 the demo account was ALSO named "Idris Grant", and `_resolveUserIdMap`
 (`server/routers/appData.ts`) keyed a flat Map by lower-cased display name,
