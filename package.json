@@ -14,7 +14,8 @@
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "check:ai-prompt": "node scripts/check-ai-prompt-budget.mjs",
     "check:ai-knowledge": "node scripts/check-ai-knowledge.mjs",
-    "check:ai-agent": "node scripts/check-ai-agent.mjs"
+    "check:ai-agent": "node scripts/check-ai-agent.mjs",
+    "check:account-switch": "node scripts/check-account-switch.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

@@ -4614,9 +4614,59 @@ async function attemptResetPassword(){
     if(btn){btn.disabled=false;btn.textContent='Update Password';}
   }
 }
+// ── Account switch on a shared device (build -199) ────────────────────────
+// Logout used to leave every lu_* key in localStorage, and the next login
+// merged that cache with the new account's server data key-by-key
+// (D.prefs=Object.assign({},D.prefs,sd.prefs)) — so any pref the previous
+// user had and the new one did not (their theme, AI briefings, note folders,
+// weather ZIP, saved reports…) flowed into the new account AND was pushed to
+// its server row by the 2s auto-sync. Seen live: the owner's prefs inside the
+// demo account after a sign-out / sign-in on the same browser.
+//
+// Rule: if the account signing in is not the one whose data is cached, wipe
+// the cache BEFORE anything merges, then reload so the app boots from an
+// empty cache and pulls only the new account's data.
+const LU_CACHE_KEEP_ON_SWITCH=['lu_examples_seeded_v1','lu_tour_v1_offered','lu_tour_v1_done','lu_splash_shown_v1','lu_last_uid'];
+// Pure: does the cached identity belong to someone other than `member`?
+function _luAccountSwitchDetected(member,store){
+  store=store||localStorage;
+  const prevUid=store.getItem('lu_last_uid');
+  if(prevUid!=null&&prevUid!==''&&String(prevUid)!==String(member.id))return true;
+  // No uid recorded (cache predates this build): fall back to the cached creds email.
+  if(prevUid==null||prevUid===''){
+    try{
+      const creds=JSON.parse(store.getItem('lu_creds')||'{}');
+      const cached=String(creds.email||'').trim().toLowerCase();
+      const mine=String(member.email||'').trim().toLowerCase();
+      if(cached&&mine&&cached!==mine)return true;
+    }catch(_){}
+  }
+  return false;
+}
+// Pure: remove every lu_* key except the device-level flags.
+function _luWipeLocalCache(store,keep){
+  store=store||localStorage;keep=keep||LU_CACHE_KEEP_ON_SWITCH;
+  const kept={};
+  keep.forEach(k=>{const v=store.getItem(k);if(v!==null)kept[k]=v;});
+  const doomed=[];
+  for(let i=0;i<store.length;i++){const k=store.key(i);if(k&&k.indexOf('lu_')===0&&keep.indexOf(k)<0)doomed.push(k);}
+  doomed.forEach(k=>{try{store.removeItem(k);}catch(_){}});
+  Object.keys(kept).forEach(k=>{try{store.setItem(k,kept[k]);}catch(_){}});
+  return doomed.length;
+}
 function doLoginSuccess(member){
   // Session duration: 30 days if rememberMe, else 1 day (matches JWT cookie)
   const sessionMs=member.rememberMe?30*24*60*60*1000:24*60*60*1000;
+  if(_luAccountSwitchDetected(member)){
+    const n=_luWipeLocalCache();
+    try{console.warn('[auth] different account than the cached one — wiped '+n+' cached key(s) and reloading');}catch(_){}
+    localStorage.setItem('lu_last_uid',String(member.id));
+    localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+sessionMs}));
+    localStorage.setItem('lu_creds',JSON.stringify({userName:member.name||'User',email:member.email||'',role:member.role||'Member',color:member.color||'var(--ac)'}));
+    location.reload();
+    return;
+  }
+  localStorage.setItem('lu_last_uid',String(member.id));
   localStorage.setItem('lu_session',JSON.stringify({memberId:member.id,name:member.name,expires:Date.now()+sessionMs}));
   // Update creds to reflect logged-in user
   D.creds.userName=member.name||'User';
@@ -4914,7 +4964,14 @@ async function changePassword(){
   }
 }
 async function doLogout(){
+  // Push anything still inside the 2s debounce, then drop the whole local
+  // cache: on a shared device the next person to open the app must not find
+  // this account's notes, tasks and prefs sitting in localStorage — and must
+  // not have them merged into THEIR account (see _luAccountSwitchDetected).
+  try{if(typeof _flushDirtyNow==='function')_flushDirtyNow();}catch(_){}
+  await new Promise(r=>setTimeout(r,350));
   localStorage.removeItem('lu_session');
+  try{_luWipeLocalCache();}catch(_){}
   // Clear the JWT session cookie via tRPC
   try{await _trpc('auth.logout',{},'mutation');}catch(e){console.warn('Logout endpoint error:',e);}
   const ov=document.getElementById('login-overlay');

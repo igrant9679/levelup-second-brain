@@ -4,6 +4,43 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-199 (2026-09-09, COMMITTED — NOT PUSHED) — account switch on a shared
+browser leaked the previous account's prefs into the next one.** Found
+right after -198: signing the owner out of the Claude Browser pane and the
+demo account in left the demo with the OWNER's stored theme (`#F4F6FA`),
+two AI portfolio briefings (LSI/CF business content), note folders
+("CommunityForce General / Investing / Music Production / Boat"), weather
+ZIP, saved report, `dailyDigest.enabled:true` (→ the server cron would start
+emailing the demo address) — 60 prefs keys where the seed had 18. All of it
+had already been pushed to the demo's SERVER row by the 2s auto-sync.
+
+Cause: `doLogout` only removed `lu_session`; `doLoginSuccess` never checked
+whose data was cached; `loadServerData` merges prefs key-by-key
+(`D.prefs=Object.assign({},D.prefs,sd.prefs)`), so local-only keys survive
+and sync up. Fix (app-part2.js, above `doLoginSuccess`):
+- `_luAccountSwitchDetected(member, store)` — cached `lu_last_uid` (new)
+  differs from `member.id`, or, for caches that predate this build, the
+  cached `lu_creds.email` differs. `_luWipeLocalCache(store, keep)` —
+  removes every `lu_*` key except device-level flags
+  (`LU_CACHE_KEEP_ON_SWITCH`).
+- `doLoginSuccess`: on a switch → wipe → write session/creds/`lu_last_uid`
+  for the new account → `location.reload()` so the app boots from an empty
+  cache. `doLogout`: `_flushDirtyNow()` (push the 2s-debounce leftovers),
+  short wait, wipe the cache.
+- Guard `pnpm check:account-switch` (also takes a dir or URL): extracts the
+  helpers and runs them on a fake storage, then asserts the WIRING in
+  `doLoginSuccess`/`doLogout`. Validated: disabling the check makes it fail.
+
+⚠ **Demo data NOT yet scrubbed.** The contaminated prefs are still on the
+demo's server row. The scrub (rebuild `D.prefs` = the 18 seed keys +
+`aiChat`/`aiAgent`/`workspace`, plus rewrite `tasks[].assignee` and
+`calEvents[].attendees` from "Idris Grant" → "Jordan Ellis", then push) was
+BLOCKED by the auto-mode classifier as a JS-injected bulk mutation; the
+snippet is in the session scratchpad (`scrub-demo-prefs.js`) for the owner
+to paste in a devtools console while signed in as the demo. After the scrub
+the demo should render the dark navy ground again, the Notes sidebar should
+show no owner folders, and `Object.keys(D.prefs).length` ≈ 21.
+
 **-198 (LIVE 2026-09-09, verified in the demo session after deploy: shared
 tasks 72 → 0, shared mind maps 1 → 0, "Shared & delegated" section gone) —
 display-name collision could leak one user's items to another. FIXED in
