@@ -4,6 +4,61 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-200 (2026-09-19, COMMITTED — NOT PUSHED) — clusters from the Tasks page
+without dragging + add tasks straight into a Matrix quadrant.** User: "add
+new Clusters (Groups) within the Tasks page and assign tasks to clusters" and
+"add tasks to each quadrant of the Eisenhower Matrix (I can already drag and
+drop, but can't add new)".
+
+What already existed and was kept: the Clusters view (`renderTaskClusters`),
+drag-to-assign (`_clusterDrop`), `openClusterModal`/`saveCluster` with their
+project + individual-task checklists, and a "+ New Cluster" button — but only
+at the BOTTOM of the view, and assignment was drag-only (invisible on touch).
+
+New, all in app-part1.js next to `_clusterDrop`:
+- **`openTaskClusterPicker(taskId|null, ev)`** — one anchored popover
+  (`#lu-cluster-pick`, CSS injected as `#lu-cluster-pick-css`) listing every
+  cluster + *No cluster* + *New cluster…*. `taskId===null` = every
+  bulk-selected task. `_clusterPickerApply(ids, clusterId)` sets/clears
+  `t.clusterId` via `_setTaskCluster`, saves, re-renders the current view,
+  and refreshes an open drawer's select. *New cluster…* calls
+  `openClusterModal(null,{preselectTaskIds})` — the modal gained an `opts`
+  arg so the task(s) being filed start ticked.
+- Surfaces: **⬡ button** on every row in the List renderer (appended to the
+  `blockBtn` const so it rides wherever 📅 does) and in the Clusters view
+  `taskRow`; **"＋ New Cluster"** in the Clusters ribbon (bottom button kept);
+  **Cluster `<select id="dr-cluster">`** in the task drawer next to Project
+  (`_clusterOptionsHtml`; save reads it, empty = `delete t.clusterId`);
+  **`fa-cluster`** in the Full Add form (app-part2, spread into the task
+  literal only when set); **bulk bar "⬡ Cluster"** → `bulkAction('cluster')`
+  → the same picker.
+- **Matrix**: every quadrant ends with an `＋ Add a task to <quadrant>…`
+  input + Add button → `_mtxAddTask(quadKey, inputEl)`. `_MTX_QUAD_DEFAULTS`
+  mirrors `_mtxDrop`'s snap values (q1 High/30 · q2 High/120 · q3 Low/30 ·
+  q4 Low/120) so the task lands where it was typed; record shape copies
+  doFASave's literal; focus returns to the same quadrant's input.
+- **Assistant**: `create_cluster{name,icon?,color?,projects?[],tasks?[]}`,
+  `move_to_cluster{tasks[],cluster}` ("" clears), `create_task{cluster?}`,
+  `update_task{cluster?}`, `list{entity:'clusters'}` (task counts include
+  project members), `get{entity:'cluster'}` (lists its tasks, `viaProject`
+  flagged), `delete{entity:'cluster'}`; `_agentOpen('cluster')` → Tasks page
+  Clusters view. 12 new guard assertions in `check:ai-agent`.
+- **Help article 62** "Clusters — group tasks your way" (cat 2 Tasks &
+  Projects, slug `task-clusters`) — covers all five ways to assign and the
+  Matrix add-row. Now **14 cats / 61 articles / 5 tours**.
+
+Verified on the built output via the static preview (login overlay hidden,
+bundled demo data): ribbon button + row ⬡ render; the picker opens anchored,
+lists 3 clusters + No cluster + New cluster…, applying moves the task and
+closes; Matrix shows 4 add-rows, adding to Do First produced a High/30m
+Not Started task that rendered in q1 with the input cleared; drawer select
+present with the right option selected; FA field present; no console errors
+beyond the static server's /api 404s. All five guards green; three bundles
+`node -c`; 12 NUL bytes; dist re-checked for every new symbol.
+⚠ Two harness failures on the first run were WRONG EXPECTATIONS (a name that
+matched projects, not tasks; a cluster with one project member) — the tools
+were right. Fixed the tests, not the code.
+
 **-199 (LIVE 2026-09-09; guard passes against the live bundle; the demo
 session re-booted on it with the same cached account → no wipe, no reload
 loop, `lu_last_uid` recorded) — account switch on a shared browser leaked

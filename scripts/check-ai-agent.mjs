@@ -68,6 +68,7 @@ const D = {
   notes: [{ id: 40, title: 'Meeting with Priya', body: 'Discussed pricing and the auth refactor.', tags: ['meeting'] }],
   ideas: [], contacts: [], opportunities: [{ id: 50, name: 'Cedar Health', accountName: 'Cedar', stage: 'Proposal', value: 12000, status: 'open', linkedTaskIds: [] }],
   mindmaps: [], journal: [],
+  clusters: [{ id: 5, name: 'House Remodel', icon: '🏠', color: '#f59e0b', projectIds: [], owner: 'Test User' }],
   finance: {
     accounts: [{ id: 'a1', name: 'Checking', type: 'checking', balance: 1000 }],
     transactions: [], bills: [{ id: 'b1', name: 'Rent', amount: 1500, dueDay: 1, catId: 'housing', accountId: 'a1', active: true }],
@@ -132,7 +133,7 @@ const sandbox = {
   _gtdBuckets: () => ({ Inbox: [1, 2] }),
   _parseJournalDate: (j) => j.date || null,
   _PIPELINE_STAGES: [], _stageDef: (k) => ({ 'Closed Won': { key: 'Closed Won', outcome: 'won' }, Qualified: { key: 'Qualified' }, Lead: { key: 'Lead' } })[k] || null,
-  openDrawer: () => {}, openProjectDetail: () => {}, openProgramDetail: () => {}, showNoteInEditor: () => {}, openGoalDetail: () => {}, openIdeaDetail: () => {}, openContactDetail: () => {}, openOpportunityDetail: () => {}, mmOpen: () => {},
+  openDrawer: () => {}, openProjectDetail: () => {}, openProgramDetail: () => {}, showNoteInEditor: () => {}, openGoalDetail: () => {}, openIdeaDetail: () => {}, openContactDetail: () => {}, openOpportunityDetail: () => {}, mmOpen: () => {}, setTaskView: () => {},
   openHelpDrawer: () => {}, toggleAIPanel: () => {}, autoSizeAIInput: () => {}, _fmtChatTime: () => '', _updateAIMsgCount: () => {},
   _cmdpActions: () => [{ id: 'x' }],
   localStorage: { setItem: (k, v) => { localStore[k] = v; }, getItem: (k) => localStore[k] ?? null },
@@ -303,6 +304,29 @@ t('link goal↔task', r.ok && D.tasks[0].linkedGoalId === 20 && D.goals[0].linke
 r = exec('link', { fromType: 'project', fromId: 'Beta', toType: 'program', toId: 'Growth' });
 t('link project↔program', r.ok && D.programs[0].projectIds.includes(12));
 t('link unsupported pair errors', !exec('link', { fromType: 'habit', fromId: 30, toType: 'note', toId: 40 }).ok);
+
+// ── clusters (build -200) ──────────────────────────────────────────────────
+// 'Q4 Launch' is the project created above (2 tasks); the cluster also attaches one loose task.
+r = exec('create_cluster', { name: 'Q4 Launch prep', icon: '🚀', tasks: ['Draft launch email'], projects: ['Q4 Launch'] });
+const ncl = D.clusters.find((c) => c.name === 'Q4 Launch prep');
+t('create_cluster builds the app shape + attaches tasks/projects', r.ok && ncl && ncl.icon === '🚀' && ncl.projectIds[0] === np.id && ncl.owner === 'Test User' && typeof ncl.createdAt === 'string' && D.tasks.find((x) => x.title === 'Draft launch email').clusterId === ncl.id);
+t('create_cluster ambiguous project asks', !!exec('create_cluster', { name: 'x', projects: ['Alpha'] }).candidates);
+t('create_cluster unknown task errors', !exec('create_cluster', { name: 'x', tasks: ['no such task'] }).ok);
+r = exec('create_task', { title: 'Paint the fence', cluster: 'House' });
+t('create_task with cluster by name', r.ok && D.tasks.find((x) => x.title === 'Paint the fence').clusterId === 5);
+r = exec('update_task', { id: 'Paint the fence', cluster: 'Q4 Launch' });
+t('update_task moves cluster by name', r.ok && D.tasks.find((x) => x.title === 'Paint the fence').clusterId === ncl.id);
+r = exec('update_task', { id: 'Paint the fence', cluster: '' });
+t('update_task "" clears the cluster', r.ok && !('clusterId' in D.tasks.find((x) => x.title === 'Paint the fence')));
+r = exec('move_to_cluster', { tasks: ['Paint the fence', 'Call the bank'], cluster: 'House Remodel' });
+t('move_to_cluster bulk by title', r.ok && D.tasks.find((x) => x.title === 'Call the bank').clusterId === 5 && D.tasks.find((x) => x.title === 'Paint the fence').clusterId === 5);
+t('move_to_cluster undo restores', sandbox._agentUndoById(r.undo) && !('clusterId' in D.tasks.find((x) => x.title === 'Call the bank')));
+r = exec('list', { entity: 'clusters' });
+t('list clusters counts tasks incl. project members', r.ok && r.data.rows.length === 2 && r.data.rows.find((c) => c.name === 'Q4 Launch prep').tasks >= 3);
+t('get cluster', exec('get', { entity: 'cluster', id: 'House' }).ok);
+const dcl = exec('delete', { entity: 'cluster', id: 'Q4 Launch prep' });
+t('delete cluster + undo', dcl.ok && !D.clusters.some((c) => c.name === 'Q4 Launch prep') && sandbox._agentUndoById(dcl.undo) && D.clusters.some((c) => c.name === 'Q4 Launch prep'));
+t('undo create_cluster detaches its tasks', (() => { const c = exec('create_cluster', { name: 'Temp', tasks: ['Call the bank'] }); const ok = D.tasks.find((x) => x.title === 'Call the bank').clusterId === D.clusters.find((x) => x.name === 'Temp').id; return ok && sandbox._agentUndoById(c.undo) && !D.clusters.some((x) => x.name === 'Temp') && !('clusterId' in D.tasks.find((x) => x.title === 'Call the bank')); })());
 
 r = exec('navigate', { page: 'tasks' });
 t('navigate', r.ok && sandbox.curScreen === 'tasks');

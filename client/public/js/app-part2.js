@@ -5374,6 +5374,7 @@ function renderFATask(){
     </div>
     <div class="fa-row c2">
       <div class="fa-field"><label>Project</label><select class="fa-inp" id="fa-project"><option value="">None</option>${D.projects.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="fa-field"><label>Cluster</label><select class="fa-inp" id="fa-cluster">${typeof _clusterOptionsHtml==='function'?_clusterOptionsHtml(null):'<option value="">None</option>'}</select></div>
       <div class="fa-field"><label>Assigned To</label><select class="fa-inp" id="fa-assignee"><option value="">Unassigned</option>${members.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select></div>
     </div>
     <div class="fa-row c2">
@@ -5780,6 +5781,7 @@ function doFASave(addAnother){
         pi:document.getElementById('fa-pi')?.value||'Process',
         recurring:document.getElementById('fa-recurring')?.value||'None',
         projectId:projId,project:projName,
+        ...(parseInt(document.getElementById('fa-cluster')?.value)?{clusterId:parseInt(document.getElementById('fa-cluster').value)}:{}),
         linkedGoalId,assignedTo:assignee,delegatedTo:delegated,
         snoozeUntil:document.getElementById('fa-snooze')?.value||'',
         reminder:document.getElementById('fa-reminder')?.value||'',

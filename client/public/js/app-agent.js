@@ -199,6 +199,7 @@ function _agentOpen(ref){
       case 'contact':nav('contacts');setTimeout(function(){openContactDetail(id);},250);return true;
       case 'opportunity':nav('pipeline');setTimeout(function(){openOpportunityDetail(id);},250);return true;
       case 'mindmap':nav('mindmaps');setTimeout(function(){mmOpen(id);},250);return true;
+      case 'cluster':nav('tasks');setTimeout(function(){try{setTaskView('clusters');}catch(_){}},250);return true;
       case 'event':nav('calendar');return true;
       case 'money':case 'transaction':case 'bill':case 'account':case 'savings':case 'budget':nav('money');return true;
       case 'report':case 'widget':nav('reports');return true;
@@ -297,6 +298,8 @@ function _agentNewTask(a){
   if(a.project!=null&&a.project!==''){var pr=_agentFind(D.projects||[],a.project,'name');if(pr.item){projId=pr.item.id;projName=pr.item.name;}else if(pr.ambiguous)return _agentNeed(pr,'projects');}
   var goalId=null;
   if(a.goal!=null&&a.goal!==''){var gr=_agentFind(D.goals||[],a.goal,'title');if(gr.item)goalId=gr.item.id;else if(gr.ambiguous)return _agentNeed(gr,'goals');}
+  var clusterId=null;
+  if(a.cluster!=null&&a.cluster!==''){var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;clusterId=cr.item.id;}
   var pri=String(a.priority||'Medium');pri=pri.charAt(0).toUpperCase()+pri.slice(1).toLowerCase();if(['High','Medium','Low'].indexOf(pri)<0)pri='Medium';
   var due=_agentDate(a.due);
   var t={
@@ -307,6 +310,7 @@ function _agentNewTask(a){
     estimatedMins:parseInt(a.estimatedMins,10)||0,actualMins:0,
     energy:a.energy||'medium',context:a.context||'',location:'Anywhere',pi:'Process',recurring:a.recurring||'None',
     projectId:projId,project:projName,linkedGoalId:goalId,assignedTo:null,delegatedTo:null,
+    ...(clusterId!=null?{clusterId:clusterId}:{}),
     snoozeUntil:'',reminder:'',myDay:!!a.myDay,isWorkTask:true,
     tags:_agentArr(a.tags),scope:{personal:false,business:false},
     subtasks:_agentArr(a.subtasks).map(function(s,i){return {id:i+1,title:typeof s==='string'?s:(s&&s.title)||'',done:false};}).filter(function(s){return s.title;}),
@@ -348,7 +352,7 @@ var LU_AGENT_TOOLS=[
       nav(page);return {ok:true,summary:'Went to '+page};}},
 
   // ── tasks ───────────────────────────────────────────────────────────────
-  {name:'create_task',kind:'write',sig:'create_task{title,notes?,due?,priority?(High|Medium|Low),project?,goal?,myDay?,subtasks?[],tags?[],estimatedMins?,startTime?,recurring?}',
+  {name:'create_task',kind:'write',sig:'create_task{title,notes?,due?,priority?(High|Medium|Low),project?,cluster?,goal?,myDay?,subtasks?[],tags?[],estimatedMins?,startTime?,recurring?}',
     desc:'Create a task (subtasks inline).',
     describe:function(a){return 'Create task "'+_agentStr(a.title,60)+'"'+(a.due?' due '+a.due:'')+(a.priority?' · '+a.priority:'')+(a.project?' · in '+a.project:'')+(a.subtasks&&a.subtasks.length?' · '+_agentArr(a.subtasks).length+' subtasks':'')+(a.myDay?' · My Day':'');},
     run:function(a){var r=_agentNewTask(a);if(!r.task)return r;var t=r.task;D.tasks.push(t);save('tasks');
@@ -356,7 +360,7 @@ var LU_AGENT_TOOLS=[
       if(t.linkedGoalId){var g=D.goals.find(function(x){return x.id===t.linkedGoalId;});if(g){g.linkedTaskIds=g.linkedTaskIds||[];if(g.linkedTaskIds.indexOf(t.id)<0)g.linkedTaskIds.push(t.id);save('goals');}}
       var undo=_agentPushUndo('create task "'+t.title+'"',function(){_agentRemoveById(D.tasks,t.id);save('tasks');});
       return {ok:true,summary:'Created task #'+t.id+' "'+t.title+'"',ref:{type:'task',id:t.id},undo:undo};}},
-  {name:'update_task',kind:'write',sig:'update_task{id,title?,notes?,due?,priority?,status?(Not Started|In Progress|Done|Blocked),myDay?,project?,tags?,startTime?,endTime?,estimatedMins?}',
+  {name:'update_task',kind:'write',sig:'update_task{id,title?,notes?,due?,priority?,status?(Not Started|In Progress|Done|Blocked),myDay?,project?,cluster?("" clears),tags?,startTime?,endTime?,estimatedMins?}',
     desc:'Edit fields on a task (id or name).',
     describe:function(a){var f=Object.keys(a).filter(function(k){return k!=='id';});return 'Update task '+a.id+': '+f.map(function(k){return k+'='+_agentStr(JSON.stringify(a[k]),30);}).join(', ');},
     run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var snap=_agentSnapshot(t);
@@ -366,6 +370,7 @@ var LU_AGENT_TOOLS=[
       if(a.status){t.status=a.status;_syncTaskCompletedAt(t);}
       if(a.myDay!=null)t.myDay=!!a.myDay;
       if(a.project!==undefined){if(!a.project){t.projectId=null;t.project='';}else{var pr=_agentFind(D.projects||[],a.project,'name');var pn=_agentNeed(pr,'projects');if(pn)return pn;t.projectId=pr.item.id;t.project=pr.item.name;}}
+      if(a.cluster!==undefined){if(a.cluster===''||a.cluster===null){delete t.clusterId;}else{var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;t.clusterId=cr.item.id;}}
       if(a.tags!=null)t.tags=_agentArr(a.tags);if(a.startTime!=null)t.startTime=_agentTime(a.startTime);if(a.endTime!=null)t.endTime=_agentTime(a.endTime);
       if(a.estimatedMins!=null)t.estimatedMins=parseInt(a.estimatedMins,10)||0;
       save('tasks');var undo=_agentPushUndo('edit task "'+t.title+'"',function(){_agentRestore(t,snap);save('tasks');});
@@ -393,6 +398,26 @@ var LU_AGENT_TOOLS=[
       t.startTime=st;t.endTime=ev.end;if(ds===_agentToday())t.myDay=true;t.startDate=t.startDate||ds;save('tasks');
       var undo=_agentPushUndo('time block for "'+t.title+'"',function(){_agentRemoveById(_calEvents,ev.id);_agentSaveCal();Object.assign(t,snap);save('tasks');});
       return {ok:true,summary:'Blocked '+mins+' min at '+st+' on '+ds+' for "'+t.title+'"',ref:{type:'event',id:ev.id},undo:undo};}},
+
+  // ── clusters (task groups on the Tasks page) ────────────────────────────
+  {name:'create_cluster',kind:'write',sig:'create_cluster{name,icon?,color?,projects?[],tasks?[]}',desc:'Create a cluster — a named group on the Tasks page. Projects listed join wholesale; tasks listed are attached individually.',
+    describe:function(a){return 'Create cluster "'+_agentStr(a.name,50)+'"'+(a.tasks&&_agentArr(a.tasks).length?' with '+_agentArr(a.tasks).length+' task(s)':'')+(a.projects&&_agentArr(a.projects).length?' + '+_agentArr(a.projects).length+' project(s)':'');},
+    run:function(a){if(!a.name)return {ok:false,error:'A cluster needs a name.'};D.clusters=D.clusters||[];
+      var projIds=[];for(var i=0;i<_agentArr(a.projects).length;i++){var pr=_agentFind(D.projects||[],_agentArr(a.projects)[i],'name');var pn=_agentNeed(pr,'projects');if(pn)return pn;projIds.push(pr.item.id);}
+      var taskItems=[];for(var j=0;j<_agentArr(a.tasks).length;j++){var tr=_agentFind(D.tasks||[],_agentArr(a.tasks)[j],'title');var tn=_agentNeed(tr,'tasks');if(tn)return tn;taskItems.push(tr.item);}
+      var cl={id:nextId(D.clusters),name:_agentStr(a.name,120),icon:a.icon||'📁',color:a.color||'#3B82F6',owner:_agentUser(),collaborators:[],projectIds:projIds,pct:0,createdAt:new Date().toISOString().split('T')[0]};
+      D.clusters.push(cl);var prev=taskItems.map(function(t){return [t,t.clusterId];});taskItems.forEach(function(t){t.clusterId=cl.id;});
+      save('clusters');if(taskItems.length)save('tasks');
+      var undo=_agentPushUndo('create cluster "'+cl.name+'"',function(){_agentRemoveById(D.clusters,cl.id);prev.forEach(function(p){if(p[1]==null)delete p[0].clusterId;else p[0].clusterId=p[1];});save('clusters');if(prev.length)save('tasks');});
+      return {ok:true,summary:'Created cluster "'+cl.name+'"'+(taskItems.length?' with '+taskItems.length+' task(s)':''),ref:{type:'cluster',id:cl.id},undo:undo};}},
+  {name:'move_to_cluster',kind:'write',sig:'move_to_cluster{tasks[],cluster("" clears)}',desc:'Put one or many tasks into a cluster (ids or titles), or clear their cluster with "".',
+    describe:function(a){return 'Move '+_agentArr(a.tasks).length+' task(s) '+(a.cluster?'into cluster "'+_agentStr(a.cluster,40)+'"':'out of their cluster');},
+    run:function(a){var target=null;if(a.cluster){var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;target=cr.item;}
+      var items=[];for(var j=0;j<_agentArr(a.tasks).length;j++){var tr=_agentFind(D.tasks||[],_agentArr(a.tasks)[j],'title');var tn=_agentNeed(tr,'tasks');if(tn)return tn;items.push(tr.item);}
+      if(!items.length)return {ok:false,error:'No tasks given.'};var prev=items.map(function(t){return [t,t.clusterId];});
+      items.forEach(function(t){if(target)t.clusterId=target.id;else delete t.clusterId;});save('tasks');
+      var undo=_agentPushUndo('move '+items.length+' task(s) '+(target?'to '+target.name:'out of cluster'),function(){prev.forEach(function(p){if(p[1]==null)delete p[0].clusterId;else p[0].clusterId=p[1];});save('tasks');});
+      return {ok:true,summary:(target?'Moved '+items.length+' task(s) into "'+target.name+'"':'Removed '+items.length+' task(s) from their cluster'),ref:target?{type:'cluster',id:target.id}:null,undo:undo};}},
 
   // ── projects & programs ─────────────────────────────────────────────────
   {name:'create_project',kind:'write',sig:'create_project{name,desc?,due?,status?,color?,program?,tasks?[]}',desc:'Create a project, optionally with its first tasks and inside a program.',
@@ -636,7 +661,7 @@ var LU_AGENT_TOOLS=[
     run:function(a){var page=_agentPageId(a.page);var def=(typeof LU_PAGES!=='undefined'?LU_PAGES:[]).find(function(p){return p.id===page;});if(!def)return {ok:false,error:'Unknown page "'+a.page+'"'};if(def.core)return {ok:false,error:def.label+' cannot be hidden.'};
       var on=!(a.on===false||a.on==='false');luSetPageOn(page,on);var undo=_agentPushUndo((on?'show':'hide')+' '+def.label,function(){luSetPageOn(page,!on);});
       return {ok:true,summary:(on?'Showing':'Hid')+' '+def.label,undo:undo};}},
-  {name:'delete',kind:'destructive',sig:'delete{entity(task|note|project|program|goal|habit|idea|journal|contact|opportunity|mindmap|event|bill|transaction),id}',desc:'Delete an item. Always confirmed by the user; undoable this session.',
+  {name:'delete',kind:'destructive',sig:'delete{entity(task|note|project|program|cluster|goal|habit|idea|journal|contact|opportunity|mindmap|event|bill|transaction),id}',desc:'Delete an item. Always confirmed by the user; undoable this session.',
     describe:function(a){return 'DELETE '+a.entity+' '+a.id;},
     run:function(a){return _agentDelete(a);}},
 ];
@@ -673,6 +698,7 @@ function _agentList(a){
       rows=rows.map(t);break;}
     case 'projects':case 'project':rows=(D.projects||[]).filter(function(p){return f==='active'?(p.status||'Active')==='Active':true;}).map(function(p){return {id:p.id,name:p.name,status:p.status,due:p.due,pct:p.pct||0,openTasks:(D.tasks||[]).filter(function(x){return x.projectId===p.id&&x.status!=='Done';}).length};});break;
     case 'programs':case 'program':rows=(D.programs||[]).map(function(p){return {id:p.id,name:p.name,status:p.status,projects:(p.projectIds||[]).length};});break;
+    case 'clusters':case 'cluster':rows=(D.clusters||[]).map(function(c){var pj=new Set(c.projectIds||[]);var n=(D.tasks||[]).filter(function(x){return x.clusterId===c.id||(x.projectId&&pj.has(x.projectId));});return {id:c.id,name:c.name,icon:c.icon,projects:(c.projectIds||[]).length,tasks:n.length,open:n.filter(function(x){return x.status!=='Done';}).length};});break;
     case 'goals':case 'goal':rows=(D.goals||[]).filter(function(g){return f==='active'?(g.status||'Active')==='Active':true;}).map(function(g){return {id:g.id,title:g.title,status:g.status,pct:g.pct||0,dueDate:g.dueDate||'',category:g.category,milestones:(g.milestones||[]).length};});break;
     case 'habits':case 'habit':rows=(D.habits||[]).map(function(h){return {id:h.id,title:h.title,cadence:h.cadence,streak:h.streak||0,doneToday:!!h.doneToday,status:h.status};});break;
     case 'notes':case 'note':rows=(D.notes||[]).filter(function(n){return !n.archived;}).slice().sort(function(p,q){return String(q.createdAt||'').localeCompare(String(p.createdAt||''));}).map(function(n){return {id:n.id,title:n.title,tags:(n.tags||[]).slice(0,5),noteType:n.noteType||'Note',chars:String(n.body||n.bodyHtml||'').length};});break;
@@ -696,13 +722,14 @@ function _agentList(a){
   return {ok:true,summary:'Listed '+total+' '+label+(f?' ('+f+')':''),data:{total:total,rows:rows}};
 }
 function _agentGet(a){
-  var ent=String(a.entity||'').toLowerCase();var pools={task:[D.tasks,'title'],tasks:[D.tasks,'title'],project:[D.projects,'name'],projects:[D.projects,'name'],program:[D.programs,'name'],programs:[D.programs,'name'],goal:[D.goals,'title'],goals:[D.goals,'title'],habit:[D.habits,'title'],habits:[D.habits,'title'],note:[D.notes,'title'],notes:[D.notes,'title'],idea:[D.ideas,'title'],ideas:[D.ideas,'title'],contact:[D.contacts,'name'],contacts:[D.contacts,'name'],opportunity:[D.opportunities,'name'],opportunities:[D.opportunities,'name'],mindmap:[D.mindmaps,'title'],mindmaps:[D.mindmaps,'title'],journal:[D.journal,'title']};
+  var ent=String(a.entity||'').toLowerCase();var pools={task:[D.tasks,'title'],tasks:[D.tasks,'title'],project:[D.projects,'name'],projects:[D.projects,'name'],program:[D.programs,'name'],programs:[D.programs,'name'],cluster:[D.clusters,'name'],clusters:[D.clusters,'name'],goal:[D.goals,'title'],goals:[D.goals,'title'],habit:[D.habits,'title'],habits:[D.habits,'title'],note:[D.notes,'title'],notes:[D.notes,'title'],idea:[D.ideas,'title'],ideas:[D.ideas,'title'],contact:[D.contacts,'name'],contacts:[D.contacts,'name'],opportunity:[D.opportunities,'name'],opportunities:[D.opportunities,'name'],mindmap:[D.mindmaps,'title'],mindmaps:[D.mindmaps,'title'],journal:[D.journal,'title']};
   var p=pools[ent];if(!p)return {ok:false,error:'Unknown entity "'+ent+'"'};var r=_agentFind(p[0]||[],a.id,p[1]);var need=_agentNeed(r,ent);if(need)return need;
   var item=_agentSnapshot(r.item);['bodyHtml','diaryBody','descriptionHtml','comments','pctHistory','answers','votes'].forEach(function(k){delete item[k];});
   if(item.body)item.body=_agentStr(String(item.body).replace(/\s+/g,' '),1500);if(item.notes)item.notes=_agentStr(item.notes,800);if(item.description)item.description=_agentStr(item.description,800);
   if(ent.indexOf('mindmap')===0){item.nodes=(item.nodes||[]).map(function(n){return {id:n.id,text:n.text};});}
   if(ent.indexOf('project')===0){item.tasks=(D.tasks||[]).filter(function(t){return t.projectId===item.id;}).map(function(t){return {id:t.id,title:t.title,status:t.status,due:t.due||''};}).slice(0,30);}
   if(ent.indexOf('program')===0){item.projects=(item.projectIds||[]).map(function(id){var pr=(D.projects||[]).find(function(x){return x.id===id;});return pr?{id:pr.id,name:pr.name,status:pr.status}:{id:id};});}
+  if(ent.indexOf('cluster')===0){var pj=new Set(item.projectIds||[]);item.tasks=(D.tasks||[]).filter(function(t){return t.clusterId===item.id||(t.projectId&&pj.has(t.projectId));}).map(function(t){return {id:t.id,title:t.title,status:t.status,due:t.due||'',viaProject:!!(t.projectId&&pj.has(t.projectId))};}).slice(0,40);}
   return {ok:true,summary:'Read '+ent+' '+(item.title||item.name||item.id),data:item};
 }
 function _agentLink(a){
@@ -727,7 +754,7 @@ function _agentLink(a){
 }
 function _agentDelete(a){
   var ent=String(a.entity||'').toLowerCase();
-  var map={task:[D.tasks,'title','tasks'],note:[D.notes,'title','notes'],project:[D.projects,'name','projects'],program:[D.programs,'name','programs'],goal:[D.goals,'title','goals'],habit:[D.habits,'title','habits'],idea:[D.ideas,'title','ideas'],journal:[D.journal,'title','journal'],contact:[D.contacts,'name','contacts'],opportunity:[D.opportunities,'name','opportunities'],mindmap:[D.mindmaps,'title','mindmaps']};
+  var map={task:[D.tasks,'title','tasks'],note:[D.notes,'title','notes'],project:[D.projects,'name','projects'],program:[D.programs,'name','programs'],cluster:[D.clusters,'name','clusters'],goal:[D.goals,'title','goals'],habit:[D.habits,'title','habits'],idea:[D.ideas,'title','ideas'],journal:[D.journal,'title','journal'],contact:[D.contacts,'name','contacts'],opportunity:[D.opportunities,'name','opportunities'],mindmap:[D.mindmaps,'title','mindmaps']};
   if(ent==='event'){var evs=Array.isArray(_calEvents)?_calEvents:[];var re=_agentFind(evs,a.id,'title');var ne=_agentNeed(re,'events');if(ne)return ne;var idx=evs.indexOf(re.item);evs.splice(idx,1);_agentSaveCal();var u1=_agentPushUndo('delete event "'+re.item.title+'"',function(){evs.splice(Math.min(idx,evs.length),0,re.item);_agentSaveCal();});return {ok:true,summary:'Deleted event "'+re.item.title+'"',undo:u1};}
   if(ent==='bill'||ent==='transaction'){var f=_agentFin();if(!f)return {ok:false,error:'Money not available.'};if(_finRO())return {ok:false,error:'View-only budget.'};var arr=ent==='bill'?f.bills:f.transactions;var rr=_agentFind(arr,a.id,ent==='bill'?'name':'payee');var nn=_agentNeed(rr,ent+'s');if(nn)return nn;var ix=arr.indexOf(rr.item);arr.splice(ix,1);_agentFinSaveAll();var u2=_agentPushUndo('delete '+ent,function(){arr.splice(Math.min(ix,arr.length),0,rr.item);_agentFinSaveAll();});return {ok:true,summary:'Deleted '+ent+' "'+(rr.item.name||rr.item.payee)+'"',undo:u2};}
   var m=map[ent];if(!m)return {ok:false,error:'Cannot delete "'+ent+'"'};var list=m[0]||[];var r=_agentFind(list,a.id,m[1]);var need=_agentNeed(r,ent+'s');if(need)return need;

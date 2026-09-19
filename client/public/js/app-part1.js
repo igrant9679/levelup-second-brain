@@ -4051,6 +4051,7 @@ function renderDrawer(type,item){
     </div>
     <div class="field-row">
       <div class="field"><label>Project</label><select class="inp" id="dr-proj"><option value="">None</option>${D.projects.map(p=>`<option value="${p.id}" ${item.projectId===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Cluster <span style="font-size:10px;color:var(--t3);font-weight:400">group</span></label><select class="inp" id="dr-cluster">${_clusterOptionsHtml(item.clusterId)}</select></div>
       <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Context<button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="manageTaskContexts()" title="Add, rename, or remove options">⚙ Manage</button></label>${_renderContextSelect('dr-ctx',item.context||'')}</div>
     </div>
     <div class="field-row">
@@ -4675,6 +4676,8 @@ function saveItem(type,id){
     const pSel=document.getElementById('dr-proj');
     t.projectId=pSel.value?parseInt(pSel.value):null;
     t.project=pSel.value?D.projects.find(p=>p.id===parseInt(pSel.value))?.name||'':'';
+    const cSel=document.getElementById('dr-cluster');
+    if(cSel){if(cSel.value)t.clusterId=parseInt(cSel.value);else delete t.clusterId;}
     t.context=$('#dr-ctx').value;
     t.recurring=$('#dr-recurring').value;
     // Mirror the dropdown choice + (optional) advanced fields into the
@@ -5171,6 +5174,10 @@ function bulkAction(action){
     if(!p){toast('Project not found');return;}
     ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t){t.projectId=p.id;t.project=p.name;}});
     save('tasks');toast(`📁 ${ids.length} task(s) moved to ${p.name}`);
+  } else if(action==='cluster'){
+    // The picker applies to every bulk-selected task and re-renders itself.
+    openTaskClusterPicker(null,window.event);
+    return;
   } else if(action==='someday'){
     ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t)t.status='Someday';});
     save('tasks');toast(`💤 ${ids.length} task(s) moved to Someday`);
@@ -5345,7 +5352,7 @@ function taskRow(t,showActs=true){
   const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
   const timeLabel=t.timeSpent?`<span style="font-size:11px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:11px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
-  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button>`;
+  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)">⬡</button>`;
   const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
   // K: subtask progress chip
   const _subs=Array.isArray(t.subtasks)?t.subtasks:[];
@@ -10052,6 +10059,10 @@ function renderTaskMatrix(){
         <div style="font-size:11px;color:var(--t2);margin-top:4px;line-height:1.4">${q.hint}</div>
       </div>
       <div style="max-height:340px;overflow-y:auto;min-height:60px">${cards||`<div style="font-size:11px;color:var(--t3);text-align:center;padding:18px;border:1px dashed var(--bd1);border-radius:6px">Drop tasks here</div>`}</div>
+      <div class="mtx-add" style="display:flex;gap:4px;margin-top:8px">
+        <input class="inp" data-mtx-add="${k}" placeholder="＋ Add a task to ${esc(q.label)}…" style="flex:1;height:26px;font-size:11px" onkeydown="if(event.key==='Enter'){event.preventDefault();_mtxAddTask('${k}',this)}" onclick="event.stopPropagation()">
+        <button class="btn btn-s" style="height:26px;font-size:11px;padding:0 8px;white-space:nowrap" title="Add a task that lands in this quadrant" onclick="event.stopPropagation();_mtxAddTask('${k}',this.previousElementSibling)">Add</button>
+      </div>
     </div>`;
   }).join('');
   list.innerHTML=`<div style="margin-bottom:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px;font-size:11px;color:var(--t2);line-height:1.55">
@@ -10084,6 +10095,33 @@ function _mtxDrop(e,targetPriority,targetMins){
   save('tasks');
   toast(`✓ Moved to ${targetPriority==='High'?'high':'low'}-impact / ${wantEffortLow?'low':'high'}-effort`);
   renderCurrentTaskView();
+}
+// ── Add a task straight into a quadrant (build -200) ──────────────────────
+// The Matrix places tasks by Priority (impact) × estimatedMins (effort), so a
+// task born in a quadrant just needs that quadrant's typical values — the same
+// pair _mtxDrop snaps to. The record shape mirrors doFASave's task literal.
+const _MTX_QUAD_DEFAULTS={q1:{priority:'High',mins:30},q2:{priority:'High',mins:120},q3:{priority:'Low',mins:30},q4:{priority:'Low',mins:120}};
+function _mtxAddTask(quadKey,inputEl){
+  const q=_MTX_QUAD_DEFAULTS[quadKey];if(!q)return;
+  const title=(inputEl&&inputEl.value||'').trim();
+  if(!title){if(inputEl)inputEl.focus();return;}
+  const t={
+    id:nextId(D.tasks),title:title.slice(0,300),notes:'',
+    priority:q.priority,status:'Not Started',smartList:'Task Intake',
+    startDate:'',endDate:'',due:'',startTime:'',endTime:'',
+    estimatedMins:q.mins,actualMins:0,energy:'medium',context:'',location:'Anywhere',pi:'Process',recurring:'None',
+    projectId:null,project:'',linkedGoalId:null,assignedTo:null,delegatedTo:null,
+    snoozeUntil:'',reminder:'',myDay:false,isWorkTask:true,
+    tags:[],scope:{personal:false,business:false},subtasks:[],linkedNoteIds:[],predecessorIds:[],comments:[],
+    createdBy:D.creds.userName||'Me',createdAt:new Date().toISOString()
+  };
+  D.tasks.push(t);
+  save('tasks');
+  try{updateSidebarBadges();}catch(_){}
+  renderCurrentTaskView();
+  // Keep the cursor in the same quadrant so several tasks can be added in a row.
+  setTimeout(()=>{const again=document.querySelector(`input[data-mtx-add="${quadKey}"]`);if(again)again.focus();},60);
+  toast(`✓ Added "${t.title.slice(0,40)}" · ${q.priority} · ${q.mins}m`);
 }
 function renderTaskGantt(){
   const list=document.getElementById('tasks-list');
@@ -10434,6 +10472,73 @@ function _clusterDrop(e,clId){
   renderTaskClusters();
   toast(clId==='__orphan__'?'Removed from cluster':'Moved to cluster');
 }
+
+// ── Assign to cluster WITHOUT dragging (build -200) ────────────────────────
+// Drag-and-drop was the only way to put a task in a cluster from the Tasks
+// page, which is invisible on touch devices and easy to miss on desktop.
+// This is one picker, reused by the ⬡ button on every task row (List and
+// Clusters views), the task drawer, the bulk bar and the assistant.
+//   openTaskClusterPicker(taskId, ev)   → one task
+//   openTaskClusterPicker(null, ev)     → every bulk-selected task
+function _setTaskCluster(t,clusterId){
+  if(!t)return false;
+  if(clusterId==null||clusterId===''){delete t.clusterId;return true;}
+  const cl=(D.clusters||[]).find(c=>c.id===Number(clusterId));
+  if(!cl)return false;
+  t.clusterId=cl.id;
+  return true;
+}
+function _luClusterPickerClose(){
+  const p=document.getElementById('lu-cluster-pick');if(p)p.remove();
+  document.removeEventListener('click',_luClusterPickerClose,true);
+}
+function openTaskClusterPicker(taskId,ev){
+  if(ev){try{ev.stopPropagation();ev.preventDefault();}catch(_){}}
+  _luClusterPickerClose();
+  const ids=taskId!=null?[taskId]:Array.from(_bulkSelected||[]);
+  if(!ids.length){toast('Select at least one task first');return;}
+  const single=ids.length===1?D.tasks.find(x=>x.id===ids[0]):null;
+  const cur=single?single.clusterId:null;
+  const rows=(D.clusters||[]).map(cl=>`<div class="lu-cp-row${cur===cl.id?' on':''}" onclick="_clusterPickerApply(${JSON.stringify(ids)},${cl.id})"><span style="width:20px;text-align:center">${cl.icon||'📁'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.name)}</span>${cur===cl.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  const html=`<div id="lu-cluster-pick" style="position:fixed;z-index:var(--z-dropdown,600);min-width:220px;max-width:300px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.35);padding:6px;font-size:12px" onclick="event.stopPropagation()">
+    <div style="font-size:10.5px;color:var(--t3);padding:4px 8px 6px;text-transform:uppercase;letter-spacing:.04em">${ids.length===1?'Move to cluster':'Move '+ids.length+' tasks to cluster'}</div>
+    <div style="max-height:260px;overflow-y:auto">${rows||'<div style="padding:6px 8px;color:var(--t3)">No clusters yet</div>'}</div>
+    <div style="border-top:1px solid var(--bd1);margin-top:4px;padding-top:4px">
+      <div class="lu-cp-row${cur==null&&single?' on':''}" onclick="_clusterPickerApply(${JSON.stringify(ids)},null)"><span style="width:20px;text-align:center">🗂</span><span style="flex:1">No cluster</span></div>
+      <div class="lu-cp-row" style="color:var(--ac)" onclick="_luClusterPickerClose();openClusterModal(null,{preselectTaskIds:${JSON.stringify(ids)}})"><span style="width:20px;text-align:center">＋</span><span style="flex:1">New cluster…</span></div>
+    </div>
+  </div>`;
+  if(!document.getElementById('lu-cluster-pick-css')){
+    const s=document.createElement('style');s.id='lu-cluster-pick-css';
+    s.textContent='.lu-cp-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;color:var(--t1)}.lu-cp-row:hover{background:color-mix(in srgb,var(--ac) 14%,var(--s2))}.lu-cp-row.on{background:color-mix(in srgb,var(--ac) 10%,var(--s2))}';
+    document.head.appendChild(s);
+  }
+  document.body.insertAdjacentHTML('beforeend',html);
+  const p=document.getElementById('lu-cluster-pick');
+  // Anchor to the click; keep inside the viewport.
+  let x=(ev&&ev.clientX)||window.innerWidth/2,y=(ev&&ev.clientY)||window.innerHeight/2;
+  const w=p.offsetWidth||240,h=p.offsetHeight||200;
+  if(x+w>window.innerWidth-8)x=Math.max(8,window.innerWidth-w-8);
+  if(y+h>window.innerHeight-8)y=Math.max(8,y-h);
+  p.style.left=x+'px';p.style.top=y+'px';
+  setTimeout(()=>document.addEventListener('click',_luClusterPickerClose,true),0);
+}
+function _clusterPickerApply(ids,clusterId){
+  _luClusterPickerClose();
+  let n=0;
+  (ids||[]).forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(_setTaskCluster(t,clusterId))n++;});
+  if(!n)return;
+  save('tasks');
+  if(_bulkSelected&&ids.length>1){_bulkSelected.clear();}
+  try{renderCurrentTaskView();}catch(_){try{renderTaskClusters();}catch(__){}}
+  // Refresh an open drawer's Cluster select so it does not show a stale value.
+  try{const sel=document.getElementById('dr-cluster');if(sel&&ids.length===1)sel.value=clusterId==null?'':String(clusterId);}catch(_){}
+  const cl=clusterId!=null?(D.clusters||[]).find(c=>c.id===Number(clusterId)):null;
+  toast(cl?`⬡ ${n} task${n===1?'':'s'} → ${cl.name}`:`Removed ${n} task${n===1?'':'s'} from cluster`);
+}
+function _clusterOptionsHtml(selectedId){
+  return `<option value="">None</option>${(D.clusters||[]).map(c=>`<option value="${c.id}" ${Number(selectedId)===c.id?'selected':''}>${esc((c.icon?c.icon+' ':'')+c.name)}</option>`).join('')}`;
+}
 function renderTaskClusters(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
@@ -10471,6 +10576,7 @@ function renderTaskClusters(){
     <div style="font-size:11px;color:var(--t1);background:rgba(59,130,246,0.15);padding:5px 10px;border-radius:6px;display:flex;align-items:center;gap:6px;white-space:nowrap">
       <span style="color:#60A5FA;font-size:12px;line-height:1">⬡</span>Grouped by Cluster
     </div>
+    <button class="btn btn-p" style="height:26px;font-size:11px;white-space:nowrap" title="Create a cluster (group) for tasks" onclick="openClusterModal(null)">＋ New Cluster</button>
     <span style="font-size:11px;color:var(--t3)">Need a different lens? Switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="setTaskView('list')">List view</a> and use Group: Project / Due / Status / Assignee.</span>
   </div>`;
 
@@ -10499,6 +10605,7 @@ function renderTaskClusters(){
       ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
       ${checkboxHtml}
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${t.id},event)">⬡</button>`}
       <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
       ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
@@ -10652,7 +10759,11 @@ function _renderExternalClusterCards(){
   }).join('');
 }
 // ─── Cluster Modal (create/edit) ─────────────────────────────────────────────
-function openClusterModal(id){
+function openClusterModal(id,opts){
+  opts=opts||{};
+  // preselectTaskIds: the picker's "New cluster…" hands over the task(s) the
+  // user was trying to file, so a brand-new cluster starts with them ticked.
+  const preselect=new Set((opts.preselectTaskIds||[]).map(Number));
   const cl=id?D.clusters.find(x=>x.id===id):null;
   const allProjects=D.projects||[];
   const selProjs=cl?new Set(cl.projectIds||[]):new Set();
@@ -10660,7 +10771,7 @@ function openClusterModal(id){
   // #4 — also let users attach individual tasks directly via t.clusterId
   const allTasks=(D.tasks||[]).filter(t=>t.status!=='Done');
   const taskOptions=allTasks.map(t=>{
-    const checked=cl&&t.clusterId===cl.id;
+    const checked=(cl&&t.clusterId===cl.id)||preselect.has(t.id);
     const projOwned=t.projectId&&selProjs.has(t.projectId);
     return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':''}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${esc(t.title)}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
   }).join('');
@@ -11703,6 +11814,7 @@ function renderTasks(){
     <button class="btn btn-p" style="height:24px;font-size:11px" onclick="bulkAction('done')">✓ Done</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('someday')">💤 Someday</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" title="Move the selected tasks into a cluster" onclick="bulkAction('cluster')">⬡ Cluster</button>
     <button class="btn btn-d" style="height:24px;font-size:11px" onclick="bulkAction('delete')">${_icon('trash',12,'currentColor')} Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
@@ -24758,6 +24870,38 @@ You never need an id. "Mark the auth refactor task done" works. If two things ma
 - **"I couldn't reach the AI provider"** — check **Settings → AI Features** has a working key.
 - **"That conversation got too large"** — 🗑 Clear the chat; nothing in your workspace is affected.
 - If it proposes the wrong thing, **Skip** and rephrase with the item's name, or open the item and tell it "this one".
+`},
+  {id:62,slug:'task-clusters',catId:2,title:'Clusters — group tasks your way',summary:'Create clusters (groups) on the Tasks page and put tasks in them by button, drawer, bulk action, drag, or by asking the assistant. Plus: add tasks straight into a Matrix quadrant.',tags:['clusters','groups','tasks','matrix','eisenhower','organise'],body:`## Clusters — group tasks your way
+
+A **cluster** is a named group on the Tasks page — "House Remodel", "Q4 Launch", "Physical Transformation" — that cuts across projects. The **Clusters** view (the Tasks page's default) shows one card per cluster with progress, overdue count and the tasks inside, and a **No cluster** card at the top for everything not yet filed.
+
+## Creating a cluster
+
+- **Tasks page → Clusters view → ＋ New Cluster** (top ribbon, and again at the bottom of the list). Give it a name, an icon and a colour.
+- In the same dialog you can tick **projects** — every task in a ticked project joins automatically — and tick **individual tasks** to attach one-offs.
+- Or ask the assistant: *"Create a cluster called House Remodel with the deck and driveway tasks."*
+
+## Putting tasks into a cluster
+
+Five ways, pick whichever is closest to hand:
+
+1. **The ⬡ button** on any task row (List view and Clusters view) opens a picker: choose a cluster, choose *No cluster* to remove it, or *New cluster…* to create one with that task already in it.
+2. **The task drawer** has a **Cluster** field next to Project.
+3. **The Full Add form** (＋ Full Add Task) has a Cluster field too, so a task can be born in a cluster.
+4. **Bulk**: turn on bulk select, tick the tasks, and use **⬡ Cluster** in the bulk bar to move them all at once.
+5. **Drag** a task onto a cluster card in the Clusters view (drag it onto *No cluster* to remove it).
+
+Tasks that belong to a project already in a cluster show up there automatically — you do not need to file them one by one.
+
+## The assistant knows clusters
+
+- *"Move the deck and windshield tasks into House Remodel."*
+- *"Which cluster has the most overdue work?"* (it lists clusters with open and overdue counts)
+- *"Create a task in the LevelUp Build cluster: write the release notes."*
+
+## Adding tasks straight into a Matrix quadrant
+
+The **Matrix** view (Eisenhower: Impact × Effort) now has an **＋ Add a task…** box at the bottom of every quadrant. Type a title and press Enter — the task is created with that quadrant's typical **priority** and **estimated minutes** (Do First: High · 30m · Plan: High · 120m · Quick Wins: Low · 30m · Eliminate: Low · 120m), so it lands where you put it. The cursor stays in the same quadrant so you can add several in a row. Open the card afterwards to fine-tune dates, project or cluster.
 `},
 ];
 var HC_TOURS=[
