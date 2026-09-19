@@ -4,8 +4,12 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-200 (2026-09-19, COMMITTED — NOT PUSHED) — clusters from the Tasks page
-without dragging + add tasks straight into a Matrix quadrant.** User: "add
+**-200 (LIVE 2026-09-19 ~80s after push; URL-mode guards ai-agent /
+ai-knowledge / account-switch all pass against prod; every new symbol and
+Help article 62 confirmed in the live bundles. In-app check on prod still
+pending a demo sign-in — the Claude Browser pane came back signed out) —
+clusters from the Tasks page without dragging + add tasks straight into a
+Matrix quadrant.** User: "add
 new Clusters (Groups) within the Tasks page and assign tasks to clusters" and
 "add tasks to each quadrant of the Eisenhower Matrix (I can already drag and
 drop, but can't add new)".
