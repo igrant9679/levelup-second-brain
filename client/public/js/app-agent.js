@@ -698,7 +698,7 @@ function _agentList(a){
       rows=rows.map(t);break;}
     case 'projects':case 'project':rows=(D.projects||[]).filter(function(p){return f==='active'?(p.status||'Active')==='Active':true;}).map(function(p){return {id:p.id,name:p.name,status:p.status,due:p.due,pct:p.pct||0,openTasks:(D.tasks||[]).filter(function(x){return x.projectId===p.id&&x.status!=='Done';}).length};});break;
     case 'programs':case 'program':rows=(D.programs||[]).map(function(p){return {id:p.id,name:p.name,status:p.status,projects:(p.projectIds||[]).length};});break;
-    case 'clusters':case 'cluster':rows=(D.clusters||[]).map(function(c){var pj=new Set(c.projectIds||[]);var n=(D.tasks||[]).filter(function(x){return x.clusterId===c.id||(x.projectId&&pj.has(x.projectId));});return {id:c.id,name:c.name,icon:c.icon,projects:(c.projectIds||[]).length,tasks:n.length,open:n.filter(function(x){return x.status!=='Done';}).length};});break;
+    case 'clusters':case 'cluster':rows=(D.clusters||[]).map(function(c){var pj=new Set(c.projectIds||[]);var n=(D.tasks||[]).filter(function(x){return String(x.clusterId)===String(c.id)||(x.projectId&&pj.has(x.projectId));});return {id:c.id,name:c.name,icon:c.icon,projects:(c.projectIds||[]).length,tasks:n.length,open:n.filter(function(x){return x.status!=='Done';}).length};});break;
     case 'goals':case 'goal':rows=(D.goals||[]).filter(function(g){return f==='active'?(g.status||'Active')==='Active':true;}).map(function(g){return {id:g.id,title:g.title,status:g.status,pct:g.pct||0,dueDate:g.dueDate||'',category:g.category,milestones:(g.milestones||[]).length};});break;
     case 'habits':case 'habit':rows=(D.habits||[]).map(function(h){return {id:h.id,title:h.title,cadence:h.cadence,streak:h.streak||0,doneToday:!!h.doneToday,status:h.status};});break;
     case 'notes':case 'note':rows=(D.notes||[]).filter(function(n){return !n.archived;}).slice().sort(function(p,q){return String(q.createdAt||'').localeCompare(String(p.createdAt||''));}).map(function(n){return {id:n.id,title:n.title,tags:(n.tags||[]).slice(0,5),noteType:n.noteType||'Note',chars:String(n.body||n.bodyHtml||'').length};});break;
@@ -729,7 +729,7 @@ function _agentGet(a){
   if(ent.indexOf('mindmap')===0){item.nodes=(item.nodes||[]).map(function(n){return {id:n.id,text:n.text};});}
   if(ent.indexOf('project')===0){item.tasks=(D.tasks||[]).filter(function(t){return t.projectId===item.id;}).map(function(t){return {id:t.id,title:t.title,status:t.status,due:t.due||''};}).slice(0,30);}
   if(ent.indexOf('program')===0){item.projects=(item.projectIds||[]).map(function(id){var pr=(D.projects||[]).find(function(x){return x.id===id;});return pr?{id:pr.id,name:pr.name,status:pr.status}:{id:id};});}
-  if(ent.indexOf('cluster')===0){var pj=new Set(item.projectIds||[]);item.tasks=(D.tasks||[]).filter(function(t){return t.clusterId===item.id||(t.projectId&&pj.has(t.projectId));}).map(function(t){return {id:t.id,title:t.title,status:t.status,due:t.due||'',viaProject:!!(t.projectId&&pj.has(t.projectId))};}).slice(0,40);}
+  if(ent.indexOf('cluster')===0){var pj=new Set(item.projectIds||[]);item.tasks=(D.tasks||[]).filter(function(t){return String(t.clusterId)===String(item.id)||(t.projectId&&pj.has(t.projectId));}).map(function(t){return {id:t.id,title:t.title,status:t.status,due:t.due||'',viaProject:!!(t.projectId&&pj.has(t.projectId))};}).slice(0,40);}
   return {ok:true,summary:'Read '+ent+' '+(item.title||item.name||item.id),data:item};
 }
 function _agentLink(a){

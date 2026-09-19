@@ -10307,19 +10307,19 @@ function quickAddTask(){
 // ─── Cluster progress roll-up ────────────────────────────────────────────────
 function clusterProgress(cluster){
   const projIds=new Set(cluster.projectIds||[]);
-  const directTasks=D.tasks.filter(t=>t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId)));
+  const directTasks=D.tasks.filter(t=>String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId)));
   if(!directTasks.length)return 0;
   const done=directTasks.filter(t=>t.status==='Done').length;
   return Math.round((done/directTasks.length)*100);
 }
 function clusterTaskCount(cluster){
   const projIds=new Set(cluster.projectIds||[]);
-  return D.tasks.filter(t=>t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId))).length;
+  return D.tasks.filter(t=>String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId))).length;
 }
 function clusterOverdueCount(cluster){
   const today=_todayStr;
   const projIds=new Set(cluster.projectIds||[]);
-  return D.tasks.filter(t=>(t.clusterId===cluster.id||(t.projectId&&projIds.has(t.projectId)))&&t.status!=='Done'&&t.due&&t.due<today).length;
+  return D.tasks.filter(t=>(String(t.clusterId)===String(cluster.id)||(t.projectId&&projIds.has(t.projectId)))&&t.status!=='Done'&&t.due&&t.due<today).length;
 }
 // ─── Render Tasks Clusters View ──────────────────────────────────────────────
 let _clusterCollapsed={};
@@ -10546,14 +10546,23 @@ function renderTaskClusters(){
   // When Personal source filter is off, the native cluster cards collapse to
   // empty groups (the external pseudo-clusters still show below per their
   // own filter).
-  const universe=_sourceOn('personal')?_topLevelTasks(_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks):[];
+  // Top-level tasks PLUS any nested subtask that was filed into a cluster
+  // directly. The cluster dialog lists subtasks too, so dropping them here
+  // made "I ticked the Boat tasks and they don't show" — they were saved,
+  // just never rendered. Subtasks without their own clusterId stay hidden
+  // (they live under their parent).
+  const scoped=_taskMyOnly?D.tasks.filter(t=>!t.createdBy||t.createdBy===(D.creds.userName||'Idris Grant')):D.tasks;
+  const universe=_sourceOn('personal')?scoped.filter(t=>!_isSubtaskRow(t)||t.clusterId!=null):[];
   // Apply tab filter (All Active, Today, This Week, Inbox, Recurring, Someday, Done) and priority filter.
   let visible=typeof _taskFilter==='function'?universe.filter(_taskFilter):universe.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   visible=_applyPriorityFilter(visible);
   const today=_todayStr;
   const groups=(D.clusters||[]).map(cl=>{
     const projIds=new Set(cl.projectIds||[]);
-    const inCluster=t=>t.clusterId===cl.id||(t.projectId&&projIds.has(t.projectId));
+    // String compare: ids arrive as numbers from the dialog and drag path, but
+    // a cluster created elsewhere could carry a string id — never let the
+    // type decide whether a task shows.
+    const inCluster=t=>String(t.clusterId)===String(cl.id)||(t.projectId&&projIds.has(t.projectId));
     // Progress uses the full universe (not narrowed by the tab filter) so "X of Y" stays meaningful.
     const all=universe.filter(inCluster);
     const total=all.length;
@@ -10561,9 +10570,12 @@ function renderTaskClusters(){
     const pct=total?Math.round((done/total)*100):0;
     // Body shows the filtered set.
     const shown=visible.filter(inCluster);
+    // Tasks that ARE in the cluster but the active tab / priority filter hides —
+    // surfaced in the empty state so a filter never reads as "not assigned".
+    const hiddenByFilter=all.filter(t=>t.status!=='Done').length-shown.filter(t=>t.status!=='Done').length;
     const overdue=shown.filter(t=>t.due&&t.due<today&&t.status!=='Done').length;
     const dueDates=shown.filter(t=>t.status!=='Done').map(t=>t.due).filter(Boolean).sort();
-    return {cl,shown,done,total,pct,overdue,earliestDue:dueDates[0]||null};
+    return {cl,shown,done,total,pct,overdue,hiddenByFilter:Math.max(0,hiddenByFilter),earliestDue:dueDates[0]||null};
   });
   const claimedIds=new Set();
   groups.forEach(g=>g.shown.forEach(t=>claimedIds.add(t.id)));
@@ -10604,7 +10616,7 @@ function renderTaskClusters(){
     return `<div class="cl-task-row" data-task-id="${t.id}" draggable="${_bulkMode?'false':'true'}" ${_bulkMode?'':`ondragstart="_clusterTaskDragStart(event,${t.id})" ondragend="_clusterTaskDragEnd(event)"`} style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative;${bulkBg}${isBulkChecked?'border-left:3px solid var(--ac);padding-left:53px':''}" onclick="${rowClick}">
       ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
       ${checkboxHtml}
-      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
+      <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}${(()=>{if(!_isSubtaskRow(t))return '';const p=D.tasks.find(x=>String(x.id)===String(t.parentTaskId));return `<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:6px" title="A subtask filed into this cluster directly">↳ ${esc(p?p.title:'subtask')}</span>`;})()}</span>
       ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${t.id},event)">⬡</button>`}
       <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
       ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
@@ -10613,7 +10625,11 @@ function renderTaskClusters(){
   }
 
   function clusterCard(g){
-    const {cl,shown,done,total,pct,overdue,earliestDue}=g;
+    const {cl,shown,done,total,pct,overdue,earliestDue,hiddenByFilter}=g;
+    const activeTab=(()=>{try{const el=document.querySelector('#tasks-tabs > .tab.on');return el?el.textContent.trim():'';}catch(_){return '';}})();
+    const emptyMsg=hiddenByFilter>0
+      ?`${hiddenByFilter} task${hiddenByFilter===1?' is':'s are'} in this cluster but hidden by the <b>${esc(activeTab||'current')}</b> tab${_taskMyOnly?' / My Items scope':''} · switch to <a style="color:var(--ac);cursor:pointer;text-decoration:underline" onclick="event.stopPropagation();setTaskTabIdx(0)">All Active</a> to see them`
+      :'No tasks yet · use ⬡ on any task, or ⋯ to manage';
     const collapsed=!!_clusterCollapsed[cl.id];
     const ownerInitials=(cl.owner||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
     const accent=cl.color||'#3B82F6';
@@ -10643,7 +10659,7 @@ function renderTaskClusters(){
         </div>
         <button title="Edit cluster" style="height:24px;width:24px;padding:0;font-size:14px;background:transparent;border:none;color:var(--t3);cursor:pointer;flex-shrink:0;border-radius:4px" onclick="event.stopPropagation();openClusterModal(${cl.id})">⋯</button>
       </div>
-      ${collapsed?'':`<div>${shown.length?shown.map(taskRow).join(''):'<div style="padding:12px 14px 12px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1)">No tasks match this filter · click ⋯ to manage</div>'}</div>`}
+      ${collapsed?'':`<div>${shown.length?shown.map(taskRow).join(''):`<div style="padding:12px 14px 12px 56px;font-size:11px;color:var(--t3);border-top:1px solid var(--bd1)">${emptyMsg}</div>`}</div>`}
     </div>`;
   }
 
@@ -10769,11 +10785,18 @@ function openClusterModal(id,opts){
   const selProjs=cl?new Set(cl.projectIds||[]):new Set();
   const projOptions=allProjects.map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer"><input type="checkbox" value="${p.id}" ${selProjs.has(p.id)?'checked':''} class="cl-proj-cb"> ${esc(p.name)}</label>`).join('');
   // #4 — also let users attach individual tasks directly via t.clusterId
-  const allTasks=(D.tasks||[]).filter(t=>t.status!=='Done');
+  // Parents first, each followed by its nested subtasks (indented, "↳ parent"),
+  // so a ticked subtask is recognisable as one — the view shows it with the
+  // same hint.
+  const openTasks=(D.tasks||[]).filter(t=>t.status!=='Done');
+  const byParent={};openTasks.filter(_isSubtaskRow).forEach(s=>{const k=String(s.parentTaskId);(byParent[k]=byParent[k]||[]).push(s);});
+  const allTasks=[];openTasks.filter(t=>!_isSubtaskRow(t)).forEach(p=>{allTasks.push(p);(byParent[String(p.id)]||[]).forEach(s=>allTasks.push(s));});
+  openTasks.filter(s=>_isSubtaskRow(s)&&!openTasks.some(p=>String(p.id)===String(s.parentTaskId))).forEach(s=>allTasks.push(s)); // orphaned subtasks still listed
   const taskOptions=allTasks.map(t=>{
-    const checked=(cl&&t.clusterId===cl.id)||preselect.has(t.id);
+    const checked=(cl&&String(t.clusterId)===String(cl.id))||preselect.has(t.id);
     const projOwned=t.projectId&&selProjs.has(t.projectId);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':''}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${esc(t.title)}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
+    const sub=_isSubtaskRow(t);
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0 3px ${sub?'18px':'0'};font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':(sub?'A subtask — shows in the cluster with a ↳ marker':'')}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${sub?'<span style="color:var(--t3)">↳</span> ':''}${esc(t.title)}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
   }).join('');
   const html=`<div style="padding:16px;max-width:540px">
     <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>

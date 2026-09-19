@@ -4,6 +4,36 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-201 (2026-09-19, COMMITTED — NOT PUSHED) — tasks ticked in the cluster
+dialog "don't show in the cluster view".** User report, right after -200.
+Root cause: the cluster dialog (`openClusterModal`) lists EVERY non-Done
+task including nested subtasks (`parentTaskId` set), but `renderTaskClusters`
+built its universe from `_topLevelTasks()`, which drops subtask rows — so a
+ticked subtask (the user's "Boat: …" tasks are children of "Boat Repairs
+Needed") was saved correctly and never rendered. The Clusters PAGE count
+(`clusterTaskCount`) never filtered subtasks, which is why the two disagreed.
+Fix (app-part1.js):
+- Universe = top-level tasks PLUS any subtask with its own `clusterId`; such
+  rows render with a "↳ <parent title>" marker. Subtasks WITHOUT a clusterId
+  stay under their parent as before.
+- The dialog now lists parents first with their subtasks indented under an
+  "↳" (orphaned subtasks still listed), so what you tick is recognisable.
+- Two more filters can hide cluster members — the active TAB and the
+  My Items scope. The card's empty state now says so with the count and a
+  link: "N tasks are in this cluster but hidden by the **Today** tab · switch
+  to All Active" (was the misleading "No tasks match this filter").
+- `clusterId` comparisons are `String()`-safe in the view, the dialog, the
+  count helpers and the agent's list/get (numbers vs strings must never
+  decide whether a task shows).
+⚠ Trap hit while doing it: the empty-state markup sat inside a
+SINGLE-QUOTED string nested in a template literal, so `${emptyMsg}` rendered
+literally on prod-equivalent output. Caught only because the browser check
+read the card text; the fix was to make that inner string a template
+literal. Verified on the built output with a synthetic parent + subtask:
+subtask row shows with the marker, dialog shows it ticked and indented,
+Today tab shows "1 task is in this cluster but hidden by the Today tab".
+All five guards green; three bundles `node -c`; 12 NUL bytes; dist == src.
+
 **-200 (LIVE 2026-09-19 ~80s after push; URL-mode guards ai-agent /
 ai-knowledge / account-switch all pass against prod; every new symbol and
 Help article 62 confirmed in the live bundles. In-app check on prod still
