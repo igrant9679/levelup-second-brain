@@ -4,8 +4,10 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-201 (2026-09-19, COMMITTED — NOT PUSHED) — tasks ticked in the cluster
-dialog "don't show in the cluster view".** User report, right after -200.
+**-201 (LIVE 2026-09-22, ~220s after push; URL-mode guards ai-agent /
+ai-knowledge / account-switch pass against prod; the live bundle carries the
+fix. In-app check on prod still pending a demo sign-in) — tasks ticked in
+the cluster dialog "don't show in the cluster view".** User report, right after -200.
 Root cause: the cluster dialog (`openClusterModal`) lists EVERY non-Done
 task including nested subtasks (`parentTaskId` set), but `renderTaskClusters`
 built its universe from `_topLevelTasks()`, which drops subtask rows — so a
