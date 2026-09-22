@@ -1393,6 +1393,70 @@ export const externalSourcesRouter = router({
       return { ok: true as const, id, url, verified, summary, sent: body, dropped, groupDefaulted, taskGroup, attempts };
     }),
 
+  /**
+   * Diagnostic (build -204): learn how THIS workspace wants a task created.
+   * The -203 create 400'd at every rung, even {project,name}, and the three
+   * task_groups URLs returned nothing for Test Project. So: read the raw
+   * project object (do task groups / lists live inside it?), retry the
+   * task_groups URLs reporting status+body, look at an existing task's
+   * task_group/milestone, then try create variants — deleting anything that
+   * succeeds. Same verify-then-report discipline as niftyProbeCompletionWrites.
+   */
+  niftyProbeCreate: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(64), knownTaskGroup: z.string().max(64).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const cred = await _niftyCredFresh(db, ctx.user.id);
+      if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
+      const H = { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json', 'Content-Type': 'application/json' };
+      const pid = encodeURIComponent(input.projectId);
+      const base = 'https://openapi.niftypm.com/api/v1.0';
+      const hit = async (method: string, url: string, body?: unknown) => {
+        try {
+          const r = await fetch(url, { method, headers: H, body: body === undefined ? undefined : JSON.stringify(body) });
+          const text = await r.text();
+          let json: any = null; try { json = JSON.parse(text); } catch { /* text */ }
+          return { method, url: url.replace(base, ''), status: r.status, body: text.slice(0, 400), json };
+        } catch (e: any) { return { method, url: url.replace(base, ''), status: 0, body: String(e?.message || e), json: null }; }
+      };
+      const out: any = { reads: [], creates: [], cleanup: [] };
+      // 1. The project object itself — do lists / task groups live inside it?
+      const proj = await hit('GET', `${base}/projects/${pid}`);
+      out.project = { status: proj.status, keys: proj.json && typeof proj.json === 'object' ? Object.keys(proj.json).slice(0, 60) : null,
+        arraysOfNamed: proj.json && typeof proj.json === 'object' ? Object.entries(proj.json).filter(([, v]) => Array.isArray(v) && v.length && typeof v[0] === 'object').map(([k, v]: any) => ({ key: k, first: Object.fromEntries(Object.entries(v[0]).slice(0, 10).map(([kk, vv]) => [kk, typeof vv === 'string' ? vv.slice(0, 40) : vv])) })) : null };
+      // 2. Task-group endpoints, with their real answers this time.
+      for (const u of [`${base}/task_groups?project_id=${pid}`, `${base}/task_groups?project=${pid}`, `${base}/projects/${pid}/task_groups`, `${base}/projects/${pid}/lists`, `${base}/lists?project_id=${pid}`, `${base}/milestones?project_id=${pid}`]) {
+        const r = await hit('GET', u); out.reads.push({ url: r.url, status: r.status, body: r.body.slice(0, 200) });
+      }
+      // 3. What an existing task in this project carries.
+      const tasks = await hit('GET', `${base}/tasks?project_id=${pid}&limit=1&offset=0`);
+      const firstTask = Array.isArray(tasks.json) ? tasks.json[0] : (tasks.json?.tasks?.[0] ?? tasks.json?.items?.[0] ?? null);
+      out.existingTask = firstTask ? { id: firstTask.id, task_group: firstTask.task_group ?? null, milestone: firstTask.milestone ?? null, project: firstTask.project ?? null, keys: Object.keys(firstTask).slice(0, 40) } : { status: tasks.status, body: tasks.body.slice(0, 200) };
+      const groupId = input.knownTaskGroup || (firstTask && typeof firstTask.task_group === 'string' ? firstTask.task_group : null);
+      // 4. Create variants. Anything that succeeds is deleted straight away.
+      const variants: Array<{ label: string; method: string; url: string; body: any }> = [
+        { label: 'POST /tasks {name, project}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project: input.projectId } },
+        { label: 'POST /tasks {name, project_id}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project_id: input.projectId } },
+        { label: 'POST /projects/{id}/tasks {name}', method: 'POST', url: `${base}/projects/${pid}/tasks`, body: { name: 'LevelUp probe (auto-deleted)' } },
+      ];
+      if (groupId) {
+        variants.push({ label: 'POST /tasks {name, project, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project: input.projectId, task_group: groupId } });
+        variants.push({ label: 'POST /tasks {name, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', task_group: groupId } });
+      }
+      for (const v of variants) {
+        const r = await hit(v.method, v.url, v.body);
+        const created = r.status >= 200 && r.status < 300 ? r.json : null;
+        const id = created ? String(created.id ?? created.task?.id ?? created.data?.id ?? '') : '';
+        out.creates.push({ label: v.label, status: r.status, body: r.body.slice(0, 200), createdId: id || null });
+        if (id) {
+          const del = await hit('DELETE', `${base}/tasks/${encodeURIComponent(id)}`);
+          out.cleanup.push({ id, deleteStatus: del.status, body: del.body.slice(0, 120) });
+          break; // learned enough; do not litter
+        }
+      }
+      return out;
+    }),
+
   niftyStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
     .query(async ({ input, ctx }) => {
