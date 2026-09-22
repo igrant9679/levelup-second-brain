@@ -1005,7 +1005,9 @@ async function _niftyPushSubmit(){
     const actions=[];
     if(first.url)actions.push({label:'Open in Nifty',onClick:()=>window.open(first.url,'_blank','noopener')});
     if(removed.length)actions.push({label:'Undo (restore local copy)',onClick:()=>{removed.sort((a,b)=>a.i-b.i).forEach(({t,i})=>D.tasks.splice(Math.min(i,D.tasks.length),0,t));save('tasks');try{renderCurrentTaskView();}catch(_){}toast('Local copy restored — the Nifty task still exists');}});
-    toast({type:'success',title:`↗ ${okRes.length} task${okRes.length===1?'':'s'} created in Nifty${project?' · '+project.name:''}`,msg:(okRes.every(x=>x.r.verified)?'Verified by reading back. ':'Created (not yet readable back — check Nifty). ')+(after==='move'?'Local cop'+(okRes.length===1?'y':'ies')+' removed; syncing the Nifty copy now…':'Local copy kept and linked.'),actions,duration:9000});
+    const droppedAll=[...new Set(okRes.flatMap(x=>x.r.dropped||[]))];
+    const droppedNote=droppedAll.length?` ⚠ Nifty refused ${droppedAll.map(d=>d==='assignees'?'the assignee':d==='task_group'?'the list':d.replace('_',' ')).join(', ')} — set ${droppedAll.length===1?'it':'them'} in Nifty.`:'';
+    toast({type:droppedAll.length?'warn':'success',title:`↗ ${okRes.length} task${okRes.length===1?'':'s'} created in Nifty${project?' · '+project.name:''}`,msg:(okRes.every(x=>x.r.verified)?'Verified by reading back. ':'Created (not yet readable back — check Nifty). ')+(after==='move'?'Local cop'+(okRes.length===1?'y':'ies')+' removed; syncing the Nifty copy now…':'Local copy kept and linked.')+droppedNote,actions,duration:droppedAll.length?14000:9000});
     try{await refreshExternalTasksNow();}catch(_){}
   }
   if(bad.length){

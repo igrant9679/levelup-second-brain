@@ -36,7 +36,22 @@ import {
   smartsheetWatchedSheets,
 } from "../../drizzle/schema";
 import { fetchSmartsheetMe } from "../_core/smartsheetAdapter";
-import { fetchNiftyMe } from "../_core/niftyAdapter";
+import { fetchNiftyMe, ensureFreshNiftyToken } from "../_core/niftyAdapter";
+
+// Every Nifty call that runs outside the puller used the STORED access token
+// as-is. Nifty tokens expire, the cron refreshes them only when it runs, so
+// "Mark Done in Nifty", the status push, the project list (and therefore the
+// -202 push modal) all failed with a bare 401 whenever the token had aged out
+// — seen live 2026-09-22 fifteen minutes after the same call had worked.
+// One helper: load the credential and refresh it the way the puller does; a
+// failed refresh falls back to the stored token (no worse than before).
+async function _niftyCredFresh(db: any, userId: number): Promise<any | null> {
+  const [cred] = await db.select().from(externalSourceCredentials)
+    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, 'nifty')))
+    .limit(1);
+  if (!cred?.apiToken) return cred ?? null;
+  try { return await ensureFreshNiftyToken(cred); } catch (e) { console.warn('[nifty] token refresh failed, using stored token:', (e as any)?.message); return cred; }
+}
 import { processExternalTaskPull, pullOneSource } from "../_core/externalTasksCron";
 
 const SS_API = "https://api.smartsheet.com/2.0";
@@ -93,9 +108,7 @@ async function pushNiftyStatusInternal(
   externalId: string,
   statusName: string,
 ): Promise<void> {
-  const [cred] = await db.select().from(externalSourceCredentials)
-    .where(and(eq(externalSourceCredentials.userId, userId), eq(externalSourceCredentials.source, 'nifty')))
-    .limit(1);
+  const cred = await _niftyCredFresh(db, userId);
   if (!cred?.apiToken) throw new Error('No Nifty token configured');
   const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${externalId}`, {
     headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
@@ -236,9 +249,7 @@ export const externalSourcesRouter = router({
     .input(z.object({ origin: z.string().url() }))
     .query(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.clientId) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Save Client ID + Secret first' });
       }
@@ -406,9 +417,7 @@ export const externalSourcesRouter = router({
 
   listNiftyProjects: protectedProcedure.query(async ({ ctx }) => {
     const db = await requireDb();
-    const [cred] = await db.select().from(externalSourceCredentials)
-      .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-      .limit(1);
+    const cred = await _niftyCredFresh(db, ctx.user.id);
     if (!cred) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty credentials configured' });
     if (!cred.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Nifty connected but not authorized — click Connect to complete OAuth consent' });
     const resp = await fetch(`${NIFTY_API}/projects`, { headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' } });
@@ -799,9 +808,7 @@ export const externalSourcesRouter = router({
     .input(z.object({ titleContains: z.string().min(2) }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
       const watches = await db.select().from(niftyWatchedProjects)
         .where(and(eq(niftyWatchedProjects.userId, ctx.user.id), eq(niftyWatchedProjects.enabled, 1)));
@@ -949,9 +956,7 @@ export const externalSourcesRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
       // Fetch the task to learn its project_id (needed to query project statuses).
       const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
@@ -1009,9 +1014,7 @@ export const externalSourcesRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token configured' });
       // Empirically discovered via niftyProbeCompletionWrites (build -41):
       // the real Nifty completion endpoint is POST /tasks/{id}/complete
@@ -1070,9 +1073,7 @@ export const externalSourcesRouter = router({
     .input(z.object({ externalId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
       const resp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
         headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
@@ -1090,9 +1091,7 @@ export const externalSourcesRouter = router({
     .input(z.object({ externalId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
       const taskResp = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks/${input.externalId}`, {
         headers: { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json' },
@@ -1132,9 +1131,7 @@ export const externalSourcesRouter = router({
     .input(z.object({ externalId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'No Nifty token' });
       const base = `https://openapi.niftypm.com/api/v1.0`;
       const taskUrl = `${base}/tasks/${input.externalId}`;
@@ -1211,16 +1208,42 @@ export const externalSourcesRouter = router({
         try { const r = await fetch(url, { headers: H }); if (!r.ok) return null; return await r.json(); } catch { return null; }
       };
       const pid = encodeURIComponent(input.projectId);
-      // Statuses (the write path already relies on this endpoint).
-      const stRaw = await get(`https://openapi.niftypm.com/api/v1.0/projects/${pid}/statuses`);
-      const statuses: Array<{ id: string; name: string }> = (Array.isArray(stRaw) ? stRaw : (stRaw?.statuses ?? []))
-        .map((s: any) => ({ id: String(s.id), name: String(s.name ?? '') })).filter((s: any) => s.id && s.name);
+      // "Status / list" = Nifty TASK GROUPS (every task carries `task_group`,
+      // the list column it sits in). /projects/{id}/statuses answered [] on
+      // the owner's workspace, so task groups are what the picker offers and
+      // what the create sends. Probe the candidate URLs like niftyFetchTaskGroups.
+      const tgUrls = [
+        `https://openapi.niftypm.com/api/v1.0/task_groups?project_id=${pid}`,
+        `https://openapi.niftypm.com/api/v1.0/task_groups?project=${pid}`,
+        `https://openapi.niftypm.com/api/v1.0/projects/${pid}/task_groups`,
+      ];
+      let statuses: Array<{ id: string; name: string }> = [];
+      let groupsVia: string | null = null;
+      for (const u of tgUrls) {
+        const raw = await get(u);
+        const arr = Array.isArray(raw) ? raw : (raw?.task_groups ?? raw?.items ?? raw?.data ?? null);
+        if (Array.isArray(arr) && arr.length) {
+          statuses = arr.map((g: any) => ({ id: String(g.id ?? ''), name: String(g.name ?? g.title ?? ''), order: Number(g.order ?? 0) }))
+            .filter((g: any) => g.id && g.name).sort((a: any, b: any) => a.order - b.order).map((g: any) => ({ id: g.id, name: g.name }));
+          groupsVia = u.replace('https://openapi.niftypm.com/api/v1.0', '');
+          break;
+        }
+      }
+      if (!statuses.length) {
+        const stRaw = await get(`https://openapi.niftypm.com/api/v1.0/projects/${pid}/statuses`);
+        statuses = (Array.isArray(stRaw) ? stRaw : (stRaw?.statuses ?? []))
+          .map((s: any) => ({ id: String(s.id), name: String(s.name ?? '') })).filter((s: any) => s.id && s.name);
+      }
       // Members: Nifty's public API shape for this is not documented in the
       // adapter, so probe the plausible endpoints and take the first that
       // answers with a list; record which one so the next session can pin it.
+      // Pinned 2026-09-22 from the first live call: `/members?project_id=` is
+      // the one that answers (it returns the whole workspace — Nifty ignores
+      // the filter — 93 people on the owner's account). The others stay as
+      // fallbacks in case a workspace differs.
       const memberUrls = [
-        `https://openapi.niftypm.com/api/v1.0/projects/${pid}/members`,
         `https://openapi.niftypm.com/api/v1.0/members?project_id=${pid}`,
+        `https://openapi.niftypm.com/api/v1.0/projects/${pid}/members`,
         `https://openapi.niftypm.com/api/v1.0/members`,
         `https://openapi.niftypm.com/api/v1.0/users`,
       ];
@@ -1243,10 +1266,17 @@ export const externalSourcesRouter = router({
       // Fallback that needs no endpoint: every member id ever seen on a pulled
       // task in this project, plus "me" with a real name from /users/me.
       const seen = new Map<string, string>();
+      let myNiftyId: string | null = null;
       try {
         const me = await fetchNiftyMe(cred.apiToken!);
-        if (me?.id) seen.set(String(me.id), me.name ? `${me.name} (me)` : 'Me');
+        if (me?.id) { myNiftyId = String(me.id); seen.set(myNiftyId, me.name ? `${me.name} (me)` : 'Me'); }
       } catch { /* ignore */ }
+      // The workspace list already contains "me" — mark that entry rather than
+      // adding a duplicate, so the picker can pre-select it.
+      if (myNiftyId) {
+        const mine = members.find(m => m.id === myNiftyId);
+        if (mine && !/\(me\)$/.test(mine.name)) mine.name = `${mine.name} (me)`;
+      }
       try {
         const rows = await db.select({ raw: externalTasks.raw }).from(externalTasks)
           .where(and(eq(externalTasks.userId, ctx.user.id), eq(externalTasks.source, 'nifty')));
@@ -1266,7 +1296,7 @@ export const externalSourcesRouter = router({
       seen.forEach((name, id) => { if (!known.has(id)) members.push({ id, name }); });
       // Put "me" first.
       members.sort((a, b) => (/\(me\)$/.test(a.name) ? -1 : /\(me\)$/.test(b.name) ? 1 : a.name.localeCompare(b.name)));
-      return { statuses, members, membersVia };
+      return { statuses, members, membersVia, groupsVia, myNiftyId };
     }),
 
   niftyCreateTask: protectedProcedure
@@ -1288,27 +1318,67 @@ export const externalSourcesRouter = router({
       const { ensureFreshNiftyToken } = await import('../_core/niftyAdapter');
       const cred = await ensureFreshNiftyToken(cred0 as any);
       const H = { Authorization: `Bearer ${cred.apiToken}`, Accept: 'application/json', 'Content-Type': 'application/json' };
-      const body: Record<string, unknown> = {
-        name: input.name.trim(),
-        project_id: input.projectId,
-        project: input.projectId,
-      };
-      if (input.description && input.description.trim()) body.description = input.description.trim();
-      if (input.dueDate) body.due_date = input.dueDate;
-      if (input.startDate) body.start_date = input.startDate;
-      if (input.assignedTo && input.assignedTo.length) body.assigned_to = input.assignedTo;
-      if (input.statusId) body.status = input.statusId;
-      const resp = await fetch('https://openapi.niftypm.com/api/v1.0/tasks', { method: 'POST', headers: H, body: JSON.stringify(body) });
-      const text = await resp.text();
-      if (!resp.ok) {
-        // Surface Nifty's own message — the first real run may reveal a field
-        // name it rejects, and the fix is one line here, not a guessing game.
-        return { ok: false as const, status: resp.status, error: text.slice(0, 400), sent: body };
+      // Field names come from a REAL task read back from Nifty (2026-09-22):
+      //   project, name, description, due_date / start_date as ISO datetimes,
+      //   assignees[], task_group (the list column — every task has one).
+      // The first attempt with project_id + assigned_to + date-only strings
+      // was a bare 400 "Bad Request Exception".
+      const isoDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00.000Z` : d; // noon UTC keeps the calendar day in US zones
+      let taskGroup = input.statusId || null;
+      let groupDefaulted = false;
+      if (!taskGroup) {
+        // Nifty tasks live in a list; when the user left "Project default",
+        // use the project's first task group rather than sending nothing.
+        const pid = encodeURIComponent(input.projectId);
+        for (const u of [`https://openapi.niftypm.com/api/v1.0/task_groups?project_id=${pid}`, `https://openapi.niftypm.com/api/v1.0/task_groups?project=${pid}`, `https://openapi.niftypm.com/api/v1.0/projects/${pid}/task_groups`]) {
+          try {
+            const r = await fetch(u, { headers: { Authorization: H.Authorization, Accept: 'application/json' } });
+            if (!r.ok) continue;
+            const raw = await r.json() as any;
+            const arr = Array.isArray(raw) ? raw : (raw?.task_groups ?? raw?.items ?? raw?.data ?? null);
+            if (Array.isArray(arr) && arr.length) {
+              const sorted = arr.slice().sort((a: any, b: any) => Number(a.order ?? 0) - Number(b.order ?? 0));
+              taskGroup = String(sorted[0].id ?? '') || null; groupDefaulted = !!taskGroup; break;
+            }
+          } catch { /* next */ }
+        }
       }
-      let created: any = null;
-      try { created = JSON.parse(text); } catch { created = null; }
+      const full: Record<string, unknown> = { project: input.projectId, name: input.name.trim() };
+      if (input.description && input.description.trim()) full.description = input.description.trim();
+      if (input.dueDate) full.due_date = isoDay(input.dueDate);
+      if (input.startDate) full.start_date = isoDay(input.startDate);
+      if (input.assignedTo && input.assignedTo.length) full.assignees = input.assignedTo;
+      if (taskGroup) full.task_group = taskGroup;
+      // Fallback ladder: if Nifty rejects the full body, retry with optional
+      // fields removed one group at a time and report what had to be dropped,
+      // so the user gets the task AND learns which field Nifty refused.
+      const ladder: Array<{ drop: string[]; label: string }> = [
+        { drop: [], label: 'full' },
+        { drop: ['assignees'], label: 'without assignees' },
+        { drop: ['assignees', 'due_date', 'start_date'], label: 'without assignees and dates' },
+        { drop: ['assignees', 'due_date', 'start_date', 'task_group'], label: 'name + project only' },
+      ];
+      const attempts: Array<{ label: string; status: number; body: string }> = [];
+      let created: any = null; let body: Record<string, unknown> = full; let dropped: string[] = [];
+      for (const step of ladder) {
+        const b: Record<string, unknown> = { ...full };
+        step.drop.forEach(k => { delete b[k]; });
+        if (step.drop.length && step.drop.every(k => !(k in full))) continue; // nothing to drop at this rung
+        const resp = await fetch('https://openapi.niftypm.com/api/v1.0/tasks', { method: 'POST', headers: H, body: JSON.stringify(b) });
+        const text = await resp.text();
+        attempts.push({ label: step.label, status: resp.status, body: text.slice(0, 300) });
+        if (resp.ok) {
+          try { created = JSON.parse(text); } catch { created = null; }
+          body = b; dropped = step.drop.filter(k => k in full);
+          break;
+        }
+      }
+      if (!created) {
+        const last = attempts[attempts.length - 1];
+        return { ok: false as const, status: last?.status ?? 0, error: last?.body || 'Nifty rejected every variant', sent: full, attempts };
+      }
       const id = String(created?.id ?? created?.task?.id ?? created?.data?.id ?? '');
-      if (!id) return { ok: false as const, status: resp.status, error: 'Nifty answered OK but returned no task id: ' + text.slice(0, 300), sent: body };
+      if (!id) return { ok: false as const, status: 200, error: 'Nifty answered OK but returned no task id: ' + JSON.stringify(created).slice(0, 300), sent: body, attempts };
       // Verify by read — a 200 alone proves nothing with this API.
       let verified = false; let url: string | null = created?.url ?? null; let readBack: any = null;
       try {
@@ -1320,16 +1390,14 @@ export const externalSourcesRouter = router({
         assigned_to: readBack.assigned_to ?? null, status: readBack.status?.name ?? readBack.status_name ?? null,
         project_id: readBack.project_id ?? readBack.project ?? null,
       } : null;
-      return { ok: true as const, id, url, verified, summary, sent: body };
+      return { ok: true as const, id, url, verified, summary, sent: body, dropped, groupDefaulted, taskGroup, attempts };
     }),
 
   niftyStatusOptions: protectedProcedure
     .input(z.object({ watchId: z.number().int() }))
     .query(async ({ input, ctx }) => {
       const db = await requireDb();
-      const [cred] = await db.select().from(externalSourceCredentials)
-        .where(and(eq(externalSourceCredentials.userId, ctx.user.id), eq(externalSourceCredentials.source, 'nifty')))
-        .limit(1);
+      const cred = await _niftyCredFresh(db, ctx.user.id);
       if (!cred?.apiToken) return { options: [] };
       const [watch] = await db.select().from(niftyWatchedProjects)
         .where(and(eq(niftyWatchedProjects.id, input.watchId), eq(niftyWatchedProjects.userId, ctx.user.id))).limit(1);

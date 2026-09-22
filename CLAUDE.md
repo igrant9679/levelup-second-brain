@@ -4,7 +4,49 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-202 (2026-09-22, COMMITTED — NOT PUSHED) — push a LevelUp task TO Nifty
+**-203 (2026-09-22, COMMITTED — NOT PUSHED) — what the FIRST REAL Nifty
+push taught us (-202 is live but its create was rejected).** Run from the
+owner's session in the Claude Browser pane against Nifty's "Test Project":
+1. **`listNiftyProjects` → 401.** The stored Nifty access token had expired
+   (the same call worked 15 min earlier). Every Nifty procedure outside the
+   puller used `cred.apiToken` as-is — `niftySetTaskStatus`,
+   `niftySetTaskCompleted` ("✓ Mark Done in Nifty"), `niftyStatusOptions`,
+   `listNiftyProjects`, the push-queue helper, the diagnostics — so all of
+   them failed intermittently, healed only when the cron next refreshed.
+   **Fix: `_niftyCredFresh(db,userId)`** (top of externalSources.ts) loads
+   the credential and runs `ensureFreshNiftyToken` (now exported from the
+   adapter), falling back to the stored token if the refresh itself fails.
+   All 8 call sites go through it. Proof it was the cause: calling the
+   refreshing `niftyProjectMeta` re-armed the token and `listNiftyProjects`
+   succeeded immediately after.
+2. **`niftyProjectMeta` works**: members via **`/members?project_id=<id>`**
+   (pinned first; Nifty ignores the filter and returns the whole workspace —
+   93 people on the owner's account). `/projects/{id}/statuses` returned
+   `[]` on both projects tried, so **"Status / list" now offers TASK GROUPS**
+   (probed `/task_groups?project_id=` → `?project=` → `/projects/{id}/
+   task_groups`, `groupsVia` in the response). The "(me)" marker is applied
+   to the workspace entry matching `/users/me` (it was only added when
+   absent, so nothing was pre-selected).
+3. **`POST /tasks` → 400 "Bad Request Exception"** (no field detail). A REAL
+   task read back from Nifty (`D.externalTasks[].raw`) shows the true shape:
+   **`project`** (not `project_id`), **`assignees[]`** (not `assigned_to` —
+   NB the puller's `filterByAssignee` test reads `t.assigned_to`, which does
+   not exist on real rows; latent, not touched), **ISO datetimes** for
+   `due_date` / `start_date` (date-only strings were sent), and **every task
+   has a `task_group`**. `niftyCreateTask` now sends
+   `{project, name, description?, due_date: 'YYYY-MM-DDT12:00:00.000Z',
+   start_date, assignees, task_group}` — defaulting `task_group` to the
+   project's first group when the user left "Project default" — and, if
+   Nifty still refuses, walks a **fallback ladder** (drop assignees → drop
+   dates → drop task_group) and returns `dropped` + `attempts`; the client
+   toast says "⚠ Nifty refused the assignee — set it in Nifty" instead of
+   silently losing it.
+**Not yet re-run live** — deploy -203, then from the owner session push one
+throwaway task into "Test Project" (`KzFee28STmxD`), Keep-linked, and read
+`attempts`/`dropped`/`verified`. Five guards green; three bundles `node -c`;
+12 NUL bytes; esbuild clean; tsc had no new errors at -202 (re-check).
+
+**-202 (LIVE 2026-09-22, ~240s after push) — push a LevelUp task TO Nifty
 (project, assignee, dates, status), single or bulk.** User: "Give me the
 ability to push tasks to Nifty - selecting the project, and assignee, date,
 etc." The integration previously only PULLED from Nifty and pushed status.
