@@ -1433,18 +1433,46 @@ export const externalSourcesRouter = router({
       const firstTask = Array.isArray(tasks.json) ? tasks.json[0] : (tasks.json?.tasks?.[0] ?? tasks.json?.items?.[0] ?? null);
       out.existingTask = firstTask ? { id: firstTask.id, task_group: firstTask.task_group ?? null, milestone: firstTask.milestone ?? null, project: firstTask.project ?? null, keys: Object.keys(firstTask).slice(0, 40) } : { status: tasks.status, body: tasks.body.slice(0, 200) };
       const groupId = input.knownTaskGroup || (firstTask && typeof firstTask.task_group === 'string' ? firstTask.task_group : null);
-      // 4. Create variants. Anything that succeeds is deleted straight away.
-      const variants: Array<{ label: string; method: string; url: string; body: any }> = [
-        { label: 'POST /tasks {name, project}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project: input.projectId } },
-        { label: 'POST /tasks {name, project_id}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project_id: input.projectId } },
-        { label: 'POST /projects/{id}/tasks {name}', method: 'POST', url: `${base}/projects/${pid}/tasks`, body: { name: 'LevelUp probe (auto-deleted)' } },
+      const milestoneId = firstTask && typeof firstTask.milestone === 'string' ? firstTask.milestone : null;
+      // 3b. Can this token WRITE at all? A no-op PUT on the existing task
+      // (same name back) tells us whether 400s are about the body or the token.
+      if (firstTask?.id) {
+        const put = await hit('PUT', `${base}/tasks/${encodeURIComponent(String(firstTask.id))}`, { name: firstTask.name });
+        out.writeSanity = { status: put.status, body: put.body.slice(0, 160) };
+      }
+      // 4. Create variants. Round 2 (2026-09-22): snake_case keys with the
+      // real task_group still 400'd, so try the key-name matrix a NestJS DTO
+      // might expect (camelCase, *_id, milestone, wrapped, form-encoded).
+      // Anything that succeeds is deleted straight away.
+      const NAME = 'LevelUp probe (auto-deleted)';
+      const variants: Array<{ label: string; method: string; url: string; body: any; form?: boolean }> = [
+        { label: '{name, project}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId } },
+        { label: '{name, project_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project_id: input.projectId } },
+        { label: '{name, projectId}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, projectId: input.projectId } },
       ];
       if (groupId) {
-        variants.push({ label: 'POST /tasks {name, project, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', project: input.projectId, task_group: groupId } });
-        variants.push({ label: 'POST /tasks {name, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: 'LevelUp probe (auto-deleted)', task_group: groupId } });
+        variants.push(
+          { label: '{name, project, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId } },
+          { label: '{name, task_group}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, task_group: groupId } },
+          { label: '{name, task_group_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, task_group_id: groupId } },
+          { label: '{name, taskGroup}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, taskGroup: groupId } },
+          { label: '{name, projectId, taskGroup}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, projectId: input.projectId, taskGroup: groupId } },
+          { label: '{name, project_id, task_group_id}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project_id: input.projectId, task_group_id: groupId } },
+          { label: '{name, project, task_group, milestone}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId, milestone: milestoneId } },
+          { label: '{name, project, task_group, description, assignees:[]}', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId, description: '', assignees: [] } },
+          { label: 'wrapped {task:{name, project, task_group}}', method: 'POST', url: `${base}/tasks`, body: { task: { name: NAME, project: input.projectId, task_group: groupId } } },
+          { label: 'form-encoded name+project+task_group', method: 'POST', url: `${base}/tasks`, body: { name: NAME, project: input.projectId, task_group: groupId }, form: true },
+        );
       }
+      const hitForm = async (url: string, body: Record<string, string>) => {
+        try {
+          const r = await fetch(url, { method: 'POST', headers: { Authorization: H.Authorization, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body).toString() });
+          const text = await r.text(); let json: any = null; try { json = JSON.parse(text); } catch { /* text */ }
+          return { method: 'POST', url: url.replace(base, ''), status: r.status, body: text.slice(0, 400), json };
+        } catch (e: any) { return { method: 'POST', url: url.replace(base, ''), status: 0, body: String(e?.message || e), json: null }; }
+      };
       for (const v of variants) {
-        const r = await hit(v.method, v.url, v.body);
+        const r = v.form ? await hitForm(v.url, v.body) : await hit(v.method, v.url, v.body);
         const created = r.status >= 200 && r.status < 300 ? r.json : null;
         const id = created ? String(created.id ?? created.task?.id ?? created.data?.id ?? '') : '';
         out.creates.push({ label: v.label, status: r.status, body: r.body.slice(0, 200), createdId: id || null });
