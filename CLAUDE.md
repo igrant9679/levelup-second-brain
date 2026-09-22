@@ -4,7 +4,27 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-207 (2026-10-08) — the cluster dialog no longer files orphaned subtasks
+**-208 (2026-10-13, PUSHED; built 2026-09-22 as "-207", renumbered on rebase over the live cluster -207) — follow-ups from the FIRST
+SUCCESSFUL live create.** -206 went live and the real push from the owner
+session into "Test Project" **worked: `POST /tasks` → 201**, id
+`J7ReUoMQrO` / `PCT-13`, read back `verified:true`, `dropped:[]`, due date
+stored as sent, landed in task group `rh1mzWgs4Wzdu`. ⚠ That task is still
+in Nifty's Test Project for the owner to delete. Two loose ends:
+- `niftyProjectMeta` still returned **no task groups** (`groupsVia:null`)
+  — the create only found its group through the existing-task fallback.
+  So `GET /taskgroups?project_id=` is answering something other than a
+  usable list. -208 tries `?project_id=` bare first, then with
+  `limit/offset`, then `?projectId=`, parses `taskGroups` too, and returns
+  **`groupsDebug`** (status + body head per URL) so the next live call pins
+  the real shape. Read it, fix the parse, remove the debug.
+- The read-back summary reported `assigned_to:null` because real rows use
+  **`assignees`** (fixed; `task_group` and `nice_id` added). Whether the
+  assignee actually stuck is therefore still unconfirmed — check
+  `summary.assignees` on the next run.
+- Nifty task objects carry no `url`, so the toast's "Open in Nifty" action
+  is absent; a deep-link pattern for niftypm.com is not known.
+
+**-207 (LIVE 2026-10-08) — the cluster dialog no longer files orphaned subtasks
 under the last task.** User report: in Edit Cluster, the boat subtasks (Back
 Hatch Strap, Cockpit seat Strap, VHF handset…) appeared under "Setup online
 payment/signup/support for Products". Cause (`openClusterModal`): the list
@@ -20,7 +40,7 @@ Verified by running the real `openClusterModal` in a Node VM against the
 user's shape (fails on -206, passes on -207); five guards green; three
 bundles `node -c`; 12 NUL bytes; dist == src.
 
-**-206 (2026-09-22, COMMITTED — NOT PUSHED) — the Nifty create, finally
+**-206 (LIVE 2026-09-22, create VERIFIED) — the Nifty create, finally
 from the DOCS instead of guesses.** -203 (token refresh + `project`/
 `task_group` body) and the -204/-205 probes were all live; every create
 variant still 400'd, including `{name, project, task_group}` with a real

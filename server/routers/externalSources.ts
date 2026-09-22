@@ -1217,14 +1217,20 @@ export const externalSourcesRouter = router({
       // project_id,color,is_completion_group,...}],hasMore}. The three
       // `task_groups` spellings tried in -203/-204 were all 404.
       const tgUrls = [
-        `https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}&limit=100&offset=0`,
         `https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}`,
+        `https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}&limit=100&offset=0`,
+        `https://openapi.niftypm.com/api/v1.0/taskgroups?projectId=${pid}`,
       ];
       let statuses: Array<{ id: string; name: string }> = [];
       let groupsVia: string | null = null;
+      // Debug aid (-207): the -206 live run listed NO groups although the
+      // create's fallback found one on an existing task — record what the
+      // documented URL actually answers so the parse can be pinned.
+      const groupsDebug: Array<{ url: string; status: number; body: string }> = [];
       for (const u of tgUrls) {
-        const raw = await get(u);
-        const arr = Array.isArray(raw) ? raw : (raw?.items ?? raw?.taskgroups ?? raw?.task_groups ?? raw?.data ?? null);
+        let raw: any = null;
+        try { const r = await fetch(u, { headers: H }); const text = await r.text(); groupsDebug.push({ url: u.replace('https://openapi.niftypm.com/api/v1.0', ''), status: r.status, body: text.slice(0, 240) }); if (r.ok) { try { raw = JSON.parse(text); } catch { raw = null; } } } catch (e: any) { groupsDebug.push({ url: u, status: 0, body: String(e?.message || e) }); }
+        const arr = Array.isArray(raw) ? raw : (raw?.items ?? raw?.taskgroups ?? raw?.taskGroups ?? raw?.task_groups ?? raw?.data ?? null);
         if (Array.isArray(arr) && arr.length) {
           // Completion groups ("Done") last, so the default is a real to-do list.
           statuses = arr.map((g: any) => ({ id: String(g.id ?? ''), name: String(g.name ?? g.title ?? ''), order: Number(g.order ?? 0), done: !!g.is_completion_group }))
@@ -1301,7 +1307,7 @@ export const externalSourcesRouter = router({
       seen.forEach((name, id) => { if (!known.has(id)) members.push({ id, name }); });
       // Put "me" first.
       members.sort((a, b) => (/\(me\)$/.test(a.name) ? -1 : /\(me\)$/.test(b.name) ? 1 : a.name.localeCompare(b.name)));
-      return { statuses, members, membersVia, groupsVia, myNiftyId };
+      return { statuses, members, membersVia, groupsVia, myNiftyId, groupsDebug };
     }),
 
   niftyCreateTask: protectedProcedure
@@ -1404,8 +1410,9 @@ export const externalSourcesRouter = router({
         if (r.ok) { readBack = await r.json(); verified = String(readBack?.id ?? '') === id; url = readBack?.url ?? url; }
       } catch { /* leave unverified */ }
       const summary = readBack ? {
-        name: readBack.name, due_date: readBack.due_date ?? null, start_date: readBack.start_date ?? null,
-        assigned_to: readBack.assigned_to ?? null, status: readBack.status?.name ?? readBack.status_name ?? null,
+        name: readBack.name, nice_id: readBack.nice_id ?? null, due_date: readBack.due_date ?? null, start_date: readBack.start_date ?? null,
+        // Real rows carry `assignees` (the adapter's `assigned_to` never appears on them).
+        assignees: readBack.assignees ?? readBack.assigned_to ?? null, task_group: readBack.task_group ?? null,
         project_id: readBack.project_id ?? readBack.project ?? null,
       } : null;
       return { ok: true as const, id, url, verified, summary, sent: body, dropped, groupDefaulted, taskGroup, attempts };
