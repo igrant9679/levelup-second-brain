@@ -1212,20 +1212,25 @@ export const externalSourcesRouter = router({
       // the list column it sits in). /projects/{id}/statuses answered [] on
       // the owner's workspace, so task groups are what the picker offers and
       // what the create sends. Probe the candidate URLs like niftyFetchTaskGroups.
+      // Documented (developers.niftypm.com, Task Groups → List): GET
+      // /api/v1.0/taskgroups?project_id=<id> → {items:[{id,name,order,
+      // project_id,color,is_completion_group,...}],hasMore}. The three
+      // `task_groups` spellings tried in -203/-204 were all 404.
       const tgUrls = [
-        `https://openapi.niftypm.com/api/v1.0/task_groups?project_id=${pid}`,
-        `https://openapi.niftypm.com/api/v1.0/task_groups?project=${pid}`,
-        `https://openapi.niftypm.com/api/v1.0/projects/${pid}/task_groups`,
+        `https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}&limit=100&offset=0`,
+        `https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}`,
       ];
       let statuses: Array<{ id: string; name: string }> = [];
       let groupsVia: string | null = null;
       for (const u of tgUrls) {
         const raw = await get(u);
-        const arr = Array.isArray(raw) ? raw : (raw?.task_groups ?? raw?.items ?? raw?.data ?? null);
+        const arr = Array.isArray(raw) ? raw : (raw?.items ?? raw?.taskgroups ?? raw?.task_groups ?? raw?.data ?? null);
         if (Array.isArray(arr) && arr.length) {
-          statuses = arr.map((g: any) => ({ id: String(g.id ?? ''), name: String(g.name ?? g.title ?? ''), order: Number(g.order ?? 0) }))
-            .filter((g: any) => g.id && g.name).sort((a: any, b: any) => a.order - b.order).map((g: any) => ({ id: g.id, name: g.name }));
-          groupsVia = u.replace('https://openapi.niftypm.com/api/v1.0', '');
+          // Completion groups ("Done") last, so the default is a real to-do list.
+          statuses = arr.map((g: any) => ({ id: String(g.id ?? ''), name: String(g.name ?? g.title ?? ''), order: Number(g.order ?? 0), done: !!g.is_completion_group }))
+            .filter((g: any) => g.id && g.name).sort((a: any, b: any) => (a.done === b.done ? a.order - b.order : a.done ? 1 : -1))
+            .map((g: any) => ({ id: g.id, name: g.done ? `${g.name} (completion)` : g.name }));
+          groupsVia = u.replace('https://openapi.niftypm.com/api/v1.0', '').replace(/&limit.*$/, '');
           break;
         }
       }
@@ -1324,39 +1329,52 @@ export const externalSourcesRouter = router({
       // The first attempt with project_id + assigned_to + date-only strings
       // was a bare 400 "Bad Request Exception".
       const isoDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T12:00:00.000Z` : d; // noon UTC keeps the calendar day in US zones
+      // DOCUMENTED shape (developers.niftypm.com → Tasks → Create Task):
+      //   POST /api/v1.0/tasks  { name*, task_group_id*, description?, due_date?,
+      //   start_date?, assignees?: string[], milestone_id?, task_id? (parent) }
+      // There is NO project field — the task group implies the project. The
+      // -203 body (`project` + `task_group`) was rejected for exactly that
+      // reason (Nest's validation 400 also fires on unknown property names).
       let taskGroup = input.statusId || null;
       let groupDefaulted = false;
+      const pid = encodeURIComponent(input.projectId);
+      const authOnly = { Authorization: H.Authorization, Accept: 'application/json' };
       if (!taskGroup) {
-        // Nifty tasks live in a list; when the user left "Project default",
-        // use the project's first task group rather than sending nothing.
-        const pid = encodeURIComponent(input.projectId);
-        for (const u of [`https://openapi.niftypm.com/api/v1.0/task_groups?project_id=${pid}`, `https://openapi.niftypm.com/api/v1.0/task_groups?project=${pid}`, `https://openapi.niftypm.com/api/v1.0/projects/${pid}/task_groups`]) {
-          try {
-            const r = await fetch(u, { headers: { Authorization: H.Authorization, Accept: 'application/json' } });
-            if (!r.ok) continue;
+        // "Project default" → the project's first non-completion task group.
+        try {
+          const r = await fetch(`https://openapi.niftypm.com/api/v1.0/taskgroups?project_id=${pid}&limit=100&offset=0`, { headers: authOnly });
+          if (r.ok) {
             const raw = await r.json() as any;
-            const arr = Array.isArray(raw) ? raw : (raw?.task_groups ?? raw?.items ?? raw?.data ?? null);
-            if (Array.isArray(arr) && arr.length) {
-              const sorted = arr.slice().sort((a: any, b: any) => Number(a.order ?? 0) - Number(b.order ?? 0));
-              taskGroup = String(sorted[0].id ?? '') || null; groupDefaulted = !!taskGroup; break;
-            }
-          } catch { /* next */ }
-        }
+            const arr = Array.isArray(raw) ? raw : (raw?.items ?? []);
+            const sorted = arr.filter((g: any) => g && g.id).sort((a: any, b: any) => (!!a.is_completion_group === !!b.is_completion_group ? Number(a.order ?? 0) - Number(b.order ?? 0) : a.is_completion_group ? 1 : -1));
+            if (sorted.length) { taskGroup = String(sorted[0].id); groupDefaulted = true; }
+          }
+        } catch { /* fall through */ }
       }
-      const full: Record<string, unknown> = { project: input.projectId, name: input.name.trim() };
+      if (!taskGroup) {
+        // Last resort: whatever group an existing task in this project sits in.
+        try {
+          const r = await fetch(`https://openapi.niftypm.com/api/v1.0/tasks?project_id=${pid}&limit=1&offset=0`, { headers: authOnly });
+          if (r.ok) { const raw = await r.json() as any; const t = Array.isArray(raw) ? raw[0] : (raw?.items?.[0] ?? raw?.tasks?.[0]); if (t && typeof t.task_group === 'string') { taskGroup = t.task_group; groupDefaulted = true; } }
+        } catch { /* fall through */ }
+      }
+      if (!taskGroup) {
+        return { ok: false as const, status: 0, error: 'This Nifty project has no task list (task group) yet — create a list in Nifty first, then push again.', sent: { name: input.name }, attempts: [] };
+      }
+      const full: Record<string, unknown> = { name: input.name.trim(), task_group_id: taskGroup };
       if (input.description && input.description.trim()) full.description = input.description.trim();
       if (input.dueDate) full.due_date = isoDay(input.dueDate);
       if (input.startDate) full.start_date = isoDay(input.startDate);
       if (input.assignedTo && input.assignedTo.length) full.assignees = input.assignedTo;
-      if (taskGroup) full.task_group = taskGroup;
       // Fallback ladder: if Nifty rejects the full body, retry with optional
       // fields removed one group at a time and report what had to be dropped,
       // so the user gets the task AND learns which field Nifty refused.
+      // task_group_id is required by the API and is never dropped.
       const ladder: Array<{ drop: string[]; label: string }> = [
         { drop: [], label: 'full' },
         { drop: ['assignees'], label: 'without assignees' },
         { drop: ['assignees', 'due_date', 'start_date'], label: 'without assignees and dates' },
-        { drop: ['assignees', 'due_date', 'start_date', 'task_group'], label: 'name + project only' },
+        { drop: ['assignees', 'due_date', 'start_date', 'description'], label: 'name + task group only' },
       ];
       const attempts: Array<{ label: string; status: number; body: string }> = [];
       let created: any = null; let body: Record<string, unknown> = full; let dropped: string[] = [];

@@ -4,7 +4,37 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-203 (2026-09-22, COMMITTED — NOT PUSHED) — what the FIRST REAL Nifty
+**-206 (2026-09-22, COMMITTED — NOT PUSHED) — the Nifty create, finally
+from the DOCS instead of guesses.** -203 (token refresh + `project`/
+`task_group` body) and the -204/-205 probes were all live; every create
+variant still 400'd, including `{name, project, task_group}` with a real
+group id, and every `task_groups` / `lists` spelling was 404. The probe DID
+establish: `POST /projects/{id}/tasks` does not exist; `/milestones
+?project_id=` exists and answers `{items:[],hasMore}`; an existing Test
+Project task carries `task_group: rh1mzWgs4Wzdu`, `milestone`, `project`.
+Then the public reference at **developers.niftypm.com** (found by search;
+openapi.niftypm.com's root is an empty shell) gave the real contracts:
+- **Create Task** `POST /api/v1.0/tasks` — `name`* and **`task_group_id`***
+  (required), `description`, `due_date`/`start_date` (ISO strings),
+  `assignees: string[]`, `milestone_id`, `task_id` (parent, for subtasks),
+  `labels`, `story_points`, `dependency:{id}`. **There is NO project field**
+  — the group implies the project — and Nest's validation 400 fires on
+  unknown property names, which is why `project` sank every earlier body.
+- **List Task Groups** `GET /api/v1.0/taskgroups?project_id=<id>`
+  (+ `archived`, `limit`, `offset`, `sort`) → `{items:[{id,name,order,
+  project_id,color,is_completion_group,...}]}`. Also `GET/PUT/DELETE
+  /taskgroups/{id}`, `POST /taskgroups/{id}/move`.
+Applied: `niftyProjectMeta` lists groups from `/taskgroups?project_id=`
+(completion groups sorted last and labelled); `niftyCreateTask` sends
+`{name, task_group_id, description?, due_date?, start_date?, assignees?}`,
+defaults `task_group_id` to the first non-completion group (then to an
+existing task's group), returns a clear error if the project has no list,
+and the ladder never drops `task_group_id`. `niftyProbeCreate` (-204/-205)
+stays as a diagnostic. **NOT yet re-run live** — deploy, then push one
+throwaway task into "Test Project" (`KzFee28STmxD`) from the owner
+session and read `verified`/`dropped`/`summary`.
+
+**-203 (LIVE 2026-09-22) — what the FIRST REAL Nifty
 push taught us (-202 is live but its create was rejected).** Run from the
 owner's session in the Claude Browser pane against Nifty's "Test Project":
 1. **`listNiftyProjects` → 401.** The stored Nifty access token had expired
