@@ -20,7 +20,7 @@ const NIFTY_TOKEN_URL = "https://openapi.niftypm.com/oauth/token";
  * Returns the (possibly updated) credential row. No-op for non-OAuth creds
  * (Smartsheet) or when no refresh_token is present.
  */
-async function ensureFreshNiftyToken(cred: ExternalSourceCredential): Promise<ExternalSourceCredential> {
+export async function ensureFreshNiftyToken(cred: ExternalSourceCredential): Promise<ExternalSourceCredential> {
   if (!cred.refreshToken || !cred.clientId || !cred.clientSecret) return cred;
   const now = Date.now();
   const exp = cred.expiresAt ? new Date(cred.expiresAt).getTime() : 0;

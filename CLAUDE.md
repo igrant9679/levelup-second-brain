@@ -4,6 +4,63 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-202 (2026-09-22, COMMITTED — NOT PUSHED) — push a LevelUp task TO Nifty
+(project, assignee, dates, status), single or bulk.** User: "Give me the
+ability to push tasks to Nifty - selecting the project, and assignee, date,
+etc." The integration previously only PULLED from Nifty and pushed status.
+
+Server (`server/routers/externalSources.ts`, next to `niftyStatusOptions`):
+- `niftyProjectMeta({projectId})` → `{statuses, members, membersVia}`.
+  Statuses come from `/projects/{id}/statuses` (the endpoint the status
+  write already relies on). **Members: Nifty's endpoint shape is not known
+  from the adapter, so it PROBES** `/projects/{id}/members`,
+  `/members?project_id=`, `/members`, `/users` and takes the first list;
+  `membersVia` says which one answered — **pin it once the first live call
+  reveals it**. Fallback needing no endpoint: every `assigned_to` id seen on
+  already-pulled tasks in that project, plus "me" (named via `/users/me`).
+- `niftyCreateTask({projectId,name,description?,dueDate?,startDate?,
+  assignedTo?[],statusId?})` → `POST /tasks` with the field names Nifty
+  RETURNS on `/tasks` (`name, description, due_date, start_date,
+  assigned_to[], project_id` + `project`, `status`), then **verify by GET**
+  (this API answers 200 to writes it ignores). Returns `{ok,id,url,verified,
+  summary,sent}`; on a non-2xx it returns `{ok:false,status,error,sent}`
+  with Nifty's own message so a rejected field name is a one-line fix.
+- `ensureFreshNiftyToken` is now exported from the adapter and used by both.
+- tsc trap hit: `for (const [k,v] of map)` is not allowed at this target —
+  use `map.forEach`.
+
+Client (app-part1.js, above `refreshExternalTasksNow`):
+- `openPushToNiftyModal(taskId|null)` (null = bulk selection): project
+  select (★ watched projects first; default = the watch mapped to the
+  task's LevelUp project, else the first watch), name/description (single),
+  assignee (the "(me)" member pre-selected), status, due/start dates, and
+  **After pushing: Move (default — local copy removed, Nifty copy syncs
+  back as an external row; Undo in the toast restores it) / Keep a linked
+  copy (`t.pushedTo={source:'nifty',externalId,url,projectId,projectName,
+  at,verified}`)**. `_niftyPushSubmit` pushes sequentially, then
+  `refreshExternalTasksNow()` so the mirror appears. Not-connected →
+  message + button that opens Settings → Integrations via `showSetTab`.
+- Entry points: **↗ Push to Nifty** in the task drawer action row (reads
+  **↗ Open in Nifty** once pushed), **↗ Nifty** in the bulk bar
+  (`bulkAction('nifty')`), a **↗ Nifty** badge on pushed rows.
+- **Found en route:** the Tasks LIST view renders `.tlc` rows via `cardRow`
+  (~9587), NOT the `.lr` renderer that carries `blockBtn` — so the -200 ⬡
+  button never appeared in List view. `cardRow`'s `.tlc-m` meta row now
+  carries a **⬡ chip** (cluster name when assigned, faint ⬡ otherwise;
+  opens the picker) and the Nifty badge.
+- Help article 63 "Push a task to Nifty" (cat 6). **14 cats / 62 articles.**
+
+Verified on the built output with `_trpc` stubbed for the four Nifty
+procedures: modal prefills (★ project default, name, description, me,
+statuses, due), Move removes the local task + toast Undo restores it,
+Keep sets `pushedTo` + drawer button flips + row badge links to the URL,
+the ⬡ chip opens the picker on every List row, and the not-connected
+branch renders. **NOT yet exercised against real Nifty** — needs the
+OWNER's session (Nifty is connected on the owner account, not the demo):
+push one throwaway task, read `membersVia` from a `niftyProjectMeta` call,
+confirm the task appears in Nifty, then delete it there. Five guards
+green; three bundles `node -c`; 12 NUL bytes; dist == src; esbuild clean.
+
 **-201 (LIVE 2026-09-22, ~220s after push; URL-mode guards ai-agent /
 ai-knowledge / account-switch pass against prod; the live bundle carries the
 fix. In-app check on prod still pending a demo sign-in) — tasks ticked in

@@ -881,6 +881,141 @@ async function loadExternalTasks(){
     return 0;
   }
 }
+// ── Push a native task TO Nifty (build -202) ───────────────────────────────
+// The integration pulled from Nifty and pushed STATUS back; this creates a
+// Nifty task from a LevelUp task with project, assignee, dates and status.
+// After a verified create the local task is REMOVED by default (the task now
+// lives in Nifty and syncs back as an external row like every other Nifty
+// task) — with an Undo toast — or kept as a linked copy (t.pushedTo).
+//   openPushToNiftyModal(taskId)   → one task
+//   openPushToNiftyModal(null)     → every bulk-selected task
+let _niftyPush={ids:[],projects:[],watches:[],meta:{}};
+function _niftyPlainText(html){
+  const s=String(html||'');
+  if(!/<[a-z][\s\S]*>/i.test(s))return s.trim();
+  const d=document.createElement('div');d.innerHTML=s;return (d.innerText||d.textContent||'').trim();
+}
+async function openPushToNiftyModal(taskId){
+  const ids=taskId!=null?[taskId]:Array.from(_bulkSelected||[]);
+  const tasks=ids.map(id=>D.tasks.find(t=>String(t.id)===String(id))).filter(Boolean);
+  if(!tasks.length){toast('Select at least one task first');return;}
+  _niftyPush.ids=tasks.map(t=>t.id);
+  const mc=document.getElementById('modal-content');if(!mc)return;
+  mc.innerHTML=`<div style="padding:16px;max-width:520px"><h3 style="font-size:15px;font-weight:700;margin-bottom:8px">↗ Push to Nifty</h3><div style="font-size:12px;color:var(--t3)">Loading your Nifty projects…</div></div>`;
+  document.getElementById('modal-capture').classList.add('show');document.body.style.overflow='hidden';
+  let projects=[],watches=[];
+  try{
+    const [p,w]=await Promise.all([_trpc('externalSources.listNiftyProjects',undefined,'query'),_trpc('externalSources.listNiftyWatches',undefined,'query').catch(()=>[])]);
+    projects=Array.isArray(p)?p:[];watches=Array.isArray(w)?w:[];
+  }catch(e){
+    mc.innerHTML=`<div style="padding:16px;max-width:520px"><h3 style="font-size:15px;font-weight:700;margin-bottom:8px">↗ Push to Nifty</h3>
+      <div style="font-size:12px;color:var(--t2);line-height:1.5">Nifty isn't connected for your account yet.<br><span style="color:var(--t3)">${esc(String(e&&e.message||e).slice(0,160))}</span></div>
+      <div class="dr-actions" style="margin-top:12px"><button class="btn btn-p" onclick="closeModal();nav('settings');setTimeout(()=>{try{const el=[...document.querySelectorAll('#s-settings .si')].find(e=>/sp-5/.test(e.getAttribute('onclick')||''));if(el)showSetTab(el,'sp-5');}catch(_){}},350)">Open Settings → Integrations</button><button class="btn btn-s" onclick="closeModal()">Close</button></div></div>`;
+    return;
+  }
+  if(!projects.length){mc.querySelector('div>div').textContent='No Nifty projects found for this account.';return;}
+  _niftyPush.projects=projects;_niftyPush.watches=watches;
+  const watchedIds=new Set(watches.map(w=>String(w.projectId)));
+  // Default project: the watch whose LevelUp default project matches this task's project, else the first watched one.
+  const single=tasks.length===1?tasks[0]:null;
+  let defaultPid=null;
+  if(single&&single.projectId){const w=watches.find(w=>String(w.defaultProjectId)===String(single.projectId));if(w)defaultPid=String(w.projectId);}
+  if(!defaultPid){const w=watches[0];defaultPid=w?String(w.projectId):String(projects[0].id);}
+  const sorted=projects.slice().sort((a,b)=>(watchedIds.has(String(b.id))?1:0)-(watchedIds.has(String(a.id))?1:0)||String(a.name).localeCompare(String(b.name)));
+  const projOpts=sorted.map(p=>`<option value="${esc(String(p.id))}" ${String(p.id)===defaultPid?'selected':''}>${watchedIds.has(String(p.id))?'★ ':''}${esc(p.name)}</option>`).join('');
+  const title=single?single.title:`${tasks.length} selected tasks`;
+  mc.innerHTML=`<div style="padding:16px;max-width:560px">
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:4px">↗ Push to Nifty</h3>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:12px">${single?'Creates this task in NiftyPM.':'Creates one Nifty task per selected task with the same project, assignee and status.'} ★ = a project you already sync.</div>
+    <div class="field"><label>Nifty project</label><select class="inp" id="np-project" onchange="_niftyPushLoadMeta(this.value)">${projOpts}</select></div>
+    ${single?`<div class="field"><label>Name</label><input class="inp" id="np-name" value="${esc(single.title||'')}"></div>
+    <div class="field"><label>Description</label><textarea class="inp" id="np-desc" rows="3" style="resize:vertical">${esc(_niftyPlainText(single.notes||''))}</textarea></div>`
+    :`<div class="field"><label>Tasks</label><div style="font-size:12px;color:var(--t2);max-height:120px;overflow:auto;border:1px solid var(--bd1);border-radius:6px;padding:6px 8px">${tasks.map(t=>`• ${esc(t.title)}`).join('<br>')}</div></div>`}
+    <div class="field-row">
+      <div class="field" style="flex:1"><label>Assignee</label><select class="inp" id="np-assignee"><option value="">Loading…</option></select></div>
+      <div class="field" style="flex:1"><label>Status / list</label><select class="inp" id="np-status"><option value="">Loading…</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field" style="flex:1"><label>Due date${single?'':' <span style="font-weight:400;color:var(--t3)">(blank = each task\'s own)</span>'}</label><input class="inp" type="date" id="np-due" value="${esc(single?(single.due||''):'')}"></div>
+      <div class="field" style="flex:1"><label>Start date</label><input class="inp" type="date" id="np-start" value="${esc(single?(single.startDate||''):'')}"></div>
+    </div>
+    <div class="field"><label>After pushing</label>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;cursor:pointer;margin:4px 0"><input type="radio" name="np-after" value="move" checked style="margin-top:2px"><span><b>Move</b> — remove the local copy; the task syncs back from Nifty like your other Nifty tasks <span style="color:var(--t3)">(undoable from the toast)</span></span></label>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;cursor:pointer;margin:4px 0"><input type="radio" name="np-after" value="keep" style="margin-top:2px"><span><b>Keep a linked copy</b> — the local task stays and shows a Nifty badge</span></label>
+    </div>
+    <div id="np-status-line" style="font-size:11px;color:var(--t3);min-height:14px"></div>
+    <div class="dr-actions" style="margin-top:10px">
+      <button class="btn btn-p" id="np-go" onclick="_niftyPushSubmit()">↗ Push ${single?'to Nifty':tasks.length+' tasks'}</button>
+      <button class="btn btn-s" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>`;
+  _niftyPushLoadMeta(defaultPid);
+}
+async function _niftyPushLoadMeta(projectId){
+  const aSel=document.getElementById('np-assignee'),sSel=document.getElementById('np-status'),line=document.getElementById('np-status-line');
+  if(!aSel||!sSel)return;
+  aSel.innerHTML='<option value="">Loading…</option>';sSel.innerHTML='<option value="">Loading…</option>';
+  let meta=_niftyPush.meta[projectId];
+  if(!meta){
+    try{meta=await _trpc('externalSources.niftyProjectMeta',{projectId:String(projectId)},'query');_niftyPush.meta[projectId]=meta;}
+    catch(e){meta={statuses:[],members:[],error:String(e&&e.message||e)};}
+  }
+  if(document.getElementById('np-project')&&document.getElementById('np-project').value!==String(projectId))return; // user changed project meanwhile
+  const members=meta.members||[],statuses=meta.statuses||[];
+  const me=members.find(m=>/\(me\)$/.test(m.name));
+  aSel.innerHTML='<option value="">Unassigned</option>'+members.map(m=>`<option value="${esc(String(m.id))}" ${me&&m.id===me.id?'selected':''}>${esc(m.name)}</option>`).join('');
+  sSel.innerHTML='<option value="">Project default</option>'+statuses.map(s=>`<option value="${esc(String(s.id))}">${esc(s.name)}</option>`).join('');
+  if(line)line.textContent=meta.error?('Could not load project details: '+meta.error.slice(0,120)):(members.length?`${members.length} assignable member${members.length===1?'':'s'}${meta.membersVia?'':' (from tasks already synced)'} · ${statuses.length} status${statuses.length===1?'':'es'}`:'No members returned for this project — the task will be unassigned unless you pick one');
+}
+async function _niftyPushSubmit(){
+  const g=id=>document.getElementById(id);
+  const projectId=g('np-project')&&g('np-project').value;
+  if(!projectId){toast('Pick a Nifty project');return;}
+  const tasks=_niftyPush.ids.map(id=>D.tasks.find(t=>String(t.id)===String(id))).filter(Boolean);
+  if(!tasks.length){closeModal();return;}
+  const single=tasks.length===1?tasks[0]:null;
+  const assignee=g('np-assignee')&&g('np-assignee').value||'';
+  const statusId=g('np-status')&&g('np-status').value||'';
+  const due=g('np-due')&&g('np-due').value||'';
+  const start=g('np-start')&&g('np-start').value||'';
+  const after=(document.querySelector('input[name="np-after"]:checked')||{}).value||'move';
+  const btn=g('np-go');if(btn){btn.disabled=true;btn.textContent='Pushing…';}
+  const line=g('np-status-line');
+  const project=(_niftyPush.projects||[]).find(p=>String(p.id)===String(projectId));
+  const results=[];
+  for(let i=0;i<tasks.length;i++){
+    const t=tasks[i];
+    if(line)line.textContent=`Pushing ${i+1} of ${tasks.length}: ${t.title.slice(0,50)}…`;
+    const payload={projectId:String(projectId),name:single?(g('np-name').value.trim()||t.title):t.title,description:single?(g('np-desc').value||''):_niftyPlainText(t.notes||''),
+      dueDate:due||t.due||undefined,startDate:start||t.startDate||undefined,assignedTo:assignee?[assignee]:undefined,statusId:statusId||undefined};
+    Object.keys(payload).forEach(k=>{if(payload[k]===undefined||payload[k]==='')delete payload[k];});
+    try{const r=await _trpc('externalSources.niftyCreateTask',payload,'mutation');results.push({t,r});}
+    catch(e){results.push({t,r:{ok:false,error:String(e&&e.message||e)}});}
+  }
+  const okRes=results.filter(x=>x.r&&x.r.ok),bad=results.filter(x=>!(x.r&&x.r.ok));
+  const removed=[];
+  okRes.forEach(({t,r})=>{
+    if(after==='move'){const i=D.tasks.indexOf(t);if(i>=0){removed.push({t,i});D.tasks.splice(i,1);}}
+    else{t.pushedTo={source:'nifty',externalId:r.id,url:r.url||null,projectId:String(projectId),projectName:project?project.name:'',at:new Date().toISOString(),verified:!!r.verified};}
+  });
+  if(okRes.length)save('tasks');
+  closeModal();
+  if(okRes.length){
+    const first=okRes[0].r;
+    const actions=[];
+    if(first.url)actions.push({label:'Open in Nifty',onClick:()=>window.open(first.url,'_blank','noopener')});
+    if(removed.length)actions.push({label:'Undo (restore local copy)',onClick:()=>{removed.sort((a,b)=>a.i-b.i).forEach(({t,i})=>D.tasks.splice(Math.min(i,D.tasks.length),0,t));save('tasks');try{renderCurrentTaskView();}catch(_){}toast('Local copy restored — the Nifty task still exists');}});
+    toast({type:'success',title:`↗ ${okRes.length} task${okRes.length===1?'':'s'} created in Nifty${project?' · '+project.name:''}`,msg:(okRes.every(x=>x.r.verified)?'Verified by reading back. ':'Created (not yet readable back — check Nifty). ')+(after==='move'?'Local cop'+(okRes.length===1?'y':'ies')+' removed; syncing the Nifty copy now…':'Local copy kept and linked.'),actions,duration:9000});
+    try{await refreshExternalTasksNow();}catch(_){}
+  }
+  if(bad.length){
+    const b=bad[0].r||{};
+    toast({type:'error',title:`${bad.length} task${bad.length===1?'':'s'} not pushed`,msg:String(b.error||'Nifty rejected the request').slice(0,220)+(b.status?` (HTTP ${b.status})`:''),duration:12000});
+    console.warn('[nifty push] failures',bad.map(x=>({task:x.t.title,result:x.r})));
+  }
+  if(_bulkSelected&&tasks.length>1)_bulkSelected.clear();
+  try{renderCurrentTaskView();}catch(_){}
+}
 async function refreshExternalTasksNow(){
   _topbarSyncSpin(true);
   try{
@@ -4101,6 +4236,7 @@ function renderDrawer(type,item){
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
+    <button class="btn btn-s" title="${item.pushedTo&&item.pushedTo.source==='nifty'?'Already pushed to Nifty · click to open it':'Create this task in NiftyPM (project, assignee, dates, status)'}" onclick="${item.pushedTo&&item.pushedTo.url?`window.open('${esc(item.pushedTo.url)}','_blank','noopener')`:`openPushToNiftyModal(${item.id})`}">↗ ${item.pushedTo&&item.pushedTo.source==='nifty'?'Open in Nifty':'Push to Nifty'}</button>
     <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
@@ -5178,6 +5314,10 @@ function bulkAction(action){
     // The picker applies to every bulk-selected task and re-renders itself.
     openTaskClusterPicker(null,window.event);
     return;
+  } else if(action==='nifty'){
+    // One modal, one project/assignee/status for every selected task.
+    openPushToNiftyModal(null);
+    return;
   } else if(action==='someday'){
     ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t)t.status='Someday';});
     save('tasks');toast(`💤 ${ids.length} task(s) moved to Someday`);
@@ -5352,7 +5492,7 @@ function taskRow(t,showActs=true){
   const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
   const timeLabel=t.timeSpent?`<span style="font-size:11px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:11px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
-  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)">⬡</button>`;
+  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)">⬡</button>${t.pushedTo&&t.pushedTo.source==='nifty'?`<a class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;color:#a78bfa;text-decoration:none" title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}`;
   const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
   // K: subtask progress chip
   const _subs=Array.isArray(t.subtasks)?t.subtasks:[];
@@ -9547,6 +9687,8 @@ function renderTaskList(){
           ${endDate?`<span class="${isOverdue?'tlc-odt':''}">📅 ${fmtDate(endDate)}</span>`:''}
           ${projName?`<span>${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};margin-right:4px;vertical-align:middle"></i>`:''}${esc(projName)}</span>`:''}
           ${initials?`<span title="${esc(assigned)}">👤 ${esc(assigned.split(' ')[0])}</span>`:''}
+          ${(()=>{const cl=t.clusterId!=null?(D.clusters||[]).find(c=>String(c.id)===String(t.clusterId)):null;return _bulkMode?'':`<span class="lu-pill-clickable" title="${cl?'Cluster: '+esc(cl.name)+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)" style="${cl?'':'opacity:.55'}">⬡${cl?' '+esc((cl.icon?cl.icon+' ':'')+cl.name):''}</span>`;})()}
+          ${t.pushedTo&&t.pushedTo.source==='nifty'?`<a title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" style="color:#a78bfa;text-decoration:none" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}
         </div>
       </div>
       <span class="tlc-go">›</span>
@@ -11838,6 +11980,7 @@ function renderTasks(){
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('someday')">💤 Someday</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="bulkAction('project')">${_icon('folder',12,'currentColor')} Move</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" title="Move the selected tasks into a cluster" onclick="bulkAction('cluster')">⬡ Cluster</button>
+    <button class="btn btn-s" style="height:24px;font-size:11px" title="Create the selected tasks in NiftyPM" onclick="bulkAction('nifty')">↗ Nifty</button>
     <button class="btn btn-d" style="height:24px;font-size:11px" onclick="bulkAction('delete')">${_icon('trash',12,'currentColor')} Delete</button>
     <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toggleBulkMode()">✕ Cancel</button>
   </div>
@@ -24925,6 +25068,36 @@ Tasks that belong to a project already in a cluster show up there automatically 
 ## Adding tasks straight into a Matrix quadrant
 
 The **Matrix** view (Eisenhower: Impact × Effort) now has an **＋ Add a task…** box at the bottom of every quadrant. Type a title and press Enter — the task is created with that quadrant's typical **priority** and **estimated minutes** (Do First: High · 30m · Plan: High · 120m · Quick Wins: Low · 30m · Eliminate: Low · 120m), so it lands where you put it. The cursor stays in the same quadrant so you can add several in a row. Open the card afterwards to fine-tune dates, project or cluster.
+`},
+  {id:63,slug:'push-to-nifty',catId:6,title:'Push a task to Nifty',summary:'Create a Nifty task from a LevelUp task — choose the Nifty project, assignee, dates and status — one at a time or in bulk. The task then syncs back like every other Nifty task.',tags:['nifty','integrations','push','sync','tasks','external'],body:`## Push a task to Nifty
+
+Until now the Nifty integration only **pulled** tasks in and pushed **status** changes back. You can now create a Nifty task **from** a LevelUp task, with the project, assignee, dates and status of your choosing.
+
+## One task
+
+1. Open the task (click it → the drawer).
+2. Click **↗ Push to Nifty** in the action row.
+3. Pick the **Nifty project** — projects you already sync are marked ★ and listed first, and the default is the project mapped to this task's LevelUp project when there is one.
+4. Choose the **assignee** (you are pre-selected when Nifty knows you), an optional **status / list**, and adjust the **due** and **start** dates (prefilled from the task).
+5. Choose what happens afterwards:
+   - **Move** (default) — the local copy is removed and the task syncs back from Nifty as an external task, exactly like the ones you already see. The toast has **Undo** if you want the local copy back.
+   - **Keep a linked copy** — the local task stays, gets a **↗ Nifty** badge, and the drawer button becomes *Open in Nifty*.
+6. **↗ Push to Nifty**. LevelUp creates the task, **reads it back from Nifty to verify**, then runs a sync so the Nifty copy appears within seconds.
+
+## Several tasks at once
+
+Turn on bulk select on the Tasks page, tick the tasks, and use **↗ Nifty** in the bulk bar. One project, assignee and status apply to all of them; leave the due date blank to keep each task's own.
+
+## What gets sent
+
+Name, description (plain text), due date, start date, assignee and status. Priority, tags and subtasks stay in LevelUp — Nifty has no matching fields.
+
+## If it fails
+
+The toast shows Nifty's own message and the HTTP status. The two common causes:
+
+- **Nifty isn't connected** for your account — the dialog says so and links to **Settings → Integrations**.
+- **The assignee list is short or empty** — Nifty's member endpoint varies by workspace, so LevelUp also offers every member it has seen on tasks already synced from that project (plus you). Pick one of those, or leave the task unassigned and assign it in Nifty.
 `},
 ];
 var HC_TOURS=[
