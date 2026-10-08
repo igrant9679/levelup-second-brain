@@ -4,6 +4,22 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-207 (2026-10-08) — the cluster dialog no longer files orphaned subtasks
+under the last task.** User report: in Edit Cluster, the boat subtasks (Back
+Hatch Strap, Cockpit seat Strap, VHF handset…) appeared under "Setup online
+payment/signup/support for Products". Cause (`openClusterModal`): the list
+holds non-Done tasks only; a subtask whose parent is Done (here "Boat
+Cleaning") or deleted was appended at the very end with the same indent and a
+bare "↳", so it read as a child of whichever top-level task was last.
+Fix (app-part1.js): every subtask row names its parent ("↳ Back Hatch Strap
+· Boat Cleaning", class `cl-task-parent`), and subtasks of a parent not in
+the list sit under a greyed, untickable heading per parent at the end
+("Boat Cleaning (done)" / "A deleted task", class `cl-orphan-head`).
+Checkbox class and values unchanged, so `saveCluster` is untouched.
+Verified by running the real `openClusterModal` in a Node VM against the
+user's shape (fails on -206, passes on -207); five guards green; three
+bundles `node -c`; 12 NUL bytes; dist == src.
+
 **-206 (2026-09-22, COMMITTED — NOT PUSHED) — the Nifty create, finally
 from the DOCS instead of guesses.** -203 (token refresh + `project`/
 `task_group` body) and the -204/-205 probes were all live; every create

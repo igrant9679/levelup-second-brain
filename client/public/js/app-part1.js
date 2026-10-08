@@ -10929,19 +10929,31 @@ function openClusterModal(id,opts){
   const selProjs=cl?new Set(cl.projectIds||[]):new Set();
   const projOptions=allProjects.map(p=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;cursor:pointer"><input type="checkbox" value="${p.id}" ${selProjs.has(p.id)?'checked':''} class="cl-proj-cb"> ${esc(p.name)}</label>`).join('');
   // #4 — also let users attach individual tasks directly via t.clusterId
-  // Parents first, each followed by its nested subtasks (indented, "↳ parent"),
-  // so a ticked subtask is recognisable as one — the view shows it with the
-  // same hint.
+  // Parents first, each followed by its nested subtasks (indented, "↳"), and
+  // every subtask names its parent: "↳ Back Hatch Strap · Boat Cleaning".
+  // A subtask whose parent is not in this list (the parent is Done, or was
+  // deleted) goes under a greyed, untickable heading for that parent at the
+  // end. Before -207 such subtasks were appended with the same indent and no
+  // parent name, so they read as subtasks of whichever task happened to be
+  // last (user report: the boat subtasks under "Setup online payment…").
   const openTasks=(D.tasks||[]).filter(t=>t.status!=='Done');
+  const taskById={};(D.tasks||[]).forEach(t=>{taskById[String(t.id)]=t;});
+  const openIds=new Set(openTasks.map(t=>String(t.id)));
   const byParent={};openTasks.filter(_isSubtaskRow).forEach(s=>{const k=String(s.parentTaskId);(byParent[k]=byParent[k]||[]).push(s);});
   const allTasks=[];openTasks.filter(t=>!_isSubtaskRow(t)).forEach(p=>{allTasks.push(p);(byParent[String(p.id)]||[]).forEach(s=>allTasks.push(s));});
-  openTasks.filter(s=>_isSubtaskRow(s)&&!openTasks.some(p=>String(p.id)===String(s.parentTaskId))).forEach(s=>allTasks.push(s)); // orphaned subtasks still listed
-  const taskOptions=allTasks.map(t=>{
+  const orphanParents=Object.keys(byParent).filter(k=>!openIds.has(k)); // parent Done or gone
+  const parentNameOf=t=>{const p=taskById[String(t.parentTaskId)];return p?p.title:'a deleted task';};
+  const taskRow=t=>{
     const checked=(cl&&String(t.clusterId)===String(cl.id))||preselect.has(t.id);
     const projOwned=t.projectId&&selProjs.has(t.projectId);
     const sub=_isSubtaskRow(t);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0 3px ${sub?'18px':'0'};font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${projOwned?'Already in this cluster via its project':(sub?'A subtask — shows in the cluster with a ↳ marker':'')}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${sub?'<span style="color:var(--t3)">↳</span> ':''}${esc(t.title)}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
-  }).join('');
+    const parentName=sub?parentNameOf(t):'';
+    const tip=projOwned?'Already in this cluster via its project':(sub?`A subtask of “${esc(parentName)}” — shows in the cluster with a ↳ marker`:'');
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0 3px ${sub?'18px':'0'};font-size:11px;cursor:pointer;${projOwned?'opacity:.55':''}" title="${tip}"><input type="checkbox" value="${t.id}" ${checked?'checked':''} class="cl-task-cb" ${projOwned?'disabled':''}> ${sub?'<span style="color:var(--t3)">↳</span> ':''}${esc(t.title)}${sub?` <span class="cl-task-parent" style="color:var(--t3)">· ${esc(parentName)}</span>`:''}${projOwned?' <span style="font-size:11px;color:var(--t3)">(via project)</span>':''}</label>`;
+  };
+  // The heading for subtasks whose parent is not listed: a label, not a checkbox.
+  const orphanHead=k=>{const p=taskById[k];return `<div class="cl-orphan-head" style="padding:7px 0 2px;font-size:11px;color:var(--t3);font-style:italic;user-select:none" title="This task is not in the list above, so its open subtasks are shown here">${p?`${esc(p.title)} (done)`:'A deleted task'}</div>`;};
+  const taskOptions=allTasks.map(taskRow).join('')+orphanParents.map(k=>orphanHead(k)+byParent[k].map(taskRow).join('')).join('');
   const html=`<div style="padding:16px;max-width:540px">
     <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">${cl?'Edit':'New'} Cluster</h3>
     <div class="field-row">
