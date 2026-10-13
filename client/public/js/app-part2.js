@@ -4994,6 +4994,7 @@ let _faMeetingActions=[]; // meeting action items
 let _faCustomDays=[]; // habit custom days
 let _faSessionScope={personal:true,business:false}; // persists across Save & Add Another
 let _faSessionTags=[]; // persists across Save & Add Another
+let _faEditId=null; // journal id when the Full Add modal is editing an existing entry
 
 // Open Full Add modal
 function faSetDueChip(daysOffset){
@@ -5018,10 +5019,13 @@ function faAutoSuggestDueDate(){
   d.setDate(d.getDate()+offset);
   due.placeholder=d.toISOString().split('T')[0]+' (suggested)';
 }
-function openFA(type){
+function openFA(type,editId){
+  // Edit mode (journal only): the same full form, prefilled from the saved entry.
+  const _ej=(type==='journal'&&editId!=null)?D.journal.find(x=>x.id===editId):null;
+  _faEditId=_ej?_ej.id:null;
   _faType=type;
   _faHasChanges=false;
-  _faTags=[..._faSessionTags];
+  _faTags=_ej?[...(_ej.tags||[])]:[..._faSessionTags];
   _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[],bookmarks:[]};
   _faSubtasks=[];
   _faMilestones=[];
@@ -5033,8 +5037,9 @@ function openFA(type){
   const body=document.getElementById('fa-modal-body');
   const title=document.getElementById('fa-modal-title');
   const icons={task:'📋 New Task',note:'📝 New Note',project:'📁 New Project',goal:'🎯 New Goal',journal:'✏️ New Journal Entry',habit:'🔄 New Habit'};
-  title.textContent=icons[type]||'New Item';
-  body.innerHTML=renderFAForm(type);
+  title.textContent=_ej?'✏️ Edit Journal Entry':(icons[type]||'New Item');
+  body.innerHTML=_ej?renderFAJournal(_ej):renderFAForm(type);
+  _faSetEditChrome(!!_ej);
   ov.classList.add('show');
   const ti=document.getElementById('fa-title');if(ti)setTimeout(()=>ti.focus(),80);
   _faHasChanges=false;
@@ -5048,6 +5053,14 @@ function closeFA(force){
   if(typeof _voiceStop==='function')_voiceStop(); // stop voice dictation if active
   document.getElementById('fa-modal-ov').classList.remove('show');
   _faType=null;
+  _faEditId=null;
+  _faSetEditChrome(false);
+}
+// "Save & Add Another" makes no sense while editing; hide it and its shortcut hint.
+function _faSetEditChrome(editing){
+  const ov=document.getElementById('fa-modal-ov');
+  if(!ov)return;
+  ov.querySelectorAll('.fa-ft button[onclick="doFASave(true)"], .fa-hd span[title="Save and add another"]').forEach(el=>{el.style.display=editing?'none':'';});
 }
 // Keyboard shortcuts
 document.addEventListener('keydown',e=>{
@@ -5295,10 +5308,11 @@ function faCommonLinks(){
     </div>
   </div>`;
 }
-function faCommonScope(){
+function faCommonScope(scopeOverride){
+  const sc=scopeOverride||_faSessionScope;
   return`<div class="fa-scope-row">
-    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-personal" ${_faSessionScope.personal?'checked':''}> Personal</label>
-    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-business" ${_faSessionScope.business?'checked':''}> Business</label>
+    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-personal" ${sc.personal?'checked':''}> Personal</label>
+    <label class="fa-checkbox-row"><input type="checkbox" id="fa-scope-business" ${sc.business?'checked':''}> Business</label>
   </div>`;
 }
 function faCommonTags(){
@@ -5604,55 +5618,75 @@ function renderFAReflections(){
   </div>`).join('');
 }
 
-function renderFAJournal(){
+// Local YYYY-MM-DD of the date the journal list/calendar actually shows for an
+// entry (_parseJournalDate prefers createdAt, then the free-form date string).
+function _faJournalISO(j){
+  const d=typeof _parseJournalDate==='function'?_parseJournalDate(j):null;
+  if(d&&!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(j.date||''))?j.date:'';
+}
+// ej = an existing entry → the same form, prefilled for editing.
+function renderFAJournal(ej){
   const today=new Date().toISOString().split('T')[0];
-  const habitsDone=D.habits.filter(h=>h.doneToday).length;
-  const habitsTotal=D.habits.length;
+  const habitsDone=ej?ej.habitsDone:D.habits.filter(h=>h.doneToday).length;
+  const habitsTotal=ej?ej.habitsTotal:D.habits.length;
+  const v=x=>esc(x==null?'':x);
+  const dateVal=ej?_faJournalISO(ej):today;
+  const energies=['low','medium','high'];
+  const energy=ej&&ej.energy?ej.energy:'medium';
+  if(!energies.includes(energy))energies.push(energy);
+  const moods=['😊','🙂','😐','😫','😰'];
+  const mood=ej?(ej.mood||'😊'):'😊';
+  const pr=(ej&&ej.prompts)||{};
+  const grat=ej?(Array.isArray(ej.gratitude)?ej.gratitude.filter(Boolean).join('\n'):(ej.gratitude||'')):'';
+  const sleep=ej&&ej.sleep!=null&&ej.sleep!==''?ej.sleep:'';
+  const exercise=ej?(ej.exercise||''):'';
   return`
   <div class="fa-section">
     <div class="fa-section-title">✏️ Journal Entry</div>
     <div class="fa-field" style="margin-bottom:10px">
       <label>Title <span style="color:var(--red)">*</span></label>
-      <input class="fa-inp" id="fa-title" placeholder="Entry title...">
+      <input class="fa-inp" id="fa-title" placeholder="Entry title..." value="${ej?v(ej.title):''}">
       <span class="err" id="fa-title-err">Title is required</span>
     </div>
     <div class="fa-row c2">
-      <div class="fa-field"><label>Date</label><input type="date" class="fa-inp" id="fa-date" value="${today}"></div>
-      <div class="fa-field"><label>Energy Level</label><select class="fa-inp" id="fa-energy"><option>low</option><option selected>medium</option><option>high</option></select></div>
+      <div class="fa-field"><label>Date</label><input type="date" class="fa-inp" id="fa-date" value="${dateVal}" data-orig="${dateVal}"></div>
+      <div class="fa-field"><label>Energy Level</label><select class="fa-inp" id="fa-energy">${energies.map(e=>`<option${e===energy?' selected':''}>${v(e)}</option>`).join('')}</select></div>
     </div>
     <div class="fa-field" style="margin-bottom:10px">
       <label>Mood</label>
       <div class="fa-mood-row">
-        ${['😊','🙂','😐','😫','😰'].map((m,i)=>`<span class="fa-mood-btn${i===0?' sel':''}" onclick="faSelectMood(this,'${m}')">${m}</span>`).join('')}
+        ${moods.map(m=>`<span class="fa-mood-btn${m===mood?' sel':''}" onclick="faSelectMood(this,'${m}')">${m}</span>`).join('')}
       </div>
-      <input type="hidden" id="fa-mood-val" value="😊">
+      <input type="hidden" id="fa-mood-val" value="${v(mood)}">
     </div>
-    ${faCommonScope()}
+    ${faCommonScope(ej?(ej.scope||{personal:false,business:false}):null)}
     <div class="fa-field" style="margin-bottom:10px"><label>Tags</label>${faCommonTags()}</div>
+    ${ej&&ej.body?`<div class="fa-field" style="margin-bottom:10px"><label>Content</label><textarea class="fa-inp" id="fa-desc" style="min-height:90px">${v(ej.body)}</textarea></div>`:''}
   </div>
   <div class="fa-section">
     <div class="fa-section-title">💭 Reflection Prompts</div>
-    <div class="fa-prompt-row"><label>What am I focused on?</label><textarea class="fa-inp" id="fa-prompt1" placeholder="Your answer..."></textarea></div>
-    <div class="fa-prompt-row"><label>What's energizing me?</label><textarea class="fa-inp" id="fa-prompt2" placeholder="Your answer..."></textarea></div>
-    <div class="fa-prompt-row"><label>What's one thing I learned?</label><textarea class="fa-inp" id="fa-prompt3" placeholder="Your answer..."></textarea></div>
+    <div class="fa-prompt-row"><label>What am I focused on?</label><textarea class="fa-inp" id="fa-prompt1" placeholder="Your answer...">${v(pr.focused)}</textarea></div>
+    <div class="fa-prompt-row"><label>What's energizing me?</label><textarea class="fa-inp" id="fa-prompt2" placeholder="Your answer...">${v(pr.energizing)}</textarea></div>
+    <div class="fa-prompt-row"><label>What's one thing I learned?</label><textarea class="fa-inp" id="fa-prompt3" placeholder="Your answer...">${v(pr.learned)}</textarea></div>
   </div>
   <div class="fa-section">
     <div class="fa-section-title">✨ Highlights & Challenges</div>
     <div class="fa-row c2">
-      <div class="fa-field"><label>Highlights</label><textarea class="fa-inp" id="fa-highlights" placeholder="What went well today?"></textarea></div>
-      <div class="fa-field"><label>Challenges</label><textarea class="fa-inp" id="fa-challenges" placeholder="What was difficult?"></textarea></div>
+      <div class="fa-field"><label>Highlights</label><textarea class="fa-inp" id="fa-highlights" placeholder="What went well today?">${ej?v(ej.highlights):''}</textarea></div>
+      <div class="fa-field"><label>Challenges</label><textarea class="fa-inp" id="fa-challenges" placeholder="What was difficult?">${ej?v(ej.challenges):''}</textarea></div>
     </div>
     <div class="fa-field" style="margin-bottom:10px">
       <label>Gratitude</label>
-      <textarea class="fa-inp" id="fa-gratitude" placeholder="What are you grateful for? (optional)"></textarea>
+      <textarea class="fa-inp" id="fa-gratitude" placeholder="What are you grateful for? (optional)">${v(grat)}</textarea>
     </div>
   </div>
   <div class="fa-section">
     <div class="fa-section-title">📊 Daily Stats</div>
     <div class="fa-row c3">
-      <div class="fa-field"><label>Sleep Hours</label><input type="number" class="fa-inp" id="fa-sleep" min="0" max="24" step="0.5" placeholder="7.5"></div>
-      <div class="fa-field"><label>Exercise</label><select class="fa-inp" id="fa-exercise"><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select></div>
-      <div class="fa-field"><label>Habits Today (auto)</label><input class="fa-inp" value="${habitsDone} / ${habitsTotal} done" readonly style="background:rgba(255,255,255,.03);color:var(--t3)"></div>
+      <div class="fa-field"><label>Sleep Hours</label><input type="number" class="fa-inp" id="fa-sleep" min="0" max="24" step="0.5" placeholder="7.5" value="${v(sleep)}"></div>
+      <div class="fa-field"><label>Exercise</label><select class="fa-inp" id="fa-exercise"><option value="">—</option><option value="yes"${exercise==='yes'?' selected':''}>Yes</option><option value="no"${exercise==='no'?' selected':''}>No</option></select></div>
+      <div class="fa-field"><label>${ej?'Habits (when written)':'Habits Today (auto)'}</label><input class="fa-inp" value="${habitsDone!=null?habitsDone:'—'} / ${habitsTotal!=null?habitsTotal:'—'} done" readonly style="background:rgba(255,255,255,.03);color:var(--t3)"></div>
     </div>
   </div>
   <div class="fa-section" id="fa-journal-rte-section">
@@ -5660,7 +5694,7 @@ function renderFAJournal(){
       <span>📓 Free-form Diary Entry</span>
       <span style="font-size:11px;font-weight:400;color:var(--t3)">Rich text — write freely, format as you go</span>
     </div>
-    ${luRTE_render({id:'fa-jrnl-rte', placeholder:'Write freely here — this is your private diary. No prompts, no structure. Just your thoughts...', value:'', height:'200px'})}
+    ${luRTE_render({id:'fa-jrnl-rte', placeholder:'Write freely here — this is your private diary. No prompts, no structure. Just your thoughts...', value:(ej&&ej.diaryBody)||'', height:'200px'})}
     <!-- AI Assistance -->
     <div style="margin-top:8px;padding:8px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px">✨ AI Assistance</div>
@@ -5676,7 +5710,7 @@ function renderFAJournal(){
       <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
     </div>
   </div>
-  ${faCommonLinks()}`;
+  ${ej?'':faCommonLinks()}`;
 }
 
 function renderFAHabit(){
@@ -5751,8 +5785,8 @@ function doFASave(addAnother){
     const title=titleEl.value.trim();
     const desc=document.getElementById('fa-desc')?.value||'';
     const scope={personal:document.getElementById('fa-scope-personal')?.checked||false,business:document.getElementById('fa-scope-business')?.checked||false};
-    _faSessionScope=scope;
-    _faSessionTags=[..._faTags];
+    const editing=_faEditId!=null;
+    if(!editing){_faSessionScope=scope;_faSessionTags=[..._faTags];}
     let newId;
 
     if(_faType==='task'){
@@ -5881,6 +5915,39 @@ function doFASave(addAnother){
       newId=g.id;
       D.goals.push(g);
       save('goals');
+    } else if(_faType==='journal'&&editing){
+      const j=D.journal.find(x=>x.id===_faEditId);
+      if(!j)throw new Error('This journal entry no longer exists.');
+      const dEl=document.getElementById('fa-date');
+      if(dEl&&dEl.value&&dEl.value!==dEl.dataset.orig){
+        // The list/calendar date comes from createdAt first (_parseJournalDate),
+        // so move createdAt to the new day too, keeping its time of day.
+        j.date=dEl.value;
+        const [y,mo,da]=dEl.value.split('-').map(Number);
+        const c=j.createdAt?new Date(j.createdAt):null;
+        const nd=(c&&!isNaN(c))?new Date(y,mo-1,da,c.getHours(),c.getMinutes(),c.getSeconds()):new Date(y,mo-1,da,12);
+        j.createdAt=nd.toISOString();
+      }
+      j.title=title;
+      j.mood=document.getElementById('fa-mood-val')?.value||j.mood||'😊';
+      j.energy=document.getElementById('fa-energy')?.value||'medium';
+      const bodyEl=document.getElementById('fa-desc');
+      if(bodyEl)j.body=bodyEl.value;
+      const rteEl=document.getElementById('fa-jrnl-rte');
+      if(rteEl)j.diaryBody=rteEl.innerHTML;
+      j.prompts=Object.assign({},j.prompts||{},{focused:document.getElementById('fa-prompt1')?.value||'',energizing:document.getElementById('fa-prompt2')?.value||'',learned:document.getElementById('fa-prompt3')?.value||''});
+      j.highlights=document.getElementById('fa-highlights')?.value||'';
+      j.challenges=document.getElementById('fa-challenges')?.value||'';
+      const grat=document.getElementById('fa-gratitude')?.value||'';
+      // Some entries store gratitude as a list (exports read it that way) — keep the shape.
+      j.gratitude=Array.isArray(j.gratitude)?grat.split('\n').map(s=>s.trim()).filter(Boolean):grat;
+      const sl=parseFloat(document.getElementById('fa-sleep')?.value);
+      j.sleep=isNaN(sl)?null:sl;
+      j.exercise=document.getElementById('fa-exercise')?.value||'';
+      j.tags=[..._faTags];
+      j.scope=scope;
+      j.updatedAt=new Date().toISOString();
+      save('journal');
     } else if(_faType==='journal'){
       const j={
         id:nextId(D.journal),title,
@@ -5939,12 +6006,12 @@ function doFASave(addAnother){
         });
       }
     }
-    toast('✓ '+(_faType||'Item')+' saved: '+title);
+    toast('✓ '+(_faType||'Item')+(editing?' updated: ':' saved: ')+title);
     _faHasChanges=false;
     updateSidebarBadges();
     renderScreen(curScreen);
 
-    if(addAnother){
+    if(addAnother&&!editing){
       // Re-open same type with session scope/tags persisted
       openFA(_faType);
     } else {

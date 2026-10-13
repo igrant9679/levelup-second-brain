@@ -4401,6 +4401,7 @@ function renderDrawer(type,item){
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
+    <button class="btn btn-s" onclick="closeDrawer();openFA('journal',${item.id})" title="Edit every field: energy, reflection prompts, highlights, gratitude, sleep, exercise, tags and more">${_icon('edit',12,'currentColor')} Edit all fields</button>
     <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
     <button class="btn btn-s" onclick="exportSingleJournalMD(${item.id})" title="Export this entry as Markdown">⬇ MD</button>
     <button class="btn btn-s" onclick="exportSingleJournalPDF(${item.id})" title="Export this entry as PDF">🖨 PDF</button>

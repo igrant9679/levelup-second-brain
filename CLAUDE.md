@@ -4,6 +4,38 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-209 (2026-10-13, COMMITTED — NOT PUSHED) — full edit of a saved journal
+entry.** User: "Give me the ability to fully edit a Journal Entry after it is
+created (to include the fields shown)" — the New Journal Entry form. Before,
+the journal drawer edited only title / date / mood / content / diary; energy,
+scope, tags, the three reflection prompts, highlights, challenges, gratitude,
+sleep and exercise could never be changed after creation.
+Fix — the Full Add modal gained a journal EDIT MODE (app-part2.js):
+- `openFA('journal', id)` prefills `renderFAJournal(ej)` from the entry
+  (`_faEditId` holds the id; title "✏️ Edit Journal Entry"); `doFASave`
+  updates the record IN PLACE (id / createdBy / habitsDone/Total kept,
+  `updatedAt` stamped) and never touches `_faSessionScope/_faSessionTags`.
+  "Save & Add Another" + its hint are hidden (`_faSetEditChrome`), and
+  Ctrl+Shift+Enter just saves.
+- Entry point: **Edit all fields** button in the journal drawer action row
+  (app-part1.js, `closeDrawer();openFA('journal',id)`).
+- ⚠ **Date edits must move `createdAt`.** `_parseJournalDate` prefers
+  `createdAt`, so changing only `date` (which is all the drawer's date field
+  does — latent, untouched) never moves the entry in the list/calendar. Edit
+  mode sets `date` to ISO AND shifts `createdAt` to the new day keeping its
+  time of day — only when the picker value actually changed (`data-orig`), so
+  legacy free-text dates ("May 16 · Friday") survive an unchanged save.
+- Legacy shapes kept: a `body` shows as a Content field (only when non-empty);
+  array `gratitude` (exports read it that way) stays an array, one per line.
+- Linked Items is omitted in edit mode: journal links were never persisted —
+  `applyBidirectionalLinks` has no journal branch and the entry stores no
+  `_faLinked` (latent in the CREATE form too; not fixed).
+Verified on the vite-built output (static preview, login overlay hidden):
+create with every field → drawer → Edit all fields → all 17 fields prefilled,
+Add-Another hidden → edit + move date 3 days → updated in place, list shows
+the new day; legacy entry round-trips; new-journal + new-task forms unchanged.
+Five guards green; three bundles `node -c`; 12 NUL bytes; dist == src.
+
 **-208 (2026-10-13, PUSHED; built 2026-09-22 as "-207", renumbered on rebase over the live cluster -207) — follow-ups from the FIRST
 SUCCESSFUL live create.** -206 went live and the real push from the owner
 session into "Test Project" **worked: `POST /tasks` → 201**, id
