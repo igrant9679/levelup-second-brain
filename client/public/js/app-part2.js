@@ -4995,6 +4995,7 @@ let _faCustomDays=[]; // habit custom days
 let _faSessionScope={personal:true,business:false}; // persists across Save & Add Another
 let _faSessionTags=[]; // persists across Save & Add Another
 let _faEditId=null; // journal id when the Full Add modal is editing an existing entry
+let _faEditLinksOrig=null; // that entry's links when the form opened (back-link diff on save)
 
 // Open Full Add modal
 function faSetDueChip(daysOffset){
@@ -5026,7 +5027,8 @@ function openFA(type,editId){
   _faType=type;
   _faHasChanges=false;
   _faTags=_ej?[...(_ej.tags||[])]:[..._faSessionTags];
-  _faLinked={tasks:[],notes:[],projects:[],goals:[],journal:[],bookmarks:[]};
+  _faLinked=_ej?_journalLinksOf(_ej):{tasks:[],notes:[],projects:[],goals:[],journal:[],bookmarks:[]};
+  _faEditLinksOrig=_ej?JSON.parse(JSON.stringify(_faLinked)):null;
   _faSubtasks=[];
   _faMilestones=[];
   _faReflections=[];
@@ -5040,6 +5042,7 @@ function openFA(type,editId){
   title.textContent=_ej?'✏️ Edit Journal Entry':(icons[type]||'New Item');
   body.innerHTML=_ej?renderFAJournal(_ej):renderFAForm(type);
   _faSetEditChrome(!!_ej);
+  if(_ej)Object.keys(_faLinked).forEach(renderFALinked);
   ov.classList.add('show');
   const ti=document.getElementById('fa-title');if(ti)setTimeout(()=>ti.focus(),80);
   _faHasChanges=false;
@@ -5054,6 +5057,7 @@ function closeFA(force){
   document.getElementById('fa-modal-ov').classList.remove('show');
   _faType=null;
   _faEditId=null;
+  _faEditLinksOrig=null;
   _faSetEditChrome(false);
 }
 // "Save & Add Another" makes no sense while editing; hide it and its shortcut hint.
@@ -5096,7 +5100,7 @@ function faLinkerInput(field,val){
   const src=sources[field]||[];
   const q=(val||'').toLowerCase();
   // When val is empty, show the most recent unlinked items so the user can browse without typing.
-  const available=src.filter(x=>!_faLinked[field].includes(x.id));
+  const available=src.filter(x=>!_faLinked[field].includes(x.id)&&!(field==='journal'&&_faEditId!=null&&x.id===_faEditId));
   const matches=q
     ? available.filter(x=>(x.title||x.name||'').toLowerCase().includes(q)).slice(0,10)
     : available.slice(-10).reverse(); // most recent first when no query
@@ -5287,6 +5291,7 @@ function applyBidirectionalLinks(type,newId){
     });
     if(_faLinked.tasks.length)save('tasks');
   }
+  if(type==='journal')_journalSyncBacklinks(newId,{},_faLinked);
 }
 
 // ===== FORM RENDERERS =====
@@ -5625,9 +5630,56 @@ function _faJournalISO(j){
   if(d&&!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   return /^\d{4}-\d{2}-\d{2}$/.test(String(j.date||''))?j.date:'';
 }
+// Move an entry to another day (YYYY-MM-DD). The list/calendar read createdAt
+// first (_parseJournalDate), so shift it to that day, keeping its time of day.
+function _journalMoveToDate(j,iso){
+  if(!j||!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return;
+  j.date=iso;
+  const [y,mo,da]=iso.split('-').map(Number);
+  const c=j.createdAt?new Date(j.createdAt):null;
+  const nd=(c&&!isNaN(c))?new Date(y,mo-1,da,c.getHours(),c.getMinutes(),c.getSeconds()):new Date(y,mo-1,da,12);
+  j.createdAt=nd.toISOString();
+}
+// Journal links use the same field names as tasks/notes (linkedTaskIds, …).
+const _J_LINK_FIELDS={projects:'linkedProjectIds',goals:'linkedGoalIds',tasks:'linkedTaskIds',notes:'linkedNoteIds',journal:'linkedJournalIds',bookmarks:'linkedBookmarkIds'};
+// Back-links live in each task/note/entry's own linkedJournalIds.
+const _J_BACKLINK_KINDS=[['tasks','tasks'],['notes','notes'],['journal','journal']];
+// An entry's links, plus tasks/notes/entries whose linkedJournalIds point at
+// it — so a link made from either side shows on both.
+function _journalLinksOf(j){
+  const out={};
+  Object.keys(_J_LINK_FIELDS).forEach(k=>{const v=j&&j[_J_LINK_FIELDS[k]];out[k]=Array.isArray(v)?[...v]:[];});
+  if(j&&j.id!=null){
+    _J_BACKLINK_KINDS.forEach(([k,coll])=>{
+      (D[coll]||[]).forEach(x=>{
+        if(k==='journal'&&x.id===j.id)return;
+        if(Array.isArray(x.linkedJournalIds)&&x.linkedJournalIds.includes(j.id)&&!out[k].includes(x.id))out[k].push(x.id);
+      });
+    });
+  }
+  return out;
+}
+function _journalSetLinks(j,links){
+  Object.keys(_J_LINK_FIELDS).forEach(k=>{j[_J_LINK_FIELDS[k]]=[...((links&&links[k])||[])];});
+}
+// Keep the other side in step: add jid to the linkedJournalIds of newly linked
+// tasks/notes/entries, remove it from the ones unlinked (prev → next diff).
+function _journalSyncBacklinks(jid,prev,next){
+  _J_BACKLINK_KINDS.forEach(([k,coll])=>{
+    const before=(prev&&prev[k])||[], after=(next&&next[k])||[];
+    let touched=false;
+    (D[coll]||[]).forEach(x=>{
+      if(k==='journal'&&x.id===jid)return;
+      const has=Array.isArray(x.linkedJournalIds)&&x.linkedJournalIds.includes(jid);
+      if(after.includes(x.id)&&!has){x.linkedJournalIds=[...(x.linkedJournalIds||[]),jid];touched=true;}
+      else if(has&&before.includes(x.id)&&!after.includes(x.id)){x.linkedJournalIds=x.linkedJournalIds.filter(v=>v!==jid);touched=true;}
+    });
+    if(touched)save(coll);
+  });
+}
 // ej = an existing entry → the same form, prefilled for editing.
 function renderFAJournal(ej){
-  const today=new Date().toISOString().split('T')[0];
+  const today=typeof _ymd==='function'?_ymd():new Date().toISOString().split('T')[0]; // local day (UTC flips to tomorrow in the evening)
   const habitsDone=ej?ej.habitsDone:D.habits.filter(h=>h.doneToday).length;
   const habitsTotal=ej?ej.habitsTotal:D.habits.length;
   const v=x=>esc(x==null?'':x);
@@ -5710,7 +5762,7 @@ function renderFAJournal(ej){
       <div id="fa-jrnl-ai-result" style="display:none;margin-top:8px;padding:8px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:200px;overflow-y:auto"></div>
     </div>
   </div>
-  ${ej?'':faCommonLinks()}`;
+  ${faCommonLinks()}`;
 }
 
 function renderFAHabit(){
@@ -5919,15 +5971,11 @@ function doFASave(addAnother){
       const j=D.journal.find(x=>x.id===_faEditId);
       if(!j)throw new Error('This journal entry no longer exists.');
       const dEl=document.getElementById('fa-date');
-      if(dEl&&dEl.value&&dEl.value!==dEl.dataset.orig){
-        // The list/calendar date comes from createdAt first (_parseJournalDate),
-        // so move createdAt to the new day too, keeping its time of day.
-        j.date=dEl.value;
-        const [y,mo,da]=dEl.value.split('-').map(Number);
-        const c=j.createdAt?new Date(j.createdAt):null;
-        const nd=(c&&!isNaN(c))?new Date(y,mo-1,da,c.getHours(),c.getMinutes(),c.getSeconds()):new Date(y,mo-1,da,12);
-        j.createdAt=nd.toISOString();
-      }
+      // Only when the picker changed, so legacy free-text dates survive.
+      if(dEl&&dEl.value&&dEl.value!==dEl.dataset.orig)_journalMoveToDate(j,dEl.value);
+      const prevLinks=_faEditLinksOrig||_journalLinksOf(j);
+      _journalSetLinks(j,_faLinked);
+      _journalSyncBacklinks(j.id,prevLinks,_faLinked);
       j.title=title;
       j.mood=document.getElementById('fa-mood-val')?.value||j.mood||'😊';
       j.energy=document.getElementById('fa-energy')?.value||'medium';
@@ -5968,6 +6016,11 @@ function doFASave(addAnother){
         createdBy:D.creds.userName||'Idris Grant',
         createdAt:new Date().toISOString()
       };
+      // A day picked other than the default must move createdAt too, or the
+      // entry still lists under the day it was written.
+      const cdEl=document.getElementById('fa-date');
+      if(cdEl&&cdEl.value&&cdEl.value!==cdEl.dataset.orig)_journalMoveToDate(j,cdEl.value);
+      _journalSetLinks(j,_faLinked);
       newId=j.id;
       D.journal.push(j);
       save('journal');

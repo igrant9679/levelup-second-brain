@@ -4,7 +4,59 @@
 
 ## ▶ START NEXT SESSION HERE
 
-**-209 (2026-10-13, COMMITTED — NOT PUSHED) — full edit of a saved journal
+**-210 (2026-10-13, COMMITTED — NOT PUSHED) — journal Linked Items persist,
+and drawer date edits move the entry.** Two latent bugs found while building
+-209, fixed together.
+1. **Linked Items were never saved** on a journal entry (the New Journal Entry
+   form let you pick them; `doFASave` dropped `_faLinked`). Storage is now the
+   SAME six fields tasks/notes use: `linkedProjectIds / linkedGoalIds /
+   linkedTaskIds / linkedNoteIds / linkedJournalIds / linkedBookmarkIds`
+   (`_J_LINK_FIELDS`, app-part2.js next to `_faJournalISO`).
+   - **Bidirectional where the other side already reads it:** tasks, notes
+     and other entries carry `linkedJournalIds`, so `_journalSyncBacklinks(jid,
+     prev, next)` adds/removes the entry's id there (diff-based — a link made
+     only from the task side is never touched unless the user removes it here).
+     Projects/goals/bookmarks have no journal field, so those links are
+     one-way (bookmark server join `linkToEntity` has no 'journal' type).
+   - **`_journalLinksOf(j)`** = the entry's own links PLUS every task/note/
+     entry whose `linkedJournalIds` names it, so a link made from either side
+     shows on both. Used to prefill.
+   - Create: `_journalSetLinks` + `applyBidirectionalLinks` journal branch.
+     -209 edit mode (`openFA('journal',id)`) now shows the links section,
+     prefilled (`_faEditLinksOrig` = what the form opened with, for the diff);
+     the entry never offers itself as a link.
+   - **Journal drawer** gained the same chip picker as tasks/notes
+     (`#dr-task-links`, hydrated by `openDrawer` → `_drInitLinks(...,type)`),
+     saved by `saveItem('journal')`. `_drInitLinks` takes a **host type**
+     now (`_drLinksHostType`, `_drIsHost(kind,x)`): ids are per-collection,
+     so the old `id!==_drLinksHostId` self-exclusion hid task #3 from journal
+     #3. Untyped callers (inline note editor) keep the old behaviour.
+2. **The drawer's Date field never moved the entry** (it wrote `j.date` only;
+   `_parseJournalDate` prefers `createdAt`). It is now `type=date`, prefilled
+   via `_faJournalISO`, with `data-orig`; a changed value goes through the
+   shared **`_journalMoveToDate(j, iso)`** (also used by -209 edit mode): ISO
+   `date` + `createdAt` shifted to that day keeping its time. An unchanged
+   save leaves legacy free-text dates alone; the drawer shows them as
+   "Saved as “May 16 · Friday”" under the picker.
+   - Same bug in the CREATE form: picking a past day still listed the entry
+     under today. Create now moves `createdAt` when the picker changed; the
+     form's default day is local (`_ymd()`), not UTC (it showed tomorrow in
+     the evening).
+Verified on the vite-built output (levelup-dist static preview, login overlay
+hidden, in-memory data): create with task+note+project links + a day 2 back →
+fields stored, back-links on task/note, listed on the picked day; edit mode
+prefills all three, offers no self-link, unlink note / link task + entry →
+back-links removed/added, date moved; drawer on a legacy entry shows a
+task-side back-link + the "Saved as" hint, plain save keeps the legacy string,
+changed date moves `createdAt` (9:30 kept), drawer link add/remove both
+sides; task drawer + new-task/new-journal forms unchanged (screenshot of the
+drawer picker: clean, no overlap). Five guards green; three bundles `node -c`;
+12 NUL bytes; dist == src.
+⚠ Latent, not touched: the shared `_drLinks` state is also the inline note
+editor's auto-saving picker (`_drLinksAutoSaveNoteId`); opening ANY drawer
+over the Notes page re-initialises it (pre-existing for task drawers too).
+
+**-209 (2026-10-13, PUSHED — on origin/main) — full edit of a saved journal
 entry.** User: "Give me the ability to fully edit a Journal Entry after it is
 created (to include the fields shown)" — the New Journal Entry form. Before,
 the journal drawer edited only title / date / mood / content / diary; energy,
@@ -29,7 +81,7 @@ Fix — the Full Add modal gained a journal EDIT MODE (app-part2.js):
   array `gratitude` (exports read it that way) stays an array, one per line.
 - Linked Items is omitted in edit mode: journal links were never persisted —
   `applyBidirectionalLinks` has no journal branch and the entry stores no
-  `_faLinked` (latent in the CREATE form too; not fixed).
+  `_faLinked` (latent in the CREATE form too). **Fixed in -210.**
 Verified on the vite-built output (static preview, login overlay hidden):
 create with every field → drawer → Edit all fields → all 17 fields prefilled,
 Add-Another hidden → edit + move date 3 days → updated in place, list shows

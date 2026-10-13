@@ -4119,15 +4119,16 @@ function openDrawer(type,item){
   }
   // Hydrate the chip-based Linked Items picker for task drawers. Inline
   // <script> tags inside innerHTML don't execute, so we have to do this here.
-  if((type==='task'||type==='note') && item?.id && typeof _drInitLinks==='function'){
-    _drInitLinks({
+  if((type==='task'||type==='note'||type==='journal') && item?.id && typeof _drInitLinks==='function'){
+    // Journal entries use the same field names; _journalLinksOf adds back-links.
+    _drInitLinks(type==='journal'&&typeof _journalLinksOf==='function'?_journalLinksOf(item):{
       projects:item.linkedProjectIds||[],
       goals:item.linkedGoalIds||[],
       tasks:item.linkedTaskIds||[],
       notes:item.linkedNoteIds||[],
       bookmarks:item.linkedBookmarkIds||[],
       journal:item.linkedJournalIds||[],
-    },item.id);
+    },item.id,type);
     setTimeout(_drRenderTaskLinks,0);
   }
 }
@@ -4379,7 +4380,7 @@ function renderDrawer(type,item){
   if(type==='journal'){
     return `<h2>${_icon('edit',18,'currentColor')} Edit Journal Entry ${cb}</h2>
     <div class="field"><label>Title</label><input class="inp" value="${esc(item.title)}" id="dr-title"></div>
-    <div class="field"><label>Date</label><input class="inp" value="${esc(item.date)}" id="dr-date"></div>
+    ${(()=>{const iso=typeof _faJournalISO==='function'?_faJournalISO(item):'';const legacy=item.date&&!/^\d{4}-\d{2}-\d{2}$/.test(String(item.date))?`<div style="font-size:11px;color:var(--t3);margin-top:3px">Saved as &ldquo;${esc(item.date)}&rdquo;</div>`:'';return `<div class="field"><label>Date</label><input type="date" class="inp" value="${iso}" data-orig="${iso}" id="dr-date">${legacy}</div>`;})()}
     <div class="field"><label>Mood</label><div style="display:flex;gap:6px">${['😊','🙂','😐','😫','😰'].map(m=>`<span style="font-size:20px;cursor:pointer;${item.mood===m?'outline:2px solid var(--ac);border-radius:6px':''}" onclick="this.parentElement.querySelectorAll('span').forEach(s=>s.style.outline='');this.style.outline='2px solid var(--ac)';this.style.borderRadius='6px';document.getElementById('dr-mood').value='${m}'">${m}</span>`).join('')}</div><input type="hidden" id="dr-mood" value="${item.mood}"></div>
     <div class="field"><label>Content</label><textarea class="inp" style="min-height:150px" id="dr-body">${esc(item.body||'')}</textarea></div>
     <div class="field" style="margin-top:10px">
@@ -4398,6 +4399,9 @@ function renderDrawer(type,item){
         </div>
         <div id="dr-jrnl-ai-result" style="display:none;margin-top:5px;padding:7px;background:var(--s1);border-radius:4px;font-size:11px;color:var(--t2);line-height:1.6;white-space:pre-wrap;max-height:150px;overflow-y:auto"></div>
       </div>
+    </div>
+    <div class="field" style="margin-top:10px"><label>&#128279; Linked Items <span style="font-size:11px;font-weight:400;color:var(--t3)">Pick from the dropdown to link &middot; click &#10005; on a chip to unlink &middot; saves with Save</span></label>
+      <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="dr-actions">
     <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
@@ -4721,7 +4725,8 @@ function fmtNoteDate(raw){
 // and read on Save by saveItem.
 let _drLinks={projects:[],goals:[],tasks:[],notes:[],bookmarks:[],journal:[]};
 let _drLinksHostId=null;
-function _drInitLinks(initial,hostId){
+let _drLinksHostType=null; // 'task' | 'note' | 'journal' (null = legacy: id match only)
+function _drInitLinks(initial,hostId,hostType){
   _drLinks={
     projects:Array.isArray(initial?.projects)?[...initial.projects]:[],
     goals:Array.isArray(initial?.goals)?[...initial.goals]:[],
@@ -4731,7 +4736,10 @@ function _drInitLinks(initial,hostId){
     journal:Array.isArray(initial?.journal)?[...initial.journal]:[],
   };
   _drLinksHostId=hostId||null;
+  _drLinksHostType=hostType||null;
 }
+// Is x the item the picker is open on? (Never offer an item as a link to itself.)
+function _drIsHost(kind,x){return x.id===_drLinksHostId&&(!_drLinksHostType||_drLinksHostType===kind);}
 function _drAddLink(category,idStr){
   const id=parseInt(idStr);if(isNaN(id))return;
   if(!_drLinks[category])_drLinks[category]=[];
@@ -4781,10 +4789,10 @@ function _drRenderTaskLinks(containerId){
   const cats=[
     {key:'projects',label:'Projects',icon:'📁',source:()=>D.projects||[],labelOf:p=>p.name,filter:()=>true},
     {key:'goals',label:'Goals',icon:'🎯',source:()=>D.goals||[],labelOf:g=>(g.icon||'🎯')+' '+g.title,filter:()=>true},
-    {key:'tasks',label:'Other Tasks',icon:'📋',source:()=>D.tasks||[],labelOf:t=>t.title,filter:t=>t.id!==_drLinksHostId&&t.status!=='Done'},
-    {key:'notes',label:'Notes',icon:'📝',source:()=>D.notes||[],labelOf:n=>n.title||'(untitled)',filter:n=>n.id!==_drLinksHostId},
+    {key:'tasks',label:_drLinksHostType&&_drLinksHostType!=='task'?'Tasks':'Other Tasks',icon:'📋',source:()=>D.tasks||[],labelOf:t=>t.title,filter:t=>!_drIsHost('task',t)&&t.status!=='Done'},
+    {key:'notes',label:'Notes',icon:'📝',source:()=>D.notes||[],labelOf:n=>n.title||'(untitled)',filter:n=>!_drIsHost('note',n)},
     {key:'bookmarks',label:'Bookmarks',icon:'🔖',source:()=>D.bookmarks||[],labelOf:b=>b.title||b.url||'(untitled)',filter:()=>true},
-    {key:'journal',label:'Journal Entries',icon:'📔',source:()=>D.journal||[],labelOf:j=>(j.date||'')+' · '+(j.title||'(untitled)'),filter:()=>true},
+    {key:'journal',label:'Journal Entries',icon:'📔',source:()=>D.journal||[],labelOf:j=>(j.date||'')+' · '+(j.title||'(untitled)'),filter:j=>!_drIsHost('journal',j)},
   ];
   wrap.innerHTML=cats.map(c=>{
     const linkedIds=_drLinks[c.key]||[];
@@ -4927,7 +4935,13 @@ function saveItem(type,id){
     if(drGoalRte)g.descriptionHtml=drGoalRte.innerHTML;
     save('goals');
   }}
-  if(type==='journal'){const j=D.journal.find(x=>x.id===id);if(j){j.title=$('#dr-title').value;j.date=$('#dr-date').value;j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;const drRte=document.getElementById('dr-diary-rte');if(drRte)j.diaryBody=drRte.innerHTML;save('journal')}}
+  if(type==='journal'){const j=D.journal.find(x=>x.id===id);if(j){j.title=$('#dr-title').value;
+    // Only when the picker changed, so legacy free-text dates survive a plain save.
+    const dEl=document.getElementById('dr-date');
+    if(dEl&&dEl.value&&dEl.value!==dEl.dataset.orig)_journalMoveToDate(j,dEl.value);
+    if(_drLinksHostId===id&&_drLinksHostType==='journal'){const prev=_journalLinksOf(j);_journalSetLinks(j,_drLinks);_journalSyncBacklinks(j.id,prev,_drLinks);}
+    j.updatedAt=new Date().toISOString();
+    j.mood=$('#dr-mood').value;j.body=$('#dr-body').value;const drRte=document.getElementById('dr-diary-rte');if(drRte)j.diaryBody=drRte.innerHTML;save('journal')}}
   closeDrawer();toast('Saved!');renderScreen(curScreen);
 }
 function deleteItem(type,id){
