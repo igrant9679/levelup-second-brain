@@ -351,6 +351,13 @@
       "when": 1787000000000,
       "tag": "0049_finance_column",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1792000000000,
+      "tag": "0050_coach_messages",
+      "breakpoints": true
     }
   ]
 }

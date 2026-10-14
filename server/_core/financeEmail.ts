@@ -217,7 +217,9 @@ export async function generateMoneyAI(s: MoneyStats, mode: 'daily' | 'weekly'): 
     const sys = mode === 'daily'
       ? `You are the budget analyst inside a personal finance app, writing ONE short nudge for a daily email. Analyze ONLY the DATA. Return STRICTLY a JSON object {"insight":"<1-2 sentences, under 45 words, concrete dollar figures, the single most useful observation or nudge for TODAY>","actions":[]}. Be direct, no preamble, no investment/tax/legal advice.`
       : `You are the budget analyst inside a personal finance app, writing the Money section of a weekly email. Analyze ONLY the DATA. Return STRICTLY a JSON object {"insight":"<2-3 sentences, under 70 words, what mattered this month: spending pace, debt, cash position — concrete dollar figures>","actions":["<up to 3 short imperative recommendations, each under 20 words, most impactful first>"]}. Be direct, no preamble, no investment/tax/legal advice.`;
-    const res = await callAIProvider({ provider: 'manus', systemPrompt: sys, userContent: JSON.stringify(compact).slice(0, 6000), maxTokens: 400, jsonMode: true });
+    const { resolveWorkspaceAI } = await import("./workspaceAI");
+    const ai = await resolveWorkspaceAI(); // was provider:'manus' (no longer in use) — workspace provider + key
+    const res = await callAIProvider({ provider: ai.provider, apiKey: ai.apiKey, systemPrompt: sys, userContent: JSON.stringify(compact).slice(0, 6000), maxTokens: 400, jsonMode: true });
     const raw = String((res as { result?: string; text?: string }).result || (res as { text?: string }).text || '').trim();
     const m = raw.match(/\{[\s\S]*\}/);
     if (!m) return { insight: raw.slice(0, 500), actions: [] };

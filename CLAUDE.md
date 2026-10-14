@@ -8,6 +8,52 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**-212 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 2 of 3:
+check-ins through the day.** ⚠ **Migration 0050** (`coach_messages`) — the
+next migration number is now **0051**.
+- Server `server/_core/coachCron.ts` (header comment explains it): every 5
+  min, per user with `prefs.coach.checkins.enabled` (client-owned, only READ
+  here), local time from `prefs.coach.tz` (default America/New_York); five
+  slots `COACH_SLOTS` morning 07:30 · midmorning 10:00 · midday 12:30 ·
+  afternoon 15:00 · evening 17:30, weekdays by default, each fires inside a
+  2-hour window only (a late server never sends a 3pm "morning plan").
+  Snapshot = relational tasks + external tasks (labelled as other people's
+  DATA) + `prefs.coach.calendar` (the client's 7-day copy — the calendar is
+  browser-only) + habits/goals/projects blobs + `computeMoneyStats` +
+  the coach profile + earlier check-ins today. AI via the new
+  `server/_core/workspaceAI.ts` (system_settings aiProvider/aiKey_*); on any
+  AI failure a plain fallback summary is still sent (error kept on the row).
+  Row in `coach_messages` (UNIQUE userId+runKey "YYYY-MM-DD:slot") → email
+  (`sendEmail`, "Reply in LevelUp" → `/?coach=<id>`) → push hook
+  (`setCoachPushHook`, wired in -213).
+- **Actions are applied by the CLIENT, never the server**: `sanitize()`
+  allows only `COACH_SCHEDULED_TOOLS` (update_task, block_time, create_task,
+  add_subtasks, move_to_cluster) on task ids the model was shown — no
+  deletes, no completing, no status Done (prompt-injection guard: check-ins
+  read Smartsheet/Nifty text). The client re-filters the same list.
+- Router `coach` (`server/routers/coach.ts`): inbox · markRead ·
+  claimApply (pending→claimed, atomic, so ONE device applies) · reportApply ·
+  runNow{slot} (Settings "Send me one now") · status.
+- Client (app-coach.js "CHECK-INS" section): inbox loads after
+  `loadServerData` + every 3 min while visible (when enabled) + on
+  visibilitychange; each message → assistant transcript entry
+  (`coachId`, dedup by id across devices) → actions run via `_agentExec`
+  (auto/full) or an approval card (ask; `_agentRunPending` wrapper reports
+  back) → toast + 🔔 bell item (bell serialises `action.toString()` — the id
+  is baked in via `new Function`) + "Today:" row on the Coach hero.
+  Settings → AI Coach top card: on/off, channels, 5 times, days, pause,
+  "Send me one now", status line (AI provider, tz, today's runs).
+- Fixed in passing: weekly-review and money-email AI blocks called
+  `provider:'manus'` (dead) → now `resolveWorkspaceAI()`.
+Verified: `server/coachCron.test.ts` (vitest, 11 tests: tz incl. Tokyo
+rollover, windows, weekends, pause, sanitize drops delete/complete/unknown
+ids); tsc adds no errors; esbuild clean; on the vite-built output with
+`coach.*` stubbed: full autonomy applied 2 allowed actions and dropped a
+scheduled delete, claim/report calls, no re-apply on a second load, ask mode
+card → approve → reportApply, bell action, Settings card at 375px.
+NOT verified against a real DB/AI — after deploy: Settings → AI Coach →
+switch on → "Send me one now" and check the email + inbox.
+
 **-211 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 1 of 3.** User:
 "I'm really lost… I need the AI assistant to interact with me by asking me
 questions, learning about me and being my daily/hourly coach… tasks and their

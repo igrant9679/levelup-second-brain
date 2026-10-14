@@ -961,4 +961,37 @@ export const automationRules = mysqlTable('automation_rules', {
   idxUser: index('idx_auto_user').on(t.userId),
 }));
 export type AutomationRule = typeof automationRules.$inferSelect;
+
+/**
+ * AI coach check-ins (build -212, migration 0050). One row per scheduled
+ * touchpoint per user per local day — runKey "YYYY-MM-DD:slot" is UNIQUE, so a
+ * check-in can never be generated twice. Server-owned state lives HERE, never
+ * in user_app_data.prefs (the client saves prefs whole and would clobber it).
+ * actions = JSON agent actions the CLIENT applies (applyState none → pending →
+ * claimed → applied | skipped), so record shapes and undo stay the app's own.
+ */
+export const coachMessages = mysqlTable('coach_messages', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  kind: varchar('kind', { length: 32 }).notNull(),
+  runKey: varchar('runKey', { length: 64 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  body: mediumtext('body').notNull(),
+  pushText: varchar('pushText', { length: 255 }),
+  actions: mediumtext('actions'),
+  status: varchar('status', { length: 16 }).default('new').notNull(),
+  applyState: varchar('applyState', { length: 16 }).default('none').notNull(),
+  applyResult: mediumtext('applyResult'),
+  channels: varchar('channels', { length: 64 }),
+  error: mediumtext('error'),
+  emailedAt: timestamp('emailedAt'),
+  pushedAt: timestamp('pushedAt'),
+  readAt: timestamp('readAt'),
+  appliedAt: timestamp('appliedAt'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  uqRun: unique('uq_coach_run').on(t.userId, t.runKey),
+  idxUserCreated: index('idx_coach_user_created').on(t.userId, t.createdAt),
+}));
+export type CoachMessage = typeof coachMessages.$inferSelect;
 export type InsertAutomationRule = typeof automationRules.$inferInsert;
