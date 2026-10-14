@@ -8,7 +8,29 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
-**-213 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 3 of 3: phone
+**Security lockdown (2026-10-14, server-only, no APP_BUILD bump; COMMITTED —
+NOT PUSHED).** User: "please lock them down".
+- `ai.assist`, `ai.agent` and `help.askAI` were `publicProcedure` — anyone could
+  call them unauthenticated. Now `protectedProcedure`. Every client caller
+  goes through `_trpc` or `fetch(..., credentials:'include')`, so signed-in
+  use is unchanged. Tests sign a user in; new tests assert signed-out callers
+  are refused.
+- **`emailAuth.seedDemoPassword` REMOVED.** It was PUBLIC and set ANY
+  account's password given the email + a setup key that fell back to a
+  value hard-coded in emailAuth.ts when `DEMO_SETUP_KEY` was unset (its
+  comment claimed "only if no password set" — the code never checked).
+  Nothing called it. Never reintroduce a public password setter.
+- Pre-existing, unrelated: 2 assertions in `server/help.askAI.test.ts`
+  (prompt wording) were already failing before this change.
+- Still open (not done): `aiSettings.get` returns the raw workspace AI keys
+  to every signed-in user, because the client passes them to ai.assist.
+  Fix = server resolves the key itself (`resolveWorkspaceAI`) and the client
+  stops fetching raw keys; Settings → AI Features shows masked keys.
+- Remaining intentional public procedures: auth.me / logout, emailAuth
+  login / register / forgotPassword / resetPassword, teamInvites validate /
+  accept, system.health.
+
+**-213 (2026-10-14, PUSHED + LIVE ~210s) — AI COACH, build 3 of 3: phone
 push + Help.** ⚠ **Migration 0051** (`push_subscriptions`) — next is
 **0052**. ⚠ **New dependency `web-push@3.6.7`** (+ dev `@types/web-push`);
 `pnpm install --frozen-lockfile` verified locally against the new lockfile.
@@ -41,7 +63,7 @@ the "blocked" state rendered — **a real push needs a real device after
 deploy**: iPhone → Safari → Add to Home Screen → open the icon → Settings →
 AI Coach → Phone push → Send a test.
 
-**-212 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 2 of 3:
+**-212 (2026-10-14, PUSHED + LIVE with -213) — AI COACH, build 2 of 3:
 check-ins through the day.** ⚠ **Migration 0050** (`coach_messages`) — the
 next migration number is now **0051**.
 - Server `server/_core/coachCron.ts` (header comment explains it): every 5
@@ -87,7 +109,7 @@ card → approve → reportApply, bell action, Settings card at 375px.
 NOT verified against a real DB/AI — after deploy: Settings → AI Coach →
 switch on → "Send me one now" and check the email + inbox.
 
-**-211 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 1 of 3.** User:
+**-211 (2026-10-14, PUSHED + LIVE with -213) — AI COACH, build 1 of 3.** User:
 "I'm really lost… I need the AI assistant to interact with me by asking me
 questions, learning about me and being my daily/hourly coach… tasks and their
 priority, Goals, habits, ideas, projects/programs/clusters, money… email

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 
 // ─── Provider types ────────────────────────────────────────────────────────────
@@ -129,7 +129,9 @@ export const aiRouter = router({
    * the user's chosen provider (openai / claude / gemini / manus).
    * Falls back to the Manus built-in LLM when no provider is specified.
    */
-  assist: publicProcedure
+  // Signed-in users only (was publicProcedure until -214: anyone could spend
+  // the workspace AI quota through it).
+  assist: protectedProcedure
     .input(
       z.object({
         systemPrompt: z.string().max(4000),
@@ -179,7 +181,7 @@ export const aiRouter = router({
    * because the system prompt now carries a tool catalog, but they are still
    * hard caps — a runaway transcript is the client's problem to budget.
    */
-  agent: publicProcedure
+  agent: protectedProcedure
     .input(
       z.object({
         system: z.string().max(16000),

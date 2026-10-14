@@ -29,6 +29,12 @@ import { aiRouter } from "./routers/ai";
 import { invokeLLM } from "./_core/llm";
 
 describe("ai.assist procedure", () => {
+  it("refuses signed-out callers (was public until -214)", async () => {
+    const caller = aiRouter.createCaller({} as any);
+    await expect(caller.assist({ systemPrompt: "x", userContent: "y" } as any)).rejects.toThrow(/UNAUTHORIZED|login|sign/i);
+    await expect(caller.agent({ system: "x", messages: [{ role: "user", content: "hi" }] } as any)).rejects.toThrow(/UNAUTHORIZED|login|sign/i);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -36,7 +42,7 @@ describe("ai.assist procedure", () => {
   // ─── Manus (default) ──────────────────────────────────────────────────────────
 
   it("should use Manus built-in LLM when provider is 'manus'", async () => {
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "You are a helpful assistant.",
       userContent: "Expand this journal entry: Today was a good day.",
@@ -54,7 +60,7 @@ describe("ai.assist procedure", () => {
   });
 
   it("should use Manus built-in LLM when no provider is specified", async () => {
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "System",
       userContent: "User content",
@@ -74,7 +80,7 @@ describe("ai.assist procedure", () => {
       }),
     });
 
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "You are a helpful assistant.",
       userContent: "Validate this idea.",
@@ -105,7 +111,7 @@ describe("ai.assist procedure", () => {
       }),
     });
 
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "You are a helpful assistant.",
       userContent: "Summarise this note.",
@@ -136,7 +142,7 @@ describe("ai.assist procedure", () => {
       }),
     });
 
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "You are a helpful assistant.",
       userContent: "ICE score this idea.",
@@ -161,7 +167,7 @@ describe("ai.assist procedure", () => {
       text: async () => "Unauthorized",
     });
 
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "System",
       userContent: "User content",
@@ -177,7 +183,7 @@ describe("ai.assist procedure", () => {
   // ─── Validation ───────────────────────────────────────────────────────────────
 
   it("should reject systemPrompt exceeding 4000 characters", async () => {
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     await expect(
       caller.assist({
         systemPrompt: "A".repeat(4001),
@@ -187,7 +193,7 @@ describe("ai.assist procedure", () => {
   });
 
   it("should reject userContent exceeding 8000 characters", async () => {
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     await expect(
       caller.assist({
         systemPrompt: "System",
@@ -201,7 +207,7 @@ describe("ai.assist procedure", () => {
       choices: [{ message: { content: null } }],
     } as any);
 
-    const caller = aiRouter.createCaller({} as any);
+    const caller = aiRouter.createCaller({ user: { id: 1 } } as any);
     const result = await caller.assist({
       systemPrompt: "System",
       userContent: "User content",

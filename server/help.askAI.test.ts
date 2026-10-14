@@ -26,13 +26,18 @@ import type { TrpcContext } from "./_core/context";
 
 function createCtx(): TrpcContext {
   return {
-    user: null,
+    user: { id: 1 } as TrpcContext["user"],
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: vi.fn() } as unknown as TrpcContext["res"],
   };
 }
 
 describe("help.askAI", () => {
+  it("refuses signed-out callers (was public until -214)", async () => {
+    const caller = appRouter.createCaller({ ...createCtx(), user: null });
+    await expect(caller.help.askAI({ question: "How do I add a task?" })).rejects.toThrow(/UNAUTHORIZED|login|sign/i);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     (invokeLLM as ReturnType<typeof vi.fn>).mockResolvedValue({

@@ -5,7 +5,7 @@
  *  help.askAI  — answer a natural-language question using help article content as context
  */
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 
 // ---- Help article content (mirrors HC_ARTICLES in client/index.html) ----
@@ -321,7 +321,7 @@ function findRelevantArticles(question: string, topN = 3): typeof HELP_ARTICLES 
 }
 
 export const helpRouter = router({
-  askAI: publicProcedure
+  askAI: protectedProcedure // signed-in users only (-214)
     .input(
       z.object({
         question: z.string().min(1).max(500),

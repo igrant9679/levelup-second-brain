@@ -341,28 +341,9 @@ export const emailAuthRouter = router({
       return { success: true };
     }),
 
-  /**
-   * Seed demo users with a default password (used during development/onboarding).
-   * Only callable if the user has no password set yet.
-   */
-  seedDemoPassword: publicProcedure
-    .input(z.object({
-      email: z.string().email(),
-      password: z.string().min(1),
-      setupKey: z.string(), // simple guard against abuse
-    }))
-    .mutation(async ({ input }) => {
-      // Only allow seeding if setup key matches a simple env-based guard
-      const expectedKey = process.env.DEMO_SETUP_KEY || 'levelup-demo-2026';
-      if (input.setupKey !== expectedKey) {
-        throw new TRPCError({ code: 'FORBIDDEN', message: 'Invalid setup key' });
-      }
-      const user = await db.getUserByEmail(input.email.toLowerCase().trim());
-      if (!user) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'User not found' });
-      }
-      const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
-      await db.updateUserPasswordHash(user.id, passwordHash);
-      return { success: true };
-    }),
+  // seedDemoPassword was removed in -214: it was PUBLIC and set ANY account's
+  // password for anyone holding the email plus a setup key that defaulted to a
+  // value hard-coded in this file (despite its comment, it never checked that
+  // the account had no password). Nothing called it. Do not bring it back —
+  // reset a password through forgotPassword / resetPassword instead.
 });
