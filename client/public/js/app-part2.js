@@ -10,15 +10,16 @@ function renderSettingsHTML(){
     {ic:'palette',lb:'Appearance',id:'sp-2'},{ic:'columns',lb:'Workspace',id:'sp-13'},
     {ic:'bell',lb:'Notifications',id:'sp-3'},{ic:'mail',lb:'Accounts',id:'sp-4'},
     {ic:'link',lb:'Integrations',id:'sp-5'},{ic:'barChart',lb:'Bank Connections',id:'sp-14'},
-    {ic:'sparkles',lb:'AI Features',id:'sp-6'},
+    {ic:'sparkles',lb:'AI Features',id:'sp-6'},{ic:'target',lb:'AI Coach',id:'sp-15'},
     {ic:'users',lb:'Teams',id:'sp-7'},{ic:'edit',lb:'Word Doc Import',id:'sp-8'},
     {ic:'refresh',lb:'Sync',id:'sp-9'},{ic:'save',lb:'Backup',id:'sp-10'},
     {ic:'lock',lb:'Privacy',id:'sp-11'},{ic:'shield',lb:'Admin',id:'sp-12'}
   ];
   // Visual section breaks before these indexes (same pattern as the sidebar).
   // NB keys are LIST POSITIONS, not sp-N ids — inserting a row above a break
-  // must shift the keys below it (Bank Connections at position 7 did).
-  const setSections={1:'Preferences',5:'Connections',9:'Workspace & Data',14:'Admin'};
+  // must shift the keys below it (Bank Connections at position 7 did; AI Coach
+  // at position 9 did too).
+  const setSections={1:'Preferences',5:'Connections',10:'Workspace & Data',15:'Admin'};
   const name=D.creds.userName||'Idris Grant';
   const email=D.creds.email||'idris@levelup.app';
   const initials=name.split(' ').map(w=>w[0]||'').join('').substring(0,2).toUpperCase();
@@ -1047,6 +1048,11 @@ function renderSettingsHTML(){
       <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Last 20 runs of the daily OAuth token expiry check job.</p>
       <div id="admin-task-log" style="font-size:11px;color:var(--t3)">Loading…</div>
     </div>
+  </div>
+  <!-- AI Coach (rendered by app-coach.js _coachRenderSettings) --><div id="sp-15" class="sp" style="display:none">
+  <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">🧭 AI Coach</h3>
+  <p style="font-size:12px;color:var(--t2);margin-bottom:12px">Your personal and professional coach: what it knows about you, how much it does on its own, and when it checks in.</p>
+  <div id="coach-settings-body"><div style="font-size:12px;color:var(--t3)">Loading…</div></div>
   </div>
   <!-- Bank Connections (SimpleFIN Bridge) --><div id="sp-14" class="sp" style="display:none">
     <h2 style="font-size:16px;font-weight:700;margin-bottom:4px">🏦 Bank Connections</h2>

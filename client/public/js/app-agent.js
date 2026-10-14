@@ -958,6 +958,7 @@ async function _agentSend(text){
       parsed.actions.forEach(function(a){var t=_agentTool(a.tool);if(!t){needOk.push(a);return;}
         if(t.kind==='read'||t.kind==='nav')instant.push(a);
         else if(t.kind==='write'&&prefs.autoWrite)instant.push(a);
+        else if(t.kind==='destructive'&&prefs.autoDelete&&prefs.autoWrite)instant.push(a); // coach "fully autonomous" (app-coach.js)
         else needOk.push(a);});
       var results=[];
       // run instant ones now
@@ -1104,7 +1105,7 @@ function _agentToggleCfg(){
   var p=_agentPrefs();var panel=document.getElementById('ai-panel');if(!panel)return;
   var d=document.createElement('div');d.id='agent-cfg';d.className='agent-cfg';
   d.innerHTML='<div style="font-weight:650;margin-bottom:4px">Assistant actions</div>'+
-    '<label><input type="checkbox" '+(p.autoWrite?'checked':'')+' onchange="_agentSetPref(\'autoWrite\',this.checked)"><span>Just do it — run creates and edits without asking<br><small>Deletes always ask. Everything is undoable this session.</small></span></label>'+
+    '<label><input type="checkbox" '+(p.autoWrite?'checked':'')+' onchange="_agentSetPref(\'autoWrite\',this.checked);if(!this.checked)_agentSetPref(\'autoDelete\',false)"><span>Just do it — run creates and edits without asking<br><small>'+(p.autoDelete?'Deletes run too (fully autonomous — set in Settings → AI Coach).':'Deletes always ask.')+' Everything is undoable this session.</small></span></label>'+
     '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn btn-s" style="height:24px;font-size:11px" onclick="_agentUndoLast()">↶ Undo last change</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openHelpDrawer(\'assistant actions\');_agentToggleCfg()">? How this works</button></div>'+
     '<div style="margin-top:8px"><small>'+LU_AGENT_TOOLS.length+' actions available · '+_agentUndoStack.length+' undoable change'+(_agentUndoStack.length===1?'':'s')+'</small></div>';
   panel.appendChild(d);

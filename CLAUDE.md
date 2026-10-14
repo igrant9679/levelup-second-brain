@@ -4,6 +4,68 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**⚠ FOUR client bundles as of -211:** `app-part1.js`, `app-part2.js`,
+`app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
+array). `node -c` ALL FOUR before any push.
+
+**-211 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 1 of 3.** User:
+"I'm really lost… I need the AI assistant to interact with me by asking me
+questions, learning about me and being my daily/hourly coach… tasks and their
+priority, Goals, habits, ideas, projects/programs/clusters, money… email
+reminders throughout the day and message me… fully interactive." Decisions
+the user made (AskUserQuestion, 2026-10-14): channels = in-app + email +
+phone push, each switchable; cadence = ~5 key moments per workday;
+autonomy = FULLY AUTONOMOUS; scope = all of it.
+Plan: -211 coach brain (this) · -212 server check-ins (cron in user tz →
+AI message → coach_messages table → email + in-app inbox, actions applied on
+the client) · -213 web push (service worker + VAPID + `web-push`).
+What -211 ships (`client/public/js/app-coach.js`, header comment explains):
+- MEMORY `D.prefs.coach.profile {fields, facts[≤80]}` written by new instant,
+  silent agent tools `remember / forget / set_profile / interview_done /
+  end_session` (`kind:'read'` + `memory:true` so they never need approval;
+  the catalog lists them as MEMORY). Refuses credentials/account numbers.
+  Profile (+ D.creds jobTitle/bio) rides in every system prompt via a wrapped
+  `_agentSystemPrompt` (coach block appended; `AGENT_SYS_MAX` temporarily
+  lowered so the total stays ≤15000).
+- INTERVIEW over 8 `COACH_AREAS`, resumable, one question + options per
+  reply, ends by building programs/projects/goals/habits/clusters.
+- PLAYBOOKS (`COACH_PLAYBOOKS`): plan_day, prioritize, goals, habits, idea,
+  organize, money, weekly, checkin. A session = `D.prefs.coach.mode`, its
+  guide appended to the prompt; stale after 6h (interview persists).
+- AUTONOMY = the agent's own flags: ask (none) / auto (`autoWrite`) / full
+  (`autoWrite`+`autoDelete`). app-agent.js gained ONE gate line:
+  destructive runs instantly when `autoDelete&&autoWrite`. Default for every
+  account stays "ask" — the owner picks Fully autonomous in Settings → AI
+  Coach or on the Coach page (not made the team default on purpose).
+- TRASH: `_agentDelete` wrapped → snapshot into `D.prefs.coach.trash` (25
+  items, ≤60KB each), restorable after reload from Settings → AI Coach.
+- UI: Coach page hero (`#coach-hero`, injected after `renderCoach`), the old
+  ai.assist "Talk to your coach" box now forwards to the agent (one coach),
+  AI-panel chips + "🧭 Coach me on…" menu + session bar (`#coach-mode-bar`),
+  10 "Coach:" command-palette entries, Settings → **AI Coach = sp-15**
+  (setSections keys shifted to 10/15), a once-a-day nudge until the
+  interview starts (after `loadServerData`, never during the setup wizard).
+- tz: `D.prefs.coach.tz` saved from the browser AFTER `loadServerData`
+  resolves (saving prefs earlier would push device defaults over the
+  account's prefs). The -212 server reads it; never writes prefs (whole-blob
+  save clobber — keep server state in its own tables).
+⚠ Traps found while building: (1) `_agentRenderAsk` hides a question once
+any action ran — memory tools ride along with every interview question, so
+the wrapper filters them out (otherwise every question lost its options);
+(2) a tool result carrying `data` makes the agent loop take another model
+step — memory tools must not return `data`; (3) `window.luAgent.systemPrompt`
+captured the unwrapped function — re-pointed.
+Verified on the vite-built output with `_trpc('ai.agent')` scripted: interview
+turn saves facts/fields/progress (credential fact refused), options render,
+exactly one model call per turn, full autonomy deletes + creates with no
+card and the trash restores, "auto" still holds deletes for approval, all
+10 palette entries, Settings panel + section labels, hero at 375px (no
+overflow). Five guards green; four bundles `node -c`; 12 NUL bytes; dist == src.
+Server finding for -212: the weekly-review and money-email AI blocks call
+`provider:'manus'` with no key (Manus is gone) — they are probably silently
+empty; use `getSystemSetting('aiProvider')` + `aiKey_<provider>` instead.
+Also noted: `ai.assist`/`ai.agent` are `publicProcedure`.
+
 **-210 (2026-10-13, COMMITTED — NOT PUSHED) — journal Linked Items persist,
 and drawer date edits move the entry.** Two latent bugs found while building
 -209, fixed together.
