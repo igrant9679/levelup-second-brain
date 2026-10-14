@@ -8,6 +8,39 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**-213 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 3 of 3: phone
+push + Help.** ⚠ **Migration 0051** (`push_subscriptions`) — next is
+**0052**. ⚠ **New dependency `web-push@3.6.7`** (+ dev `@types/web-push`);
+`pnpm install --frozen-lockfile` verified locally against the new lockfile.
+- `server/_core/coachPush.ts`: VAPID keys generated once into
+  system_settings (`vapidPublic`/`vapidPrivate`, subject `VAPID_SUBJECT` env
+  or https://levelupnow.tools); `sendPushToUser` deletes 404/410 endpoints;
+  registers itself as the check-ins' push channel via `setCoachPushHook`
+  (imported by `routers/coach.ts`, so it is live whenever the router is).
+  New procedures: `coach.pushKey / pushSubscribe / pushUnsubscribe /
+  pushTest`; `coach.status` gains `pushDevices`.
+- `client/public/sw.js` — PUSH-ONLY service worker, **no fetch handler**
+  (never caches; APP_BUILD cache-busting stays in charge). Served with
+  `no-cache` like index.html (`server/_core/vite.ts`). notificationclick
+  focuses an open LevelUp and `postMessage`s `{type:'coach-open',id}`, else
+  opens `/?coach=<id>`.
+- Client (app-coach.js "phone push"): per-device opt-in from Settings → AI
+  Coach → Phone push (`coachPushEnable`), iOS not-installed detection with
+  Add-to-Home-Screen instructions, denied/unsupported states, "Send a test",
+  "Turn off here", subscription re-synced on boot (`lu_push_on`).
+- Help article **64 "Your AI coach — interview, check-ins and autonomy"**
+  (cat 7, slug `ai-coach`), inserted byte-safely (12 NUL bytes intact).
+  Retrieval verified: "how do the coach check-ins work", "push notifications
+  on my iPhone", "I feel lost in this app" all return it. **14 cats / 63
+  articles.**
+Verified: web-push request generation against a simulated subscription
+(aes128gcm, VAPID auth, TTL 6h); in the preview the worker registers at `/`,
+controls the page, the app still boots with all four bundles, and a
+`coach-open` message opens the check-in; the pane blocks notifications so
+the "blocked" state rendered — **a real push needs a real device after
+deploy**: iPhone → Safari → Add to Home Screen → open the icon → Settings →
+AI Coach → Phone push → Send a test.
+
 **-212 (2026-10-14, COMMITTED — NOT PUSHED) — AI COACH, build 2 of 3:
 check-ins through the day.** ⚠ **Migration 0050** (`coach_messages`) — the
 next migration number is now **0051**.

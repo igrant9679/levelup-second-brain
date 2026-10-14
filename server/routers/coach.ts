@@ -7,7 +7,8 @@
  *                        device applies them (pending → claimed)
  *   coach.reportApply  — record what the client did (applied | skipped)
  *   coach.runNow       — generate a check-in right now (Settings test button)
- *   coach.status       — AI provider, timezone in use, today's runs
+ *   coach.status       — AI provider, timezone in use, today's runs, push devices
+ *   coach.pushKey / pushSubscribe / pushUnsubscribe / pushTest — web push (-213)
  *
  * Check-in SETTINGS are client-owned (prefs.coach.checkins, saved with prefs);
  * the server only reads them, so there is no savePrefs here on purpose.
@@ -20,6 +21,8 @@ import { getDb } from "../db";
 import { coachMessages, userAppData } from "../../drizzle/schema";
 import { COACH_SLOTS, COACH_SLOT_IDS, localNow, processCoachCheckins, slotTime, type CoachSlot } from "../_core/coachCron";
 import { resolveWorkspaceAI } from "../_core/workspaceAI";
+// Importing coachPush also registers it as the check-ins' push channel.
+import { countPushSubscriptions, getVapidKeys, removePushSubscription, savePushSubscription, sendPushToUser } from "../_core/coachPush";
 
 async function requireDb() {
   const db = await getDb();
@@ -97,6 +100,22 @@ export const coachRouter = router({
       enabled: !!c.enabled,
       schedule: COACH_SLOT_IDS.map((id) => ({ id, label: COACH_SLOTS[id].label, time: slotTime(c, id), on: c.slots?.[id]?.on !== false })),
       recent: today.filter((r) => String(r.runKey).startsWith(local.ymd)).map((r) => ({ id: r.id, kind: r.kind, at: r.createdAt, emailed: !!r.emailedAt, pushed: !!r.pushedAt, error: r.error })),
+      pushDevices: await countPushSubscriptions(ctx.user.id).catch(() => 0),
     };
+  }),
+
+  pushKey: protectedProcedure.query(async () => ({ publicKey: (await getVapidKeys()).publicKey })),
+
+  pushSubscribe: protectedProcedure
+    .input(z.object({ endpoint: z.string().url().max(512), p256dh: z.string().min(10).max(255), auth: z.string().min(4).max(255), userAgent: z.string().max(255).optional() }))
+    .mutation(async ({ ctx, input }) => { await savePushSubscription(ctx.user.id, input); return { ok: true }; }),
+
+  pushUnsubscribe: protectedProcedure
+    .input(z.object({ endpoint: z.string().max(512) }))
+    .mutation(async ({ ctx, input }) => { await removePushSubscription(ctx.user.id, input.endpoint); return { ok: true }; }),
+
+  pushTest: protectedProcedure.mutation(async ({ ctx }) => {
+    const r = await sendPushToUser(ctx.user.id, { title: "🧭 LevelUp coach", body: "Push works on this device. Check-ins will arrive here.", url: "/", tag: "coach-test" });
+    return r;
   }),
 });

@@ -994,4 +994,21 @@ export const coachMessages = mysqlTable('coach_messages', {
   idxUserCreated: index('idx_coach_user_created').on(t.userId, t.createdAt),
 }));
 export type CoachMessage = typeof coachMessages.$inferSelect;
+
+/** Web-push subscriptions, one per device/browser (build -213, migration 0051). */
+export const pushSubscriptions = mysqlTable('push_subscriptions', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  endpoint: varchar('endpoint', { length: 512 }).notNull(),
+  p256dh: varchar('p256dh', { length: 255 }).notNull(),
+  auth: varchar('auth', { length: 255 }).notNull(),
+  userAgent: varchar('userAgent', { length: 255 }),
+  failCount: int('failCount').default(0).notNull(),
+  lastOkAt: timestamp('lastOkAt'),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+}, (t) => ({
+  uqEndpoint: unique('uq_push_endpoint').on(t.endpoint),
+  idxUser: index('idx_push_user').on(t.userId),
+}));
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertAutomationRule = typeof automationRules.$inferInsert;

@@ -64,7 +64,8 @@ export function serveStatic(app: Express) {
   app.use(
     express.static(distPath, {
       setHeaders: (res, filePath) => {
-        if (filePath.endsWith("index.html")) {
+        // sw.js too: a service worker must never be served stale (-213)
+        if (filePath.endsWith("index.html") || filePath.endsWith("sw.js")) {
           res.setHeader("Cache-Control", "no-cache, must-revalidate");
         }
       },

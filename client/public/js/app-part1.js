@@ -25128,6 +25128,66 @@ The toast shows Nifty's own message and the HTTP status. The two common causes:
 - **Nifty isn't connected** for your account — the dialog says so and links to **Settings → Integrations**.
 - **The assignee list is short or empty** — Nifty's member endpoint varies by workspace, so LevelUp also offers every member it has seen on tasks already synced from that project (plus you). Pick one of those, or leave the task unassigned and assign it in Nifty.
 `},
+  {id:64,slug:'ai-coach',catId:7,title:'Your AI coach — interview, check-ins and autonomy',summary:'The assistant as your personal and professional coach: it learns about you, runs coaching sessions (plan my day, priorities, goals, habits, ideas, organizing, money), checks in through the day by in-app message, email and phone push, and can act on its own.',tags:['coach','ai','assistant','check-ins','checkin','reminders','push','notifications','iphone','ipad','phone','mobile','android','interview','autonomy','plan','planning','priorities','habits','goals','money','lost','overwhelmed'],body:`## Your AI coach
+
+LevelUp has a lot in it. The coach is there so you never have to figure it out alone: it learns who you are, decides with you what matters, does the busywork in the app, and checks in with you through the day.
+
+## Start here: let it get to know you (5–10 minutes)
+
+Open the **Coach** page and press **Start: get to know me** (or press **Ctrl/⌘ J** and tap **👋 Get to know me**). It asks one question at a time across eight areas — your roles, work, goals, life and people, health and habits, money, your day and energy, and how you like to be coached. Tap an answer or type your own; **Skip this** is always there. It remembers as you go, and you can stop and pick up later — it resumes where you left off.
+
+When it has the picture, it sets up a starter structure for you: a **program** for each hat you wear, **projects** under them, a few **goals** with a first milestone, two or three tiny **habits**, and **clusters** for how you work.
+
+## Coaching sessions
+
+Open **🧭 Coach me on…** (in the assistant panel, on the Coach page, or in the command palette — type "Coach") and pick one:
+
+- **Plan my day** — your one most important task and two supporting ones, put in My Day with time blocked
+- **Prioritize my tasks** — an honest sort into do now / schedule / delegate / drop
+- **Set my goals** — one question at a time to a goal you believe in, with milestones and a first step
+- **Build the right habits** — two or three tiny habits tied to your goals
+- **Flesh out an idea** — problem, audience, risks, an ICE score and next steps
+- **Organize my life** — programs, projects and clusters so everything has a home
+- **Money check-up** — where money stands and the one to three moves that matter
+- **Weekly review** and **Check in with me** — close the week, or a 60-second course correction
+
+A slim bar above the chat shows the session you are in; **End session** stops it.
+
+## Check-ins through the day
+
+Go to **Settings → AI Coach** and switch **Check-ins through the day** on. By default the coach writes to you on weekdays at:
+
+- **7:30 Morning plan** — today's top task and two supporting ones
+- **10:00 Focus nudge** — are you on the one thing?
+- **12:30 Midday check-in** — re-plan the afternoon
+- **15:00 Afternoon re-prioritize** — what must still happen, what moves to tomorrow
+- **17:30 End-of-day review** — wins, loose ends, tomorrow's top three
+
+Change any time, switch single check-ins off, pick the days, or **Pause until** a date. Choose how they reach you: **In-app message**, **Email**, **Phone push**. **Send me one now** writes one immediately so you can see what they look like. Each check-in lands in the assistant panel, so you can just reply.
+
+Check-ins use your local time zone — open LevelUp once on your device so the coach knows it.
+
+## Phone push
+
+- **iPhone / iPad:** open levelupnow.tools in Safari, tap **Share → Add to Home Screen**, open LevelUp from that icon and sign in, then go to **Settings → AI Coach**, tick **Phone push** and allow notifications. (Apple only delivers web push to apps added to the Home Screen.)
+- **Android, Mac, Windows:** tick **Phone push** and allow notifications.
+
+Each device turns push on for itself. **Send a test** confirms it works.
+
+## How much it does on its own
+
+In **Settings → AI Coach** (or on the Coach page) choose:
+
+- **Ask first** — every change waits for your approval
+- **Small things on its own** — creates and edits happen right away; deletes still ask
+- **Fully autonomous** — everything happens right away, deletes included
+
+Every change can be undone (**↶** in the assistant panel), and anything the assistant deletes goes to **Deleted by the assistant** in Settings → AI Coach, where you can restore it. Scheduled check-ins are more careful still: they only ever plan — My Day, priorities, due dates, time blocks, new reminder tasks — and never delete or complete anything while you are away.
+
+## What it knows about you
+
+Settings → AI Coach → **What the coach knows about you** lists everything it has remembered. Add facts yourself, remove anything wrong or private, or **Forget everything**. It never stores passwords or account numbers.
+`},
 ];
 var HC_TOURS=[
   {id:1,name:'Member Onboarding',desc:'A 5-minute walkthrough of every core module.',type:'onboarding',est:5,roles:['member','admin'],steps:[

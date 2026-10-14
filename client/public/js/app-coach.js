@@ -538,7 +538,7 @@ function _coachRenderCheckins(){
     '<div style="font-size:11.5px;color:var(--t3);margin-bottom:10px">At each time below the coach looks at your tasks, calendar, habits, goals and money, writes you a short message, and (per your autonomy setting) lines up changes — applied the next time LevelUp is open on any device.</div>'+
     '<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Send them by</div>'+
       chk(k.channels.inapp!==false,'coachCkChannel(\'inapp\',this.checked)','In-app message')+chk(k.channels.email!==false,'coachCkChannel(\'email\',this.checked)','Email')+
-      chk(pushOn,'coachCkChannel(\'push\',this.checked);if(this.checked&&typeof coachPushEnable===\'function\')coachPushEnable()','Phone push'+(typeof coachPushEnable==='function'?'':' <small style="color:var(--t3)">(next update)</small>'),typeof coachPushEnable!=='function')+
+      chk(pushOn,'coachCkPushToggle(this.checked)','Phone push')+
       '<div id="coach-push-line" style="font-size:11px;color:var(--t3);margin-top:2px"></div></div>'+
     '<div style="margin-bottom:10px">'+slots+'</div>'+
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:11.5px;color:var(--t3);margin-right:4px">Days</span>'+days+
@@ -686,6 +686,81 @@ function _coachStartPolling(){
   },3*60*1000);
   document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&_coachCheckins().enabled){_coachSyncCalendar();coachLoadInbox();}});
 }
+// ─── phone push (build -213) ───────────────────────────────────────────────
+// Each device subscribes on its own (Settings → AI Coach → Phone push). The
+// service worker (/sw.js) is push-only — no fetch handler, no caching.
+// iPhone/iPad only deliver web push to LevelUp opened from a home-screen icon.
+function _coachIsIOS(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);}
+function _coachIsStandalone(){try{return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;}catch(_){return false;}}
+function _coachPushSupport(){
+  if(_coachIsIOS()&&!_coachIsStandalone())return 'ios-install';
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))return 'unsupported';
+  if(Notification.permission==='denied')return 'denied';
+  return 'ok';
+}
+function _coachB64ToU8(s){var pad='='.repeat((4-s.length%4)%4);var b=(s+pad).replace(/-/g,'+').replace(/_/g,'/');var raw=atob(b);var a=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return a;}
+function _coachPushOnHere(){try{return localStorage.getItem('lu_push_on')==='1';}catch(_){return false;}}
+async function _coachPushSubscribe(){
+  var reg=await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+  var key=(await _trpc('coach.pushKey',undefined,'query')).publicKey;
+  var sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:_coachB64ToU8(key)});
+  var j=sub.toJSON();
+  await _trpc('coach.pushSubscribe',{endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,userAgent:String(navigator.userAgent||'').slice(0,250)},'mutation');
+  return true;
+}
+async function coachPushEnable(){
+  var sup=_coachPushSupport();
+  if(sup==='ios-install'){_coachRenderPushLine('📱 On iPhone/iPad: tap <b>Share → Add to Home Screen</b>, open LevelUp from that icon, sign in, and turn Phone push on there.');return false;}
+  if(sup==='unsupported'){_coachRenderPushLine('This browser cannot receive push notifications.');return false;}
+  if(sup==='denied'){_coachRenderPushLine('Notifications are blocked for LevelUp in this browser — allow them in the site settings, then try again.');return false;}
+  try{
+    var perm=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+    if(perm!=='granted'){_coachRenderPushLine('Push needs notification permission — it was not granted.');return false;}
+    await _coachPushSubscribe();
+    try{localStorage.setItem('lu_push_on','1');}catch(_){}
+    _coachRenderPushLine('✓ Push is on for this device.');
+    return true;
+  }catch(e){_coachRenderPushLine('Could not turn on push: '+esc(String(e&&e.message||e).slice(0,160)));return false;}
+}
+async function coachCkPushToggle(on){
+  var k=_coachCheckins();
+  if(!on){k.channels.push=false;_coachSaveNow();_coachRenderPushLine('Phone push off for all devices.');return;}
+  var ok=await coachPushEnable();
+  k.channels.push=ok||k.channels.push===true;_coachSaveNow();
+  if(!ok){var cb=document.querySelector('#coach-checkins-card input[onchange^="coachCkPushToggle"]');if(cb)cb.checked=!!k.channels.push;}
+}
+async function coachPushDisableHere(){
+  try{var reg=await navigator.serviceWorker.getRegistration('/');var sub=reg&&await reg.pushManager.getSubscription();
+    if(sub){await _trpc('coach.pushUnsubscribe',{endpoint:sub.endpoint},'mutation').catch(function(){});await sub.unsubscribe();}}catch(_){}
+  try{localStorage.removeItem('lu_push_on');}catch(_){}
+  _coachRenderPushLine('Push turned off on this device.');
+}
+async function coachPushTest(){
+  _coachRenderPushLine('Sending a test…');
+  try{var r=await _trpc('coach.pushTest',undefined,'mutation');
+    _coachRenderPushLine(r&&r.sent?('✓ Sent to '+r.sent+' device'+(r.sent===1?'':'s')+(r.failed?' ('+r.failed+' failed)':'')+'.'):('No device received it'+(r&&r.lastError?': '+esc(r.lastError):' — turn push on for this device first.')));
+  }catch(e){_coachRenderPushLine('Test failed: '+esc(String(e&&e.message||e).slice(0,160)));}
+}
+function _coachRenderPushLine(msg){
+  var el=document.getElementById('coach-push-line');if(!el)return;
+  var sup=_coachPushSupport();var here=_coachPushOnHere()&&sup==='ok'&&Notification.permission==='granted';
+  var btn=function(label,js){return '<button class="btn btn-s" style="height:22px;font-size:10.5px;padding:0 8px;margin-left:6px" onclick="'+js+'">'+label+'</button>';};
+  var state=sup==='ios-install'?'This iPhone/iPad: add LevelUp to your Home Screen to get push.'
+    :sup==='unsupported'?'This browser cannot receive push.'
+    :sup==='denied'?'Notifications are blocked in this browser.'
+    :here?'This device: push on ✓'+btn('Send a test','coachPushTest()')+btn('Turn off here','coachPushDisableHere()')
+    :'This device: push off'+btn('Turn on for this device','coachPushEnable()');
+  el.innerHTML=state+(msg?'<div style="margin-top:3px;color:var(--t2)">'+msg+'</div>':'');
+}
+// Keep this device's subscription fresh (push services rotate them) and let
+// a tapped notification open its message in an already-open LevelUp.
+async function _coachPushResync(){
+  try{if(_coachPushOnHere()&&_coachPushSupport()==='ok'&&Notification.permission==='granted')await _coachPushSubscribe();}catch(_){}
+}
+try{if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.type==='coach-open'&&e.data.id)coachOpenMessage(e.data.id);});}catch(_){}
+
 // ?coach=<id> from an email or a push notification
 (function(){try{var q=new URLSearchParams(location.search);var id=q.get('coach');if(id&&/^\d+$/.test(id)){_coachDeepLink=Number(id);q.delete('coach');history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash);}}catch(_){}})();
 
@@ -711,7 +786,7 @@ function _coachBootNudge(){
   var orig=loadServerData;var nudged=false;
   window.loadServerData=async function(){
     var r=await orig.apply(this,arguments);
-    try{_coachSyncTz();_coachSyncCalendar();if(!nudged){nudged=true;setTimeout(_coachBootNudge,8000);setTimeout(coachLoadInbox,2500);_coachStartPolling();}}catch(_){}
+    try{_coachSyncTz();_coachSyncCalendar();if(!nudged){nudged=true;setTimeout(_coachBootNudge,8000);setTimeout(coachLoadInbox,2500);_coachStartPolling();setTimeout(_coachPushResync,4000);}}catch(_){}
     return r;
   };
 })();
