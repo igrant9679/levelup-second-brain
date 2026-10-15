@@ -14,6 +14,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
+import { resolveRequestAI } from "../_core/workspaceAI";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
 import nodemailer from "nodemailer";
@@ -2035,8 +2036,8 @@ export const oauthSyncRouter = router({
       const { callAIProvider } = await import('../_core/aiProviders');
       const userContent = `Email draft to follow up on.\n\nSubject: ${input.subject || '(no subject)'}\n\nBody:\n${input.body || '(empty)'}`;
       const { text } = await callAIProvider({
-        provider: input.provider,
-        apiKey: input.apiKey,
+        // No key from the browser since -214 → workspace provider + key.
+        ...(await resolveRequestAI(input)),
         systemPrompt: 'You are a helpful email writing assistant. Suggest exactly 3 concise follow-up messages (1-3 sentences each) the sender could use if they don\'t receive a reply within a few days. Return ONLY a JSON object of the form {"suggestions": ["...", "...", "..."]} — no commentary.',
         userContent,
         jsonMode: true,

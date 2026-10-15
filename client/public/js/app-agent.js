@@ -883,7 +883,7 @@ async function _agentCall(lastUserText){
   var cfg=_getAIConfig();
   var sys=_agentSystemPrompt(lastUserText);
   var turns=_agentTurnsForModel();
-  var res=await _trpc('ai.agent',{system:sys,messages:turns,provider:cfg.provider||'manus',apiKey:cfg.apiKey||undefined,jsonMode:true,maxTokens:2000},'mutation');
+  var res=await _trpc('ai.agent',{system:sys,messages:turns,provider:cfg.provider||'manus',jsonMode:true,maxTokens:2000},'mutation');
   return String(res&&(res.result||res.text)||'');
 }
 // Older server without ai.agent → answer-only path through ai.assist.
@@ -891,7 +891,7 @@ async function _agentFallbackAnswer(text){
   var cfg=_getAIConfig();
   var history=_aiChatHistory().slice(-10,-1);
   var sys=_aiChatSystemPrompt(history);
-  var res=await _trpc('ai.assist',{systemPrompt:sys,userContent:_aiClampStr(text,AI_USER_MAX),provider:cfg.provider||'manus',apiKey:cfg.apiKey||undefined},'mutation');
+  var res=await _trpc('ai.assist',{systemPrompt:sys,userContent:_aiClampStr(text,AI_USER_MAX),provider:cfg.provider||'manus'},'mutation');
   return String(res&&(res.result||res.text)||'').trim();
 }
 function _agentWaitForConfirm(mi){

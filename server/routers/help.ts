@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
+import { resolveRequestAI } from "../_core/workspaceAI";
 
 // ---- Help article content (mirrors HC_ARTICLES in client/index.html) ----
 const HELP_ARTICLES = [
@@ -339,7 +340,9 @@ export const helpRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { question, conversationHistory, provider, apiKey } = input;
+      const { question, conversationHistory } = input;
+      // No key from the browser since -214 → the workspace's provider + key.
+      const { provider, apiKey } = await resolveRequestAI(input);
 
       // Find the most relevant articles for this question
       const relevantArticles = findRelevantArticles(question, 4);

@@ -720,10 +720,10 @@ function renderSettingsHTML(){
       }).join('')}
     </div>
   </div>
-  <!-- AI Provider Keys -->
+  <!-- AI Provider Keys (-214: the browser only ever sees a masked hint) -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
     <h4 style="font-size:12px;font-weight:600;margin-bottom:4px">🔑 AI Provider API Keys</h4>
-    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">${String(D.creds.role||'').toLowerCase()==='admin'?'Workspace AI keys — saved on the server and shared with all team members. Each user does <strong>not</strong> need to enter their own key.':"🔒 AI keys are managed by your administrator and shared across the team. You don't need to enter your own."}</p>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:10px">${_sharedAI.canEdit?'Workspace AI keys — kept on the server and used for the whole team. A saved key is never shown again, only its last 4 characters; paste a new one to replace it.':"🔒 AI keys are managed by the workspace owner and shared across the team. You don't need to enter your own."}</p>
     <!-- Active Provider Selector -->
     <div style="margin-bottom:12px">
       <label style="font-size:11px;font-weight:600;color:var(--t2);display:block;margin-bottom:4px">Active Provider</label>
@@ -731,62 +731,39 @@ function renderSettingsHTML(){
         ${['openai','claude','gemini'].map(p=>{
           const labels={openai:'OpenAI',claude:'Anthropic Claude',gemini:'Google Gemini'};
           const active=_sharedAI.provider||'openai';
-          const isAdmin=String(D.creds.role||'').toLowerCase()==='admin';
-          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${isAdmin?'':';opacity:.6;pointer-events:none'}" ${isAdmin?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
+          const canEdit=!!_sharedAI.canEdit;
+          return `<button class="btn ${active===p?'btn-p':'btn-s'}" style="font-size:11px;height:26px${canEdit?'':';opacity:.6;pointer-events:none'}" ${canEdit?`onclick="setAIProvider('${p}')"`:''}>${{openai:'🟢',claude:'🟠',gemini:'🔵'}[p]} ${labels[p]}</button>`;
         }).join('')}
       </div>
       <div style="font-size:11px;color:var(--t3);margin-top:6px">
-        ${(()=>{const p=_sharedAI.provider||'openai';const hasKey=!!_sharedAI.keys[p];return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
+        ${(()=>{const p=_sharedAI.provider||'openai';const hasKey=!!(_sharedAI.keys[p]&&_sharedAI.keys[p].configured);return hasKey?'<span style="color:var(--ok)">✓ Ready to use</span>':'<span style="color:var(--warn)">⚠ Add an API key below to use this provider</span>';})()}
       </div>
     </div>
-    <!-- OpenAI -->
-    <div style="margin-bottom:10px;padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <div style="width:20px;height:20px;background:#10a37f;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">O</div>
-        <div style="font-size:11px;font-weight:600">OpenAI (GPT-4o, GPT-4o-mini)</div>
-        ${_sharedAI.keys.openai?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
+    ${[
+      {p:'openai',bg:'#10a37f',letter:'O',name:'OpenAI (GPT-4o, GPT-4o-mini)',ph:'sk-...',url:'https://platform.openai.com/api-keys',host:'platform.openai.com/api-keys'},
+      {p:'claude',bg:'#d97706',letter:'A',name:'Anthropic Claude (claude-3-5-sonnet)',ph:'sk-ant-...',url:'https://console.anthropic.com/settings/keys',host:'console.anthropic.com'},
+      {p:'gemini',bg:'#4285f4',letter:'G',name:'Google Gemini (gemini-1.5-pro)',ph:'AIza...',url:'https://aistudio.google.com/app/apikey',host:'aistudio.google.com'},
+    ].map((c,i,all)=>{
+      const st=_sharedAI.keys[c.p]||{configured:false,hint:''};
+      const canEdit=!!_sharedAI.canEdit;
+      const inp='ai-'+c.p+'-key';
+      return `<div style="${i<all.length-1?'margin-bottom:10px;':''}padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="width:20px;height:20px;background:${c.bg};border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${c.letter}</div>
+        <div style="font-size:11px;font-weight:600">${c.name}</div>
+        ${st.configured?`<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured${st.hint?` · <code style="font-size:11px">${esc(st.hint)}</code>`:''}</span>`:'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
       </div>
-      <div style="display:flex;gap:6px">
-        <input id="ai-openai-key" class="inp" type="password" placeholder="sk-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.openai||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-openai-key').type=document.getElementById('ai-openai-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('openai',document.getElementById('ai-openai-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-openai" onclick="testAIProvider('openai','ai-openai-key','btn-test-openai')">⚡ Test</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${canEdit?`<input id="${inp}" class="inp" type="password" autocomplete="off" placeholder="${st.configured?'Paste a new key to replace '+esc(st.hint||'the saved key'):c.ph}" style="flex:1;min-width:140px;font-size:11px" value="">
+        <button class="btn btn-s" style="height:30px;font-size:11px" title="Show / hide what you typed" onclick="document.getElementById('${inp}').type=document.getElementById('${inp}').type==='password'?'text':'password'">👁</button>
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="setAIKey('${c.p}',document.getElementById('${inp}').value.trim())">${st.configured?'Replace':'Save'}</button>
+        ${st.configured?`<button class="btn btn-s" style="height:30px;font-size:11px" onclick="setAIKey('${c.p}','')">Clear</button>`:''}`:''}
+        ${(canEdit||st.configured)?`<button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-${c.p}" title="${canEdit?'Tests what you typed, or the saved key when the box is empty':'Tests the saved key'}" onclick="testAIProvider('${c.p}','${inp}','btn-test-${c.p}')">⚡ Test</button>`:''}
       </div>
-      <div id="ai-openai-status" style="font-size:11px;margin-top:4px;display:none"></div>
-      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--ac)">platform.openai.com/api-keys</a></div>
-    </div>
-    <!-- Claude -->
-    <div style="margin-bottom:10px;padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <div style="width:20px;height:20px;background:#d97706;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">A</div>
-        <div style="font-size:11px;font-weight:600">Anthropic Claude (claude-3-5-sonnet)</div>
-        ${_sharedAI.keys.claude?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
-      </div>
-      <div style="display:flex;gap:6px">
-        <input id="ai-claude-key" class="inp" type="password" placeholder="sk-ant-..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.claude||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-claude-key').type=document.getElementById('ai-claude-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('claude',document.getElementById('ai-claude-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-claude" onclick="testAIProvider('claude','ai-claude-key','btn-test-claude')">⚡ Test</button>
-      </div>
-      <div id="ai-claude-status" style="font-size:11px;margin-top:4px;display:none"></div>
-      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--ac)">console.anthropic.com</a></div>
-    </div>
-    <!-- Gemini -->
-    <div style="padding:10px;background:var(--s1);border-radius:6px;border:1px solid var(--bd1)">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <div style="width:20px;height:20px;background:#4285f4;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">G</div>
-        <div style="font-size:11px;font-weight:600">Google Gemini (gemini-1.5-pro)</div>
-        ${_sharedAI.keys.gemini?'<span style="font-size:11px;color:var(--ok);margin-left:auto">✓ Configured</span>':'<span style="font-size:11px;color:var(--t3);margin-left:auto">Not set</span>'}
-      </div>
-      <div style="display:flex;gap:6px">
-        <input id="ai-gemini-key" class="inp" type="password" placeholder="AIza..." style="flex:1;font-size:11px" value="${esc(_sharedAI.keys.gemini||'')}" ${String(D.creds.role||'').toLowerCase()==='admin'?'':'disabled'}>
-        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="document.getElementById('ai-gemini-key').type=document.getElementById('ai-gemini-key').type==='password'?'text':'password'">👁</button>
-        <button class="btn btn-p admin-only" style="height:30px;font-size:11px" onclick="setAIKey('gemini',document.getElementById('ai-gemini-key').value.trim())">Save</button>
-        <button class="btn btn-s" style="height:30px;font-size:11px" id="btn-test-gemini" onclick="testAIProvider('gemini','ai-gemini-key','btn-test-gemini')">⚡ Test</button>
-      </div>
-      <div id="ai-gemini-status" style="font-size:11px;margin-top:4px;display:none"></div>
-      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--ac)">aistudio.google.com</a></div>
-    </div>
+      <div id="ai-${c.p}-status" style="font-size:11px;margin-top:4px;display:none"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Get your key at <a href="${c.url}" target="_blank" style="color:var(--ac)">${c.host}</a></div>
+    </div>`;
+    }).join('')}
   </div>
   <!-- Usage & Cost Caps -->
   <div style="padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd);margin-bottom:12px">
@@ -1710,8 +1687,8 @@ function _cleanupEmptyAutoProjects(){
 async function _aiFillAutoProjectDescriptions(){
   const all=(D.projects||[]).filter(p=>p&&p.autoCreatedBy&&!(p.desc||'').trim());
   if(!all.length){toast({type:'info',title:'No descriptions to fill.'});return;}
-  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
-  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  const {provider,configured}=_getAIConfig?_getAIConfig():{};
+  if(!configured){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
   if(!confirm(`Generate AI descriptions for ${all.length} project${all.length===1?'':'s'}? Costs one AI call per project.`))return;
   toast({type:'info',title:`Generating ${all.length} description${all.length===1?'':'s'}…`,duration:2500});
   const ext=(D.externalTasks||[]).filter(t=>!(t.override&&t.override.tombstoned));
@@ -1727,7 +1704,7 @@ async function _aiFillAutoProjectDescriptions(){
     if(!taskTitles.length){failed++;continue;}
     const userContent=`Project name: ${p.name}\n\nTask titles in this project:\n${taskTitles.map(t=>'- '+t).join('\n')}`;
     try{
-      const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
       const text=String(res?.result||res?.text||'').trim().replace(/^["']|["']$/g,'').replace(/\n+/g,' ').slice(0,400);
       if(text){
         p.desc=text;
@@ -3285,7 +3262,7 @@ async function sendAIMsg(){
   if(sendBtn)sendBtn.disabled=true;
   _aiChatBusy=true;
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     // Build the chat transcript as a single user-content blob since ai.assist
     // takes systemPrompt + userContent rather than a structured turn list.
     const history=_aiChatHistory().slice(-10,-1); // up to last 9 turns before the just-sent message
@@ -3296,7 +3273,6 @@ async function sendAIMsg(){
       // exactly the same way, so clamp rather than let it fail.
       userContent:_aiClampStr(msg,AI_USER_MAX),
       provider:provider||'manus',
-      apiKey:apiKey||undefined,
     },'mutation');
     const text=String(res?.result||res?.text||'').trim()||"I didn't get a response — try rephrasing, or check that an AI key is configured in Settings → AI Features.";
     _aiChatPushMessage('assistant',text);
@@ -3630,7 +3606,7 @@ async function bulkAutoTagNotes(){
   if(!untagged.length){toast('✅ All notes already have tags!');return;}
   const confirm_=window.confirm(`Auto-tag ${untagged.length} untagged note${untagged.length!==1?'s':''}? The AI will suggest and automatically apply tags to each note.`);
   if(!confirm_)return;
-  const {provider,apiKey}=_getAIConfig();
+  const {provider,configured}=_getAIConfig();
   let done=0,failed=0;
   toast(`🏷 Auto-tagging ${untagged.length} notes… (0/${untagged.length})`);
   for(const note of untagged){
@@ -3639,7 +3615,7 @@ async function bulkAutoTagNotes(){
       if(body.length<10){done++;continue;}
       const systemPrompt='You are a note tagging assistant. Return ONLY a JSON array of 3-6 lowercase tag strings (no # prefix, no spaces, use hyphens). Example: ["project-management","ai","productivity"]';
       const userContent=`Note title: ${note.title}\n\nContent: ${body}`;
-      const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus'},'mutation');
       const text=(res?.result||res?.text||'').trim();
       // Parse JSON array from response
       const match=text.match(/\[.*?\]/s);
@@ -6595,8 +6571,8 @@ async function doSuggestBookmarkTags(inputId,btnId){
   const orig=btn?btn.textContent:'';
   if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
   try{
-    const {provider,apiKey}=_getAIConfig();
-    const res=await _trpc('bookmarks.suggestTags',{url,title,provider,apiKey},'mutation');
+    const {provider,configured}=_getAIConfig();
+    const res=await _trpc('bookmarks.suggestTags',{url,title,provider},'mutation');
     if(res.tags&&res.tags.length){
       const tagsInput=document.getElementById(inputId);
       if(tagsInput)tagsInput.value=res.tags.join(', ');
@@ -6622,8 +6598,8 @@ async function doSuggestBookmarkDescription(inputId,btnId){
   const orig=btn?btn.textContent:'';
   if(btn){btn.textContent='\u23f3 Thinking...';btn.disabled=true;}
   try{
-    const {provider,apiKey}=_getAIConfig();
-    const res=await _trpc('bookmarks.suggestDescription',{url,title,provider,apiKey},'mutation');
+    const {provider,configured}=_getAIConfig();
+    const res=await _trpc('bookmarks.suggestDescription',{url,title,provider},'mutation');
     if(res&&res.description){
       const el=document.getElementById(inputId);
       if(el)el.value=res.description;
@@ -8114,8 +8090,8 @@ async function _rteAICall(prompt,resultElId,loadingText){
   el.style.display='block';
   el.textContent=loadingText||'⏳ Thinking...';
   try{
-    const {provider:_p,apiKey:_k}=_getAIConfig();
-    const res=await _trpc('oauthSync.suggestFollowUps',{subject:'AI Assist',body:prompt,provider:_p,apiKey:_k},'mutation');
+    const {provider:_p}=_getAIConfig();
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:'AI Assist',body:prompt,provider:_p},'mutation');
     // Re-use suggestFollowUps but display as plain text
     const text=(res?.suggestions||[]).join('\n\n');
     el.textContent=text||'No response generated.';
@@ -8177,25 +8153,47 @@ function _rteTimeAgo(ts){
 }
 
 // Workspace-wide shared AI configuration. Stored on the server in
-// systemSettings (admin-only writes, all-user reads). Cached in-memory after
-// first load so AI calls are synchronous-ish.
-let _sharedAI={keys:{openai:'',claude:'',gemini:''},provider:'openai',loaded:false};
+// systemSettings (owner-only writes). Since -214 the browser NEVER holds the
+// raw keys: aiSettings.get returns the active provider plus, per provider,
+// {configured, hint:'sk-…abcd'}, and every AI endpoint resolves the key on
+// the server (workspaceAI.ts resolveRequestAI) — callers send no apiKey.
+// `known` = we have a server answer or a cached copy; until then AI calls are
+// allowed through and the server decides.
+let _sharedAI={keys:{openai:{configured:false,hint:''},claude:{configured:false,hint:''},gemini:{configured:false,hint:''}},provider:'openai',canEdit:false,loaded:false,known:false};
+function _aiKeyStatus(v){
+  // Accepts the new {configured,hint} shape or a pre-214 cached raw string —
+  // a raw string is reduced to "configured" and never kept.
+  if(v&&typeof v==='object')return {configured:!!v.configured,hint:String(v.hint||'')};
+  return {configured:!!v,hint:''};
+}
+function _aiNormKeys(keys){
+  const k=keys||{};
+  return {openai:_aiKeyStatus(k.openai),claude:_aiKeyStatus(k.claude),gemini:_aiKeyStatus(k.gemini)};
+}
+function _aiMaskKey(key){
+  const k=String(key||'').trim();if(!k)return '';
+  const head=k.startsWith('sk-ant-')?'sk-ant-':k.startsWith('sk-')?'sk-':k.startsWith('AIza')?'AIza':'';
+  return k.length<12?head+'…':head+'…'+k.slice(-4);
+}
+function _aiCacheSave(){
+  try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider,canEdit:_sharedAI.canEdit}));}catch(_){}
+}
 async function loadSharedAISettings(){
-  // Belt-and-suspenders: read a localStorage cache first so the Settings
-  // panel shows the correct keys instantly on page load, even before the
-  // server roundtrip completes (or if it fails entirely).
+  // Read the localStorage cache first so the Settings panel and the "AI key
+  // missing" checks are right instantly on page load. A pre-214 cache held
+  // the raw keys — normalising drops them, and the cache is rewritten below.
   try{
     const cached=JSON.parse(localStorage.getItem('lu_sharedAI')||'null');
     if(cached&&cached.keys){
-      _sharedAI={keys:cached.keys,provider:cached.provider||'openai',loaded:false};
+      _sharedAI={keys:_aiNormKeys(cached.keys),provider:cached.provider||'openai',canEdit:!!cached.canEdit,loaded:false,known:true};
+      _aiCacheSave();
     }
   }catch(_){}
   try{
     const res=await _trpc('aiSettings.get',undefined,'query');
     if(res){
-      _sharedAI={keys:res.keys||{},provider:res.provider||'openai',loaded:true};
-      // Refresh the cache so the next page load is instant.
-      try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
+      _sharedAI={keys:_aiNormKeys(res.keys),provider:res.provider||'openai',canEdit:!!res.canEdit,loaded:true,known:true};
+      _aiCacheSave();
     }
   }catch(e){console.warn('[aiSettings] load failed',e?.message||e);_sharedAI.loaded=true;}
   // If the user is on the Settings → AI Features pane right now, re-render
@@ -8208,10 +8206,10 @@ async function loadSharedAISettings(){
   }catch(_){}
   // One-time migration: keys may live in either D.creds.{openai_key,...}
   // (the original localStorage-only home) or D.prefs.aiKeys (Round 1's
-  // server-synced home). On first admin login after Round 3, sweep both
-  // and push anything found into the shared workspace store.
+  // server-synced home). On the owner's first login after Round 3, sweep
+  // both and push anything found into the shared workspace store.
   try{
-    if(String(D.creds.role||'').toLowerCase()==='admin'){
+    if(_sharedAI.canEdit){
       const updates={};
       const fromCreds={
         openai:D.creds&&D.creds.openai_key,
@@ -8220,13 +8218,14 @@ async function loadSharedAISettings(){
       };
       const fromPrefs=(D.prefs&&D.prefs.aiKeys)||{};
       for(const p of ['openai','claude','gemini']){
-        if(_sharedAI.keys[p])continue; // already on server, don't overwrite
+        if(_sharedAI.keys[p].configured)continue; // already on server, don't overwrite
         const v=fromCreds[p]||fromPrefs[p];
         if(v)updates[p]=v;
       }
       if(Object.keys(updates).length){
         await _trpc('aiSettings.set',updates,'mutation');
-        Object.assign(_sharedAI.keys,updates);
+        for(const p in updates)_sharedAI.keys[p]={configured:true,hint:_aiMaskKey(updates[p])};
+        _aiCacheSave();
         // Clean up legacy locations now that the keys are safely on the server
         if(D.creds){delete D.creds.openai_key;delete D.creds.claude_key;delete D.creds.gemini_key;
           try{localStorage.setItem('lu_creds',JSON.stringify(D.creds));}catch(_){}}
@@ -8237,37 +8236,30 @@ async function loadSharedAISettings(){
   }catch(_){}
 }
 
+// {provider, configured} — NO key (-214). `provider` is informational (the
+// server picks the workspace provider itself); `configured` drives the
+// "AI key missing" checks. Unknown yet (fresh load, no cache) counts as
+// configured so a first-second AI click still reaches the server.
 function _getAIConfig(){
-  // Prefer workspace-shared keys (loaded from server). Fall back to legacy
-  // per-user storage so AI calls keep working before loadSharedAISettings()
-  // returns on a fresh page load.
-  const explicit=_sharedAI.provider||(D.prefs&&D.prefs.aiProvider)||'openai';
-  const sharedKeys=_sharedAI.keys||{};
-  if(sharedKeys[explicit])return {provider:explicit,apiKey:sharedKeys[explicit]};
-  const legacyKeys=(D.prefs&&D.prefs.aiKeys)||{};
-  if(legacyKeys[explicit])return {provider:explicit,apiKey:legacyKeys[explicit]};
+  const keys=_sharedAI.keys||{};
+  const explicit=_sharedAI.provider||'openai';
+  if(keys[explicit]&&keys[explicit].configured)return {provider:explicit,configured:true};
   for(const p of ['openai','claude','gemini']){
-    if(sharedKeys[p])return {provider:p,apiKey:sharedKeys[p]};
-    if(legacyKeys[p])return {provider:p,apiKey:legacyKeys[p]};
+    if(keys[p]&&keys[p].configured)return {provider:p,configured:true};
   }
-  return {provider:'manus',apiKey:undefined};
+  return {provider:explicit,configured:!_sharedAI.known};
 }
 
-// Admin-only: write a shared AI key (or clear with empty string).
-// Hardened: refuses to silently wipe a previously-saved key. If the input
-// is empty, the user must explicitly confirm they want to clear it.
+// Owner-only: replace a shared AI key (or clear it). The saved key is never
+// shown again — only its masked hint.
 async function setAIKey(provider,key){
-  const previous=_sharedAI.keys&&_sharedAI.keys[provider]||'';
-  if(!key&&previous){
-    if(!confirm('Clear the saved '+provider+' API key? This affects every team member. Cancel to keep the existing key.'))return;
-  }
-  if(!key&&!previous){
-    toast('Enter a key first');return;
-  }
+  const had=!!(_sharedAI.keys[provider]&&_sharedAI.keys[provider].configured);
+  if(!key&&!had){toast('Paste a key first');return;}
+  if(!key&&!confirm('Clear the saved '+provider+' API key? This affects every team member.'))return;
   try{
     await _trpc('aiSettings.set',{[provider]:key||''},'mutation');
-    _sharedAI.keys[provider]=key||'';
-    try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
+    _sharedAI.keys[provider]=key?{configured:true,hint:_aiMaskKey(key)}:{configured:false,hint:''};
+    _aiCacheSave();
     renderScreen('settings');
     toast(key?'✅ '+provider+' key saved for the whole team':provider+' key cleared');
   }catch(e){
@@ -8278,7 +8270,7 @@ async function setAIProvider(p){
   try{
     await _trpc('aiSettings.set',{provider:p},'mutation');
     _sharedAI.provider=p;
-    try{localStorage.setItem('lu_sharedAI',JSON.stringify({keys:_sharedAI.keys,provider:_sharedAI.provider}));}catch(_){}
+    _aiCacheSave();
     renderScreen('settings');
     toast('Active AI provider: '+p);
   }catch(e){toast('Failed: '+(e.message||e));}
@@ -8288,13 +8280,13 @@ async function _rteAIGeneral(systemPrompt,userContent,resultElId,targetRteId){
   if(!el)return;
   el.style.display='block';
   el.innerHTML='<span style="color:var(--t3)">⏳ Thinking...</span>';
-  const {provider,apiKey}=_getAIConfig();
+  const {provider,configured}=_getAIConfig();
   // Inject the current length-guidance hint into the systemPrompt so the
   // model knows how long to make the response. Cheap; happens at call time
   // so a chip change between renders takes effect on the next click.
   const sysWithLen=(typeof _aiLengthHint==='function')?(systemPrompt+_aiLengthHint()):systemPrompt;
   try{
-    const res=await _trpc('ai.assist',{systemPrompt:sysWithLen,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sysWithLen,userContent,provider:provider||'manus'},'mutation');
     const text=res?.result||res?.text||'No response generated.';
     // Save the raw markdown to history (rendered HTML is regenerated on demand).
     if(targetRteId)_rteHistorySave(targetRteId,systemPrompt.substring(0,120),text);
@@ -8397,17 +8389,20 @@ async function testAIProvider(provider,inputId,btnId){
   const btn=document.getElementById(btnId);
   const statusEl=document.getElementById('ai-'+provider+'-status');
   const key=(keyInput?.value||'').trim();
-  if(!key){toast('Enter an API key first, then click Test.');return;}
+  // A freshly typed key is sent once to test it; with the input empty the
+  // SAVED key is tested on the server (the browser never has it, -214).
+  const saved=!!(_sharedAI.keys[provider]&&_sharedAI.keys[provider].configured);
+  if(!key&&!saved){toast('Paste an API key first, then click Test.');return;}
   if(btn){btn.disabled=true;btn.textContent='⏳ Testing...';}
   if(statusEl){statusEl.style.display='none';statusEl.textContent='';}
   try{
-    const res=await _trpc('ai.assist',{
+    const res=key?await _trpc('ai.assist',{
       systemPrompt:'You are a helpful assistant.',
       userContent:'Reply with exactly: OK',
       provider,
       apiKey:key
-    },'mutation');
-    const ok=!!(res?.result||res?.text);
+    },'mutation'):await _trpc('aiSettings.test',{provider},'mutation');
+    const ok=!!(res?.result||res?.text||res?.ok);
     if(statusEl){
       statusEl.style.display='block';
       statusEl.style.color=ok?'var(--ok)':'var(--err)';
@@ -12420,10 +12415,10 @@ async function mmAIExpandSelected(){
   const node=_mmCurrent.nodes.find(n=>n.id===id);if(!node)return;
   toast({type:'info',title:'Expanding node…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const ctxText=(_mmCurrent.nodes||[]).map(n=>n.text).join(', ');
     const sys=`You are a mind-map brainstorming assistant. Given a focus topic, propose 5 specific child concepts (3-7 words each, distinct, non-overlapping). Reply with strict JSON only: {"children":["…","…","…","…","…"]}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Focus topic: "${node.text}"\nMap context: ${ctxText}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Focus topic: "${node.text}"\nMap context: ${ctxText}`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
     const parsed=JSON.parse(text);
     if(!Array.isArray(parsed.children))throw new Error('bad response');
@@ -12442,11 +12437,11 @@ async function mmAISummarize(){
   if(!_mmCurrent||!_mmCurrent.nodes.length)return toast('Map is empty');
   toast({type:'info',title:'Summarizing map…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const lines=_mmCurrent.nodes.map(n=>`- ${n.text}${n.description?` — ${n.description.slice(0,120)}`:''}`).join('\n');
     const edgeLines=_mmCurrent.edges.map(e=>{const f=_mmCurrent.nodes.find(n=>n.id===e.from);const t=_mmCurrent.nodes.find(n=>n.id===e.to);return f&&t?`  ${f.text} → ${t.text}`:'';}).filter(Boolean).join('\n');
     const sys=`You are a knowledge synthesizer. Given a mind map's nodes + connections, write a 3-paragraph summary: 1) the central theme, 2) the main branches and their relationships, 3) what's missing or worth exploring. Plain prose, no headers.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Title: ${_mmCurrent.title}\nNodes:\n${lines}\nConnections:\n${edgeLines}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Title: ${_mmCurrent.title}\nNodes:\n${lines}\nConnections:\n${edgeLines}`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     const m=document.getElementById('modal-content');
     if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📜 Map Summary</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
@@ -12456,12 +12451,12 @@ async function mmAISuggestConnections(){
   if(!_mmCurrent||_mmCurrent.nodes.length<3)return toast('Need at least 3 nodes');
   toast({type:'info',title:'Looking for connections…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const idMap={};_mmCurrent.nodes.forEach((n,i)=>idMap[i+1]=n.id);
     const lines=_mmCurrent.nodes.map((n,i)=>`${i+1}. ${n.text}`).join('\n');
     const existing=_mmCurrent.edges.map(e=>{const fi=_mmCurrent.nodes.findIndex(n=>n.id===e.from)+1;const ti=_mmCurrent.nodes.findIndex(n=>n.id===e.to)+1;return `${fi}-${ti}`;}).join(', ');
     const sys=`You are a synthesis assistant. Given a numbered list of mind-map nodes, propose up to 5 NEW non-obvious connections between distinct pairs (do not duplicate existing edges). Reply with strict JSON only: {"edges":[{"from":1,"to":4,"label":"…"}, …]}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Nodes:\n${lines}\nExisting edges (numeric pairs): ${existing||'(none)'}\nPropose new connections.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Nodes:\n${lines}\nExisting edges (numeric pairs): ${existing||'(none)'}\nPropose new connections.`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
     const parsed=JSON.parse(text);
     if(!Array.isArray(parsed.edges))throw new Error('bad response');
@@ -16063,12 +16058,12 @@ async function _finAI(question,extraData,targetId,title){
   const target=document.getElementById(targetId);
   if(target)target.innerHTML=`<div style="font-size:12px;color:var(--t3);padding:10px 0">✨ ${esc(title||'Analyzing')}…</div>`;
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const data=_aiClampStr(_finAIContext()+(extraData?'\n'+extraData:''),5600);
     const res=await _trpc('ai.assist',{
       systemPrompt:_aiClampStr(_FIN_AI_SYS,3900),
       userContent:_aiClampStr('DATA:\n'+data+'\n\nQUESTION: '+question,7900),
-      provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     if(!text)throw new Error('Empty response — check Settings → AI Features.');
     const html=(typeof luRTE_mdToHtml==='function')?luRTE_mdToHtml(text):esc(text).replace(/\n/g,'<br>');
@@ -16262,8 +16257,8 @@ async function finAICategorize(){
     const sys=`You categorize bank transactions for a personal-budget app. Input: PAYEE strings (prefix + = money IN, - = money OUT, with count and total) and the user's CATEGORY list as id=name. Return STRICTLY a JSON array, no prose, one object per payee: {"payee":"<exact payee string from the list>","match":"<the shortest substring of that payee that identifies the merchant across its variants, e.g. AMAZON, PAYPAL *SPOTIFY, APS ELECTRIC>","catId":"<an id from CATEGORIES>","confidence":"high"|"medium"|"low"}. Money IN must use income categories. Card/loan payments and transfers go to the debt or transfer category if one exists. Use misc-other only when the merchant is truly unknowable.`;
     const user=`CATEGORIES: ${cats}\n\nPAYEES:\n${lines}`;
     try{
-      const {provider,apiKey}=_getAIConfig();
-      const res=await _trpc('ai.assist',{systemPrompt:_aiClampStr(sys,3900),userContent:_aiClampStr(user,7900),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+      const {provider,configured}=_getAIConfig();
+      const res=await _trpc('ai.assist',{systemPrompt:_aiClampStr(sys,3900),userContent:_aiClampStr(user,7900),provider:provider||'manus'},'mutation');
       const text=String(res?.result||res?.text||'');
       // Salvage parser: a truncated reply still yields every COMPLETE object.
       let arr=[]; const m=text.match(/\[[\s\S]*\]/);

@@ -26,7 +26,7 @@ function effShareMode(p: any, dflt: 'view' | 'edit'): 'view' | 'edit' {
   return (p && (p.shareMode === 'view' || p.shareMode === 'edit')) ? p.shareMode : dflt;
 }
 
-async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Promise<boolean> {
+export async function isOwnerCtxUser(user: { id: number; openId?: string | null }): Promise<boolean> {
   try {
     const { ENV } = await import("../_core/env");
     if (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) return true;

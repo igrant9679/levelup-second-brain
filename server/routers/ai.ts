@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
+import { resolveRequestAI } from "../_core/workspaceAI";
 
 // ─── Provider types ────────────────────────────────────────────────────────────
 type AIProvider = "manus" | "openai" | "claude" | "gemini";
@@ -125,9 +126,10 @@ export const aiRouter = router({
    * General-purpose AI assist endpoint used by the rich text editors
    * in Journal, Notes, and Ideas forms.
    *
-   * Accepts an optional `provider` and `apiKey` so the frontend can pass
-   * the user's chosen provider (openai / claude / gemini / manus).
-   * Falls back to the Manus built-in LLM when no provider is specified.
+   * The browser sends no key (-214): the server uses the workspace's provider
+   * + key from Settings → AI Features (resolveRequestAI). An explicit
+   * `provider` + `apiKey` is still accepted (deploy skew, the Settings "Test"
+   * button). Falls back to the Manus built-in LLM when nothing is configured.
    */
   // Signed-in users only (was publicProcedure until -214: anyone could spend
   // the workspace AI quota through it).
@@ -144,7 +146,8 @@ export const aiRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { systemPrompt, userContent, provider, apiKey } = input;
+      const { systemPrompt, userContent } = input;
+      const { provider, apiKey } = await resolveRequestAI(input);
 
       let result: string;
 
@@ -211,10 +214,11 @@ export const aiRouter = router({
         throw new Error(`agent payload too large (${total} chars; max 60000)`);
       }
       const { callAIProviderChat } = await import("../_core/aiProviders");
+      const { provider, apiKey } = await resolveRequestAI(input);
       try {
         const { text, providerUsed } = await callAIProviderChat({
-          provider: input.provider,
-          apiKey: input.apiKey,
+          provider,
+          apiKey,
           system: input.system,
           messages: input.messages,
           jsonMode: input.jsonMode,
@@ -222,7 +226,7 @@ export const aiRouter = router({
         });
         return { result: text, provider: providerUsed };
       } catch (err) {
-        console.error(`[ai.agent] provider "${input.provider}" failed:`, err);
+        console.error(`[ai.agent] provider "${provider}" failed:`, err);
         throw new Error(
           `AI request failed: ${err instanceof Error ? err.message : String(err)}`
         );

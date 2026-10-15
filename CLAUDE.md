@@ -8,6 +8,46 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**-214 (2026-10-14, COMMITTED — NOT PUSHED) — workspace AI keys never reach
+the browser.** Closes the exposure the lockdown below left open.
+- Server: `server/_core/workspaceAI.ts` gained `resolveRequestAI({provider,
+  apiKey})` — no apiKey → the workspace provider + key (`resolveWorkspaceAI`,
+  chosen provider first, then any provider with a key; client `provider` is
+  ignored); an explicit apiKey still wins (a pre-214 tab during deploy skew,
+  and the Settings "Test" of a freshly typed key). Used by `ai.assist`,
+  `ai.agent`, `help.askAI`, `bookmarks.suggestTags / suggestDescription`,
+  `oauthSync.suggestFollowUps`. Also `maskKey` ('sk-ant-…wxyz') and
+  `invalidateWorkspaceAI()` (the 5-min cache is dropped on every save).
+- `aiSettings.get` → `{provider, keys:{openai|claude|gemini:{configured,
+  hint}}, canEdit}` — **never the raw key**. `aiSettings.set` is now
+  **workspace-owner only** (`isOwnerCtxUser`, now exported from appData.ts;
+  it was `role==='admin'`, i.e. every teammate). New `aiSettings.test
+  {provider}` tests the SAVED key server-side.
+- Client: `_getAIConfig()` returns `{provider, configured}` (no key; unknown
+  before the first load counts as configured so the server decides). Every
+  caller in part1/part2/agent stopped sending `apiKey`; the "AI key missing"
+  guards read `configured`. `lu_sharedAI` localStorage cache is rewritten in
+  the masked shape on load (a pre-214 cache held raw keys — normalising drops
+  them). Settings → AI Features: masked hint + "Paste a new key to replace"
+  input, Replace / Clear / Test for the owner; teammates see status + Test.
+  The legacy D.creds/D.prefs.aiKeys migration now runs for the owner only.
+- Guards: `check:ai-agent` stub is `{provider,configured}` and asserts no
+  `apiKey` in any `_trpc` input. New `server/aiSettings.keys.test.ts` (12).
+- Later cleanup: once no pre-214 tab can be open, the explicit-apiKey path
+  could be limited to the Settings Test (it lets any signed-in user spend
+  THEIR OWN key, not the workspace's, so it is not an exposure).
+Verified: vitest — the 12 new tests pass; failures are the same 23
+pre-existing ones (DB-less bookmarks, MS_CLIENT_SECRET env, the 2 askAI
+wording assertions); tsc = the 7 pre-existing errors; vite + esbuild build,
+dist == src for all four bundles; `node -c` four bundles; 12 NUL bytes; five
+guards green. On the vite-built output (`levelup-dist`, `_trpc` stubbed): a
+seeded pre-214 raw-key cache was replaced by the masked shape; AI panel →
+`ai.agent`, `_rteAIGeneral` → `ai.assist`, Help Ask AI fetch → `help.askAI`
+all sent NO apiKey; Test with an empty box → `aiSettings.test`; owner and
+teammate panes rendered, 375px no overflow. NOT verified against the real
+server — after deploy: Settings → AI Features shows "✓ Configured ·
+sk-…xxxx", ⚡ Test passes, and the AI panel answers.
+
 **Security lockdown (2026-10-14, server-only, no APP_BUILD bump; COMMITTED —
 NOT PUSHED).** User: "please lock them down".
 - `ai.assist`, `ai.agent` and `help.askAI` were `publicProcedure` — anyone could
@@ -22,10 +62,8 @@ NOT PUSHED).** User: "please lock them down".
   Nothing called it. Never reintroduce a public password setter.
 - Pre-existing, unrelated: 2 assertions in `server/help.askAI.test.ts`
   (prompt wording) were already failing before this change.
-- Still open (not done): `aiSettings.get` returns the raw workspace AI keys
-  to every signed-in user, because the client passes them to ai.assist.
-  Fix = server resolves the key itself (`resolveWorkspaceAI`) and the client
-  stops fetching raw keys; Settings → AI Features shows masked keys.
+- ~~Still open: `aiSettings.get` returns the raw workspace AI keys~~ — fixed
+  in -214 above. (origin/main was already at dfecef0 when -214 was made.)
 - Remaining intentional public procedures: auth.me / logout, emailAuth
   login / register / forgotPassword / resetPassword, teamInvites validate /
   accept, system.health.

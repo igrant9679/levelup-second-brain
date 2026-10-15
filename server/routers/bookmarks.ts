@@ -8,6 +8,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { protectedProcedure, router } from '../_core/trpc';
 import * as db from '../db';
+import { resolveRequestAI } from '../_core/workspaceAI';
 
 // ─── Metadata Extraction ────────────────────────────────────────────────────
 
@@ -347,8 +348,8 @@ export const bookmarksRouter = router({
       const { callAIProvider } = await import('../_core/aiProviders');
 
       const { text } = await callAIProvider({
-        provider: input.provider,
-        apiKey: input.apiKey,
+        // No key from the browser since -214 → workspace provider + key.
+        ...(await resolveRequestAI(input)),
         systemPrompt: 'You are a bookmark tagging assistant. Given a web page title, description, and URL, suggest 3 to 5 concise, lowercase tags that categorize the content. Return ONLY a JSON object of the form {"tags": ["tag1", "tag2"]}, no explanation.',
         userContent: `Title: ${title}\nDescription: ${description || '(none)'}\nURL: ${input.url}`,
         jsonMode: true,
@@ -389,8 +390,8 @@ export const bookmarksRouter = router({
       }
       const { callAIProvider } = await import('../_core/aiProviders');
       const { text } = await callAIProvider({
-        provider: input.provider,
-        apiKey: input.apiKey,
+        // No key from the browser since -214 → workspace provider + key.
+        ...(await resolveRequestAI(input)),
         systemPrompt: 'You are a bookmark description writer. Given a web page title, raw page description, and URL, write a single concise 1–2 sentence summary (max 240 chars) that explains what the page is about and why someone would save it. Plain prose, no leading title, no quotes, no markdown.',
         userContent: `Title: ${title}\nPage description: ${pageDesc || '(none)'}\nURL: ${input.url}`,
         maxTokens: 200,

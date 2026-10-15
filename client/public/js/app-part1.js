@@ -3295,7 +3295,6 @@ async function aiAskLevelup(prefillQuery){
         systemPrompt: sys,
         userContent: q,
         provider: cfg.provider || 'manus',
-        apiKey: cfg.apiKey || undefined,
       }, 'mutation');
       const answer = String(res?.result || res?.text || '').trim() || '(no answer returned)';
       const answerHtml = esc(answer).replace(/\[(\d+)\]/g, (_, n) => {
@@ -3362,7 +3361,6 @@ ${bodyText}`;
       systemPrompt: sys,
       userContent: 'Analyze this note.',
       provider: cfg.provider || 'manus',
-      apiKey: cfg.apiKey || undefined,
       jsonMode: true,
     }, 'mutation');
     let parsed;
@@ -3527,8 +3525,8 @@ function _aiInsightCreateTask(noteId, actionIdx){
 async function _refreshAIInsight(){
   const today=new Date().toISOString().slice(0,10);
   try{
-    const {provider,apiKey}=_getAIConfig();
-    if(!apiKey&&provider!=='manus'){
+    const {provider,configured}=_getAIConfig();
+    if(!configured){
       D.prefs.aiInsightCard={date:today,text:'Configure an AI key in Settings → AI Features to see daily insights.'};
       save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
       return;
@@ -3537,7 +3535,7 @@ async function _refreshAIInsight(){
     const res=await _trpc('ai.assist',{
       systemPrompt:`You are a productivity coach. Read the workspace snapshot and write ONE concise, encouraging insight (2 sentences max, ~140 chars) that highlights something specific the user is doing well OR a specific small action that would help. Be specific — reference actual numbers / titles when you can. Plain text, no markdown.\n\n${ctx}`,
       userContent:`Generate today's insight.`,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=String(res?.result||res?.text||'').trim()||'Keep going — small consistent wins compound into big outcomes.';
     D.prefs.aiInsightCard={date:today,text};save('prefs');
@@ -3560,7 +3558,7 @@ async function _refreshDailyFocusAI(opts){
   D.prefs.dailyFocusAI={date:today,picks:cache?cache.picks:[],pending:true};
   if(typeof renderScreen==='function'&&curScreen==='home')renderScreen('home');
   try{
-    const {provider,apiKey}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',apiKey:''};
+    const {provider,configured}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',configured:true};
     // Build a compact task summary the model can reason over. Strip junk and
     // cap the list to keep tokens reasonable. Each item includes a stable id
     // shape so the response can reference items unambiguously.
@@ -3593,7 +3591,7 @@ async function _refreshDailyFocusAI(opts){
     }));
     const sys=`You are a productivity coach for a COO/CEO running two companies. Read the open task list (mix of personal items, CF = CommunityForce Smartsheet items, LSI = LSI Media Nifty items) and pick the TOP 3 to 5 items that the user should focus on TODAY, in order. Bias toward: overdue items, items due today, items flagged "myDay", and high-leverage strategic work over busy work. When two items would compete, prefer the one that unblocks others. Output STRICTLY a JSON array — no prose, no markdown — each element shaped {"id":"<id from input>","reason":"<one short sentence, ~12 words, why this item matters today>"}. Do NOT include items not in the input. Do NOT invent ids.`;
     const userContent=`Today: ${todayKey}\nOpen tasks (${compact.length}):\n${JSON.stringify(compact)}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
     // Tolerate the model wrapping the JSON in ```json fences or padding.
     const m=raw.match(/\[[\s\S]*\]/);
@@ -3627,7 +3625,7 @@ async function _refreshDailyFocusAI(opts){
 function _renderDailyFocusAISection(){
   const cache=(D.prefs&&D.prefs.dailyFocusAI)||{};
   const picks=Array.isArray(cache.picks)?cache.picks:[];
-  const hasAIConfig=(()=>{try{const {apiKey,provider}=_getAIConfig();return !!apiKey||provider==='manus';}catch{return false;}})();
+  const hasAIConfig=(()=>{try{return !!_getAIConfig().configured;}catch{return false;}})();
   if(!hasAIConfig){
     return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3);text-align:center">Add an AI key in Settings → AI Features to see Daily Focus picks.</div>`;
   }
@@ -3674,8 +3672,8 @@ async function _refreshHeroBrief(){
   // Mark pending so concurrent renders don't kick off duplicate calls.
   D.prefs.aiHeroBrief={date:today,text:cache?.text||'Generating your daily brief…',pending:true};
   try{
-    const {provider,apiKey}=_getAIConfig();
-    if(!apiKey&&provider!=='manus'){
+    const {provider,configured}=_getAIConfig();
+    if(!configured){
       D.prefs.aiHeroBrief={date:today,text:'Configure an AI key in Settings → AI Features to see daily AI briefs.'};
       save('prefs');if(curScreen==='home'&&typeof renderHome==='function')renderHome();
       return;
@@ -3684,7 +3682,7 @@ async function _refreshHeroBrief(){
     const res=await _trpc('ai.assist',{
       systemPrompt:`You are a calm productivity coach. Read the workspace snapshot and write ONE short greeting line (max 18 words, ~110 chars) for the top of the user's dashboard. Reference one specific number or item from their day if useful (e.g. "2 overdue", "habit streak of 18"). End with a gentle nudge or question. No emoji. No quotes. Plain text only.\n\n${ctx}`,
       userContent:`Generate today's hero greeting line.`,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=String(res?.result||res?.text||'').trim().replace(/^["']|["']$/g,'')||'Energy is finite — spend it on what compounds.';
     D.prefs.aiHeroBrief={date:today,text};save('prefs');
@@ -5753,12 +5751,12 @@ async function aiComposeTaskNotes(id){
       (t.tags||[]).length?`Tags: ${(t.tags||[]).join(', ')}`:'',
       existingText?`Existing notes (rewrite/extend):\n${existingText}`:'',
     ].filter(Boolean).join('\n').slice(0,7800);
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const sys='You are a task description writer for a productivity app. Given the task metadata, write a clear description explaining what the task involves, why it matters, and what "done" looks like. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
       systemPrompt:sys,
       userContent:ctxLines,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=res?.result||res?.text||'';
     if(text){_aiComposePreview('task',id,text.trim(),target.id,'aiComposeTaskNotes');}
@@ -5786,11 +5784,11 @@ async function aiSuggestSubtasks(id){
       notesPlain?`Notes:\n${notesPlain}`:'',
       (t.subtasks||[]).length?`Existing subtasks (avoid duplicates):\n- `+(t.subtasks||[]).map(s=>s.title).join('\n- '):'',
     ].filter(Boolean).join('\n').slice(0,7800);
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const res=await _trpc('ai.assist',{
       systemPrompt:'You are a task breakdown assistant. Given a task, propose 3-6 concrete subtasks that, completed in order, would finish it. Return ONLY a JSON object of the form {"subtasks":["First action","Second action",...]} with no extra commentary. Each subtask is a short imperative phrase, max 80 chars.',
       userContent:ctxLines,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=res?.result||res?.text||'';
     let arr=[];
@@ -5847,14 +5845,14 @@ async function aiComposeProjectDesc(id){
       ta.value.trim()?`Existing description (rewrite/extend):\n${ta.value.trim()}`:'',
       projTasks.length?`Sample tasks already in this project:\n- `+projTasks.map(t=>t.title).join('\n- '):'',
     ].filter(Boolean).join('\n');
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     // Drop the hardcoded "Max 130 words" so the user's length preference
     // (Short / Medium / Long via _aiLengthHint) becomes the sole guidance.
     const sys='You are a project description writer. Write a clear description explaining the project goal, scope, and success criteria. Markdown formatting (## headings, **bold**, bullets) is allowed when it genuinely helps clarity.'+(typeof _aiLengthHint==='function'?_aiLengthHint():'');
     const res=await _trpc('ai.assist',{
       systemPrompt:sys,
       userContent:ctxLines,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=res?.result||res?.text||'';
     if(text){_aiComposePreview('project',id,text.trim(),'dr-body','aiComposeProjectDesc');}
@@ -5929,11 +5927,11 @@ async function aiSuggestProjectTasks(id){
       p.desc?`Description:\n${p.desc}`:'',
       existing.length?`Existing tasks (avoid duplicates):\n- `+existing.map(t=>t.title).join('\n- '):'',
     ].filter(Boolean).join('\n');
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const res=await _trpc('ai.assist',{
       systemPrompt:'You are a project planning assistant. Propose 5-8 concrete, action-oriented tasks needed to advance this project. Return ONLY a JSON object: {"tasks":[{"title":"...","priority":"High|Medium|Low"}]}. Each title is short imperative, max 80 chars.',
       userContent:ctxLines,
-      provider:provider||'manus',apiKey:apiKey||undefined,
+      provider:provider||'manus',
     },'mutation');
     const text=res?.result||res?.text||'';
     let arr=[];
@@ -6478,8 +6476,8 @@ async function aiSmartSchedule(opts){
   }
   const m=document.getElementById('modal-content');
   if(!m){toast({type:'warn',title:'Modal not available'});return;}
-  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
-  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  const {provider,configured}=_getAIConfig?_getAIConfig():{};
+  if(!configured){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
   const c=_dayCapacityCheck();
   if(!c.taskCount){toast({type:'info',title:'No tasks set for today',msg:'Add some via My Day → Plan or set a due date for today.'});return;}
   m.innerHTML=`<div style="padding:14px 16px;max-width:520px">
@@ -6528,7 +6526,7 @@ RULES:
 - startMins is minutes from midnight (e.g. 9:00 AM = 540, 14:30 = 870); durationMins respects each task's estimatedMins.
 - Items in "blocks" MUST reference task IDs from the input; do not invent.`;
     const userContent=`Working hours: ${c.workingHoursStart}-${c.workingHoursEnd}. Peak hours: ${JSON.stringify(peakHours)}. Calendar events (immovable): ${JSON.stringify(snapshotEvents)}. Tasks to schedule: ${JSON.stringify(snapshotTasks)}.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
     const m2=raw.match(/\{[\s\S]*\}/);
     if(!m2)throw new Error('AI returned no JSON');
@@ -6844,10 +6842,10 @@ async function aiTodaysPlan(){
   if(!tasks.length){toast('Nothing on your plate today — enjoy it.');return;}
   const btn=document.getElementById('ai-today-plan-btn');if(btn){btn.disabled=true;btn.innerText='⏳ Thinking…';}
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const lines=tasks.map((t,i)=>`${i+1}. [${t.priority||'Medium'}] ${t.title}${t.estimatedMins?` (~${t.estimatedMins}m)`:''}${t.energy?` energy:${t.energy}`:''}`).join('\n');
     const sys=`You are a focused productivity coach. Reorder the user's task list for today into the most effective sequence considering: deep work first when energy is high, batch shallow/admin work, finish the highest-impact item early. Reply with ONLY a numbered list of the same task titles in your suggested order, plus a one-line reason for each. No preamble.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`My tasks for today:\n${lines}\n\nReorder them into the best sequence.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`My tasks for today:\n${lines}\n\nReorder them into the best sequence.`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     // Render as a modal so the user can read + dismiss.
     const m=document.getElementById('modal-content');
@@ -14611,10 +14609,10 @@ async function aiProjectHealth(){
   if(!D.projects.length){toast('No projects yet');return;}
   toast({type:'info',title:'Generating project health summary…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const lines=D.projects.filter(p=>!p.archived).map(p=>{const h=projectHealth(p);const tasks=D.tasks.filter(t=>t.projectId===p.id);return `- ${p.name}: ${p.status||'—'}, ${p.pct||0}% complete, due ${p.due||'—'}, ${h.label}, ${tasks.length} tasks (${tasks.filter(t=>t.status==='Done').length} done)`;}).join('\n');
     const sys=`You are an experienced project manager. Read the active project list with health flags and produce a 3-paragraph health report: 1) what's going well, 2) what needs attention this week, 3) the single most important next action across the portfolio. Be specific — name the projects. No fluff.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Active projects:\n${lines}`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Active projects:\n${lines}`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     const m=document.getElementById('modal-content');
     if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🩺 Project Health Summary</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
@@ -14626,10 +14624,10 @@ async function aiProjectNextMilestone(){
   if(!active.length){toast('No active projects');return;}
   toast({type:'info',title:'Suggesting next milestones…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const lines=active.map(p=>{const tasks=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done').slice(0,5).map(t=>'  · '+t.title).join('\n');return `- ${p.name} (${p.pct||0}%, due ${p.due||'—'}):\n${tasks||'  (no open tasks)'}`;}).join('\n');
     const sys=`You are a project planner. For each active project, suggest the SINGLE next milestone the user should ship in the next 7-14 days. Reply as a markdown bulleted list, one project per bullet, format: "**Project name** — milestone (1 sentence why)". No preamble.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     const m=document.getElementById('modal-content');
     if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Next Milestones</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
@@ -14641,10 +14639,10 @@ async function aiProjectRisks(){
   if(!at.length){toast('Nothing flagged — all projects on track 🎉');return;}
   toast({type:'info',title:'Identifying risks…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const lines=at.map(p=>{const h=projectHealth(p);const overdueTasks=D.tasks.filter(t=>t.projectId===p.id&&t.status!=='Done'&&t.due&&t.due<_todayStr).slice(0,5).map(t=>'  · OVERDUE: '+t.title+' (due '+t.due+')').join('\n');return `- ${p.name} [${h.label}], ${p.pct||0}% complete, due ${p.due||'—'}\n${overdueTasks||'  (no overdue tasks but at-risk)'}`;}).join('\n');
     const sys=`You are an experienced PM doing a risk review. For each at-risk project, identify the top 1-2 risks and suggest a concrete unblock. Output a markdown list: project name → risk → unblock action. Be specific.`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:lines,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim();
     const m=document.getElementById('modal-content');
     if(m){m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">⚠️ Project Risks</h2><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:12px;font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;document.getElementById('modal-capture').classList.add('show');}
@@ -15733,8 +15731,8 @@ function _newTaskForOpportunity(oppId){
 }
 async function _aiOpportunityNextSteps(oppId){
   const o=_opps().find(x=>String(x.id)===String(oppId));if(!o)return;
-  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
-  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing'});return;}
+  const {provider,configured}=_getAIConfig?_getAIConfig():{};
+  if(!configured){toast({type:'warn',title:'AI key missing'});return;}
   const m=document.getElementById('modal-content');
   if(!m){toast({type:'warn',title:'Modal not available'});return;}
   m.innerHTML=`<div style="padding:14px 16px;max-width:520px"><div style="font-size:14px;font-weight:650;margin-bottom:6px">✨ Next steps for "${esc(o.name)}"</div><div style="font-size:11px;color:var(--t3)">Reading your pipeline + stage history — usually takes ~8s.</div></div>`;
@@ -15760,7 +15758,7 @@ async function _aiOpportunityNextSteps(oppId){
   "actions": [ {"title":"<concrete action, ~10-15 words>", "owner":"<who does it>", "why":"<one short sentence on why this advances the deal>"} ]
 }
 Pick exactly 3 actions. Avoid actions already in existingTasks. Be specific (mention the actual account name where possible).`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(snapshot),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(snapshot),provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
     const mm=raw.match(/\{[\s\S]*\}/);if(!mm)throw new Error('AI returned no JSON');
     const out=JSON.parse(mm[0]);
@@ -16019,8 +16017,8 @@ async function aiPortfolioBriefing(){
   const btn=document.getElementById('cc-briefing-btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ Generating…';}
   try{
-    const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
-    if(!apiKey&&provider!=='manus'){
+    const {provider,configured}=_getAIConfig?_getAIConfig():{};
+    if(!configured){
       toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.',duration:3000});
       if(btn){btn.disabled=false;btn.textContent='📝 Generate weekly briefing';}
       return;
@@ -16063,7 +16061,7 @@ async function aiPortfolioBriefing(){
 }
 Pick 3-5 wins, 3-5 risks, 0-4 blockers, exactly 3 next_three. Items not in the snapshot must NOT appear.`;
     const userContent=`Portfolio snapshot:\n${JSON.stringify(snapshot)}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
     const m=raw.match(/\{[\s\S]*\}/);
     if(!m)throw new Error('AI returned no JSON');
@@ -16785,8 +16783,8 @@ async function _aiProjectCoach(pid){
   const modalBg=document.getElementById('modal-capture');
   const modal=document.getElementById('modal-content');
   if(!modalBg||!modal){toast({type:'warn',title:'Modal not available'});return;}
-  const {provider,apiKey}=_getAIConfig?_getAIConfig():{};
-  if(!apiKey&&provider!=='manus'){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
+  const {provider,configured}=_getAIConfig?_getAIConfig():{};
+  if(!configured){toast({type:'warn',title:'AI key missing',msg:'Add a provider key in Settings → AI Features.'});return;}
   // Build snapshot.
   const today=_todayStr;
   const tMs=Date.now();
@@ -16836,7 +16834,7 @@ async function _aiProjectCoach(pid){
 }
 Pick 0-4 blockers (only real ones), exactly 3 recommendedFocus items. Items in blockers MUST come from the sample. Be specific and use real task titles.`;
     const userContent=`Project snapshot:\n${JSON.stringify(snapshot)}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent,provider:provider||'manus'},'mutation');
     const raw=String(res?.result||res?.text||'').trim();
     const m=raw.match(/\{[\s\S]*\}/);
     if(!m)throw new Error('AI returned no JSON');
@@ -16955,8 +16953,8 @@ Bulleted list of overdue items, on-hold work, dependencies. If none: write "None
 Bulleted list of the most important upcoming items (3-6 max).
 
 Tone: factual, exec-ready, no fluff. Reference real task titles. No more than 250 words total. No greeting, no signoff.`;
-    const {provider,apiKey}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',apiKey:''};
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(compact),provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const {provider,configured}=typeof _getAIConfig==='function'?_getAIConfig():{provider:'manus',configured:true};
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:JSON.stringify(compact),provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim()||'(AI returned empty — check your AI key in Settings → AI Features.)';
     modal.innerHTML=`<div style="padding:14px;max-width:680px;max-height:80vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -18082,10 +18080,10 @@ async function refreshJournalPromptsAI(){
   if(cached&&cached.date===today&&!cached.regenerate){toast('Already fresh — try again tomorrow.');return;}
   toast({type:'info',title:'Generating fresh prompts…',duration:2000});
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const recent=(D.journal||[]).slice(-10).map(j=>j.title||(j.body||'').slice(0,80)).join(' / ');
     const sys=`You are a thoughtful journaling coach. Read the user's recent journal titles and propose 6 fresh writing prompts (each: title 1-3 words, prompt 8-15 words, single emoji). Reply with strict JSON only: {"prompts":[{"icon":"🙏","title":"…","text":"…"}, …]}`;
-    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Recent entries: ${recent||'(none)'}\nGenerate 6 prompts.`,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+    const res=await _trpc('ai.assist',{systemPrompt:sys,userContent:`Recent entries: ${recent||'(none)'}\nGenerate 6 prompts.`,provider:provider||'manus'},'mutation');
     const text=String(res?.result||res?.text||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
     const parsed=JSON.parse(text);
     if(!parsed||!Array.isArray(parsed.prompts))throw new Error('bad response');
@@ -18460,8 +18458,8 @@ async function suggestFollowUps(){
   chipsEl.style.display='none';
   chipsEl.innerHTML='';
   try{
-    const {provider:_p,apiKey:_k}=_getAIConfig();
-    const res=await _trpc('oauthSync.suggestFollowUps',{subject:sub,body:bodyText,provider:_p,apiKey:_k},'mutation');
+    const {provider:_p}=_getAIConfig();
+    const res=await _trpc('oauthSync.suggestFollowUps',{subject:sub,body:bodyText,provider:_p},'mutation');
     const suggestions=res?.suggestions||[];
     if(!suggestions.length){toast('No suggestions returned');return;}
     chipsEl.style.display='flex';
@@ -20148,12 +20146,11 @@ Schema:
 
 Tips: 'count' is the safest metric. For 'overdue tasks' use filter [{op:"overdue"}]. For dates use day(completedAt) for tasks, day(date) for journal/focus, day(createdAt) for goals/ideas. KPI is best for a single number. Donut for category breakdowns. Bar/line for time series. Heatmap for date-grouped activity. Table when the user asks for rows or a 'list'. Progress for goal/project completion.`;
   try{
-    const {provider,apiKey}=_getAIConfig();
+    const {provider,configured}=_getAIConfig();
     const res=await _trpc('ai.assist',{
       systemPrompt:sysPrompt,
       userContent:userText,
       provider:provider||'manus',
-      apiKey:apiKey||undefined,
     },'mutation');
     const text=String(res?.result||res?.text||'').trim();
     // Strip optional code fences the model may have added.
@@ -20739,8 +20736,8 @@ function _goalPaceCheck(g){
 if(typeof _reportNarrativeCache==='undefined')var _reportNarrativeCache=null; // {key, text}
 if(typeof _reportAnomaliesCache==='undefined')var _reportAnomaliesCache=null;
 async function _reportAICall(systemPrompt,userContent){
-  const {provider,apiKey}=_getAIConfig();
-  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+  const {provider,configured}=_getAIConfig();
+  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus'},'mutation');
   return String(res?.result||res?.text||'').trim();
 }
 function _reportContextCompact(){
@@ -23105,9 +23102,9 @@ async function aiAutoTagAllIdeas(){
   else toast({type:'error',title:'No tags applied',duration:2500});
 }
 async function _ideaAICall(prompt,jsonMode){
-  const {provider,apiKey}=_getAIConfig();
+  const {provider,configured}=_getAIConfig();
   const systemPrompt=jsonMode?'You are a helpful assistant. Respond with valid JSON only.':'You are a helpful assistant.';
-  const res=await _trpc('ai.assist',{systemPrompt,userContent:prompt,provider,apiKey},'mutation');
+  const res=await _trpc('ai.assist',{systemPrompt,userContent:prompt,provider},'mutation');
   return res?.result||res?.text||'';
 }
 function ideaAISparkle(id,stage,key,btn){
@@ -24103,8 +24100,8 @@ function deleteHabit(hid){
 
 // ─── Coach AI suite (C1-C7) ───────────────────────────────────────────
 async function _coachAICall(systemPrompt,userContent){
-  const {provider,apiKey}=_getAIConfig();
-  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus',apiKey:apiKey||undefined},'mutation');
+  const {provider,configured}=_getAIConfig();
+  const res=await _trpc('ai.assist',{systemPrompt,userContent,provider:provider||'manus'},'mutation');
   return String(res?.result||res?.text||'').trim();
 }
 function _coachWorkspaceContext(){
@@ -25630,8 +25627,8 @@ function helpAskQuestion(q){
   // Build conversation history for context (last 6 messages)
   const history=_helpAIMessages.slice(-7,-1).map(m=>({role:m.role==='user'?'user':'assistant',content:m.body}));
   // Call the real tRPC endpoint with the user's chosen provider + key.
-  const {provider:_aiP,apiKey:_aiK}=_getAIConfig();
-  const payload=JSON.stringify({json:{question:q,conversationHistory:history,provider:_aiP,apiKey:_aiK}});
+  const {provider:_aiP}=_getAIConfig();
+  const payload=JSON.stringify({json:{question:q,conversationHistory:history,provider:_aiP}});
   fetch('/api/trpc/help.askAI',{
     method:'POST',
     headers:{'Content-Type':'application/json'},

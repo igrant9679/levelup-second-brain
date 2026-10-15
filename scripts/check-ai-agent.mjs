@@ -99,7 +99,8 @@ const sandbox = {
     if (proc === 'ai.assist') return { result: 'fallback answer' };
     return {};
   },
-  _getAIConfig: () => ({ provider: 'openai', apiKey: 'k' }),
+  // -214: no key in the browser — {provider, configured} only.
+  _getAIConfig: () => ({ provider: 'openai', configured: true }),
   _aiChatHistory: () => D.prefs.aiChat.messages,
   _aiChatSystemPrompt: () => 'legacy prompt',
   AI_USER_MAX: 7900,
@@ -390,6 +391,7 @@ t('loop: results relayed as a hidden turn', msgs[2].role === 'user' && msgs[2].t
 t('loop: second call sees the results', trpcCalls.filter((c) => c.proc === 'ai.agent').length === 2 && trpcCalls[1].input.messages.some((m) => /TOOL RESULTS/.test(m.content)));
 t('loop: final answer stored', msgs[3].content === 'You have one overdue task.');
 t('loop: payload within server caps', trpcCalls.every((c) => c.proc !== 'ai.agent' || (c.input.system.length <= 16000 && c.input.messages.every((m) => m.content.length <= 6000))));
+t('loop: no API key leaves the browser (-214)', trpcCalls.every((c) => !c.input || !('apiKey' in c.input)));
 
 // (b) write action waits for approval; approving runs it
 msgs.length = 0; trpcCalls.length = 0;
