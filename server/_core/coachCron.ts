@@ -108,7 +108,7 @@ async function buildSnapshot(db: any, row: any, coach: CoachPrefs, local: Return
   const taskIds = new Set<string>();
   // native tasks (relational store)
   let tasks: any[] = [];
-  try { tasks = await readEntityArray(db, row.userId, "tasks"); } catch { tasks = parseJSON(row.tasks, []); }
+  try { tasks = await readEntityArray(db, row.userId, "tasks"); } catch { tasks = []; }
   const top = tasks.filter((t) => t && !t.parentTaskId);
   const open = top.filter((t) => t.status !== "Done" && t.status !== "Someday");
   const fmt = (t: any) => { taskIds.add(String(t.id)); return `#${t.id} "${clip(t.title, 70)}"${t.priority ? ` [${t.priority}]` : ""}${t.due ? ` due ${t.due}` : ""}${t.status && t.status !== "Not Started" ? ` (${t.status})` : ""}${t.estimatedMins ? ` ~${t.estimatedMins}m` : ""}`; };

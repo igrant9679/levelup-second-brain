@@ -561,14 +561,13 @@ export type InsertUserActivityLog = typeof userActivityLog.$inferInsert;
 export const userAppData = mysqlTable('user_app_data', {
   id: int('id').autoincrement().primaryKey(),
   userId: int('userId').notNull().unique(),
-  tasks: mediumtext('tasks'),         // JSON array
-  notes: mediumtext('notes'),         // JSON array
+  // tasks / notes / ideas: dropped by migration 0052 (Step 3b, 2026-10-14) —
+  // they live only in tasksTable / notesTable / ideasTable.
   projects: mediumtext('projects'),   // JSON array
   goals: mediumtext('goals'),         // JSON array
   journal: mediumtext('journal'),     // JSON array
   habits: mediumtext('habits'),       // JSON array
   contacts: mediumtext('contacts'),   // JSON array
-  ideas: mediumtext('ideas'),         // JSON array
   teams: mediumtext('teams'),         // JSON array
   prefs: text('prefs'),               // JSON object
   calEvents: mediumtext('calEvents'), // JSON array

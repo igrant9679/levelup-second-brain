@@ -266,7 +266,7 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       const recipient = digestPref.recipientEmail || userRow.email;
       if (!recipient) { skipped++; continue; }
 
-      const digestRows = await buildRowsForUser(db, row.userId, row.tasks);
+      const digestRows = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
       // 💰 Money block (bills heads-up, nudges, AI insight) — empty string
       // for non-Money users, so their digest is unchanged. Opt out via

@@ -285,7 +285,7 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
     const blobs: UserBlobs = {
       // Live relational store — user_app_data.tasks is a frozen pre-Step-3a
       // snapshot (2026-07-12), so reports built from it were months stale.
-      tasks: ((await readEntityArray(db, row.userId, 'tasks').catch(() => null)) as Task[] | null) ?? safeParse<Task[]>(row.tasks, []),
+      tasks: ((await readEntityArray(db, row.userId, 'tasks').catch(() => null)) as Task[] | null) ?? [],
       goals: safeParse<Goal[]>(row.goals, []),
       habits: safeParse<Habit[]>(row.habits, []),
       journal: safeParse<Journal[]>(row.journal, []),

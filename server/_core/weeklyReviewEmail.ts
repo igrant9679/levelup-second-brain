@@ -420,7 +420,7 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       const recipient = wp.recipientEmail || userRow.email;
       if (!recipient) { skipped++; continue; }
 
-      const built = await buildRowsForUser(db, row.userId, row.tasks, row.programs, prefs);
+      const built = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */, row.programs, prefs);
       // Send the review even on a quiet week — knowing "nothing happened" is
       // also a signal. Only skip if the user has literally no open tasks AND
       // shipped nothing AND has nothing upcoming.

@@ -9523,7 +9523,7 @@ async function loadMigrationHealth(){
   for(const ent of ['tasks','notes','ideas']){
     try{
       const r=await _trpc('appData.'+ent+'RelationalStatus',undefined,'query');
-      rows.push({ent,ok:!!(r&&r.ok),detail:(r&&r.ok)?('table '+r.tableCount+' · frozen blob '+r.blobCount):'endpoint unavailable'});
+      rows.push({ent,ok:!!(r&&r.ok),detail:(r&&r.ok)?('table '+r.tableCount+(r.blobCount!=null?' · frozen blob '+r.blobCount:'')):'endpoint unavailable'});
     }catch(e){rows.push({ent,ok:false,detail:'error: '+String(e&&e.message||e).slice(0,60)});}
   }
   const src=window._luLoadSources||null;
@@ -9542,7 +9542,7 @@ async function loadMigrationHealth(){
       ${rows.map(r=>`<tr style="border-top:1px solid var(--bd1)"><td style="padding:3px 6px;font-weight:600">${r.ent}</td><td style="padding:3px 6px">${esc(r.detail)}</td><td style="padding:3px 6px">${srcCell(r.ent)}</td></tr>`).join('')}
     </table>
     <div style="margin-top:8px;padding:7px 9px;border-radius:6px;background:${allOk?'var(--oks)':'var(--warns)'};color:${allOk?'var(--ok)':'var(--warn)'};font-size:11px;font-weight:600">
-      ${allOk?'✓ Step 3a is live and healthy — the relational tables are the sole store. Frozen-blob count drift is expected. After a clean soak, Step 3b can drop the blob columns (irreversible).':'⚠ At least one entity is not serving from relational — investigate before Step 3b. If a load source says blob-rescue, run that entity’s backfill for the affected account.'}
+      ${allOk?(rows.some(r=>/frozen blob/.test(r.detail))?'✓ Step 3a is live and healthy — the relational tables are the sole store. Frozen-blob count drift is expected. After a clean soak, Step 3b can drop the blob columns (irreversible).':'✓ Step 3b is done — tasks, notes and ideas live only in their relational tables; the old blob columns are gone.'):'⚠ At least one entity is not serving from relational — investigate before Step 3b. If a load source says blob-rescue, run that entity’s backfill for the affected account.'}
     </div>
     ${src&&src.at?`<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources captured ${esc(src.at)}</div>`:'<div style="margin-top:4px;font-size:10px;color:var(--t3)">Load sources not captured yet — reload the app once on this build, then re-check.</div>'}
   `;

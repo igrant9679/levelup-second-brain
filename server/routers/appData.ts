@@ -51,7 +51,7 @@ export async function isOwnerCtxUser(user: { id: number; openId?: string | null 
 const TEAM_PRESET_KEY = 'teamStarterPreset';
 
 // Keys that can be saved/loaded
-const DATA_KEYS =['tasks', 'notes', 'projects', 'goals', 'journal', 'habits', 'contacts', 'ideas', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance'] as const;
+const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -170,30 +170,14 @@ async function mirrorTasksToRelational(db: any, userId: number, tasksJson: strin
  * delete+re-inserts in array order on every save), so manual task order is
  * preserved. Returns the array plus which source served it.
  */
-async function readTasks(db: any, userId: number, blobRaw: string | null): Promise<{ tasks: any[]; source: string }> {
-  // Step 3a: the relational table IS the store — served unconditionally. The
-  // FROZEN blob is consulted only for (a) a transient table read error and
-  // (b) a loud rescue if this user's table was somehow never populated while
-  // the frozen blob still holds items (a never-mirrored account). The old
-  // consistency check is gone: the blob no longer receives writes, so a
-  // divergence is expected, not an anomaly.
-  let blobTasks: any[] = [];
-  try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobTasks = a; } catch {}
-  let tableRows: any[];
-  try {
-    tableRows = await db.select().from(tasksTable).where(eq(tasksTable.userId, userId)).orderBy(tasksTable.id);
-  } catch (err) {
-    console.warn('[appData] relational tasks read failed — serving frozen blob:', (err as Error)?.message);
-    return { tasks: blobTasks, source: 'blob-error' };
-  }
-  if (!tableRows.length && blobTasks.length) {
-    console.warn('[appData] tasks table EMPTY but frozen blob has', blobTasks.length, 'items for user', userId, '— serving blob (rescue). Run backfillTasksRelational for this account.');
-    return { tasks: blobTasks, source: 'blob-rescue' };
-  }
-  const tableTasks = tableRows
+async function readTasks(db: any, userId: number): Promise<{ tasks: any[]; source: string }> {
+  // Step 3b (2026-10-14): the tasks blob column is gone — the relational table
+  // is the only store. No fallback: a failed read must fail the load.
+  const tableRows = await db.select().from(tasksTable).where(eq(tasksTable.userId, userId)).orderBy(tasksTable.id);
+  const items = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  return { tasks: tableTasks, source: 'relational' };
+  return { tasks: items, source: 'relational' };
 }
 
 // Notes — mirror + read. Same pattern as tasks. `raw` is mediumtext to fit
@@ -230,25 +214,14 @@ async function mirrorNotesToRelational(db: any, userId: number, json: string) {
   return rows.length;
 }
 
-async function readNotes(db: any, userId: number, blobRaw: string | null): Promise<{ notes: any[]; source: string }> {
-  // Step 3a: table-authoritative — see readTasks for the rescue semantics.
-  let blobArr: any[] = [];
-  try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobArr = a; } catch {}
-  let tableRows: any[];
-  try {
-    tableRows = await db.select().from(notesTable).where(eq(notesTable.userId, userId)).orderBy(notesTable.id);
-  } catch (err) {
-    console.warn('[appData] relational notes read failed — serving frozen blob:', (err as Error)?.message);
-    return { notes: blobArr, source: 'blob-error' };
-  }
-  if (!tableRows.length && blobArr.length) {
-    console.warn('[appData] notes table EMPTY but frozen blob has', blobArr.length, 'items for user', userId, '— serving blob (rescue). Run backfillNotesRelational for this account.');
-    return { notes: blobArr, source: 'blob-rescue' };
-  }
-  const tableItems = tableRows
+async function readNotes(db: any, userId: number): Promise<{ notes: any[]; source: string }> {
+  // Step 3b (2026-10-14): the notes blob column is gone — the relational table
+  // is the only store. No fallback: a failed read must fail the load.
+  const tableRows = await db.select().from(notesTable).where(eq(notesTable.userId, userId)).orderBy(notesTable.id);
+  const items = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  return { notes: tableItems, source: 'relational' };
+  return { notes: items, source: 'relational' };
 }
 
 // Ideas — mirror + read. Same pattern. Surfaces the ICE scoring (impact /
@@ -282,25 +255,14 @@ async function mirrorIdeasToRelational(db: any, userId: number, json: string) {
   return rows.length;
 }
 
-async function readIdeas(db: any, userId: number, blobRaw: string | null): Promise<{ ideas: any[]; source: string }> {
-  // Step 3a: table-authoritative — see readTasks for the rescue semantics.
-  let blobArr: any[] = [];
-  try { const a = JSON.parse(blobRaw || '[]'); if (Array.isArray(a)) blobArr = a; } catch {}
-  let tableRows: any[];
-  try {
-    tableRows = await db.select().from(ideasTable).where(eq(ideasTable.userId, userId)).orderBy(ideasTable.id);
-  } catch (err) {
-    console.warn('[appData] relational ideas read failed — serving frozen blob:', (err as Error)?.message);
-    return { ideas: blobArr, source: 'blob-error' };
-  }
-  if (!tableRows.length && blobArr.length) {
-    console.warn('[appData] ideas table EMPTY but frozen blob has', blobArr.length, 'items for user', userId, '— serving blob (rescue). Run backfillIdeasRelational for this account.');
-    return { ideas: blobArr, source: 'blob-rescue' };
-  }
-  const tableItems = tableRows
+async function readIdeas(db: any, userId: number): Promise<{ ideas: any[]; source: string }> {
+  // Step 3b (2026-10-14): the ideas blob column is gone — the relational table
+  // is the only store. No fallback: a failed read must fail the load.
+  const tableRows = await db.select().from(ideasTable).where(eq(ideasTable.userId, userId)).orderBy(ideasTable.id);
+  const items = tableRows
     .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
     .filter((t: any) => t);
-  return { ideas: tableItems, source: 'relational' };
+  return { ideas: items, source: 'relational' };
 }
 
 // Step 3a table-based array access for the migrated entities — used by every
@@ -309,6 +271,12 @@ async function readIdeas(db: any, userId: number, blobRaw: string | null): Promi
 // re-insert in array order on every write).
 // Exported: imageMigration.ts uses these to operate on the LIVE relational
 // store (post-Step-3a the user_app_data blobs are frozen snapshots).
+async function _relStatus(userId: number, table: any) {
+  const db = await getDb();
+  if (!db) return { ok: false as const };
+  const rows = await db.select({ id: table.id }).from(table).where(eq(table.userId, userId));
+  return { ok: true as const, tableCount: rows.length, blobCount: null, consistent: true };
+}
 export async function readEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas'): Promise<any[]> {
   const t = kind === 'tasks' ? tasksTable : kind === 'notes' ? notesTable : ideasTable;
   const rows = await db.select().from(t).where(eq(t.userId, userId)).orderBy(t.id);
@@ -342,26 +310,6 @@ export const appDataRouter = router({
     const result: Record<string, unknown> = {};
     for (const key of DATA_KEYS) {
       const raw = row[key as keyof typeof row] as string | null;
-      if (key === 'tasks') {
-        // Tasks now read from the relational `tasks` table (blob is the
-        // consistency-checked fallback). _tasksSource lets the flip be monitored.
-        const tr = await readTasks(db, ctx.user.id, raw);
-        result.tasks = tr.tasks;
-        result._tasksSource = tr.source;
-        continue;
-      }
-      if (key === 'notes') {
-        const nr = await readNotes(db, ctx.user.id, raw);
-        result.notes = nr.notes;
-        result._notesSource = nr.source;
-        continue;
-      }
-      if (key === 'ideas') {
-        const ir = await readIdeas(db, ctx.user.id, raw);
-        result.ideas = ir.ideas;
-        result._ideasSource = ir.source;
-        continue;
-      }
       if (raw != null) {
         try {
           result[key] = JSON.parse(raw);
@@ -372,6 +320,11 @@ export const appDataRouter = router({
         result[key] = null;
       }
     }
+    // Tasks / notes / ideas live only in their relational tables (Step 3b).
+    // The _xSource fields stay for Settings → Admin → Migration Health.
+    result.tasks = (await readTasks(db, ctx.user.id)).tasks; result._tasksSource = 'relational';
+    result.notes = (await readNotes(db, ctx.user.id)).notes; result._notesSource = 'relational';
+    result.ideas = (await readIdeas(db, ctx.user.id)).ideas; result._ideasSource = 'relational';
     result.updatedAt = row.updatedAt;
     return result;
   }),
@@ -413,11 +366,10 @@ export const appDataRouter = router({
       // the sole store. The blob columns are FROZEN with their pre-3a contents
       // as a rollback safety net until Step 3b drops them. The client payload
       // shape is unchanged.
-      const RELATIONAL_ONLY = new Set<DataKey>(['tasks', 'notes', 'ideas']);
       const updates: Partial<Record<DataKey, string>> = {};
       for (const key of DATA_KEYS) {
         const val = input[key as keyof typeof input];
-        if (val !== undefined && !RELATIONAL_ONLY.has(key)) {
+        if (val !== undefined) {
           updates[key as DataKey] = val;
         }
       }
@@ -451,129 +403,15 @@ export const appDataRouter = router({
     }),
 
   /**
-   * One-shot: populate the relational `tasks` table from the user's existing
-   * JSON blob. The blob isn't re-saved until a task is edited, so the
-   * dual-write alone won't backfill data that already exists.
+   * Relational row counts per entity, for Settings → Admin → Migration Health.
+   * Step 3b (migration 0052, 2026-10-14) dropped the frozen blob columns, so
+   * there is no blob side to compare any more. The backfill*Relational
+   * endpoints went with them: they copied the frozen July snapshot OVER the
+   * live table — a data-loss trap once Step 3a had made the table the store.
    */
-  backfillTasksRelational: protectedProcedure.mutation(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false, count: 0 };
-    const rows = await db
-      .select()
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    if (!rows.length || rows[0].tasks == null) return { ok: true, count: 0 };
-    const count = await mirrorTasksToRelational(db, ctx.user.id, rows[0].tasks);
-    return { ok: true, count: count ?? 0 };
-  }),
-
-  /**
-   * Verify the relational tasks mirror independently of the read path:
-   * row count in the `tasks` table vs the JSON blob, and whether they agree.
-   */
-  tasksRelationalStatus: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false as const };
-    const tableRows = await db
-      .select({ taskId: tasksTable.taskId })
-      .from(tasksTable)
-      .where(eq(tasksTable.userId, ctx.user.id));
-    const blobRow = await db
-      .select({ tasks: userAppData.tasks })
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    let blobCount = 0;
-    try {
-      const a = JSON.parse(blobRow[0]?.tasks || '[]');
-      if (Array.isArray(a)) blobCount = a.filter((t: any) => t && t.id != null).length;
-    } catch {}
-    return {
-      ok: true as const,
-      tableCount: tableRows.length,
-      blobCount,
-      consistent: tableRows.length === blobCount,
-    };
-  }),
-
-  // ── notes ─────────────────────────────────────────────────────────────
-  backfillNotesRelational: protectedProcedure.mutation(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false, count: 0 };
-    const rows = await db
-      .select()
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    if (!rows.length || rows[0].notes == null) return { ok: true, count: 0 };
-    const count = await mirrorNotesToRelational(db, ctx.user.id, rows[0].notes);
-    return { ok: true, count: count ?? 0 };
-  }),
-
-  notesRelationalStatus: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false as const };
-    const tableRows = await db
-      .select({ noteId: notesTable.noteId })
-      .from(notesTable)
-      .where(eq(notesTable.userId, ctx.user.id));
-    const blobRow = await db
-      .select({ notes: userAppData.notes })
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    let blobCount = 0;
-    try {
-      const a = JSON.parse(blobRow[0]?.notes || '[]');
-      if (Array.isArray(a)) blobCount = a.filter((t: any) => t && t.id != null).length;
-    } catch {}
-    return {
-      ok: true as const,
-      tableCount: tableRows.length,
-      blobCount,
-      consistent: tableRows.length === blobCount,
-    };
-  }),
-
-  // ── ideas ─────────────────────────────────────────────────────────────
-  backfillIdeasRelational: protectedProcedure.mutation(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false, count: 0 };
-    const rows = await db
-      .select()
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    if (!rows.length || rows[0].ideas == null) return { ok: true, count: 0 };
-    const count = await mirrorIdeasToRelational(db, ctx.user.id, rows[0].ideas);
-    return { ok: true, count: count ?? 0 };
-  }),
-
-  ideasRelationalStatus: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) return { ok: false as const };
-    const tableRows = await db
-      .select({ ideaId: ideasTable.ideaId })
-      .from(ideasTable)
-      .where(eq(ideasTable.userId, ctx.user.id));
-    const blobRow = await db
-      .select({ ideas: userAppData.ideas })
-      .from(userAppData)
-      .where(eq(userAppData.userId, ctx.user.id))
-      .limit(1);
-    let blobCount = 0;
-    try {
-      const a = JSON.parse(blobRow[0]?.ideas || '[]');
-      if (Array.isArray(a)) blobCount = a.filter((t: any) => t && t.id != null).length;
-    } catch {}
-    return {
-      ok: true as const,
-      tableCount: tableRows.length,
-      blobCount,
-      consistent: tableRows.length === blobCount,
-    };
-  }),
+  tasksRelationalStatus: protectedProcedure.query(async ({ ctx }) => _relStatus(ctx.user.id, tasksTable)),
+  notesRelationalStatus: protectedProcedure.query(async ({ ctx }) => _relStatus(ctx.user.id, notesTable)),
+  ideasRelationalStatus: protectedProcedure.query(async ({ ctx }) => _relStatus(ctx.user.id, ideasTable)),
 
   /**
    * OWNER-ONLY full export of user_app_data — the prescribed backup before
