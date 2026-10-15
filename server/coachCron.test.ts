@@ -73,6 +73,34 @@ describe("sanitize", () => {
     expect(s.title).toBe("Morning plan");
     expect(s.actions.map((a) => `${a.tool}:${a.args.id ?? a.args.title}`)).toEqual(["update_task:11", "create_task:Call bank", "block_time:11"]);
   });
+  it("records every dropped action and why", () => {
+    const s = sanitize(reply, ids)!;
+    expect(s.dropped!.length).toBe(4);
+    expect(s.dropped!.join(" | ")).toMatch(/unknown task.*would complete.*tool not allowed.*tool not allowed/);
+  });
+  it("resolves #ids and unique task names; refuses ambiguous ones (live miss 2026-10-15)", () => {
+    const titles = new Map([["setup ai machines", "11"], ["fix up home deck", "12"], ["dup", ""]]);
+    const r = JSON.stringify({
+      title: "Midday", body: "b",
+      actions: [
+        { tool: "block_time", args: { id: "#11", start: "13:00", mins: 30 } },
+        { tool: "update_task", args: { id: "Fix Up Home Deck", due: "2026-10-22" } },
+        { tool: "update_task", args: { task: "setup ai machines", priority: "High" } },
+        { tool: "update_task", args: { title: "Fix up home deck", myDay: true } },
+        { tool: "update_task", args: { id: "dup", myDay: true } },
+        { tool: "update_task", args: { id: "Not shown", myDay: true } },
+      ],
+    });
+    const s = sanitize(r, ids, titles)!;
+    expect(s.actions.map((a) => `${a.tool}:${a.args.id}`)).toEqual(["block_time:11", "update_task:12", "update_task:11", "update_task:12"]);
+    expect(s.actions[2].args.task).toBeUndefined();
+    expect(s.dropped).toHaveLength(2);
+  });
+  it("never treats update_task.title as a reference when an id is given (it is a rename)", () => {
+    const titles = new Map([["fix up home deck", "12"]]);
+    const s = sanitize(JSON.stringify({ title: "t", body: "b", actions: [{ tool: "update_task", args: { id: 11, title: "Fix up home deck" } }] }), ids, titles)!;
+    expect(s.actions[0].args).toEqual({ id: "11", title: "Fix up home deck" });
+  });
   it("rejects replies without JSON or without a body", () => {
     expect(sanitize("no json here", ids)).toBeNull();
     expect(sanitize('{"title":"x"}', ids)).toBeNull();
