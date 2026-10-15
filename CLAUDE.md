@@ -46,11 +46,17 @@ Verified: tsc 7 (pre-existing), esbuild clean, four bundles `node -c`, 12
 NUL, five guards green; vitest 237 pass / 23 fail — the SAME 23 fail on
 dfecef0 (bookmarks ×17 need a DB, msClientSecret ×2 env, oauthSync.testEmail,
 onenote.getAuthUrl, help.askAI ×2 prompt wording).
-Still waiting on the owner's signed-in session: Nifty throwaway push
-(read `groupsDebug`, fix the task-group parse, remove the debug), the demo
-cleanup Preview → Apply, `onenote.listAccounts` → `hasNotesScope`. The owner
-deletes PCT-13 (and any new test task) in Nifty and changes the demo
-password themselves.
+**Done live 2026-10-15 from the owner session:** Nifty task groups list
+fine via `/taskgroups?project_id=` (7 groups on Test Project) — the debug
+output is removed. A real push created **PCT-14** (assignee stuck,
+`verified:true`, nothing dropped) — the Nifty push path is proven end to
+end; the owner deletes PCT-13 and PCT-14 in Nifty. **OneNote:** the primary
+Microsoft account (idris.grant@lsi-media.com) has `hasNotesScope:false` —
+the owner must reconnect Microsoft (any connect button carries Notes.Read)
+before the first sync can work. **Step 3b readiness:** all three entities
+load `relational`; tables hold more than the frozen blobs (tasks 129 vs
+68, notes 222 vs 208, ideas 3 vs 3) — as expected. The demo cleanup
+(Preview → Apply) and the demo password change remain.
 
 **-214 (2026-10-14, COMMITTED — NOT PUSHED) — workspace AI keys never reach
 the browser.** Closes the exposure the lockdown below left open.

@@ -1223,13 +1223,12 @@ export const externalSourcesRouter = router({
       ];
       let statuses: Array<{ id: string; name: string }> = [];
       let groupsVia: string | null = null;
-      // Debug aid (-207): the -206 live run listed NO groups although the
-      // create's fallback found one on an existing task — record what the
-      // documented URL actually answers so the parse can be pinned.
-      const groupsDebug: Array<{ url: string; status: number; body: string }> = [];
+      // Confirmed live 2026-10-15: `/taskgroups?project_id=<id>` (the first URL)
+      // answers {items:[{id,name,order,project,color,...}]}; the others are
+      // fallbacks kept in case Nifty changes it.
       for (const u of tgUrls) {
         let raw: any = null;
-        try { const r = await fetch(u, { headers: H }); const text = await r.text(); groupsDebug.push({ url: u.replace('https://openapi.niftypm.com/api/v1.0', ''), status: r.status, body: text.slice(0, 240) }); if (r.ok) { try { raw = JSON.parse(text); } catch { raw = null; } } } catch (e: any) { groupsDebug.push({ url: u, status: 0, body: String(e?.message || e) }); }
+        try { const r = await fetch(u, { headers: H }); if (r.ok) { try { raw = JSON.parse(await r.text()); } catch { raw = null; } } } catch { raw = null; }
         const arr = Array.isArray(raw) ? raw : (raw?.items ?? raw?.taskgroups ?? raw?.taskGroups ?? raw?.task_groups ?? raw?.data ?? null);
         if (Array.isArray(arr) && arr.length) {
           // Completion groups ("Done") last, so the default is a real to-do list.
@@ -1307,7 +1306,7 @@ export const externalSourcesRouter = router({
       seen.forEach((name, id) => { if (!known.has(id)) members.push({ id, name }); });
       // Put "me" first.
       members.sort((a, b) => (/\(me\)$/.test(a.name) ? -1 : /\(me\)$/.test(b.name) ? 1 : a.name.localeCompare(b.name)));
-      return { statuses, members, membersVia, groupsVia, myNiftyId, groupsDebug };
+      return { statuses, members, membersVia, groupsVia, myNiftyId };
     }),
 
   niftyCreateTask: protectedProcedure
