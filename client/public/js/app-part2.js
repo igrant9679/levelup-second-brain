@@ -4666,7 +4666,10 @@ function doLoginSuccess(member){
   // Check for expiring OAuth tokens and show banner if needed
   setTimeout(()=>checkTokenExpiryBanner(),1500);
   // Re-check every 60 seconds so the button state stays current
-  setInterval(()=>checkTokenExpiryBanner(),60*1000);
+  // One timer per signed-in session; doLogout clears it (it used to keep
+  // polling oauthSync.status → a 401 a minute on the login screen).
+  if(window._tokenBannerTimer)clearInterval(window._tokenBannerTimer);
+  window._tokenBannerTimer=setInterval(()=>checkTokenExpiryBanner(),60*1000);
   // Seed example tasks ONCE only — guarded by a localStorage flag so deleted tasks stay deleted
   const _seedKey='lu_examples_seeded_v1';
   if(!localStorage.getItem(_seedKey)){
@@ -4950,6 +4953,7 @@ async function doLogout(){
   // cache: on a shared device the next person to open the app must not find
   // this account's notes, tasks and prefs sitting in localStorage — and must
   // not have them merged into THEIR account (see _luAccountSwitchDetected).
+  try{if(window._tokenBannerTimer){clearInterval(window._tokenBannerTimer);window._tokenBannerTimer=null;}}catch(_){}
   try{if(typeof _flushDirtyNow==='function')_flushDirtyNow();}catch(_){}
   await new Promise(r=>setTimeout(r,350));
   localStorage.removeItem('lu_session');
@@ -9647,7 +9651,7 @@ async function syncOAuthCalendar(provider){
         added++;
       }
     });
-    localStorage.setItem('lu_cal_events',JSON.stringify(_calEvents));
+    localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
     renderCal();
     toast('✓ Synced '+added+' new events from '+provider);
   }catch(e){

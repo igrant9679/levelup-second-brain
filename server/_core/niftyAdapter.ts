@@ -73,6 +73,7 @@ interface NiftyTask {
   due_date?: string;
   start_date?: string;
   assigned_to?: string[]; // member IDs
+  assignees?: string[];   // what real task rows carry
   // Nifty subtask linkage: in real /tasks responses the parent reference
   // is `task` (a task id string). `parent_task_id` is a legacy alias we
   // keep for tolerance — empirically Nifty returns `task`.
@@ -220,7 +221,10 @@ export async function pullNiftyProject(
   let skippedSubtasks = 0;
   for (const t of tasks) {
     if (cfg.filterByAssignee && myId) {
-      if (!Array.isArray(t.assigned_to) || !t.assigned_to.includes(myId)) continue;
+      // Real Nifty rows carry `assignees`; `assigned_to` never appears on them
+      // (it is the name the API docs use on create). Read both.
+      const who = Array.isArray(t.assignees) ? t.assignees : Array.isArray(t.assigned_to) ? t.assigned_to : [];
+      if (!who.map(String).includes(String(myId))) continue;
     }
     // Subtask filter — when the watch's "Sync subtasks" toggle is off,
     // drop any task whose parent reference is set. Keeps top-level work

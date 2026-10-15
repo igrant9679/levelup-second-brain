@@ -18571,6 +18571,10 @@ const _calEventsDefault=[
   {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,endHour:16,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
 ];
 var _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
+// Until -214 the Quick event dialog and the Outlook/Google calendar sync saved to
+// the misspelt key lu_cal_events, so their events vanished on reload. Fold any
+// events stranded there back in (by id), once, then drop the stray key.
+(function(){try{var stray=JSON.parse(localStorage.getItem('lu_cal_events')||'null');if(!Array.isArray(stray)){return;}var seen={};_calEvents.forEach(function(e){if(e)seen[String(e.id)]=1;});var add=stray.filter(function(e){return e&&!seen[String(e.id)];});if(add.length){_calEvents=_calEvents.concat(add);localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}localStorage.removeItem('lu_cal_events');}catch(_){}})();
 // Mail/Calendar rails read event data from _calEvents — the same store the calendar
 // grid renders — so a visibly-full calendar no longer shows "no events" in the rail.
 function _calEventTimeLabel(e){
@@ -19449,7 +19453,7 @@ function aiCalNLP(){
     if(!t||!d){toast('Title and date required');return;}
     const h=parseInt(s.split(':')[0]);
     _calEvents.push({id:Date.now(),title:t,dateStr:d,hour:h,start:s,end:e,endHour:parseInt(e.split(':')[0]),location:l,color:'var(--ac)',desc:'Created via NL Event'});
-    localStorage.setItem('lu_cal_events',JSON.stringify(_calEvents));
+    localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
     closeModal();renderCal();
     toast('✓ Event created: '+t);
   })()">Create Event</button>
