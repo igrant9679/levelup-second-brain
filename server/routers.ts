@@ -33,6 +33,7 @@ import { automationsRouter } from "./routers/automations";
 import { atlasRouter } from "./routers/atlas";
 import { simplefinRouter } from "./routers/simplefin";
 import { coachRouter } from "./routers/coach";
+import { demoAdminRouter } from "./routers/demoAdmin";
 
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts,
@@ -100,6 +101,7 @@ export const appRouter = router({
   taskMigrations: taskMigrationsRouter,
   dailyDigest: dailyDigestRouter,
   coach: coachRouter,
+  demoAdmin: demoAdminRouter,
   weeklyReview: weeklyReviewRouter,
   customFields: customFieldsRouter,
   automations: automationsRouter,

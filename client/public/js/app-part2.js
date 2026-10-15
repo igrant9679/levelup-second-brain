@@ -968,6 +968,18 @@ function renderSettingsHTML(){
   <!-- Admin --><div id="sp-12" class="sp" style="display:none">
     <h3 style="font-size:14px;font-weight:600;margin-bottom:8px">\ud83d\udee1 Admin Tools</h3>
     <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Visible to administrators only. Manage system-wide email delivery and OAuth token health.</p>
+    <!-- Demo account cleanup (owner only; demoAdmin.cleanup) -->
+    <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+      <div style="font-size:12px;font-weight:600;margin-bottom:4px">🧹 Clean up a demo account</div>
+      <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Resets a demo account's settings to its original seed (keeping its assistant chat, coach and layout) and replaces your name with the persona on its tasks and calendar. Owner only; never touches your account or an admin's. Sign the demo out of every browser first — an open demo tab would save its old settings back. Preview before you apply.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <input id="demo-clean-email" class="inp" type="email" placeholder="Demo account email" style="height:30px;font-size:12px;flex:1;min-width:200px">
+        <input id="demo-clean-persona" class="inp" value="Jordan Ellis" placeholder="Persona name" style="height:30px;font-size:12px;width:150px">
+        <button class="btn btn-s" style="height:30px;font-size:11px" onclick="adminDemoCleanup(false)">Preview</button>
+        <button class="btn btn-p" style="height:30px;font-size:11px" onclick="adminDemoCleanup(true)">Apply</button>
+      </div>
+      <div id="demo-clean-out" style="font-size:11.5px;color:var(--t2);margin-top:8px;line-height:1.5"></div>
+    </div>
     <!-- Expiry Notification -->
     <div style="margin-bottom:16px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
       <div style="font-size:12px;font-weight:600;margin-bottom:4px">\u26a0 OAuth Token Expiry Check</div>
@@ -1173,6 +1185,24 @@ function renderCredCard(title,icon,desc,prefix,fields,isAI=false){
   return `<div class="cred"><div class="cred-h"><div class="cred-icon" style="background:var(--s3);color:var(--ac)">${icon}</div><div style="flex:1"><div class="cred-title">${title}</div><div class="cred-desc">${desc}</div></div><div class="cred-st"><span class="dot ${connected?'dot-g':'dot-x'}"></span><span style="color:${connected?'var(--ok)':'var(--t3)'}">${connected?'Configured':'Not set'}</span></div></div>
   ${fields.map(f=>{const[label,key]=f.split('|');return`<div style="margin-bottom:6px"><label style="font-size:11px;font-weight:500;color:var(--t2);display:block;margin-bottom:2px">${label}</label><div style="display:flex;gap:4px"><input class="inp" style="flex:1;font-size:11px" type="password" placeholder="Enter ${label}" value="${esc(D.creds[key]||'')}" onchange="D.creds['${key}']=this.value;saveAll();toast('Saved!')"><button class="btn btn-s" style="height:30px;font-size:11px" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'">👁</button></div></div>`}).join('')}
   <div style="display:flex;gap:4px;margin-top:6px"><button class="btn btn-p" style="height:26px;font-size:11px" onclick="testIntegrationCred('${prefix}','${title}')">Test</button>${connected?`<button class="btn btn-d" style="height:26px;font-size:11px" onclick="${fields.map(f=>`D.creds['${f.split('|')[1]}']=''`).join(';')};saveAll();renderScreen('settings');toast('Disconnected')">Disconnect</button>`:''}</div></div>`;
+}
+
+async function adminDemoCleanup(apply){
+  const email=(document.getElementById('demo-clean-email')?.value||'').trim();
+  const persona=(document.getElementById('demo-clean-persona')?.value||'').trim()||'Jordan Ellis';
+  const out=document.getElementById('demo-clean-out');
+  if(!email){if(out)out.textContent='Enter the demo account email first.';return;}
+  if(apply&&!confirm('Reset the settings of '+email+' to the demo seed and rename your name to "'+persona+'" on its tasks and calendar?'))return;
+  if(out)out.textContent=apply?'Applying…':'Checking…';
+  try{
+    const r=await _trpc('demoAdmin.cleanup',{email,persona,apply},'mutation');
+    const left=Object.entries(r.leftoverMentionsOfYou||{}).map(([k,n])=>k+' '+n).join(', ');
+    if(out)out.innerHTML=(r.applied?'<b style="color:#10b981">✓ Done.</b> ':'<b>Preview</b> (nothing changed yet) — ')+
+      esc(r.account.name||'')+' &lt;'+esc(r.account.email||'')+'&gt;: settings '+r.prefsKeysBefore+' → '+r.prefsKeysAfter+' keys'+
+      (r.droppedKeys.length?' (drops '+r.droppedKeys.length+': '+esc(r.droppedKeys.slice(0,12).join(', '))+(r.droppedKeys.length>12?'…':'')+')':'')+
+      '; stored theme '+(r.hadStoredTheme?'removed':'none')+'; briefings '+(r.hadBriefings?'removed':'none')+'; daily-digest email '+(r.dailyDigestWasOn?'switched off':'was off')+
+      '; your name replaced '+r.renamed+'×.'+(left?'<br>Still mentions you (not changed): '+esc(left)+'.':'');
+  }catch(e){if(out)out.textContent='Failed: '+String(e&&e.message||e).slice(0,200);}
 }
 
 function showSetTab(el,id){
