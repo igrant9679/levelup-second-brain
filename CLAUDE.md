@@ -8,6 +8,50 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**⚠ STEP 3b IS READY BUT NOT ON MAIN — branch `chores-214`, commit "Step 3b:
+drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -216.**
+IRREVERSIBLE: migration 0052 drops `user_app_data.tasks/notes/ideas`. It is
+kept OFF main so a push of main can never ship it by accident. Before it
+goes: the owner downloads the backup (Settings → Admin → Migration Health →
+💾 Download backup) and Migration Health shows all three entities served
+"relational". Then fast-forward main to the branch and push. During the
+deploy swap the OLD instance's `select()` on user_app_data will briefly hit
+"Unknown column" (a few seconds of failed loads/saves, retried by the
+client). Next migration number after it: **0053**.
+
+**-215 (2026-10-15, COMMITTED — NOT PUSHED) — three latent bugs, demo
+cleanup, and two stale-data bugs found on the way to Step 3b.**
+- Calendar: the Quick event dialog AND the Outlook/Google calendar sync saved
+  `_calEvents` under the misspelt key `lu_cal_events` (events vanished on
+  reload). Both now use `lu_calEvents`; a one-time fold-in on load rescues
+  events stranded under the old key (by id), then removes it.
+- `doLoginSuccess`'s 60s `checkTokenExpiryBanner` interval is now
+  `window._tokenBannerTimer`, cleared by `doLogout` (no more 401/min on the
+  login screen) and never doubled on re-login.
+- Nifty puller `filterByAssignee` read `t.assigned_to`; real rows carry
+  `assignees` — reads both now.
+- **Settings → Admin → 🧹 Clean up a demo account** → `demoAdmin.cleanup`
+  (`server/routers/demoAdmin.ts`): OWNER only (`isOwnerCtxUser`, now
+  exported from appData.ts), refuses own/admin accounts, dry-run by default.
+  Resets prefs to the 18-key 2026-09-07 seed keeping aiChat/aiAgent/coach/
+  workspace, renames the owner's display name → persona on tasks
+  (assignee/assignedTo/createdBy/owner) and calEvents attendees, reports
+  leftover mentions. Replaces the console scrub snippet. Not yet run.
+- **Automation rules and scheduled-report emails read the FROZEN
+  user_app_data.tasks blob** (frozen since Step 3a, 2026-07-12) — and the
+  automation engine WROTE its changes back there, so native-task rules had no
+  visible effect for three months. Both use readEntityArray /
+  writeEntityArray now.
+Verified: tsc 7 (pre-existing), esbuild clean, four bundles `node -c`, 12
+NUL, five guards green; vitest 237 pass / 23 fail — the SAME 23 fail on
+dfecef0 (bookmarks ×17 need a DB, msClientSecret ×2 env, oauthSync.testEmail,
+onenote.getAuthUrl, help.askAI ×2 prompt wording).
+Still waiting on the owner's signed-in session: Nifty throwaway push
+(read `groupsDebug`, fix the task-group parse, remove the debug), the demo
+cleanup Preview → Apply, `onenote.listAccounts` → `hasNotesScope`. The owner
+deletes PCT-13 (and any new test task) in Nifty and changes the demo
+password themselves.
+
 **-214 (2026-10-14, COMMITTED — NOT PUSHED) — workspace AI keys never reach
 the browser.** Closes the exposure the lockdown below left open.
 - Server: `server/_core/workspaceAI.ts` gained `resolveRequestAI({provider,
