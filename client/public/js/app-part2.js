@@ -10973,7 +10973,10 @@ window.clearLocalCacheAndReload=clearLocalCacheAndReload;
 // the original write. The server still has the full notes, so on next
 // load they reload normally; meanwhile every OTHER key (clusters, prefs,
 // folders, tasks) gets to cache so they survive a reload.
-const _LU_CACHE_SHED_KEYS = ['lu_notes','lu_notes_payload','lu_bookmarks','lu_calEvents','lu_journal'];
+// NEVER list lu_calEvents here: the calendar grid store (_calEvents) lives ONLY
+// in this browser — it is not a cache of server data, so shedding it deleted
+// the user's calendar events on that device (removed 2026-10-15).
+const _LU_CACHE_SHED_KEYS = ['lu_notes','lu_notes_payload','lu_bookmarks','lu_journal'];
 // Keys this device has proven CAN'T fit in localStorage this session.
 // We skip caching them silently after the first failure so we don't keep
 // retrying-and-failing (and don't keep toasting the user).
@@ -11006,7 +11009,7 @@ function _safeOrigSave(k){
       const firstTimeForKey = !window._luOversizedKeys.has(k);
       window._luOversizedKeys.add(k);
       if(firstTimeForKey){
-        _luQuotaWarn('full',k+' is too big to cache on this device — your edits still sync to the server, so nothing is lost. Cause: older imported notes with embedded images bloating the cache.');
+        _luQuotaWarn('full',(k==='notes'?'Your notes are':'Your '+k+' is')+' too large to keep offline on this device (phones allow ~5 MB), so '+(k==='notes'?'they load':'it loads')+' from the server each time you open LevelUp. Nothing is lost, and every edit still syncs.',k);
       }
     } else {
       console.warn('[appData] localStorage write failed for key',k,e&&e.message);
@@ -11014,14 +11017,34 @@ function _safeOrigSave(k){
     return false;
   }
 }
-function _luQuotaWarn(kind,msg){
+function _luQuotaWarn(kind,msg,key){
+  // Shedding a cache is automatic and harmless (the server has the data):
+  // log it, don't toast it. The 'too large' notice is informational and shown
+  // ONCE per device per key — it used to say "out of storage" on every launch.
+  if(kind==='shed'){console.info('[cache] '+msg);return;}
+  const flag='lu_cache_notice_'+(key||'x');
+  try{if(localStorage.getItem(flag))return;}catch(_){}
   const now=Date.now();
   if(window._luQuotaWarnAt && now-window._luQuotaWarnAt<15000) return; // throttle
   window._luQuotaWarnAt=now;
   if(typeof toast!=='function')return;
-  if(kind==='shed') toast({type:'success',title:'✓ Freed local cache',msg:msg,duration:7000});
-  else toast({type:'warn',title:'⚠ This device is out of storage',msg:msg,duration:9000});
+  toast({type:'info',title:'ℹ️ Loading from the server on this device',msg:msg,duration:9000});
+  try{localStorage.setItem(flag,'1');}catch(_){}
 }
+// iPhone/iPad home-screen app: the page runs edge-to-edge under the status bar
+// (viewport-fit=cover + black-translucent), and the 56px topbar sat entirely
+// behind the clock/notch in portrait — taking the ☰ menu with it. Reserve the
+// top safe area. env() is 0 everywhere else, so desktop and normal Safari are
+// unchanged. JS-injected per the house rule (never add CSS to index.html).
+(function _luApplySafeAreaCSS(){
+  try{
+    if(document.getElementById('lu-safearea-css'))return;
+    const s=document.createElement('style');s.id='lu-safearea-css';
+    s.textContent=':root{--top:calc(56px + env(safe-area-inset-top, 0px))}'+
+      '.app>.topbar.topbar{padding-top:env(safe-area-inset-top, 0px)}';
+    document.head.appendChild(s);
+  }catch(_){}
+})();
 window.save=function(k){
   // Mirror aiTopics through prefs.aiTopics for server sync (the server's
   // user_app_data table has no aiTopics column, so we ride along with prefs).

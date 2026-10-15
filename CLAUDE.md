@@ -8,8 +8,30 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**-216 (2026-10-15, COMMITTED — NOT PUSHED) — iPhone: ☰ menu hidden in portrait + "out of storage" warning.** User screenshots from the iPhone home-screen app.
+- **Menu:** index.html uses `viewport-fit=cover` + `black-translucent`, so the
+  home-screen app draws under the status bar; the 56px topbar only reserved
+  left/right safe areas, so in PORTRAIT it sat entirely behind the clock/notch
+  (landscape was fine — the notch is on the side). JS-injected `#lu-safearea-css`
+  (app-part2.js, `_luApplySafeAreaCSS`): `--top: calc(56px + env(safe-area-inset-top))`
+  + `.app>.topbar.topbar{padding-top:env(...)}`. env() is 0 elsewhere — desktop
+  and normal Safari unchanged (verified 56px/0px), simulated 47px inset → bar
+  103px, ☰ at 56-94, sidebar top 103, content fills the screen exactly.
+- **Storage:** the owner's cache is ~2.7M chars (notes 1.7M — Word-import HTML,
+  only ONE note has data: images; tasks 0.5M; finance 0.4M) ≈ 5.4MB in Safari's
+  UTF-16 accounting, over iPhone's ~5MB. `_safeOrigSave` already degraded
+  safely; the fix is in what it did around it: (1) **`lu_calEvents` removed
+  from `_LU_CACHE_SHED_KEYS`** — the calendar grid store is browser-ONLY, so
+  "shedding" it DELETED the user's calendar events on that device; (2) the
+  notice is an info toast shown ONCE per device per key (`lu_cache_notice_<key>`)
+  with accurate wording, and the auto-shed is logged not toasted; (3)
+  app-part1 `D.notes`/`D.journal` start `[]` (not the bundled sample entries)
+  when `lu_session` exists and the cache is absent.
+- Real fix still open: move the big caches (notes) to IndexedDB so the phone
+  keeps notes offline.
+
 **⚠ STEP 3b IS READY BUT NOT ON MAIN — branch `chores-214`, commit "Step 3b:
-drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -216.**
+drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -217.**
 IRREVERSIBLE: migration 0052 drops `user_app_data.tasks/notes/ideas`. It is
 kept OFF main so a push of main can never ship it by accident. Before it
 goes: the owner downloads the backup (Settings → Admin → Migration Health →
