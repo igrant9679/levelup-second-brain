@@ -6749,7 +6749,7 @@ function _applyScheduleToCalendar(){
     }
     created++;
   }
-  try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}
+  try{_calPersist();}catch(_){}
   save('tasks');
   toast({type:'success',title:`📅 ${created} block${created===1?'':'s'} added to today's calendar`,duration:3000});
   closeModal();
@@ -6824,7 +6824,7 @@ function _blockTaskAt(taskId,startMins,endMins){
     linkedTaskId:String(taskId),
     _planned:true,
   });
-  try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}
+  try{_calPersist();}catch(_){}
   t.startTime=String(startH).padStart(2,'0')+':'+String(startMins%60).padStart(2,'0');
   t.endTime=String(Math.floor(endMins/60)).padStart(2,'0')+':'+String(endMins%60).padStart(2,'0');
   if(!t.myDay)t.myDay=true; // implicit: blocking time means it's in today's plan
@@ -18570,11 +18570,34 @@ const _calEventsDefault=[
   {id:12,title:'Deep Focus',time:'2:00 PM',end:'4:00 PM',day:4,hour:14,endHour:16,color:'var(--ok)',desc:'Feature development sprint',attendees:['Idris Grant'],location:'Remote'},
   {id:13,title:'Product Review',time:'3:00 PM',end:'4:00 PM',day:2,hour:15,endHour:16,color:'var(--purp)',desc:'Weekly product review — demo new features, review backlog, plan next sprint.',attendees:['Idris Grant','Priya Nair','Marcus Webb'],location:'Teams'},
 ];
-var _calEvents=JSON.parse(localStorage.getItem('lu_calEvents')||'null')||_calEventsDefault;
+// Calendar grid store (_calEvents). Server-synced as `calGrid` since 2026-10-15
+// (migration 0053): it used to live ONLY in this browser's localStorage - no
+// backup, no PC/phone sync, and the coach could not see it. The local copy is
+// now lu_calGrid; an old lu_calEvents copy is moved over once. Untouched
+// built-in sample events (_calEventsDefault) are never kept or uploaded; a
+// signed-in device with nothing cached starts EMPTY and the server fills it.
+var _LU_CAL_SEED_SIG=new Set(_calEventsDefault.map(function(e){return JSON.stringify(e);}));
+function _luCalStripSeeds(a){return (Array.isArray(a)?a:[]).filter(function(e){return e&&!_LU_CAL_SEED_SIG.has(JSON.stringify(e));});}
+var _calEvents=(function(){
+  var a=null;try{a=JSON.parse(localStorage.getItem('lu_calGrid')||'null');}catch(_){}
+  if(!Array.isArray(a)){
+    try{a=JSON.parse(localStorage.getItem('lu_calEvents')||'null');}catch(_){}
+    if(Array.isArray(a)){a=_luCalStripSeeds(a);try{localStorage.setItem('lu_calGrid',JSON.stringify(a));localStorage.removeItem('lu_calEvents');}catch(_){}}
+  }
+  if(Array.isArray(a))return _luCalStripSeeds(a);
+  return localStorage.getItem('lu_session')?[]:_calEventsDefault;
+})();
+// D.calGrid is a live view of _calEvents, so the generic save/sync/merge code
+// (save('calGrid'), loadServerData) works on it unchanged. Not enumerable, so
+// nothing that walks D sees the calendar twice.
+try{Object.defineProperty(D,'calGrid',{configurable:true,enumerable:false,get:function(){return _calEvents;},set:function(v){_calEvents=Array.isArray(v)?v:[];}});}catch(_){}
+// Every calendar write goes through here (before part2 loads, save() is the
+// localStorage-only writer; after, it also pushes to the server).
+function _calPersist(){try{if(typeof save==='function')save('calGrid');else localStorage.setItem('lu_calGrid',JSON.stringify(_calEvents));}catch(_){}}
 // Until -214 the Quick event dialog and the Outlook/Google calendar sync saved to
 // the misspelt key lu_cal_events, so their events vanished on reload. Fold any
 // events stranded there back in (by id), once, then drop the stray key.
-(function(){try{var stray=JSON.parse(localStorage.getItem('lu_cal_events')||'null');if(!Array.isArray(stray)){return;}var seen={};_calEvents.forEach(function(e){if(e)seen[String(e.id)]=1;});var add=stray.filter(function(e){return e&&!seen[String(e.id)];});if(add.length){_calEvents=_calEvents.concat(add);localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}localStorage.removeItem('lu_cal_events');}catch(_){}})();
+(function(){try{var stray=JSON.parse(localStorage.getItem('lu_cal_events')||'null');if(!Array.isArray(stray)){return;}var seen={};_calEvents.forEach(function(e){if(e)seen[String(e.id)]=1;});var add=stray.filter(function(e){return e&&!seen[String(e.id)];});if(add.length){_calEvents=_calEvents.concat(add);_calPersist();}localStorage.removeItem('lu_cal_events');}catch(_){}})();
 // Mail/Calendar rails read event data from _calEvents — the same store the calendar
 // grid renders — so a visibly-full calendar no longer shows "no events" in the rail.
 function _calEventTimeLabel(e){
@@ -18976,7 +18999,7 @@ async function saveEditCalEvent(id){
   ev.desc=desc;
   ev.isAllDay=isAllDay;
   ev.recurrence=recurrence;
-  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  _calPersist();
   // If event has a DB ID, persist to server
   if(ev.dbId){
     try{
@@ -19053,7 +19076,7 @@ async function deleteCalEvent(id){
     if(idx>-1)_calEvents.splice(idx,1);
     toast('✓ Event deleted');
   }
-  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  _calPersist();
   // If event has a DB ID, delete from server too
   if(ev.dbId){
     try{
@@ -19316,7 +19339,7 @@ function calResizeEnd(){
   const ev=_calEvents.find(e=>e.id===_calResizeEvId);
   _calResizeEvId=null;
   if(!ev)return;
-  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  _calPersist();
   renderCalDay();
   toast(`📅 "${ev.title}" resized to ${ev.time} – ${ev.end}`);
 }
@@ -19347,7 +19370,7 @@ function calDayDrop(event,newHour,dayOfWeek,dayStr){
   ev.time=fmt(newHour);
   ev.end=fmt(newHour+durationH);
   // Persist
-  localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+  _calPersist();
   renderCalDay();
   toast(`📅 "${ev.title}" moved to ${ev.time}`);
 }
@@ -19453,7 +19476,7 @@ function aiCalNLP(){
     if(!t||!d){toast('Title and date required');return;}
     const h=parseInt(s.split(':')[0]);
     _calEvents.push({id:Date.now(),title:t,dateStr:d,hour:h,start:s,end:e,endHour:parseInt(e.split(':')[0]),location:l,color:'var(--ac)',desc:'Created via NL Event'});
-    localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+    _calPersist();
     closeModal();renderCal();
     toast('✓ Event created: '+t);
   })()">Create Event</button>

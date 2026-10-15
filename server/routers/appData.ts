@@ -51,7 +51,7 @@ export async function isOwnerCtxUser(user: { id: number; openId?: string | null 
 const TEAM_PRESET_KEY = 'teamStarterPreset';
 
 // Keys that can be saved/loaded
-const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance'] as const;
+const DATA_KEYS =['projects', 'goals', 'journal', 'habits', 'contacts', 'teams', 'prefs', 'calEvents', 'clusters', 'programs', 'opportunities', 'atlas', 'atlasAnnotations', 'mindmaps', 'sheets', 'decks', 'finance', 'calGrid'] as const;
 type DataKey = typeof DATA_KEYS[number];
 
 // Truncate a value to a column's max length (defensive against varchar overflow).
@@ -355,6 +355,7 @@ export const appDataRouter = router({
         sheets: z.string().optional(),
         decks: z.string().optional(),
         finance: z.string().optional(),
+        calGrid: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

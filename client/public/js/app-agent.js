@@ -681,7 +681,7 @@ function _agentPageId(ref){
   if(loose.length===1)return loose[0].id;
   return null;
 }
-function _agentSaveCal(){try{localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));}catch(_){}try{if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();}catch(_){}}
+function _agentSaveCal(){try{if(typeof _calPersist==='function')_calPersist();else localStorage.setItem('lu_calGrid',JSON.stringify(_calEvents));}catch(_){}try{if(curScreen==='calendar'&&typeof renderCal==='function')renderCal();}catch(_){}}
 
 // ─── list / get / link / delete implementations ────────────────────────────
 function _agentList(a){

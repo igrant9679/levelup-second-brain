@@ -210,7 +210,7 @@ t('complete_task stamps completedAt', r.ok && nt.status === 'Done' && !!nt.compl
 r = exec('add_subtasks', { id: nt.id, titles: ['Send', 'Track opens'] });
 t('add_subtasks appends', r.ok && nt.subtasks.length === 4 && nt.subtasks[3].done === false);
 r = exec('block_time', { id: 1, start: '14:00', mins: 90 });
-t('block_time creates a linked focus block', r.ok && sandbox._calEvents.length === 1 && sandbox._calEvents[0].linkedTaskId === '1' && D.tasks[0].startTime === '14:00' && D.tasks[0].endTime === '15:30' && D.tasks[0].myDay === true && !!localStore.lu_calEvents);
+t('block_time creates a linked focus block', r.ok && sandbox._calEvents.length === 1 && sandbox._calEvents[0].linkedTaskId === '1' && D.tasks[0].startTime === '14:00' && D.tasks[0].endTime === '15:30' && D.tasks[0].myDay === true && !!localStore.lu_calGrid /* server-synced key since 2026-10-15 */);
 
 r = exec('create_project', { name: 'Q4 Launch', due: 'end of month', program: 'Growth', tasks: ['Kickoff', { title: 'Budget sign-off', priority: 'High' }] });
 const np = D.projects.find((x) => x.name === 'Q4 Launch');

@@ -140,7 +140,13 @@ async function buildSnapshot(db: any, row: any, coach: CoachPrefs, local: Return
       ext.slice(0, 6).map((e: any) => `[${e.source === "smartsheet" ? "CF" : e.source === "nifty" ? "LSI" : e.source}] "${clip(e.title, 60)}" due ${String(e.due).slice(0, 10)}`).join("; "));
   } catch { /* table may be empty */ }
   // calendar (client-maintained cache of the next days)
-  const evs = (coach.calendar?.events || []).filter((e) => e && e.date === today).slice(0, 10);
+  // The calendar grid is server-synced as user_app_data.calGrid since
+  // migration 0053; the client's old 7-day prefs copy is only a fallback.
+  const hhmm = (e: any, k: "start" | "end") => { const v = e[k]; if (v && /^\d{1,2}:\d{2}$/.test(String(v))) return String(v); const h = e[k === "start" ? "hour" : "endHour"]; return h != null && h !== "" ? `${String(h).padStart(2, "0")}:00` : ""; };
+  const grid = parseJSON<any[]>((row as any).calGrid, []);
+  const fromGrid = Array.isArray(grid) ? grid.filter((e) => e && e.dateStr === today).map((e) => ({ start: hhmm(e, "start"), end: hhmm(e, "end"), title: String(e.title || "") })) : [];
+  const evs = (fromGrid.length ? fromGrid : (coach.calendar?.events || []).filter((e) => e && e.date === today))
+    .sort((a: any, b: any) => String(a.start || "").localeCompare(String(b.start || ""))).slice(0, 10);
   if (evs.length) lines.push("Calendar today: " + evs.map((e) => `${e.start || "?"}${e.end ? "–" + e.end : ""} ${clip(e.title, 50)}`).join("; "));
   // habits, goals, projects
   const habits = parseJSON<any[]>(row.habits, []).filter((h) => h && (h.status || "Active") === "Active");

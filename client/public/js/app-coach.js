@@ -561,19 +561,10 @@ async function _coachRenderCheckinStatus(){
 
 // The server cannot see the calendar (it lives in this browser), so keep a
 // small copy of the next 7 days in prefs for the check-ins to read.
+// Retired 2026-10-15: the calendar grid is server-synced as `calGrid`, and the
+// check-ins read it there. This only removes the old 7-day copy from prefs.
 function _coachSyncCalendar(){
-  try{
-    if(typeof _calEvents==='undefined'||!Array.isArray(_calEvents))return;
-    if(!localStorage.getItem('lu_calEvents'))return; // still the bundled sample events — never send those
-    var days=[];for(var i=0;i<7;i++){var d=new Date();d.setDate(d.getDate()+i);days.push(_ymd(d));}
-    var evs=_calEvents.filter(function(e){return e&&days.indexOf(e.dateStr)>=0;}).map(function(e){
-      var st=e.start||(e.hour!=null?String(e.hour).padStart(2,'0')+':00':'');
-      return {date:e.dateStr,start:st,end:e.end||'',title:String(e.title||'').slice(0,80)};
-    }).sort(function(a,b){return (a.date+a.start).localeCompare(b.date+b.start);}).slice(0,40);
-    var c=_coachPrefs();
-    if(c.calendar&&JSON.stringify(c.calendar.events)===JSON.stringify(evs))return;
-    c.calendar={at:new Date().toISOString(),events:evs};_coachSave();
-  }catch(_){}
+  try{var c=_coachPrefs();if(c.calendar){delete c.calendar;_coachSave();}}catch(_){}
 }
 
 // ─── inbox → transcript → actions ──────────────────────────────────────────

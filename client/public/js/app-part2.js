@@ -9684,7 +9684,7 @@ async function syncOAuthCalendar(provider){
         added++;
       }
     });
-    localStorage.setItem('lu_calEvents',JSON.stringify(_calEvents));
+    _calPersist();
     renderCal();
     toast('✓ Synced '+added+' new events from '+provider);
   }catch(e){
@@ -10762,7 +10762,7 @@ const _origSave=window.save||save;
 // Debounce timers for server sync (one per data key)
 const _syncTimers={};
 // Keys that are synced to the server
-const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks','finance']);
+const _syncKeys=new Set(['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','prefs','calEvents','clusters','programs','opportunities','atlasAnnotations','mindmaps','sheets','decks','finance','calGrid']);
 // SAFETY GUARD: never push to the server until loadServerData() has
 // successfully pulled (or confirmed there is no) server data. Without this,
 // a cleared-localStorage boot shows built-in seed data and the 2s auto-sync
@@ -11207,7 +11207,7 @@ async function loadServerData(){
       // are assigned to them. We persist '[]' to localStorage (NOT removal) so
       // the demo defaults in the D initializer — `localStorage||[demo]` — can't
       // reload on the next boot, and we block the one-time example seeder.
-      const _newUserKeys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','clusters','programs','opportunities','calEvents'];
+      const _newUserKeys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','clusters','programs','opportunities','calEvents','calGrid'];
       let _clearedDemo=false;
       _newUserKeys.forEach(k=>{
         if(Array.isArray(D[k])&&D[k].length)_clearedDemo=true;
@@ -11223,7 +11223,12 @@ async function loadServerData(){
         if(typeof curScreen!=='undefined'&&typeof renderScreen==='function')setTimeout(()=>renderScreen(curScreen),60);
       }
     }else{
-    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks'];
+    const keys=['tasks','notes','projects','goals','journal','habits','contacts','ideas','teams','calEvents','clusters','programs','opportunities','mindmaps','sheets','decks','calGrid'];
+    // The calendar grid was browser-only until 2026-10-15. On each device's FIRST
+    // calGrid sync, keep ALL of its own events (another device may have
+    // uploaded first, and these are not remote deletions); after that the
+    // normal deletion-aware rule applies.
+    let _calFirstSync=false;try{_calFirstSync=!localStorage.getItem('lu_calGrid_synced');}catch(_){}
     let changed=false;
     // Timestamp the server blob was last written. A local-only item is only
     // "rescued" if it's NEWER than this — i.e. a genuinely new local add the
@@ -11262,7 +11267,7 @@ async function loadServerData(){
         // Keep a local-only item only if it looks like a brand-new local
         // addition (created at/after the server's last write, minus grace).
         // Otherwise it's a remote deletion → drop it so the delete sticks.
-        const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id)&&(!_srvUpd|| _itemTime(x) >= (_srvUpd-_GRACE)));
+        const localOnly=local.filter(x=>x&&x.id!=null&&!srvIds.has(x.id)&&((k==='calGrid'&&_calFirstSync)||!_srvUpd|| _itemTime(x) >= (_srvUpd-_GRACE)));
         const merged=localOnly.length?srv.concat(localOnly):srv;
         D[k]=merged;
         // Use the quota-safe writer — merged can exceed the cache limit, and
@@ -11291,6 +11296,16 @@ async function loadServerData(){
         }
       }
     });
+    // Calendar grid: if the server has none yet, this device uploads what it
+    // has (never the built-in samples — those are stripped at load).
+    try{
+      const _srvCal=sd.calGrid;
+      if((!Array.isArray(_srvCal)||!_srvCal.length)&&Array.isArray(_calEvents)&&_calEvents.length&&_calEvents!==_calEventsDefault){
+        setTimeout(()=>_pushKeyToServer('calGrid'),1500);
+      }
+      if(Array.isArray(_srvCal)&&_srvCal.length&&typeof curScreen!=='undefined'&&curScreen==='calendar'&&typeof renderCal==='function')setTimeout(renderCal,0);
+      localStorage.setItem('lu_calGrid_synced','1');
+    }catch(_){}
     // Atlas snapshot (one-way mirror from CFResourcePlanner). Object-shaped,
     // not array — just replace wholesale. The server is the only writer
     // (via atlas.pull); the client never mutates D.atlas.

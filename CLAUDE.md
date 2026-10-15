@@ -4,6 +4,15 @@
 
 ## ▶ START NEXT SESSION HERE
 
+**-219 (2026-10-15, COMMITTED — NOT PUSHED) — the calendar grid is server-synced.** ⚠ **Migration 0053** (`user_app_data.calGrid mediumtext`, additive) — next is **0054**.
+The grid store `_calEvents` (your own events, Quick events, time blocks incl. the coach's, merged Outlook/Google copies) lived ONLY in each browser's localStorage. Now:
+- app-part1: local copy `lu_calGrid`; an old `lu_calEvents` copy is migrated once with UNTOUCHED built-in samples stripped (`_luCalStripSeeds`, exact JSON match against `_calEventsDefault` captured at load — an edited sample survives); signed-in device with no cache starts `[]`. `D.calGrid` is a non-enumerable getter/setter over `_calEvents`, so `save('calGrid')` / `_syncKeys` / the `loadServerData` merge work unchanged. ALL writers go through `_calPersist()` (8 in part1, Outlook/Google sync in part2, `_agentSaveCal` in app-agent).
+- app-part2: `calGrid` in `_syncKeys`, the merge keys and the new-user clear list. **Each device's FIRST calGrid sync keeps all its own events** (`lu_calGrid_synced` flag) — otherwise a second device's never-uploaded events would look like remote deletions and be dropped. Server empty → this device uploads.
+- Server: `calGrid` in DATA_KEYS + save zod input; coachCron reads `row.calGrid` for "Calendar today" (prefs.coach.calendar only a fallback); app-coach.js `_coachSyncCalendar` now just deletes that old 7-day prefs copy.
+- `scripts/check-ai-agent.mjs` asserts the new key (`lu_calGrid`).
+Verified (built preview, `_trpc` stubbed): owner-shaped data (13 samples + 1 edited sample + 1 coach block) → 2 kept, old key removed; server empty → both uploaded; another device's first sync → union uploaded; later sync → stale local-only event dropped (deletion respected); new event pushes; fresh signed-in device starts empty. tsc 7, esbuild clean, five guards green, coach tests 14/14.
+Not covered: D.calEvents (Outlook/Google via `syncOAuthCalendar`) is unchanged and separate.
+
 **⚠ FOUR client bundles as of -211:** `app-part1.js`, `app-part2.js`,
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.

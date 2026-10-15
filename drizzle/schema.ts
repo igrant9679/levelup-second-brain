@@ -580,6 +580,7 @@ export const userAppData = mysqlTable('user_app_data', {
   sheets: mediumtext('sheets'),       // JSON array of spreadsheet/Smartsheet-like sheet objects (migration 0047 — shareable)
   decks: mediumtext('decks'),         // JSON array of presentation/slide-deck objects (migration 0048 — shareable)
   finance: mediumtext('finance'),     // JSON object: Money page — accounts/transactions/budgets/bills/goals (migration 0049)
+  calGrid: mediumtext('calGrid'),     // JSON array: the calendar grid's own events (_calEvents) — server-synced since migration 0053
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),
