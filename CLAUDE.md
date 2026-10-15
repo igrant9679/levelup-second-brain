@@ -54,16 +54,15 @@ Five guards green (account-switch included).
 - Real fix still open: move the big caches (notes) to IndexedDB so the phone
   keeps notes offline.
 
-**⚠ STEP 3b IS READY BUT NOT ON MAIN — branch `chores-214`, commit "Step 3b:
-drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -218.**
-IRREVERSIBLE: migration 0052 drops `user_app_data.tasks/notes/ideas`. It is
-kept OFF main so a push of main can never ship it by accident. Before it
-goes: the owner downloads the backup (Settings → Admin → Migration Health →
-💾 Download backup) and Migration Health shows all three entities served
-"relational". Then fast-forward main to the branch and push. During the
-deploy swap the OLD instance's `select()` on user_app_data will briefly hit
-"Unknown column" (a few seconds of failed loads/saves, retried by the
-client). Next migration number after it: **0053**.
+**-218 (2026-10-15, PUSHED + LIVE) — STEP 3b DONE: migration 0052 dropped
+`user_app_data.tasks/notes/ideas`.** Owner said the backup was downloaded
+(on another device — no file on this PC). Verified live from the owner
+session after deploy: appData.load → tasks 129 / notes 222 / ideas 3 (same
+as before), all `relational`; `tasksRelationalStatus` → `blobCount:null`;
+prefs + tasks saves return ok and re-load intact. Not directly visible: the
+Railway migration log line for 0052 (CLI logged out). **Next migration: 0053.
+Next build: -219.** The worktree `lu-chores-wt` and branch `chores-214` are
+removed.
 
 **-215 (2026-10-15, COMMITTED — NOT PUSHED) — three latent bugs, demo
 cleanup, and two stale-data bugs found on the way to Step 3b.**
