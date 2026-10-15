@@ -28,6 +28,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, automationRules, type AutomationRule } from "../../drizzle/schema";
+import { readEntityArray, writeEntityArray } from "../routers/appData";
 
 interface NativeTask {
   id?: number | string;
@@ -86,11 +87,12 @@ async function runRuleForUser(
   const today = ymd();
 
   if (rule.trigger === 'task_overdue_today' || rule.trigger === 'task_status_done') {
-    // Native task triggers — load + mutate user_app_data.tasks blob.
-    const [row] = await db.select().from(userAppData).where(eq(userAppData.userId, rule.userId)).limit(1);
-    if (!row) return stats;
-    const tasks = safeParse<NativeTask[]>(row.tasks, []);
-    if (!Array.isArray(tasks)) return stats;
+    // Native task triggers — the relational tasks table is the live store.
+    // (Until 2026-10-14 this read AND wrote user_app_data.tasks, which has been
+    // a frozen pre-Step-3a snapshot since 2026-07-12, so native-task rules
+    // changed nothing the app could see.)
+    const tasks = (await readEntityArray(db, rule.userId, 'tasks')) as NativeTask[];
+    if (!Array.isArray(tasks) || !tasks.length) return stats;
     const lastFired = rule.lastFiredAt ? new Date(rule.lastFiredAt).getTime() : 0;
 
     let anyModified = false;
@@ -110,7 +112,7 @@ async function runRuleForUser(
       if (modified) { stats.modified++; anyModified = true; }
     }
     if (anyModified) {
-      await db.update(userAppData).set({ tasks: JSON.stringify(tasks) }).where(eq(userAppData.userId, rule.userId));
+      await writeEntityArray(db, rule.userId, 'tasks', tasks);
     }
   } else if (rule.trigger === 'external_status') {
     const wantStatus = String(trigCfg.statusEquals || '').toLowerCase().trim();
