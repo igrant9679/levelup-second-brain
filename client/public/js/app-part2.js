@@ -4664,6 +4664,9 @@ function _luWipeLocalCache(store,keep){
   for(let i=0;i<store.length;i++){const k=store.key(i);if(k&&k.indexOf('lu_')===0&&keep.indexOf(k)<0)doomed.push(k);}
   doomed.forEach(k=>{try{store.removeItem(k);}catch(_){}});
   Object.keys(kept).forEach(k=>{try{store.setItem(k,kept[k]);}catch(_){}});
+  // The IndexedDB notes copy goes too (it is also tagged with the account id,
+  // so a reload racing this async clear still never shows it to someone else).
+  try{if(typeof _luIdbClear==='function'&&store===localStorage)_luIdbClear();}catch(_){}
   return doomed.length;
 }
 function doLoginSuccess(member){
@@ -10957,7 +10960,7 @@ function clearLocalCacheAndReload(){
     localStorage.clear();
     Object.entries(keep).forEach(([k,v])=>{try{localStorage.setItem(k,v);}catch(_){}});
   }catch(_){}
-  location.reload();
+  Promise.resolve(typeof _luIdbClear==='function'?_luIdbClear():null).catch(()=>{}).then(()=>location.reload());
 }
 window.clearLocalCacheAndReload=clearLocalCacheAndReload;
 // Helper: localStorage write that swallows QuotaExceededError so the
@@ -10981,7 +10984,90 @@ const _LU_CACHE_SHED_KEYS = ['lu_notes','lu_notes_payload','lu_bookmarks','lu_jo
 // We skip caching them silently after the first failure so we don't keep
 // retrying-and-failing (and don't keep toasting the user).
 window._luOversizedKeys = window._luOversizedKeys || new Set();
+// ─── Big caches in IndexedDB (build -217) ──────────────────────────────────
+// iPhone Safari caps localStorage at ~5 MB (UTF-16), and notes alone are ~1.7M
+// chars of Word-import HTML, so the notes cache never fit there: the phone
+// re-downloaded notes on every launch and had none offline. Keys in
+// _LU_IDB_KEYS are cached in IndexedDB instead (hundreds of MB available), as
+// {uid, at, json} so a cache can never be served to a different account.
+// localStorage stays for everything small. If IndexedDB is unavailable
+// (private mode, old browser) the old localStorage path is used unchanged.
+const _LU_IDB_NAME='levelup-cache', _LU_IDB_STORE='kv';
+const _LU_IDB_KEYS=new Set(['notes']);
+function _luIdbOpen(){
+  if(window._luIdbP)return window._luIdbP;
+  window._luIdbP=new Promise(res=>{
+    try{
+      if(!('indexedDB' in window)){window._luIdbOk=false;return res(null);}
+      const rq=indexedDB.open(_LU_IDB_NAME,1);
+      rq.onupgradeneeded=()=>{try{rq.result.createObjectStore(_LU_IDB_STORE);}catch(_){}};
+      rq.onsuccess=()=>{window._luIdbOk=true;res(rq.result);};
+      rq.onerror=()=>{window._luIdbOk=false;res(null);};
+      rq.onblocked=()=>{window._luIdbOk=false;res(null);};
+    }catch(_){window._luIdbOk=false;res(null);}
+  });
+  return window._luIdbP;
+}
+async function _luIdbGet(key){
+  const db=await _luIdbOpen();if(!db)return undefined;
+  return new Promise(res=>{try{const rq=db.transaction(_LU_IDB_STORE,'readonly').objectStore(_LU_IDB_STORE).get(key);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>res(undefined);}catch(_){res(undefined);}});
+}
+async function _luIdbSet(key,val){
+  const db=await _luIdbOpen();if(!db)return false;
+  return new Promise(res=>{try{const tx=db.transaction(_LU_IDB_STORE,'readwrite');tx.objectStore(_LU_IDB_STORE).put(val,key);tx.oncomplete=()=>res(true);tx.onerror=()=>res(false);tx.onabort=()=>res(false);}catch(_){res(false);}});
+}
+async function _luIdbClear(){
+  const db=await _luIdbOpen();if(!db)return;
+  await new Promise(res=>{try{const tx=db.transaction(_LU_IDB_STORE,'readwrite');tx.objectStore(_LU_IDB_STORE).clear();tx.oncomplete=()=>res();tx.onerror=()=>res();tx.onabort=()=>res();}catch(_){res();}});
+}
+function _luIdbUid(){try{return localStorage.getItem('lu_last_uid')||'';}catch(_){return '';}}
+const _luIdbTimers={};
+// Debounced (notes save on every keystroke while editing).
+function _luIdbCacheWrite(k){
+  clearTimeout(_luIdbTimers[k]);
+  _luIdbTimers[k]=setTimeout(async()=>{
+    // Never write before the start-up read has finished, and never let an
+    // empty in-memory list (boot-time saves run before the cache or the server
+    // has filled it) replace a cached copy until the server has answered.
+    try{await _luIdbHydrate();}catch(_){}
+    if((!Array.isArray(D[k])||!D[k].length)&&!_serverSyncReady)return;
+    const uid=_luIdbUid();
+    const ok=uid?await _luIdbSet('cache:'+k,{uid,at:Date.now(),json:JSON.stringify(D[k]||[])}):false;
+    if(ok){try{localStorage.removeItem('lu_'+k);}catch(_){}}  // free the old copy
+    else{window._luIdbOk=false;try{_origSave(k);}catch(_){}}   // fall back to localStorage
+  },700);
+}
+// Offline/fast start: fill D.notes from IndexedDB before the server answers.
+// Only for a signed-in device, only the same account's copy, only while the
+// server data has not arrived yet (it is authoritative once it does).
+function _luIdbHydrate(){
+  if(window._luIdbHydrateP)return window._luIdbHydrateP;
+  window._luIdbHydrateP=(async()=>{
+    try{
+      if(!localStorage.getItem('lu_session'))return;
+      const uid=_luIdbUid();if(!uid)return;
+      for(const k of _LU_IDB_KEYS){
+        // A legacy localStorage copy still in use wins — but an empty '[]' is
+        // just a boot-time save of the not-yet-filled list, not a real copy.
+        let ls=null;try{ls=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
+        if(Array.isArray(ls)&&ls.length)continue;
+        const v=await _luIdbGet('cache:'+k);
+        if(!v||!v.json)continue;
+        if(v.uid!==uid){await _luIdbClear();return;} // another account's cache — never show it
+        if(_serverSyncReady)continue;
+        const arr=JSON.parse(v.json);
+        if(Array.isArray(arr)&&(!Array.isArray(D[k])||!D[k].length)){
+          D[k]=arr;
+          try{if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);}catch(_){}
+        }
+      }
+    }catch(e){console.warn('[cache] IndexedDB hydrate failed',e&&e.message);}
+  })();
+  return window._luIdbHydrateP;
+}
+try{_luIdbHydrate();}catch(_){}
 function _safeOrigSave(k){
+  if(_LU_IDB_KEYS.has(k)&&window._luIdbOk!==false&&('indexedDB' in window)){_luIdbCacheWrite(k);return true;}
   // Short-circuit: this key has already failed to fit this session.
   // The in-memory D[k] is still authoritative; the server still gets pushed
   // by the patched save(). We just don't waste cycles trying to cache.
@@ -11040,8 +11126,16 @@ function _luQuotaWarn(kind,msg,key){
   try{
     if(document.getElementById('lu-safearea-css'))return;
     const s=document.createElement('style');s.id='lu-safearea-css';
+    // Full-screen overlays that start at the very top need the same room, or
+    // their header and close button sit behind the clock (seen: the assistant
+    // panel had no way out on iPhone).
     s.textContent=':root{--top:calc(56px + env(safe-area-inset-top, 0px))}'+
-      '.app>.topbar.topbar{padding-top:env(safe-area-inset-top, 0px)}';
+      '.app>.topbar.topbar{padding-top:env(safe-area-inset-top, 0px)}'+
+      '#ai-panel{padding-top:env(safe-area-inset-top, 0px);box-sizing:border-box}'+
+      '#drawer-ov .drawer{padding-top:calc(20px + env(safe-area-inset-top, 0px))}'+
+      '#help-drawer-ov{padding-top:env(safe-area-inset-top, 0px);box-sizing:border-box}'+
+      '#fa-modal-ov{padding-top:calc(24px + env(safe-area-inset-top, 0px))}'+
+      '#notif-panel{top:var(--top)!important}';
     document.head.appendChild(s);
   }catch(_){}
 })();
@@ -11082,6 +11176,9 @@ let _loadInFlight=false;
 async function loadServerData(){
   if(_loadInFlight)return;
   _loadInFlight=true;
+  // Let the IndexedDB notes copy land first, so notes created offline are in
+  // memory for the merge below (capped — never hold up the load for long).
+  try{if(typeof _luIdbHydrate==='function')await Promise.race([_luIdbHydrate(),new Promise(r=>setTimeout(r,1500))]);}catch(_){}
   // Load bookmarks cache in parallel — fire and forget, used by linker dropdowns.
   loadBookmarksCache();
   let sd=null;

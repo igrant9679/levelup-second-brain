@@ -8,6 +8,30 @@
 `app-agent.js`, **`app-coach.js`** (loaded last from the index.html loader
 array). `node -c` ALL FOUR before any push.
 
+**-217 (2026-10-15, COMMITTED — NOT PUSHED) — notes cached in IndexedDB (offline on iPhone) + overlays clear the iPhone status bar.**
+- `_LU_IDB_KEYS` (app-part2.js, above `_safeOrigSave`; currently just `notes`)
+  cache in IndexedDB `levelup-cache`/`kv` as `cache:<key>` = `{uid, at, json}`
+  instead of localStorage (frees ~1.7M chars; the iPhone notice stops).
+  `_safeOrigSave` routes them to `_luIdbCacheWrite` (700ms debounce; removes
+  the old `lu_notes`; falls back to localStorage if IDB fails).
+  `_luIdbHydrate()` runs at load and is awaited (≤1.5s) at the top of
+  `loadServerData`, so offline-created notes are in memory for the merge.
+  ⚠ Guards that each fixed a real bug in testing: (1) part1 boot code saves
+  notes BEFORE part2 loads, writing `lu_notes=[]` — an EMPTY localStorage
+  copy must not count as "in use"; (2) never write the IDB copy before the
+  hydrate settles, and never write an empty list before the server answers
+  (it would wipe the offline copy). Uid-tagged: another account's copy is
+  ignored AND deleted; `_luWipeLocalCache` (logout/switch) and
+  `clearLocalCacheAndReload` clear IDB too.
+- `#lu-safearea-css` also pads `#ai-panel` (its ✕ was behind the clock — no
+  way out on iPhone), `#drawer-ov .drawer`, `#help-drawer-ov`, `#fa-modal-ov`,
+  and pins `#notif-panel` to `var(--top)` (inline 56px overlapped the taller bar).
+Verified (vite-built preview): save → IDB with uid, lu_notes freed; cold boot
+with no server shows the cached notes; boot-time empty saves leave the cache
+intact; other uid → nothing shown + cache deleted; wipe clears IDB; simulated
+47px inset → assistant header at 47, ✕ at 70, panel ends at the screen bottom.
+Five guards green (account-switch included).
+
 **-216 (2026-10-15, COMMITTED — NOT PUSHED) — iPhone: ☰ menu hidden in portrait + "out of storage" warning.** User screenshots from the iPhone home-screen app.
 - **Menu:** index.html uses `viewport-fit=cover` + `black-translucent`, so the
   home-screen app draws under the status bar; the 56px topbar only reserved
@@ -31,7 +55,7 @@ array). `node -c` ALL FOUR before any push.
   keeps notes offline.
 
 **⚠ STEP 3b IS READY BUT NOT ON MAIN — branch `chores-214`, commit "Step 3b:
-drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -217.**
+drop the frozen tasks/notes/ideas blob columns (migration 0052)", build -218.**
 IRREVERSIBLE: migration 0052 drops `user_app_data.tasks/notes/ideas`. It is
 kept OFF main so a push of main can never ship it by accident. Before it
 goes: the owner downloads the backup (Settings → Admin → Migration Health →
