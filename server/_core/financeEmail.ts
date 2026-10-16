@@ -273,3 +273,63 @@ export async function buildMoneySectionHtml(rawFinance: string | null | undefine
   ${aiBoxHtml(ai)}`;
   return { html, billsDueCount: unpaid.length, nudgeCount: nudges ? 1 : 0 };
 }
+
+// ─── AI coach (build -220) ─────────────────────────────────────────────────
+// The coach's weekly money check-in and its off-track alerts read these.
+// Summaries only: category / bill / account NAMES and rounded dollar
+// figures — never account numbers, payees or individual transactions.
+
+function spendByCat(f: Finance, ym: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  f.transactions.forEach(t => {
+    if (String(t.date || '').slice(0, 7) !== ym || catKind(f, t.catId) === 'transfer') return;
+    if ((t.amount || 0) < 0) out[String(t.catId)] = (out[String(t.catId)] || 0) - (t.amount || 0);
+  });
+  return out;
+}
+const ymdOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const plain = (s: string) => s.replace(/^[^\w$]+\s*/, '');
+
+/** Lines for the coach's DATA block. `now` = the user's LOCAL date (noon). */
+export function moneyCoachLines(f: Finance, now = new Date()): string[] {
+  const s = computeMoneyStats(f, now);
+  const lines: string[] = [];
+  const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const day = now.getDate();
+  const pct = s.budgetTotal > 0 ? Math.round(s.spent / s.budgetTotal * 100) : null;
+  lines.push(`MONEY ${s.ym}: day ${day} of ${dim} (${Math.round(day / dim * 100)}% of the month). Spent ${fmt(s.spent)}${s.budgetTotal > 0 ? ` of a ${fmt(s.budgetTotal)} plan (${pct}%)` : ''}. Income ${fmt(s.income)}${s.incomeExpected > 0 ? ` of ${fmt(s.incomeExpected)} expected` : ''}.`);
+  const byCat = spendByCat(f, s.ym);
+  const top = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([id, sp]) => { const b = budgetFor(f, id, s.ym); return `${plain(catName(f, id))} ${fmt(sp)}${b > 0 ? `/${fmt(b)}${sp > b ? ' OVER' : ''}` : ''}`; });
+  if (top.length) lines.push('Top spending (spent/plan): ' + top.join('; '));
+  const unpaid = s.bills7.filter(b => !b.paid);
+  if (unpaid.length) lines.push('Bills next 7 days, not marked paid: ' + unpaid.slice(0, 10).map(b => `${b.name} ${fmt(b.amount)} ${b.overdue ? `was due ${ymdOf(b.date)} (may simply not be marked paid)` : ymdOf(b.date)}${b.autopay ? ' autopay' : ''}`).join('; '));
+  lines.push(`Cash ${fmt(s.cash)} · debt ${fmt(s.debt)} · net worth ${fmt(s.netWorth)}${s.nwDelta != null ? ` (${s.nwDelta >= 0 ? '+' : '-'}${fmt(Math.abs(s.nwDelta))} vs last month)` : ''}.`);
+  if (s.debts.length) lines.push('Biggest debts: ' + s.debts.slice(0, 3).map(d => `${d.name} ${fmt(d.bal)}${d.apr ? ` @${d.apr}%` : ''}`).join('; '));
+  const uncat = f.transactions.filter(t => String(t.date || '').slice(0, 7) === s.ym && (!t.catId || t.catId === 'misc-other' || t.catId === 'inc-other'));
+  if (uncat.length) lines.push(`Uncategorized this month: ${uncat.length} transactions (${fmt(uncat.reduce((a, t) => a + Math.abs(t.amount || 0), 0))}).`);
+  return lines;
+}
+
+/**
+ * Things worth an unscheduled heads-up. Each has a stable `key` so the coach
+ * alerts about it once, not every day. Deliberately NOT included: bills whose
+ * due day passed without being marked paid — most are paid and simply
+ * unmatched, so that would be daily noise (the weekly check-in mentions them).
+ */
+export function moneyAlertIssues(f: Finance, now = new Date()): Array<{ key: string; text: string }> {
+  const s = computeMoneyStats(f, now);
+  const out: Array<{ key: string; text: string }> = [];
+  const byCat = spendByCat(f, s.ym);
+  Object.entries(byCat).forEach(([id, sp]) => {
+    const b = budgetFor(f, id, s.ym);
+    if (b > 0 && sp > b * 1.1 && sp - b >= 25) out.push({ key: `over:${s.ym}:${id}`, text: `${plain(catName(f, id))} is over budget: ${fmt(sp)} spent of ${fmt(b)}` });
+  });
+  if (s.budgetTotal > 0 && s.spent > s.budgetTotal) out.push({ key: `total:${s.ym}`, text: `Total spending ${fmt(s.spent)} is past the month's ${fmt(s.budgetTotal)} plan` });
+  const today = ymdOf(now);
+  const tomorrow = ymdOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+  s.bills7.filter(b => !b.paid && !b.autopay && !b.overdue && (ymdOf(b.date) === today || ymdOf(b.date) === tomorrow))
+    .forEach(b => out.push({ key: `due:${b.name}:${ymdOf(b.date)}`, text: `${b.name} (${fmt(b.amount)}) is due ${ymdOf(b.date) === today ? 'today' : 'tomorrow'} and is not on autopay` }));
+  if (s.bills7Total > 0 && s.cash > 0 && s.bills7Total > s.cash) out.push({ key: `cash:${s.ym}`, text: `Bills due in the next 7 days (${fmt(s.bills7Total)}) are more than cash on hand (${fmt(s.cash)})` });
+  return out;
+}

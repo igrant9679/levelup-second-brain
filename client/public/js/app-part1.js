@@ -25152,7 +25152,7 @@ The toast shows Nifty's own message and the HTTP status. The two common causes:
 - **Nifty isn't connected** for your account — the dialog says so and links to **Settings → Integrations**.
 - **The assignee list is short or empty** — Nifty's member endpoint varies by workspace, so LevelUp also offers every member it has seen on tasks already synced from that project (plus you). Pick one of those, or leave the task unassigned and assign it in Nifty.
 `},
-  {id:64,slug:'ai-coach',catId:7,title:'Your AI coach — interview, check-ins and autonomy',summary:'The assistant as your personal and professional coach: it learns about you, runs coaching sessions (plan my day, priorities, goals, habits, ideas, organizing, money), checks in through the day by in-app message, email and phone push, and can act on its own.',tags:['coach','ai','assistant','check-ins','checkin','reminders','push','notifications','iphone','ipad','phone','mobile','android','interview','autonomy','plan','planning','priorities','habits','goals','money','lost','overwhelmed'],body:`## Your AI coach
+  {id:64,slug:'ai-coach',catId:7,title:'Your AI coach — interview, check-ins and autonomy',summary:'The assistant as your personal and professional coach: it learns about you, runs coaching sessions (plan my day, priorities, goals, habits, ideas, organizing, money), checks in through the day by in-app message, email and phone push, and can act on its own.',tags:['coach','ai','assistant','check-ins','checkin','reminders','push','notifications','iphone','ipad','phone','mobile','android','interview','autonomy','plan','planning','priorities','habits','goals','money','lost','overwhelmed','weekly','week','email','reply','alerts','budget','bills'],body:`## Your AI coach
 
 LevelUp has a lot in it. The coach is there so you never have to figure it out alone: it learns who you are, decides with you what matters, does the busywork in the app, and checks in with you through the day.
 
@@ -25190,6 +25190,20 @@ Go to **Settings → AI Coach** and switch **Check-ins through the day** on. By 
 Change any time, switch single check-ins off, pick the days, or **Pause until** a date. Choose how they reach you: **In-app message**, **Email**, **Phone push**. **Send me one now** writes one immediately so you can see what they look like. Each check-in lands in the assistant panel, so you can just reply.
 
 Check-ins use your local time zone — open LevelUp once on your device so the coach knows it.
+
+## Once a week
+
+- **Sunday 18:00 Weekly plan** — a look back at the last seven days, the three outcomes that matter most this week, and a Monday-to-Friday sketch around your calendar. It spreads due dates across the week for you.
+- **Saturday 10:00 Money check-in** — where spending stands against your plan for this point in the month, bills coming up, and the one money move that matters this week. Only if you use the Money page.
+- **Money alerts** — a short heads-up when a category goes over budget, total spending passes the plan, or a bill that is not on autopay is due today or tomorrow. Each problem is flagged once, between 8am and 8pm.
+
+Pick the day and time for each (or switch them off) under **Once a week** in Settings → AI Coach. The coach only sees money totals — category and bill names and rounded amounts — never account numbers or individual transactions.
+
+## Reply by email
+
+Every coach email can be answered: hit **Reply** and write what you want — "move the report to Friday", "done with the invoices", "I'm off on Friday afternoon". Within a few minutes the coach acts on it (it can move, schedule, add and complete tasks and remember things about you, but never delete) and writes back in the same email thread. Your reply and its answer also appear in the assistant panel.
+
+Only replies from your own email address are read, and automatic replies (out-of-office) are ignored. Settings → AI Coach shows whether reply-by-email is on.
 
 ## Phone push
 

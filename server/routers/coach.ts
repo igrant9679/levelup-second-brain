@@ -7,7 +7,9 @@
  *                        device applies them (pending → claimed)
  *   coach.reportApply  — record what the client did (applied | skipped)
  *   coach.runNow       — generate a check-in right now (Settings test button)
- *   coach.status       — AI provider, timezone in use, today's runs, push devices
+ *   coach.status       — AI provider, timezone in use, today's runs, push
+ *                        devices, the email-reply mailbox (-220)
+ *   coach.checkReplies — read the reply mailbox now instead of waiting ≤3 min
  *   coach.pushKey / pushSubscribe / pushUnsubscribe / pushTest — web push (-213)
  *
  * Check-in SETTINGS are client-owned (prefs.coach.checkins, saved with prefs);
@@ -19,7 +21,8 @@ import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { coachMessages, userAppData } from "../../drizzle/schema";
-import { COACH_SLOTS, COACH_SLOT_IDS, localNow, processCoachCheckins, slotTime, type CoachSlot } from "../_core/coachCron";
+import { COACH_KIND_LABELS, COACH_SLOTS, COACH_SLOT_IDS, localNow, processCoachCheckins, slotDay, slotTime, type CoachSlot } from "../_core/coachCron";
+import { coachReplyStatus, getReplyInboxAddress, pollCoachReplies } from "../_core/coachReplies";
 import { resolveWorkspaceAI } from "../_core/workspaceAI";
 // Importing coachPush also registers it as the check-ins' push channel.
 import { countPushSubscriptions, getVapidKeys, removePushSubscription, savePushSubscription, sendPushToUser } from "../_core/coachPush";
@@ -40,11 +43,13 @@ export const coachRouter = router({
         : eq(coachMessages.userId, ctx.user.id);
       const rows = await db.select().from(coachMessages).where(where).orderBy(desc(coachMessages.id)).limit(input?.limit ?? 20);
       return rows.map((r) => ({
-        id: r.id, kind: r.kind, label: (COACH_SLOTS as Record<string, { label: string }>)[r.kind]?.label || r.kind,
+        id: r.id, kind: r.kind, label: COACH_KIND_LABELS[r.kind] || r.kind,
         title: r.title, body: r.body, push: r.pushText,
         actions: (() => { try { return r.actions ? JSON.parse(r.actions) : []; } catch { return []; } })(),
         status: r.status, applyState: r.applyState, applyResult: r.applyResult,
         emailed: !!r.emailedAt, pushed: !!r.pushedAt, error: r.error, createdAt: r.createdAt,
+        // a reply carries what the user wrote, so the transcript can show it
+        ...(r.kind === "reply" ? (() => { try { const m = JSON.parse(r.meta || "{}"); return { userText: String(m.userText || ""), parentId: m.parentId ?? null }; } catch { return {}; } })() : {}),
       }));
     }),
 
@@ -77,11 +82,17 @@ export const coachRouter = router({
     }),
 
   runNow: protectedProcedure
-    .input(z.object({ slot: z.enum(COACH_SLOT_IDS as [CoachSlot, ...CoachSlot[]]) }))
+    .input(z.object({ slot: z.enum([...COACH_SLOT_IDS, "moneyalert"] as unknown as [string, ...string[]]) }))
     .mutation(async ({ ctx, input }) => {
-      const r = await processCoachCheckins({ userId: ctx.user.id, force: input.slot });
+      const r = await processCoachCheckins({ userId: ctx.user.id, force: input.slot as CoachSlot | "moneyalert" });
+      if (!r.created && !r.lastError && input.slot === "moneyalert") return { ok: false, id: null, error: "Nothing in your money is off track right now, so there is no alert to send." };
       return { ok: r.created > 0, id: r.lastId ?? null, error: r.lastError ?? null };
     }),
+
+  checkReplies: protectedProcedure.mutation(async () => {
+    const r = await pollCoachReplies({ force: true });
+    return { ok: r.ok, scanned: r.scanned, matched: r.matched, handled: r.handled, error: r.error ?? null };
+  }),
 
   status: protectedProcedure.query(async ({ ctx }) => {
     const db = await requireDb();
@@ -98,8 +109,10 @@ export const coachRouter = router({
       ai: { configured: ai.configured, provider: ai.provider },
       tz: local.tz, tzFromDevice: !!coach.tz, localTime: `${local.weekday} ${local.ymd} ${local.hhmm}`,
       enabled: !!c.enabled,
-      schedule: COACH_SLOT_IDS.map((id) => ({ id, label: COACH_SLOTS[id].label, time: slotTime(c, id), on: c.slots?.[id]?.on !== false })),
-      recent: today.filter((r) => String(r.runKey).startsWith(local.ymd)).map((r) => ({ id: r.id, kind: r.kind, at: r.createdAt, emailed: !!r.emailedAt, pushed: !!r.pushedAt, error: r.error })),
+      schedule: COACH_SLOT_IDS.map((id) => ({ id, label: COACH_SLOTS[id].label, time: slotTime(c, id), on: c.slots?.[id]?.on !== false, ...(COACH_SLOTS[id].day != null ? { day: slotDay(c, id) } : {}) })),
+      moneyAlerts: c.slots?.moneyalert?.on !== false,
+      recent: today.filter((r) => localNow(local.tz, new Date(r.createdAt)).ymd === local.ymd).map((r) => ({ id: r.id, kind: r.kind, at: r.createdAt, emailed: !!r.emailedAt, pushed: !!r.pushedAt, error: r.error })),
+      replies: await (async () => { const st = coachReplyStatus(); return { address: await getReplyInboxAddress().catch(() => null), lastPollAt: st.lastPollAt, lastOkAt: st.lastOkAt, lastError: st.lastError, handled: st.handled }; })(),
       pushDevices: await countPushSubscriptions(ctx.user.id).catch(() => 0),
     };
   }),

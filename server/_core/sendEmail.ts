@@ -28,6 +28,13 @@ export interface EmailPayload {
    * sender). Kept in the type so existing callers compile unchanged.
    */
   recipientUserId?: number | null;
+  /** Threading (the AI coach, build -220): our own Message-ID so a reply can
+   *  be matched to the message it answers, where replies should go, and the
+   *  headers that keep a reply in the same thread in the user's mail app. */
+  messageId?: string;
+  replyTo?: string;
+  inReplyTo?: string;
+  references?: string;
 }
 
 /**
@@ -287,6 +294,10 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
           subject: payload.subject,
           html: wrappedHtml,
           text: payload.text ?? rawHtml.replace(/<[^>]+>/g, ""),
+          ...(payload.messageId ? { messageId: payload.messageId } : {}),
+          ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
+          ...(payload.inReplyTo ? { inReplyTo: payload.inReplyTo } : {}),
+          ...(payload.references ? { references: payload.references } : {}),
         });
         await insertEmailDeliveryLog({
           userId: logUserId,

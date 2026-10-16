@@ -988,6 +988,9 @@ export const coachMessages = mysqlTable('coach_messages', {
   pushedAt: timestamp('pushedAt'),
   readAt: timestamp('readAt'),
   appliedAt: timestamp('appliedAt'),
+  /** JSON (migration 0054): moneyalert {keys[]} — problems already alerted;
+   *  reply {parentId, userText, from} — the email the coach answered. */
+  meta: mediumtext('meta'),
   createdAt: timestamp('createdAt').defaultNow().notNull(),
 }, (t) => ({
   uqRun: unique('uq_coach_run').on(t.userId, t.runKey),
