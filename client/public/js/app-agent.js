@@ -1134,3 +1134,58 @@ function luAgentWhatNext(){luAgentAsk('What should I do next?');}
 // Expose for tests and the console.
 window.luAgent={tools:LU_AGENT_TOOLS,exec:_agentExec,parse:_agentParse,systemPrompt:_agentSystemPrompt,status:_agentStatus,find:_agentFind,date:_agentDate,undoLast:_agentUndoLast,ask:luAgentAsk};
 try{_luAgentCSS();}catch(_){}
+
+// ─── panel size: drag to resize + full screen (build -221) ─────────────────
+// Per-device conveniences, so they live in localStorage (not synced prefs):
+// lu_ai_panel_w = width in px, lu_ai_panel_full = '1' when full screen.
+// Phones keep the full-width panel from index.html's ≤900px rules.
+var AI_PANEL_MIN_W=340, AI_PANEL_DEFAULT_W=420;
+function _aiPanelLS(k,v){try{if(v===undefined)return localStorage.getItem(k);if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}catch(_){}return null;}
+function _aiPanelMaxW(){return Math.max(AI_PANEL_MIN_W,Math.round(window.innerWidth*0.92));}
+function _aiPanelApplySize(){
+  var p=document.getElementById('ai-panel');if(!p)return;
+  var full=_aiPanelLS('lu_ai_panel_full')==='1';
+  p.classList.toggle('ai-full',full);
+  var w=parseInt(_aiPanelLS('lu_ai_panel_w'),10);
+  p.style.width=(!full&&w>0)?Math.min(Math.max(w,AI_PANEL_MIN_W),_aiPanelMaxW())+'px':'';
+  var b=document.getElementById('ai-full-btn');
+  if(b){b.textContent=full?'⤡':'⤢';b.title=full?'Exit full screen':'Full screen';b.setAttribute('aria-label',b.title);b.setAttribute('aria-pressed',full?'true':'false');}
+}
+function toggleAIPanelFull(){_aiPanelLS('lu_ai_panel_full',_aiPanelLS('lu_ai_panel_full')==='1'?null:'1');_aiPanelApplySize();}
+function _aiPanelSizingInit(){
+  var p=document.getElementById('ai-panel');if(!p||document.getElementById('ai-panel-resize'))return;
+  if(!document.getElementById('lu-aipanel-css')){
+    var s=document.createElement('style');s.id='lu-aipanel-css';
+    s.textContent='.ai-panel-resize{position:absolute;top:0;left:0;bottom:0;width:7px;cursor:ew-resize;z-index:3;touch-action:none}'+
+      '.ai-panel-resize::after{content:"";position:absolute;top:50%;left:2px;width:3px;height:44px;margin-top:-22px;border-radius:2px;background:var(--bd2);opacity:0;transition:opacity .15s}'+
+      '.ai-panel-resize:hover::after,.ai-panel.ai-resizing .ai-panel-resize::after{opacity:1;background:var(--ac)}'+
+      '.ai-panel.ai-resizing{transition:none!important;user-select:none}'+
+      '.ai-panel.ai-full{width:100vw!important;max-width:none!important;border-left:none}'+
+      '.ai-panel.ai-full .ai-panel-resize{display:none}'+
+      '.ai-panel.ai-full .ai-panel-body,.ai-panel.ai-full .ai-panel-suggestions,.ai-panel.ai-full .ai-panel-foot{padding-left:max(16px,calc((100% - 920px)/2));padding-right:max(16px,calc((100% - 920px)/2))}'+
+      '@media (max-width:900px){.ai-panel-resize,#ai-full-btn{display:none!important}}';
+    document.head.appendChild(s);
+  }
+  var h=document.createElement('div');h.id='ai-panel-resize';h.className='ai-panel-resize';h.title='Drag to resize · double-click to reset';
+  h.setAttribute('role','separator');h.setAttribute('aria-orientation','vertical');h.setAttribute('aria-label','Resize the assistant panel');
+  p.insertBefore(h,p.firstChild);
+  h.addEventListener('pointerdown',function(e){
+    if(e.button!==0)return;e.preventDefault();
+    try{h.setPointerCapture(e.pointerId);}catch(_){}
+    p.classList.add('ai-resizing');
+    var move=function(ev){var w=Math.min(Math.max(window.innerWidth-ev.clientX,AI_PANEL_MIN_W),_aiPanelMaxW());p.style.width=w+'px';};
+    var up=function(){h.removeEventListener('pointermove',move);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);
+      p.classList.remove('ai-resizing');var w=parseInt(p.style.width,10);if(w>0)_aiPanelLS('lu_ai_panel_w',String(w));};
+    h.addEventListener('pointermove',move);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up);
+  });
+  h.addEventListener('dblclick',function(){_aiPanelLS('lu_ai_panel_w',null);_aiPanelApplySize();});
+  var acts=p.querySelector('.ai-panel-h-actions');
+  if(acts&&!document.getElementById('ai-full-btn')){
+    var b=document.createElement('button');b.id='ai-full-btn';b.type='button';b.onclick=toggleAIPanelFull;
+    var clr=Array.prototype.find.call(acts.querySelectorAll('button'),function(x){return /clearAIChat/.test(x.getAttribute('onclick')||'');});
+    acts.insertBefore(b,clr||acts.lastElementChild);
+  }
+  window.addEventListener('resize',_aiPanelApplySize);
+  _aiPanelApplySize();
+}
+try{_aiPanelSizingInit();}catch(_){}
