@@ -23,6 +23,7 @@
  *   externalSources.upsertOverride        — set My Day / local note / etc. on an external task
  */
 
+import { isRetiredSource, RETIRED_MESSAGE } from "../_core/retiredSources";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
@@ -183,6 +184,7 @@ export const externalSourcesRouter = router({
       if (input.source === 'nifty') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Nifty uses OAuth — paste Client ID + Secret via saveNiftyOAuthApp, then click Connect.' });
       }
+      if (isRetiredSource(input.source)) throw new TRPCError({ code: 'BAD_REQUEST', message: RETIRED_MESSAGE });
       let identity: { id: string | number; email: string; name: string };
       try {
         if (input.source === 'smartsheet') {
@@ -310,7 +312,7 @@ export const externalSourcesRouter = router({
       return (data.data ?? []).map(c => ({ id: String(c.id), title: c.title, type: c.type, primary: !!c.primary }));
     }),
 
-  addSmartsheetWatch: protectedProcedure
+  addSmartsheetWatch: protectedProcedure // refused while Smartsheet is retired (see _core/retiredSources.ts)
     .input(z.object({
       sheetId: z.string(),
       label: z.string().max(128).optional(),
@@ -328,6 +330,7 @@ export const externalSourcesRouter = router({
       mirrorAsProject: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      if (isRetiredSource('smartsheet')) throw new TRPCError({ code: 'BAD_REQUEST', message: RETIRED_MESSAGE });
       const db = await requireDb();
       const row = {
         userId: ctx.user.id,
@@ -1541,7 +1544,7 @@ export const externalSourcesRouter = router({
       const conditions = [eq(externalTasks.userId, ctx.user.id)];
       if (input.source) conditions.push(eq(externalTasks.source, input.source));
       const rows = await db.select().from(externalTasks).where(and(...conditions));
-      const filtered = input.includeRemoved ? rows : rows.filter(r => !r.removedAt);
+      const filtered = (input.includeRemoved ? rows : rows.filter(r => !r.removedAt)).filter(r => !isRetiredSource(r.source));
 
       const overrides = await db.select().from(externalTaskOverrides)
         .where(eq(externalTaskOverrides.userId, ctx.user.id));

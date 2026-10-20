@@ -25,6 +25,7 @@
  * localTags, localPriority) since LevelUp can't edit source fields.
  */
 
+import { isRetiredSource } from "./retiredSources";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, automationRules, type AutomationRule } from "../../drizzle/schema";
@@ -119,7 +120,7 @@ async function runRuleForUser(
     if (!wantStatus) return stats;
     const ext = await db.select().from(externalTasks).where(eq(externalTasks.userId, rule.userId));
     for (const e of ext) {
-      if (e.removedAt) continue;
+      if (e.removedAt || isRetiredSource(e.source)) continue;
       if (String(e.status || '').toLowerCase().trim() !== wantStatus) continue;
       stats.matched++;
       // Write to override

@@ -15,6 +15,7 @@
  * for manual testing.
  */
 
+import { isRetiredSource } from "./retiredSources";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, users } from "../../drizzle/schema";
@@ -106,8 +107,8 @@ async function buildRowsForUser(
     });
   }
 
-  // External tasks (Smartsheet + Nifty).
-  const ext = await db.select().from(externalTasks).where(eq(externalTasks.userId, userId));
+  // External tasks (Nifty; Smartsheet is retired).
+  const ext = (await db.select().from(externalTasks).where(eq(externalTasks.userId, userId))).filter((e: any) => !isRetiredSource(e.source));
   const overrides = await db.select().from(externalTaskOverrides).where(eq(externalTaskOverrides.userId, userId));
   const ovMap = new Map<string, typeof overrides[number]>();
   for (const o of overrides) ovMap.set(`${o.source}:${o.externalId}`, o);

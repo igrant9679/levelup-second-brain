@@ -11,6 +11,7 @@
  * doesn't stop other sheets from pulling.
  */
 
+import { SMARTSHEET_RETIRED } from "./retiredSources";
 import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import {
@@ -678,6 +679,7 @@ export async function pullOneSource(opts: {
   let projectsProcessed = 0;
 
   if (opts.source === 'smartsheet') {
+    if (SMARTSHEET_RETIRED) return { sheetsProcessed: 0, projectsProcessed: 0, tombstoned: 0, projectsCreated: 0 };
     const rows = await db.select().from(smartsheetWatchedSheets)
       .where(and(
         eq(smartsheetWatchedSheets.userId, opts.userId),
@@ -722,7 +724,8 @@ export async function processExternalTaskPull(opts?: { userId?: number }): Promi
   const sheetWhere = opts?.userId
     ? and(eq(smartsheetWatchedSheets.enabled, 1), eq(smartsheetWatchedSheets.userId, opts.userId))
     : eq(smartsheetWatchedSheets.enabled, 1);
-  const sheets = await db.select().from(smartsheetWatchedSheets).where(sheetWhere);
+  // Smartsheet is retired (build -223): its watches stay in the table, unused.
+  const sheets = SMARTSHEET_RETIRED ? [] : await db.select().from(smartsheetWatchedSheets).where(sheetWhere);
 
   const projectWhere = opts?.userId
     ? and(eq(niftyWatchedProjects.enabled, 1), eq(niftyWatchedProjects.userId, opts.userId))

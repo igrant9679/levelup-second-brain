@@ -19,6 +19,7 @@
  *   }
  */
 
+import { isRetiredSource } from "./retiredSources";
 import { and, eq, gte, isNotNull } from "drizzle-orm";
 import { getDb } from "../db";
 import { userAppData, externalTasks, externalTaskOverrides, users, type UserAppData } from "../../drizzle/schema";
@@ -158,7 +159,7 @@ async function buildRowsForUser(
   // LevelUp first sees a row become done, preserving it across subsequent
   // polls. We treat completedAt within the past week as "shipped" — same
   // semantics as native tasks.
-  const ext = await db.select().from(externalTasks).where(eq(externalTasks.userId, userId));
+  const ext = (await db.select().from(externalTasks).where(eq(externalTasks.userId, userId))).filter((e: any) => !isRetiredSource(e.source));
   const overrides = await db.select().from(externalTaskOverrides).where(eq(externalTaskOverrides.userId, userId));
   const ovMap = new Map<string, typeof overrides[number]>();
   for (const o of overrides) ovMap.set(`${o.source}:${o.externalId}`, o);

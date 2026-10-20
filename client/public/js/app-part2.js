@@ -1772,7 +1772,18 @@ function _renderExternalSourcesPanelHTML(status,ssWatches,nfWatches){
   </div>`;
 }
 
+// Smartsheet was retired 2026-10-20 (build -223): CommunityForce work comes
+// from Atlas now. The server no longer pulls it or shows its rows; this card
+// just says so. _renderSmartsheetCardLegacy is the old card, kept unused so
+// the integration can come back by flipping server/_core/retiredSources.ts.
 function _renderSmartsheetCard(s,watches){
+  return `
+  <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:4px">📊 Smartsheet (CF) — retired</div>
+    <div style="font-size:11px;color:var(--t3);line-height:1.5">No longer synced: CommunityForce work now comes from <a href="javascript:void(0)" onclick="nav('atlas')" style="color:var(--ac)">Atlas</a> and the <a href="javascript:void(0)" onclick="nav('pm')" style="color:var(--ac)">PM Workspace</a>. Tasks it pulled earlier are hidden, not deleted; the projects it created stay as ordinary projects, and Pipeline opportunities stay but no longer update.</div>
+  </div>`;
+}
+function _renderSmartsheetCardLegacy(s,watches){
   const connected=!!s.connected;
   return `
   <div style="background:var(--s3);border:1px solid var(--bd1);border-radius:6px;padding:10px">
@@ -2095,6 +2106,7 @@ async function _extSubmitSmartsheetWatch(){
 // when a "reconnect Smartsheet" wiped existing watches — the user shouldn't
 // have to re-key sheet IDs and column choices from memory.
 async function _readdCfWatches(){
+  if(true){toast('Smartsheet is retired — CommunityForce work comes from Atlas now.');return;}
   const ownerName=(D.creds&&D.creds.userName)||'Idris Grant';
   const presets=[
     {sheetId:'7278463428808580',label:'CF — 120-Day Plan',ownerColumn:'PM',ownerMatchValue:ownerName,matchMode:'contains',statusColumn:'Status',dueColumn:'Due'},
