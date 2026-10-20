@@ -25,8 +25,9 @@ import Imap from "imap";
 import { simpleParser } from "mailparser";
 import { and, eq, gte, isNotNull, like } from "drizzle-orm";
 import { getDb } from "../db";
-import { coachMessages, smtpImapAccounts, userAppData, users } from "../../drizzle/schema";
+import { coachMessages, pmRecords, smtpImapAccounts, userAppData, users } from "../../drizzle/schema";
 import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
+import { parsePmRef, processDelegateReply } from "./pmDelegation";
 
 const POLL_MS = 3 * 60 * 1000;
 const LOOKBACK_DAYS = 3;
@@ -153,7 +154,9 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
   const since = new Date(Date.now() - (LOOKBACK_DAYS + 1) * 86400e3);
   if (!opts?.force) {
     const [recent] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(isNotNull(coachMessages.emailedAt), gte(coachMessages.emailedAt, since))).limit(1);
-    if (!recent) return { ...result, ok: true };
+    // …or a PM delegation is open (a delegate can answer a follow-up days later)
+    const [openDlg] = recent ? [true] : await db.select({ id: pmRecords.id }).from(pmRecords).where(and(eq(pmRecords.kind, "delegation"), gte(pmRecords.updatedAt, new Date(Date.now() - 30 * 86400e3)))).limit(1);
+    if (!recent && !openDlg) return { ...result, ok: true };
   }
   _polling = true;
   state.lastPollAt = new Date();
@@ -167,11 +170,22 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
     result.scanned = uids.length;
     const heads = await fetchAll(imap, uids, HEADER_FIELDS);
     const todo: Array<{ uid: number; userId: number; parentId: number; from: string; dedupeKey: string }> = [];
+    const pmTodo: Array<{ uid: number; ref: { id: number; token: string }; from: string; messageId: string; subject: string }> = [];
     for (const h of heads) {
       const hd = Imap.parseHeader(h.buf.toString("utf8")) as Record<string, string[] | undefined>;
       const msgId = String((hd["message-id"] || [])[0] || "").trim();
-      if (/^<coach\.\d+\./i.test(msgId)) continue; // one of ours
+      if (/^<(coach|pmd)\.\d+\./i.test(msgId)) continue; // one of ours
       const ref = parseCoachRef(hd["in-reply-to"], hd["references"]);
+      const pref = ref ? null : parsePmRef(hd["in-reply-to"], hd["references"]);
+      if (pref) {
+        // A delegate answering a PM follow-up (build -222).
+        result.matched++;
+        const subj = String((hd.subject || [])[0] || "");
+        const fromP = addressOf(String((hd.from || [])[0] || ""));
+        if (isAutoReply(hd, subj)) { skip(`auto-reply from ${fromP}`); continue; }
+        pmTodo.push({ uid: h.uid, ref: pref, from: fromP, messageId: msgId, subject: subj });
+        continue;
+      }
       if (!ref) continue;
       result.matched++;
       const subject = String((hd.subject || [])[0] || "");
@@ -195,7 +209,17 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       if (cnt >= REPLY_HOURLY_CAP) { skip(`hourly cap reached for user ${parent.userId}`); continue; }
       todo.push({ uid: h.uid, userId: parent.userId, parentId: parent.id, from, dedupeKey });
     }
-    const full = await fetchAll(imap, todo.map((t) => t.uid), "");
+    const full = await fetchAll(imap, [...todo.map((t) => t.uid), ...pmTodo.map((t) => t.uid)], "");
+    for (const t of pmTodo) {
+      const raw = full.find((f) => f.uid === t.uid);
+      if (!raw) continue;
+      const parsed: any = await simpleParser(raw.buf);
+      const text = extractReplyText(parsed.text || htmlToText(parsed.html || ""));
+      if (!text) { skip(`delegation #${t.ref.id}: empty reply`); continue; }
+      const r = await processDelegateReply({ ref: t.ref, from: t.from, text, messageId: parsed.messageId || t.messageId, subject: t.subject });
+      if (r.skip && r.skip !== "already processed") skip(r.skip);
+      else if (r.ok && r.skip !== "already processed") { result.handled++; state.handled++; console.log(`[coach-replies] delegate reply on delegation #${t.ref.id} → message #${r.messageId}`); }
+    }
     for (const t of todo) {
       const raw = full.find((f) => f.uid === t.uid);
       if (!raw) continue;

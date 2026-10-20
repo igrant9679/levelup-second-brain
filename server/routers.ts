@@ -33,6 +33,7 @@ import { automationsRouter } from "./routers/automations";
 import { atlasRouter } from "./routers/atlas";
 import { simplefinRouter } from "./routers/simplefin";
 import { coachRouter } from "./routers/coach";
+import { pmRouter } from "./routers/pm";
 import { demoAdminRouter } from "./routers/demoAdmin";
 
 export const appRouter = router({
@@ -101,6 +102,7 @@ export const appRouter = router({
   taskMigrations: taskMigrationsRouter,
   dailyDigest: dailyDigestRouter,
   coach: coachRouter,
+  pm: pmRouter,
   demoAdmin: demoAdminRouter,
   weeklyReview: weeklyReviewRouter,
   customFields: customFieldsRouter,

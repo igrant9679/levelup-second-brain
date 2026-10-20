@@ -998,6 +998,63 @@ export const coachMessages = mysqlTable('coach_messages', {
 }));
 export type CoachMessage = typeof coachMessages.$inferSelect;
 
+/**
+ * Project management module (build -222+, migration 0055).
+ *
+ * pm_people — people the owner works with who are NOT necessarily LevelUp
+ * accounts (delegates, client stakeholders). A person is referred to
+ * everywhere by a "person key": "p:<pm_people.id>", "u:<users.id>" (a team
+ * member) or "c:<contact id>" (one of the owner's Contacts).
+ *
+ * pm_records — every other PM item, one row each, edited per record (never a
+ * whole-list save, so two devices cannot clobber each other). `kind` is the
+ * type (delegation, raci, risk, issue, assumption, decision, stakeholder,
+ * commplan, report, milestone, baseline, wbs, alloc, budgetline, cost, change,
+ * lesson, template, pmsettings); `projectKey` scopes it: "p:<projectId>",
+ * "g:<programId>", "atlas:<atlasProjectId>" or "" (global). `refType/refId`
+ * point at what it is about (e.g. task / 123). `data` is the JSON body.
+ */
+export const pmPeople = mysqlTable('pm_people', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 320 }),
+  org: varchar('org', { length: 255 }),
+  title: varchar('title', { length: 255 }),
+  phone: varchar('phone', { length: 64 }),
+  linkedUserId: int('linkedUserId'),
+  linkedContactId: varchar('linkedContactId', { length: 64 }),
+  costRate: int('costRate'),
+  capacityHours: int('capacityHours'),
+  notes: text('notes'),
+  archived: tinyint('archived').default(0).notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+}, (t) => ({
+  idxUser: index('idx_pm_people_user').on(t.userId),
+}));
+export type PmPerson = typeof pmPeople.$inferSelect;
+
+export const pmRecords = mysqlTable('pm_records', {
+  id: int('id').autoincrement().primaryKey(),
+  userId: int('userId').notNull(),
+  projectKey: varchar('projectKey', { length: 128 }).default('').notNull(),
+  kind: varchar('kind', { length: 32 }).notNull(),
+  refType: varchar('refType', { length: 32 }),
+  refId: varchar('refId', { length: 128 }),
+  title: varchar('title', { length: 500 }),
+  status: varchar('status', { length: 32 }),
+  data: mediumtext('data'),
+  sortOrder: int('sortOrder').default(0).notNull(),
+  createdAt: timestamp('createdAt').defaultNow().notNull(),
+  updatedAt: timestamp('updatedAt').defaultNow().notNull(),
+  deletedAt: timestamp('deletedAt'),
+}, (t) => ({
+  idxUserProject: index('idx_pm_rec_user_project').on(t.userId, t.projectKey),
+  idxUserKind: index('idx_pm_rec_user_kind').on(t.userId, t.kind),
+}));
+export type PmRecord = typeof pmRecords.$inferSelect;
+
 /** Web-push subscriptions, one per device/browser (build -213, migration 0051). */
 export const pushSubscriptions = mysqlTable('push_subscriptions', {
   id: int('id').autoincrement().primaryKey(),

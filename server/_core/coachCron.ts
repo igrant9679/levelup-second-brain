@@ -39,6 +39,7 @@ import { readEntityArray } from "../routers/appData";
 import { computeMoneyStats, moneyAlertIssues, moneyCoachLines, parseFinance } from "./financeEmail";
 import { callWorkspaceAI, resolveWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
+import { delegationSnapshotLines } from "./pmDelegation";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -59,6 +60,7 @@ export const COACH_KIND_LABELS: Record<string, string> = {
   ...Object.fromEntries(COACH_SLOT_IDS.map((id) => [id, COACH_SLOTS[id].label])),
   moneyalert: "Money alert",
   reply: "Coach reply",
+  delegate: "Delegate update",
 };
 /** The only tools a scheduled check-in may propose (client re-checks this list). */
 export const COACH_SCHEDULED_TOOLS = ["update_task", "block_time", "create_task", "add_subtasks", "move_to_cluster"];
@@ -231,6 +233,10 @@ async function buildSnapshot(db: any, row: any, coach: CoachPrefs, local: Local,
         (bills.length ? `; unpaid bills next 7 days: ${bills.join(", ")}` : ""));
     } else if (kind === "money") lines.push("MONEY: no Money data yet (the Money page is empty).");
   } catch { /* no finance */ }
+  // delegated work (PM module) — what the owner is waiting on
+  if (kind !== "money" && kind !== "moneyalert") {
+    try { lines.push(...(await delegationSnapshotLines(db, row.userId, today))); } catch { /* table may not exist yet */ }
+  }
   // what the coach knows
   const fields = coach.profile?.fields || {};
   const facts = (coach.profile?.facts || []).slice(-40).map((x) => `${x.area || "basics"}: ${clip(x.text, 160)}`);
@@ -433,6 +439,17 @@ export function parseCoachRef(...headers: Array<string | string[] | null | undef
 type PushHook = (userId: number, m: { id: number; title: string; body: string }) => Promise<boolean>;
 let _pushHook: PushHook | null = null;
 export function setCoachPushHook(fn: PushHook) { _pushHook = fn; }
+/** Push one already-stored coach message (used by the PM delegation replies). */
+export async function pushCoachMessage(userId: number, m: { id: number; title: string; body: string }): Promise<boolean> {
+  if (!_pushHook) return false;
+  const db = await getDb();
+  const [row] = db ? await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1) : [];
+  const push = parseJSON<any>(row?.prefs, {})?.coach?.checkins?.channels?.push === true;
+  if (!push) return false;
+  const ok = await _pushHook(userId, m).catch(() => false);
+  if (ok && db) await db.update(coachMessages).set({ pushedAt: new Date() }).where(eq(coachMessages.id, m.id));
+  return ok;
+}
 
 // The reply inbox lives in coachReplies.ts (it imports this module), so it is
 // reached through a dynamic import to keep the module graph acyclic at load.

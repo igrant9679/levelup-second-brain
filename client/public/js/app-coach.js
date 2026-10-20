@@ -497,13 +497,14 @@ var COACH_SCHEDULED_TOOLS=['update_task','block_time','create_task','add_subtask
 // reply. A reply is the user asking, so it may also complete a task and
 // remember a fact (COACH_REPLY_TOOLS, mirrors the server). Never delete.
 var COACH_WEEKLY_C=[{id:'weekly',icon:'📅',label:'Weekly plan',time:'18:00',day:0},{id:'money',icon:'💰',label:'Money check-in',time:'10:00',day:6}];
-var COACH_KIND_META={moneyalert:{id:'moneyalert',icon:'⚠️',label:'Money alert',time:''},reply:{id:'reply',icon:'✉️',label:'Coach reply',time:''}};
+var COACH_KIND_META={moneyalert:{id:'moneyalert',icon:'⚠️',label:'Money alert',time:''},reply:{id:'reply',icon:'✉️',label:'Coach reply',time:''},delegate:{id:'delegate',icon:'🤝',label:'Delegate update',time:''}};
 var COACH_REPLY_TOOLS=COACH_SCHEDULED_TOOLS.concat(['complete_task','remember']);
-function _coachToolsFor(kind){return kind==='reply'?COACH_REPLY_TOOLS:COACH_SCHEDULED_TOOLS;}
+// A delegate's "done" (PM module, -222) proposes completing the task: same list as a reply.
+function _coachToolsFor(kind){return kind==='reply'||kind==='delegate'?COACH_REPLY_TOOLS:COACH_SCHEDULED_TOOLS;}
 function _coachSafeActions(msg){
   var tools=_coachToolsFor(msg.kind);
   return (msg.actions||[]).filter(function(a){if(!a||tools.indexOf(a.tool)<0)return false;var st=String((a.args||{}).status||'');
-    if(a.tool==='update_task'&&(/^deleted?$/i.test(st)||(msg.kind!=='reply'&&/^done$/i.test(st))))return false;return true;});
+    if(a.tool==='update_task'&&(/^deleted?$/i.test(st)||(msg.kind!=='reply'&&msg.kind!=='delegate'&&/^done$/i.test(st))))return false;return true;});
 }
 var _coachInbox=[],_coachDelivering=false,_coachDeepLink=null,_coachPollTimer=null;
 function _coachCheckins(){

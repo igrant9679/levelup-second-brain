@@ -19,6 +19,7 @@ import { startRecurrenceCron } from "./recurrenceEngine";
 import { startDailyDigestCron } from "./dailyDigestEmail";
 import { startWeeklyReviewCron } from "./weeklyReviewEmail";
 import { startCoachCron } from "./coachCron";
+import { startPmCron } from "./pmDelegation";
 import { startSimplefinAutoSyncCron } from "./simplefinAutoSync";
 import { startAutomationCron } from "./automationEngine";
 
@@ -380,6 +381,7 @@ async function startServer() {
     // Kick off the weekly-review email cron (30-min granularity, Fri default).
     try { startWeeklyReviewCron(); } catch (e) { console.error('[startup] weekly-review cron failed:', e); }
     try { startCoachCron(); } catch (e) { console.error('[startup] coach cron failed:', e); }
+    try { startPmCron(); } catch (e) { console.error('[startup] pm cron failed:', e); }
     // Kick off the automation rules cron (15-min granularity).
     try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
     // Atlas integration env-var boot diagnostic. Prints only the

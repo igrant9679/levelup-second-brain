@@ -386,6 +386,13 @@
       "when": 1792000400000,
       "tag": "0054_coach_meta",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "5",
+      "when": 1792000500000,
+      "tag": "0055_pm_tables",
+      "breakpoints": true
     }
   ]
 }

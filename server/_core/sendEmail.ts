@@ -35,6 +35,10 @@ export interface EmailPayload {
   replyTo?: string;
   inReplyTo?: string;
   references?: string;
+  /** Display name for the From header (e.g. "Idris Grant via LevelUp"); the
+   *  address stays the configured sender's. Used for emails sent to people
+   *  outside LevelUp on a user's behalf (PM delegation follow-ups). */
+  fromName?: string;
 }
 
 /**
@@ -288,8 +292,9 @@ export async function sendEmail(payload: EmailPayload): Promise<boolean> {
           errors.push(`${label}: could not build transporter (missing token/account)`);
           continue;
         }
+        const fromAddr = (transport.from.match(/<([^>]+)>/) || [])[1];
         await transport.transporter.sendMail({
-          from: transport.from,
+          from: payload.fromName && fromAddr ? `"${payload.fromName.replace(/["\r\n]/g, "")}" <${fromAddr}>` : transport.from,
           to: payload.to,
           subject: payload.subject,
           html: wrappedHtml,
