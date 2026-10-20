@@ -88,7 +88,12 @@ function _pmCSS(){
     '.pm-gantt{position:relative;font-size:11.5px}',
     '.pm-gantt .gl{position:sticky;left:0;z-index:2;background:var(--s1)}',
     '.pm-ims td.n{white-space:nowrap}',
-    '.pm-ims input.inp{height:26px;padding:2px 6px;font-size:12px}',
+    '#pm-main .pm-table .inp{height:30px!important;padding:3px 8px!important;font-size:12.5px!important;line-height:1.3!important;min-width:0}',
+    '#pm-main .pm-table select.inp{padding-right:22px!important;text-overflow:ellipsis}',
+    '#pm-main .pm-bar select.inp,#pm-main .pm-top select.inp{height:32px!important;padding:3px 26px 3px 10px!important;line-height:1.3!important}',
+    '.pm-ims td,.pm-ims th{vertical-align:middle;white-space:nowrap}',
+    '.pm-ims td.nm{min-width:340px}',
+    '.pm-ims td.nm .inp{width:100%}',
     '.pm-heatcell{text-align:center;font-size:11px;font-weight:600;min-width:42px}',
     '@media(max-width:560px){.pm-row{grid-template-columns:1fr}.pm-top h1{font-size:19px}}',
     '@media print{body.pm-printing .app>*:not(#pm-print){display:none!important}}',
@@ -427,7 +432,7 @@ function pmRender(){
   var tabs=proj==='all'?PM_ALL_TABS:PM_TABS;
   if(!tabs.some(function(t){return t.id===_pmState.tab;}))_pmState.tab=tabs[0].id;
   var projects=pmProjects();
-  var sel='<select class="inp" style="width:auto;min-width:220px;max-width:100%;height:32px" onchange="pmGo(this.value)">'+
+  var sel='<select class="inp" title="Pick a project" style="width:auto;min-width:220px;max-width:min(420px,100%)" onchange="pmGo(this.value)">'+
     '<option value="all"'+(proj==='all'?' selected':'')+'>All projects — portfolio</option>'+
     (projects.some(function(p){return p.source==='native';})?'<optgroup label="LevelUp projects">'+projects.filter(function(p){return p.source==='native';}).map(function(p){return '<option value="'+_pmE(p.key)+'"'+(p.key===proj?' selected':'')+'>'+_pmE(p.name)+'</option>';}).join('')+'</optgroup>':'')+
     (projects.some(function(p){return p.source==='atlas';})?'<optgroup label="Atlas (CommunityForce)">'+projects.filter(function(p){return p.source==='atlas';}).map(function(p){return '<option value="'+_pmE(p.key)+'"'+(p.key===proj?' selected':'')+'>'+_pmE(p.name)+(p.category&&p.category!=='project'?' ('+_pmE(p.category)+')':'')+'</option>';}).join('')+'</optgroup>':'')+
@@ -1590,16 +1595,16 @@ function pmTab_ims(key){
     '<div class="pm-bar"><button class="btn btn-p" onclick="pmWbsAdd(\''+_pmJ(key)+'\',null)">＋ Row</button><span class="pm-muted">Durations are in work days. Predecessors use row numbers: “3”, “3SS”, “3FS+2”, “4FF-1”.</span><span class="sp"></span>'+
     '<button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'xlsx\')">Excel</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'msp\')">MS Project XML</button><button class="btn btn-s" onclick="pmImsExport(\''+_pmJ(key)+'\',\'csv\')">CSV</button><button class="btn btn-s" onclick="pmImsPrint(\''+_pmJ(key)+'\')">Print</button>'+(ord.length?'<button class="btn btn-s" style="color:#dc2626" onclick="pmWbsClear(\''+_pmJ(key)+'\')">Clear</button>':'')+'</div>';
   if(!ord.length)return html+'<div class="pm-card pm-empty"><b>No WBS / IMS yet</b>“Build from tasks” turns this project’s tasks into an outline you can give durations and dependencies. “Build DoD IMS” groups the work under events (your milestones), significant accomplishments and accomplishment criteria. Or add rows yourself.</div>';
-  var typeSel=function(r){var d=r.data||{};return '<select class="inp" style="width:auto;height:26px;font-size:11.5px" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'imsType\',this.value)">'+Object.keys(PM_IMS_TYPES).map(function(k){return '<option value="'+k+'"'+((d.imsType||'task')===k?' selected':'')+'>'+PM_IMS_TYPES[k]+'</option>';}).join('')+'</select>';};
-  var itemSel=function(r){var d=r.data||{};var cur=(d.refs||[])[0]||'';return '<select class="inp" style="max-width:170px;height:26px;font-size:11.5px" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'refs\',this.value?[this.value]:[])"><option value="">—</option>'+items.map(function(i){return '<option value="'+_pmE(i.ref)+'"'+(i.ref===cur?' selected':'')+'>'+_pmE(String(i.title).slice(0,50))+'</option>';}).join('')+'</select>';};
+  var typeSel=function(r){var d=r.data||{};return '<select class="inp" style="width:240px" title="'+_pmE(PM_IMS_TYPES[d.imsType||'task'])+'" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'imsType\',this.value)">'+Object.keys(PM_IMS_TYPES).map(function(k){return '<option value="'+k+'"'+((d.imsType||'task')===k?' selected':'')+'>'+PM_IMS_TYPES[k]+'</option>';}).join('')+'</select>';};
+  var itemSel=function(r){var d=r.data||{};var cur=(d.refs||[])[0]||'';var curIt=cur?items.find(function(i){return i.ref===cur;}):null;return '<select class="inp" style="width:220px" title="'+_pmE(curIt?curIt.title:'Link a task')+'" onchange="pmWbsSet(\''+_pmJ(r._lk)+'\',\'refs\',this.value?[this.value]:[])"><option value="">—</option>'+items.map(function(i){return '<option value="'+_pmE(i.ref)+'"'+(i.ref===cur?' selected':'')+'>'+_pmE(String(i.title).slice(0,50))+'</option>';}).join('')+'</select>';};
   html+='<div class="pm-card pm-scroll" style="padding:0;max-height:70vh"><table class="pm-table pm-ims"><thead><tr><th>#</th><th>'+(style==='dod'?'IMS #':'WBS')+'</th><th style="min-width:240px">Name</th>'+(style==='dod'?'<th>Type</th>':'')+'<th>Days</th><th>Start no earlier</th><th>Predecessors</th><th>Start</th><th>Finish</th><th>Float</th><th>Linked task</th><th>Done</th><th></th></tr></thead><tbody>'+
     ord.map(function(w,i){var r=w.rec,d=r.data||{},n=byKey['wbs:'+(r.id||r._lk)]||{};var lk=_pmJ(r._lk);var sum=n.summary;
       return '<tr'+(n.critical&&!n.done?' style="background:color-mix(in srgb,#dc2626 6%,transparent)"':'')+'><td class="pm-muted">'+(i+1)+'</td><td class="n pm-muted">'+_pmE(codes[r._lk]||'')+'</td>'+
-        '<td style="padding-left:'+(8+w.depth*16)+'px"><input class="inp" value="'+_pmE(r.title||'')+'" style="'+(sum?'font-weight:650':'')+'" onchange="pmWbsSet(\''+lk+'\',\'title\',this.value)"></td>'+
+        '<td class="nm" style="padding-left:'+(8+w.depth*16)+'px"><input class="inp" value="'+_pmE(r.title||'')+'" title="'+_pmE(r.title||'')+'" style="'+(sum?'font-weight:650':'')+'" onchange="pmWbsSet(\''+lk+'\',\'title\',this.value)"></td>'+
         (style==='dod'?'<td>'+typeSel(r)+'</td>':'')+
-        '<td>'+(sum?'<span class="pm-muted">'+(n.ef-n.es||0)+'</span>':'<input class="inp" type="number" min="0" style="width:58px" value="'+_pmE(d.milestone?0:(d.duration!=null?d.duration:1))+'" onchange="pmWbsSet(\''+lk+'\',\'duration\',this.value)">')+'</td>'+
-        '<td>'+(sum?'':'<input class="inp" type="date" style="width:130px" value="'+_pmE(d.sne||'')+'" onchange="pmWbsSet(\''+lk+'\',\'sne\',this.value)">')+'</td>'+
-        '<td><input class="inp" style="width:90px" value="'+_pmE(_pmPredText(r,rowOf))+'" onchange="pmWbsSetPreds(\''+_pmJ(key)+'\',\''+lk+'\',this.value)"></td>'+
+        '<td>'+(sum?'<span class="pm-muted">'+(n.ef-n.es||0)+'</span>':'<input class="inp" type="number" min="0" style="width:64px" value="'+_pmE(d.milestone?0:(d.duration!=null?d.duration:1))+'" onchange="pmWbsSet(\''+lk+'\',\'duration\',this.value)">')+'</td>'+
+        '<td>'+(sum?'':'<input class="inp" type="date" style="width:150px" value="'+_pmE(d.sne||'')+'" onchange="pmWbsSet(\''+lk+'\',\'sne\',this.value)">')+'</td>'+
+        '<td><input class="inp" style="width:100px" title="Row numbers, e.g. 3, 3SS, 3FS+2" value="'+_pmE(_pmPredText(r,rowOf))+'" onchange="pmWbsSetPreds(\''+_pmJ(key)+'\',\''+lk+'\',this.value)"></td>'+
         '<td class="pm-muted">'+_pmDate(n.start)+'</td><td class="pm-muted">'+_pmDate(n.finish)+'</td><td>'+(sum||n.done?'':n.critical?'<b style="color:#dc2626">0</b>':(n.float!=null?n.float:''))+'</td>'+
         '<td>'+(sum?'':itemSel(r))+'</td><td><input type="checkbox" '+(r.status==='done'?'checked':'')+' onchange="pmWbsSet(\''+lk+'\',\'done\',this.checked)"></td>'+
         '<td style="white-space:nowrap"><button class="btn btn-s" style="height:24px;padding:0 6px" title="Outdent" onclick="pmWbsMove(\''+_pmJ(key)+'\',\''+lk+'\',\'out\')">←</button><button class="btn btn-s" style="height:24px;padding:0 6px" title="Indent" onclick="pmWbsMove(\''+_pmJ(key)+'\',\''+lk+'\',\'in\')">→</button><button class="btn btn-s" style="height:24px;padding:0 6px" title="Move up" onclick="pmWbsMove(\''+_pmJ(key)+'\',\''+lk+'\',\'up\')">↑</button><button class="btn btn-s" style="height:24px;padding:0 6px" title="Move down" onclick="pmWbsMove(\''+_pmJ(key)+'\',\''+lk+'\',\'down\')">↓</button><button class="btn btn-s" style="height:24px;padding:0 6px" title="Add a row below" onclick="pmWbsAdd(\''+_pmJ(key)+'\',\''+lk+'\')">＋</button><button class="btn btn-s" style="height:24px;padding:0 6px" title="Milestone" onclick="pmWbsSet(\''+lk+'\',\'milestone\','+(!d.milestone)+')">'+(d.milestone?'◆':'◇')+'</button><button class="btn btn-s" style="height:24px;padding:0 6px;color:#dc2626" title="Delete row" onclick="pmWbsDelete(\''+_pmJ(key)+'\',\''+lk+'\')">×</button></td></tr>';
