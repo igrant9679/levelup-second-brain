@@ -30,6 +30,7 @@ import { coachMessages, pmPeople, pmRecords, userAppData, users } from "../../dr
 import { sendEmail } from "./sendEmail";
 import { callWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
+import { trySpendQuota } from "./quota";
 
 const HOST = "levelupnow.tools";
 const DAY = 86400000;
@@ -47,6 +48,8 @@ export interface DelegationData {
 }
 
 function parseJSON<T>(raw: string | null | undefined, d: T): T { if (!raw) return d; try { return JSON.parse(raw) as T; } catch { return d; } }
+/** Outside text shown in the app: no angle brackets, so it can never become HTML. */
+function noTags(s: string): string { return String(s ?? "").replace(/</g, "‹").replace(/>/g, "›"); }
 function esc(s: string): string { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 const clip = (s: unknown, n: number) => { const v = String(s ?? "").replace(/\s+/g, " ").trim(); return v.length > n ? v.slice(0, n - 1) + "…" : v; };
 
@@ -126,8 +129,12 @@ export async function sendDelegateNudge(ownerId: number, recordId: number, opts?
   d.nudges = [...(d.nudges || []), { at: now, ok, auto: !!opts?.auto, to: person.email }].slice(-30);
   d.updates = [...(d.updates || []), { at: now, by: "system" as const, text: ok ? `${opts?.intro ? "Details" : opts?.auto ? "Auto follow-up" : "Follow-up"} emailed to ${person.name}${note ? ` — "${clip(note, 120)}"` : ""}` : `Follow-up to ${person.name} failed to send` }].slice(-60);
   if (ok && !opts?.intro && d.cadenceDays && d.cadenceDays > 0) d.followUp = new Date(Date.now() + d.cadenceDays * DAY).toISOString().slice(0, 10);
+  // "Only once" (cadence 0): an automatic follow-up must not repeat every
+  // workday, so clear the date once it has been sent.
+  else if (ok && opts?.auto && !(d.cadenceDays && d.cadenceDays > 0)) d.followUp = null;
   await db.update(pmRecords).set({ data: JSON.stringify(d), updatedAt: new Date() }).where(eq(pmRecords.id, recordId));
-  return ok ? { ok, to: person.email } : { ok, error: "The email could not be sent — see Settings → Notifications → Email Delivery Log" };
+  // The address is not returned to the browser.
+  return ok ? { ok } : { ok, error: "The email could not be sent — see Settings → Notifications → Email Delivery Log" };
 }
 
 // ─── replies ───────────────────────────────────────────────────────────────
@@ -184,7 +191,11 @@ export async function processDelegateReply(o: { ref: { id: number; token: string
   // Tell the owner. A "done" on a native task proposes completing it — the
   // owner's client applies it (claimApply) per their autonomy setting.
   const actions = c.status === "done" && rec.refType === "task" && rec.refId ? [{ tool: "complete_task", args: { id: String(rec.refId) }, why: `${person.name.split(" ")[0]} says it's done` }] : [];
-  const body = `**${person.name}** ${STATUS_WORD[c.status] || "replied"} on **${title}**${c.eta ? ` — new date ${c.eta}` : ""}.\n\n> ${clip(o.text, 600).replace(/\n/g, "\n> ")}\n\n${c.status === "done" ? (actions.length ? "I'll mark the task done." : "Mark it done when you've checked it.") : c.status === "blocked" ? "They need something to move forward — worth a quick reply." : c.status === "question" ? "They asked a question — reply to them directly." : "Logged on the delegation."}`;
+  // Everything that came from the outside person (their name, their reply,
+  // the AI-read date) is rendered in the owner's
+  // assistant panel, so angle brackets are swapped for look-alikes: the text
+  // can never be read as HTML, and markdown rendering escapes the rest.
+  const body = `**${noTags(person.name)}** ${STATUS_WORD[c.status] || "replied"} on **${noTags(title)}**${c.eta ? ` — new date ${noTags(c.eta)}` : ""}.\n\n> ${noTags(clip(o.text, 600)).replace(/\n/g, "\n> ")}\n\n${c.status === "done" ? (actions.length ? "I'll mark the task done." : "Mark it done when you've checked it.") : c.status === "blocked" ? "They need something to move forward — worth a quick reply." : c.status === "question" ? "They asked a question — reply to them directly." : "Logged on the delegation."}`;
   const res: any = await db.insert(coachMessages).values({
     userId: rec.userId, kind: "delegate", runKey: dedupe, title: clip(`${person.name.split(" ")[0]}: ${title}`, 120), body, pushText: clip(`${person.name} ${STATUS_WORD[c.status] || "replied"}: ${title}`, 150),
     actions: actions.length ? JSON.stringify(actions) : null, applyState: actions.length ? "pending" : "none", channels: "inapp",
@@ -210,10 +221,14 @@ export function nudgeDue(d: DelegationData, status: string | null, projectAuto: 
   return !(d.nudges || []).some((n) => n.ok && String(n.at).slice(0, 10) === today);
 }
 
-export async function processDelegationNudges(): Promise<{ sent: number; errors: number }> {
+export async function processDelegationNudges(onlyUserId?: number): Promise<{ sent: number; errors: number }> {
   const db = await getDb();
   if (!db) return { sent: 0, errors: 0 };
-  const recs = await db.select().from(pmRecords).where(and(eq(pmRecords.kind, "delegation"), isNull(pmRecords.deletedAt)));
+  // onlyUserId: the Settings "run now" button acts on the caller's own
+  // delegations; the cron (no argument) processes everyone.
+  const recs = await db.select().from(pmRecords).where(onlyUserId != null
+    ? and(eq(pmRecords.kind, "delegation"), isNull(pmRecords.deletedAt), eq(pmRecords.userId, onlyUserId))
+    : and(eq(pmRecords.kind, "delegation"), isNull(pmRecords.deletedAt)));
   if (!recs.length) return { sent: 0, errors: 0 };
   const settings = await db.select().from(pmRecords).where(and(eq(pmRecords.kind, "pmsettings"), isNull(pmRecords.deletedAt)));
   const projAuto = new Map<string, boolean>();
@@ -230,6 +245,7 @@ export async function processDelegationNudges(): Promise<{ sent: number; errors:
       if (L.weekend || L.hour < 9 || L.hour >= 17) continue; // their working hours only
       const d = parseJSON<DelegationData>(r.data, {});
       if (!nudgeDue(d, r.status, !!projAuto.get(`${r.userId}|${r.projectKey}`) || !!projAuto.get(`${r.userId}|`), L.ymd)) continue;
+      if (!(await trySpendQuota(r.userId, "email"))) continue; // daily email cap reached
       const res = await sendDelegateNudge(r.userId, r.id, { auto: true });
       if (res.ok) sent++; else errors++;
     } catch (e) { errors++; console.warn("[pm] nudge failed:", (e as Error)?.message); }

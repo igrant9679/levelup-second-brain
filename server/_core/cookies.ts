@@ -42,7 +42,10 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Lax: the app is same-site, and every OAuth callback is a top-level GET
+    // (response_mode=query), which Lax still sends the cookie on. None would
+    // also attach the session to cross-site requests.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

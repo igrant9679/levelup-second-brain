@@ -42,8 +42,10 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(async (opts) => {
-      const u = opts.ctx.user;
-      if (!u) return u;
+      // Never send the password hash (or other secrets on the users row) to the browser.
+      const raw = opts.ctx.user;
+      if (!raw) return raw;
+      const { passwordHash: _ph, ...u } = raw as any;
       // Owner promotion: if this user is the configured owner (OWNER_OPEN_ID env)
       // OR they are the first registered user (lowest id) and no admin exists yet,
       // ensure they are role='admin'. Persisted to the DB so the role sticks.
@@ -63,7 +65,7 @@ export const appRouter = router({
             if (db) {
               await db.update(users).set({ role: "admin" }).where(eq(users.id, u.id));
             }
-            return { ...u, role: "admin" as const };
+            return { ...u, role: "admin" as const } as typeof u;
           }
         }
       } catch (err) {

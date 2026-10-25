@@ -495,11 +495,41 @@ function luRTE_setValue(id,val){
 // markdown converter below then HTML-escaped their <ul>/<li> into literal
 // "&lt;ul&gt;" text, destroying every saved list on reopen. Plain-markdown
 // bodies contain no such tags and still fall through to the converter.
+// ── HTML sanitizer (Phase 0 security, build -225) ───────────────────────────
+// Every surface that shows stored or received HTML — notes (own, shared,
+// imported, web-clipped), the rich-text editor when it loads a body, mail,
+// assistant/coach messages, Help answers — goes through this. DOMPurify
+// (client/public/js/vendor/purify.min.js, loaded before the bundles) removes
+// scripts, event-handler attributes and javascript: URLs while keeping
+// formatting, links, images (incl. data: images) and inline styles. If the
+// library ever fails to load, a conservative regex fallback still strips the
+// dangerous constructs.
+function luSanitizeHtml(html){
+  if(html==null)return '';
+  const s=String(html);
+  if(!s)return '';
+  if(window.DOMPurify&&typeof DOMPurify.sanitize==='function'){
+    return DOMPurify.sanitize(s,{ADD_ATTR:['target'],FORBID_TAGS:['style','form','input','button','textarea','select','option','iframe','frame','object','embed','base','meta','link','svg','math']});
+  }
+  return s
+    .replace(/<\s*(script|iframe|frame|object|embed|style|base|meta|link|form|svg|math)\b[\s\S]*?(?:<\/\s*\1\s*>|$)/gi,'')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,'')
+    .replace(/(href|src|action|formaction|xlink:href)\s*=\s*(["']?)\s*(?:javascript|vbscript|data:text\/html)/gi,'$1=$2#');
+}
+// Parse HTML without running it: a DOMParser document has no browsing
+// context, so images don't load and onerror/onload never fire (a detached
+// document.createElement('div') DOES load images). Use this to read text or
+// structure out of stored HTML.
+function luParseInert(html){
+  try{return new DOMParser().parseFromString('<!doctype html><body>'+String(html==null?'':html),'text/html').body;}
+  catch(_){const d=document.implementation.createHTMLDocument('');d.body.innerHTML=String(html==null?'':html);return d.body;}
+}
 function _luRTE_isHtml(text){
   return /<\/?(?:ul|ol|li|p|div|br|h[1-6]|strong|b|em|i|u|s|a|img|blockquote|pre|code|span|hr|font|table|tr|td)\b[^>]*>/i.test(text);
 }
 // Convert stored markdown/HTML body to display HTML
-function luRTE_mdToHtml(text){
+function luRTE_mdToHtml(text){return luSanitizeHtml(_luRTE_mdToHtmlRaw(text));}
+function _luRTE_mdToHtmlRaw(text){
   if(!text)return'';
   // Already HTML anywhere in the string → return as-is (never re-escape it).
   if(_luRTE_isHtml(text))return text;
@@ -534,7 +564,8 @@ function luRTE_mdToHtml(text){
 // inline code, fenced code, blockquotes, bullet/numbered lists, horizontal
 // rules, links, autolinks, and inline images. Pre-escapes HTML so user
 // content can't inject script. Intentionally minimal and dependency-free.
-function renderMd(text){
+function renderMd(text){return luSanitizeHtml(_renderMdRaw(text));}
+function _renderMdRaw(text){
   if(text==null)return '';
   let s=String(text);
   if(!s.trim())return '';
@@ -893,7 +924,7 @@ let _niftyPush={ids:[],projects:[],watches:[],meta:{}};
 function _niftyPlainText(html){
   const s=String(html||'');
   if(!/<[a-z][\s\S]*>/i.test(s))return s.trim();
-  const d=document.createElement('div');d.innerHTML=s;return (d.innerText||d.textContent||'').trim();
+  const d=luParseInert(s);return (d.textContent||'').trim();
 }
 async function openPushToNiftyModal(taskId){
   const ids=taskId!=null?[taskId]:Array.from(_bulkSelected||[]);
@@ -12584,7 +12615,7 @@ function renderNotesGraph(id){
     const short=nd.title.length>8?nd.title.slice(0,8)+'…':nd.title;
     return`<g style="cursor:pointer" onclick="showNoteInEditor(${nd.id})">
       <circle cx="${nd.x}" cy="${nd.y}" r="${nd.main?7:5}" fill="${nd.main?'#3B82F6':'#64748B'}" opacity="0.9"/>
-      <text x="${nd.x}" y="${nd.y+14}" text-anchor="middle" font-size="6" fill="var(--t2)">${short}</text>
+      <text x="${nd.x}" y="${nd.y+14}" text-anchor="middle" font-size="6" fill="var(--t2)">${esc(short)}</text>
     </g>`;
   }).join('');
   return`<svg viewBox="0 0 160 100" style="width:100%;height:80px">${svgLinks}${svgNodes}</svg>`;
@@ -14231,7 +14262,7 @@ document.addEventListener('keydown',e=>{
 // current note via a setTimeout that runs after the body is in the DOM.
 function _renderNoteOutline(n,bodyHtml){
   if(!bodyHtml)return {toc:'',htmlWithIds:bodyHtml};
-  const tmp=document.createElement('div');tmp.innerHTML=bodyHtml;
+  const tmp=luParseInert(bodyHtml);
   const heads=tmp.querySelectorAll('h1,h2,h3');
   if(heads.length<3)return {toc:'',htmlWithIds:bodyHtml};
   const items=[];
@@ -14244,7 +14275,7 @@ function _renderNoteOutline(n,bodyHtml){
   const tocLinks=items.map(it=>`<a class="lvl-${it.lvl}" onclick="document.getElementById('${it.id}')?.scrollIntoView({behavior:'smooth',block:'start'})">${esc(it.text||'(untitled section)')}</a>`).join('');
   return {
     toc:`<div class="note-toc"><div class="note-toc-h">📑 Outline · ${items.length} sections</div>${tocLinks}</div>`,
-    htmlWithIds:tmp.innerHTML,
+    htmlWithIds:luSanitizeHtml(tmp.innerHTML),
   };
 }
 // Notes keyboard navigation (#E). j/k to move selection, Enter to open in
@@ -14460,7 +14491,8 @@ function insertWikiLink(title){if(_wikiAc){const i=_wikiAc.items.findIndex(x=>x.
 // shared-note viewer so a recipient reads exactly what the owner sees.
 // Prefer rich-HTML body (from RTE saves or document imports) when present;
 // fall back to markdown-style rendering of n.body for older / plain notes.
-function _noteBodyDisplayHtml(n){
+function _noteBodyDisplayHtml(n){return luSanitizeHtml(_noteBodyDisplayHtmlRaw(n));}
+function _noteBodyDisplayHtmlRaw(n){
   if(n.bodyHtml&&n.bodyHtml.trim()){
     // Run through mdToHtml: real-HTML bodies (starting with '<') pass through
     // untouched; plain-typed bodies like "- a<br>- b" become real lists.
@@ -17974,8 +18006,8 @@ function _fmtJournalDate(j){
 }
 // Strip diaryBody/bodyHtml to plain text for previews (J7).
 function _journalPreviewText(j){
-  if(j.diaryBody){const t=document.createElement('div');t.innerHTML=j.diaryBody;return (t.textContent||t.innerText||'').trim();}
-  if(j.bodyHtml){const t=document.createElement('div');t.innerHTML=j.bodyHtml;return (t.textContent||t.innerText||'').trim();}
+  if(j.diaryBody){const t=luParseInert(j.diaryBody);return (t.textContent||'').trim();}
+  if(j.bodyHtml){const t=luParseInert(j.bodyHtml);return (t.textContent||'').trim();}
   return j.body||'';
 }
 function _journalCategoryOf(j){
@@ -18208,9 +18240,9 @@ function openMailItem(id){
   const dateStr=_fmtMailDate(mail.date||mail.sentDateTime||mail.receivedDateTime);
   det.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
   <div><div style="font-size:14px;font-weight:600">${esc(mail.subject||'(no subject)')}</div>${fromLine}<div style="font-size:11px;color:var(--t3)">${dateStr}</div></div>
-   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${esc(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${esc(mail.subject||'')}'})">Forward</button>`:''}</div>
+   <div style="display:flex;gap:4px">${_mailTab!=='sent'?`<button class="btn btn-p" style="height:24px;font-size:11px" onclick="openInlineReply('${id}')">↩ Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="aiSmartReply('${id}')">✨ Smart Reply</button><button class="btn btn-s" style="height:24px;font-size:11px" onclick="openComposeModal({to:'${_jsAttr(mail.fromEmail||mail.email||'')}',subject:'Fwd: ${_jsAttr(mail.subject||'')}'})">Forward</button>`:''}</div>
   </div>
-  <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?mail.body:esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
+  <div style="font-size:12px;color:var(--t2);line-height:1.7;border-top:1px solid var(--bd1);padding-top:12px">${mail.body?(mail.body.includes('<')?luSanitizeHtml(mail.body):esc(mail.body)):esc(mail.preview||'(no preview)')}</div>
   ${_mailTab!=='sent'?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--bd1);display:flex;gap:6px">
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Archived')">Archive</button>
   <button class="btn btn-s" style="height:24px;font-size:11px" onclick="toast('Flagged')">Flag</button>
@@ -18287,9 +18319,9 @@ function aiSmartReply(id){
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✨ Smart Reply Draft</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Re: ${esc(mail.subject)}</div>
-  <textarea id="smart-reply-body" class="inp" style="height:200px;font-size:12px;font-family:inherit;resize:vertical">${draft}</textarea>
+  <textarea id="smart-reply-body" class="inp" style="height:200px;font-size:12px;font-family:inherit;resize:vertical">${esc(draft)}</textarea>
   <div style="display:flex;gap:8px;margin-top:10px">
-  <button class="btn btn-p" onclick="const body=document.getElementById('smart-reply-body').value;closeModal();openComposeModal({to:'${mail.email}',subject:'Re: ${esc(mail.subject)}',body:body})">Use in Compose</button>
+  <button class="btn btn-p" onclick="const body=document.getElementById('smart-reply-body').value;closeModal();openComposeModal({to:'${_jsAttr(mail.fromEmail||mail.email||'')}',subject:'Re: ${_jsAttr(mail.subject||'')}',body:body})">Use in Compose</button>
   <button class="btn btn-s" onclick="navigator.clipboard.writeText(document.getElementById('smart-reply-body').value).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">Copy</button>
   <button class="btn btn-s" onclick="closeModal()">Discard</button>
   </div>`;
@@ -18414,12 +18446,12 @@ async function openComposeModal(opts={}){
   </div>
   <div class="cmp-body-wrap">
     <div class="cmp-field"><label>From</label><select id="cmp-from" style="flex:1;font-size:11px;background:var(--s2);border:1px solid var(--bd2);border-radius:4px;padding:3px 6px;color:var(--t1)">${accountOptions}</select></div>
-    <div class="cmp-field"><label>To</label><input id="cmp-to" placeholder="recipient@example.com" value="${opts.to||''}"></div>
+    <div class="cmp-field"><label>To</label><input id="cmp-to" placeholder="recipient@example.com" value="${esc(opts.to||'')}"></div>
     <div class="cmp-field" id="cmp-cc-row" style="display:none"><label>Cc</label><input id="cmp-cc" placeholder="cc@example.com"></div>
     <div class="cmp-field" id="cmp-bcc-row" style="display:none"><label>Bcc</label><input id="cmp-bcc" placeholder="bcc@example.com"></div>
     <div class="cmp-field">
       <label>Subject</label>
-      <input id="cmp-sub" placeholder="Subject..." value="${opts.subject||''}">
+      <input id="cmp-sub" placeholder="Subject..." value="${esc(opts.subject||'')}">
       <button class="cmp-toggle" onclick="document.getElementById('cmp-cc-row').style.display=document.getElementById('cmp-cc-row').style.display==='none'?'flex':'none'">Cc</button>
       <button class="cmp-toggle" onclick="document.getElementById('cmp-bcc-row').style.display=document.getElementById('cmp-bcc-row').style.display==='none'?'flex':'none'">Bcc</button>
     </div>
@@ -25602,7 +25634,8 @@ function renderHelpArticle(){
   if(bodyEl&&a.body)bodyEl.innerHTML=simpleMarkdown(a.body);
 }
 
-function simpleMarkdown(md){
+function simpleMarkdown(md){return luSanitizeHtml(_simpleMarkdownRaw(md));}
+function _simpleMarkdownRaw(md){
   return md
     .replace(/^## (.+)$/gm,'<h2 style="font-size:16px;font-weight:700;margin:20px 0 8px">$1</h2>')
     .replace(/^### (.+)$/gm,'<h3 style="font-size:13px;font-weight:700;margin:16px 0 6px">$1</h3>')

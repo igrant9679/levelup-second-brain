@@ -28,6 +28,7 @@ import { getDb } from "../db";
 import { coachMessages, pmRecords, smtpImapAccounts, userAppData, users } from "../../drizzle/schema";
 import { coachToken, parseCoachRef, processCoachReply } from "./coachCron";
 import { parsePmRef, processDelegateReply } from "./pmDelegation";
+import { isOwner } from "./ownerGuard";
 
 const POLL_MS = 3 * 60 * 1000;
 const LOOKBACK_DAYS = 3;
@@ -198,9 +199,12 @@ export async function pollCoachReplies(opts?: { force?: boolean }): Promise<{ ok
       const [done] = await db.select({ id: coachMessages.id }).from(coachMessages).where(and(eq(coachMessages.userId, parent.userId), eq(coachMessages.runKey, `reply:${dedupeKey}`))).limit(1);
       if (done) continue;
       // From must be the account's own address or its check-in address.
-      const [u] = await db.select({ email: users.email }).from(users).where(eq(users.id, parent.userId)).limit(1);
+      const [u] = await db.select({ id: users.id, openId: users.openId, email: users.email }).from(users).where(eq(users.id, parent.userId)).limit(1);
       const [ad] = await db.select({ prefs: userAppData.prefs }).from(userAppData).where(eq(userAppData.userId, parent.userId)).limit(1);
       let alt = ""; try { alt = String(JSON.parse(ad?.prefs || "{}")?.coach?.checkins?.recipientEmail || ""); } catch { /* ignore */ }
+      // The alternate address is honored only for the workspace owner (it is
+      // client-written and unverified).
+      if (alt && !(u && (await isOwner(u)))) alt = "";
       const allowed = [u?.email, alt].filter(Boolean).map((e) => String(e).trim().toLowerCase());
       if (!allowed.includes(from)) { skip(`#${ref.id}: sender ${from} is not the account's address`); continue; }
       const [cnt] = await db.select({ id: coachMessages.id }).from(coachMessages)

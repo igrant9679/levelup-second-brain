@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { sdk } from "./sdk";
+import { isOwner } from "./ownerGuard";
 import * as dbHelpers from "../db";
 import { sendEmail } from "./sendEmail";
 import { deleteOldEmailDeliveryLogs, deleteOldScheduledTaskLogs, insertScheduledTaskLog } from "../db";
@@ -49,6 +50,20 @@ async function startServer() {
   // reflect the real client→edge protocol. This makes the session cookie's
   // `secure` flag get set correctly when the request came in over HTTPS.
   app.set("trust proxy", 1);
+  // Security headers (no new dependency). The legacy client relies on inline
+  // scripts and onclick handlers, so script-src can't be locked down yet;
+  // what is enforced here is safe for it: nobody may frame the app
+  // (clickjacking), no plugins, no <base> hijack, no MIME sniffing.
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-Frame-Options", "DENY");
+    if (!res.getHeader("Content-Security-Policy")) {
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+    }
+    if (req.secure) res.setHeader("Strict-Transport-Security", "max-age=15552000");
+    next();
+  });
   // Configure body parser with larger size limit for file uploads
   // Body limit ~200mb so a 100MB import file (base64 encoded ~133MB) fits.
   app.use(express.json({ limit: "200mb" }));
@@ -68,6 +83,8 @@ async function startServer() {
         res.status(401).json({ error: "Unauthorized" });
         return;
       }
+      // Global job (every user's tokens + log retention): owner only.
+      if (!(await isOwner(user))) { res.status(403).json({ error: "Owner only" }); return; }
 
       const today = new Date().toISOString().slice(0, 10);
 
@@ -174,6 +191,8 @@ async function startServer() {
     try {
       const user = await sdk.authenticateRequest(req).catch(() => null);
       if (!user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+      // Processes every user's reports: owner only.
+      if (!(await isOwner(user))) { res.status(403).json({ error: 'Owner only' }); return; }
       const stats = await processScheduledReports();
       res.json({ success: true, ...stats });
     } catch (err) {
@@ -191,6 +210,12 @@ async function startServer() {
       const user = await sdk.authenticateRequest(req).catch(() => null);
       if (!user) {
         res.status(401).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Unauthorized</h2><p>Open this page while logged in to LevelUp.</p></body></html>');
+        return;
+      }
+      // Runs a live upload against the shared storage account: owner only.
+      if (!(await isOwner(user))) {
+        if (req.query.json != null) { res.status(403).json({ ok: null, backend: null, error: 'Only the workspace owner can run the storage check.' }); return; }
+        res.status(403).send('<html><body style="font-family:sans-serif;padding:40px"><h2>Owner only</h2></body></html>');
         return;
       }
       const { storageSelfTest, storageConfigSummary } = await import('../storage');
@@ -242,16 +267,22 @@ async function startServer() {
         return;
       }
 
-      const rawUrl = req.query.url as string;
-      const rawTitle = req.query.title as string | undefined;
+      // Everything echoed into these pages is escaped and the response gets a
+      // tight CSP: this route renders on the app's own origin.
+      res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+      const hx = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+      const rawUrl = String(req.query.url ?? '').slice(0, 4000);
+      const rawTitle = req.query.title != null ? String(req.query.title).slice(0, 500) : undefined;
 
       if (!rawUrl) {
         res.status(400).send('<html><body><h2>Error: No URL provided.</h2><script>window.close();</script></body></html>');
         return;
       }
 
-      // Validate URL
-      try { new URL(rawUrl); } catch {
+      // Validate URL: http(s) only
+      let parsedUrl: URL | null = null;
+      try { parsedUrl = new URL(rawUrl); } catch { parsedUrl = null; }
+      if (!parsedUrl || !/^https?:$/.test(parsedUrl.protocol)) {
         res.status(400).send('<html><body><h2>Error: Invalid URL.</h2><script>window.close();</script></body></html>');
         return;
       }
@@ -264,7 +295,7 @@ async function startServer() {
       if (existing) {
         res.send(`<html><head><title>Already saved</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
           <h2>\u2705 Already in your bookmarks</h2>
-          <p style="color:#666">${rawUrl}</p>
+          <p style="color:#666">${hx(rawUrl)}</p>
           <script>setTimeout(()=>window.close(),1500);</script>
         </body></html>`);
         return;
@@ -289,7 +320,7 @@ async function startServer() {
 
       res.send(`<html><head><title>Saved!</title></head><body style="font-family:sans-serif;text-align:center;padding:40px">
         <h2>\u2705 Bookmark saved!</h2>
-        <p style="color:#666">${meta.title || rawUrl}</p>
+        <p style="color:#666">${hx(meta.title || rawUrl)}</p>
         <script>setTimeout(()=>window.close(),1500);</script>
       </body></html>`);
     } catch (err) {

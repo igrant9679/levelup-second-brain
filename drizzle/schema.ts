@@ -1,4 +1,4 @@
-import { index, int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
+import { index, int, mediumtext, mysqlEnum, mysqlTable, primaryKey, text, timestamp, tinyint, unique, varchar } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 /**
@@ -1072,3 +1072,18 @@ export const pushSubscriptions = mysqlTable('push_subscriptions', {
 }));
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertAutomationRule = typeof automationRules.$inferInsert;
+
+/**
+ * Persistent daily usage counters (migration 0056). One row per
+ * (userId, bucket, day) — e.g. bucket "email" or "ai". userId 0 holds the
+ * workspace-wide total. Read and written only by server/_core/quota.ts.
+ */
+export const usageCounters = mysqlTable("usage_counters", {
+  userId: int("userId").notNull(),
+  bucket: varchar("bucket", { length: 32 }).notNull(),
+  day: varchar("day", { length: 10 }).notNull(),
+  n: int("n").notNull().default(0),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ name: "usage_counters_pk", columns: [t.userId, t.bucket, t.day] }),
+}));

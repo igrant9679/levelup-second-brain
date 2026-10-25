@@ -113,6 +113,8 @@ describe('emailAuth.forgotPassword', () => {
 
     const insertedValues: unknown[] = [];
     const mockDb = {
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
       insert: vi.fn().mockReturnThis(),
       values: vi.fn().mockImplementation((v) => {
         insertedValues.push(v);
@@ -142,7 +144,7 @@ describe('emailAuth.forgotPassword', () => {
     expect(expiryMs).toBeLessThan(65 * 60 * 1000);    // < 65 min
   });
 
-  it('calls notifyOwner with the reset link', async () => {
+  it('tells the owner the email failed, without the reset link', async () => {
     const { notifyOwner } = await import('./_core/notification');
     const mockUser = {
       id: 7,
@@ -158,6 +160,8 @@ describe('emailAuth.forgotPassword', () => {
     };
     vi.mocked(db.getUserByEmail).mockResolvedValue(mockUser);
     const mockDb = {
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
       insert: vi.fn().mockReturnThis(),
       values: vi.fn().mockResolvedValue(undefined),
     };
@@ -173,10 +177,10 @@ describe('emailAuth.forgotPassword', () => {
 
     expect(notifyOwner).toHaveBeenCalledOnce();
     const callArgs = vi.mocked(notifyOwner).mock.calls[0]![0];
-    expect(callArgs.title).toContain('Password Reset Request');
+    expect(callArgs.title).toContain('Password reset email failed');
     expect(callArgs.content).toContain('notify@example.com');
-    expect(callArgs.content).toContain('https://myapp.example.com');
-    expect(callArgs.content).toContain('reset_token=');
+    // The live link must only ever reach the account holder (Phase 0).
+    expect(callArgs.content).not.toContain('reset_token=');
   });
 
   it('still returns success if notifyOwner fails', async () => {
@@ -197,6 +201,8 @@ describe('emailAuth.forgotPassword', () => {
     };
     vi.mocked(db.getUserByEmail).mockResolvedValue(mockUser);
     const mockDb = {
+      update: vi.fn().mockReturnThis(),
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
       insert: vi.fn().mockReturnThis(),
       values: vi.fn().mockResolvedValue(undefined),
     };
@@ -329,7 +335,8 @@ describe('emailAuth.resetPassword', () => {
       update: vi.fn().mockReturnThis(),
       set: vi.fn().mockImplementation((v) => {
         updatedSets.push(v);
-        return { where: vi.fn().mockResolvedValue(undefined) };
+        // first update = the atomic claim (one row), second = invalidate others
+        return { where: vi.fn().mockResolvedValue([{ affectedRows: 1 }]) };
       }),
     };
     vi.mocked(db.getDb).mockResolvedValue(mockDb as any);
@@ -348,8 +355,9 @@ describe('emailAuth.resetPassword', () => {
     expect(result.message).toContain('Password updated');
     // updateUserPasswordHash should be called with userId=10
     expect(db.updateUserPasswordHash).toHaveBeenCalledWith(10, expect.any(String));
-    // Token should be marked as used
-    expect(updatedSets).toHaveLength(1);
+    // Token is claimed (marked used) before the password changes, then any
+    // other outstanding links for the account are invalidated.
+    expect(updatedSets).toHaveLength(2);
     const setCall = updatedSets[0] as { usedAt: Date };
     expect(setCall.usedAt).toBeInstanceOf(Date);
   });

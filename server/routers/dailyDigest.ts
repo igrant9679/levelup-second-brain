@@ -20,6 +20,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { userAppData } from "../../drizzle/schema";
 import { processDailyDigest } from "../_core/dailyDigestEmail";
+import { spendQuota } from "../_core/quota";
 
 async function requireDb() {
   const db = await getDb();
@@ -83,6 +84,7 @@ export const dailyDigestRouter = router({
     }),
 
   sendNow: protectedProcedure.mutation(async ({ ctx }) => {
+    await spendQuota(ctx.user, "email");
     return processDailyDigest({ userId: ctx.user.id, force: true });
   }),
 });

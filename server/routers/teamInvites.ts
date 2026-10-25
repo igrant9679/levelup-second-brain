@@ -13,6 +13,8 @@ import * as bcrypt from 'bcryptjs';
 import * as db from '../db';
 import { publicProcedure, protectedProcedure, adminProcedure, router } from '../_core/trpc';
 import { sendEmail } from '../_core/sendEmail';
+import { assertOwner } from '../_core/ownerGuard';
+import { appOrigin } from '../_core/appOrigin';
 
 
 // ─── Email helpers ────────────────────────────────────────────────────────────
@@ -24,12 +26,13 @@ function buildInviteEmailHtml(opts: {
   inviteUrl: string;
   expiresAt: Date;
 }): string {
-  const greeting = opts.inviteeName ? `Hi ${opts.inviteeName},` : 'Hi there,';
+  const h = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+  const greeting = opts.inviteeName ? `Hi ${h(opts.inviteeName)},` : 'Hi there,';
   const roleLabel = opts.role === 'admin' ? 'Admin' : 'Member';
   const expiry = opts.expiresAt.toLocaleDateString('en-US', { dateStyle: 'long' });
   return `
     <p>${greeting}</p>
-    <p><strong>${opts.inviterName}</strong> has invited you to join <strong>LevelUp</strong> as a <strong>${roleLabel}</strong>.</p>
+    <p><strong>${h(opts.inviterName)}</strong> has invited you to join <strong>LevelUp</strong> as a <strong>${roleLabel}</strong>.</p>
     <p>Click the button below to set up your account. This link expires on <strong>${expiry}</strong>.</p>
     <p style="text-align:center;margin:28px 0">
       <a href="${opts.inviteUrl}"
@@ -82,6 +85,10 @@ export const teamInvitesRouter = router({
       origin: z.string().url().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Owner only (every invited teammate is an admin, so admin is not a trust boundary).
+      await assertOwner(ctx.user);
+      const existingUser = await db.getUserByEmail(input.email.toLowerCase().trim());
+      if (existingUser) throw new TRPCError({ code: 'CONFLICT', message: 'That email already has a LevelUp account.' });
       const token = randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + input.expiryDays * 24 * 60 * 60 * 1000);
       const invite = await db.createTeamInvite({
@@ -94,9 +101,9 @@ export const teamInvitesRouter = router({
       });
       if (!invite) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create invite' });
 
-      // Send invite email (non-fatal if SMTP not configured)
-      const origin = input.origin ?? 'https://levelupnow.tools';
-      const inviteUrl = `${origin}/invite/${token}`;
+      // Send invite email (non-fatal if SMTP not configured). The link always
+      // uses the app's own origin, never one supplied by the browser.
+      const inviteUrl = `${appOrigin()}/invite/${token}`;
       await sendInviteEmail({
         to: input.email,
         inviteeName: input.name ?? null,
@@ -111,14 +118,16 @@ export const teamInvitesRouter = router({
 
   // ── Admin: list all invites ───────────────────────────────────────────────
   list: adminProcedure
-    .query(async () => {
+    .query(async ({ ctx }) => {
+      await assertOwner(ctx.user);
       return await db.getAllTeamInvites();
     }),
 
   // ── Admin: delete invite ──────────────────────────────────────────────────
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      await assertOwner(ctx.user);
       const allInvites = await db.getAllTeamInvites();
       const invite = allInvites.find(i => i.id === input.id);
       if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'Invite not found' });
@@ -133,6 +142,7 @@ export const teamInvitesRouter = router({
       origin: z.string().url().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await assertOwner(ctx.user);
       const allInvites = await db.getAllTeamInvites();
       const invite = allInvites.find(i => i.id === input.id);
       if (!invite) throw new TRPCError({ code: 'NOT_FOUND', message: 'Invite not found' });
@@ -144,8 +154,7 @@ export const teamInvitesRouter = router({
       if (!updated) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to resend invite' });
 
       // Re-send invite email with new link (non-fatal)
-      const origin = input.origin ?? 'https://levelupnow.tools';
-      const inviteUrl = `${origin}/invite/${newToken}`;
+      const inviteUrl = `${appOrigin()}/invite/${newToken}`;
       await sendInviteEmail({
         to: invite.email,
         inviteeName: invite.name ?? null,
@@ -216,10 +225,9 @@ export const teamInvitesRouter = router({
         const [existing] = await dbConn.select().from(users).where(eq(users.email, invite.email)).limit(1);
 
         if (existing) {
-          await dbConn.update(users)
-            .set({ name: input.name, passwordHash, role: invite.role, updatedAt: new Date() })
-            .where(eq(users.id, existing.id));
-          userId = existing.id;
+          // Never let an invite replace an existing account's password, name
+          // or role: that would let whoever holds the invite link take it over.
+          throw new TRPCError({ code: 'CONFLICT', message: 'This email already has a LevelUp account. Use Sign in (or Forgot password) instead.' });
         } else {
           // openId is varchar(64) — token is 64 hex chars, so truncate to fit
           const openId = `inv:${invite.token.slice(0, 60)}`;
@@ -236,6 +244,7 @@ export const teamInvitesRouter = router({
           userId = created.id;
         }
       } catch (dbErr: any) {
+        if (dbErr instanceof TRPCError) throw dbErr;
         console.error('[teamInvites.accept] DB error creating user:', dbErr);
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create account. Please try again or contact support.' });
       }

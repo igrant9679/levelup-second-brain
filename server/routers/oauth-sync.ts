@@ -15,6 +15,8 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
 import * as db from "../db";
 import { resolveRequestAI } from "../_core/workspaceAI";
+import { assertOwner } from "../_core/ownerGuard";
+import { signOAuthState } from "../_core/oauthState";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
 import nodemailer from "nodemailer";
@@ -266,7 +268,7 @@ export const oauthSyncRouter = router({
       const tenantId = input.tenantId || userCred?.tenantId || process.env.MS_TENANT_ID || null;
       const msScopes = userCred?.msScopes ?? null;
       // Encode userId, origin, and tenantId in state so callback can use the right token endpoint
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, tenantId })).toString("base64url");
+      const state = signOAuthState({ userId: ctx.user.id, origin: input.origin, tenantId });
       if (input.provider === "microsoft") return { url: getMsAuthUrl(input.origin, state, clientId, tenantId, msScopes) };
       throw new Error("Google OAuth has been removed. Use SMTP/IMAP for secondary email accounts.");
     }),
@@ -760,7 +762,7 @@ export const oauthSyncRouter = router({
 
   /** List all connected OAuth accounts AND SMTP/IMAP accounts across all users (owner only) */
   getNotificationSenderOptions: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+    await assertOwner(ctx.user);
     const oauthAccounts = await db.getAllConnectedOAuthAccounts();
     const smtpAccounts = await db.getAllSmtpAccounts();
     // Tag each account with its provider type for the UI dropdown.
@@ -779,7 +781,9 @@ export const oauthSyncRouter = router({
       senderKey: z.string(),
     }))
     .mutation(async ({ input, ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      // Owner only: whoever controls the sender receives every reset/invite
+      // email the system sends (admins are every invited teammate).
+      await assertOwner(ctx.user);
       await db.setSystemSetting("notificationSender", input.senderKey);
       return { success: true };
     }),
@@ -790,16 +794,23 @@ export const oauthSyncRouter = router({
    * member's notification-sender SMTP account.
    */
   adminListUsers: protectedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+    await assertOwner(ctx.user);
     return await db.adminListAllUsers();
   }),
 
-  /** Get a specific user's SMTP/IMAP account (admin-only) */
+  /**
+   * Get a specific user's SMTP/IMAP account (owner-only). Stored passwords
+   * are never returned: the form shows "saved" and a blank field on save
+   * keeps the stored value.
+   */
   adminGetSmtpImapAccount: protectedProcedure
     .input(z.object({ userId: z.number().int() }))
     .query(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
-      return await db.getSmtpImapAccountFull(input.userId);
+      await assertOwner(ctx.user);
+      const acct = await db.getSmtpImapAccountFull(input.userId);
+      if (!acct) return null;
+      const { imapPassword, smtpPassword, ...rest } = acct as any;
+      return { ...rest, imapPassword: "", smtpPassword: "", hasImapPassword: !!imapPassword, hasSmtpPassword: !!smtpPassword };
     }),
 
   /**
@@ -816,15 +827,25 @@ export const oauthSyncRouter = router({
       imapPort: z.number().int().min(1).max(65535),
       imapEncryption: z.enum(['ssl', 'tls', 'none']),
       imapUsername: z.string().min(1),
-      imapPassword: z.string().min(1),
+      // Blank = keep the stored password (they are never sent to the client).
+      imapPassword: z.string().optional(),
       smtpHost: z.string().min(1),
       smtpPort: z.number().int().min(1).max(65535),
       smtpEncryption: z.enum(['ssl', 'tls', 'none']),
       smtpUsername: z.string().min(1),
-      smtpPassword: z.string().min(1),
+      smtpPassword: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      await assertOwner(ctx.user);
+      const prev: any = await db.getSmtpImapAccountFull(input.userId);
+      input = {
+        ...input,
+        imapPassword: input.imapPassword || prev?.imapPassword || "",
+        smtpPassword: input.smtpPassword || prev?.smtpPassword || "",
+      };
+      if (!input.imapPassword || !input.smtpPassword) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "IMAP and SMTP passwords are required." });
+      }
       await db.upsertSmtpImapAccount({
         userId: input.userId,
         email: input.email,
@@ -847,7 +868,7 @@ export const oauthSyncRouter = router({
   adminDeleteSmtpImapAccount: protectedProcedure
     .input(z.object({ userId: z.number().int() }))
     .mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Admin only" });
+      await assertOwner(ctx.user);
       await db.deleteSmtpImapAccount(input.userId);
       return { success: true };
     }),
@@ -1458,80 +1479,8 @@ export const oauthSyncRouter = router({
       return { success: true };
     }),
 
-  /**
-   * Sync mail from SMTP/IMAP secondary account
-   * Fetches recent emails using IMAP
-   */
-  syncSmtpMail: protectedProcedure
-    .input(z.object({
-      accountId: z.number(),
-      limit: z.number().default(20),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const account = await db.getSmtpImapAccount(input.accountId);
-      if (!account) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "SMTP/IMAP account not found" });
-      }
-
-      try {
-        const messages: any[] = [];
-
-        // Create IMAP connection
-        const imap = new Imap({
-          user: account.email,
-          password: account.smtpPassword,
-          host: account.imapHost,
-          port: account.imapPort,
-          tls: account.smtpEncryption !== 'none',
-          tlsOptions: { rejectUnauthorized: false },
-        });
-
-        // Fetch emails from INBOX
-        await new Promise<void>((resolve, reject) => {
-          imap.openBox('INBOX', false, (err: any, box: any) => {
-            if (err) reject(err);
-            else {
-              // Search for recent emails (limit to last 20)
-              imap.search(['ALL'], (err: any, results: any) => {
-                if (err) reject(err);
-                else if (results.length > 0) {
-                  const f = imap.fetch(results.slice(-input.limit), { bodies: '' });
-                  f.on('message', (msg: any, seqno: number) => {
-                    // @ts-ignore - simpleParser callback types
-                    simpleParser(msg, async (err: any, parsed: any) => {
-                      if (err) console.error('Parse error:', err);
-                      else {
-                        messages.push({
-                          subject: parsed.subject || '(No subject)',
-                          from: parsed.from?.text || '(Unknown)',
-                          date: parsed.date,
-                          preview: parsed.text?.substring(0, 200) || '',
-                        });
-                      }
-                    });
-                  });
-                  f.on('error', reject);
-                  f.on('end', resolve);
-                } else {
-                  resolve();
-                }
-              });
-            }
-          });
-        });
-
-        imap.end();
-
-        // TODO: Update lastSyncedAt for SMTP/IMAP account
-        return { messages, provider: "smtp_imap", accountEmail: account.email };
-      } catch (err) {
-        console.error("[syncSmtpMail] Error:", err);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `Failed to sync SMTP/IMAP mail: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
-    }),
+  // syncSmtpMail was removed (2026-10-25): it opened a mailbox by a
+  // caller-supplied id without checking ownership, and nothing called it.
 
   // ─── Calendar Events (DB) ────────────────────────────────────────────────
 

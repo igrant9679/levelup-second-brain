@@ -119,6 +119,27 @@ export function _myAssigneeKeys(
   return out;
 }
 
+/**
+ * Is this task row assigned to `userId`? Decided from the task's own JSON
+ * (assignees / primaryAssigneeId / an unambiguous assignedTo name), the same
+ * rule sharedTasksForMe uses. The stamped `assigneeId` column alone is NOT
+ * trusted: a stale stamp from a name collision once handed one user's tasks
+ * to another account (-198).
+ */
+export function _taskAssignedTo(row: { raw?: string | null; assigneeId?: number | null }, userId: number, idMap: Map<string, number>): boolean {
+  try {
+    const t = JSON.parse(row.raw || '{}');
+    if (Array.isArray(t.assignees) && t.assignees.map((x: any) => Number(x)).includes(userId)) return true;
+    if (t.primaryAssigneeId != null && Number(t.primaryAssigneeId) === userId) return true;
+    const nm = t.assignedTo ? String(t.assignedTo).trim().toLowerCase() : '';
+    if (nm && idMap.get(nm) === userId) return true;
+    if (row.assigneeId === userId && !nm && !Array.isArray(t.assignees)) return true;
+  } catch {
+    return row.assigneeId === userId;
+  }
+  return false;
+}
+
 async function mirrorTasksToRelational(db: any, userId: number, tasksJson: string) {
   let arr: any;
   // Step 3a: this write is authoritative — reject bad payloads loudly instead
@@ -1435,7 +1456,7 @@ export const appDataRouter = router({
           .limit(1);
         if (!row) return { ok: false as const, error: 'task not found' };
         const { isAdminUser } = await import("../_core/access");
-        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id;
+        const allowed = isAdminUser(ctx.user as any) || row.userId === ctx.user.id || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
         if (!allowed) return { ok: false as const, error: 'not authorized' };
 
         const isDone = /done|complete|completed|closed/i.test(input.status);
@@ -1495,7 +1516,7 @@ export const appDataRouter = router({
         // member listed in the item's multi-assignee array (parsed from raw).
         let rawAssignees: number[] = [];
         try { const rj = JSON.parse(row.raw || '{}'); if (Array.isArray(rj.assignees)) rawAssignees = rj.assignees.map((x: any) => Number(x)).filter((n: number) => !isNaN(n)); } catch {}
-        const allowed = isAdminUser(ctx.user as any) || row.assigneeId === ctx.user.id || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id);
+        const allowed = isAdminUser(ctx.user as any) || row.userId === ctx.user.id || rawAssignees.includes(ctx.user.id) || _taskAssignedTo(row, ctx.user.id, await _resolveUserIdMap());
         if (!allowed) return { ok: false as const, error: 'not authorized' };
         const p = input.patch;
         const isDone = p.status != null && /done|complete|completed|closed/i.test(p.status);

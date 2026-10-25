@@ -21,22 +21,15 @@ import { getDb } from "../db";
 import { pmPeople, pmRecords } from "../../drizzle/schema";
 import { processDelegationNudges, sendDelegateNudge } from "../_core/pmDelegation";
 import { sendEmail } from "../_core/sendEmail";
+import { spendQuota } from "../_core/quota";
 
 const KINDS = ["delegation", "raci", "risk", "issue", "assumption", "decision", "stakeholder", "commplan", "report",
   "milestone", "baseline", "wbs", "alloc", "budgetline", "cost", "change", "lesson", "template", "pmsettings", "action", "evmsnap"] as const;
 const DATA_MAX = 400_000;
 
-// These e-mails go to arbitrary outside addresses from the shared system
-// sender, so each user gets a daily allowance (in memory; resets on deploy).
-const EMAIL_DAILY_CAP = 150;
-const _sent = new Map<number, { day: string; n: number }>();
-function spendEmail(userId: number, n: number) {
-  const day = new Date().toISOString().slice(0, 10);
-  const cur = _sent.get(userId);
-  const used = cur && cur.day === day ? cur.n : 0;
-  if (used + n > EMAIL_DAILY_CAP) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: `Daily email limit reached (${EMAIL_DAILY_CAP}). Try again tomorrow.` });
-  _sent.set(userId, { day, n: used + n });
-}
+// These e-mails go to outside addresses from the shared system sender, so
+// they count against the persistent daily email quota (server/_core/quota.ts:
+// per user and workspace-wide; it no longer resets on deploy).
 
 async function requireDb() {
   const db = await getDb();
@@ -113,12 +106,13 @@ export const pmRouter = router({
     delete v.id;
     if (input.id) {
       await db.update(pmPeople).set(v).where(and(eq(pmPeople.id, input.id), eq(pmPeople.userId, ctx.user.id)));
-      const [p] = await db.select().from(pmPeople).where(eq(pmPeople.id, input.id)).limit(1);
+      const [p] = await db.select().from(pmPeople).where(and(eq(pmPeople.id, input.id), eq(pmPeople.userId, ctx.user.id))).limit(1);
+      if (!p) throw new TRPCError({ code: "NOT_FOUND", message: "No such person" });
       return p;
     }
     const res: any = await db.insert(pmPeople).values({ ...v, userId: ctx.user.id });
     const id = Number(res?.[0]?.insertId ?? res?.insertId);
-    const [p] = await db.select().from(pmPeople).where(eq(pmPeople.id, id)).limit(1);
+    const [p] = await db.select().from(pmPeople).where(and(eq(pmPeople.id, id), eq(pmPeople.userId, ctx.user.id))).limit(1);
     return p;
   }),
 
@@ -158,7 +152,7 @@ export const pmRouter = router({
   }),
 
   nudge: protectedProcedure.input(z.object({ recordId: z.number().int(), note: z.string().max(2000).optional(), intro: z.boolean().optional() })).mutation(async ({ ctx, input }) => {
-    spendEmail(ctx.user.id, 1);
+    await spendQuota(ctx.user, "email", 1);
     const r = await sendDelegateNudge(ctx.user.id, input.recordId, { note: input.note, intro: input.intro });
     if (!r.ok) throw new TRPCError({ code: "BAD_REQUEST", message: r.error || "Could not send" });
     return r;
@@ -170,7 +164,7 @@ export const pmRouter = router({
     html: z.string().min(1).max(400_000),
     text: z.string().max(100_000).optional(),
   })).mutation(async ({ ctx, input }) => {
-    spendEmail(ctx.user.id, input.to.length);
+    await spendQuota(ctx.user, "email", input.to.length);
     let sent = 0; const failed: string[] = [];
     for (const to of input.to) {
       const ok = await sendEmail({ to, subject: input.subject, html: input.html, text: input.text, senderUserId: ctx.user.id, fromName: `${ctx.user.name || "LevelUp"} via LevelUp` }).catch(() => false);
@@ -179,5 +173,6 @@ export const pmRouter = router({
     return { sent, failed };
   }),
 
-  runNudgesNow: protectedProcedure.mutation(async () => processDelegationNudges()),
+  // Acts on the caller's own delegations only (the cron covers everyone).
+  runNudgesNow: protectedProcedure.mutation(async ({ ctx }) => processDelegationNudges(ctx.user.id)),
 });

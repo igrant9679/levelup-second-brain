@@ -21,6 +21,13 @@ vi.mock('./db', async (importOriginal) => {
   };
 });
 
+// Invite tools are owner-only since Phase 0 (every invited teammate is an
+// admin, so admin is not a trust boundary). User id 1 is the owner here.
+vi.mock('./routers/appData', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./routers/appData')>();
+  return { ...original, isOwnerCtxUser: vi.fn(async (u: { id: number }) => u.id === 1) };
+});
+
 import * as db from './db';
 
 // ── Context helpers ────────────────────────────────────────────────────────────
@@ -66,6 +73,14 @@ describe('teamInvites.create', () => {
     const result = await caller.teamInvites.create({ email: 'jane@test.com', name: 'Jane', role: 'user', expiryDays: 7 });
     expect(result.email).toBe('jane@test.com');
     expect(db.createTeamInvite).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a teammate admin who is not the owner', async () => {
+    const ctx = makeCtx('admin');
+    (ctx.user as any).id = 7;
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.teamInvites.create({ email: 'x@test.com', role: 'user', expiryDays: 7 }))
+      .rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('rejects non-admin users with FORBIDDEN', async () => {

@@ -26,6 +26,7 @@ import { userAppData, externalTasks, externalTaskOverrides, users, type UserAppD
 import { sendEmail } from "./sendEmail";
 import { buildMoneySectionHtml } from "./financeEmail";
 import { readEntityArray } from "../routers/appData";
+import { allowedRecipient } from "./recipient";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -418,7 +419,8 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
 
       const [userRow] = await db.select().from(users).where(eq(users.id, row.userId)).limit(1);
       if (!userRow) { skipped++; continue; }
-      const recipient = wp.recipientEmail || userRow.email;
+      // An alternate address is honored only for the workspace owner.
+      const recipient = await allowedRecipient(userRow, wp.recipientEmail);
       if (!recipient) { skipped++; continue; }
 
       const built = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */, row.programs, prefs);

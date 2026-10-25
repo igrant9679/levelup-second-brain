@@ -26,6 +26,8 @@ import { coachReplyStatus, getReplyInboxAddress, pollCoachReplies } from "../_co
 import { resolveWorkspaceAI } from "../_core/workspaceAI";
 // Importing coachPush also registers it as the check-ins' push channel.
 import { countPushSubscriptions, getVapidKeys, removePushSubscription, savePushSubscription, sendPushToUser } from "../_core/coachPush";
+import { spendQuota } from "../_core/quota";
+import { assertOwner } from "../_core/ownerGuard";
 
 async function requireDb() {
   const db = await getDb();
@@ -84,12 +86,17 @@ export const coachRouter = router({
   runNow: protectedProcedure
     .input(z.object({ slot: z.enum([...COACH_SLOT_IDS, "moneyalert"] as unknown as [string, ...string[]]) }))
     .mutation(async ({ ctx, input }) => {
+      // Each manual run is an AI call plus an email/push.
+      await spendQuota(ctx.user, "ai");
+      await spendQuota(ctx.user, "email");
       const r = await processCoachCheckins({ userId: ctx.user.id, force: input.slot as CoachSlot | "moneyalert" });
       if (!r.created && !r.lastError && input.slot === "moneyalert") return { ok: false, id: null, error: "Nothing in your money is off track right now, so there is no alert to send." };
       return { ok: r.created > 0, id: r.lastId ?? null, error: r.lastError ?? null };
     }),
 
-  checkReplies: protectedProcedure.mutation(async () => {
+  // Polls the shared system mailbox for every user: owner only.
+  checkReplies: protectedProcedure.mutation(async ({ ctx }) => {
+    await assertOwner(ctx.user);
     const r = await pollCoachReplies({ force: true });
     return { ok: r.ok, scanned: r.scanned, matched: r.matched, handled: r.handled, error: r.error ?? null };
   }),

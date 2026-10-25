@@ -41,6 +41,7 @@ import { computeMoneyStats, moneyAlertIssues, moneyCoachLines, parseFinance } fr
 import { callWorkspaceAI, resolveWorkspaceAI } from "./workspaceAI";
 import { ENV } from "./env";
 import { delegationSnapshotLines } from "./pmDelegation";
+import { allowedRecipient } from "./recipient";
 
 interface SlotDef { label: string; time: string; goal: string; day?: number; words?: number }
 export type CoachSlot = "morning" | "midmorning" | "midday" | "afternoon" | "evening" | "weekly" | "money";
@@ -554,7 +555,8 @@ export async function processCoachCheckins(opts?: { userId?: number; force?: Coa
         if (id == null) continue;
         created++; lastId = id; if (error) lastError = error;
         const [u] = ch.email ? await db.select().from(users).where(eq(users.id, row.userId)).limit(1) : [null];
-        await deliver(db, { userId: row.userId, id, kind, msg, autonomy, ch, to: c.recipientEmail || u?.email });
+        // An alternate check-in address is honored only for the workspace owner.
+        await deliver(db, { userId: row.userId, id, kind, msg, autonomy, ch, to: u ? (await allowedRecipient(u, c.recipientEmail)) || undefined : undefined });
       }
     } catch (err) {
       errors++; lastError = String((err as Error)?.message || err).slice(0, 300);

@@ -11,6 +11,8 @@ import * as db from "../db";
 import { sdk } from "../_core/sdk";
 import { ENV } from "../_core/env";
 import { DRIVE_STORAGE_SOURCE, resetDriveTokenCache, storageSelfTest } from "../storage";
+import { signOAuthState, verifyOAuthState, type OAuthStatePayload } from "../_core/oauthState";
+import { isOwner } from "../_core/ownerGuard";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -28,16 +30,20 @@ function buildFormBody(params: Record<string, string>): string {
     .join('&');
 }
 
-function parseState(state: string): { userId: number; origin: string; tenantId?: string | null; slot?: string } | null {
-  try {
-    const decoded = Buffer.from(state, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as { userId: number; origin: string; tenantId?: string | null; slot?: string };
-    if (!parsed.userId || !parsed.origin) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+/**
+ * A callback's state must carry a valid signature AND belong to the user who
+ * is signed in in this browser; otherwise a token could be attached to the
+ * wrong account. Every callback is a top-level GET redirect, which carries the
+ * SameSite=Lax session cookie.
+ */
+async function stateForRequest(req: Request, state: string | undefined): Promise<OAuthStatePayload | null> {
+  const st = verifyOAuthState(state);
+  if (!st) return null;
+  const user = await sdk.authenticateRequest(req).catch(() => null);
+  if (!user || user.id !== st.userId) return null;
+  return st;
 }
+const STATE_REJECTED = "This sign-in link is invalid or has expired, or you are signed in to LevelUp as someone else in this browser. Go back to LevelUp, sign in, and try connecting again.";
 
 // Additional Microsoft accounts (OneNote multi-account) are stored under slot
 // provider values so the primary 'microsoft' row — which powers mail/calendar/
@@ -59,9 +65,9 @@ export function registerProviderOAuthCallbacks(app: Express) {
   app.get("/api/oauth/drive/start", async (req: Request, res: Response) => {
     try {
       const user = await sdk.authenticateRequest(req).catch(() => null);
-      const isOwner = !!(ENV.ownerOpenId && user && user.openId === ENV.ownerOpenId);
-      if (!user || (user.role !== "admin" && !isOwner)) {
-        res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Admins only</h2><p>Sign in to LevelUp as a workspace admin, then open Settings → Sync → Reconnect Google Drive.</p></body></html>");
+      // The Drive token is app-wide (every upload uses it): owner only.
+      if (!user || !(await isOwner(user))) {
+        res.status(403).send("<html><body style=\"font-family:sans-serif;padding:40px\"><h2>Owner only</h2><p>Sign in to LevelUp as the workspace owner, then open Settings → Sync → Reconnect Google Drive.</p></body></html>");
         return;
       }
       if (!ENV.googleDriveClientId || !ENV.googleDriveClientSecret) {
@@ -69,7 +75,7 @@ export function registerProviderOAuthCallbacks(app: Express) {
         return;
       }
       const origin = driveOrigin(req);
-      const state = Buffer.from(JSON.stringify({ userId: user.id, origin }), "utf-8").toString("base64url");
+      const state = signOAuthState({ userId: user.id, origin });
       const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       u.searchParams.set("client_id", ENV.googleDriveClientId);
       u.searchParams.set("redirect_uri", `${origin}/api/oauth/drive/callback`);
@@ -89,8 +95,10 @@ export function registerProviderOAuthCallbacks(app: Express) {
     const state = getQueryParam(req, "state");
     const error = getQueryParam(req, "error");
     if (error) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(error)}`); return; }
-    const st = state ? parseState(state) : null;
-    if (!code || !st) { res.redirect("/?oauth_error=drive&detail=missing_code_or_state"); return; }
+    const st = await stateForRequest(req, state);
+    if (!code || !st) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent(STATE_REJECTED)}`); return; }
+    const stUser = await sdk.authenticateRequest(req).catch(() => null);
+    if (!stUser || !(await isOwner(stUser))) { res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Only the workspace owner can reconnect file storage.")}`); return; }
     try {
       const redirectUri = `${st.origin}/api/oauth/drive/callback`;
       const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
@@ -115,6 +123,9 @@ export function registerProviderOAuthCallbacks(app: Express) {
         res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Google returned no refresh token. Remove LevelUp's Drive access at myaccount.google.com/permissions and try again.")}`);
         return;
       }
+      // Keep the previous token so a token that fails the upload test can be
+      // rolled back instead of breaking every upload.
+      const prevCred: any = await db.getExternalSourceCredential(st.userId, DRIVE_STORAGE_SOURCE).catch(() => null);
       await db.upsertExternalSourceCredential({
         userId: st.userId,
         source: DRIVE_STORAGE_SOURCE,
@@ -126,8 +137,16 @@ export function registerProviderOAuthCallbacks(app: Express) {
       resetDriveTokenCache();
       const test = await storageSelfTest();
       if (!test.ok) {
-        console.error("[Drive OAuth] token stored but upload test failed:", test.error);
-        res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("Token saved, but the upload test failed: " + String(test.error || "").slice(0, 160))}`);
+        console.error("[Drive OAuth] new token failed the upload test — rolled back:", test.error);
+        try {
+          if (prevCred?.refreshToken) {
+            await db.upsertExternalSourceCredential({ userId: st.userId, source: DRIVE_STORAGE_SOURCE, refreshToken: prevCred.refreshToken, scope: prevCred.scope ?? null, apiToken: null, accountDisplayName: prevCred.accountDisplayName ?? "Google Drive file storage" });
+          } else {
+            await db.deleteExternalSourceCredential(st.userId, DRIVE_STORAGE_SOURCE);
+          }
+        } catch (rbErr) { console.error("[Drive OAuth] rollback failed:", rbErr); }
+        resetDriveTokenCache();
+        res.redirect(`/?oauth_error=drive&detail=${encodeURIComponent("The new connection failed the upload test, so the previous one was kept: " + String(test.error || "").slice(0, 160))}`);
         return;
       }
       console.log(`[Drive OAuth] file storage reconnected by user ${st.userId}`);
@@ -155,9 +174,9 @@ export function registerProviderOAuthCallbacks(app: Express) {
       return;
     }
 
-    const stateData = parseState(state);
+    const stateData = await stateForRequest(req, state);
     if (!stateData) {
-      res.status(400).send("Invalid state");
+      res.status(400).send(STATE_REJECTED);
       return;
     }
 
@@ -261,9 +280,9 @@ export function registerProviderOAuthCallbacks(app: Express) {
       res.status(400).send("Missing code or state");
       return;
     }
-    const stateData = parseState(state);
+    const stateData = await stateForRequest(req, state);
     if (!stateData) {
-      res.status(400).send("Invalid state");
+      res.status(400).send(STATE_REJECTED);
       return;
     }
     // Load the user's stored clientId / clientSecret for nifty.

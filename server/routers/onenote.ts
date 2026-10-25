@@ -19,6 +19,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { getDb } from "../db";
 import { onenoteImportJobs } from "../../drizzle/schema";
+import { signOAuthState } from "../_core/oauthState";
 
 // ─── Microsoft Graph helpers ──────────────────────────────────────────────────
 
@@ -369,7 +370,7 @@ export const onenoteRouter = router({
       const userCred = await db.getUserOauthCredential(ctx.user.id, "microsoft");
       const clientId = (userCred?.clientId || process.env.MICROSOFT_CLIENT_ID || process.env.MS_CLIENT_ID) ?? "";
       const tenantId = userCred?.tenantId || process.env.MS_TENANT_ID || null;
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin, slot, tenantId })).toString("base64url");
+      const state = signOAuthState({ userId: ctx.user.id, origin: input.origin, slot, tenantId });
       return { url: getOnenoteAuthUrl(input.origin, state, slot, clientId, tenantId) };
     }),
 

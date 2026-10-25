@@ -2,6 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { resolveRequestAI } from "../_core/workspaceAI";
+import { spendQuota } from "../_core/quota";
 
 // ─── Provider types ────────────────────────────────────────────────────────────
 type AIProvider = "manus" | "openai" | "claude" | "gemini";
@@ -145,7 +146,9 @@ export const aiRouter = router({
         apiKey: z.string().max(512).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // Calls on the workspace AI key count against the daily AI quota.
+      if (!input.apiKey) await spendQuota(ctx.user, "ai");
       const { systemPrompt, userContent } = input;
       const { provider, apiKey } = await resolveRequestAI(input);
 
@@ -206,7 +209,9 @@ export const aiRouter = router({
         maxTokens: z.number().int().min(256).max(4000).optional().default(2000),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // Calls on the workspace AI key count against the daily AI quota.
+      if (!input.apiKey) await spendQuota(ctx.user, "ai");
       const total =
         input.system.length +
         input.messages.reduce((n, m) => n + m.content.length, 0);

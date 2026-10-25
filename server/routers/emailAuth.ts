@@ -20,6 +20,28 @@ import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { notifyOwner } from '../_core/notification';
 import { sendEmail } from '../_core/sendEmail';
 import { ENV } from '../_core/env';
+import { appOrigin } from '../_core/appOrigin';
+import { and, isNull, sql } from 'drizzle-orm';
+import { users } from '../../drizzle/schema';
+
+/** Reset tokens are stored as SHA-256 hashes, so a DB read can't reveal a live link. */
+function hashResetToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+const escHtml = (s: string) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
+
+/**
+ * Self-registration is invite-only unless ALLOW_SIGNUP=true. The very first
+ * account (empty users table) can always register, so a fresh deploy can be
+ * bootstrapped. Teammates join through teamInvites.accept.
+ */
+async function signupAllowed(): Promise<boolean> {
+  if (String(process.env.ALLOW_SIGNUP || '').toLowerCase() === 'true') return true;
+  const conn = await getDb();
+  if (!conn) return false;
+  const [row] = await conn.select({ n: sql<number>`count(*)` }).from(users);
+  return Number(row?.n || 0) === 0;
+}
 
 const SALT_ROUNDS = 10;
 const ONE_DAY_MS = 86_400_000;
@@ -91,6 +113,9 @@ export const emailAuthRouter = router({
       password: z.string().min(8, 'Password must be at least 8 characters'),
     }))
     .mutation(async ({ input, ctx }) => {
+      if (!(await signupAllowed())) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'LevelUp accounts are by invitation. Ask the workspace owner for an invite.' });
+      }
       const existing = await db.getUserByEmail(input.email.toLowerCase().trim());
       if (existing) {
         throw new TRPCError({ code: 'CONFLICT', message: 'An account with this email already exists' });
@@ -175,23 +200,27 @@ export const emailAuthRouter = router({
         return { success: true, message: 'If that email is registered, a reset link has been sent.' };
       }
 
-      // Generate a cryptographically secure token
+      // Generate a cryptographically secure token. Only its hash is stored,
+      // and any earlier unused tokens for this user stop working.
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
 
-      // Store token in DB
       const dbConn = await getDb();
       if (dbConn) {
+        await dbConn.update(passwordResetTokens)
+          .set({ usedAt: new Date() })
+          .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
         await dbConn.insert(passwordResetTokens).values({
-          token,
+          token: hashResetToken(token),
           userId: user.id,
           expiresAt,
         });
       }
 
-      // Build reset URL
-      const origin = input.origin || 'https://leveluphub-ez4tinmn.manus.space';
-      const resetUrl = `${origin}?reset_token=${token}`;
+      // Build reset URL from the app's own origin. input.origin is accepted
+      // for older clients but ignored: a caller-chosen origin would let the
+      // emailed link point somewhere else.
+      const resetUrl = `${appOrigin()}/?reset_token=${token}`;
 
       // Try to send directly to the user via the configured SMTP sender.
       // Fall back to notifyOwner (owner notification) if no sender is configured.
@@ -201,7 +230,7 @@ export const emailAuthRouter = router({
         html: `
           <div style="font-family:sans-serif;max-width:480px;margin:auto">
             <h2 style="color:#3B82F6">Reset your password</h2>
-            <p>Hi ${user.name || 'there'},</p>
+            <p>Hi ${escHtml(user.name || 'there')},</p>
             <p>We received a request to reset the password for your LevelUp account.</p>
             <p style="margin:24px 0">
               <a href="${resetUrl}" style="background:#3B82F6;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600">Reset Password</a>
@@ -211,11 +240,12 @@ export const emailAuthRouter = router({
       }).catch(() => false);
 
       if (!emailSent) {
-        // Fallback: notify the owner so the reset link is not lost
+        // Fallback: tell the owner the email failed. The live link is NOT
+        // included — it must only ever reach the account holder.
         try {
           await notifyOwner({
-            title: `Password Reset Request — ${user.name || email}`,
-            content: `A password reset was requested for: **${email}**\n\nReset link (expires in 1 hour):\n${resetUrl}\n\nIf you did not request this, please ignore this message.`,
+            title: `Password reset email failed — ${user.name || email}`,
+            content: `A password reset was requested for **${email}**, but the email could not be sent. Check Settings → Notifications → Email Delivery Log, then ask them to request a new link.`,
           });
         } catch (e) {
           console.warn('[forgotPassword] notifyOwner fallback failed:', e);
@@ -251,11 +281,12 @@ export const emailAuthRouter = router({
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
       }
 
-      // Look up the token
+      // Look up the token by its hash
+      const tokenHash = hashResetToken(input.token.trim());
       const rows = await dbConn
         .select()
         .from(passwordResetTokens)
-        .where(eq(passwordResetTokens.token, input.token))
+        .where(eq(passwordResetTokens.token, tokenHash))
         .limit(1);
 
       const resetToken = rows[0];
@@ -270,15 +301,26 @@ export const emailAuthRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'This reset link has expired. Please request a new one.' });
       }
 
+      // Claim the token atomically before changing anything, so two
+      // concurrent requests can't both use it.
+      const claim: any = await dbConn
+        .update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(and(eq(passwordResetTokens.token, tokenHash), isNull(passwordResetTokens.usedAt)));
+      const claimed = Number(claim?.[0]?.affectedRows ?? claim?.affectedRows ?? 0);
+      if (claimed !== 1) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'This reset link has already been used' });
+      }
+
       // Hash new password and update user
       const passwordHash = await bcrypt.hash(input.newPassword, SALT_ROUNDS);
       await db.updateUserPasswordHash(resetToken.userId, passwordHash);
 
-      // Mark token as used
+      // Any other outstanding links for this account stop working too.
       await dbConn
         .update(passwordResetTokens)
         .set({ usedAt: new Date() })
-        .where(eq(passwordResetTokens.token, input.token));
+        .where(and(eq(passwordResetTokens.userId, resetToken.userId), isNull(passwordResetTokens.usedAt)));
 
       return { success: true, message: 'Password updated successfully. You can now sign in.' };
     }),

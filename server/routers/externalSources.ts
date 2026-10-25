@@ -54,6 +54,7 @@ async function _niftyCredFresh(db: any, userId: number): Promise<any | null> {
   try { return await ensureFreshNiftyToken(cred); } catch (e) { console.warn('[nifty] token refresh failed, using stored token:', (e as any)?.message); return cred; }
 }
 import { processExternalTaskPull, pullOneSource } from "../_core/externalTasksCron";
+import { signOAuthState } from "../_core/oauthState";
 
 const SS_API = "https://api.smartsheet.com/2.0";
 const NIFTY_API = "https://openapi.niftypm.com/api/v1.0";
@@ -255,7 +256,7 @@ export const externalSourcesRouter = router({
       if (!cred?.clientId) {
         throw new TRPCError({ code: 'PRECONDITION_FAILED', message: 'Save Client ID + Secret first' });
       }
-      const state = Buffer.from(JSON.stringify({ userId: ctx.user.id, origin: input.origin })).toString('base64url');
+      const state = signOAuthState({ userId: ctx.user.id, origin: input.origin });
       const redirectUri = `${input.origin}/api/oauth/nifty/callback`;
       const scope = 'task,project,member,task_group,subtask,milestone,subteam,doc,message,file,label,time_tracking';
       const url = `https://nifty.pm/authorize?response_type=code&client_id=${encodeURIComponent(cred.clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;

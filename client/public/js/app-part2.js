@@ -10495,7 +10495,7 @@ async function openTeamSenderForm(userId,userLabel){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
       <input id="ts-imap-username" class="inp" placeholder="IMAP Username" value="${esc(e.imapUsername||'')}" style="font-size:11px"/>
-      <input id="ts-imap-password" class="inp" type="password" placeholder="IMAP Password" value="${esc(e.imapPassword||'')}" style="font-size:11px"/>
+      <input id="ts-imap-password" class="inp" type="password" autocomplete="new-password" placeholder="${e.hasImapPassword?'Saved — leave blank to keep':'IMAP Password'}" value="" style="font-size:11px"/>
     </div>
     <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:4px">SMTP</div>
     <div style="display:grid;grid-template-columns:1fr 90px 90px;gap:6px;margin-bottom:6px">
@@ -10505,7 +10505,7 @@ async function openTeamSenderForm(userId,userLabel){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
       <input id="ts-smtp-username" class="inp" placeholder="SMTP Username" value="${esc(e.smtpUsername||'')}" style="font-size:11px"/>
-      <input id="ts-smtp-password" class="inp" type="password" placeholder="SMTP Password" value="${esc(e.smtpPassword||'')}" style="font-size:11px"/>
+      <input id="ts-smtp-password" class="inp" type="password" autocomplete="new-password" placeholder="${e.hasSmtpPassword?'Saved — leave blank to keep':'SMTP Password'}" value="" style="font-size:11px"/>
     </div>
     <div style="display:flex;gap:6px;justify-content:flex-end">
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -10514,6 +10514,7 @@ async function openTeamSenderForm(userId,userLabel){
   `;
   document.getElementById('modal-content').innerHTML=html;
   document.getElementById('modal-capture').classList.add('show');
+  window._tsHasPw={imap:!!e.hasImapPassword,smtp:!!e.hasSmtpPassword};
 }
 async function saveTeamSender(userId){
   const data={
@@ -10531,7 +10532,11 @@ async function saveTeamSender(userId){
     smtpUsername:document.getElementById('ts-smtp-username').value.trim(),
     smtpPassword:document.getElementById('ts-smtp-password').value,
   };
-  if(!data.email||!data.imapHost||!data.imapUsername||!data.imapPassword||!data.smtpHost||!data.smtpUsername||!data.smtpPassword){
+  // Stored passwords are never sent back to the browser: blank = keep.
+  const _hp=window._tsHasPw||{};
+  if(!data.imapPassword)delete data.imapPassword;
+  if(!data.smtpPassword)delete data.smtpPassword;
+  if(!data.email||!data.imapHost||!data.imapUsername||(!data.imapPassword&&!_hp.imap)||!data.smtpHost||!data.smtpUsername||(!data.smtpPassword&&!_hp.smtp)){
     toast('Please fill in all required fields.');return;
   }
   try{

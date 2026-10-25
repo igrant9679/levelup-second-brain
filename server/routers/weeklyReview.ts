@@ -10,6 +10,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { userAppData } from "../../drizzle/schema";
 import { processWeeklyReview } from "../_core/weeklyReviewEmail";
+import { spendQuota } from "../_core/quota";
 
 async function requireDb() {
   const db = await getDb();
@@ -72,6 +73,7 @@ export const weeklyReviewRouter = router({
     }),
 
   sendNow: protectedProcedure.mutation(async ({ ctx }) => {
+    await spendQuota(ctx.user, "email");
     return processWeeklyReview({ userId: ctx.user.id, force: true });
   }),
 });
