@@ -2209,7 +2209,10 @@ function setAccent(c){
   renderScreen('settings');
   toast('Accent color updated');
 }
-var nextId=(arr)=>Math.max(0,...arr.map(x=>x.id))+1;
+// Ignores ids that aren't finite numbers: one string id (Atlas spawns used
+// 'n_…') made Math.max return NaN, so every later note/journal got id NaN,
+// which the server dropped — the items were lost on the next load.
+var nextId=(arr)=>{let m=0;for(const x of (arr||[])){const v=Number(x&&x.id);if(Number.isFinite(v)&&v>m)m=v;}return m+1;};
 
 // ====== NAVIGATION ======
 const SM={home:'s-home',tasks:'s-tasks',notes:'s-notes',mail:'s-mail',calendar:'s-calendar',projects:'s-projects',programs:'s-programs',clusters:'s-clusters',goals:'s-goals',journal:'s-journal',archive:'s-archive',settings:'s-settings',myday:'s-myday',myweek:'s-myweek',myyear:'s-myyear',process:'s-process',habits:'s-habits',coach:'s-coach',team:'s-team',capture:'s-home',ideas:'s-ideas',mindmaps:'s-mindmaps',focus:'s-focus',contacts:'s-contacts',help:'s-help',bookmarks:'s-bookmarks',reports:'s-reports',graph:'s-graph',command:'s-command',standup:'s-standup',pipeline:'s-pipeline',atlas:'s-atlas',money:'s-money'};
@@ -5849,7 +5852,7 @@ function _applyAISubtasks(id){
   const arr=window._aiSubtasksList||[];
   const picks=[...document.querySelectorAll('#ai-sub-list input[type=checkbox]')]
     .filter(cb=>cb.checked).map(cb=>arr[Number(cb.dataset.idx)]).filter(Boolean);
-  let nextId=t.subtasks.length?Math.max(...t.subtasks.map(s=>s.id||0))+1:1;
+  let nextId=window.nextId(t.subtasks);
   picks.forEach(title=>{t.subtasks.push({id:nextId++,title,done:false});});
   save('tasks');closeModal();
   // Refresh drawer if open. The actual open marker is `.show` on #drawer-ov;
@@ -5989,7 +5992,7 @@ function _applyAIProjectTasks(id){
   const arr=window._aiProjTaskList||[];
   const picks=[...document.querySelectorAll('#ai-proj-task-list input[type=checkbox]')]
     .filter(cb=>cb.checked).map(cb=>arr[Number(cb.dataset.idx)]).filter(Boolean);
-  let nextId=D.tasks.length?Math.max(...D.tasks.map(t=>t.id||0))+1:1;
+  let nextId=window.nextId(D.tasks);
   picks.forEach(t=>{
     D.tasks.push({id:nextId++,title:t.title,priority:t.priority||'Medium',status:'Not Started',
       project:p.name,projectId:p.id,createdBy:D.creds.userName||'',
@@ -14392,10 +14395,13 @@ function restoreNoteVersion(noteId,versionIdx){
   const v=n.versions[versionIdx];
   if(!v)return;
   if(!confirm(`Restore version from ${new Date(v.savedAt).toLocaleString()}? Current version will be saved as a new history entry.`))return;
-  // Save current as new version
-  n.versions.push({title:n.title,body:n.body||'',savedAt:new Date().toISOString()});
+  // Save current as new version (rich text included: versions from a
+  // conflict between devices carry bodyHtml, and the display prefers it).
+  n.versions.push({title:n.title,body:n.body||'',bodyHtml:n.bodyHtml||'',savedAt:new Date().toISOString()});
   n.title=v.title;
   n.body=v.body;
+  if(v.bodyHtml!==undefined)n.bodyHtml=v.bodyHtml;
+  else if(n.bodyHtml)n.bodyHtml=luRTE_mdToHtml(v.body||'');
   n.updated=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
   save('notes');
   closeModal();
@@ -19162,7 +19168,7 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   <div style="display:flex;flex-direction:column;gap:10px">
   <div class="field"><label>Title</label><input class="inp" id="nev-title" placeholder="Event title..." value="${esc(prefillTitle||'')}"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Day</label><select class="inp" id="nev-day">${days.map((d,i)=>`<option value="${i}" ${(prefillDay!==undefined?prefillDay:dayOfWeek-1)===i?'selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="field"><label>Date</label><input type="date" class="inp" id="nev-date" value="${_nevDefaultDate(prefillDay,prefillDateStr)}"></div>
     <div class="field"><label>Color</label><select class="inp" id="nev-color">${colorOpts.map(c=>`<option value="${c.v}">${c.l}</option>`).join('')}</select></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -19181,6 +19187,18 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   document.getElementById('modal-capture').classList.add('show');
   setTimeout(()=>document.getElementById('nev-title')?.focus(),100);
 }
+// Default date for the new-event form: an explicit date, else the chosen
+// weekday in the week on screen, else the day on screen, else today.
+function _nevDefaultDate(prefillDay,prefillDateStr){
+  if(prefillDateStr&&/^\d{4}-\d{2}-\d{2}$/.test(prefillDateStr))return prefillDateStr;
+  const d=new Date();d.setHours(0,0,0,0);
+  if(typeof _calView!=='undefined'&&_calView==='day'&&typeof _calDayOffset!=='undefined'){d.setDate(d.getDate()+_calDayOffset);return _ymd(d);}
+  if(prefillDay!==undefined&&prefillDay!==null){
+    const mon=new Date(d);mon.setDate(d.getDate()-((d.getDay()+6)%7)+7*(typeof _calWeekOffset!=='undefined'?_calWeekOffset:0));
+    mon.setDate(mon.getDate()+Number(prefillDay));return _ymd(mon);
+  }
+  return _ymd(d);
+}
 function saveNewCalEvent(){
   const title=document.getElementById('nev-title')?.value.trim();
   if(!title){toast('⚠ Title is required');return;}
@@ -19188,27 +19206,30 @@ function saveNewCalEvent(){
   const endVal=document.getElementById('nev-end')?.value||'10:00';
   const [sh,sm]=startVal.split(':').map(Number);
   const [eh,em]=endVal.split(':').map(Number);
-  const fmt=h=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:${String(h%60===0?'00':h%60).padStart(2,'0')} ${ampm}`};
-  const day=parseInt(document.getElementById('nev-day')?.value||'0');
+  const fmt=(h,mi)=>{const ampm=h>=12?'PM':'AM';const h12=h%12||12;return`${h12}:${String(mi||0).padStart(2,'0')} ${ampm}`};
+  const dateStr=document.getElementById('nev-date')?.value||_ymd(new Date());
+  const _d0=new Date(dateStr+'T00:00');
+  const day=(_d0.getDay()+6)%7; // 0=Mon, the grid's weekday convention
   const color=document.getElementById('nev-color')?.value||'var(--ac)';
   const loc=document.getElementById('nev-loc')?.value||'';
   const att=document.getElementById('nev-att')?.value||'';
   const desc=document.getElementById('nev-desc')?.value||'';
   const repeat=document.getElementById('nev-repeat')?.value||'none';
   const recurId=repeat!=='none'?Date.now():null;
-  const baseEv={id:Date.now(),title,time:fmt(sh),end:fmt(eh),day,hour:sh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc,repeat,recurId};
-  _calEvents.push(baseEv);
-  // Generate future occurrences (up to 12 weeks ahead)
-  if(repeat!=='none'){
-    const weekGap=repeat==='daily'?1/7:repeat==='biweekly'?2:1;
-    const maxWeeks=repeat==='daily'?14:12;
-    for(let w=1;w<=maxWeeks;w++){
-      if(repeat==='daily'||repeat==='weekly'||(repeat==='biweekly'&&w%2===0)||repeat==='monthly'){
-        if(repeat==='monthly'&&w%4!==0)continue;
-        _calEvents.push({...baseEv,id:Date.now()+w,recurId,_recurWeek:w});
-      }
-    }
+  const baseEv={id:Date.now(),title,time:fmt(sh,sm),end:fmt(eh,em),start:startVal,endTime:endVal,day,hour:sh,minute:sm||0,endHour:eh,color,location:loc,attendees:att?att.split(',').map(s=>s.trim()).filter(Boolean):[],desc,repeat,recurId};
+  if(repeat==='weekly'){
+    // One row with no date = the grid's "every week on this weekday".
+    _calEvents.push(baseEv);
+  }else{
+    _calEvents.push({...baseEv,dateStr});
+    // Dated copies for the other repeats (they used to be 12 identical
+    // weekday-only rows stacked in one cell).
+    const add=(n,unit)=>{const d=new Date(_d0);if(unit==='d')d.setDate(d.getDate()+n);else d.setMonth(d.getMonth()+n);return _ymd(d);};
+    const plan=repeat==='daily'?Array.from({length:13},(_,i)=>[i+1,'d']):repeat==='biweekly'?Array.from({length:6},(_,i)=>[(i+1)*14,'d']):repeat==='monthly'?Array.from({length:5},(_,i)=>[i+1,'m']):[];
+    plan.forEach(([n,u],i)=>{const ds=add(n,u);const dd=new Date(ds+'T00:00');_calEvents.push({...baseEv,id:Date.now()+i+1,dateStr:ds,day:(dd.getDay()+6)%7,_recurIndex:i+1});});
   }
+  // Persist: this used to only change memory, so the event vanished on reload.
+  if(typeof _calPersist==='function')_calPersist();
   closeModal();
   renderCal();
   toast(`✓ Event added${repeat!=='none'?' (recurring)':''}!`);

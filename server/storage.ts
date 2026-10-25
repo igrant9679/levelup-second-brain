@@ -383,6 +383,36 @@ export async function storagePut(
   );
 }
 
+/**
+ * Upload a file that must NOT be shared publicly (database backups). On Drive
+ * it is created in the app folder without the "anyone with the link"
+ * permission that storagePut adds; on S3 it is a normal object (callers
+ * encrypt the content, so a public bucket can't expose it). Returns the key
+ * and a provider id for the record.
+ */
+export async function storagePutPrivate(
+  relKey: string,
+  data: Buffer,
+  contentType = "application/octet-stream",
+): Promise<{ key: string; provider: "drive" | "s3"; id: string }> {
+  if (hasS3Config()) {
+    const key = appendHashSuffix(normalizeKey(relKey));
+    await getS3Client().send(new PutObjectCommand({ Bucket: ENV.s3Bucket, Key: key, Body: data, ContentType: contentType }));
+    return { key, provider: "s3", id: key };
+  }
+  if (hasDriveConfig()) {
+    const key = appendHashSuffix(normalizeKey(relKey));
+    const token = await getDriveAccessToken();
+    const metadata = { name: key.split("/").pop() ?? key, parents: [ENV.googleDriveFolderId], mimeType: contentType };
+    const fileId = data.length > DRIVE_MULTIPART_LIMIT
+      ? await driveResumableUpload(token, metadata, data, contentType)
+      : await driveMultipartUpload(token, metadata, data, contentType);
+    if (!fileId) throw new Error("Drive upload returned empty file id");
+    return { key, provider: "drive", id: fileId };
+  }
+  throw new Error("Private storage needs S3 or Google Drive to be configured.");
+}
+
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   // When S3 is configured, return its public URL directly. When only Forge is

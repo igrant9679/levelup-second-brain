@@ -140,158 +140,244 @@ export function _taskAssignedTo(row: { raw?: string | null; assigneeId?: number 
   return false;
 }
 
-async function mirrorTasksToRelational(db: any, userId: number, tasksJson: string) {
-  let arr: any;
-  // Step 3a: this write is authoritative — reject bad payloads loudly instead
-  // of silently storing nothing while the save reports ok.
-  try { arr = JSON.parse(tasksJson); } catch { throw new Error('tasks payload is not valid JSON'); }
-  if (!Array.isArray(arr)) throw new Error('tasks payload is not an array');
-  const idMap = await _resolveUserIdMap();
-  const resolveId = (s: any): number | null => {
-    if (!s) return null;
-    return idMap.get(String(s).trim().toLowerCase()) ?? null;
+// ─── Tasks / notes / ideas storage (relational) ─────────────────────────────
+// Phase 1 (build -226): the whole-array "delete every row, re-insert" save was
+// the biggest data-loss risk in the app — a device with a stale list erased
+// everything other devices had added. Now:
+//   • appData.syncEntity  applies only what a device changed (upserts) and what
+//     it explicitly removed (deletes), and refuses to overwrite or delete an
+//     item another device changed since this one last saw it (baseHash check).
+//   • the legacy full-array path (old clients during deploy skew, and
+//     server-side writeEntityArray callers) runs in a TRANSACTION and refuses
+//     an obvious wipe (see _guardShrink).
+//   • list order lives in user_app_data.entityOrder (rows are no longer
+//     re-inserted in array order).
+type EntityKind = 'tasks' | 'notes' | 'ideas';
+const ENTITY_TABLE: Record<EntityKind, any> = { tasks: tasksTable, notes: notesTable, ideas: ideasTable };
+const ENTITY_ID_COL: Record<EntityKind, 'taskId' | 'noteId' | 'ideaId'> = { tasks: 'taskId', notes: 'noteId', ideas: 'ideaId' };
+
+/** FNV-1a 32-bit over UTF-16 code units — identical to the client's _luHash. */
+export function _itemHash(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16);
+}
+
+function _taskRow(t: any, userId: number, resolveId: (s: any) => number | null) {
+  return {
+    userId,
+    taskId: String(t.id).slice(0, 40),
+    title: _col(t.title, 512),
+    status: _col(t.status, 32),
+    priority: _col(t.priority, 16),
+    due: _col(t.due, 32),
+    startDate: _col(t.startDate, 32),
+    completedAt: _col(t.completedAt, 40),
+    projectId: _col(t.projectId, 40),
+    clusterId: _col(t.clusterId, 40),
+    myDay: t.myDay ? 1 : 0,
+    context: _col(t.context, 64),
+    assignedTo: _col(t.assignedTo, 255),
+    createdBy: _col(t.createdBy, 255),
+    // Stable userId-based owner + assignee (migration 0045). Owner falls back
+    // to the row's user when createdBy is missing/unresolved.
+    createdById: resolveId(t.createdBy) ?? userId,
+    assigneeId: resolveId(t.assignedTo),
+    raw: JSON.stringify(t),
   };
-  const seen = new Set<string>();
-  const rows = arr
-    .filter((t: any) => t && t.id != null && String(t.id).length > 0)
-    .map((t: any) => ({
-      userId,
-      taskId: String(t.id).slice(0, 40),
-      title: _col(t.title, 512),
-      status: _col(t.status, 32),
-      priority: _col(t.priority, 16),
-      due: _col(t.due, 32),
-      startDate: _col(t.startDate, 32),
-      completedAt: _col(t.completedAt, 40),
-      projectId: _col(t.projectId, 40),
-      clusterId: _col(t.clusterId, 40),
-      myDay: t.myDay ? 1 : 0,
-      context: _col(t.context, 64),
-      assignedTo: _col(t.assignedTo, 255),
-      createdBy: _col(t.createdBy, 255),
-      // Stable userId-based owner + assignee (migration 0045). Owner falls back
-      // to the row's user when createdBy is missing/unresolved.
-      createdById: resolveId(t.createdBy) ?? userId,
-      assigneeId: resolveId(t.assignedTo),
-      raw: JSON.stringify(t),
-    }))
-    .filter((r: any) => !seen.has(r.taskId) && seen.add(r.taskId));
-  await db.delete(tasksTable).where(eq(tasksTable.userId, userId));
-  for (let i = 0; i < rows.length; i += 200) {
-    await db.insert(tasksTable).values(rows.slice(i, i + 200));
+}
+function _noteRow(n: any, userId: number) {
+  return {
+    userId,
+    noteId: String(n.id).slice(0, 40),
+    title: _col(n.title, 512),
+    folderId: _col(n.folderId, 40),
+    pinned: n.pinned ? 1 : 0,
+    starred: n.starred ? 1 : 0,
+    archived: n.archived ? 1 : 0,
+    color: _col(n.color, 32),
+    updatedAt: _col(n.updated, 40),
+    createdAt: _col(n.createdAt, 40),
+    // Team-visibility (migration 0045): a note's creator is its owning user;
+    // notes aren't assigned, so assigneeId stays null.
+    createdById: (n.createdById != null ? n.createdById : userId),
+    assigneeId: (n.assigneeId != null ? n.assigneeId : null),
+    raw: JSON.stringify(n),
+  };
+}
+function _ideaRow(i: any, userId: number) {
+  return {
+    userId,
+    ideaId: String(i.id).slice(0, 40),
+    title: _col(i.title, 512),
+    stage: _col(i.stage, 32),
+    ideaType: _col(i.idea_type, 32),
+    goalId: _col(i.goal_id, 40),
+    iceImpact: typeof i.ice_impact === 'number' ? i.ice_impact : null,
+    iceConfidence: typeof i.ice_confidence === 'number' ? i.ice_confidence : null,
+    iceEase: typeof i.ice_ease === 'number' ? i.ice_ease : null,
+    createdBy: _col(i.createdBy, 255),
+    createdAt: _col(i.createdAt, 40),
+    raw: JSON.stringify(i),
+  };
+}
+async function _rowBuilder(kind: EntityKind, userId: number): Promise<(x: any) => any> {
+  if (kind === 'tasks') {
+    const idMap = await _resolveUserIdMap();
+    const resolveId = (s: any): number | null => (s ? idMap.get(String(s).trim().toLowerCase()) ?? null : null);
+    return (t) => _taskRow(t, userId, resolveId);
   }
-  return rows.length;
+  return kind === 'notes' ? (n) => _noteRow(n, userId) : (i) => _ideaRow(i, userId);
+}
+
+/** Items with a usable id. Ids must be finite numbers or non-empty strings. */
+function _validItem(x: any): boolean {
+  if (!x || x.id == null) return false;
+  if (typeof x.id === 'number') return Number.isFinite(x.id);
+  return String(x.id).length > 0 && String(x.id) !== 'NaN' && String(x.id) !== 'null';
 }
 
 /**
- * Read a user's tasks. Reads come from the relational `tasks` table; the JSON
- * blob is a consistency-checked fallback, used only if the table is empty /
- * unreadable, or its id-set diverges from the blob (a missed dual-write).
- * Rows are ordered by PK, which mirrors the blob array order (the mirror
- * delete+re-inserts in array order on every save), so manual task order is
- * preserved. Returns the array plus which source served it.
+ * Refuse a full-array save that looks like a wipe rather than an edit: an
+ * empty list replacing 5+ items, or a list that drops more than 80% of 20+
+ * items. Per-item sync makes deletes explicit, so legitimate bulk deletes
+ * never come through here from current clients.
  */
+function _guardShrink(kind: EntityKind, existing: number, incoming: number) {
+  if ((incoming === 0 && existing >= 5) || (existing >= 20 && incoming < existing * 0.2)) {
+    throw new Error(`Refused to replace ${existing} ${kind} with ${incoming} — this looks like a stale or empty copy. Reload the app and try again.`);
+  }
+}
+
+/** Full-array replace (legacy path), atomic. */
+async function _replaceEntity(db: any, userId: number, kind: EntityKind, json: string, opts?: { guard?: boolean }) {
+  let arr: any;
+  // Authoritative write — reject bad payloads loudly instead of silently
+  // storing nothing while the save reports ok.
+  try { arr = JSON.parse(json); } catch { throw new Error(`${kind} payload is not valid JSON`); }
+  if (!Array.isArray(arr)) throw new Error(`${kind} payload is not an array`);
+  const build = await _rowBuilder(kind, userId);
+  const idCol = ENTITY_ID_COL[kind];
+  const seen = new Set<string>();
+  const rows = arr.filter(_validItem).map(build).filter((r: any) => !seen.has(r[idCol]) && seen.add(r[idCol]));
+  const table = ENTITY_TABLE[kind];
+  await db.transaction(async (tx: any) => {
+    if (opts?.guard) {
+      const cur = await tx.select({ id: table.id }).from(table).where(eq(table.userId, userId));
+      _guardShrink(kind, cur.length, rows.length);
+    }
+    await tx.delete(table).where(eq(table.userId, userId));
+    for (let i = 0; i < rows.length; i += 200) await tx.insert(table).values(rows.slice(i, i + 200));
+  });
+  // Rows were re-inserted in array order, so PK order is the list order again.
+  await _setEntityOrder(db, userId, kind, null);
+  return rows.length;
+}
+async function mirrorTasksToRelational(db: any, userId: number, json: string, opts?: { guard?: boolean }) { return _replaceEntity(db, userId, 'tasks', json, opts); }
+async function mirrorNotesToRelational(db: any, userId: number, json: string, opts?: { guard?: boolean }) { return _replaceEntity(db, userId, 'notes', json, opts); }
+async function mirrorIdeasToRelational(db: any, userId: number, json: string, opts?: { guard?: boolean }) { return _replaceEntity(db, userId, 'ideas', json, opts); }
+
+async function _getEntityOrder(db: any, userId: number): Promise<Record<string, string[]>> {
+  try {
+    const [row] = await db.select({ o: userAppData.entityOrder }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+    const o = row?.o ? JSON.parse(row.o) : null;
+    return o && typeof o === 'object' ? o : {};
+  } catch { return {}; }
+}
+async function _setEntityOrder(db: any, userId: number, kind: EntityKind, order: string[] | null) {
+  try {
+    const cur = await _getEntityOrder(db, userId);
+    if (order) cur[kind] = order.map(String).slice(0, 20000); else delete cur[kind];
+    const v = JSON.stringify(cur);
+    await db.insert(userAppData).values({ userId, entityOrder: v }).onDuplicateKeyUpdate({ set: { entityOrder: v } });
+  } catch (e) {
+    console.warn('[appData] could not store list order:', (e as Error)?.message);
+  }
+}
+
+/** Rows → items, in the user's stored order (unknown ids keep PK order, after). */
+async function _readEntity(db: any, userId: number, kind: EntityKind): Promise<any[]> {
+  const table = ENTITY_TABLE[kind];
+  const rows = await db.select().from(table).where(eq(table.userId, userId)).orderBy(table.id);
+  const items = rows.map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } }).filter(Boolean);
+  const order = (await _getEntityOrder(db, userId))[kind];
+  if (!Array.isArray(order) || !order.length) return items;
+  const pos = new Map<string, number>();
+  order.forEach((id, i) => { if (!pos.has(String(id))) pos.set(String(id), i); });
+  const known: any[] = [], unknown: any[] = [];
+  for (const it of items) (pos.has(String(it.id)) ? known : unknown).push(it);
+  known.sort((a, b) => (pos.get(String(a.id))! - pos.get(String(b.id))!));
+  return known.concat(unknown);
+}
+
 async function readTasks(db: any, userId: number): Promise<{ tasks: any[]; source: string }> {
-  // Step 3b (2026-10-14): the tasks blob column is gone — the relational table
-  // is the only store. No fallback: a failed read must fail the load.
-  const tableRows = await db.select().from(tasksTable).where(eq(tasksTable.userId, userId)).orderBy(tasksTable.id);
-  const items = tableRows
-    .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
-    .filter((t: any) => t);
-  return { tasks: items, source: 'relational' };
+  // Step 3b (2026-10-14): the relational table is the only store. No
+  // fallback: a failed read must fail the load.
+  return { tasks: await _readEntity(db, userId, 'tasks'), source: 'relational' };
 }
-
-// Notes — mirror + read. Same pattern as tasks. `raw` is mediumtext to fit
-// large bodyHtml from Word imports.
-async function mirrorNotesToRelational(db: any, userId: number, json: string) {
-  let arr: any;
-  try { arr = JSON.parse(json); } catch { throw new Error('notes payload is not valid JSON'); }
-  if (!Array.isArray(arr)) throw new Error('notes payload is not an array');
-  const seen = new Set<string>();
-  const rows = arr
-    .filter((n: any) => n && n.id != null && String(n.id).length > 0)
-    .map((n: any) => ({
-      userId,
-      noteId: String(n.id).slice(0, 40),
-      title: _col(n.title, 512),
-      folderId: _col(n.folderId, 40),
-      pinned: n.pinned ? 1 : 0,
-      starred: n.starred ? 1 : 0,
-      archived: n.archived ? 1 : 0,
-      color: _col(n.color, 32),
-      updatedAt: _col(n.updated, 40),
-      createdAt: _col(n.createdAt, 40),
-      // Team-visibility (migration 0045): a note's creator is its owning user;
-      // notes aren't assigned, so assigneeId stays null.
-      createdById: (n.createdById != null ? n.createdById : userId),
-      assigneeId: (n.assigneeId != null ? n.assigneeId : null),
-      raw: JSON.stringify(n),
-    }))
-    .filter((r: any) => !seen.has(r.noteId) && seen.add(r.noteId));
-  await db.delete(notesTable).where(eq(notesTable.userId, userId));
-  for (let i = 0; i < rows.length; i += 200) {
-    await db.insert(notesTable).values(rows.slice(i, i + 200));
-  }
-  return rows.length;
-}
-
 async function readNotes(db: any, userId: number): Promise<{ notes: any[]; source: string }> {
-  // Step 3b (2026-10-14): the notes blob column is gone — the relational table
-  // is the only store. No fallback: a failed read must fail the load.
-  const tableRows = await db.select().from(notesTable).where(eq(notesTable.userId, userId)).orderBy(notesTable.id);
-  const items = tableRows
-    .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
-    .filter((t: any) => t);
-  return { notes: items, source: 'relational' };
+  return { notes: await _readEntity(db, userId, 'notes'), source: 'relational' };
 }
-
-// Ideas — mirror + read. Same pattern. Surfaces the ICE scoring (impact /
-// confidence / ease) and stage as queryable columns.
-async function mirrorIdeasToRelational(db: any, userId: number, json: string) {
-  let arr: any;
-  try { arr = JSON.parse(json); } catch { throw new Error('ideas payload is not valid JSON'); }
-  if (!Array.isArray(arr)) throw new Error('ideas payload is not an array');
-  const seen = new Set<string>();
-  const rows = arr
-    .filter((i: any) => i && i.id != null && String(i.id).length > 0)
-    .map((i: any) => ({
-      userId,
-      ideaId: String(i.id).slice(0, 40),
-      title: _col(i.title, 512),
-      stage: _col(i.stage, 32),
-      ideaType: _col(i.idea_type, 32),
-      goalId: _col(i.goal_id, 40),
-      iceImpact: typeof i.ice_impact === 'number' ? i.ice_impact : null,
-      iceConfidence: typeof i.ice_confidence === 'number' ? i.ice_confidence : null,
-      iceEase: typeof i.ice_ease === 'number' ? i.ice_ease : null,
-      createdBy: _col(i.createdBy, 255),
-      createdAt: _col(i.createdAt, 40),
-      raw: JSON.stringify(i),
-    }))
-    .filter((r: any) => !seen.has(r.ideaId) && seen.add(r.ideaId));
-  await db.delete(ideasTable).where(eq(ideasTable.userId, userId));
-  for (let j = 0; j < rows.length; j += 200) {
-    await db.insert(ideasTable).values(rows.slice(j, j + 200));
-  }
-  return rows.length;
-}
-
 async function readIdeas(db: any, userId: number): Promise<{ ideas: any[]; source: string }> {
-  // Step 3b (2026-10-14): the ideas blob column is gone — the relational table
-  // is the only store. No fallback: a failed read must fail the load.
-  const tableRows = await db.select().from(ideasTable).where(eq(ideasTable.userId, userId)).orderBy(ideasTable.id);
-  const items = tableRows
-    .map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } })
-    .filter((t: any) => t);
-  return { ideas: items, source: 'relational' };
+  return { ideas: await _readEntity(db, userId, 'ideas'), source: 'relational' };
 }
 
-// Step 3a table-based array access for the migrated entities — used by every
-// mutation that previously parsed/patched/rewrote the (now frozen) blob
-// columns. ORDER BY id preserves manual ordering (the mirrors delete +
-// re-insert in array order on every write).
-// Exported: imageMigration.ts uses these to operate on the LIVE relational
-// store (post-Step-3a the user_app_data blobs are frozen snapshots).
+/**
+ * Apply one device's per-item changes atomically. An upsert or delete that
+ * carries the hash of the item as the device last saw it is refused when the
+ * stored item has changed since (another device or a server job edited it):
+ * the stored version comes back in `conflicts` so the device can adopt it.
+ */
+export async function applyEntityChanges(db: any, userId: number, kind: EntityKind, input: {
+  upserts: Array<{ id: string; raw: string; baseHash?: string | null }>;
+  deletes: Array<{ id: string; baseHash?: string | null }>;
+  order?: string[] | null;
+}) {
+  const table = ENTITY_TABLE[kind];
+  const idCol = ENTITY_ID_COL[kind];
+  const build = await _rowBuilder(kind, userId);
+  const applied: Array<{ id: string; hash: string }> = [];
+  const deleted: string[] = [];
+  const conflicts: Array<{ id: string; raw: string | null }> = [];
+  await db.transaction(async (tx: any) => {
+    for (const u of input.upserts) {
+      let item: any;
+      try { item = JSON.parse(u.raw); } catch { throw new Error(`${kind} item ${u.id} is not valid JSON`); }
+      if (!_validItem(item) || String(item.id).slice(0, 40) !== String(u.id).slice(0, 40)) throw new Error(`${kind} item id mismatch for ${u.id}`);
+      const row = build(item);
+      const [cur] = await tx.select({ id: table.id, raw: table.raw }).from(table)
+        .where(and(eq(table.userId, userId), eq(table[idCol], row[idCol]))).limit(1);
+      if (cur) {
+        const curHash = _itemHash(String(cur.raw ?? ''));
+        if (cur.raw === row.raw) { applied.push({ id: u.id, hash: curHash }); continue; }
+        if (u.baseHash && curHash !== u.baseHash) { conflicts.push({ id: u.id, raw: cur.raw ?? null }); continue; }
+        const { userId: _u, ...set } = row;
+        await tx.update(table).set(set).where(eq(table.id, cur.id));
+      } else {
+        await tx.insert(table).values(row);
+      }
+      applied.push({ id: u.id, hash: _itemHash(row.raw) });
+    }
+    for (const d of input.deletes) {
+      const key = String(d.id).slice(0, 40);
+      const [cur] = await tx.select({ id: table.id, raw: table.raw }).from(table)
+        .where(and(eq(table.userId, userId), eq(table[idCol], key))).limit(1);
+      if (!cur) { deleted.push(d.id); continue; }
+      if (d.baseHash && _itemHash(String(cur.raw ?? '')) !== d.baseHash) { conflicts.push({ id: d.id, raw: cur.raw ?? null }); continue; }
+      await tx.delete(table).where(eq(table.id, cur.id));
+      deleted.push(d.id);
+    }
+  });
+  if (input.order) await _setEntityOrder(db, userId, kind, input.order);
+  // Bump updatedAt: the client's offline-merge logic dates server writes by it.
+  await db.insert(userAppData).values({ userId }).onDuplicateKeyUpdate({ set: { updatedAt: new Date() } });
+  return { applied, deleted, conflicts };
+}
+
+// Table-based array access for the migrated entities — used by server-side
+// jobs (image migration, ownership transfer, automations). The write is a
+// full replace in a transaction; it does not use the shrink guard because
+// these callers read the current list and write it back.
 async function _relStatus(userId: number, table: any) {
   const db = await getDb();
   if (!db) return { ok: false as const };
@@ -299,16 +385,49 @@ async function _relStatus(userId: number, table: any) {
   return { ok: true as const, tableCount: rows.length, blobCount: null, consistent: true };
 }
 export async function readEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas'): Promise<any[]> {
-  const t = kind === 'tasks' ? tasksTable : kind === 'notes' ? notesTable : ideasTable;
-  const rows = await db.select().from(t).where(eq(t.userId, userId)).orderBy(t.id);
-  return rows.map((r: any) => { try { return JSON.parse(r.raw); } catch { return null; } }).filter(Boolean);
+  return _readEntity(db, userId, kind);
 }
-export async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas', arr: any[]): Promise<string> {
+export async function writeEntityArray(db: any, userId: number, kind: 'tasks' | 'notes' | 'ideas', arr: any[], opts?: { deleteIds?: string[] }): Promise<string> {
+  // Write only the difference against what is stored now: changed items are
+  // upserted, the rest untouched, so a job that read the list a moment ago
+  // can't overwrite an item a device synced since (unless the job changed
+  // that same item). Nothing is deleted unless its id is passed in
+  // opts.deleteIds — an item missing from the job's copy may simply have been
+  // added by a device after the job read the list.
   const json = JSON.stringify(arr);
-  if (kind === 'tasks') await mirrorTasksToRelational(db, userId, json);
-  else if (kind === 'notes') await mirrorNotesToRelational(db, userId, json);
-  else await mirrorIdeasToRelational(db, userId, json);
+  const table = ENTITY_TABLE[kind];
+  const idCol = ENTITY_ID_COL[kind];
+  const cur = await db.select({ key: table[idCol], raw: table.raw }).from(table).where(eq(table.userId, userId));
+  const stored = new Map<string, string>(cur.map((r: any) => [String(r.key), String(r.raw ?? '')]));
+  const upserts: Array<{ id: string; raw: string }> = [];
+  const keep = new Set<string>();
+  for (const it of arr) {
+    if (!_validItem(it)) continue;
+    const id = String(it.id).slice(0, 40);
+    if (keep.has(id)) continue;
+    keep.add(id);
+    const raw = JSON.stringify(it);
+    if (stored.get(id) !== raw) upserts.push({ id, raw });
+  }
+  const want = new Set((opts?.deleteIds || []).map((x) => String(x).slice(0, 40)));
+  const deletes = Array.from(stored.keys()).filter((id) => want.has(id) && !keep.has(id)).map((id) => ({ id }));
+  // Order: the job's list first, then anything it didn't know about.
+  const order = Array.from(keep).concat(Array.from(stored.keys()).filter((id) => !keep.has(id) && !want.has(id)));
+  await applyEntityChanges(db, userId, kind, { upserts, deletes, order });
   return json;
+}
+
+/** Set finance._rev to (stored revision + 1) on an incoming Money blob. */
+async function _bumpFinanceRev(db: any, userId: number, json: string): Promise<string> {
+  try {
+    const next = JSON.parse(json);
+    if (!next || typeof next !== 'object' || Array.isArray(next)) return json;
+    const [row] = await db.select({ finance: userAppData.finance }).from(userAppData).where(eq(userAppData.userId, userId)).limit(1);
+    let rev = 0;
+    try { rev = Number(JSON.parse((row as any)?.finance || 'null')?._rev) || 0; } catch { rev = 0; }
+    next._rev = rev + 1;
+    return JSON.stringify(next);
+  } catch { return json; }
 }
 
 export const appDataRouter = router({
@@ -395,6 +514,9 @@ export const appDataRouter = router({
           updates[key as DataKey] = val;
         }
       }
+      // Money: every write bumps the budget's revision so people it is shared
+      // with can't overwrite it from a stale copy (see updateSharedFinance).
+      if (updates.finance !== undefined) updates.finance = await _bumpFinanceRev(db, ctx.user.id, updates.finance);
       const hasRelational = input.tasks !== undefined || input.notes !== undefined || input.ideas !== undefined;
 
       if (Object.keys(updates).length === 0 && !hasRelational) return { ok: true };
@@ -417,12 +539,45 @@ export const appDataRouter = router({
       // The relational writes are now AUTHORITATIVE — a failure must surface
       // to the client as a failed save (it shows its sync-failed toast and
       // retains the dirty flag), not be swallowed like the dual-write era.
-      if (input.tasks !== undefined) await mirrorTasksToRelational(db, ctx.user.id, input.tasks);
-      if (input.notes !== undefined) await mirrorNotesToRelational(db, ctx.user.id, input.notes);
-      if (input.ideas !== undefined) await mirrorIdeasToRelational(db, ctx.user.id, input.ideas);
+      // Full-array saves now only come from pre-226 clients (current clients
+      // use syncEntity): atomic, and an obvious wipe is refused.
+      if (input.tasks !== undefined) await mirrorTasksToRelational(db, ctx.user.id, input.tasks, { guard: true });
+      if (input.notes !== undefined) await mirrorNotesToRelational(db, ctx.user.id, input.notes, { guard: true });
+      if (input.ideas !== undefined) await mirrorIdeasToRelational(db, ctx.user.id, input.ideas, { guard: true });
 
       return { ok: true };
     }),
+
+  /**
+   * Per-item sync for tasks / notes / ideas (build -226). The client sends only
+   * the items it changed and the ids it removed, each with the hash of the
+   * item as it last saw it on the server; see applyEntityChanges. Replaces the
+   * whole-list save, which let a stale device erase other devices' work.
+   */
+  syncEntity: protectedProcedure
+    .input(z.object({
+      kind: z.enum(['tasks', 'notes', 'ideas']),
+      upserts: z.array(z.object({ id: z.string().min(1).max(64), raw: z.string().max(20_000_000), baseHash: z.string().max(16).nullable().optional() })).max(5000),
+      deletes: z.array(z.object({ id: z.string().min(1).max(64), baseHash: z.string().max(16).nullable().optional() })).max(5000),
+      order: z.array(z.string().max(64)).max(20000).nullable().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error('db unavailable');
+      const r = await applyEntityChanges(db, ctx.user.id, input.kind, input);
+      return { ok: true as const, ...r };
+    }),
+
+  /** Just tasks / notes / ideas (in list order) — the light refresh a tab runs when it regains focus. */
+  loadEntities: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return null;
+    return {
+      tasks: (await readTasks(db, ctx.user.id)).tasks,
+      notes: (await readNotes(db, ctx.user.id)).notes,
+      ideas: (await readIdeas(db, ctx.user.id)).ideas,
+    };
+  }),
 
   /**
    * Relational row counts per entity, for Settings → Admin → Migration Health.
@@ -447,13 +602,35 @@ export const appDataRouter = router({
     if (!owner) return { ok: false as const, error: 'Workspace owner only.' };
     const db = await getDb();
     if (!db) return { ok: false as const, error: 'db unavailable' };
-    const rows = await db.select().from(userAppData);
+    // Every table (tasks, notes and ideas have lived in their own tables since
+    // 0052 — the old export of user_app_data alone left them out). Secret
+    // columns are redacted; see server/_core/backup.ts.
+    const { dumpAllTables } = await import('../_core/backup');
+    const dump = await dumpAllTables(db);
+    const rowCount = Object.values(dump.tables).reduce((n, t) => n + t.count, 0);
     return {
       ok: true as const,
-      exportedAt: new Date().toISOString(),
-      rowCount: rows.length,
-      rows,
+      exportedAt: dump.createdAt,
+      tableCount: Object.keys(dump.tables).length,
+      rowCount,
+      note: 'Secret values (passwords, tokens, API keys) are redacted: after a restore, reconnect integrations and use Forgot password to sign in.',
+      tables: dump.tables,
     };
+  }),
+
+  /** Last automatic backup (owner only). */
+  backupStatus: adminProcedure.query(async ({ ctx }) => {
+    if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' };
+    const { backupStatus } = await import('../_core/backup');
+    return { ok: true as const, last: await backupStatus() };
+  }),
+
+  /** Run an encrypted, verified backup to private storage now (owner only). */
+  runBackupNow: adminProcedure.mutation(async ({ ctx }) => {
+    if (!(await isOwnerCtxUser(ctx.user as any))) return { ok: false as const, error: 'Workspace owner only.' };
+    const { runBackup } = await import('../_core/backup');
+    const r = await runBackup('manual');
+    return { ok: r.ok, last: r, error: r.error };
   }),
 
   /**
@@ -1116,7 +1293,10 @@ export const appDataRouter = router({
    * themselves different permissions or reassign the share.
    */
   updateSharedFinance: protectedProcedure
-    .input(z.object({ ownerUserId: z.number().int(), finance: z.string().max(4000000) }))
+    // baseRev: the budget revision the editor's copy was loaded at. A write
+    // from an older copy is refused and the current budget is sent back, so a
+    // stale co-editor can't wipe newer synced transactions or paid bills.
+    .input(z.object({ ownerUserId: z.number().int(), finance: z.string().max(4000000), baseRev: z.number().int().nullable().optional() }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { ok: false as const, error: 'db unavailable' };
@@ -1135,8 +1315,13 @@ export const appDataRouter = router({
         let next: any; try { next = JSON.parse(input.finance); } catch { return { ok: false as const, error: 'bad payload' }; }
         if (!next || typeof next !== 'object' || Array.isArray(next)) return { ok: false as const, error: 'bad payload' };
         if (!isItemOwner) next.share = cur.share;
+        const curRev = Number(cur._rev) || 0;
+        if (input.baseRev != null && Number(input.baseRev) !== curRev) {
+          return { ok: false as const, conflict: true as const, error: 'This budget changed since you opened it.', finance: cur };
+        }
+        next._rev = curRev + 1;
         await db.update(userAppData).set({ finance: JSON.stringify(next) }).where(eq(userAppData.userId, input.ownerUserId));
-        return { ok: true as const };
+        return { ok: true as const, rev: next._rev };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };
       }
@@ -1722,8 +1907,8 @@ export const appDataRouter = router({
           const [r] = await db.select({ v: colOf(input.kind) }).from(userAppData).where(eq(userAppData.userId, uid)).limit(1);
           try { const a = JSON.parse((r as any)?.v || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
         };
-        const writeArr = async (uid: number, arr: any[]) => {
-          if (RELATIONAL) return writeEntityArray(db, uid, input.kind as 'tasks' | 'notes', arr);
+        const writeArr = async (uid: number, arr: any[], deleteIds?: string[]) => {
+          if (RELATIONAL) return writeEntityArray(db, uid, input.kind as 'tasks' | 'notes', arr, { deleteIds });
           const json = JSON.stringify(arr);
           await db.update(userAppData).set(setObj(input.kind, json)).where(eq(userAppData.userId, uid));
           return json;
@@ -1741,8 +1926,10 @@ export const appDataRouter = router({
         const adminArr = await readArr(ctx.user.id);
         if (adminArr.some((x: any) => x && String(x.id) === input.itemId)) item.id = String(item.id) + '-' + ctx.user.id;
         adminArr.push(item);
-        await writeArr(input.ownerUserId, ownerArr);
+        // Write the receiver first, then remove from the previous owner, so a
+        // failure in between leaves a copy rather than losing the item.
         await writeArr(ctx.user.id, adminArr);
+        await writeArr(input.ownerUserId, ownerArr, [input.itemId]);
         return { ok: true as const, newOwnerUserId: ctx.user.id };
       } catch (e: any) {
         return { ok: false as const, error: String(e?.message || e) };

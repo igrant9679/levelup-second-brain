@@ -1,3 +1,13 @@
+// Reset ONLY the General panel's keys. It used to rebuild D.prefs from four
+// keys, wiping coach memory, workspace layout, assistant settings, the focus
+// log and more — on every device, because prefs sync.
+function resetGeneralSettings(){
+  if(!confirm('Reset the General settings (workspace name, home screen, week start, date and time format, language, auto-save, keyboard shortcuts) to their defaults?'))return;
+  D.prefs=D.prefs||{};
+  Object.assign(D.prefs,{workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true});
+  save('prefs');applyPrefs();renderScreen('settings');
+  toast('\u2699 General settings reset to defaults');
+}
 function renderSettingsHTML(){
   // Each tab: an _ICON_PATHS name + plain-text label. Rendered icon+label so
   // every Settings tab has an icon (matches the main sidebar's icon-per-item).
@@ -198,7 +208,7 @@ function renderSettingsHTML(){
   <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--brd)">
     <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--warn)">Reset General Settings</div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:10px">Restores all General settings to their defaults. Your tasks, notes, and other app data are not affected.</p>
-    <button class="btn btn-d" style="font-size:11px" onclick="if(confirm('Reset all General settings to defaults?')){const keep={darkMode:D.prefs.darkMode,compact:D.prefs.compact,accent:D.prefs.accent,notifications:D.prefs.notifications};D.prefs={...keep,workspaceName:'LevelUp',homeScreen:'Dashboard',firstDayOfWeek:'monday',dateFormat:'MM/DD/YYYY',timeFormat:'12h',language:'en',autoSave:true,keyboardShortcuts:true};saveAll();applyPrefs();renderScreen('settings');toast('\u2699 General settings reset to defaults');}">&#x21BA; Reset to Defaults</button>
+    <button class="btn btn-d" style="font-size:11px" onclick="resetGeneralSettings()">&#x21BA; Reset to Defaults</button>
   </div>
   </div>
   <!-- Appearance --><div id="sp-2" class="sp" style="display:none">
@@ -630,6 +640,19 @@ function renderSettingsHTML(){
     </div>
     <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Blob → relational migration status for tasks / notes / ideas. All three need <b>consistent ✓</b> and <b>served from: relational</b> over a soak period before the legacy blob columns can be retired (Step 3). Read-only — checking changes nothing.</p>
     <div id="migration-health-body" style="font-size:11px;color:var(--t3)">Click “Check now” to run the readiness checks.</div>
+  </div>
+  <!-- Backups (owner only; build -226) -->
+  <div id="backup-section" class="admin-only" style="display:none;margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:6px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:600">🗄 Backups</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-s" style="height:26px;font-size:11px" id="btn-backup-now" onclick="_runBackupNow()">⟳ Back up now</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_downloadMigrationBackup()" title="Owner only: every table as JSON">💾 Download a copy</button>
+        <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_loadBackupStatus()">↻ Status</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--t3);margin-bottom:8px">Every night (about 3–4 am Eastern) LevelUp saves an encrypted copy of the whole database to private storage and checks that it reads back correctly. Passwords, tokens and API keys are left out of backups, so after a restore you reconnect integrations and sign in with “Forgot password”.</p>
+    <div id="backup-status" style="font-size:11px;color:var(--t3)">Click “Status” to see the last backup.</div>
   </div>
   <!-- OAuth Setup Instructions -->
   <div style="margin-top:12px;padding:12px;background:var(--s2);border-radius:8px;border:1px solid var(--brd)">
@@ -9515,14 +9538,33 @@ async function _downloadMigrationBackup(){
     const blob=new Blob([JSON.stringify(res,null,1)],{type:'application/json'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download='levelup-user_app_data-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    a.download='levelup-backup-'+new Date().toISOString().slice(0,10)+'.json';
     a.click();
     URL.revokeObjectURL(a.href);
-    toast({type:'success',title:'💾 Backup downloaded',msg:res.rowCount+' user row(s), '+Math.round(blob.size/1024)+' KB. Keep this file safe before scheduling Step 3.',duration:7000});
+    toast({type:'success',title:'💾 Backup downloaded',msg:(res.tableCount||'?')+' tables, '+res.rowCount+' rows, '+Math.round(blob.size/1024)+' KB. Secret values are redacted. Keep this file somewhere safe.',duration:8000});
   }catch(e){
     toast({type:'error',title:'Backup failed',msg:String(e&&e.message||e).slice(0,140)});
   }
   if(btn){btn.disabled=false;btn.textContent='💾 Download backup';}
+}
+function _backupStatusHtml(b){
+  if(!b)return 'No automatic backup has run yet.';
+  const when=new Date(b.at).toLocaleString();
+  if(!b.ok)return '<span style="color:var(--red)">✗ Last backup failed</span> · '+esc(when)+' · '+esc(b.error||'unknown error');
+  return '<span style="color:var(--ok)">✓ Verified</span> · '+esc(when)+' · '+(b.tables||0)+' tables, '+(b.rows||0).toLocaleString()+' rows, '+((b.bytes||0)/1048576).toFixed(1)+' MB encrypted · saved to '+(b.provider==='drive'?'Google Drive':esc(b.provider||'storage'))+' (private)';
+}
+async function _loadBackupStatus(){
+  const el=document.getElementById('backup-status');if(el)el.textContent='Checking…';
+  try{const r=await _trpc('appData.backupStatus',undefined,'query');if(el)el.innerHTML=r&&r.ok?_backupStatusHtml(r.last):esc((r&&r.error)||'Owner only');}
+  catch(e){if(el)el.textContent='Could not load: '+String(e&&e.message||e).slice(0,120);}
+}
+async function _runBackupNow(){
+  const btn=document.getElementById('btn-backup-now');if(btn){btn.disabled=true;btn.textContent='⏳ Backing up…';}
+  const el=document.getElementById('backup-status');
+  try{const r=await _trpc('appData.runBackupNow',undefined,'mutation');if(el)el.innerHTML=_backupStatusHtml(r&&r.last);
+    toast(r&&r.ok?{type:'success',title:'🗄 Backup saved and verified',duration:5000}:{type:'error',title:'Backup failed',msg:String((r&&r.error)||'').slice(0,140)});}
+  catch(e){toast({type:'error',title:'Backup failed',msg:String(e&&e.message||e).slice(0,140)});}
+  if(btn){btn.disabled=false;btn.textContent='⟳ Back up now';}
 }
 /** Data Migration Health (admin) — Step 3 readiness check, strictly read-only.
     Queries the {tasks,notes,ideas}RelationalStatus endpoints and shows which
@@ -9572,6 +9614,8 @@ async function loadNotificationSenderOptions(){
     section.style.display='';
     const mh=document.getElementById('migration-health-section');
     if(mh)mh.style.display='';
+    const bk=document.getElementById('backup-section');
+    if(bk){bk.style.display='';_loadBackupStatus();}
     // Rebuild options
     sel.innerHTML='<option value="">— Use built-in notification service —</option>';
     const labels={microsoft:'Microsoft 365',google:'Google',smtp:'Secondary email (SMTP)'};
@@ -10811,6 +10855,175 @@ if(typeof document!=='undefined'&&!window._luSyncFlushWired){
   window.addEventListener('pagehide',_flushDirtyNow);
   window.addEventListener('beforeunload',_flushDirtyNow);
 }
+// ── Per-item sync for tasks / notes / ideas (Phase 1, build -226) ──────────
+// These three used to be saved as whole arrays that REPLACED the server's
+// copy, so a device holding a stale list erased whatever other devices had
+// added since. Now each device remembers, per item, the hash of the version
+// the server last confirmed (the "base", kept in localStorage as
+// lu_syncbase_<key>), and:
+//   • push (_luPushItems)  sends only items whose hash differs from the base
+//     and ids that are in the base but gone locally (explicit deletes), each
+//     with its base hash; the server refuses to overwrite or delete an item
+//     that changed elsewhere since and hands back its version (a conflict);
+//   • load/refresh (_luMerge3)  is a three-way merge: an item changed only on
+//     the server is taken, one changed only here is kept (and pushed), one
+//     deleted elsewhere is dropped unless edited here since, one missing here
+//     is restored from the server, and when both sides changed the server's
+//     copy wins but, for notes, this device's text is kept in the note's
+//     version history.
+// Hash = FNV-1a over JSON.stringify(item), identical to server _itemHash.
+const _LU_ITEM_KEYS=new Set(['tasks','notes','ideas']);
+function _luHash(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(16);}
+const _luBaseCache={};
+const _luOrderSig={};
+const _luPushChain={};
+function _luBaseGet(k){
+  if(_luBaseCache[k]===undefined){
+    let m=null;try{m=JSON.parse(localStorage.getItem('lu_syncbase_'+k)||'null');}catch(_){}
+    _luBaseCache[k]=(m&&typeof m==='object'&&!Array.isArray(m))?m:null;
+  }
+  return _luBaseCache[k];
+}
+function _luBaseSet(k,m){_luBaseCache[k]=m;try{localStorage.setItem('lu_syncbase_'+k,JSON.stringify(m));}catch(_){}}
+function _luItemMap(arr){
+  const m=new Map();
+  (arr||[]).forEach(x=>{if(x&&x.id!=null&&x.id===x.id){const id=String(x.id);if(id&&!m.has(id))m.set(id,x);}});
+  return m;
+}
+// Both devices changed the same item: keep the server's copy; for a note,
+// file this device's text in its version history so nothing is lost.
+function _luResolveConflict(k,sx,lx){
+  if(k!=='notes'||!lx)return sx;
+  const keep=Object.assign({},sx);
+  const v=Array.isArray(sx.versions)?sx.versions.slice():[];
+  v.push({title:lx.title||'',body:lx.body||'',bodyHtml:lx.bodyHtml||'',savedAt:new Date().toISOString(),conflict:true,from:'Your version on this device (the note changed on another device at the same time)'});
+  keep.versions=v.slice(-30);
+  return keep;
+}
+// fallback(x): pre-226 rule for local-only items when this device has no
+// base yet (keep it only if it looks newer than the server's last write).
+function _luMerge3(k,srv,localArr,fallback){
+  const base=_luBaseGet(k);
+  const S=_luItemMap(srv),L=_luItemMap(localArr);
+  const choose=new Map();let push=false;const conflicts=[];
+  S.forEach((sx,id)=>{
+    const sh=_luHash(JSON.stringify(sx));
+    const lx=L.get(id);
+    // Not here locally → take the server's. Absence at load is NOT read as a
+    // local delete: a cache that failed to save or load looks the same, and
+    // guessing wrong would delete real items. In-session deletes are sent by
+    // _luPushItems the moment an item disappears from memory.
+    if(!lx){choose.set(id,sx);return;}
+    const lh=_luHash(JSON.stringify(lx));
+    if(lh===sh){choose.set(id,sx);return;}
+    const b=base&&base[id];
+    if(b&&lh===b){choose.set(id,sx);return;}       // only the server changed
+    if(b&&sh===b){choose.set(id,lx);push=true;return;} // only this device changed
+    if(!b){choose.set(id,sx);return;}              // no history here: server wins (as before -226)
+    choose.set(id,_luResolveConflict(k,sx,lx));push=true;conflicts.push(id);
+  });
+  L.forEach((lx,id)=>{
+    if(S.has(id))return;
+    const b=base&&base[id];
+    if(b){                                         // the server had it at our last sync → deleted elsewhere
+      if(_luHash(JSON.stringify(lx))!==b){choose.set(id,lx);push=true;} // edited here since: keep it
+      return;
+    }
+    if(!base&&fallback&&!fallback(lx))return;
+    choose.set(id,lx);push=true;                   // created here, not pushed yet
+  });
+  // Order: this device's order for the items it has; items new from the
+  // server go right after their server-side predecessor (or first).
+  const out=[];const placed=new Set();
+  (localArr||[]).forEach(x=>{const id=x&&x.id!=null?String(x.id):null;if(id&&choose.has(id)&&!placed.has(id)){out.push(choose.get(id));placed.add(id);}});
+  let after=-1;
+  (srv||[]).forEach(sx=>{
+    const id=sx&&sx.id!=null?String(sx.id):null;if(!id)return;
+    if(placed.has(id)){after=out.findIndex(o=>String(o.id)===id);return;}
+    if(!choose.has(id))return;
+    out.splice(after+1,0,choose.get(id));after++;placed.add(id);
+  });
+  const nb={};S.forEach((sx,id)=>{nb[id]=_luHash(JSON.stringify(sx));});
+  return {items:out,base:nb,push,conflicts};
+}
+async function _luPushItems(k){
+  const base=_luBaseGet(k)||{};
+  const cur=_luItemMap(D[k]);
+  const curKeys=[...cur.keys()];
+  const baseIds=Object.keys(base);
+  // An empty list against a populated base is a cache that failed to load
+  // (the -217 iPhone notes trap), never a user deleting everything.
+  const wipe=!cur.size&&baseIds.length>=3;
+  if(wipe)console.warn('[appData] '+k+': refusing to push an empty list over '+baseIds.length+' synced items');
+  const upserts=[],deletes=[];
+  cur.forEach((x,id)=>{const raw=JSON.stringify(x);const h=_luHash(raw);if(base[id]!==h)upserts.push({id,raw,baseHash:base[id]||null});});
+  if(!wipe)baseIds.forEach(id=>{if(!cur.has(id))deletes.push({id,baseHash:base[id]});});
+  const orderSig=_luHash(curKeys.join('\u0001'));
+  if(!upserts.length&&!deletes.length&&orderSig===_luOrderSig[k])return;
+  const res=await _trpc('appData.syncEntity',{kind:k,upserts,deletes,order:wipe?null:curKeys},'mutation');
+  const nb=Object.assign({},base);
+  (res&&res.applied||[]).forEach(a=>{nb[a.id]=a.hash;});
+  (res&&res.deleted||[]).forEach(id=>{delete nb[id];});
+  const conflicts=(res&&res.conflicts)||[];
+  if(conflicts.length){
+    let kept=0;
+    conflicts.forEach(c=>{
+      if(c.raw==null)return;
+      let sx=null;try{sx=JSON.parse(c.raw);}catch(_){}
+      if(!sx)return;
+      nb[c.id]=_luHash(c.raw);
+      const idx=(D[k]||[]).findIndex(x=>x&&String(x.id)===String(c.id));
+      const lx=idx>=0?D[k][idx]:null;
+      const keep=_luResolveConflict(k,sx,lx);
+      if(idx>=0)D[k][idx]=keep;else D[k].push(keep);
+      kept++;
+    });
+    _luBaseSet(k,nb);
+    try{_safeOrigSave(k);}catch(_){}
+    const label=k==='notes'?'note':k==='tasks'?'task':'idea';
+    if(typeof toast==='function')toast({type:'warning',title:'Changed on another device',msg:kept+' '+label+(kept===1?'':'s')+' had newer changes from another device, so those were kept'+(k==='notes'?' — your version is in the note\'s history.':'.'),duration:8000});
+    try{if(typeof curScreen!=='undefined'&&typeof renderScreen==='function'&&!_luEditing())renderScreen(curScreen);}catch(_){}
+    if(k==='notes'){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),1500);} // push the merged history
+  }else{
+    _luBaseSet(k,nb);
+  }
+  _luOrderSig[k]=orderSig;
+}
+function _luEditing(){
+  const a=document.activeElement;
+  return !!(a&&(a.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)));
+}
+// Pull other devices' changes when the tab comes back into view (at most
+// every 45s), merging them in without touching anything edited here.
+let _luLastPull=0,_luPulling=false;
+async function _luPullItems(){
+  if(_luPulling||!_serverSyncReady||window._luItemSyncOff)return;
+  if(Date.now()-_luLastPull<45000)return;
+  _luPulling=true;_luLastPull=Date.now();
+  try{
+    for(const k of _LU_ITEM_KEYS){if(_dirtyKeys.has(k)){try{clearTimeout(_syncTimers[k]);}catch(_){}await _pushKeyToServer(k);}}
+    // A push that failed leaves its key dirty: merging now could bring back
+    // something deleted here, so wait for the next successful push.
+    if([..._LU_ITEM_KEYS].some(k=>_dirtyKeys.has(k)))return;
+    const sd=await _trpc('appData.loadEntities',undefined,'query');
+    if(!sd)return;
+    let changed=false;
+    for(const k of _LU_ITEM_KEYS){
+      if(!Array.isArray(sd[k]))continue;
+      const before=JSON.stringify(D[k]||[]);
+      const m=_luMerge3(k,sd[k],D[k]||[],null);
+      D[k]=m.items;_luBaseSet(k,m.base);
+      if(JSON.stringify(D[k])!==before){changed=true;try{_safeOrigSave(k);}catch(_){}}
+      if(m.push){_dirtyKeys.add(k);setTimeout(()=>_pushKeyToServer(k),800);}
+    }
+    if(changed){try{invalidateSearchIndex();}catch(_){}try{if(typeof curScreen!=='undefined'&&typeof renderScreen==='function'&&!_luEditing())renderScreen(curScreen);}catch(_){}}
+  }catch(e){console.warn('[appData] refresh failed',e&&e.message);}
+  finally{_luPulling=false;}
+}
+if(typeof document!=='undefined'&&!window._luPullWired){
+  window._luPullWired=true;
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(_luPullItems,400);});
+}
 async function _pushKeyToServer(k){
   if(!_syncKeys.has(k))return;
   if(!_serverSyncReady){
@@ -10822,8 +11035,24 @@ async function _pushKeyToServer(k){
     return;
   }
   try{
-    const val=JSON.stringify(D[k]);
-    await _trpc('appData.save',{[k]:val},'mutation');
+    let viaItems=false;
+    if(_LU_ITEM_KEYS.has(k)&&!window._luItemSyncOff){
+      try{
+        // Serialise pushes per key so two can't race on the base.
+        const p=(_luPushChain[k]||Promise.resolve()).catch(()=>{}).then(()=>_luPushItems(k));
+        _luPushChain[k]=p;
+        await p;
+        viaItems=true;
+      }catch(e){
+        // Server predates syncEntity (deploy skew): use the old whole-list save.
+        if(/No "mutation"-procedure|No procedure|not found on path|404/i.test(String(e&&e.message||e)))window._luItemSyncOff=true;
+        else throw e;
+      }
+    }
+    if(!viaItems){
+      const val=JSON.stringify(D[k]);
+      await _trpc('appData.save',{[k]:val},'mutation');
+    }
     _dirtyKeys.delete(k); // confirmed persisted on the server
     window._luLastSyncOk=Date.now();
   }catch(e){
@@ -10917,6 +11146,8 @@ async function forceResyncFromServer(){
         // retry once if it hits a QuotaExceededError, so usually only the
         // truly oversized keys still fail.
         D[k]=v;touched++;
+        // The server copy is now this device's confirmed state (per-item sync base).
+        if(_LU_ITEM_KEYS.has(k)&&Array.isArray(v)){const nb={};v.forEach(x=>{if(x&&x.id!=null)nb[String(x.id)]=_luHash(JSON.stringify(x));});_luBaseSet(k,nb);}
         if(typeof _safeOrigSave==='function'){
           const ok=_safeOrigSave(k);
           if(!ok) quotaFails.push(k);
@@ -11268,6 +11499,25 @@ async function loadServerData(){
     };
     keys.forEach(k=>{
       const srv=sd[k];
+      // Tasks / notes / ideas: three-way merge against what this device last
+      // synced (see _luMerge3) — edits made here survive, deletions made on
+      // other devices stick.
+      if(_LU_ITEM_KEYS.has(k)&&Array.isArray(srv)&&(srv.length>0||_luBaseGet(k))){
+        const _mem=Array.isArray(D[k])?D[k]:[];
+        let _cache=[];try{_cache=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
+        if(!Array.isArray(_cache))_cache=[];
+        const _memIds=new Set(_mem.map(x=>x&&String(x.id)));
+        const _local=_mem.concat(_cache.filter(x=>x&&x.id!=null&&!_memIds.has(String(x.id))));
+        const m=_luMerge3(k,srv,_local,x=>!_srvUpd||_itemTime(x)>=(_srvUpd-_GRACE));
+        D[k]=m.items;
+        _luBaseSet(k,m.base);
+        if(typeof _safeOrigSave==='function')_safeOrigSave(k);
+        changed=true;
+        if(m.push){_dirtyKeys.add(k);try{clearTimeout(_syncTimers[k]);}catch(_){}setTimeout(()=>_pushKeyToServer(k),1500);}
+        if(m.conflicts.length)console.warn('[appData] '+k+': '+m.conflicts.length+' item(s) changed on both sides — kept the server copy'+(k==='notes'?' (this device\'s text is in the note history)':''));
+        if(k==='notes'&&typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
+        return;
+      }
       if(srv&&Array.isArray(srv)&&srv.length>0){
         let local=[];
         try{local=JSON.parse(localStorage.getItem('lu_'+k)||'null');}catch(_){}
@@ -11341,7 +11591,13 @@ async function loadServerData(){
     // Money page data — a single OBJECT blob (accounts / transactions /
     // budgets / bills / goals + share settings), so it replaces wholesale
     // like atlas/prefs rather than going through the array merge above.
-    if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0){
+    if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0&&_dirtyKeys.has('finance')){
+      // Unsaved Money edits on this device: keep them and push, instead of
+      // replacing them with the server copy (that silently undid edits made
+      // just before a reload or "Sync all").
+      try{clearTimeout(_syncTimers['finance']);}catch(_){}
+      setTimeout(()=>_pushKeyToServer('finance'),500);
+    }else if(sd.finance&&typeof sd.finance==='object'&&Object.keys(sd.finance).length>0){
       D.finance=sd.finance;
       try{localStorage.setItem('lu_finance',JSON.stringify(D.finance));}catch(_){}
       changed=true;
@@ -14654,7 +14910,7 @@ function _atlasSpawnNote(type,id){
   const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
   const title=prompt('Note title:','Re: '+name);if(title===null)return;
   const note={
-    id:'n_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    id:nextId(D.notes||[]), // numeric: string ids broke nextId and inline handlers
     title:title.trim()||('Re: '+name),
     bodyHtml:refLine+'<p></p>',
     folderId:'',pinned:false,starred:false,archived:false,color:'',
@@ -14671,7 +14927,7 @@ function _atlasSpawnJournal(type,id){
   const e=_atlasFindEntity(type,id);if(!e)return;
   const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
   const entry={
-    id:'j_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    id:nextId(D.journal||[]),
     date:new Date().toISOString().slice(0,10),
     title:'Re: '+name,
     bodyHtml:refLine+'<p></p>',
@@ -14689,7 +14945,7 @@ function _atlasSpawnTask(type,id){
   const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
   const title=prompt('Task title:','Follow up on '+name);if(title===null)return;
   const task={
-    id:'t_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    id:nextId(D.tasks||[]),
     title:title.trim()||('Follow up on '+name),
     notes:refLine,
     status:'todo',priority:'medium',due:'',startDate:'',myDay:false,
@@ -14823,8 +15079,15 @@ function _finSave(){
     const b=D._sharedBudgets&&D._sharedBudgets[_finShared]; if(!b)return;
     clearTimeout(_finPushTimer);
     _finPushTimer=setTimeout(async()=>{
-      try{ const res=await _trpc('appData.updateSharedFinance',{ownerUserId:Number(b.ownerUserId)||0,finance:JSON.stringify(b.finance)},'mutation');
-        if(!res||!res.ok)toast({type:'error',title:'Budget not synced',msg:(res&&res.error)||'Try again.'});
+      try{ const res=await _trpc('appData.updateSharedFinance',{ownerUserId:Number(b.ownerUserId)||0,finance:JSON.stringify(b.finance),baseRev:Number(b.finance&&b.finance._rev)||0},'mutation');
+        if(res&&res.ok){ if(b.finance&&res.rev!=null)b.finance._rev=res.rev; }
+        else if(res&&res.conflict&&res.finance){
+          // Someone (the owner, a bank sync, another editor) changed the budget
+          // since this copy loaded: take theirs instead of overwriting it.
+          b.finance=res.finance; if(curScreen==='money')renderMoney();
+          toast({type:'warning',title:'Budget changed elsewhere',msg:'It was updated since you opened it, so your last change was not saved. The latest version is showing now — please make the change again.',duration:9000});
+        }
+        else toast({type:'error',title:'Budget not synced',msg:(res&&res.error)||'Try again.'});
       }catch(e){ toast({type:'error',title:'Budget not synced',msg:String(e&&e.message||e).slice(0,120)}); }
     },1200);
   } else { try{save('finance');}catch(_){} }
@@ -15340,7 +15603,12 @@ function finSaveTx(id){
 function finDeleteTx(id){
   if(_finGuard())return;
   const f=_finData(); const i=f.transactions.findIndex(x=>String(x.id)===String(id));
-  if(i<0)return; f.transactions.splice(i,1); _finSave(); renderMoney();
+  if(i<0)return;
+  // Remember deleted bank transactions so the next sync (which re-pulls a
+  // 7-day overlap) doesn't import them again.
+  const bid=f.transactions[i].bankTxId||f.transactions[i].sophtronId;
+  if(bid){ f.settings=f.settings||{}; const g=Array.isArray(f.settings.deletedBankTxIds)?f.settings.deletedBankTxIds:[]; if(!g.includes(bid))g.push(bid); f.settings.deletedBankTxIds=g.slice(-3000); }
+  f.transactions.splice(i,1); _finSave(); renderMoney();
 }
 // ── recurring mark + reminder tasks (build -177) ───────────────────────
 /* "↻ Recurring" links a transaction to a Bill (the app's recurring-expense
@@ -16496,7 +16764,7 @@ function finAICatApply(){
 }
 // ── transaction dedupe key ─────────────────────────────────────────────
 function _finTxKey(t){ const bid=t.bankTxId||t.sophtronId; return bid?('s:'+bid):(String(t.date||'')+'|'+Math.round((t.amount||0)*100)+'|'+String(t.payee||'').toLowerCase().slice(0,40)); }
-function _finTxKeySet(){ const s=new Set(); _finData().transactions.forEach(t=>s.add(_finTxKey(t))); return s; }
+function _finTxKeySet(){ const f=_finData(); const s=new Set(); f.transactions.forEach(t=>s.add(_finTxKey(t))); ((f.settings&&f.settings.deletedBankTxIds)||[]).forEach(b=>s.add('s:'+b)); return s; }
 
 // ── SimpleFIN: Settings panel ──────────────────────────────────────────
 async function _hydrateSimplefinPanel(){
@@ -16622,6 +16890,9 @@ async function sfSyncAll(btn){
   if(_finShared!=null){toast('Switch to your own budget to sync banks.');return;}
   if(btn){btn.disabled=true;btn.textContent='⟳ Syncing…';}
   try{
+    // Push any pending Money edit first, so the server merge starts from it
+    // and the reload below doesn't throw it away.
+    if(_dirtyKeys.has('finance')){try{clearTimeout(_syncTimers['finance']);}catch(_){}await _pushKeyToServer('finance');}
     const res=await _trpc('simplefin.autoSyncNow',undefined,'mutation');
     if(!res||!res.ok){toast({type:'error',title:'Sync failed',msg:(res&&res.error)||'Try again.'});return;}
     if(typeof loadServerData==='function')await loadServerData();

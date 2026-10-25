@@ -64,6 +64,10 @@ export function mergeSimplefinPull(fin: any, sfAccounts: any[], nowYmd: string):
   };
   const seen = new Set<string>();
   fin.transactions.forEach((t: any) => { const b = t.bankTxId || t.sophtronId; if (b) seen.add('s:' + b); });
+  // Bank transactions the user deleted stay deleted: every sync re-pulls a
+  // 7-day overlap, which used to bring them straight back.
+  const gone = Array.isArray(fin.settings?.deletedBankTxIds) ? fin.settings.deletedBankTxIds : [];
+  gone.forEach((b: any) => { if (b) seen.add('s:' + b); });
 
   for (const sf of sfAccounts) {
     const sfId = String(sf.id ?? '');
@@ -183,6 +187,7 @@ export async function runSimplefinAutoSync(opts?: { userId?: number; force?: boo
       const billsPaid = reconcileBills(cur, nowYmd.slice(0, 7));
       cur.settings = cur.settings && typeof cur.settings === 'object' ? cur.settings : {};
       cur.settings._autoSyncLastAt = new Date().toISOString();
+      cur._rev = (Number(cur._rev) || 0) + 1; // shared co-editors must reload before writing
       await db.update(userAppData).set({ finance: JSON.stringify(cur) }).where(eq(userAppData.userId, row.userId));
       out.synced++; out.added += res.added;
       const errs = (Array.isArray(payload?.errors) ? payload.errors : []).map((e: any) => String(e).slice(0, 120));

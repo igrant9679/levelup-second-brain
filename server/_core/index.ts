@@ -23,6 +23,7 @@ import { startCoachCron } from "./coachCron";
 import { startPmCron } from "./pmDelegation";
 import { startSimplefinAutoSyncCron } from "./simplefinAutoSync";
 import { startAutomationCron } from "./automationEngine";
+import { startBackupCron } from "./backup";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -415,6 +416,8 @@ async function startServer() {
     try { startPmCron(); } catch (e) { console.error('[startup] pm cron failed:', e); }
     // Kick off the automation rules cron (15-min granularity).
     try { startAutomationCron(); } catch (e) { console.error('[startup] automation cron failed:', e); }
+    // Nightly encrypted, verified database backup to private storage (build -226).
+    try { startBackupCron(); } catch (e) { console.error('[startup] backup cron failed:', e); }
     // Atlas integration env-var boot diagnostic. Prints only the
     // configured/length status — never the value — so logs are safe.
     try {

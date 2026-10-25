@@ -581,6 +581,10 @@ export const userAppData = mysqlTable('user_app_data', {
   decks: mediumtext('decks'),         // JSON array of presentation/slide-deck objects (migration 0048 — shareable)
   finance: mediumtext('finance'),     // JSON object: Money page — accounts/transactions/budgets/bills/goals (migration 0049)
   calGrid: mediumtext('calGrid'),     // JSON array: the calendar grid's own events (_calEvents) — server-synced since migration 0053
+  // JSON object {tasks?:id[], notes?:id[], ideas?:id[]} — each list's display order (migration 0057).
+  // Per-item sync (build -226) no longer delete+re-inserts rows, so PK order stops
+  // matching the user's order; load() sorts by this list instead.
+  entityOrder: mediumtext('entityOrder'),
   updatedAt: timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
   idxUserId: index('idx_uad_user_id').on(t.userId),
