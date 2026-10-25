@@ -43,9 +43,9 @@ export const automationsRouter = router({
     .input(z.object({
       name: z.string().min(1).max(255),
       trigger: triggerEnum,
-      triggerConfig: z.record(z.unknown()).optional(),
+      triggerConfig: z.record(z.string(), z.unknown()).optional(),
       action: actionEnum,
-      actionConfig: z.record(z.unknown()).optional(),
+      actionConfig: z.record(z.string(), z.unknown()).optional(),
       enabled: z.boolean().default(true),
     }))
     .mutation(async ({ input, ctx }) => {
@@ -67,9 +67,9 @@ export const automationsRouter = router({
       id: z.number().int(),
       name: z.string().min(1).max(255).optional(),
       trigger: triggerEnum.optional(),
-      triggerConfig: z.record(z.unknown()).nullable().optional(),
+      triggerConfig: z.record(z.string(), z.unknown()).nullable().optional(),
       action: actionEnum.optional(),
-      actionConfig: z.record(z.unknown()).nullable().optional(),
+      actionConfig: z.record(z.string(), z.unknown()).nullable().optional(),
       enabled: z.boolean().optional(),
     }))
     .mutation(async ({ input, ctx }) => {

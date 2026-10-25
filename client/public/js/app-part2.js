@@ -329,7 +329,7 @@ function renderSettingsHTML(){
           <input type="time" class="inp" style="height:24px;font-size:11px;width:90px" value="${esc(s.end||'12:00')}" onchange="updateThemeSchedule(${s.id},{end:this.value})">
         </div>
         <div style="display:flex;gap:2px">
-          ${dayLbl.map((d,di)=>{const on=(s.days||[0,1,2,3,4,5,6]).includes(di);return `<span title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][di]}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;${on?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t3)'}" onclick="(function(){const arr=(D.prefs.themeSchedule.find(x=>x.id===${s.id}).days||[]).slice();const i=arr.indexOf(${di});if(i>=0)arr.splice(i,1);else arr.push(${di});updateThemeSchedule(${s.id},{days:arr});renderScreen('settings')})()">${d}</span>`;}).join('')}
+          ${dayLbl.map((d,di)=>{const on=(s.days||[0,1,2,3,4,5,6]).includes(di);return `<span title="${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][di]}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;${on?'background:var(--ac);color:#fff':'background:var(--s3);color:var(--t3)'}" onclick="(function(){const arr=(D.prefs.themeSchedule.find(x=>x.id==${_tidLit(s.id)}).days||[]).slice();const i=arr.indexOf(${di});if(i>=0)arr.splice(i,1);else arr.push(${di});updateThemeSchedule(${s.id},{days:arr});renderScreen('settings')})()">${d}</span>`;}).join('')}
         </div>
         <button class="btn btn-d" style="height:22px;font-size:11px" onclick="deleteThemeSchedule(${s.id})">✕</button>
       </div>`).join('')}</div>`;
@@ -3139,9 +3139,10 @@ function buildNotifs(){
   }
   // ---- Goal Deadline Alerts (always on) ----
   if(!quiet){
-    D.goals.filter(g=>g.due&&g.pct<100).forEach(g=>{
-      const daysLeft=Math.ceil((new Date(g.due)-new Date())/(1000*60*60*24));
-      if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:fmtDate(g.due),read:false,action:()=>{toggleNotifPanel();nav('goals');}});
+    D.goals.filter(g=>_goalDue(g)&&(g.pct||0)<100).forEach(g=>{
+      const _gd=String(_goalDue(g));const _gdd=/^\d{4}-\d{2}-\d{2}$/.test(_gd)?new Date(_gd+'T00:00'):new Date(_gd);
+      const daysLeft=Math.ceil((_gdd-new Date())/(1000*60*60*24));
+      if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:fmtDate(_goalDue(g)),read:false,action:()=>{toggleNotifPanel();nav('goals');}});
     });
   }
   // ---- Snoozed tasks due back today ----
@@ -3255,6 +3256,18 @@ function snoozeNotif(id,durationMs){
   updateSidebarBadges();
   toast('⏰ Snoozed for '+label);
 }
+function _saveExpandedDoc(){
+  const c=window._expandDocCtx||{title:'',tags:[]};
+  const content=(document.getElementById('expand-doc-body')||{}).value||'';
+  const now=new Date().toISOString();
+  D.notes.push({id:nextId(D.notes),title:'[Doc] '+c.title,body:content,tags:[...c.tags,'ai-expanded'],createdAt:now,updatedAt:now,updated:now,pinned:false});
+  save('notes');renderNotes();closeModal();
+  toast('✓ Expanded document saved as new note!');
+}
+function _runNotif(id){
+  const f=window._notifActions&&window._notifActions[String(id)];
+  if(typeof f==='function'){try{f();}catch(e){console.warn('[notifications] action failed',e);}}
+}
 function renderNotifPanel(){
   const list=document.getElementById('notif-list');
   if(!list)return;
@@ -3271,12 +3284,17 @@ function renderNotifPanel(){
     return;
   }
   const typeColor={warning:'var(--red)',info:'var(--ac)',habit:'var(--ok)',goal:'var(--warn)',snooze:'var(--purp)'};
+  // Keep each action as a live function and call it by id. Serialising it
+  // with action.toString() into onclick lost the variables it closed over
+  // (the task, the seen-key…), so clicks threw and opened nothing.
+  window._notifActions={};
+  notifs.forEach(n=>{if(typeof n.action==='function')window._notifActions[String(n.id)]=n.action;});
   list.innerHTML=notifs.map(n=>{
     const isRead=readIds.has(n.id);
     return`<div style="display:flex;gap:10px;padding:10px 8px;border-radius:8px;transition:background .15s;border-bottom:1px solid var(--bd1);${isRead?'opacity:.55':''}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''">
-      <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="(${n.action.toString()})()">${n.icon}</div>
-      <div style="flex:1;min-width:0;cursor:pointer" onclick="(${n.action.toString()})()">
-        <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${n.title}${isRead?'<span style="font-size:11px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
+      <div style="font-size:18px;flex-shrink:0;width:28px;text-align:center;cursor:pointer" onclick="_runNotif('${_jsAttr(String(n.id))}')">${n.icon}</div>
+      <div style="flex:1;min-width:0;cursor:pointer" role="button" tabindex="0" onclick="_runNotif('${_jsAttr(String(n.id))}')" onkeydown="if(event.key==='Enter'){_runNotif('${_jsAttr(String(n.id))}')}">
+        <div style="font-size:11px;font-weight:600;color:${typeColor[n.type]||'var(--t1)'}">${esc(n.title)}${isRead?'<span style="font-size:11px;color:var(--t3);margin-left:4px">✓ read</span>':''}</div>
         <div style="font-size:11px;color:var(--t1);margin:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(n.body)}</div>
         <div style="font-size:11px;color:var(--t3)">${n.time}</div>
       </div>
@@ -3458,7 +3476,7 @@ function aiConceptLink(id){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🔗 Concept Links</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Notes sharing concepts with <strong>${esc(n.title)}</strong>:</div>
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Shared keywords: ${topWords.slice(0,5).map(w=>`<span style="background:var(--acs);color:var(--ac);padding:1px 5px;border-radius:8px;margin-right:3px">${w}</span>`).join('')}</div>
-  <div style="max-height:280px;overflow-y:auto">${linked.map(({note,matches})=>`<div style="padding:8px;margin-bottom:5px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${note.id})">
+  <div style="max-height:280px;overflow-y:auto">${linked.map(({note,matches})=>`<div style="padding:8px;margin-bottom:5px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${_tidLit(note.id)})">
     <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(note.title)}</div>
     <div style="font-size:11px;color:var(--t3)">${matches} shared concept${matches!==1?'s':''} · ${(note.tags||[]).map(t=>'#'+t).join(' ')}</div>
   </div>`).join('')}</div>
@@ -3523,7 +3541,7 @@ function aiNoteQA(){
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🤔 Q&A Over Your Notes</h2>
   <div style="background:var(--acs);border:1px solid var(--ac);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;font-style:italic">“${esc(question)}”</div>
   <div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px">MOST RELEVANT NOTES (${scored.length}):</div>
-  <div style="max-height:280px;overflow-y:auto">${scored.map(({n,matches,bestSentence})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">
+  <div style="max-height:280px;overflow-y:auto">${scored.map(({n,matches,bestSentence})=>`<div style="padding:8px;margin-bottom:6px;border-radius:6px;background:var(--s2);cursor:pointer" onclick="closeModal();showNoteInEditor(${_tidLit(n.id)})">
     <div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(n.title)} <span style="font-size:11px;color:var(--t3);font-weight:400">${matches} match${matches!==1?'es':''}</span></div>
     ${bestSentence?`<div style="font-size:11px;color:var(--t2);line-height:1.5">“${esc(bestSentence.slice(0,120))}${bestSentence.length>120?'…':''}”</div>`:''}
   </div>`).join('')}</div>
@@ -3558,16 +3576,15 @@ function aiExpandToDoc(id){
   expanded+=`## Next Steps\n\n- [ ] Review and validate key findings\n- [ ] Share with relevant stakeholders\n- [ ] Schedule follow-up discussion\n\n`;
   expanded+=`---\n\n*Generated from note: ${title}*`;
   const m=document.getElementById('modal-content');
+  // The save handler reads these instead of having the title and tags
+  // JSON-encoded into a double-quoted onclick (the first quote ended the
+  // attribute, so "Save as New Note" never worked).
+  window._expandDocCtx={title:String(title||''),tags:Array.isArray(n.tags)?n.tags.slice():[]};
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">📄 Expanded Document</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:8px">Type: ${docType} · ${sentences.length} sentences expanded</div>
-  <textarea id="expand-doc-body" class="inp" style="height:260px;font-size:11px;font-family:monospace;resize:vertical">${expanded}</textarea>
+  <textarea id="expand-doc-body" class="inp" style="height:260px;font-size:11px;font-family:monospace;resize:vertical">${esc(expanded)}</textarea>
   <div style="display:flex;gap:8px;margin-top:10px">
-  <button class="btn btn-p" onclick="(function(){
-    const content=document.getElementById('expand-doc-body').value;
-    D.notes.push({id:Date.now(),title:'[Doc] '+${JSON.stringify(title)},body:content,tags:[...(${JSON.stringify(n.tags||[])}||[]),'ai-expanded'],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),pinned:false});
-    save('notes');renderNotes();closeModal();
-    toast('✓ Expanded document saved as new note!');
-  })()">Save as New Note</button>
+  <button class="btn btn-p" onclick="_saveExpandedDoc()">Save as New Note</button>
   <button class="btn btn-s" onclick="navigator.clipboard.writeText(document.getElementById('expand-doc-body').value).then(()=>toast('✓ Copied!')).catch(()=>toast('Copy failed'))">Copy</button>
   <button class="btn btn-s" onclick="closeModal()">Discard</button>
   </div>`;
@@ -4410,25 +4427,73 @@ function recurringOffset(cadence){
   if(cadence==='Weekly')return 7;
   if(cadence==='Bi-weekly')return 14;
   if(cadence==='Monthly')return 30;
+  if(cadence==='Yearly')return 365;
   return 0;
+}
+// The next due date for a recurring task, as local YYYY-MM-DD. Honours the
+// drawer's Advanced rule (interval, weekdays, until, count) — before this the
+// rule was saved but nothing read it: the server generator only reads a table
+// column the mirror never filled, and this spawner only knew fixed offsets
+// (Monthly drifted by 30 days, Yearly never spawned). Completion-spawning here
+// is the one generator; the server engine stays idle so tasks aren't doubled.
+// Returns null when the series has ended.
+function _nextRecurringDue(task){
+  const rule=(typeof _parseRecurrenceRule==='function')?_parseRecurrenceRule(task.recurrenceRule):{};
+  const map={Daily:'daily',Weekly:'weekly','Bi-weekly':'weekly',Monthly:'monthly',Yearly:'yearly'};
+  const freq=rule.freq||map[task.recurring];
+  if(!freq)return null;
+  let n=parseInt(rule.interval,10);
+  if(!Number.isFinite(n)||n<1)n=task.recurring==='Bi-weekly'?2:1;
+  const m=String(task.due||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const base=m?new Date(+m[1],+m[2]-1,+m[3]):new Date();
+  base.setHours(0,0,0,0);
+  let d=new Date(base);
+  if(freq==='daily')d.setDate(d.getDate()+n);
+  else if(freq==='weekly'){
+    const days=Array.isArray(rule.byDay)?rule.byDay.map(Number).filter(x=>x>=0&&x<=6).sort((a,b)=>a-b):[];
+    if(!days.length)d.setDate(d.getDate()+7*n);
+    else{
+      const later=days.find(x=>x>base.getDay());
+      if(later!=null)d.setDate(d.getDate()+(later-base.getDay()));
+      // Past the last chosen weekday: the first one, N weeks on.
+      else d.setDate(d.getDate()-base.getDay()+7*n+days[0]);
+    }
+  }else if(freq==='monthly'||freq==='yearly'){
+    const day=base.getDate();
+    d=new Date(base.getFullYear()+(freq==='yearly'?n:0),base.getMonth()+(freq==='monthly'?n:0),1);
+    // Clamp the 31st to the month's last day instead of rolling over.
+    d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
+  }else return null;
+  const ymd=_ymd(d);
+  if(rule.until&&ymd>String(rule.until))return null;
+  const idx=(parseInt(task._recurrenceIndex,10)||1)+1;
+  if(rule.count&&idx>rule.count)return null;
+  return {due:ymd,shift:Math.round((d-base)/86400000),idx};
+}
+function _shiftYmd(s,n){
+  const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m)return s||'';
+  return _ymd(new Date(+m[1],+m[2]-1,+m[3]+n));
 }
 function maybeSpawnRecurring(task){
   if(!task.recurring||task.recurring==='None')return;
-  const offset=recurringOffset(task.recurring);
-  if(!offset)return;
+  const next=_nextRecurringDue(task);
+  if(!next)return;
   // Avoid duplicates: check if a future instance already exists
-  const alreadyExists=D.tasks.some(t=>t._recurringFrom===task.id&&t.status!=='Done');
+  const alreadyExists=D.tasks.some(t=>t._recurringFrom!=null&&String(t._recurringFrom)===String(task.id)&&t.status!=='Done');
   if(alreadyExists)return;
   const newTask=Object.assign({},task,{
     id:nextId(D.tasks),
     status:'Not Started',
     myDay:false,
     doneToday:false,
+    completedAt:null,
     subtasks:(task.subtasks||[]).map(s=>({...s,done:false})),
-    due:addDays(task.due,offset),
-    startDate:addDays(task.startDate,offset),
-    endDate:addDays(task.endDate,offset),
+    due:task.due?next.due:'',
+    startDate:_shiftYmd(task.startDate,next.shift),
+    endDate:_shiftYmd(task.endDate,next.shift),
     _recurringFrom:task.id,
+    _recurrenceIndex:next.idx,
   });
   D.tasks.push(newTask);
   save('tasks');
@@ -5046,6 +5111,10 @@ let _faReflections=[]; // goal check-ins
 let _faDecisionAlts=[]; // note decision alternatives
 let _faMeetingActions=[]; // meeting action items
 let _faCustomDays=[]; // habit custom days
+// Set by "+ New task for this opportunity" (window._faPrefill): the task this
+// form creates is linked to the opportunity. Nothing read the prefill before,
+// so those tasks never appeared in the opportunity drawer.
+let _faOppLink=null;
 let _faSessionScope={personal:true,business:false}; // persists across Save & Add Another
 let _faSessionTags=[]; // persists across Save & Add Another
 let _faEditId=null; // journal id when the Full Add modal is editing an existing entry
@@ -5089,6 +5158,8 @@ function openFA(type,editId){
   _faDecisionAlts=[];
   _faMeetingActions=[];
   _faCustomDays=[];
+  _faOppLink=(type==='task'&&window._faPrefill&&window._faPrefill.linkedOpportunityId)?window._faPrefill:null;
+  window._faPrefill=null;
   const ov=document.getElementById('fa-modal-ov');
   const body=document.getElementById('fa-modal-body');
   const title=document.getElementById('fa-modal-title');
@@ -5931,6 +6002,7 @@ function doFASave(addAnother){
         subtasks:_faSubtasks.filter(s=>s.title.trim()).map((s,i)=>({id:i+1,...s})),
         linkedNoteIds:_faLinked.notes,
         predecessorIds:_faLinked.tasks,
+        ...(_faOppLink?{linkedOpportunityId:String(_faOppLink.linkedOpportunityId)}:{}),
         comments:[],createdBy:D.creds.userName||'Idris Grant',
         createdAt:new Date().toISOString()
       };
@@ -6529,7 +6601,7 @@ function paintBookmarks(){
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
         <div class="tb-s" style="max-width:280px;flex:1">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input placeholder="Search bookmarks..." value="${esc(_bkSearch)}" oninput="_bkSearch=this.value;_bkPage=1;clearTimeout(window._bkDebounce);window._bkDebounce=setTimeout(renderBookmarks,300)">
+          <input placeholder="Search bookmarks..." value="${esc(_bkSearch)}" oninput="_bkSearch=this.value;_bkPage=1;clearTimeout(window._bkDebounce);window._bkDebounce=setTimeout(()=>_keepFocus(renderBookmarks),300)">
         </div>
         <select class="inp" style="width:auto;height:32px;font-size:11px" onchange="_bkSort=this.value;_bkPage=1;renderBookmarks()">
           <option value="newest" ${_bkSort==='newest'?'selected':''}>Newest</option>
@@ -7077,7 +7149,7 @@ function renderContacts(){
     </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
-    <input class="inp" style="flex:1;min-width:180px;max-width:320px;height:30px;font-size:11px" placeholder="Search contacts…" value="${esc(_contactSearch)}" oninput="_contactSearch=this.value;renderContacts()">
+    <input class="inp" style="flex:1;min-width:180px;max-width:320px;height:30px;font-size:11px" placeholder="Search contacts…" value="${esc(_contactSearch)}" oninput="_contactSearch=this.value;_keepFocus(renderContacts)">
     <select class="inp" style="height:30px;font-size:11px;max-width:160px" onchange="_contactTagFilter=this.value;renderContacts()">
       <option value="">All tags</option>
       ${allTags.map(t=>`<option value="${esc(t)}" ${_contactTagFilter===t?'selected':''}>${esc(t)}</option>`).join('')}
@@ -7353,7 +7425,7 @@ function openContactDetail(id){
       const dueStr=t.due?new Date(t.due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'No due date';
       const overdue=!done&&t.due&&t.due<new Date().toISOString().split('T')[0];
       return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;background:var(--s2);margin-bottom:4px;${done?'opacity:.55':''}">` +
-        `<button onclick="toggleTask(${t.id});openContactDetail(${c.id})" title="${done?'Mark open':'Mark done'}" style="flex-shrink:0;margin-top:1px;width:16px;height:16px;border-radius:50%;border:2px solid ${done?'var(--ok)':'var(--bd2)'};background:${done?'var(--ok)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">${done?'✓':''}</button>` +
+        `<button onclick="toggleTask(${_tidLit(t.id)});openContactDetail(${c.id})" title="${done?'Mark open':'Mark done'}" style="flex-shrink:0;margin-top:1px;width:16px;height:16px;border-radius:50%;border:2px solid ${done?'var(--ok)':'var(--bd2)'};background:${done?'var(--ok)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">${done?'✓':''}</button>` +
         `<div style="flex:1;min-width:0">` +
           `<div style="font-size:11px;font-weight:600;${done?'text-decoration:line-through;color:var(--t3)':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</div>` +
           `<div style="display:flex;gap:6px;align-items:center;margin-top:2px;flex-wrap:wrap">` +
@@ -10405,7 +10477,7 @@ function renderHelpDrawer(q){
   </div>`:''}
 
   <div style="position:relative;margin-bottom:14px">
-    <input class="inp" placeholder="Search help…" value="${esc(q)}" oninput="renderHelpDrawer(this.value)" style="width:100%;padding-left:32px;font-size:12px">
+    <input class="inp" placeholder="Search help…" value="${esc(q)}" oninput="_keepFocus(()=>renderHelpDrawer(this.value))" style="width:100%;padding-left:32px;font-size:12px">
     <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--t3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
   </div>
 
@@ -10418,7 +10490,7 @@ function renderHelpDrawer(q){
     <div style="display:flex;flex-direction:column;gap:6px">${HC_TOURS.slice(0,3).map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
       <span style="font-size:18px">${t.type==='onboarding'?'🚀':'🎯'}</span>
       <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${t.steps.length} steps · ~${t.est} min</div></div>
-      <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">Start</button>
+      <button class="btn-p" onclick="launchTour(${_tidLit(t.id)})" style="font-size:11px">Start</button>
     </div>`).join('')}</div>
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--br);display:flex;gap:6px">
       <button onclick="_helpTab='ask';nav('help');closeHelpDrawer()" class="btn-s" style="font-size:11px;flex:1">🤖 Ask AI</button>
@@ -12029,14 +12101,14 @@ function mmDrawNodes(){
     const fill = n.color||'#3b82f6';
     const shape = n.shape||'rect';
     // Subitems (M3) — only render when there are any
-    const subHtml=(n.subItems&&n.subItems.length)?`<div class="mm-node-subitems">${n.subItems.map((s,i)=>`<div class="mm-node-subitem ${s.done?'done':''}" onclick="event.stopPropagation();mmToggleSubItem(${n.id},${i})"><span class="chk"></span><span>${esc(s.text||'')}</span></div>`).join('')}<div class="mm-node-subitem-add" onclick="event.stopPropagation();mmAddSubItem(${n.id})">+ add sub-item</div></div>`:'';
+    const subHtml=(n.subItems&&n.subItems.length)?`<div class="mm-node-subitems">${n.subItems.map((s,i)=>`<div class="mm-node-subitem ${s.done?'done':''}" onclick="event.stopPropagation();mmToggleSubItem(${_tidLit(n.id)},${i})"><span class="chk"></span><span>${esc(s.text||'')}</span></div>`).join('')}<div class="mm-node-subitem-add" onclick="event.stopPropagation();mmAddSubItem(${_tidLit(n.id)})">+ add sub-item</div></div>`:'';
     // Collapse triangle (M13) — only when this node has children
     const hasKids=_mmHasChildren(n.id);
-    const collapseBtn=hasKids?`<span class="mm-node-collapse" title="${n.collapsed?'Expand subtree':'Collapse subtree'}" onclick="event.stopPropagation();mmToggleCollapse(${n.id})">${n.collapsed?'▸':'▾'}</span>`:'';
+    const collapseBtn=hasKids?`<span class="mm-node-collapse" title="${n.collapsed?'Expand subtree':'Collapse subtree'}" onclick="event.stopPropagation();mmToggleCollapse(${_tidLit(n.id)})">${n.collapsed?'▸':'▾'}</span>`:'';
     const iconHtml=n.icon?`<span class="mm-node-icon">${n.icon}</span>`:'';
     const textHtml=editing
-      ? `<input class="mm-node-edit" value="${esc(n.text||'')}" onclick="event.stopPropagation()" onkeydown="mmInlineEditKey(event,${n.id})" onblur="mmInlineEditCommit(${n.id},this.value)" autofocus>`
-      : `<span class="mm-node-text" ondblclick="event.stopPropagation();mmStartInlineEdit(${n.id})">${esc(n.text||'(empty)')}</span>`;
+      ? `<input class="mm-node-edit" value="${esc(n.text||'')}" onclick="event.stopPropagation()" onkeydown="mmInlineEditKey(event,${_tidLit(n.id)})" onblur="mmInlineEditCommit(${_tidLit(n.id)},this.value)" autofocus>`
+      : `<span class="mm-node-text" ondblclick="event.stopPropagation();mmStartInlineEdit(${_tidLit(n.id)})">${esc(n.text||'(empty)')}</span>`;
     return `<div class="mm-node ${sel?'mm-selected':''} ${connecting?'mm-connecting-from':''}" data-id="${n.id}" data-shape="${shape}"
       style="left:${n.x * _mmZoom + _mmPan.x}px;top:${n.y * _mmZoom + _mmPan.y}px;
         transform:translate(-50%,-50%) scale(${_mmZoom});
@@ -12047,9 +12119,9 @@ function mmDrawNodes(){
         font-weight:${n.isRoot?'700':'500'};
         flex-direction:${(n.subItems&&n.subItems.length)?'column':'row'};
         align-items:${(n.subItems&&n.subItems.length)?'stretch':'center'}"
-      onmousedown="mmNodeMouseDown(event,${n.id})"
-      onclick="mmNodeClick(event,${n.id})"
-      oncontextmenu="mmNodeContext(event,${n.id})">
+      onmousedown="mmNodeMouseDown(event,${_tidLit(n.id)})"
+      onclick="mmNodeClick(event,${_tidLit(n.id)})"
+      oncontextmenu="mmNodeContext(event,${_tidLit(n.id)})">
       <div style="display:flex;align-items:center;gap:6px;width:100%">${iconHtml}${textHtml}${collapseBtn}</div>
       ${subHtml}
     </div>`;
@@ -15532,7 +15604,7 @@ function _finTxHtml(){
     ${_finTxRange==='custom'?`<input class="inp" type="date" value="${esc(_finTxFrom)}" style="height:28px;font-size:11px;width:auto" onchange="_finTxFrom=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">
     <span style="font-size:11px;color:var(--t3)">→</span>
     <input class="inp" type="date" value="${esc(_finTxTo)}" style="height:28px;font-size:11px;width:auto" onchange="_finTxTo=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()" title="Leave empty for 'through today'">`:''}
-    <input class="inp" placeholder="🔍 Search payee / notes…" value="${esc(_finTxSearch)}" style="flex:1;min-width:140px;height:28px;font-size:11px" oninput="_finTxSearch=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">
+    <input class="inp" placeholder="🔍 Search payee / notes…" value="${esc(_finTxSearch)}" style="flex:1;min-width:140px;height:28px;font-size:11px" oninput="_finTxSearch=this.value;_keepFocus(()=>{document.getElementById('fin-body').innerHTML=_finTxHtml();})">
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:180px" onchange="_finTxCat=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()"><option value="">All categories</option>${_finCatOptions(_finTxCat)}</select>
     <select class="inp" style="height:28px;font-size:11px;width:auto;max-width:150px" onchange="_finTxAcct=this.value;document.getElementById('fin-body').innerHTML=_finTxHtml()">${_finAcctOptions(_finTxAcct).replace('(no account)','All accounts')}</select>
     <span class="fin-chip">${rows.length} · net ${_finFmt(total,0)}</span>
@@ -17196,25 +17268,38 @@ function _finSimulatePayoff(extra,strategy){
 function _finWhatIfHtml(){
   const base=_finSimulatePayoff(0,_finWhatIfStrategy);
   if(!base)return '';
-  const sim=_finSimulatePayoff(_finWhatIfExtra,_finWhatIfStrategy);
-  const dateAt=m=>_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+m,1));
   return `<div class="fin-card" style="margin-top:12px"><h3>🎛 What-if: pay debt faster</h3>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:10px">
-      Extra per month: <b style="min-width:64px">${_finFmt(_finWhatIfExtra,0)}</b>
-      <input type="range" min="0" max="3000" step="50" value="${_finWhatIfExtra}" style="flex:1;min-width:160px;max-width:300px" oninput="_finWhatIfExtra=parseInt(this.value);document.getElementById('fin-whatif').innerHTML=_finWhatIfHtml()">
-      <select class="inp" style="height:26px;font-size:11px;width:auto" onchange="_finWhatIfStrategy=this.value;document.getElementById('fin-whatif').innerHTML=_finWhatIfHtml()">
+      Extra per month: <b id="fin-whatif-amt" style="min-width:64px">${_finFmt(_finWhatIfExtra,0)}</b>
+      <input type="range" min="0" max="3000" step="50" value="${_finWhatIfExtra}" aria-label="Extra paid toward debt per month" style="flex:1;min-width:160px;max-width:300px" oninput="_finWhatIfExtra=parseInt(this.value)||0;_finWhatIfRefresh()">
+      <select class="inp" style="height:26px;font-size:11px;width:auto" onchange="_finWhatIfStrategy=this.value;_finWhatIfRefresh()">
         <option value="snowball" ${_finWhatIfStrategy==='snowball'?'selected':''}>Snowball (smallest first)</option>
         <option value="avalanche" ${_finWhatIfStrategy==='avalanche'?'selected':''}>Avalanche (highest APR first)</option>
       </select>
     </div>
+    <div id="fin-whatif-out">${_finWhatIfResults(base)}</div>
+  </div>`;
+}
+// Re-renders only the numbers. The slider used to rebuild the whole card —
+// itself included — on every input event, so a drag stopped after one step.
+function _finWhatIfRefresh(){
+  const amt=document.getElementById('fin-whatif-amt');
+  if(amt)amt.textContent=_finFmt(_finWhatIfExtra,0);
+  const out=document.getElementById('fin-whatif-out');
+  if(out)out.innerHTML=_finWhatIfResults(_finSimulatePayoff(0,_finWhatIfStrategy));
+}
+function _finWhatIfResults(base){
+  if(!base)return '';
+  const sim=_finSimulatePayoff(_finWhatIfExtra,_finWhatIfStrategy);
+  const dateAt=m=>_finYM(new Date(new Date().getFullYear(),new Date().getMonth()+m,1));
+  return `
     <div class="fin-kpis" style="margin-bottom:8px">
       <div class="fin-kpi"><div class="n">${sim.months} mo</div><div class="l">Debt-free ${dateAt(sim.months)}${_finWhatIfExtra?` (was ${base.months} mo)`:''}</div></div>
       <div class="fin-kpi"><div class="n" style="color:${_finWhatIfExtra&&base.interest-sim.interest>0?'var(--ok)':'var(--t1)'}">${_finFmt(sim.interest,0)}</div><div class="l">Interest paid${_finWhatIfExtra?` · saves ${_finFmt(Math.max(0,base.interest-sim.interest),0)}`:''}</div></div>
       <div class="fin-kpi"><div class="n">${_finFmt(sim.budget,0)}</div><div class="l">Monthly toward debt</div></div>
     </div>
     <div style="font-size:11px;color:var(--t3);line-height:1.7">${sim.payoffs.slice(0,12).map(p=>`<span class="fin-chip" style="margin:2px 3px 2px 0">${esc(p.name.slice(0,22))} → ${dateAt(p.month)}</span>`).join('')}</div>
-    <div style="font-size:11px;color:var(--t3);margin-top:6px">Payments roll: when a debt clears, its payment (plus the extra) attacks the next one. Interest uses each account's APR where set — add APRs in Accounts → ✏ for honest numbers.</div>
-  </div>`;
+    <div style="font-size:11px;color:var(--t3);margin-top:6px">Payments roll: when a debt clears, its payment (plus the extra) attacks the next one. Interest uses each account's APR where set — add APRs in Accounts → ✏ for honest numbers.</div>`;
 }
 // ── extra reports: credit utilization + category trend explorer ────────
 if(typeof FIN_REPORTS!=='undefined'){

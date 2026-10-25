@@ -717,6 +717,14 @@ function luRTE_htmlToMd(html){
 // Local YYYY-MM-DD for a date (defaults to now). Use this instead of
 // toISOString().split('T')[0] — that returns the UTC day, which is wrong
 // (off by one) for users west of UTC during the evening.
+// Every task status, in workflow order. Each status picker reads this list —
+// the drawer had no Someday, so a Someday task opened in it showed
+// "Not Started" and saving silently pulled it back into the active list.
+const TASK_STATUSES=['Not Started','Pending','Scheduled','In Progress','Done','Someday'];
+function _statusOptions(cur){
+  const list=TASK_STATUSES.includes(cur)||!cur?TASK_STATUSES:[cur,...TASK_STATUSES];
+  return list.map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join('');
+}
 function _ymd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // Platform detection for keyboard-shortcut hints — Mac/iOS show ⌘, everything else Ctrl.
 const _isMac=/Mac|iPhone|iPod|iPad/i.test((navigator.platform||'')+' '+(navigator.userAgent||''));
@@ -2291,21 +2299,21 @@ function _renderMiniWeekStrip(){
   const dayLetters=['S','M','T','W','T','F','S'];
   const cells=Array.from({length:7},(_,i)=>{
     const d=new Date(today);d.setDate(d.getDate()+i);
-    const k=d.toISOString().slice(0,10);
+    const k=_ymd(d);
     const isToday=i===0;
     const taskCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k)).length;
     const evtCount=_calEventsOn(d).length;
     const dots=[];
     if(taskCount)dots.push(`<span class="lu-mini-week-dot" title="${taskCount} task${taskCount===1?'':'s'}"></span>`);
     if(evtCount)dots.push(`<span class="lu-mini-week-dot evt" title="${evtCount} event${evtCount===1?'':'s'}"></span>`);
-    return `<div class="lu-mini-week-cell ${isToday?'today':''}" onclick="nav('cal')" title="${d.toDateString()}${taskCount?` · ${taskCount} task${taskCount===1?'':'s'}`:''}${evtCount?` · ${evtCount} event${evtCount===1?'':'s'}`:''}">
+    return `<div class="lu-mini-week-cell ${isToday?'today':''}" role="button" tabindex="0" onclick="_openCalDay('${k}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_openCalDay('${k}')}" title="${d.toDateString()}${taskCount?` · ${taskCount} task${taskCount===1?'':'s'}`:''}${evtCount?` · ${evtCount} event${evtCount===1?'':'s'}`:''}">
       <span class="lu-mini-week-dow">${dayLetters[d.getDay()]}</span>
       <span class="lu-mini-week-num">${d.getDate()}</span>
       <span class="lu-mini-week-dots">${dots.join('')}</span>
     </div>`;
   }).join('');
   const html=`<div class="lu-mini-week" id="lu-mini-week">
-    <div class="lu-mini-week-h"><span>Next 7 Days</span><a onclick="nav('cal')">Open calendar →</a></div>
+    <div class="lu-mini-week-h"><span>Next 7 Days</span><a href="javascript:void(0)" onclick="nav('calendar')">Open calendar →</a></div>
     <div class="lu-mini-week-grid">${cells}</div>
   </div>`;
   // Inject as the FIRST child of every visible right rail.
@@ -3207,7 +3215,7 @@ function _gatherRelevantContent(query, opts){
     if(t.status === 'Done' && !opts.includeDone) continue;
     const bodyText = t.description || t.notes || '';
     const score = _relevanceScore({title:t.title, body:bodyText, updated:t.updated || t.createdAt}, queryTerms);
-    if(score > 0 || !queryTerms[0]) candidates.push({type:'task', id:t.id, title:t.title, snippet:_bodySnippet(bodyText, maxBodyChars), score, meta:`${t.priority||'Medium'}${t.due?' · due '+t.due:''}${t.project?' · '+t.project:''}`, openFn:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`, icon:'☑'});
+    if(score > 0 || !queryTerms[0]) candidates.push({type:'task', id:t.id, title:t.title, snippet:_bodySnippet(bodyText, maxBodyChars), score, meta:`${t.priority||'Medium'}${t.due?' · due '+t.due:''}${t.project?' · '+t.project:''}`, openFn:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`, icon:'☑'});
   }
   // External tasks.
   for(const et of (D.externalTasks || [])){
@@ -4175,10 +4183,10 @@ function renderDrawer(type,item){
       const hasDesc=!!(s.descHtml&&s.descHtml.trim());
       return `<div style="border:1px solid var(--bd1);border-radius:6px;margin-bottom:4px;overflow:hidden">
         <div class="lr" style="padding:4px 6px;background:var(--s2)">
-          <div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${item.id},${si})"></div>
+          <div class="chk ${s.done?'on':''}" onclick="toggleSubtask(${_tidLit(item.id)},${si})"></div>
           <span class="rt" style="flex:1;font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span>
           <button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px;margin-left:4px" onclick="(function(){const d=document.getElementById('${descId}');if(d)d.style.display=d.style.display==='none'?'block':'none'})()" title="Toggle description">${hasDesc?'📝':'+ desc'}</button>
-          <span onclick="deleteSubtask(${item.id},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px" title="Delete subtask">✕</span>
+          <span onclick="deleteSubtask(${_tidLit(item.id)},${si})" style="cursor:pointer;color:var(--t3);font-size:11px;margin-left:4px" title="Delete subtask">✕</span>
         </div>
         <div id="${descId}" style="display:${hasDesc?'block':'none'};padding:6px;background:var(--s1);border-top:1px solid var(--bd1)">
           <div style="display:flex;flex-wrap:wrap;gap:2px;padding:3px 5px;background:var(--s2);border:1px solid var(--bd1);border-bottom:none;border-radius:5px 5px 0 0">
@@ -4190,7 +4198,7 @@ function renderDrawer(type,item){
           </div>
           <div id="st-rte-${item.id}-${si}" contenteditable="true" spellcheck="true"
             style="min-height:60px;max-height:200px;overflow-y:auto;padding:7px;background:var(--s1);border:1px solid var(--bd1);border-radius:0 0 5px 5px;font-size:11px;line-height:1.6;color:var(--t1);outline:none"
-            oninput="(function(el){const t=D.tasks.find(x=>x.id===${item.id});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)"
+            oninput="(function(el){const t=D.tasks.find(x=>x.id==${_tidLit(item.id)});if(t&&t.subtasks[${si}])t.subtasks[${si}].descHtml=el.innerHTML;save('tasks');})(this)"
           >${s.descHtml||''}</div>
         </div>
       </div>`;
@@ -4209,7 +4217,7 @@ function renderDrawer(type,item){
     </div>
     <div class="field-row">
       <div class="field"><label>Priority</label><select class="inp" id="dr-pri"><option ${item.priority==='High'?'selected':''}>High</option><option ${item.priority==='Medium'?'selected':''}>Medium</option><option ${item.priority==='Low'?'selected':''}>Low</option></select></div>
-      <div class="field"><label>Status</label><select class="inp" id="dr-status"><option ${item.status==='Not Started'?'selected':''}>Not Started</option><option ${item.status==='Pending'?'selected':''}>Pending</option><option ${item.status==='In Progress'?'selected':''}>In Progress</option><option ${item.status==='Scheduled'?'selected':''}>Scheduled</option><option ${item.status==='Done'?'selected':''}>Done</option></select></div>
+      <div class="field"><label>Status</label><select class="inp" id="dr-status">${_statusOptions(item.status||'Not Started')}</select></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Start Date</label><input class="inp" type="date" value="${esc(item.startDate||item.due||'')}" id="dr-startdate"></div>
@@ -4225,7 +4233,7 @@ function renderDrawer(type,item){
       <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Context<button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="manageTaskContexts()" title="Add, rename, or remove options">⚙ Manage</button></label>${_renderContextSelect('dr-ctx',item.context||'')}</div>
     </div>
     <div class="field-row">
-      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Recurring<button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_toggleRecurrenceAdvanced(${item.id})" title="Advanced: weekday picker, end date, count">⚙ Advanced</button></label><select class="inp" id="dr-recurring" onchange="_onRecurringChange(${item.id})"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option><option ${item.recurring==='Yearly'?'selected':''}>Yearly</option></select>
+      <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Recurring<button type="button" class="btn btn-s" style="height:18px;font-size:10px;padding:0 6px" onclick="_toggleRecurrenceAdvanced(${_tidLit(item.id)})" title="Advanced: weekday picker, end date, count">⚙ Advanced</button></label><select class="inp" id="dr-recurring" onchange="_onRecurringChange(${_tidLit(item.id)})"><option ${(item.recurring||'None')==='None'?'selected':''}>None</option><option ${item.recurring==='Daily'?'selected':''}>Daily</option><option ${item.recurring==='Weekly'?'selected':''}>Weekly</option><option ${item.recurring==='Bi-weekly'?'selected':''}>Bi-weekly</option><option ${item.recurring==='Monthly'?'selected':''}>Monthly</option><option ${item.recurring==='Yearly'?'selected':''}>Yearly</option></select>
         <div id="dr-recurring-adv" style="display:none;margin-top:6px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px">
           ${(()=>{const r=_parseRecurrenceRule(item.recurrenceRule);const days=['S','M','T','W','T','F','S'];return `
           <div style="font-size:11px;color:var(--t3);margin-bottom:6px">Fine-tune the recurrence rule (writes <code>recurrenceRule</code> JSON for the server-side generator).</div>
@@ -4250,13 +4258,13 @@ function renderDrawer(type,item){
     <div class="field">
       <label style="display:flex;align-items:center;justify-content:space-between">
         Notes
-        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${item.id})">✨ AI Compose</button>
+        <button type="button" id="btn-dr-task-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeTaskNotes(${_tidLit(item.id)})">✨ AI Compose</button>
       </label>
       ${luRTE_render({id:'dr-notes-rte', placeholder:'Notes, context, decisions…', value:(item.notesHtml||item.notes||''), height:'120px'})}
     </div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:11px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${item.id})">🧩 AI Suggest Subtasks</button></label>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Subtasks ${subs.length?`<span style="font-size:11px;color:var(--t3)">(${doneCount}/${subs.length} done)</span>`:'<span></span>'}<button type="button" id="btn-dr-task-ai-subs" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--purp)" onclick="aiSuggestSubtasks(${_tidLit(item.id)})">🧩 AI Suggest Subtasks</button></label>
     <div id="subtask-list">${subHtml}</div>
-    <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${item.id})}"><button class="btn btn-s" onclick="addSubtask(${item.id})">+ Add</button></div>
+    <div style="display:flex;gap:6px;margin-top:6px"><input class="inp" placeholder="Add subtask..." id="new-subtask" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubtask(${_tidLit(item.id)})}"><button class="btn btn-s" onclick="addSubtask(${_tidLit(item.id)})">+ Add</button></div>
     ${_renderRealSubtasksSection(item)}
     </div>
     <!-- Linked Items — chip-based picker so it's obvious what's actually
@@ -4266,13 +4274,13 @@ function renderDrawer(type,item){
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="field"><label>Comments / Activity</label>
-    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${item.id},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
-    <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${item.id})}"><button class="btn btn-s" onclick="addTaskComment(${item.id})">Post</button></div>
+    <div id="task-comments" style="max-height:140px;overflow-y:auto;margin-bottom:6px">${(function(comments){if(!comments||!comments.length)return "<div style='font-size:10px;color:var(--t3);padding:4px 0'>No comments yet.</div>";return comments.map((c,ci)=>{const isOwn=c.author===(D.creds.userName||(D.teams[0]&&D.teams[0].members[0]&&D.teams[0].members[0].name)||'Idris');return `<div style="padding:5px 0;border-bottom:1px solid var(--s3)"><div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--t3);margin-bottom:2px"><span>${esc(c.author||'Idris')}</span><div style="display:flex;gap:4px;align-items:center"><span>${c.ts||''}</span>${isOwn?`<span onclick="editTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--ac);font-size:11px" title="Edit">✏</span><span onclick="deleteTaskComment(${_tidLit(item.id)},${ci})" style="cursor:pointer;color:var(--red);font-size:11px" title="Delete">✕</span>`:''}</div></div><div style="font-size:11px">${esc(c.text)}</div></div>`;}).join('');})(item.comments||[])}</div>
+    <div style="display:flex;gap:6px"><input class="inp" placeholder="Add a comment..." id="new-comment" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTaskComment(${_tidLit(item.id)})}"><button class="btn btn-s" onclick="addTaskComment(${_tidLit(item.id)})">Post</button></div>
     </div>
     <div class="dr-actions">
-    <button class="btn btn-p" onclick="saveItem('task',${item.id})">Save Changes</button>
-    <button class="btn btn-s" title="${item.pushedTo&&item.pushedTo.source==='nifty'?'Already pushed to Nifty · click to open it':'Create this task in NiftyPM (project, assignee, dates, status)'}" onclick="${item.pushedTo&&item.pushedTo.url?`window.open('${esc(item.pushedTo.url)}','_blank','noopener')`:`openPushToNiftyModal(${item.id})`}">↗ ${item.pushedTo&&item.pushedTo.source==='nifty'?'Open in Nifty':'Push to Nifty'}</button>
-    <button class="btn btn-d" onclick="deleteItem('task',${item.id})">Delete</button>
+    <button class="btn btn-p" onclick="saveItem('task',${_tidLit(item.id)})">Save Changes</button>
+    <button class="btn btn-s" title="${item.pushedTo&&item.pushedTo.source==='nifty'?'Already pushed to Nifty · click to open it':'Create this task in NiftyPM (project, assignee, dates, status)'}" onclick="${item.pushedTo&&item.pushedTo.url?`window.open('${esc(item.pushedTo.url)}','_blank','noopener')`:`openPushToNiftyModal(${_tidLit(item.id)})`}">↗ ${item.pushedTo&&item.pushedTo.source==='nifty'?'Open in Nifty':'Push to Nifty'}</button>
+    <button class="btn btn-d" onclick="deleteItem('task',${_tidLit(item.id)})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
    if(type==='note'){
@@ -4329,13 +4337,13 @@ function renderDrawer(type,item){
     <div style="margin-top:12px;padding:10px;background:var(--s2);border-radius:6px;border:1px solid var(--bd1)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span style="font-size:11px;font-weight:600;color:var(--t2)">🔗 Related Bookmarks</span>
-        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${item.id})">+ Link</button>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="showLinkBookmarkPanel('note',${_tidLit(item.id)})">+ Link</button>
       </div>
       <div id="related-bk-note-${item.id}" style="font-size:11px;color:var(--t3)">Loading...</div>
     </div>
     <div class="dr-actions">
-    <button class="btn btn-p" onclick="saveItem('note',${item.id})">Save Changes</button>
-    <button class="btn btn-d" onclick="deleteItem('note',${item.id})">Delete</button>
+    <button class="btn btn-p" onclick="saveItem('note',${_tidLit(item.id)})">Save Changes</button>
+    <button class="btn btn-d" onclick="deleteItem('note',${_tidLit(item.id)})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='program'){
@@ -4357,8 +4365,8 @@ function renderDrawer(type,item){
       </div>
     </div>
     <div class="dr-actions">
-      <button class="btn btn-p" onclick="saveItem('program',${item.id})">Save</button>
-      <button class="btn btn-d" onclick="deleteItem('program',${item.id})">Delete</button>
+      <button class="btn btn-p" onclick="saveItem('program',${_tidLit(item.id)})">Save</button>
+      <button class="btn btn-d" onclick="deleteItem('program',${_tidLit(item.id)})">Delete</button>
       <button class="btn btn-s" onclick="closeDrawer()">Cancel</button>
     </div>`;
   }
@@ -4371,19 +4379,19 @@ function renderDrawer(type,item){
     <div class="field-row"><div class="field"><label>Due</label><input class="inp" value="${esc(item.due)}" id="dr-due"></div>
     <div class="field"><label>Progress %</label><input type="number" class="inp" value="${item.pct}" min="0" max="100" id="dr-pct"></div></div>
     <div class="field"><label>Assignees <span style="font-size:11px;color:var(--t3);font-weight:400">★=Primary Responsible</span></label>${buildMultiAssignee('dr-proj-ma',item)}</div>
-    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${item.id})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
+    <div class="field"><label style="display:flex;align-items:center;justify-content:space-between">Description<button type="button" id="btn-dr-proj-ai-desc" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px;color:var(--ac)" onclick="aiComposeProjectDesc(${_tidLit(item.id)})">✨ AI Describe</button></label><textarea class="inp" id="dr-body">${esc(item.desc||'')}</textarea></div>
     ${_renderProjectEditTasksSection(item.id)}
     <div class="field" style="margin-top:14px">
       <label style="display:flex;align-items:center;justify-content:space-between">
         <span>Custom Fields</span>
-        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openCustomFieldEditor(${item.id})">+ Add field</button>
+        <button type="button" class="btn btn-s" style="height:22px;font-size:11px;padding:0 8px" onclick="_openCustomFieldEditor(${_tidLit(item.id)})">+ Add field</button>
       </label>
       <div id="proj-custom-fields-list" style="margin-top:4px;padding:8px;background:var(--s2);border:1px solid var(--bd1);border-radius:6px;font-size:11px;color:var(--t3)">Loading…</div>
     </div>
     <div class="dr-actions">
-    <button class="btn btn-p" onclick="saveItem('project',${item.id})">Save</button>
-    <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${item.id})">🧩 AI Suggest Tasks</button>
-    <button class="btn btn-d" onclick="deleteItem('project',${item.id})">Delete</button>
+    <button class="btn btn-p" onclick="saveItem('project',${_tidLit(item.id)})">Save</button>
+    <button class="btn btn-s" style="color:var(--purp)" onclick="aiSuggestProjectTasks(${_tidLit(item.id)})">🧩 AI Suggest Tasks</button>
+    <button class="btn btn-d" onclick="deleteItem('project',${_tidLit(item.id)})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='goal'){
@@ -4405,8 +4413,8 @@ function renderDrawer(type,item){
     </div>
     <div class="field"><label>Linked Tasks</label><div style="max-height:120px;overflow-y:auto;border:1px solid var(--bd2);border-radius:5px;padding:4px">${D.tasks.map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:2px 4px;cursor:pointer;font-size:11px"><input type="checkbox" ${(item.linkedTaskIds||[]).includes(t.id)?'checked':''} data-tid="${t.id}" class="goal-task-cb"> ${esc(t.title)}</label>`).join('')}</div></div>
     <div class="dr-actions">
-    <button class="btn btn-p" onclick="saveItem('goal',${item.id})">Save</button>
-    <button class="btn btn-d" onclick="deleteItem('goal',${item.id})">Delete</button>
+    <button class="btn btn-p" onclick="saveItem('goal',${_tidLit(item.id)})">Save</button>
+    <button class="btn btn-d" onclick="deleteItem('goal',${_tidLit(item.id)})">Delete</button>
     <button class="btn btn-s" onclick="closeDrawer()">Cancel</button></div>`;
   }
   if(type==='journal'){
@@ -4436,18 +4444,55 @@ function renderDrawer(type,item){
       <div id="dr-task-links" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px"></div>
     </div>
     <div class="dr-actions">
-    <button class="btn btn-p" onclick="saveItem('journal',${item.id})">Save</button>
-    <button class="btn btn-s" onclick="closeDrawer();openFA('journal',${item.id})" title="Edit every field: energy, reflection prompts, highlights, gratitude, sleep, exercise, tags and more">${_icon('edit',12,'currentColor')} Edit all fields</button>
-    <button class="btn btn-s" onclick="shareJournalEntry(${item.id})">📤 Share / Copy</button>
-    <button class="btn btn-s" onclick="exportSingleJournalMD(${item.id})" title="Export this entry as Markdown">⬇ MD</button>
-    <button class="btn btn-s" onclick="exportSingleJournalPDF(${item.id})" title="Export this entry as PDF">🖨 PDF</button>
-    <button class="btn btn-d" onclick="deleteItem('journal',${item.id})">Delete</button></div>`;
+    <button class="btn btn-p" onclick="saveItem('journal',${_tidLit(item.id)})">Save</button>
+    <button class="btn btn-s" onclick="closeDrawer();openFA('journal',${_tidLit(item.id)})" title="Edit every field: energy, reflection prompts, highlights, gratitude, sleep, exercise, tags and more">${_icon('edit',12,'currentColor')} Edit all fields</button>
+    <button class="btn btn-s" onclick="shareJournalEntry(${_tidLit(item.id)})">📤 Share / Copy</button>
+    <button class="btn btn-s" onclick="exportSingleJournalMD(${_tidLit(item.id)})" title="Export this entry as Markdown">⬇ MD</button>
+    <button class="btn btn-s" onclick="exportSingleJournalPDF(${_tidLit(item.id)})" title="Export this entry as PDF">🖨 PDF</button>
+    <button class="btn btn-d" onclick="deleteItem('journal',${_tidLit(item.id)})">Delete</button></div>`;
   }
   return `<h2>Details ${cb}</h2><p>Details view for this item.</p>`;
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 // Safe to drop inside a single-quoted JS string literal inside an HTML
 // attribute. Escapes backslash, single quote, and HTML-escapes the rest.
+// An id as a JS literal for an inline handler: numbers (and numeric strings)
+// stay bare, exactly as before; other ids (server-promoted subtasks "s1716…",
+// older Atlas items "n_…") are quoted — unquoted, they were read as variable
+// names and the click threw before doing anything.
+// Run a re-render without losing the text box being typed in. Search boxes
+// that re-render their whole page replaced themselves on every keystroke, so
+// typing stopped after one letter. The box is found again by id, or by its
+// placeholder (unique on each page), and gets focus and caret back.
+function _keepFocus(fn){
+  const a=document.activeElement;
+  let key=null,s=null,e=null;
+  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA')){
+    const esc2=v=>(window.CSS&&CSS.escape)?CSS.escape(v):String(v).replace(/["\\]/g,'\\$&');
+    key=a.id?'#'+esc2(a.id):(a.placeholder?a.tagName.toLowerCase()+'[placeholder="'+esc2(a.placeholder)+'"]':null);
+    try{s=a.selectionStart;e=a.selectionEnd;}catch(_){}
+  }
+  const r=fn();
+  if(key){
+    const n=document.querySelector(key);
+    if(n&&n!==document.activeElement){
+      n.focus();
+      try{if(s!=null)n.setSelectionRange(s,e);}catch(_){}
+    }
+  }
+  return r;
+}
+function _tidLit(id){
+  if(typeof id==='number'&&Number.isFinite(id))return String(id);
+  const s=String(id==null?'':id);
+  return /^-?\d+(\.\d+)?$/.test(s)?s:"'"+_jsAttr(s)+"'";
+}
+// Any value as a JS literal inside a DOUBLE-quoted on*="…" attribute: the
+// JSON is HTML-escaped, and the browser decodes it back before running it.
+// (A raw JSON.stringify there ends the attribute at its first quote.)
+function _jsArg(v){
+  return JSON.stringify(v===undefined?null:v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 function _jsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // ── CSV / HTML EXPORT HELPERS ────────────────────────────────────────────────
 // Convert a JS value into a CSV-safe cell. Quotes if needed; escapes embedded quotes.
@@ -5529,8 +5574,8 @@ function taskRow(t,showActs=true){
   const _todayForRow=(new Date()).toISOString().split('T')[0];
   const isOverdueTask=t.status!=='Done'&&t.due&&t.due<_todayForRow;
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
-  const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${t.id},event)"></div>`:
-    `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div>`;
+  const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${_tidLit(t.id)},event)"></div>`:
+    `<div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})"></div>`;
   // Blocked indicator: task is blocked if any predecessor task is not Done
   const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{
     const pred=D.tasks.find(x=>x.id===pid);
@@ -5538,18 +5583,18 @@ function taskRow(t,showActs=true){
   });
   const blockedLabel=isBlocked?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600" title="Blocked by incomplete predecessor tasks">🔒 Blocked</span>`:'';
   const isTimerActive=_timerTaskId===t.id;
-  const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${t.id},event)">${isTimerActive?'⏹':'▶'}</button>`;
+  const timerBtn=`<button id="timer-btn-${t.id}" class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;${isTimerActive?'background:var(--red);color:#fff':''}" title="${isTimerActive?'Stop timer':'Start timer'}" onclick="event.stopPropagation();startTaskTimer(${_tidLit(t.id)},event)">${isTimerActive?'⏹':'▶'}</button>`;
   const timeLabel=t.timeSpent?`<span style="font-size:11px;color:var(--t3);white-space:nowrap" title="Time spent">${t.timeSpent}m</span>`:
     (isTimerActive?`<span id="timer-display-${t.id}" style="font-size:11px;color:var(--red);white-space:nowrap;font-variant-numeric:tabular-nums">0m 0s</span>`:'');
-  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${t.id})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)">⬡</button>${t.pushedTo&&t.pushedTo.source==='nifty'?`<a class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;color:#a78bfa;text-decoration:none" title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}`;
+  const blockBtn=`<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Block time in Calendar" onclick="event.stopPropagation();blockTaskTime(${_tidLit(t.id)})">📅</button><button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="${t.clusterId?'In cluster: '+esc(((D.clusters||[]).find(c=>c.id===t.clusterId)||{}).name||'')+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>${t.pushedTo&&t.pushedTo.source==='nifty'?`<a class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px;color:#a78bfa;text-decoration:none" title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}`;
   const _tcStyle=t.titleColor?`color:${t.titleColor};font-weight:600`:'';
   // K: subtask progress chip
   const _subs=Array.isArray(t.subtasks)?t.subtasks:[];
   const _subDone=_subs.filter(s=>s.done).length;
   const _subChip=_subs.length?`<span class="lu-subtask-chip ${_subDone===_subs.length?'done':''}" title="${_subDone} of ${_subs.length} subtask${_subs.length===1?'':'s'} done">☑ ${_subDone}/${_subs.length}</span>`:'';
   // E: clickable priority + status pills with inline picker
-  const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')">${t.priority}</span>`;
-  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${t.id})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${t.id})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${t.id})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${t.id})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${t.id})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${t.id})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${t.id})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${t.id})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
+  const priPillClickable=`<span class="pill ${pillClass(t.priority)} lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')">${t.priority}</span>`;
+  return `<div class="lr ${isOverdueTask?'lr-overdue':''}" data-task-id="${t.id}" style="${_bulkSelected.has(t.id)?'background:var(--acs)':isOverdueTask?'border-left:2px solid var(--red)':isBlocked?'border-left:2px solid var(--red)':''}" onclick="${_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`}">${bulkChk}<span class="rt" style="${_tcStyle}">${esc(t.title)}</span>${_subChip}${isOverdueTask?`<span style="font-size:11px;color:var(--red);white-space:nowrap;font-weight:600">⚠ Overdue</span>`:''} ${blockedLabel}${priPillClickable}<span class="rm" style="${isOverdueTask?'color:var(--red);font-weight:600':''}">${t.due?fmtDate(t.due):''}</span>${t.assignedTo?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${esc(t.assignedTo.split(' ')[0])}</span>`:''} ${timeLabel}${showActs?`<span class="acts">${timerBtn}<button class="btn btn-s" style="height:20px;font-size:10px;padding:0 5px" title="Snooze…" onclick="event.stopPropagation();_taskSnoozePopover(event,${_tidLit(t.id)})">⏰</button><button class="lr-row-acts-toggle" title="More actions" onclick="event.stopPropagation();_taskRowMoreToggle(event,${_tidLit(t.id)})">⋮</button><div class="lr-row-acts-pop" id="lr-row-acts-${t.id}">${blockBtn ? `<button onclick="event.stopPropagation();_closeAllRowActs();blockTaskTime(${_tidLit(t.id)})">${_icon('calendar',12,'currentColor')} Block time in Calendar</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();delegateTask(${_tidLit(t.id)})">📤 Delegate</button><button onclick="event.stopPropagation();_closeAllRowActs();aiSuggestDelegate(${_tidLit(t.id)})">🤖 AI suggest delegate</button>${t.blockedBy?`<button onclick="event.stopPropagation();_closeAllRowActs();aiUnblockTask(${_tidLit(t.id)})">🔓 AI unblock</button>`:''}<button onclick="event.stopPropagation();_closeAllRowActs();moveSomeday(${_tidLit(t.id)})">${isSomeday?'📥 Move to Inbox':'💤 Move to Someday'}</button><button onclick="event.stopPropagation();_closeAllRowActs();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">✏ Full edit</button><button onclick="event.stopPropagation();_closeAllRowActs();deleteItem('task',${_tidLit(t.id)})" style="color:var(--red)">✕ Delete</button></div></span>`:''}</div>`;
 }
 function addTaskComment(taskId){
   const inp=document.getElementById('new-comment');
@@ -6122,7 +6167,7 @@ function _taskPillPicker(e,id,field){
   const t=D.tasks.find(x=>x.id===id);if(!t)return;
   const old=document.getElementById('task-pill-pop');if(old)old.remove();
   const r=e.currentTarget.getBoundingClientRect();
-  const opts=field==='priority'?['High','Medium','Low']:['Not Started','In Progress','Done','Someday'];
+  const opts=field==='priority'?['High','Medium','Low']:TASK_STATUSES;
   const pop=document.createElement('div');
   pop.id='task-pill-pop';pop.className='lu-pill-pop';
   pop.style.left=Math.min(window.innerWidth-150,r.left)+'px';
@@ -6830,7 +6875,7 @@ function openTimeBlockPicker(taskId){
   const m=document.getElementById('modal-content');
   if(!m){toast({type:'warn',title:'Modal not available'});return;}
   const fmt=mins=>String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
-  const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${JSON.stringify(taskId).replace(/&quot;/g,'&quot;')},${s.startMins},${s.endMins})">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">No free slots fit ' +_fmtHm(dur)+' today. Try the AI Smart Plan to reorganise around your meetings.</div>';
+  const slotButtons=slots.length?slots.slice(0,24).map(s=>`<button class="btn btn-s" style="height:30px;font-size:11px;padding:0 10px;justify-content:flex-start" onclick="_blockTaskAt(${_jsArg(taskId)},${s.startMins},${s.endMins})">${fmt(s.startMins)} – ${fmt(s.endMins)}</button>`).join(''):'<div style="font-size:11px;color:var(--t3);font-style:italic;padding:8px">No free slots fit ' +_fmtHm(dur)+' today. Try the AI Smart Plan to reorganise around your meetings.</div>';
   m.innerHTML=`<div style="padding:16px;max-width:480px">
     <h2 style="font-size:14px;font-weight:650;margin:0 0 6px">⏱ Time-block "${esc((t.title||'').slice(0,80))}"</h2>
     <div style="font-size:11px;color:var(--t3);margin-bottom:10px">Estimated ${_fmtHm(dur)}. Pick a free slot below — a linked calendar event will be created.</div>
@@ -7826,7 +7871,7 @@ function renderHome(){
   // Compute today's primary stats.
   const _stTasksToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).length;
   const _stOverdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
-  const _stMeetings=(D.calEvents||[]).filter(e=>{const d=(e.start||'').slice(0,10);return d===_todayStr;}).length;
+  const _stMeetings=_calMeetingsOn(_todayStr).length;
   const _stMyDay=D.tasks.filter(t=>t.myDay&&t.status!=='Done').length;
   const _stHabitsDone=(D.habits||[]).filter(h=>h.cadence==='Daily'&&h.doneToday).length;
   const _stHabitsTotal=(D.habits||[]).filter(h=>h.cadence==='Daily').length;
@@ -7874,7 +7919,7 @@ function renderHome(){
   //   metric (#6) so we never show a wall of zeros.
   const _overdueTasks=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).slice(0,5);
   const _todayTasks=D.tasks.filter(t=>t.status!=='Done'&&(t.due===_todayStr||t.startDate===_todayStr)).slice(0,5);
-  const _todayMeetings=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===_todayStr).slice(0,5);
+  const _todayMeetings=_calMeetingsOn(_todayStr).slice(0,5);
   const _myDayTasks=D.tasks.filter(t=>t.myDay&&t.status!=='Done').slice(0,5);
   const _habitsList=(D.habits||[]).slice(0,5);
   const _topStreaks=(D.habits||[]).filter(h=>(Number(h.streak)||0)>0).sort((a,b)=>(b.streak||0)-(a.streak||0)).slice(0,5);
@@ -7889,7 +7934,7 @@ function renderHome(){
   _tiles.push({icon:'⚠️',label:'Overdue',val:_stOverdue,color:_stOverdue?'#ef4444':'#64748b',navTo:'tasks',pop:_stOverdue?`<div style="font-weight:600;margin-bottom:4px">Overdue</div>${popList(_overdueTasks)}`:popText('Nothing overdue. Keep it up.')});
   // Tile 3 — Meetings, or Focus minutes if no meetings.
   _tiles.push(_stMeetings>0
-    ?{icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7',navTo:'cal',pop:`<div style="font-weight:600;margin-bottom:4px">Today</div>${popList(_todayMeetings)}`}
+    ?{icon:'📅',label:'Meetings',val:_stMeetings,color:'#0284c7',navTo:'calendar',pop:`<div style="font-weight:600;margin-bottom:4px">Today</div>${popList(_todayMeetings)}`}
     :{icon:'⏱',label:'Focus (min)',val:_focusToday,color:'#0284c7',navTo:'focus',pop:popText(`${_focusToday} focus minute${_focusToday===1?'':'s'} logged today.`)});
   // Tile 4 — My Day, or Best Streak if My Day empty.
   _tiles.push(_stMyDay>0
@@ -7936,7 +7981,7 @@ function renderHome(){
     // today's schedule and habit check-offs directly on Home, so the day can
     // be worked without bouncing between Home / My Day / Command Center.
     const myday=D.tasks.filter(t=>t.myDay&&t.status!=='Done').slice(0,6);
-    const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===_todayStr)
+    const evs=_calMeetingsOn(_todayStr)
       .sort((a,b)=>String(a.start).localeCompare(String(b.start))).slice(0,6);
     const daily=(D.habits||[]).filter(h=>h.cadence==='Daily').slice(0,8);
     const col=(icon,title,navRoute,inner)=>`<div class="cd" style="padding:12px;min-width:0">
@@ -7945,8 +7990,8 @@ function renderHome(){
         <span style="font-size:11px;color:var(--ac);cursor:pointer" onclick="nav('${navRoute}')">Open →</span>
       </div>${inner}</div>`;
     const taskRows=myday.length?myday.map(t=>`<div class="lr" style="padding:3px 0">
-        <div class="chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderHome,80)" title="Mark done"></div>
-        <span class="rt" style="font-size:12px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">${esc(t.title)}</span>
+        <div class="chk" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderHome,80)" title="Mark done"></div>
+        <span class="rt" style="font-size:12px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">${esc(t.title)}</span>
         ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
       </div>`).join('')
       :`<div style="font-size:11px;color:var(--t3);padding:6px 0">No My Day tasks yet — star tasks into My Day to plan your day.</div>`;
@@ -8000,7 +8045,7 @@ function renderHome(){
         else arr.sort((a,b)=>tsUpdated(b)-tsUpdated(a)); // 'recent' default
         const byRecent=arr.slice(0,5);
         const modeLabel=(_homeCardModes.notes.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('edit',15,'#f97316')} Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.length?byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No notes match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('edit',15,'#f97316')} Recent Notes</div><span class="cd-a" onclick="nav('notes')">View all</span></div>${byRecent.length?byRecent.map(n=>`<div class="lr" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))"><span class="rt">${esc(n.title)}</span><span class="rm">${fmtNoteDate(n.updated)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No notes match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Note</div></div>`;
       })(),
       projects:(()=>{
         const mode=getHomeCardMode('projects');
@@ -8018,7 +8063,7 @@ function renderHome(){
         }
         const top=arr.slice(0,5);
         const modeLabel=(_homeCardModes.projects.find(m=>m.id===mode)||{}).label||'';
-        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('folder',15,'#a855f7')} Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id===${p.id}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
+        return `<div class="cd"><div class="cd-h"><div class="cd-t" title="${esc(modeLabel)}">${_icon('folder',15,'#a855f7')} Active Projects</div><span class="cd-a" onclick="nav('projects')">View all</span></div>${top.length?top.map(p=>`<div class="lr" onclick="openDrawer('project',D.projects.find(x=>x.id==${_tidLit(p.id)}))"><span style="width:7px;height:7px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt">${p.icon?esc(p.icon)+' ':''}${esc(p.name)}</span><span class="rm">${p.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${p.pct}%;background:${p.color}"></div></div></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No projects match this filter.</div>'}<div class="add-c" onclick="openModal('capture')">+ New Project</div></div>`;
       })(),
       goals:renderGoalCards(3),
       focus:(()=>{
@@ -8173,7 +8218,7 @@ function renderHome(){
         }
         items.sort((a,b)=>a.date.localeCompare(b.date));
         const top=items.slice(0,8);
-        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id===${it.id}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
+        const body=top.length?top.map(it=>{const d=new Date(it.date+'T00:00');const days=Math.round((d-new Date(today+'T00:00'))/(1000*60*60*24));const rel=days===0?'Today':days===1?'Tomorrow':`In ${days}d`;const colorMap={High:'var(--red)',Medium:'var(--warn)',Low:'var(--ok)'};const dot=it.priority?`<span style="width:6px;height:6px;border-radius:50%;background:${colorMap[it.priority]||'var(--t3)'};flex-shrink:0"></span>`:'<span style="width:6px"></span>';const drawerType=it.type;return `<div class="lr" style="cursor:pointer" onclick="openDrawer('${drawerType}',D.${drawerType==='project'?'projects':drawerType+'s'}.find(x=>x.id==${_tidLit(it.id)}))">${dot}<span class="rt" style="font-size:11px">${esc(it.title)}</span><span style="font-size:11px;color:${days<=2?'var(--red)':'var(--t3)'}">${rel}</span></div>`;}).join(''):`<div style="font-size:11px;color:var(--t3);padding:8px;text-align:center">No deadlines in the next ${horizonDays} days 🎉</div>`;
         const subLabel=tasksOnly?`Tasks · next ${horizonDays} days`:`Next ${horizonDays} days`;
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Upcoming Deadlines</div><span class="cd-a">${subLabel}</span></div>${body}</div>`;
       })(),
@@ -8224,7 +8269,7 @@ function renderHome(){
       weekAhead:(()=>{
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
         const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
+        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=_calMeetingsOn(k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('calendar',15,'#6366f1')} Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
       })(),
       // ── Ideas Pipeline (counts by stage) ──
@@ -8448,11 +8493,12 @@ function renderHome(){
   // Always rendered on Home; collapses to a single line when external sources
   // aren't configured yet (still useful as a personal-tasks-today summary).
   const dailyCommandCenterHtml=_renderDailyCommandCenterCard();
-  r.innerHTML=dailyCommandCenterHtml+focusChartHtml+`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
-  ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:11px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:11px;color:var(--t3)">'+range+'</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>
-  <div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
-  ${D.habits.filter(h=>h.cadence==='Daily').map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();h=${h.id};D.habits.find(x=>x.id===${h.id}).doneToday=!D.habits.find(x=>x.id===${h.id}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>
+  r.innerHTML=dailyCommandCenterHtml+focusChartHtml+`${_homeVisible.has('meetings')?`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
+  ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:11px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:11px;color:var(--t3)">'+range+'</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>`:''}
+  ${_homeVisible.has('habits')?`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
+  ${D.habits.filter(h=>{const sd=typeof _habitScheduledDays==='function'?_habitScheduledDays(h):null;return sd?sd.has(new Date().getDay()):h.cadence==='Daily';}).map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();D.habits.find(x=>x.id==${_tidLit(h.id)}).doneToday=!D.habits.find(x=>x.id==${_tidLit(h.id)}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>`:''}
   ${(()=>{
+    if(!_homeVisible.has('recent'))return '';
     const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
     const typeColor={task:'var(--ac)',note:'var(--ok)',project:'var(--warn)',goal:'var(--red)',journal:'#a78bfa',habit:'#fb923c'};
     const recent=[];
@@ -8465,10 +8511,10 @@ function renderHome(){
     const top=recent.slice(0,7);
     if(!top.length)return '';
     const fmtTs=ts=>{const d=new Date(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
-    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id===${r.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
+    return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id==${_tidLit(r.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
   })()}
   ${(()=>{
-    if(!D.prefs.pinned||!D.prefs.pinned.length)return '';
+    if(!_homeVisible.has('pinned')||!D.prefs.pinned||!D.prefs.pinned.length)return '';
     const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
     const typeColor={task:'var(--ac)',note:'var(--ok)',project:'var(--warn)',goal:'var(--red)',journal:'#a78bfa',habit:'#fb923c'};
     const rows=D.prefs.pinned.map(p=>{
@@ -8476,7 +8522,7 @@ function renderHome(){
       const item=arr&&arr.find(x=>x.id===p.id);
       if(!item)return '';
       const label=item.title||item.name||'Untitled';
-      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id===${p.id}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:11px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
+      return `<div class="lr" onclick="openDrawer('${p.type}',D.${p.type==='project'?'projects':p.type==='habit'?'habits':p.type+'s'}.find(x=>x.id==${_tidLit(p.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[p.type]}22;color:${typeColor[p.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[p.type]}</span><span class="rt" style="font-size:11px">${esc(label)}</span><span style="font-size:11px;color:var(--t3);cursor:pointer" onclick="event.stopPropagation();togglePin('${p.type}',${p.id})" title="Unpin">📌</span></div>`;
     }).filter(Boolean).join('');
     if(!rows)return '';
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">📌 Pinned</span></div>${rows}</div>`;
@@ -8494,7 +8540,7 @@ function renderHome(){
     }
   }catch{ /* never break Home */ }
 }
-function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#dc2626')} Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
+function renderGoalCards(max){return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('target',15,'#dc2626')} Goals</div><span class="cd-a" onclick="nav('goals')">View all</span></div>${D.goals.slice(0,max).map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))"><span class="rt">${g.icon} ${esc(g.title)}</span><span class="rm">${g.pct}%</span><div class="pb" style="width:40px"><div class="f" style="width:${g.pct}%;background:var(--ac)"></div></div></div>`).join('')}<div class="add-c" onclick="openModal('capture')">+ New Goal</div></div>`}
 
 // Module-level task list state so tab clicks work after renderTasks() returns
 let _taskTabDefs=null;
@@ -8616,7 +8662,7 @@ async function _openSharedTaskView(idx){
   const bg=document.getElementById('modal-capture');
   if(!modal||!bg){toast('Editor not available');return;}
   const notes=String(t.notes||t.description||'').replace(/<[^>]+>/g,' ');
-  const statusOpts=['Not Started','In Progress','Scheduled','Pending','Done'];
+  const statusOpts=TASK_STATUSES;
   const priOpts=['High','Medium','Low'];
   const adminSh=['admin','owner'].includes(String((D.creds&&D.creds.role)||'').toLowerCase());
   modal.innerHTML=`<div style="padding:16px;max-width:520px">
@@ -9136,8 +9182,8 @@ function _renderRealSubtasksSection(parent){
   const childRows=children.map(c=>{
     const done=c.status==='Done';
     const od=!done&&c.due&&c.due<_todayStr;
-    return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(c.taskId||c.id)}))),120)">
-      <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${esc(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${JSON.stringify(parent.taskId||parent.id)}))),120)"></div>
+    return `<div class="lr" style="padding:5px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${_jsArg(c.taskId||c.id)}))),120)">
+      <div class="chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${typeof c.id==='number'?c.id:`'${esc(c.id)}'`});setTimeout(()=>openDrawer('task',D.tasks.find(x=>String(x.taskId||x.id)===String(${_jsArg(parent.taskId||parent.id)}))),120)"></div>
       <span class="rt" style="font-size:12px;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(c.title||'(untitled)')}</span>
       ${c.priority?`<span class="pill ${pillClass(c.priority)}" style="font-size:11px">${c.priority}</span>`:''}
       ${c.due?`<span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'}">${esc(c.due)}</span>`:''}
@@ -9159,8 +9205,8 @@ function _renderRealSubtasksSection(parent){
     </label>
     ${childRows}
     <div style="display:flex;gap:6px;margin-top:6px">
-      <input class="inp" id="new-real-subtask" placeholder="+ Add subtask as full task (Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})}">
-      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_addRealSubtask(${JSON.stringify(parent.taskId||parent.id)})">+ Add</button>
+      <input class="inp" id="new-real-subtask" placeholder="+ Add subtask as full task (Enter)" style="flex:1;font-size:11px;height:28px" onkeydown="if(event.key==='Enter'){event.preventDefault();_addRealSubtask(${_jsArg(parent.taskId||parent.id)})}">
+      <button class="btn btn-s" style="height:28px;font-size:11px" onclick="_addRealSubtask(${_jsArg(parent.taskId||parent.id)})">+ Add</button>
     </div>
   </div>`;
 }
@@ -9601,17 +9647,17 @@ function renderTaskList(){
     const createdStr=createdISO?fmtDate(createdISO.slice(0,10)):'—';
     // D: bulk checkbox column when in _bulkMode
     const bulkChk=_bulkMode
-      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)" style="width:14px;height:14px"></div>`
-      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)">`;
-    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;min-width:${rowMinW}px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${_tidLit(t.id)},event)" style="width:14px;height:14px"></div>`
+      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderCurrentTaskView,100)">`;
+    return `<div class="tl-row ${isOverdue?'tl-overdue':''} ${_bulkSelected.has(t.id)?'tl-bulk':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="true" style="display:grid;grid-template-columns:${colTpl};gap:8px;padding:9px 12px;min-width:${rowMinW}px;border:1px solid var(--bd1);border-top:none;background:${_bulkSelected.has(t.id)?'var(--acs)':'var(--s1)'};font-size:11px;align-items:center;cursor:pointer;${isOverdue?'border-left:3px solid var(--red);padding-left:9px;':''}" ondragstart="_tlDragStart(event,${_tidLit(t.id)})" ondragover="_tlDragOver(event,${_tidLit(t.id)})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${_tidLit(t.id)})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`}">
       <span class="tl-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>
       ${bulkChk}
       <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
         <span style="font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}</span>
         ${(t.tags||[]).length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${(t.tags||[]).slice(0,3).map(tg=>`<span style="font-size:11px;color:var(--t3);background:var(--s3);padding:1px 5px;border-radius:8px">#${esc(tg)}</span>`).join('')}</div>`:''}
       </div>
-      <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
-      <span class="lu-pill-clickable" title="Click to change status" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;width:fit-content">${status}</span>
+      <span class="lu-pill-clickable" title="Click to change priority" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;text-align:center;width:fit-content">${pri}</span>
+      <span class="lu-pill-clickable" title="Click to change status" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;width:fit-content">${status}</span>
       <span style="font-size:11px;color:var(--t3)">${startDate?fmtDate(startDate):'—'}</span>
       <span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t3)'};font-weight:${isOverdue?'600':'400'}">${endDate?fmtDate(endDate):'—'}</span>
       <span style="display:flex;align-items:center;gap:4px;min-width:0">
@@ -9679,7 +9725,7 @@ function renderTaskList(){
         // Find the LevelUp project (auto-created from this projectLabel) so
         // the breadcrumb clicks open that project's drawer.
         const projMatch=(D.projects||[]).find(p=>(p.name||'').toLowerCase()===(t._projectLabel||'').toLowerCase());
-        const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id===${projMatch.id}))`:`nav('projects')`;
+        const clickHandler=projMatch?`openDrawer('project',D.projects.find(x=>x.id==${_tidLit(projMatch.id)}))`:`nav('projects')`;
         breadcrumb=`<span style="font-size:11px;color:var(--t3);background:rgba(31,111,235,.12);border:1px solid color-mix(in srgb,#1f6feb 25%,transparent);padding:1px 5px;border-radius:8px;cursor:pointer" title="Open parent project in LevelUp" onclick="event.stopPropagation();${clickHandler}">${_icon('folder',12,'currentColor')} ${esc((t._projectLabel||'').slice(0,48))}</span>`;
       }
       return `<div class="tlc ${isOverdueE?'tlc-od':''} ${isSubtask?'tlc-subtask':''}" style="border:1px dashed var(--bd2);cursor:pointer;${indent};${doneExt?'opacity:.6':''}" data-ext-id="${esc(t._externalId)}" data-source="${esc(t._source)}" ${pid?`data-parent-ext-id="${esc(pid)}"`:''} onclick="_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')" title="Click row for actions (mark done, hide, annotate)">
@@ -9720,9 +9766,9 @@ function renderTaskList(){
     const initials=(assigned||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
     const subs=t.subtasks||[];const subDone=subs.filter(s=>s.done).length;
     const chk=_bulkMode
-      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)"></div>`
-      :`<div class="tlc-chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>`;
-    return `<div class="tlc ${isOverdue?'tlc-od':''} ${_bulkSelected.has(t.id)?'tlc-sel':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="${_bulkMode?'false':'true'}" ondragstart="_tlDragStart(event,${t.id})" ondragover="_tlDragOver(event,${t.id})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${t.id})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`}">
+      ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${_tidLit(t.id)},event)"></div>`
+      :`<div class="tlc-chk ${done?'on':''}" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>`;
+    return `<div class="tlc ${isOverdue?'tlc-od':''} ${_bulkSelected.has(t.id)?'tlc-sel':''}" data-task-id="${t.id}" data-pri="${esc(pri)}" data-done="${done?'1':'0'}" draggable="${_bulkMode?'false':'true'}" ondragstart="_tlDragStart(event,${_tidLit(t.id)})" ondragover="_tlDragOver(event,${_tidLit(t.id)})" ondragleave="_tlDragLeave(event)" ondrop="_tlDrop(event,${_tidLit(t.id)})" ondragend="_tlDragEnd(event)" onclick="${_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`}">
       ${_bulkMode?'':`<span class="tlc-drag" title="Drag to reorder" onclick="event.stopPropagation()">⋮⋮</span>`}
       ${chk}
       <div class="tlc-body">
@@ -9730,13 +9776,13 @@ function renderTaskList(){
         ${subs.length?`<div class="tlc-sub"><div class="tlc-sub-bar"><div style="width:${Math.round(subDone/subs.length*100)}%"></div></div><span>${subDone}/${subs.length}</span></div>`:''}
         ${(t.tags||[]).length?`<div class="tlc-tags">${(t.tags||[]).slice(0,4).map(tg=>`<span>#${esc(tg)}</span>`).join('')}</div>`:''}
         <div class="tlc-m">
-          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium}">${pri}</span>
-          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']}">${status}</span>
+          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priColors[pri]||priColors.Medium};color:${priText[pri]||priText.Medium}">${pri}</span>
+          <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']}">${status}</span>
           ${startDate?`<span>▶ ${fmtDate(startDate)}</span>`:''}
           ${endDate?`<span class="${isOverdue?'tlc-odt':''}">📅 ${fmtDate(endDate)}</span>`:''}
           ${projName?`<span>${projColor?`<i style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${projColor};margin-right:4px;vertical-align:middle"></i>`:''}${esc(projName)}</span>`:''}
           ${initials?`<span title="${esc(assigned)}">👤 ${esc(assigned.split(' ')[0])}</span>`:''}
-          ${(()=>{const cl=t.clusterId!=null?(D.clusters||[]).find(c=>String(c.id)===String(t.clusterId)):null;return _bulkMode?'':`<span class="lu-pill-clickable" title="${cl?'Cluster: '+esc(cl.name)+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${t.id},event)" style="${cl?'':'opacity:.55'}">⬡${cl?' '+esc((cl.icon?cl.icon+' ':'')+cl.name):''}</span>`;})()}
+          ${(()=>{const cl=t.clusterId!=null?(D.clusters||[]).find(c=>String(c.id)===String(t.clusterId)):null;return _bulkMode?'':`<span class="lu-pill-clickable" title="${cl?'Cluster: '+esc(cl.name)+' · click to change':'Move to a cluster'}" onclick="event.stopPropagation();openTaskClusterPicker(${_tidLit(t.id)},event)" style="${cl?'':'opacity:.55'}">⬡${cl?' '+esc((cl.icon?cl.icon+' ':'')+cl.name):''}</span>`;})()}
           ${t.pushedTo&&t.pushedTo.source==='nifty'?`<a title="Pushed to Nifty${t.pushedTo.projectName?' · '+esc(t.pushedTo.projectName):''} · open" style="color:#a78bfa;text-decoration:none" ${t.pushedTo.url?`href="${esc(t.pushedTo.url)}" target="_blank" rel="noopener"`:''} onclick="event.stopPropagation()">↗ Nifty</a>`:''}
         </div>
       </div>
@@ -9893,8 +9939,8 @@ function renderTaskFocus(){
     const pc=priColors[t.priority||'Medium']||'#f59e0b';
     const od=t.due&&t.due<today;
     const pn=proj(t);
-    return `<div class="tf-row" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
-      <div class="tf-chk" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,120)" title="Mark done"></div>
+    return `<div class="tf-row" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
+      <div class="tf-chk" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderCurrentTaskView,120)" title="Mark done"></div>
       <span class="tf-pri" style="background:${pc}" title="${t.priority||'Medium'} priority"></span>
       <div class="tf-main">
         <div class="tf-t">${esc(t.title||'Untitled')}</div>
@@ -9907,8 +9953,8 @@ function renderTaskFocus(){
         </div>
       </div>
       <div class="tf-acts" onclick="event.stopPropagation()">
-        <button title="Focus timer on this" onclick="if(typeof pomoSelectTask==='function')pomoSelectTask(${t.id});toast('🎯 Focusing: '+esc(D.tasks.find(x=>x.id===${t.id})?.title||''))">⏱</button>
-        ${t.status!=='In Progress'?`<button title="Start" onclick="const x=D.tasks.find(z=>z.id===${t.id});if(x){x.status='In Progress';save('tasks');renderCurrentTaskView();}">▶</button>`:`<span class="tf-ip">● In progress</span>`}
+        <button title="Focus timer on this" onclick="if(typeof pomoSelectTask==='function')pomoSelectTask(${_tidLit(t.id)});toast('🎯 Focusing: '+esc(D.tasks.find(x=>x.id==${_tidLit(t.id)})?.title||''))">⏱</button>
+        ${t.status!=='In Progress'?`<button title="Start" onclick="const x=D.tasks.find(z=>z.id==${_tidLit(t.id)});if(x){x.status='In Progress';save('tasks');renderCurrentTaskView();}">▶</button>`:`<span class="tf-ip">● In progress</span>`}
       </div>
     </div>`;
   }
@@ -10010,14 +10056,14 @@ function renderTaskCards(){
     const proj=projOf(t);const projName=proj?proj.name:'';const projColor=proj?proj.color:null;
     const assigned=t.assignedTo||t.createdBy||'';
     const titleStyle=done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor}`:'color:var(--t1)');
-    return `<div class="lu-task-card" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .1s,box-shadow .15s;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+    return `<div class="lu-task-card" data-task-id="${t.id}" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" style="background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${pc};border-radius:10px;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .1s,box-shadow .15s;${done?'opacity:.62':''}" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 14px rgba(0,0,0,.18)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
       <div style="display:flex;align-items:flex-start;gap:8px">
-        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>
+        <div class="tlc-chk ${done?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderCurrentTaskView,100)" title="Mark done"></div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;line-height:1.35;${titleStyle}">${esc(t.title||'Untitled')}</div>
           <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center">
-            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'priority')" style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
-            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${t.id},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'priority')" style="background:${priBg[pri]};color:${pc};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${pri}</span>
+            <span class="lu-pill-clickable" onclick="event.stopPropagation();_taskPillPicker(event,${_tidLit(t.id)},'status')" style="background:${statusColors[status]||statusColors['Not Started']};color:${statusText[status]||statusText['Not Started']};font-size:11px;font-weight:600;padding:1px 7px;border-radius:8px">${status}</span>
             ${t.due?`<span style="font-size:11px;color:${isOverdue?'var(--red)':'var(--t2)'};${isOverdue?'font-weight:600':''}">📅 ${fmtDate(t.due)}</span>`:''}
           </div>
         </div>
@@ -10028,7 +10074,7 @@ function renderTaskCards(){
           <span style="font-size:11px;color:var(--t3);font-weight:600">${subDone}/${subs.length}</span>
         </div>
         ${subs.slice(0,6).map((s,si)=>`<div class="lr" style="padding:2px 0;gap:6px" onclick="event.stopPropagation()">
-          <div class="chk ${s.done?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="toggleSubtask(${t.id},${si});setTimeout(renderCurrentTaskView,80)"></div>
+          <div class="chk ${s.done?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="toggleSubtask(${_tidLit(t.id)},${si});setTimeout(renderCurrentTaskView,80)"></div>
           <span style="font-size:11px;line-height:1.35;${s.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(s.title)}</span>
         </div>`).join('')}
         ${subs.length>6?`<div style="font-size:11px;color:var(--t3);margin-top:3px;padding-left:18px">+ ${subs.length-6} more…</div>`:''}
@@ -10098,9 +10144,13 @@ function _extStatusToBoardCol(status){
 function renderTaskBoard(){
   const list=document.getElementById('tasks-list');
   if(!list)return;
-  // Kanban columns: Not Started, In Progress, Done + Someday
+  // Kanban columns, one per status. Pending and Scheduled tasks had no
+  // column, so they vanished from the Board; any other status a task carries
+  // (imports, older data) lands in Not Started rather than nowhere.
   const cols=[
     {id:'ns',label:'Not Started',status:'Not Started',color:'var(--t3)'},
+    {id:'pd',label:'Pending',status:'Pending',color:'var(--purp)'},
+    {id:'sc',label:'Scheduled',status:'Scheduled',color:'var(--ac2,var(--ac))'},
     {id:'ip',label:'In Progress',status:'In Progress',color:'var(--ac)'},
     {id:'dn',label:'Done',status:'Done',color:'var(--ok)'},
     {id:'sd',label:'Someday',status:'Someday',color:'var(--warn)'}
@@ -10113,11 +10163,11 @@ function renderTaskBoard(){
   // read-only cards into the column matching their status.
   const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&_sourceOn(t.source)):[];
   const colHtml=cols.map(col=>{
-    const colTasks=tasks.filter(t=>t.status===col.status);
+    const colTasks=tasks.filter(t=>t.status===col.status||(col.status==='Not Started'&&!cols.some(c=>c.status===t.status)));
     const extInCol=extTasks.filter(et=>_extStatusToBoardCol(et.status)===col.status);
     const cards=colTasks.map(t=>{
       const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const pred=D.tasks.find(x=>x.id===pid);return pred&&pred.status!=='Done';});
-      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      return `<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:7px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.18)'" onmouseout="this.style.boxShadow=''" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
         <div style="font-size:11px;font-weight:500;margin-bottom:4px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
@@ -10126,8 +10176,8 @@ function renderTaskBoard(){
           ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
-          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${t.id})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
-          ${col.status!=='In Progress'?`<button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status='In Progress';save('tasks');renderTaskBoard()">▶ Start</button>`:''}
+          <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
+          ${col.status!=='In Progress'?`<button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status='In Progress';save('tasks');renderTaskBoard()">▶ Start</button>`:''}
         </div>
       </div>`;
     }).join('');
@@ -10232,7 +10282,7 @@ function renderTaskMatrix(){
           </div>
         </div>`;
       }
-      return `<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${t.id})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      return `<div class="mtx-card" data-task-id="${t.id}" draggable="true" ondragstart="_mtxDragStart(event,${_tidLit(t.id)})" ondragend="_mtxDragEnd(event)" style="background:var(--s1);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:5px;cursor:grab;font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
         <div style="font-weight:500;margin-bottom:2px;line-height:1.3;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</div>
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
@@ -10394,7 +10444,7 @@ function renderTaskGantt(){
     // Today marker offset
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
     const isExt=t._source&&t._source!=='local';
-    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t.externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
+    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t.externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
     const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
@@ -10620,7 +10670,7 @@ function renderTaskCalendar(){
           const badgeText=t._source==='smartsheet'?'CF':'LSI';
           return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px dashed ${badgeColor};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(t.title)} (open in source)"><a ${_extOpenAttrs(url)} onclick="event.stopPropagation()" style="color:var(--t1);text-decoration:none"><span style="display:inline-block;padding:0 3px;border-radius:2px;background:${badgeColor};color:#fff;font-size:7px;font-weight:700;letter-spacing:.3px;margin-right:3px">${badgeText}</span>${esc(t.title)}</a></div>`;
         }
-        return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
+        return `<div style="font-size:11px;line-height:1.3;padding:2px 4px;margin-bottom:2px;background:var(--s1);border-left:2px solid ${priText[t.priority]||'var(--t3)'};border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.status==='Done'?'text-decoration:line-through;opacity:.55;':(t.titleColor?`color:${t.titleColor};font-weight:700;`:'')}" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" title="${esc(t.title)}">${esc(t.title)}</div>`;
       }).join('')}
       ${items.length>4?`<div style="font-size:11px;color:var(--t3);padding:0 4px">+${items.length-4} more</div>`:''}
     </div>`;
@@ -10690,13 +10740,13 @@ function openTaskClusterPicker(taskId,ev){
   if(!ids.length){toast('Select at least one task first');return;}
   const single=ids.length===1?D.tasks.find(x=>x.id===ids[0]):null;
   const cur=single?single.clusterId:null;
-  const rows=(D.clusters||[]).map(cl=>`<div class="lu-cp-row${cur===cl.id?' on':''}" onclick="_clusterPickerApply(${JSON.stringify(ids)},${cl.id})"><span style="width:20px;text-align:center">${cl.icon||'📁'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.name)}</span>${cur===cl.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
+  const rows=(D.clusters||[]).map(cl=>`<div class="lu-cp-row${cur===cl.id?' on':''}" onclick="_clusterPickerApply(${_jsArg(ids)},${cl.id})"><span style="width:20px;text-align:center">${cl.icon||'📁'}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(cl.name)}</span>${cur===cl.id?'<span style="color:var(--ac)">✓</span>':''}</div>`).join('');
   const html=`<div id="lu-cluster-pick" style="position:fixed;z-index:var(--z-dropdown,600);min-width:220px;max-width:300px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;box-shadow:0 10px 32px rgba(0,0,0,.35);padding:6px;font-size:12px" onclick="event.stopPropagation()">
     <div style="font-size:10.5px;color:var(--t3);padding:4px 8px 6px;text-transform:uppercase;letter-spacing:.04em">${ids.length===1?'Move to cluster':'Move '+ids.length+' tasks to cluster'}</div>
     <div style="max-height:260px;overflow-y:auto">${rows||'<div style="padding:6px 8px;color:var(--t3)">No clusters yet</div>'}</div>
     <div style="border-top:1px solid var(--bd1);margin-top:4px;padding-top:4px">
-      <div class="lu-cp-row${cur==null&&single?' on':''}" onclick="_clusterPickerApply(${JSON.stringify(ids)},null)"><span style="width:20px;text-align:center">🗂</span><span style="flex:1">No cluster</span></div>
-      <div class="lu-cp-row" style="color:var(--ac)" onclick="_luClusterPickerClose();openClusterModal(null,{preselectTaskIds:${JSON.stringify(ids)}})"><span style="width:20px;text-align:center">＋</span><span style="flex:1">New cluster…</span></div>
+      <div class="lu-cp-row${cur==null&&single?' on':''}" onclick="_clusterPickerApply(${_jsArg(ids)},null)"><span style="width:20px;text-align:center">🗂</span><span style="flex:1">No cluster</span></div>
+      <div class="lu-cp-row" style="color:var(--ac)" onclick="_luClusterPickerClose();openClusterModal(null,{preselectTaskIds:${_jsArg(ids)}})"><span style="width:20px;text-align:center">＋</span><span style="flex:1">New cluster…</span></div>
     </div>
   </div>`;
   if(!document.getElementById('lu-cluster-pick-css')){
@@ -10800,15 +10850,15 @@ function renderTaskClusters(){
     // selection instead of marking the task Done / opening the drawer.
     const isBulkChecked=_bulkSelected&&_bulkSelected.has(t.id);
     const checkboxHtml=_bulkMode
-      ?`<div class="chk ${isBulkChecked?'on':''}" style="width:14px;height:14px;flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();toggleBulkSelect(${t.id},event)"></div>`
-      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${t.id});setTimeout(renderTaskClusters,100)">`;
-    const rowClick=_bulkMode?`toggleBulkSelect(${t.id},event)`:`openDrawer('task',D.tasks.find(x=>x.id===${t.id}))`;
+      ?`<div class="chk ${isBulkChecked?'on':''}" style="width:14px;height:14px;flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();toggleBulkSelect(${_tidLit(t.id)},event)"></div>`
+      :`<input type="checkbox" ${done?'checked':''} style="width:14px;height:14px;flex-shrink:0;cursor:pointer;accent-color:var(--ac)" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)});setTimeout(renderTaskClusters,100)">`;
+    const rowClick=_bulkMode?`toggleBulkSelect(${_tidLit(t.id)},event)`:`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
     const bulkBg=isBulkChecked?'background:var(--acs);':'';
-    return `<div class="cl-task-row" data-task-id="${t.id}" draggable="${_bulkMode?'false':'true'}" ${_bulkMode?'':`ondragstart="_clusterTaskDragStart(event,${t.id})" ondragend="_clusterTaskDragEnd(event)"`} style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative;${bulkBg}${isBulkChecked?'border-left:3px solid var(--ac);padding-left:53px':''}" onclick="${rowClick}">
+    return `<div class="cl-task-row" data-task-id="${t.id}" draggable="${_bulkMode?'false':'true'}" ${_bulkMode?'':`ondragstart="_clusterTaskDragStart(event,${_tidLit(t.id)})" ondragend="_clusterTaskDragEnd(event)"`} style="display:flex;align-items:center;gap:12px;padding:10px 14px 10px 56px;border-top:1px solid var(--bd1);cursor:pointer;position:relative;${bulkBg}${isBulkChecked?'border-left:3px solid var(--ac);padding-left:53px':''}" onclick="${rowClick}">
       ${_bulkMode?'':`<span class="cl-task-grip" style="position:absolute;left:32px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--t3);cursor:grab;user-select:none;opacity:.6" title="Drag to another cluster">⋮⋮</span>`}
       ${checkboxHtml}
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}${(()=>{if(!_isSubtaskRow(t))return '';const p=D.tasks.find(x=>String(x.id)===String(t.parentTaskId));return `<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:6px" title="A subtask filed into this cluster directly">↳ ${esc(p?p.title:'subtask')}</span>`;})()}</span>
-      ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${t.id},event)">⬡</button>`}
+      ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>`}
       <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
       ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
@@ -11246,7 +11296,7 @@ function openTaskRailCustomize(){
 function renderTaskRailHTML(){
   const today=new Date();
   const todayKey=today.toISOString().slice(0,10);
-  const evs=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  const evs=_calMeetingsOn(todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   const allTasks=D.tasks||[];
   const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
@@ -11291,7 +11341,7 @@ function renderTaskRailHTML(){
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">${_icon('calendar',14,'currentColor')} Today's Schedule</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
     })(),
     topOverdue:(()=>{
-      const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
+      const body=overdue.length?overdue.slice(0,5).map(t=>`<div class="lr" style="padding:4px 0;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span style="width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--red);flex-shrink:0">${fmtDate(t.due)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">Nothing overdue 🎉</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⚠ Top Overdue</div>${body}</div>`;
     })(),
     todayHabits:(()=>{
@@ -11301,7 +11351,7 @@ function renderTaskRailHTML(){
     })(),
     goalsSnapshot:(()=>{
       const gs=(D.goals||[]).slice(0,5);
-      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No goals yet.</div>';
+      const body=gs.length?gs.map(g=>{const pct=g.pct||0;const c=pct>=70?'var(--ok)':pct>=40?'var(--ac)':'var(--warn)';return `<div style="margin-bottom:6px;cursor:pointer" onclick="openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px"><span>${g.icon||'🎯'} ${esc(g.title)}</span><strong style="color:${c}">${pct}%</strong></div><div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${c}"></div></div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3)">No goals yet.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('target',14,'currentColor')} Goals Snapshot</div>${body}</div>`;
     })(),
     projectVelocity:(()=>{
@@ -12324,7 +12374,7 @@ function _populateMailRail(){
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Today's events</div>
-    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="nav('cal')"><span style="font-size:11px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:11px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events today.</div>'}
+    ${todayEvents.length?todayEvents.map(e=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="${_calChipClick(e)}"><span style="font-size:11px;color:var(--ac);width:42px;flex-shrink:0">${esc(_calEventTimeLabel(e))||'—'}</span><span class="rt" style="font-size:11px">${esc(e.title||'(untitled)')}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">No events today.</div>'}
   </div>
   ${topSenders.length?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">👥 Top senders</div>${topSenders.map(([n,c])=>`<div class="lr" style="padding:3px 0;font-size:11px"><span class="rt">${esc(n.slice(0,32))}</span><span style="font-size:11px;color:var(--t3)">${c}</span></div>`).join('')}</div>`:''}
   <div style="display:flex;flex-direction:column;gap:6px">
@@ -12343,7 +12393,7 @@ function _populateCalRail(){
   <div style="font-size:13px;font-weight:700;margin-bottom:10px">${_icon('list',14,'currentColor')} Today + 7 days</div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">✓ Tasks for today</div>
-    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||'M'}</span><span class="rt" style="font-size:11px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing scheduled.</div>'}
+    ${todayTasks.length?todayTasks.map(t=>`<div class="lr" style="padding:4px 0;font-size:11px;cursor:pointer" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority||'M'}</span><span class="rt" style="font-size:11px">${esc(t.title)}</span></div>`).join(''):'<div style="font-size:11px;color:var(--t3)">Nothing scheduled.</div>'}
   </div>
   <div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px">
     <div style="font-size:11px;font-weight:600;margin-bottom:6px">${_icon('calendar',14,'currentColor')} Upcoming events</div>
@@ -13164,11 +13214,11 @@ function applyNotesFilters(){
     const colorDot=n.color?`<span class="nc-color" style="background:${esc(n.color)};color:${esc(n.color)}" title="Color tag"></span>`:'';
     const pin=n.pinned?'<span class="nc-pin" title="Pinned">📌</span>':'';
     const checked=_notesBulkSelected.has(n.id);
-    const bulkCb=_notesBulkMode?`<div class="nc-bulk-cb chk ${checked?'on':''}" onclick="toggleNotesBulkSelect(${n.id},event)" style="flex-shrink:0;margin-top:3px"></div>`:'';
+    const bulkCb=_notesBulkMode?`<div class="nc-bulk-cb chk ${checked?'on':''}" onclick="toggleNotesBulkSelect(${_tidLit(n.id)},event)" style="flex-shrink:0;margin-top:3px"></div>`:'';
     const isGrid=document.body.classList.contains('notes-grid-view');
     const clickAttr=_notesBulkMode
-      ?`onclick="toggleNotesBulkSelect(${n.id},event)"`
-      :(isGrid?`onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))"`:`onclick="showNoteInEditor(${n.id})"`);
+      ?`onclick="toggleNotesBulkSelect(${_tidLit(n.id)},event)"`
+      :(isGrid?`onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))"`:`onclick="showNoteInEditor(${_tidLit(n.id)})"`);
     const bl=_blCount[n.title]||0;
     const {mins}=_readingTime(n.body||n.bodyHtml||'');
     const metaBits=[];
@@ -13176,7 +13226,7 @@ function applyNotesFilters(){
     if(bl)metaBits.push(`<span title="${bl} note${bl===1?'':'s'} link here">⛓ ${bl}</span>`);
     if(mins)metaBits.push(`<span>⏱ ${mins}m</span>`);
     metaBits.push(`<span class="nc-dim">${fmtNoteDate(n.updated)}</span>`);
-    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" draggable="${_notesBulkMode?'false':'true'}" ondragstart="_noteCardDragStart(event,${n.id})" ondragend="_noteCardDragEnd()" ${clickAttr}>
+    return `<div class="nc ${i===0&&!_notesBulkMode?'on':''} ${checked?'bulk-checked':''}" data-nid="${n.id}" draggable="${_notesBulkMode?'false':'true'}" ondragstart="_noteCardDragStart(event,${_tidLit(n.id)})" ondragend="_noteCardDragEnd()" ${clickAttr}>
       <div class="nc-row">
         ${bulkCb}
         ${colorDot}
@@ -13189,8 +13239,8 @@ function applyNotesFilters(){
         ${thumb}
       </div>
       <div class="nc-quick-actions">
-        <button class="${n.starred?'on':''}" onclick="event.stopPropagation();_quickToggleNoteStar(${n.id})" title="${n.starred?'Unstar':'Star'}">${n.starred?'★':'☆'}</button>
-        <button class="${n.pinned?'on':''}" onclick="event.stopPropagation();_quickToggleNotePin(${n.id})" title="${n.pinned?'Unpin':'Pin'}">📌</button>
+        <button class="${n.starred?'on':''}" onclick="event.stopPropagation();_quickToggleNoteStar(${_tidLit(n.id)})" title="${n.starred?'Unstar':'Star'}">${n.starred?'★':'☆'}</button>
+        <button class="${n.pinned?'on':''}" onclick="event.stopPropagation();_quickToggleNotePin(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin'}">📌</button>
       </div>
     </div>`;
   }
@@ -14180,7 +14230,7 @@ function renderNotes(){
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:10px">${[['📄','Note','#3B82F6'],['🔗','Clip','#06b6d4'],['☑','Task','#10b981'],['🎤','Voice','#ef4444']].map(([ic,lbl,ac])=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);cursor:pointer;transition:transform .12s ease,border-color .12s ease,background .12s ease" title="${lbl==='Voice'?'Dictate a new note with your voice':lbl==='Clip'?'Clip a web page into a note — paste a link, get the title + summary':'New '+lbl.toLowerCase()}" onmouseover="this.style.transform='translateY(-1px)';this.style.borderColor='${ac}';this.style.background='var(--s3)'" onmouseout="this.style.transform='';this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="${lbl==='Voice'?'startVoiceNote()':lbl==='Clip'?'startWebClip()':`openFA('${lbl==='Task'?'task':'note'}')`}"><span style="font-size:16px;line-height:1;color:${ac}">${ic}</span><span style="font-size:11px;font-weight:600;color:var(--t2)">${lbl}</span></div>`).join('')}</div>
   ${(()=>{const evs=_calEventsOn(new Date());if(!evs.length)return '';return `<div style="font-size:11px;font-weight:600;margin-bottom:4px">📅 Today's Meetings</div><div style="margin-bottom:10px">${evs.slice(0,6).map(e=>{const linked=_noteForEvent(e.id);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" title="${linked?'Open the meeting note':'Create a meeting note for this event'}" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" onclick="openMeetingNote('${_jsAttr(String(e.id))}','${_jsAttr(e.dateStr||_ymd())}')"><span class="rt" style="font-size:11px">${typeof e.hour==='number'?e.hour+':00 · ':''}${esc(e.title)}</span><span style="flex-shrink:0;color:${linked?'var(--ok)':'var(--ac)'}">${linked?'📝':'＋'}</span></div>`;}).join('')}</div>`;})()}
   <div style="font-size:11px;font-weight:600;margin-bottom:4px">⭐ Starred</div>
-  ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${n.id})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
+  ${D.notes.filter(n=>n.starred).slice(0,4).map(n=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 6px;border-radius:5px" onclick="showNoteInEditor(${_tidLit(n.id)})" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'"><span class="rt" style="font-size:11px">${esc(n.title)}</span><span style="color:var(--warn);flex-shrink:0">★</span></div>`).join('')||'<div style="font-size:11px;color:var(--t3);margin-bottom:8px">No starred notes</div>'}
   <div style="font-size:11px;font-weight:600;margin:10px 0 4px">🕸 Link Graph</div>
   <div id="notes-graph-container" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:8px;margin-bottom:8px">${D.notes.length?renderNotesGraph(D.notes[0].id):'<div style="font-size:11px;color:var(--t3);text-align:center;padding:8px">Select a note</div>'}</div>
   <div id="notes-backlinks-panel">${D.notes.length?_renderNotesBacklinkRail(D.notes[0].id):''}</div>`;
@@ -14323,7 +14373,7 @@ function _renderNoteVersionSparkline(n){
     const x=pad+((ts-oldest)/span)*(W-pad*2);
     const ago=Math.max(0,Math.round((now-ts)/86400000));
     const label=`${esc(v.title||'(untitled)')} · ${ago===0?'today':ago+'d ago'} · ${new Date(ts).toLocaleString()}`;
-    return `<circle cx="${x.toFixed(1)}" cy="${H/2}" r="3" fill="var(--ac)" stroke="var(--bg)" stroke-width="1.2" style="cursor:pointer;transition:r .12s" onmouseover="this.setAttribute('r','5')" onmouseout="this.setAttribute('r','3')" onclick="previewNoteVersion(${n.id},${i})"><title>${label}</title></circle>`;
+    return `<circle cx="${x.toFixed(1)}" cy="${H/2}" r="3" fill="var(--ac)" stroke="var(--bg)" stroke-width="1.2" style="cursor:pointer;transition:r .12s" onmouseover="this.setAttribute('r','5')" onmouseout="this.setAttribute('r','3')" onclick="previewNoteVersion(${_tidLit(n.id)},${i})"><title>${label}</title></circle>`;
   }).join('');
   // "Now" marker at far right.
   const nowMark=`<line x1="${W-pad}" y1="${H/2-5}" x2="${W-pad}" y2="${H/2+5}" stroke="var(--t3)" stroke-width="1.2"/>`;
@@ -14334,7 +14384,7 @@ function _renderNoteVersionSparkline(n){
       ${nowMark}
       ${dots}
     </svg>
-    <button class="btn btn-s" style="height:20px;padding:0 8px;font-size:10px" onclick="openNoteHistory(${n.id})" title="Open full history list">All →</button>
+    <button class="btn btn-s" style="height:20px;padding:0 8px;font-size:10px" onclick="openNoteHistory(${_tidLit(n.id)})" title="Open full history list">All →</button>
   </div>`;
 }
 // ====== NOTE VERSION HISTORY ======
@@ -14519,9 +14569,9 @@ function renderNoteEditor(n){
   if(isEditing){
     return `<button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--bd1)">
   <div style="display:flex;gap:6px">
-    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="saveNoteInlineEdit(${n.id})">💾 Save</button>
-    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_noteInlineEditId=null;showNoteInEditor(${n.id})">✕ Cancel</button>
-    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full Edit</button>
+    <button class="btn btn-p" style="height:26px;font-size:11px" onclick="saveNoteInlineEdit(${_tidLit(n.id)})">💾 Save</button>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="_noteInlineEditId=null;showNoteInEditor(${_tidLit(n.id)})">✕ Cancel</button>
+    <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))">⚙ Full Edit</button>
   </div>
   <span style="font-size:11px;color:var(--ac)">Editing</span>
   </div>
@@ -14536,35 +14586,35 @@ function renderNoteEditor(n){
   const created=n.createdAt?fmtNoteDate(n.createdAt):(typeof n.id==='number'&&n.id>1e9?fmtNoteDate(new Date(n.id).toISOString()):'');
   const colorDots=NOTE_COLOR_PALETTE.map(c=>{
     const sel=(n.color||'')===c.value;
-    return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${n.id},'${c.value}')"></span>`;
+    return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${_tidLit(n.id)},'${c.value}')"></span>`;
   }).join('');
   return `<div class="note-doc"><button class="btn notes-mobile-back" onclick="setNotesMobilePane('list')" title="Back to notes list">← All Notes</button>
   <div class="note-toolbar" style="margin-bottom:14px">
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="toggleNoteInlineEdit(${n.id})">✏ Edit</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id===${n.id}))">⚙ Full</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${n.id})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
+      <button class="btn btn-p" style="height:26px;font-size:11px" onclick="toggleNoteInlineEdit(${_tidLit(n.id)})">✏ Edit</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openDrawer('note',D.notes.find(x=>x.id==${_tidLit(n.id)}))">⚙ Full</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px${n.pinned?';color:var(--page-accent);font-weight:600':''}" onclick="toggleNotePinned(${_tidLit(n.id)})" title="${n.pinned?'Unpin':'Pin to top'}">📌</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="toggleNoteFocusMode()" title="Focus mode (Esc to exit)">⛶</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${n.id})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openNoteHistory(${n.id})" title="Version history">🕐${(n.versions||[]).length?` ${(n.versions||[]).length}`:''}</button>
-      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="exportNotePDF(${n.id})" title="Export PDF">📄</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="moveNoteToFolder(${_tidLit(n.id)})" title="${n.folderId?'Move folder':'Move to a folder'}">📁 ${n.folderId?esc((_noteFolderById(n.folderId)?.name||'?').slice(0,12)):'Move'}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="openNoteHistory(${_tidLit(n.id)})" title="Version history">🕐${(n.versions||[]).length?` ${(n.versions||[]).length}`:''}</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px" onclick="exportNotePDF(${_tidLit(n.id)})" title="Export PDF">📄</button>
       <div style="position:relative;display:inline-block">
         <button class="btn btn-s" style="height:26px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('note-ai-menu')" title="AI tools">✨ AI ▾</button>
         <div id="note-ai-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:30px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:4px;z-index:50;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,.35)">
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${n.id})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${n.id})">✨ Summarize into bullets</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${n.id})">${_icon('tag',12,'currentColor')} Auto-tag</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${n.id})">🔗 Find related notes</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiGapDetect(${n.id})">🔍 Detect knowledge gaps</button>
-          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiExpandToDoc(${n.id})">📄 Expand to full doc</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left;font-weight:600;border-bottom:1px solid var(--bd1);padding-bottom:6px;margin-bottom:4px" onclick="closePopMenu('note-ai-menu');_openNoteInsightPanel(${_tidLit(n.id)})">${_icon('brain',13,'currentColor')} Deep Insight panel</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--ac);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiSummarizeNote(${_tidLit(n.id)})">✨ Summarize into bullets</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiAutoTagNote(${_tidLit(n.id)})">${_icon('tag',12,'currentColor')} Auto-tag</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--grn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiConceptLink(${_tidLit(n.id)})">🔗 Find related notes</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--warn);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiGapDetect(${_tidLit(n.id)})">🔍 Detect knowledge gaps</button>
+          <button class="btn btn-s" style="display:flex;align-items:center;gap:8px;width:100%;justify-content:flex-start;height:28px;font-size:11px;color:var(--purp);background:transparent;border:none;text-align:left" onclick="closePopMenu('note-ai-menu');aiExpandToDoc(${_tidLit(n.id)})">📄 Expand to full doc</button>
         </div>
       </div>
-      <button class="btn btn-s" style="height:26px;font-size:11px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${n.id})" title="Assign to team members">👥</button>
+      <button class="btn btn-s" style="height:26px;font-size:11px;${(n.assignedTo||(n.assignees||[]).length)?'color:var(--purp)':''}" onclick="_openNoteAssign(${_tidLit(n.id)})" title="Assign to team members">👥</button>
       <button class="btn btn-s" style="height:26px;font-size:11px" onclick="if(confirm('Delete this note?')){D.notes=D.notes.filter(x=>x.id!==${n.id});save('notes');renderNotes();}">🗑</button>
     </div>
-    <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id===${n.id}).starred=!D.notes.find(x=>x.id===${n.id}).starred;save('notes');showNoteInEditor(${n.id})" title="${n.starred?'Unstar':'Star'}">★</span>
+    <span style="font-size:18px;cursor:pointer;color:${n.starred?'var(--warn)':'var(--t3)'}" onclick="D.notes.find(x=>x.id==${_tidLit(n.id)}).starred=!D.notes.find(x=>x.id==${_tidLit(n.id)}).starred;save('notes');showNoteInEditor(${_tidLit(n.id)})" title="${n.starred?'Unstar':'Star'}">★</span>
   </div>
-  <div class="note-title" ondblclick="toggleNoteInlineEdit(${n.id})">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};margin-right:10px;vertical-align:middle"></span>`:''}${n.icon?esc(n.icon)+' ':''}${esc(n.title||'Untitled')}</div>
+  <div class="note-title" ondblclick="toggleNoteInlineEdit(${_tidLit(n.id)})">${n.color?`<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${esc(n.color)};margin-right:10px;vertical-align:middle"></span>`:''}${n.icon?esc(n.icon)+' ':''}${esc(n.title||'Untitled')}</div>
   <div class="note-props">
     <div class="k">◇ Status</div>
     <div class="v"><div style="position:relative;display:inline-block">
@@ -14572,13 +14622,13 @@ function renderNoteEditor(n){
       <div id="nsp-${n.id}" data-pop-menu="1" class="nsp" style="display:none;top:30px;left:0">${_noteStatusPickerHTML(n.id,_noteStatus(n))}</div>
     </div></div>
     <div class="k">⬡ Type</div>
-    <div class="v"><select class="chip" style="border:1px solid var(--bd2);background:var(--s2);color:var(--t2);height:24px;padding:0 6px" onchange="setNoteType(${n.id},this.value)"><option value="">— none —</option>${_NOTE_TYPES.map(t=>`<option ${n.noteType===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="v"><select class="chip" style="border:1px solid var(--bd2);background:var(--s2);color:var(--t2);height:24px;padding:0 6px" onchange="setNoteType(${_tidLit(n.id)},this.value)"><option value="">— none —</option>${_NOTE_TYPES.map(t=>`<option ${n.noteType===t?'selected':''}>${t}</option>`).join('')}</select></div>
     <div class="k">⛓ Source</div>
     <div class="v" style="color:var(--t2)">${esc(n.source||'Manual')}</div>
     <div class="k">🏷 Tags</div>
     <div class="v">${(n.tags||[]).length?(n.tags||[]).map(t=>`<span class="chip" onclick="filterNotesByTag('${_jsAttr(t)}')">#${esc(t)}</span>`).join(''):'<span style="color:var(--t3)">No tags</span>'}</div>
     <div class="k">📅 Meetings</div>
-    <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${n.id},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${n.id})">＋ Link meeting</span></div>
+    <div class="v">${_noteMeetings(n).map(mm=>`<span class="chip" title="Open this meeting on the calendar" onclick="openMeetingFromNote('${_jsAttr(String(mm.id))}')">📅 ${esc(mm.title)} · ${esc(mm.date)} <span style="cursor:pointer;opacity:.65" title="Unlink this meeting" onclick="event.stopPropagation();unlinkNoteMeeting(${_tidLit(n.id)},'${_jsAttr(String(mm.id))}')">✕</span></span>`).join('')}<span class="chip" style="color:var(--ac);cursor:pointer" title="Link this note to a calendar event" onclick="openMeetingPicker(${_tidLit(n.id)})">＋ Link meeting</span></div>
     <div class="k">🎨 Colour</div>
     <div class="v"><span class="note-color-palette">${colorDots}</span></div>
     <div class="k">📅 Dates</div>
@@ -14587,7 +14637,7 @@ function renderNoteEditor(n){
   ${(n.versions&&n.versions.length)?`<div style="margin-bottom:14px">${_renderNoteVersionSparkline(n)}</div>`:''}
   ${(()=>{const o=_renderNoteOutline(n,bodyHtml);bodyHtml=o.htmlWithIds;return o.toc;})()}
   ${_noteOriginalHtml(n)}
-  ${_noteOrigMode(n)==='original'?'':`<div class="note-body" ondblclick="toggleNoteInlineEdit(${n.id})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`}
+  ${_noteOrigMode(n)==='original'?'':`<div class="note-body" ondblclick="toggleNoteInlineEdit(${_tidLit(n.id)})" title="Double-click to edit inline">${bodyHtml||'<em style="color:var(--t3)">No content yet. Click ✏ Edit to add.</em>'}</div>`}
   <!-- Chip-based linker — Projects / Goals / Tasks / Other Notes / Bookmarks /
        Journal. Hydrated by showNoteInEditor() so it persists across re-renders. -->
   <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--bd1)">
@@ -14707,7 +14757,7 @@ function _renderProjRail(){
   </div>
   ${due30.length?`<div data-mod="pr-due30" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
   ${onDeck.length?`<div data-mod="pr-ondeck" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
-  ${recentTasks.length?`<div data-mod="pr-recent" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
+  ${recentTasks.length?`<div data-mod="pr-recent" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
 }
 
 // ─── Project Health helper ──────────────────────────────────────────────────
@@ -14935,7 +14985,7 @@ function renderCommandCenter(){
     const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
-    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)===${JSON.stringify(String(t.id))}))`:`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
+    const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)==='${_jsAttr(String(t.id))}'))`:`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
     return `<div class="lr" style="padding:8px 10px;border-bottom:1px solid var(--bd1);cursor:pointer;display:flex;align-items:center;gap:8px" onclick="${clickAction}">
       <span style="width:6px;height:6px;border-radius:50%;background:${pcolor};flex-shrink:0"></span>
       ${srcBadge}
@@ -15658,8 +15708,8 @@ function openOpportunityDetail(oppId,opts){
   const linkedTasks=(D.tasks||[]).filter(t=>String(t.linkedOpportunityId||'')===String(o.id));
   const linkedOpen=linkedTasks.filter(t=>t.status!=='Done');
   const linkedDone=linkedTasks.filter(t=>t.status==='Done');
-  const taskRow=t=>`<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id===${t.id})),120)">
-    <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'Not Started':'Done';if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(D.tasks.find(x=>x.id===${t.id}));save('tasks');openOpportunityDetail(${o.id})"></div>
+  const taskRow=t=>`<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)})),120)">
+    <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status=D.tasks.find(x=>x.id==${_tidLit(t.id)}).status==='Done'?'Not Started':'Done';if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(D.tasks.find(x=>x.id==${_tidLit(t.id)}));save('tasks');openOpportunityDetail(${o.id})"></div>
     <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:11px">${esc(t.priority||'')}</span>
     <span style="font-size:11px;color:var(--t3)">${esc(t.due||'')}</span>
@@ -16288,7 +16338,7 @@ function renderPrograms(){
       <div class="pc-foot">
         <span>${prog.owner?'👤 '+esc(prog.owner.split(' ')[0]):''}</span>
         <span class="pc-acts">
-          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('program',D.programs.find(x=>x.id===${prog.id}))" title="Edit">✏</button>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('program',D.programs.find(x=>x.id==${_tidLit(prog.id)}))" title="Edit">✏</button>
         </span>
       </div>
     </div>`;
@@ -16531,7 +16581,7 @@ function renderProjects(){
       <option value="az" ${_projSort==='az'?'selected':''}>A → Z</option>
     </select>`;
   const filterRow=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-    <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="setProjFilter('search',this.value)">
+    <input class="inp" placeholder="🔍 Search projects…" value="${esc(_projSearch)}" style="flex:1;min-width:160px;height:28px;font-size:11px" oninput="_keepFocus(()=>setProjFilter('search',this.value))">
     ${ar?`<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer"><input type="checkbox" ${_projShowArchived?'checked':''} onchange="setProjFilter('showArchived',this.checked)" style="width:13px;height:13px">Show archive (${ar})</label>`:''}
     ${_projHasFilters()?`<button class="btn btn-s" style="height:28px;font-size:11px;color:var(--warn)" onclick="clearProjFilters()">✕ Clear</button>`:''}
   </div>`;
@@ -16565,7 +16615,7 @@ function renderProjectsTeamKanban(header){
         <span style="font-size:11px;font-weight:600;flex:1">${col.label}</span>
         <span style="font-size:11px;color:var(--t3)">${tasks.length} active · ${done} done</span>
       </div>
-      ${tasks.map(t=>{const pname=t.project||((D.projects||[]).find(x=>String(x.id)===String(t.projectId))||{}).name||'';return `<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+      ${tasks.map(t=>{const pname=t.project||((D.projects||[]).find(x=>String(x.id)===String(t.projectId))||{}).name||'';return `<div class="cd" style="cursor:pointer;margin-bottom:6px;border-left:3px solid ${pillClass(t.priority)==='hi'?'var(--red)':pillClass(t.priority)==='md'?'var(--warn)':'var(--ok)'}" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
         <div style="font-size:12px;font-weight:500;margin-bottom:3px">${esc(t.title)}</div>
         <div style="display:flex;gap:6px;font-size:11px;color:var(--t3)">
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
@@ -16670,7 +16720,7 @@ function renderProjectsList(header){
         <span>${p.owner?'👤 '+esc(p.owner.split(' ')[0]):''}</span>
         <span class="${dueOverdue?'pc-od':''}">${p.due&&p.due!=='TBD'?'📅 '+esc(p.due):'No due date'}</span>
         <span class="pc-acts">
-          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id===${p.id}))" title="Edit">✏</button>
+          <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="event.stopPropagation();openDrawer('project',D.projects.find(x=>x.id==${_tidLit(p.id)}))" title="Edit">✏</button>
           <button class="btn btn-s" style="font-size:11px;padding:2px 7px" onclick="_projToggleArchive(${p.id},event)" title="${p.archived?'Restore':'Archive'}">${p.archived?'↩':'🗄'}</button>
         </span>
       </div>
@@ -16749,8 +16799,8 @@ function openProjectDetail(pid){
     const sb=t.subtasks||[];const sd=sb.filter(s=>s.done).length;
     const od=t.status!=='Done'&&t.due&&t.due<_todayStr;
     return`<div style="padding:6px 0;border-bottom:1px solid var(--bd1)">
-      <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))" style="cursor:pointer">
-        <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).status=D.tasks.find(x=>x.id===${t.id}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
+      <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" style="cursor:pointer">
+        <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status=D.tasks.find(x=>x.id==${_tidLit(t.id)}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
         <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
         <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
         <span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${t.due||''}</span>
@@ -16788,7 +16838,7 @@ function openProjectDetail(pid){
   <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;margin-top:14px">Milestones (${msDone}/${ms.length})</div>
   ${ms.length?`<div class="pb" style="margin-bottom:8px"><div class="f" style="width:${ms.length?Math.round(msDone/ms.length*100):0}%;background:${p.color}"></div></div>`:''}
   ${msRows}
-  ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
+  ${goals.length?`<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Linked goals (${goals.length})</div>${goals.map(g=>`<div class="lr" style="cursor:pointer;padding:6px 0" onclick="closeDrawer();openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))"><span>${g.icon||'🎯'}</span><span class="rt" style="font-size:12px">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3)">${g.pct||0}%</span></div>`).join('')}`:''}
   <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 5px">Tasks (${pts.length}) · ${subs.filter(s=>s.done).length}/${subs.length} subtasks</div>
   ${taskRows||'<p style="font-size:11px;color:var(--t3)">No tasks linked to this project yet.</p>'}
   ${_renderLinkedExternalTasksSection(pid)}
@@ -17159,7 +17209,7 @@ function _renderProjectEditTasksSection(pid){
       <span style="flex:1;${done?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
       ${t.priority?`<span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>`:''}
       ${t.due?`<span style="font-size:11px;color:var(--t3)">${esc(t.due)}</span>`:''}
-      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unassign from project" onclick="_unassignNativeFromProject(${t.id},${pid})">✕</button>
+      <button class="btn btn-s" style="height:18px;font-size:10px;padding:0 5px" title="Unassign from project" onclick="_unassignNativeFromProject(${_tidLit(t.id)},${pid})">✕</button>
     </div>`;
   }).join('');
   const extRows=ext.map(t=>{
@@ -17476,7 +17526,7 @@ function aiGoalProgress(){
     const linkedTasks=D.tasks.filter(t=>(t.tags||[]).includes('goal:'+((g.title||'').toLowerCase().replace(/\s+/g,'-'))));
     const doneTasks=linkedTasks.filter(t=>t.status==='Done').length;
     const openTasks=linkedTasks.filter(t=>t.status!=='Done').length;
-    const dueDate=g.due?new Date(g.due):null;
+    const dueDate=_goalDue(g)?new Date(_goalDue(g)):null;
     const daysLeft=dueDate?Math.floor((dueDate-new Date())/(1000*60*60*24)):null;
     let narrative='';
     if(pct>=100)narrative=`✅ Completed! You achieved "${g.title}". Celebrate this win and consider what\'s next.`;
@@ -17616,9 +17666,17 @@ if(typeof _goalsHealthFilter==='undefined')var _goalsHealthFilter='All';
 if(typeof _goalsSort==='undefined')var _goalsSort='order';
 // G4: track which goals have their linked-tasks panel expanded
 if(typeof _goalsExpandedTasks==='undefined')var _goalsExpandedTasks=new Set();
+// A goal's deadline. Every editor (drawer, quick-add, assistant, seeds)
+// writes dueDate, while health, sorting, alerts and the AI read due  so
+// goals never showed as at risk. Read every field name in use.
+function _goalDue(g){return (g&&(g.dueDate||g.due||g.deadline||g.targetDate))||null;}
+// Re-render the Goals screen from outside renderGoals. Calling
+// renderGoalCards() from global code hit the HOME helper of the same name
+// (it only returns a string), so ticks and milestone edits never showed.
+function _refreshGoals(){try{if(typeof curScreen!=='undefined'&&curScreen==='goals')renderGoals();}catch(_){}}
 // G2: goal health based on time elapsed vs progress.
 function goalHealth(g){
-  const due=g.due||g.deadline||g.targetDate||null;
+  const due=_goalDue(g);
   if((g.pct||0)>=100)return {icon:'🟢',label:'Done',color:'var(--ok)'};
   if(!due)return {icon:'🟢',label:'On Track',color:'var(--ok)'};
   const dueMs=Date.parse(due);if(isNaN(dueMs))return {icon:'🟢',label:'On Track',color:'var(--ok)'};
@@ -17665,7 +17723,7 @@ function _goalsFiltered(){
   if(_goalsHealthFilter!=='All')arr=arr.filter(g=>goalHealth(g).label===_goalsHealthFilter);
   if(_goalsSort==='pctDesc')arr.sort((a,b)=>(b.pct||0)-(a.pct||0));
   else if(_goalsSort==='pctAsc')arr.sort((a,b)=>(a.pct||0)-(b.pct||0));
-  else if(_goalsSort==='dueAsc')arr.sort((a,b)=>(Date.parse(a.due||a.deadline||a.targetDate||'9999')||9e15)-(Date.parse(b.due||b.deadline||b.targetDate||'9999')||9e15));
+  else if(_goalsSort==='dueAsc')arr.sort((a,b)=>(Date.parse(_goalDue(a)||'9999')||9e15)-(Date.parse(_goalDue(b)||'9999')||9e15));
   else if(_goalsSort==='az')arr.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
   return arr;
 }
@@ -17724,14 +17782,14 @@ function renderGoals(){
                 </div>
                 <div style="display:flex;gap:4px">
                   <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓</button>
-                  <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏</button>
+                  <button class="btn btn-s" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))">✏</button>
                 </div>
               </div>
               <div class="pb" style="height:4px;border-radius:0;margin:0"><div class="f" style="width:${g.pct}%;background:var(--ac);height:4px;border-radius:0"></div></div>
               ${krs.length?`<div style="padding:8px 12px;background:var(--s0)">
                 <div style="font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Key Results (${krsDone}/${krs.length})</div>
                 ${krs.map((kr,ki)=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd1)">
-                  <input type="checkbox" ${kr.done?'checked':''} onchange="const g3=D.goals.find(x=>x.id===${g.id});if(g3){g3.milestones[${ki}].done=this.checked;autoCalcGoalPct(g3);save('goals');renderGoalCards();}" style="width:14px;height:14px;accent-color:var(--ac)">
+                  <input type="checkbox" ${kr.done?'checked':''} onchange="const g3=D.goals.find(x=>x.id==${_tidLit(g.id)});if(g3){g3.milestones[${ki}].done=this.checked;autoCalcGoalPct(g3);save('goals');_refreshGoals();}" style="width:14px;height:14px;accent-color:var(--ac)">
                   <span style="font-size:11px;flex:1;${kr.done?'text-decoration:line-through;color:var(--t3)':'color:var(--t1)'}">${esc(kr.title)}</span>
                   ${kr.target?`<span style="font-size:11px;color:var(--t3)">${esc(kr.target)}</span>`:''}
                 </div>`).join('')}
@@ -17778,10 +17836,10 @@ function renderGoals(){
         ${spark}
       </div>
       ${ms.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px">🏁 Milestones: ${msDone}/${ms.length} done${nextMs?` · Next: ${esc(nextMs.title)}`:''}</div>`:''}
-      ${linkedTasks.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="event.stopPropagation();_goalToggleTaskExpand(${g.id})">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''} ${expanded?'▴':'▾'}</span></div>${expanded?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:6px">${linkedTasks.slice(0,8).map(t=>`<div class="lr" style="padding:3px 0;font-size:11px;cursor:pointer" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0"></span><span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}${linkedTasks.length>8?`<div style="font-size:11px;color:var(--t3);padding:3px 0">+${linkedTasks.length-8} more</div>`:''}</div>`:''}`:''}
+      ${linkedTasks.length?`<div style="font-size:11px;color:var(--t3);margin-bottom:4px"><span style="cursor:pointer;color:var(--ac);text-decoration:underline" onclick="event.stopPropagation();_goalToggleTaskExpand(${g.id})">📋 ${linkedTasks.length} linked task${linkedTasks.length>1?'s':''} ${expanded?'▴':'▾'}</span></div>${expanded?`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:6px;padding:6px 8px;margin-bottom:6px">${linkedTasks.slice(0,8).map(t=>`<div class="lr" style="padding:3px 0;font-size:11px;cursor:pointer" onclick="event.stopPropagation();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0"></span><span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}${linkedTasks.length>8?`<div style="font-size:11px;color:var(--t3);padding:3px 0">+${linkedTasks.length-8} more</div>`:''}</div>`:''}`:''}
       ${last?`<div style="font-size:11px;color:${dueCheckIn?'var(--warn)':'var(--t3)'};margin-bottom:4px">${dueCheckIn?'⚠ ':'🗓 '}Last check-in: ${last.daysAgo===0?'today':last.daysAgo+'d ago'}${dueCheckIn?' · check-in due':''}</div>`:`<div style="font-size:11px;color:var(--warn);margin-bottom:4px">⚠ No check-ins yet</div>`}
       <div style="margin-top:6px;display:flex;gap:4px">
-        <button class="btn btn-s" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">✏ Edit</button>
+        <button class="btn btn-s" style="font-size:11px;padding:2px 8px" onclick="event.stopPropagation();openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))">✏ Edit</button>
         <button class="btn btn-s" style="font-size:11px;padding:2px 8px;color:${dueCheckIn?'var(--warn)':'var(--ac)'}" onclick="event.stopPropagation();openGoalCheckIn(${g.id})">🗓 Check-in${dueCheckIn?' (due)':''}</button>
       </div>
     </div>`}).join('') || '<p style="color:var(--t3);font-size:11px;padding:16px">No goals found.</p>';
@@ -17891,7 +17949,7 @@ function openGoalDetail(gid){
     <span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span>
     <span style="font-size:11px;color:var(--t3)">${m.due||''}</span>
   </div>`).join('');
-  const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">
+  const taskHtml=linkedTasks.map(t=>`<div class="lr" style="padding:3px 0;cursor:pointer" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">
     <div class="chk ${t.status==='Done'?'on':''}"></div>
     <span class="rt" style="font-size:11px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
@@ -17929,7 +17987,7 @@ function addMilestone(goalId){
   g.milestones.push({id:Date.now(),title,done:false,due:due?.value||''});
   autoCalcGoalPct(g);
   save('goals');
-  if(typeof renderGoalCards==='function')renderGoalCards();
+  _refreshGoals();
   openGoalDetail(goalId);
   toast('Milestone added');
 }
@@ -17962,7 +18020,7 @@ function deleteMilestone(goalId,idx){
     const ms=g.milestones;
     list.innerHTML=ms.map((m,mi)=>`<div class="lr" style="padding:4px 0"><div class="chk ${m.done?'on':''}" onclick="toggleMilestone(${goalId},${mi})"></div><span class="rt" style="font-size:11px;${m.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(m.title)}</span><span style="font-size:11px;color:var(--t3)">${m.due||''}</span><span class="acts"><button class="btn btn-s" style="height:18px;font-size:10px;padding:0 4px" onclick="editMilestone(${goalId},${mi})">✏</button><button class="btn btn-d" style="height:18px;font-size:10px;padding:0 4px" onclick="deleteMilestone(${goalId},${mi})">✕</button></span></div>`).join('');
   }
-  renderGoalCards();
+  _refreshGoals();
   toast('Milestone deleted');
 }
 
@@ -18044,7 +18102,7 @@ function renderJournalList(){
     el.innerHTML=renderEmptyState({icon:'bookOpen',title:_jrnlFilter&&_jrnlFilter!=='All'?`No ${_jrnlFilter} entries match`:(_jrnlSearch?'No entries match your search':'Your journal is empty'),hint:_jrnlSearch?'Try a broader search or clear filters.':'Daily writing builds clarity. Even 3 lines counts.',ctaLabel:_jrnlSearch?'Clear search':'+ Write your first entry',ctaFn:_jrnlSearch?"setJournalSearch('');document.getElementById('jrnl-search').value=''":"openFA('journal')"});
     return;
   }
-  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:11px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
+  el.innerHTML=entries.map(j=>`<div class="cd" style="cursor:pointer;margin-bottom:8px" onclick="openDrawer('journal',D.journal.find(x=>x.id==${_tidLit(j.id)}))" onmouseover="this.style.borderColor='var(--ac)'" onmouseout="this.style.borderColor='var(--bd2)'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-size:11px;color:var(--t3)">${esc(_fmtJournalDate(j))} · <span style="color:var(--ac)">${esc(_journalCategoryOf(j))}</span></div><div style="font-size:16px">${j.mood||''}</div></div><div style="font-size:13px;font-weight:500;margin-bottom:4px">${esc(j.title||'(untitled)')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${esc(_journalPreviewText(j).slice(0,360))}</div></div>`).join('');
 }
 // J3: month-grid calendar view of journal entries
 function renderJournalCalendar(){
@@ -18161,7 +18219,7 @@ function renderJournal(){
   const rotated=Array.from({length:6},(_,i)=>pool[(doy*6+i)%pool.length]);
   const prompts=useCached?promptsCache.prompts:rotated;
   $('jrnl-rail').innerHTML=`<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Writing Streak</div><div style="font-size:20px;font-weight:700;color:var(--ac)">${streak} day${streak!==1?'s':''} 🔥</div></div>
-  ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id===${j.id}))"><span style="font-size:11px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:11px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
+  ${onThisDay.length?`<div style="margin-bottom:12px;padding:10px;background:var(--s2);border:1px solid var(--bd1);border-radius:8px"><div style="font-size:11px;font-weight:600;margin-bottom:6px">📅 On this day</div>${onThisDay.slice(0,4).map(j=>{const d=_parseJournalDate(j);const yr=d?d.getFullYear():'';return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('journal',D.journal.find(x=>x.id==${_tidLit(j.id)}))"><span style="font-size:11px;color:var(--t3);width:36px;flex-shrink:0">${yr}</span><span class="rt" style="font-size:11px">${esc(j.title||'(untitled)')}</span><span style="font-size:12px;flex-shrink:0">${j.mood||''}</span></div>`;}).join('')}</div>`:''}
   <div style="margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-size:12px;font-weight:600">Prompts</div><button class="btn btn-s" style="font-size:10px;padding:0 6px;height:20px;color:var(--ac)" onclick="refreshJournalPromptsAI()" title="Generate fresh AI prompts based on your recent entries">✨ Refresh</button></div>
   <p style="font-size:11px;color:var(--t3);margin-bottom:6px">${useCached?'AI-generated for today':'Rotates daily'}</p>
   ${prompts.map(p=>`<div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin-bottom:5px;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:7px" onmouseover="this.style.borderColor='var(--ac)';this.style.background='var(--acs)'" onmouseout="this.style.borderColor='var(--bd2)';this.style.background='var(--s2)'" onclick="openJournalPrompt('${esc(p.title).replace(/'/g,'&#39;')}','${esc(p.text).replace(/'/g,'&#39;')}')"><span style="font-size:14px;flex-shrink:0">${p.icon||'✏'}</span><div><div style="font-size:11px;font-weight:500;color:var(--t1);margin-bottom:1px">${esc(p.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.3">${esc(p.text||'')}</div></div></div>`).join('')}</div>`;
@@ -18186,7 +18244,8 @@ function openInlineReply(id){
 }
 async function sendInlineReply(id){
   const items=_getMailItems();
-  const mail=items.find(m=>m.id===id);
+  // ids arrive as strings from the onclick; synced mail ids are numbers.
+  const mail=items.find(m=>String(m.id)===String(id));
   if(!mail)return;
   const rte=document.getElementById('inline-reply-rte-'+id);
   const body=rte?rte.innerHTML:'';
@@ -18787,9 +18846,51 @@ function toggleCalShowTasks(){
   if(typeof renderCal==='function')renderCal();
   toast(D.prefs.calShowTasks===false?'Scheduled tasks hidden':'📋 Scheduled tasks shown');
 }
+// Real calendar events (your own, coach/time blocks, synced Outlook/Google) on
+// a day, without the task and bill chips the grid also shows. Each comes back
+// with start/end as local 'YYYY-MM-DDTHH:MM:00' strings. Home, My Day, the
+// task rail and the coach used to read D.calEvents, which nothing writes, so
+// they always showed no meetings.
+function _calMeetingsOn(day){
+  const d=day instanceof Date?new Date(day):new Date(String(day)+'T00:00');
+  if(isNaN(d))return [];
+  d.setHours(0,0,0,0);
+  const ymd=_ymd(d);
+  const hm=(h,m)=>String(Math.max(0,Math.min(23,Number(h)||0))).padStart(2,'0')+':'+String(Number(m)||0).padStart(2,'0');
+  return _calEventsOn(d).filter(e=>e&&!e._task&&!e._finBill).map(e=>{
+    const iso=typeof e.start==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(e.start);
+    const start=iso?e.start:ymd+'T'+hm(e.hour,e.minute)+':00';
+    const end=typeof e.end==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(e.end)?e.end:(e.endHour!=null?ymd+'T'+hm(e.endHour,0)+':00':start);
+    return Object.assign({},e,{start,end});
+  }).sort((a,b)=>String(a.start).localeCompare(String(b.start)));
+}
+// Open the Calendar in Day view on a given local date (YYYY-MM-DD).
+function _openCalDay(ymd){
+  const d=new Date(String(ymd)+'T00:00');
+  const t=new Date();t.setHours(0,0,0,0);
+  if(!isNaN(d)){_calView='day';_calDayOffset=Math.round((d-t)/86400000);}
+  nav('calendar');
+  setTimeout(()=>{try{renderCal();}catch(_){}},60);
+}
+// Does a grid event (_calEvents row) fall on this local date? Dated rows
+// match their dateStr. Undated rows carry a weekday (day, 0=Mon): those with
+// repeat 'weekly' (the -226 "+ Event" weekly repeat) recur every week; older
+// undated one-offs belong to the week they were made in, which is how the
+// grid always showed them. Week, Day and Month views and _calEventsOn all
+// use this one rule (they each had a different one).
+function _calLocalOn(e,dt){
+  if(!e)return false;
+  if(e.dateStr)return e.dateStr===_ymd(dt);
+  if(e.day!==(dt.getDay()+6)%7)return false;
+  if(/^weekly$/i.test(String(e.repeat||'')))return true;
+  const t=new Date();t.setHours(0,0,0,0);
+  const mon=new Date(t);mon.setDate(t.getDate()-((t.getDay()+6)%7));
+  const d0=new Date(dt);d0.setHours(0,0,0,0);
+  return d0>=mon&&d0-mon<7*86400000;
+}
+const _calIsAllDay=e=>!!(e&&(e.isAllDay||e.allDay));
 function _calEventsOn(dateObj){
-  const ds=_ymd(dateObj),dow=(dateObj.getDay()+6)%7; // _calEvents.day is 0=Mon
-  const local=(_calEvents||[]).filter((e)=>e&&(e.dateStr===ds||(e.dateStr==null&&e.day===dow)));
+  const local=(_calEvents||[]).filter((e)=>_calLocalOn(e,dateObj));
   return [...local,..._syncedEventsOn(dateObj),..._tasksOnDate(dateObj),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(dateObj):[])].sort((a,b)=>(a.hour||0)-(b.hour||0));
 }
 // Resolve the next `limit` _calEvents occurrences (recurring + date-pinned) into
@@ -18926,10 +19027,10 @@ function _meetPickerFilter(q){
 }
 
 function openCalEvent(id){
-  let ev=_calEvents.find(e=>e.id===id);
+  let ev=_calEvents.find(e=>String(e.id)===String(id));
   let isSynced=false;
   if(!ev){
-    const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&e.id===id);
+    const raw=((typeof D!=='undefined'&&D&&D.calEvents)||[]).find(e=>e&&String(e.id)===String(id));
     if(raw){
       isSynced=true;
       const s=String(raw.start||'');
@@ -18974,7 +19075,7 @@ function openCalEvent(id){
 }
 
 function openEditCalEvent(id){
-  const ev=_calEvents.find(e=>e.id===id);
+  const ev=_calEvents.find(e=>String(e.id)===String(id));
   if(!ev)return;
   const m=document.getElementById('modal-content');
   // Parse existing time values
@@ -19012,7 +19113,7 @@ function openEditCalEvent(id){
 }
 
 async function saveEditCalEvent(id){
-  const ev=_calEvents.find(e=>e.id===id);
+  const ev=_calEvents.find(e=>String(e.id)===String(id));
   if(!ev)return;
   const title=document.getElementById('cev-title')?.value.trim();
   if(!title){toast('⚠ Title is required');return;}
@@ -19065,7 +19166,7 @@ async function saveEditCalEvent(id){
 }
 
 async function deleteCalEvent(id){
-  const ev=_calEvents.find(e=>e.id===id);
+  const ev=_calEvents.find(e=>String(e.id)===String(id));
   if(!ev)return;
   // Check if this is a recurring event (has recurId or repeat field set)
   const isRecurring=ev.recurId||(ev.repeat&&ev.repeat!=='none')||(ev.recurrence&&ev.recurrence!=='none');
@@ -19110,7 +19211,7 @@ async function deleteCalEvent(id){
     const removed=before-_calEvents.length;
     toast(`✓ Deleted ${removed} occurrence${removed!==1?'s':''}`);
   }else{
-    const idx=_calEvents.findIndex(e=>e.id===id);
+    const idx=_calEvents.findIndex(e=>String(e.id)===String(id));
     if(idx>-1)_calEvents.splice(idx,1);
     toast('✓ Event deleted');
   }
@@ -19275,12 +19376,22 @@ function renderCalWeek(){
     const isToday=dt.toDateString()===today.toDateString();
     return{label:`${d} ${dt.getDate()}`,isToday,dt};
   });
-  const weekDayStrs=weekDays.map(wd=>wd.dt.toISOString().split('T')[0]);
+  const weekDayStrs=weekDays.map(wd=>_ymd(wd.dt));
+  // Events per column, split into all-day and timed (all-day ones used to be
+  // invisible, and anything outside 8 AM–5 PM was dropped with no hint).
+  const _colEvents=weekDays.map((wd,d)=>[..._calEvents.filter(e=>_calLocalOn(e,wd.dt)),..._syncedEventsOn(wd.dt),..._scheduledTaskEvents().filter(e=>e.dateStr===weekDayStrs[d])]);
+  const _allDay=_colEvents.map(list=>list.filter(_calIsAllDay));
+  const _timed=_colEvents.map(list=>list.filter(e=>!_calIsAllDay(e)));
+  const _hrs=_timed.flat().map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
+  const _hFrom=Math.min(7,..._hrs),_hTo=Math.max(19,..._hrs);
+  const _hours=Array.from({length:_hTo-_hFrom+1},(_,i)=>_hFrom+i);
+  const _hLabel=h=>h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
+  const _allDayRow=_allDay.some(l=>l.length)?`<div class="cal-tl" style="font-size:10px">All day</div>${_allDay.map(l=>`<div class="cal-c">${l.map(e=>_calChip(e)).join('')}</div>`).join('')}`:'';
   $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${weekRangeLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset--;renderCal()" title="Previous week">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calWeekOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calWeekOffset++;renderCal()" title="Next week">›</button>${_calAIMenu('cal-ai-week',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'✨ Optimize',fn:'aiScheduleOptimize()',c:'var(--purp)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'}])}<button class="btn btn-s" id="cal-sync-btn-week" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
 <div style="overflow-x:auto"><div class="cal-grid" style="min-width:600px"><div></div>${weekDays.map((wd,i)=>`<div class="cal-hd" style="${wd.isToday?'color:var(--ac);font-weight:700;background:var(--acs);border-radius:4px':''};padding:2px 4px">${wd.label}</div>`).join('')}
-${[8,9,10,11,12,13,14,15,16,17].map(h=>`<div class="cal-tl">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${weekDays.map((wd,d)=>{
-  const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===weekDayStrs[d]||(e.dateStr==null&&e.day===d&&isCurrentWeek))),..._cellEventsForDate(weekDayStrs[d],h),..._cellTasksForDate(weekDayStrs[d],h)];
+${_allDayRow}${_hours.map(h=>`<div class="cal-tl">${_hLabel(h)}</div>${weekDays.map((wd,d)=>{
+  const evs=_timed[d].filter(e=>Number(e.hour)===h);
   return`<div class="cal-c">${evs.map(e=>_calChip(e)).join('')}</div>`}).join('')}`).join('')}</div></div>`;
 }
 
@@ -19291,12 +19402,14 @@ function renderCalDay(){
   viewDay.setHours(0,0,0,0);
   const isToday=_calDayOffset===0;
   const dayLabel=viewDay.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-  const dayStr=viewDay.toISOString().split('T')[0];
+  const dayStr=_ymd(viewDay);
   const dayOfWeek=(viewDay.getDay()+6)%7; // 0=Mon
-  const hours=[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+  const _dayLocal=_calEvents.filter(e=>_calLocalOn(e,viewDay)&&!_calIsAllDay(e));
+  const _dayHrs=_dayLocal.map(e=>Number(e.hour)).filter(h=>Number.isFinite(h)&&h>=0&&h<=23);
+  const hours=Array.from({length:Math.max(22,..._dayHrs)-Math.min(6,..._dayHrs)+1},(_,i)=>Math.min(6,..._dayHrs)+i);
   const rows=hours.map(h=>{
     const label=h===0?'12 AM':h<12?`${h} AM`:h===12?'12 PM':`${h-12} PM`;
-    const evs=[..._calEvents.filter(e=>e.hour===h&&(e.dateStr===dayStr||(e.dateStr==null&&e.day===dayOfWeek&&_calDayOffset===0))),..._cellEventsForDate(dayStr,h),..._cellTasksForDate(dayStr,h)];
+    const evs=[..._dayLocal.filter(e=>Number(e.hour)===h),..._cellEventsForDate(dayStr,h),..._cellTasksForDate(dayStr,h)];
     const evHtml=evs.map(e=>{
       // Calculate duration in hours for visual height hint
       const durationH=e.endHour&&e.endHour>e.hour?e.endHour-e.hour:1;
@@ -19344,7 +19457,7 @@ function renderCalDay(){
   }).join('');
   $('cal-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('calendar',22,'var(--page-accent)')}Calendar</h1><p style="font-size:12px;color:var(--t2)">${dayLabel}</p></div><div style="display:flex;gap:4px;align-items:center"><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset--;renderCal()" title="Previous day">‹</button><button class="btn btn-s" style="height:28px;font-size:11px" onclick="_calDayOffset=0;renderCal()">Today</button><button class="btn btn-s" style="height:28px;width:28px;padding:0;font-size:14px" onclick="_calDayOffset++;renderCal()" title="Next day">›</button>${_calAIMenu('cal-ai-day',[{label:'💬 NL Event',fn:'aiCalNLP()',c:'var(--ac)'},{label:'📝 Prep Brief',fn:'aiMeetingPrepBrief()',c:'var(--grn)'},{label:'✓ Extract Actions',fn:'aiExtractActions()',c:'var(--purp)'}])}<button class="btn btn-s" id="cal-sync-btn-day" style="height:28px;font-size:11px" onclick="syncCalendarO365(this)" title="Sync Office 365 calendar">☁ Sync O365</button><button class="btn btn-p" onclick="openNewCalEventModal()">+ Event</button></div></div>
 ${_calViewTabs()}
-<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
+${(()=>{const ad=[..._calEvents.filter(e=>_calLocalOn(e,viewDay)&&_calIsAllDay(e)),..._syncedEventsOn(viewDay).filter(_calIsAllDay)];return ad.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span style="font-size:11px;color:var(--t3);font-weight:600">All day</span>${ad.map(e=>_calChip(e)).join('')}</div>`:'';})()}<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;overflow:hidden">${rows}</div>`;
 }
 
 let _calDragEvId=null;
@@ -19354,7 +19467,7 @@ let _calResizeStartEndHour=0;
 function calResizeStart(event,evId){
   event.preventDefault();
   event.stopPropagation();
-  const ev=_calEvents.find(e=>e.id===evId);
+  const ev=_calEvents.find(e=>String(e.id)===String(evId));
   if(!ev)return;
   _calResizeEvId=evId;
   _calResizeStartY=event.clientY;
@@ -19367,7 +19480,7 @@ function calResizeStart(event,evId){
 }
 function calResizeMove(event){
   if(_calResizeEvId===null)return;
-  const ev=_calEvents.find(e=>e.id===_calResizeEvId);
+  const ev=_calEvents.find(e=>String(e.id)===String(_calResizeEvId));
   if(!ev)return;
   // Each hour row is approximately 52px tall (min-height)
   const rowH=52;
@@ -19389,7 +19502,7 @@ function calResizeEnd(){
   document.removeEventListener('mousemove',calResizeMove);
   document.body.style.cursor='';
   document.body.style.userSelect='';
-  const ev=_calEvents.find(e=>e.id===_calResizeEvId);
+  const ev=_calEvents.find(e=>String(e.id)===String(_calResizeEvId));
   _calResizeEvId=null;
   if(!ev)return;
   _calPersist();
@@ -19408,7 +19521,7 @@ function calDayDrop(event,newHour,dayOfWeek,dayStr){
   event.preventDefault();
   const evId=_calDragEvId||parseInt(event.dataTransfer.getData('text/plain'));
   _calDragEvId=null;
-  const ev=_calEvents.find(e=>e.id===evId);
+  const ev=_calEvents.find(e=>String(e.id)===String(evId));
   if(!ev)return;
   const oldHour=ev.hour;
   if(oldHour===newHour)return;
@@ -19447,7 +19560,7 @@ function renderCalMonth(){
     const dStr=d.toISOString().split('T')[0];
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
-    const evs=[..._calEvents.filter(e=>e.dateStr===dStr||(e.dateStr==null&&e.day===dow&&isCurrentMonth&&d.getMonth()===today.getMonth())),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
+    const evs=[..._calEvents.filter(e=>_calLocalOn(e,d)),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
     const evDots=evs.slice(0,3).map(e=>_calChip(e,{cls:'',extra:';font-size:11px;padding:1px 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'})).join('');
     const moreCount=evs.length>3?`<div style="font-size:9px;color:var(--t3);padding-left:4px">+${evs.length-3} more</div>`:'';
     return`<div style="border:1px solid var(--bd1);min-height:80px;padding:4px;cursor:pointer;background:${isTodayCell?'var(--acs)':isThisMonth?'var(--s2)':'var(--s1)'};border-radius:4px" onclick="_calDayOffset=Math.round((new Date('${dStr}')-new Date(new Date().toDateString()))/(86400000));_calView='day';renderCal()">
@@ -19597,7 +19710,7 @@ function aiMeetingPrepBrief(){
     <div style="font-size:11px;color:var(--t3);margin-top:2px">${ev.dateStr} at ${ev.start||ev.hour+':00'}${ev.location?' · '+esc(ev.location):''}</div>
     ${ev.desc?`<div style="font-size:11px;color:var(--t2);margin-top:4px">${esc(ev.desc)}</div>`:''}
   </div>
-  ${linkedNotes.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">RELATED NOTES (${linkedNotes.length})</div>${linkedNotes.slice(0,3).map(n=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;cursor:pointer" onclick="closeModal();showNoteInEditor(${n.id})">${esc(n.title)}</div>`).join('')}</div>`:''}
+  ${linkedNotes.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">RELATED NOTES (${linkedNotes.length})</div>${linkedNotes.slice(0,3).map(n=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px;cursor:pointer" onclick="closeModal();showNoteInEditor(${_tidLit(n.id)})">${esc(n.title)}</div>`).join('')}</div>`:''}
   ${linkedTasks.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">OPEN TASKS (${linkedTasks.length})</div>${linkedTasks.slice(0,3).map(t=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(t.title)} <span style="color:var(--t3)">· ${t.priority}</span></div>`).join('')}</div>`:''}
   ${linkedContacts.length?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:4px">ATTENDEES</div>${linkedContacts.slice(0,4).map(c=>`<div style="font-size:11px;padding:4px 8px;background:var(--s2);border-radius:4px;margin-bottom:3px">${esc(c.name)} · ${esc(c.role||c.company||'')}</div>`).join('')}</div>`:''}
   ${!linkedNotes.length&&!linkedTasks.length&&!linkedContacts.length?'<div style="font-size:11px;color:var(--t3);padding:10px 0">No linked notes, tasks, or contacts found. Add notes or tasks mentioning this event to build a richer brief.</div>':''}
@@ -20796,7 +20909,7 @@ function _reportForecast(series,days){
 // ─── R7: goal pace check ─────────────────────────────────────────────
 function _goalPaceCheck(g){
   if((g.pct||0)>=100)return {status:'done',label:'Done',color:'var(--ok)'};
-  const due=g.due||g.deadline||g.targetDate||null;
+  const due=_goalDue(g);
   if(!due)return {status:'unknown',label:'No deadline',color:'var(--t3)'};
   const dueMs=Date.parse(due);if(isNaN(dueMs))return {status:'unknown',label:'No deadline',color:'var(--t3)'};
   const created=g.createdAt?Date.parse(g.createdAt):(Date.now()-90*86400000);
@@ -20936,7 +21049,7 @@ function reportDrillDown(kind,key){
   else return;
   if(!items.length){toast('No items in this slice');return;}
   const m=document.getElementById('modal-content');
-  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(title)}</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${items.length} item${items.length===1?'':'s'} — click to open</div><div style="max-height:400px;overflow-y:auto">${items.map(t=>`<div class="lr" style="cursor:pointer;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--bd1)" onclick="closeModal();openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority||''}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+  m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">${esc(title)}</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${items.length} item${items.length===1?'':'s'} — click to open</div><div style="max-height:400px;overflow-y:auto">${items.map(t=>`<div class="lr" style="cursor:pointer;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--bd1)" onclick="closeModal();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority||''}</span><span style="font-size:11px;color:var(--t3)">${t.due||''}</span></div>`).join('')}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
   document.getElementById('modal-capture').classList.add('show');
 }
 
@@ -21308,7 +21421,7 @@ function renderArchive(){
   </div>`).join(''):`<div style="text-align:center;padding:36px 16px;color:var(--t3);font-size:12px">Nothing archived${_archiveTab!=='All'?` in ${_archiveTab}s`:''}${_archiveSearch?' matching your search':''}. Completed tasks, archived projects, finished goals and archived notes appear here.</div>`;
   $('arch-main').innerHTML=`<div class="pg-h"><h1>🗄 Archive</h1><p style="font-size:12px;color:var(--t2)">${counts.All} item${counts.All===1?'':'s'} · completed &amp; archived</p></div>
 <div class="tabs">${tabs.map(t=>`<div class="tab ${_archiveTab===t?'on':''}" onclick="setArchiveTab('${t}')">${t==='All'?'All':t+'s'}${counts[t]?` <span class="tc">${counts[t]}</span>`:''}</div>`).join('')}</div>
-<input class="inp" style="margin-bottom:10px" placeholder="🔍 Search archive..." value="${esc(_archiveSearch)}" oninput="archiveSearchInput(this.value)">
+<input class="inp" style="margin-bottom:10px" placeholder="🔍 Search archive..." value="${esc(_archiveSearch)}" oninput="_keepFocus(()=>archiveSearchInput(this.value))">
 <div class="cd">${rows}</div>`;
 }
 
@@ -21318,7 +21431,7 @@ const _mdSec=(D.prefs&&D.prefs.myDaySection)||'e';
 $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px">${_icon('sun',22,'var(--page-accent)')}My Day</h1><p style="font-size:12px;color:var(--t2)">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} · ${D.tasks.filter(t=>t.myDay).length} selected</p>${_focusViewTabs('myday')}</div><div style="display:flex;gap:4px"><button class="btn btn-s" onclick="startFreshMyDay()" title="Clear all My Day flags and start fresh for today">🔄 Start Fresh</button><button class="btn btn-s" onclick="D.tasks.forEach(t=>t.myDay=false);save('tasks');renderScreen('myday')">Clear All</button><button class="btn btn-p" onclick="openFA('task')">+ Full Add</button></div></div>
 <div class="subnav"><span class="sn ${_mdSec==='p'?'on':''}" onclick="mdSec(this,'p')">📋 Plan</span><span class="sn ${_mdSec==='e'?'on':''}" onclick="mdSec(this,'e')">⚡ Execute</span><span class="sn ${_mdSec==='w'?'on':''}" onclick="mdSec(this,'w')">🌙 Wrap-Up</span></div>
 <div id="md-p" style="display:${_mdSec==='p'?'':'none'}">${_renderCapacityIndicator()}<div class="sec-h" style="display:flex;align-items:center;justify-content:space-between"><span>📋 Plan — Select tasks for today</span><div style="display:flex;gap:5px"><button class="btn btn-s" style="font-size:11px;height:24px;color:var(--purp);border-color:var(--purp)" onclick="aiSmartSchedule()" title="AI builds a time-blocked schedule that respects your calendar + peak focus hours">🧠 AI Smart Plan</button><button class="btn btn-s" style="font-size:11px;height:24px" onclick="scheduleMyDay()" title="Linear auto-assign (basic) — ignores calendar events">🗓 Basic Schedule</button></div></div>
-<div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id===${t.id}).myDay=!D.tasks.find(x=>x.id===${t.id}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
+<div class="cd">${D.tasks.filter(t=>t.status!=='Done').map(t=>`<div class="lr" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.myDay?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=!D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay;save('tasks');renderScreen('myday')"></div><span class="rt">${esc(t.title)}</span><span class="pill ${pillClass(t.priority)}">${t.priority}</span><span class="rm">${t.context}</span><span style="cursor:pointer;font-size:12px" title="Toggle My Day">${t.myDay?'☀️':'○'}</span></div>`).join('')}</div></div>
 <div id="md-e" style="display:${_mdSec==='e'?'':'none'}">
 <div id="pomo-bar" style="background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
@@ -21389,10 +21502,10 @@ function _populateMyDayRail(){
     const colors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
     const dot=`<span style="width:6px;height:6px;border-radius:50%;background:${colors[t.priority]||'var(--t3)'};flex-shrink:0"></span>`;
     const time=t.startTime?`<span style="font-size:11px;color:var(--ac);font-weight:600;margin-left:4px">⏰ ${esc(t.startTime)}</span>`:'';
-    return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${t.id});mdSec(document.querySelector('#s-myday .sn:nth-child(2)'),'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
+    return `<div class="lr" style="cursor:pointer;padding:5px 6px" onclick="pomoSelectTask(${_tidLit(t.id)});mdSec(document.querySelector('#s-myday .sn:nth-child(2)'),'e')" title="Focus on this task">${dot}<span class="rt" style="font-size:11px">${esc(t.title)}</span>${time}</div>`;
   }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">All My Day tasks done — go celebrate. 🎉</div>`;
   // Today's meetings
-  const meetings=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
+  const meetings=_calMeetingsOn(today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
   const now=new Date();
   const meetingHtml=meetings.length?meetings.map(e=>{
     const s=new Date(e.start);
@@ -21404,7 +21517,7 @@ function _populateMyDayRail(){
   }).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No meetings today.</div>`;
   // Quick wins (≤15 min, not done, on My Day or due/scheduled today)
   const wins=D.tasks.filter(t=>t.status!=='Done'&&(Number(t.estimatedMins)||999)<=15&&(t.myDay||t.due===today||t.startDate===today)).slice(0,5);
-  const winsHtml=wins.length?wins.map(t=>`<div class="lr" style="cursor:pointer;padding:4px 6px" onclick="toggleTask(${t.id});setTimeout(()=>renderScreen('myday'),100)" title="Click to mark done"><span style="font-size:11px;flex-shrink:0">⚡</span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${t.estimatedMins||'?'}m</span></div>`).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No quick wins — set 'Estimated mins' on tasks to see them here.</div>`;
+  const winsHtml=wins.length?wins.map(t=>`<div class="lr" style="cursor:pointer;padding:4px 6px" onclick="toggleTask(${_tidLit(t.id)});setTimeout(()=>renderScreen('myday'),100)" title="Click to mark done"><span style="font-size:11px;flex-shrink:0">⚡</span><span class="rt" style="font-size:11px">${esc(t.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${t.estimatedMins||'?'}m</span></div>`).join(''):`<div style="font-size:11px;color:var(--t3);padding:6px;text-align:center">No quick wins — set 'Estimated mins' on tasks to see them here.</div>`;
   // Habits today snapshot
   const hbs=(D.habits||[]).filter(h=>h.cadence==='Daily');
   const hbsDone=hbs.filter(h=>h.doneToday).length;
@@ -21533,21 +21646,21 @@ function renderMdExecList(filter){
     const colors={High:'var(--err,#EF4444)',Medium:'var(--warn,#F59E0B)',Low:'var(--ok,#10B981)'};
     return`<div class="cd" style="margin-bottom:8px;border-left:3px solid ${colors[t.priority]||'var(--bd2)'}" id="exec-card-${t.id}">
       <div style="display:flex;align-items:flex-start;gap:8px">
-        <div class="chk ${t.status==='Done'?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="toggleTask(${t.id})"></div>
+        <div class="chk ${t.status==='Done'?'on':''}" style="margin-top:2px;flex-shrink:0" onclick="toggleTask(${_tidLit(t.id)})"></div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span id="exec-title-${t.id}" style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}" onclick="startInlineEdit(${t.id})" title="Click to edit">${esc(t.title)}</span>
+            <span id="exec-title-${t.id}" style="font-size:13px;font-weight:500;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}" onclick="startInlineEdit(${_tidLit(t.id)})" title="Click to edit">${esc(t.title)}</span>
             <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
             ${t.context?`<span style="font-size:11px;color:var(--t3)">${esc(t.context)}</span>`:''}
             ${t.startTime?`<span style="font-size:11px;color:var(--t2)">⏰ ${t.startTime}${t.endTime?' – '+t.endTime:''}</span>`:''}
           </div>
-          ${t.due?`<div style="font-size:11px;color:var(--t3);margin-top:2px">📅 Due ${fmtDate(t.due)}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${t.id},${si})"></div><span style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:11px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
+          ${t.due?`<div style="font-size:11px;color:var(--t3);margin-top:2px">📅 Due ${fmtDate(t.due)}${t.estimatedMins?' · ⏱ '+t.estimatedMins+'m':''}</div>`:''}          ${subs.length?`<div style="margin-top:5px">${subs.map((s,si)=>`<div class="lr" style="padding:2px 0"><div class="chk ${s.done?'on':''}" style="width:11px;height:11px" onclick="toggleSubtask(${_tidLit(t.id)},${si})"></div><span style="font-size:11px;${s.done?'text-decoration:line-through;color:var(--t3)':''}">${esc(s.title)}</span></div>`).join('')}<div style="font-size:11px;color:var(--t3);margin-top:2px">${subsDone}/${subs.length} subtasks done</div></div>`:''}
           ${t.notes?`<div style="font-size:11px;color:var(--t2);margin-top:4px;font-style:italic">${esc(t.notes)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
-          <button class="btn btn-p" style="font-size:10px;padding:1px 6px;height:20px" title="Focus on this task" onclick="pomoSelectTask(${t.id});toast('🎯 Focusing on: '+esc(D.tasks.find(x=>x.id===${t.id})?.title||''))">⏱</button>
-          <button class="btn btn-s" style="font-size:10px;padding:1px 6px;height:20px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))">✏</button>
-          <button class="btn btn-s" style="font-size:10px;padding:1px 6px;height:20px" onclick="D.tasks.find(x=>x.id===${t.id}).myDay=false;save('tasks');renderScreen('myday')">✕</button>
+          <button class="btn btn-p" style="font-size:10px;padding:1px 6px;height:20px" title="Focus on this task" onclick="pomoSelectTask(${_tidLit(t.id)});toast('🎯 Focusing on: '+esc(D.tasks.find(x=>x.id==${_tidLit(t.id)})?.title||''))">⏱</button>
+          <button class="btn btn-s" style="font-size:10px;padding:1px 6px;height:20px" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))">✏</button>
+          <button class="btn btn-s" style="font-size:10px;padding:1px 6px;height:20px" onclick="D.tasks.find(x=>x.id==${_tidLit(t.id)}).myDay=false;save('tasks');renderScreen('myday')">✕</button>
         </div>
       </div>
     </div>`;
@@ -21732,8 +21845,8 @@ function renderMyWeek(){
 }
 function weekTaskChip(t,draggable=true){
   const colors={High:'var(--err,#EF4444)',Medium:'var(--warn,#F59E0B)',Low:'var(--ok,#10B981)'};
-  return`<div draggable="true" ondragstart="dragTaskStart(event,${t.id})" style="background:var(--s3);border-left:3px solid ${colors[t.priority]||'var(--bd2)'};border-radius:3px;padding:4px 6px;margin-bottom:3px;cursor:grab;font-size:11px;display:flex;align-items:center;gap:4px" title="${esc(t.title)}">
-    <div class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${t.id})"></div>
+  return`<div draggable="true" ondragstart="dragTaskStart(event,${_tidLit(t.id)})" style="background:var(--s3);border-left:3px solid ${colors[t.priority]||'var(--bd2)'};border-radius:3px;padding:4px 6px;margin-bottom:3px;cursor:grab;font-size:11px;display:flex;align-items:center;gap:4px" title="${esc(t.title)}">
+    <div class="chk ${t.status==='Done'?'on':''}" style="width:12px;height:12px;flex-shrink:0" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})"></div>
     <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     ${t.startTime?`<span style="font-size:9px;color:var(--t3);flex-shrink:0">${t.startTime}</span>`:''}
   </div>`;
@@ -21871,7 +21984,7 @@ function renderMyYear(){
   </div>
 
   <div class="sec-h">📊 Annual Goals</div>
-  <div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id===${g.id}))">${g.icon}<span class="rt">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3);margin-right:6px">${g.dueDate||''}</span><div class="pb" style="width:60px"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div><span class="rm">${g.pct}%</span></div>`).join('')}</div>
+  <div class="cd">${D.goals.map(g=>`<div class="lr" onclick="openDrawer('goal',D.goals.find(x=>x.id==${_tidLit(g.id)}))">${g.icon}<span class="rt">${esc(g.title)}</span><span style="font-size:11px;color:var(--t3);margin-right:6px">${g.dueDate||''}</span><div class="pb" style="width:60px"><div class="f" style="width:${g.pct}%;background:${g.pct>=70?'var(--ok)':g.pct>=40?'var(--ac)':'var(--warn)'}"></div></div><span class="rm">${g.pct}%</span></div>`).join('')}</div>
   `;
   $('myyear-rail').innerHTML=`
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">📌 Year Priorities</div>
@@ -21943,17 +22056,17 @@ function renderProcess(){
   function gtdRow(t){
     const inbox=_processGtdTab==='Inbox';
     const acts=inbox
-      ?`<button class="btn btn-s gtd-a" title="Actionable now — adds to Do Next / My Day" onclick="event.stopPropagation();gtdDoNext(${t.id})">⚡ Do Next</button>
-        <button class="btn btn-s gtd-a" title="Give it a date" onclick="event.stopPropagation();gtdSchedule(${t.id})">📅 Schedule</button>
-        <button class="btn btn-s gtd-a" title="Hand off to someone" onclick="event.stopPropagation();delegateTask(${t.id})">📤 Delegate</button>
-        <button class="btn btn-s gtd-a" title="Defer to a future date" onclick="event.stopPropagation();snoozeTask(${t.id})">⏰ Snooze</button>
-        <button class="btn btn-s gtd-a" title="Maybe / not now" onclick="event.stopPropagation();gtdSomeday(${t.id})">🗓 Someday</button>
-        <button class="btn btn-s gtd-a" style="color:var(--ok)" title="2-min rule: just do it" onclick="event.stopPropagation();gtdDone(${t.id})">✓ Done</button>`
-      :`${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdDoNext(${t.id})">⚡ Do Next</button>`:''}
-        ${_processGtdTab!=='Calendar'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSchedule(${t.id})">📅 Schedule</button>`:''}
-        ${_processGtdTab!=='Someday'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSomeday(${t.id})">🗓 Someday</button>`:''}
-        ${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" style="color:var(--ok)" onclick="event.stopPropagation();gtdDone(${t.id})">✓ Done</button>`:''}
-        <button class="btn btn-s gtd-a" title="Reset to unprocessed Inbox" onclick="event.stopPropagation();gtdToInbox(${t.id})">📥 Inbox</button>`;
+      ?`<button class="btn btn-s gtd-a" title="Actionable now — adds to Do Next / My Day" onclick="event.stopPropagation();gtdDoNext(${_tidLit(t.id)})">⚡ Do Next</button>
+        <button class="btn btn-s gtd-a" title="Give it a date" onclick="event.stopPropagation();gtdSchedule(${_tidLit(t.id)})">📅 Schedule</button>
+        <button class="btn btn-s gtd-a" title="Hand off to someone" onclick="event.stopPropagation();delegateTask(${_tidLit(t.id)})">📤 Delegate</button>
+        <button class="btn btn-s gtd-a" title="Defer to a future date" onclick="event.stopPropagation();snoozeTask(${_tidLit(t.id)})">⏰ Snooze</button>
+        <button class="btn btn-s gtd-a" title="Maybe / not now" onclick="event.stopPropagation();gtdSomeday(${_tidLit(t.id)})">🗓 Someday</button>
+        <button class="btn btn-s gtd-a" style="color:var(--ok)" title="2-min rule: just do it" onclick="event.stopPropagation();gtdDone(${_tidLit(t.id)})">✓ Done</button>`
+      :`${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdDoNext(${_tidLit(t.id)})">⚡ Do Next</button>`:''}
+        ${_processGtdTab!=='Calendar'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSchedule(${_tidLit(t.id)})">📅 Schedule</button>`:''}
+        ${_processGtdTab!=='Someday'?`<button class="btn btn-s gtd-a" onclick="event.stopPropagation();gtdSomeday(${_tidLit(t.id)})">🗓 Someday</button>`:''}
+        ${_processGtdTab!=='Done'?`<button class="btn btn-s gtd-a" style="color:var(--ok)" onclick="event.stopPropagation();gtdDone(${_tidLit(t.id)})">✓ Done</button>`:''}
+        <button class="btn btn-s gtd-a" title="Reset to unprocessed Inbox" onclick="event.stopPropagation();gtdToInbox(${_tidLit(t.id)})">📥 Inbox</button>`;
     return `<div class="gtd-item">${taskRow(t,false)}<div class="gtd-acts">${acts}</div></div>`;
   }
   const tabBarG=`<div class="tabs gtd-tabs">${_gtdOrder.map(name=>{
@@ -21988,8 +22101,8 @@ ${tabBarG}
           <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
             <button class="btn btn-p" style="font-size:11px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
             <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
-            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='parked';D.ideas.find(x=>x.id===${idea.id}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
-            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id===${idea.id}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='parked';D.ideas.find(x=>x.id==${_tidLit(idea.id)}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
           </div>
         </div>
       </div>`;
@@ -22138,11 +22251,28 @@ function isoWeek(date){
   return d.getUTCFullYear()+'-W'+String(wk).padStart(2,'0');
 }
 // Returns the required completions per week for a cadence string
+// Which weekdays (0=Sun…6=Sat) a habit is due on, or null for count-per-week
+// cadences (Weekly, 3×/week…). Weekdays/Weekends/Custom used to fall into the
+// weekly branch needing 7 a week, so their streak was always 0.
+function _habitScheduledDays(h){
+  const c=(h&&h.cadence)||'Daily';
+  if(c==='Daily')return new Set([0,1,2,3,4,5,6]);
+  if(c==='Weekdays')return new Set([1,2,3,4,5]);
+  if(c==='Weekends')return new Set([0,6]);
+  if(c==='Custom'&&Array.isArray(h.customDays)&&h.customDays.length){
+    const idx={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+    const s=new Set(h.customDays.map(d=>idx[String(d).slice(0,3)]).filter(n=>n!=null));
+    return s.size?s:new Set([0,1,2,3,4,5,6]);
+  }
+  return null;
+}
 function cadencePerWeek(cadence){
   if(!cadence||cadence==='Daily')return 7;
+  if(cadence==='Weekdays')return 5;
+  if(cadence==='Weekends')return 2;
   if(cadence==='Weekly'||cadence==='1x/week')return 1;
   if(cadence==='2x/week')return 2;
-  if(cadence==='3x/week'||cadence==='3xd7/week')return 3;
+  if(cadence==='3x/week'||cadence==='3xd7/week'||cadence==='3×/week')return 3;
   if(cadence==='4x/week')return 4;
   if(cadence==='5x/week')return 5;
   if(cadence==='6x/week')return 6;
@@ -22155,15 +22285,17 @@ function calcHabitStreak(h){
   if(!completedDates.length)return 0;
   const cadence=h.cadence||'Daily';
   const reqPerWeek=cadencePerWeek(cadence);
-  if(cadence==='Daily'){
-    // Count consecutive days ending today (or yesterday if not yet done today)
+  const sched=_habitScheduledDays(h);
+  if(sched){
+    // Count consecutive SCHEDULED days ending today (or the last scheduled day
+    // before it if today isn't done yet); unscheduled days are skipped over.
     const today=new Date();today.setHours(0,0,0,0);
     let streak=0;
     let checkDate=new Date(today);
-    // If today is completed, start from today; else start from yesterday
     const todayStr=today.toISOString().split('T')[0];
-    if(!completedDates.includes(todayStr))checkDate.setDate(checkDate.getDate()-1);
-    while(true){
+    if(!sched.has(today.getDay())||!completedDates.includes(todayStr))checkDate.setDate(checkDate.getDate()-1);
+    for(let guard=0;guard<4000;guard++){
+      if(!sched.has(checkDate.getDay())){checkDate.setDate(checkDate.getDate()-1);continue;}
       const ds=checkDate.toISOString().split('T')[0];
       if(completedDates.includes(ds)||skippedDates.includes(ds)){
         streak++;
@@ -22495,7 +22627,7 @@ function renderIdeas(){
       <p style="font-size:12px;color:var(--t2)">Develop, stress-test, and decide which ideas earn your time.</p>
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input id="ideas-search" placeholder="🔍 Search ideas…" value="${esc(_ideasSearch)}" style="height:30px;font-size:11px;width:170px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="setIdeasSearch(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();aiIdeasSemanticSearch();}">
+      <input id="ideas-search" placeholder="🔍 Search ideas…" value="${esc(_ideasSearch)}" style="height:30px;font-size:11px;width:170px;padding:0 8px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t1)" oninput="_keepFocus(()=>setIdeasSearch(this.value))" onkeydown="if(event.key==='Enter'){event.preventDefault();aiIdeasSemanticSearch();}">
       <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="aiIdeasSemanticSearch()" title="Semantic search via AI">✨ Semantic</button>
       <div style="position:relative;display:inline-block">
         <button class="btn btn-s" style="height:30px;font-size:11px;color:var(--ac)" onclick="event.stopPropagation();togglePopMenu('ideas-ai-menu')" title="AI tools">✨ AI ▾</button>
@@ -22693,8 +22825,8 @@ function renderIdeaDetail(idea){
     <!-- AI mode toggle -->
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px">
       <span style="font-size:11px;color:var(--t2)">AI mode:</span>
-      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">😈 Devil's Advocate</button>
-      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id===${idea.id}))">🏆 Champion</button>
+      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">😈 Devil's Advocate</button>
+      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">🏆 Champion</button>
       <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
       ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
       ${idea.stage==='stress_test'?`<button class="btn btn-s" style="font-size:11px;margin-left:auto" onclick="ideaSynthesisMode(${idea.id})">✨ Synthesize</button>`:''}
@@ -23065,7 +23197,9 @@ async function aiIdeaDecisionBrief(id){
     // modal preview AND get saved to idea.decisionBriefHtml for future renders
     // (drawer, summary card, etc.) without recomputing renderMd every time.
     const html=(typeof renderMd==='function')?renderMd(text):`<div style="white-space:pre-wrap">${esc(text)}</div>`;
-    const copyJs=`navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('📋 Copied')`;
+    // _jsArg: raw JSON in a double-quoted onclick ended the attribute at the
+// brief's first quote, so Copy markdown did nothing.
+    const copyJs=`navigator.clipboard.writeText(${_jsArg(text)});toast('📋 Copied')`;
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📋 Decision Brief: ${esc(idea.title)}</h2><div id="ai-brief-preview" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;max-height:480px;overflow-y:auto">${html}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_aiBriefAppendToIdea(${idea.id})" title="Append the brief to the idea's full description">⬇ Append to Description</button><button class="btn btn-s" onclick="${copyJs}">📋 Copy markdown</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
@@ -23256,7 +23390,7 @@ function runIdeaPremortem(id){
     <div style="font-size:11px;color:var(--t3);margin-bottom:12px">If this fails in 12 months, here’s why:</div>
     <div style="font-size:12px;color:var(--t2);line-height:1.75;white-space:pre-wrap;background:var(--s2);border-radius:8px;padding:12px;border:1px solid var(--bd2)">${esc(text)}</div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn btn-p" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied!');" style="font-size:11px">📋 Copy</button>
+      <button class="btn btn-p" onclick="navigator.clipboard.writeText(${_jsArg(text)});toast('Copied!');" style="font-size:11px">📋 Copy</button>
       <button class="btn btn-s" onclick="closeModal()" style="font-size:11px">Close</button>
     </div>`;
     document.getElementById('modal-capture').classList.add('show');
@@ -23985,7 +24119,7 @@ function aiJournalPrompt(){
   <div style="background:var(--acs);border:1px solid var(--ac);border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px;line-height:1.6;font-style:italic">“${esc(prompt)}”</div>
   <div style="display:flex;gap:8px">
   <button class="btn btn-p" onclick="closeModal();openFA('journal');setTimeout(()=>{const el=document.querySelector('#capture-modal .inp[placeholder*=\'Title\']');if(el)el.value='Reflection';},200)">Write Now</button>
-  <button class="btn btn-s" onclick="(function(){const prompts=${JSON.stringify(prompts)};const p=prompts[Math.floor(Math.random()*prompts.length)];document.querySelector('#modal-content blockquote,#modal-content div[style*=italic]').textContent=p;})()">New Prompt</button>
+  <button class="btn btn-s" onclick="(function(){const prompts=${_jsArg(prompts)};const p=prompts[Math.floor(Math.random()*prompts.length)];document.querySelector('#modal-content blockquote,#modal-content div[style*=italic]').textContent=p;})()">New Prompt</button>
   <button class="btn btn-s" onclick="closeModal()">Close</button>
   </div>`;
   document.getElementById('modal-capture').classList.add('show');
@@ -24132,7 +24266,7 @@ function openHabitDrawer(hid){
     <div class="field"><label>Category</label><select class="inp" id="hdr-cat"><option ${(h?.category||'')==='Mindfulness'?'selected':''}>Mindfulness</option><option ${h?.category==='Health'?'selected':''}>Health</option><option ${h?.category==='Learning'?'selected':''}>Learning</option><option ${h?.category==='Productivity'?'selected':''}>Productivity</option><option ${h?.category==='Reflection'?'selected':''}>Reflection</option><option ${h?.category==='Finance'?'selected':''}>Finance</option><option ${h?.category==='Social'?'selected':''}>Social</option></select></div>
   </div>
   <div class="field-row">
-    <div class="field"><label>Cadence</label><select class="inp" id="hdr-cadence"><option ${(h?.cadence||'Daily')==='Daily'?'selected':''}>Daily</option><option ${h?.cadence==='Weekdays'?'selected':''}>Weekdays</option><option ${h?.cadence==='Weekends'?'selected':''}>Weekends</option><option ${h?.cadence==='3xd7/week'?'selected':''}>3×/week</option><option ${h?.cadence==='Weekly'?'selected':''}>Weekly</option></select></div>
+    <div class="field"><label>Cadence</label><select class="inp" id="hdr-cadence"><option ${(h?.cadence||'Daily')==='Daily'?'selected':''}>Daily</option><option ${h?.cadence==='Weekdays'?'selected':''}>Weekdays</option><option ${h?.cadence==='Weekends'?'selected':''}>Weekends</option><option value="3x/week" ${['3xd7/week','3x/week','3×/week'].includes(h?.cadence)?'selected':''}>3×/week</option><option ${h?.cadence==='Weekly'?'selected':''}>Weekly</option></select></div>
     <div class="field"><label>Start Time</label><input class="inp" type="time" value="${h?.startTime||''}" id="hdr-start"></div>
     <div class="field"><label>Reminder</label><input class="inp" type="time" value="${h?.reminderTime||''}" id="hdr-reminder"></div>
   </div>
@@ -24189,7 +24323,7 @@ function _coachWorkspaceContext(){
   const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
   const tasksDueToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay));
   const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
-  const calToday=(D.calEvents||[]).filter(e=>(e.start||'').slice(0,10)===today);
+  const calToday=_calMeetingsOn(today);
   const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
   const habitsDone=habits.filter(h=>h.doneToday).length;
   const goalsActive=(D.goals||[]).filter(g=>(g.pct||0)<100).slice(0,5);
@@ -24266,7 +24400,7 @@ async function aiCoachWeeklyReview(){
     const ctx=`Week ${ws} → ${we}\nDone (${doneWeek.length}):\n${doneWeek.slice(0,12).map(t=>'- '+t.title).join('\n')||'(none)'}\nSlipped past due (${slipped.length}):\n${slipped.slice(0,8).map(t=>`- ${t.title} (was due ${t.due})`).join('\n')||'(none)'}\nFocus minutes: ${focusWeek}m total\nDaily habit completion rate: ${habitsRate}%\nRecent journal moods: ${journalEntries.map(j=>j.mood||'').join(' ')||'(none logged)'}`;
     const text=await _coachAICall(sys,ctx);
     const m=document.getElementById('modal-content');
-    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Review</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Week of ${ws} → ${we}</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${JSON.stringify(text).replace(/`/g,'\\`')});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
+    m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">📅 Weekly Review</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">Week of ${ws} → ${we}</div><div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;white-space:pre-wrap;max-height:480px;overflow-y:auto">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="navigator.clipboard.writeText(${_jsArg(text)});toast('Copied')">📋 Copy</button><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Weekly review failed',msg:String(e.message||e).slice(0,200),duration:5000});}
 }
@@ -24328,7 +24462,7 @@ async function aiCoachGoalTaskAudit(){
     const pairs=Array.isArray(p.pairings)?p.pairings:[];
     const m=document.getElementById('modal-content');
     m.innerHTML=`<h2 style="font-size:14px;font-weight:600;margin-bottom:6px">🎯 Goal-Task Alignment</h2><div style="font-size:11px;color:var(--t3);margin-bottom:10px">${orphans.length} task${orphans.length===1?'':'s'} not linked to any goal. AI suggested pairings:</div>
-      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:11px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:11px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:11px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id===${t.id}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
+      <div style="max-height:380px;overflow-y:auto">${pairs.map(p=>{const t=orphans[p.task-1];const g=p.goal>0?D.goals[p.goal-1]:null;if(!t)return '';return `<div class="cd" style="margin-bottom:6px;padding:8px"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="flex:1;font-size:11px;font-weight:500">📋 ${esc(t.title)}</span>${g?`<span style="font-size:11px;color:var(--ac)">→ ${g.icon||'🎯'} ${esc(g.title)}</span>`:'<span style="font-size:11px;color:var(--t3)">no good fit</span>'}</div>${p.why?`<div style="font-size:11px;color:var(--t3);font-style:italic">${esc(p.why)}</div>`:''}${g?`<button class="btn btn-s" style="font-size:11px;height:22px;margin-top:4px" onclick="D.tasks.find(x=>x.id==${_tidLit(t.id)}).linkedGoalId=${g.id};save('tasks');this.textContent='✓ Linked';this.disabled=true">Link this</button>`:''}</div>`;}).join('')}</div>
       <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-s" onclick="closeModal()">Close</button></div>`;
     document.getElementById('modal-capture').classList.add('show');
   }catch(e){toast({type:'error',title:'Audit failed',msg:String(e.message||e).slice(0,200),duration:5000});}
@@ -24472,7 +24606,7 @@ function renderCoach(){
   if(!briefFresh)setTimeout(()=>aiCoachDailyBrief(),200);
   $('coach-rail').innerHTML=`
   <div style="font-size:12px;font-weight:600;margin-bottom:8px">🎯 Daily Priorities</div>
-  ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id===${t.id}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${t.id})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:11px;color:var(--t3)">All tasks done! 🎉</p>')}
+  ${D.tasks.filter(t=>t.priority==='High'&&t.status!=='Done').slice(0,3).map(t=>`<div class="lr" style="font-size:11px" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})"></div><span class="rt">${esc(t.title)}</span></div>`).join('')||(D.tasks.filter(t=>t.status!=='Done').length?'':'<p style="font-size:11px;color:var(--t3)">All tasks done! 🎉</p>')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">✅ Habit Check-In</div>
   ${dailyHabits.map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="toggleHabit(${h.id})"></div><span class="rt" style="font-size:11px">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}
   <div style="font-size:12px;font-weight:600;margin:12px 0 6px">${_icon('target',14,'currentColor')} Goals Snapshot</div>
@@ -25548,7 +25682,7 @@ function renderHelp(){
   <!-- Hero Search -->
   <div style="position:relative;margin-bottom:20px">
     <input id="help-search-input" class="inp" placeholder="Search help articles… (try 'shortcuts', 'calendar', 'enrich')" value="${esc(_helpSearch)}"
-      oninput="_helpSearch=this.value;_helpCatFilter=null;renderHelp()" style="width:100%;padding-left:36px;font-size:13px">
+      oninput="_helpSearch=this.value;_helpCatFilter=null;_keepFocus(renderHelp)" style="width:100%;padding-left:36px;font-size:13px">
     <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--t3)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
     ${_helpSearch?`<button onclick="_helpSearch='';_helpCatFilter=null;renderHelp()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--t3);font-size:16px">×</button>`:''}
   </div>
@@ -25785,7 +25919,7 @@ function renderHelpToursTab(){
             ${isActive?`<div style="margin-top:8px"><div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--ac);width:${Math.round((progress/t.steps.length)*100)}%;transition:width .3s"></div></div><div style="font-size:11px;color:var(--t3);margin-top:3px">Step ${progress} of ${t.steps.length}</div></div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
-            <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">${isActive?'Resume':'Launch'}</button>
+            <button class="btn-p" onclick="launchTour(${_tidLit(t.id)})" style="font-size:11px">${isActive?'Resume':'Launch'}</button>
             ${isActive?`<button class="btn-s" onclick="exitTour()" style="font-size:11px">Exit</button>`:''}
           </div>
         </div>
@@ -25865,8 +25999,8 @@ function renderTourBuilder(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${HC_TOURS.map(t=>`<div style="background:var(--s2);border:1px solid var(--br);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:8px">
         <div style="flex:1"><div style="font-size:12px;font-weight:600">${esc(t.name)}</div><div style="font-size:11px;color:var(--t3)">${t.steps.length} steps · ${t.type}</div></div>
-        <button class="btn-s" onclick="loadTourIntoBuilder(${t.id})" style="font-size:11px">Edit</button>
-        <button class="btn-p" onclick="launchTour(${t.id})" style="font-size:11px">Preview</button>
+        <button class="btn-s" onclick="loadTourIntoBuilder(${_tidLit(t.id)})" style="font-size:11px">Edit</button>
+        <button class="btn-p" onclick="launchTour(${_tidLit(t.id)})" style="font-size:11px">Preview</button>
       </div>`).join('')}
     </div>
   </div>

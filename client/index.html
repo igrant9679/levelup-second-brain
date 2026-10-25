@@ -283,7 +283,8 @@ body{font-family:'Plus Jakarta Sans','Inter',sans-serif;background:var(--bg);col
 /* Use dvh (dynamic viewport height) so iOS Safari's collapsing address bar
    doesn't cut off the bottom of the app shell. Falls back to 100vh on older
    browsers. */
-.app{display:grid;grid-template-rows:var(--top) 1fr;height:100vh;height:100dvh}
+.app{display:grid;grid-template-rows:var(--top) 1fr;grid-template-columns:minmax(0,1fr);height:100vh;height:100dvh}
+.tb-more{display:none;position:relative}
 
 /* TOPBAR */
 .topbar{background:var(--s1);border-bottom:1px solid var(--bd1);display:flex;align-items:center;padding:0 14px;gap:10px;z-index:100}
@@ -967,7 +968,9 @@ body.sb-open .lu-pill-pop{display:none!important}
   body.notes-pane-editor .scr#s-notes .notes-editor,
   body.notes-pane-rail .scr#s-notes .notes-rail{display:block}
   /* Hide resize handles on phones — panes are full-width tabs now */
-  .scr#s-notes .notes-resize{display:none!important}
+  /* `.notes-list > .notes-resize` out-ranks `.notes-list > div{display:flex!important}`
+     below, which otherwise showed the list's handle 3px past the screen edge. */
+  .scr#s-notes .notes-resize,.scr#s-notes .notes-list > .notes-resize{display:none!important}
   /* The desktop panes scroll an inner area inside a fixed-height shell.
      "Let the page flow/scroll" fights that shell (content clips, no
      scroll). Instead: don't let the pane/wrapper clip, and make the
@@ -2077,6 +2080,14 @@ body[data-screen="notes"] #notes-editor-panel h2:first-of-type{
   .tlc-chk{min-width:24px;min-height:24px}
   .si{min-height:44px}
 }
+/* PHONE TOP BAR (build -227). With 44px touch targets the bar needed ~409px
+   signed in, so on a 375/390 phone it pushed the whole page sideways. Below
+   430px the occasional buttons (sync, colour mode, push) move into the ⋯ menu. */
+@media (max-width:430px){
+  .topbar{min-width:0}
+  #topbar-sync-btn,#topbar-sync-label,#topbar-push-btn,#topbar-theme-btn,#topbar-connected-as{display:none!important}
+  .tb-more{display:inline-flex}
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    AURORA GLASS
@@ -2399,6 +2410,14 @@ body.aurora.light-mode .scr.on > .bg::before{
      from applyPrefs(), so it stays correct no matter where the mode was changed
      (here, Settings → Appearance, or a theme schedule firing). -->
 <button class="tbtn" id="topbar-theme-btn" onclick="toggleThemeMode()" aria-label="Switch colour mode" title="Switch colour mode"></button>
+<div class="tb-more">
+  <button class="tbtn" id="topbar-more-btn" onclick="event.stopPropagation();togglePopMenu('topbar-more-menu')" aria-label="More actions" title="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+  <div id="topbar-more-menu" data-pop-menu="1" style="display:none;position:absolute;right:0;top:44px;background:var(--s2);border:1px solid var(--bd2);border-radius:10px;padding:5px;z-index:var(--z-dropdown);min-width:220px;box-shadow:0 10px 32px rgba(0,0,0,.45)">
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:40px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-more-menu');_topbarSyncNow()">⟳ Sync external sources</button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:40px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-more-menu');toggleThemeMode()">◐ Switch colour mode</button>
+    <button class="btn btn-s" style="display:flex;align-items:center;gap:9px;width:100%;justify-content:flex-start;height:40px;font-size:12px;background:transparent;border:none;text-align:left" onclick="closePopMenu('topbar-more-menu');_pushPendingNow()">⬆ Push queued changes</button>
+  </div>
+</div>
 <button class="tbtn" id="notif-btn" onclick="toggleNotifPanel()" aria-label="Notifications" title="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="bg" id="notif-badge">6</span></button>
 <div class="av" id="topbar-avatar" role="button" tabindex="0" aria-label="Account and settings" onclick="nav('settings')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('settings')}">IG</div>
 </div>
@@ -3063,7 +3082,7 @@ body.sh-resizing{user-select:none!important}
      via ETag so the new APP_BUILD is always picked up. -->
 <script>
 (function(){
-  var APP_BUILD='2026-10-25-226';
+  var APP_BUILD='2026-10-25-227';
   window.__APP_BUILD=APP_BUILD; // surfaced in-app (e.g. Bookmarks subtitle) so we can see which build a device actually loaded
   // vendor/purify.min.js (DOMPurify 3.3.0, self-hosted) loads first: every
   // bundle renders note/mail/assistant HTML through luSanitizeHtml().

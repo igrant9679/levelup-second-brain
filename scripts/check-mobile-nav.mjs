@@ -34,7 +34,9 @@ import { dirname, resolve } from 'node:path';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ARG = process.argv[2];
 const SOURCE = ARG || resolve(ROOT, 'client/index.html');
-const PHONE_WIDTH = 390; // iPhone 14/15 logical width
+// Checked at each phone width: 375 (iPhone SE / 13 mini) and 390 (iPhone 14/15).
+const PHONE_WIDTHS = [375, 390];
+let PHONE_WIDTH = PHONE_WIDTHS[0];
 
 async function loadHtml(src) {
   if (/^https?:\/\//i.test(src)) {
@@ -208,6 +210,9 @@ if (!rules.length) {
   console.log(`No CSS rules parsed from ${label} — refusing to report a pass.`);
   process.exit(1);
 }
+let anyFail = false;
+for (const width of PHONE_WIDTHS) {
+PHONE_WIDTH = width;
 const unknown = new Set();
 const failures = [];
 const notes = [];
@@ -269,7 +274,8 @@ if (unknown.size) {
   console.log('  They were treated as NON-matching. Extend SIDEBAR_TOKENS if one is real.');
 }
 if (failures.length) {
-  console.log(`\n${failures.length} FAILURE(S) — the phone menu is broken. See the header of this file for the -145 case.`);
-  process.exit(1);
+  console.log(`\n${failures.length} FAILURE(S) at ${width}px — the phone menu is broken. See the header of this file for the -145 case.\n`);
+  anyFail = true;
+} else console.log(`\nAll ${notes.length} mobile-nav invariants hold at ${width}px.\n`);
 }
-console.log(`\nAll ${notes.length} mobile-nav invariants hold.`);
+if (anyFail) process.exit(1);
