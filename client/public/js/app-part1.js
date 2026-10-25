@@ -714,9 +714,6 @@ function luRTE_htmlToMd(html){
 }
 
 // ====== DATA STORE ======
-// Local YYYY-MM-DD for a date (defaults to now). Use this instead of
-// toISOString().split('T')[0] — that returns the UTC day, which is wrong
-// (off by one) for users west of UTC during the evening.
 // Every task status, in workflow order. Each status picker reads this list —
 // the drawer had no Someday, so a Someday task opened in it showed
 // "Not Started" and saving silently pulled it back into the active list.
@@ -725,11 +722,75 @@ function _statusOptions(cur){
   const list=TASK_STATUSES.includes(cur)||!cur?TASK_STATUSES:[cur,...TASK_STATUSES];
   return list.map(s=>`<option ${s===cur?'selected':''}>${esc(s)}</option>`).join('');
 }
+// ── Dates (Phase 3, build -228) ─────────────────────────────────────────
+// The app's dates are LOCAL calendar days. Three helpers, and
+// `pnpm check:dates` fails the build if the UTC forms come back:
+//  _ymd(d)    local YYYY-MM-DD of a Date (default now). NOT
+//             toISOString().slice(0,10), which is the UTC day — tomorrow,
+//             after ~8pm Eastern.
+//  _pd(v)     drop-in for new Date(v). Only a bare 'YYYY-MM-DD' string
+//             changes: local midnight, where the browser reads UTC midnight
+//             (the evening before, west of UTC). Dates, numbers and full
+//             timestamps behave exactly like new Date(v).
+//  _dayOf(v)  local day of a stored value: a 'YYYY-MM-DD' stays as is, a
+//             timestamp ('…T03:12:00.000Z') becomes the day it was locally.
+function _pd(v){
+  if(typeof v==='string'){
+    const m=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+    return new Date(String(v));
+  }
+  return v instanceof Date?new Date(v.getTime()):new Date(v==null?(v===null?0:NaN):+v);
+}
+function _dayOf(v){
+  if(!v)return '';
+  const s=String(v);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const d=_pd(v);
+  return isNaN(d)?s.slice(0,10):_ymd(d);
+}
+// Whole calendar days from today to a stored day: 0 = today, -1 = yesterday.
+// Comparing a due day's midnight with the current TIME rounded "today" in the
+// afternoon to "1d ago".
+function _daysUntil(day){
+  const d=_pd(_dayOf(day));
+  if(isNaN(d))return null;
+  return Math.round((d-_pd(_ymd()))/86400000);
+}
+// A calendar time as 24h "HH:MM": accepts "14:30", "2:30 PM", "10 AM", or
+// falls back to a whole hour.
+function _calHM(v,fallbackHour){
+  const m=String(v==null?'':v).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?$/i);
+  if(m){
+    let h=+m[1];const mi=+(m[2]||0);const ap=(m[3]||'').toLowerCase();
+    if(ap.startsWith('p')&&h<12)h+=12;
+    if(ap.startsWith('a')&&h===12)h=0;
+    if(h<24&&mi<60)return String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0');
+  }
+  const fh=Math.max(0,Math.min(23,Math.floor(Number(fallbackHour)||0)));
+  return String(fh).padStart(2,'0')+':00';
+}
 function _ymd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // Platform detection for keyboard-shortcut hints — Mac/iOS show ⌘, everything else Ctrl.
 const _isMac=/Mac|iPhone|iPod|iPad/i.test((navigator.platform||'')+' '+(navigator.userAgent||''));
 // Global today string used across screens (YYYY-MM-DD), in LOCAL time.
+// It was computed once at load, so a tab left open overnight (the iPad) kept
+// yesterday's Today tab, overdue marks and KPIs. _luRefreshToday() moves it
+// on — from the midnight timer, on focus / tab return, and once a minute
+// (timers don't fire while a device sleeps) — and re-renders once per change.
 var _todayStr=_ymd();
+function _luRefreshToday(){
+  const t=_ymd();
+  if(t===_todayStr)return false;
+  _todayStr=t;
+  try{if(typeof checkMyDayReset==='function')checkMyDayReset();}catch(e){console.warn('[today] reset failed',e);}
+  try{if(typeof renderScreen==='function'&&typeof curScreen!=='undefined')renderScreen(curScreen);}catch(e){}
+  try{if(typeof toast==='function')toast('☀️ New day! My Day has been refreshed.');}catch(e){}
+  return true;
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)_luRefreshToday();});
+window.addEventListener('focus',()=>_luRefreshToday());
+setInterval(_luRefreshToday,60000);
 var D = {
   tasks: JSON.parse(localStorage.getItem('lu_tasks') || 'null') || [
     {id:101,title:'Finalize Q2 product roadmap presentation',status:'In Progress',priority:'High',due:'2026-05-02',energy:'High',est:90,tags:['strategy','product'],projectId:1,assignee:'Idris Grant',context:'@computer',notes:'Include market analysis, competitor landscape, and 3-quarter forecast. Coordinate with Priya on design assets.',subtasks:[{id:1,title:'Gather market data',done:true},{id:2,title:'Draft slide deck',done:true},{id:3,title:'Review with leadership',done:false},{id:4,title:'Incorporate feedback',done:false}],myDay:true,starred:true,createdAt:'2026-04-20'},
@@ -1143,7 +1204,7 @@ function _topbarSyncTooltipUpdate(){
   const lsiN=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>t.source==='nifty'&&!(t.override&&t.override.tombstoned)).length;
   const sources=(cfN?1:0)+(lsiN?1:0);
   if(last){
-    const ago=(Date.now()-new Date(last).getTime())/60000;
+    const ago=(Date.now()-_pd(last).getTime())/60000;
     const label=ago<2?'just now':ago<60?`${Math.floor(ago)}m ago`:ago<1440?`${Math.floor(ago/60)}h ago`:`${Math.floor(ago/1440)}d ago`;
     btn.title=`Sync Smartsheet + NiftyPM · last pulled ${label} · ${cfN} CF + ${lsiN} LSI rows`;
     // Compact label visible beside the button on desktop.
@@ -2298,7 +2359,7 @@ function _renderMiniWeekStrip(){
   const today=new Date();today.setHours(0,0,0,0);
   const dayLetters=['S','M','T','W','T','F','S'];
   const cells=Array.from({length:7},(_,i)=>{
-    const d=new Date(today);d.setDate(d.getDate()+i);
+    const d=_pd(today);d.setDate(d.getDate()+i);
     const k=_ymd(d);
     const isToday=i===0;
     const taskCount=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k)).length;
@@ -3449,7 +3510,7 @@ function _renderNoteDeepInsight(noteId, insight){
     host.innerHTML = `<div style="padding:12px;color:var(--red);background:rgba(239,68,68,0.08);border-radius:6px;font-size:11px">⚠ ${esc(insight.error)}<br><button class="btn btn-s" style="font-size:11px;margin-top:6px" onclick="aiNoteDeepInsight(${noteId},{force:true})">Retry</button></div>`;
     return;
   }
-  const cachedAge = insight.cachedAt ? Math.round((Date.now() - new Date(insight.cachedAt).getTime()) / 60000) : 0;
+  const cachedAge = insight.cachedAt ? Math.round((Date.now() - _pd(insight.cachedAt).getTime()) / 60000) : 0;
   host.innerHTML = `<div style="padding:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--ac)">${_icon('brain',16,'currentColor')} AI Deep Insight</div>
@@ -3565,7 +3626,7 @@ function _aiInsightCreateTask(noteId, actionIdx){
 }
 
 async function _refreshAIInsight(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   try{
     const {provider,configured}=_getAIConfig();
     if(!configured){
@@ -3593,7 +3654,7 @@ async function _refreshAIInsight(){
 // Manual refresh forces a re-fetch regardless of cache.
 async function _refreshDailyFocusAI(opts){
   const force=opts&&opts.force;
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const cache=(D.prefs&&D.prefs.dailyFocusAI)||null;
   if(!force&&cache&&cache.date===today&&Array.isArray(cache.picks)&&cache.picks.length)return;
   // Mark pending so the UI can show a spinner without re-firing the request.
@@ -3617,7 +3678,7 @@ async function _refreshDailyFocusAI(opts){
       if(due&&due<todayKey)return 0;       // overdue
       if(due===todayKey)return 1;          // due today
       if(t.myDay)return 2;                  // my day
-      if(due&&due<=new Date(Date.now()+14*86400000).toISOString().slice(0,10))return 3; // next 2 weeks
+      if(due&&due<=_ymd(new Date(Date.now()+14*86400000)))return 3; // next 2 weeks
       return 4;                              // rest
     };
     const candidates=open.slice().sort((a,b)=>score(a)-score(b)||(a.due||'9999').localeCompare(b.due||'9999')).slice(0,60);
@@ -3671,7 +3732,7 @@ function _renderDailyFocusAISection(){
   if(!hasAIConfig){
     return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3);text-align:center">Add an AI key in Settings → AI Features to see Daily Focus picks.</div>`;
   }
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const stale=!cache.date||cache.date!==today;
   if(cache.pending){
     return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--bd1);font-size:11px;color:var(--t3);text-align:center">✨ Thinking about today's focus…</div>`;
@@ -3707,7 +3768,7 @@ function _renderDailyFocusAISection(){
 // AI-generated hero subtitle (#8). Cached per day in D.prefs.aiHeroBrief.
 // Toggled on via D.prefs.heroAIBrief checkbox in the Customize Dashboard modal.
 async function _refreshHeroBrief(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const cache=(D.prefs&&D.prefs.aiHeroBrief)||null;
   // Bail early if a fresh cache already exists.
   if(cache&&cache.date===today&&cache.text&&!cache.pending)return;
@@ -4537,35 +4598,35 @@ function _exportToHTML(filename,title,headers,rows){
 function exportTasks(format){
   const items=(D.tasks||[]).map(t=>({Title:t.title,Status:t.status,Priority:t.priority,Due:t.due||'',Project:t.project||'',Context:t.context||'',Tags:(t.tags||[]).join('; '),Notes:t.notes||'',CreatedBy:t.createdBy||'',CreatedAt:t.createdAt||''}));
   const headers=['Title','Status','Priority','Due','Project','Context','Tags','Notes','CreatedBy','CreatedAt'];
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=_ymd(new Date());
   if(format==='html')_exportToHTML('levelup-tasks-'+stamp+'.html','LevelUp — Tasks',headers,items);
   else _exportToCSV('levelup-tasks-'+stamp+'.csv',headers,items);
 }
 function exportNotes(format){
   const items=(D.notes||[]).map(n=>({Title:n.title,Source:n.source||'',Tags:(n.tags||[]).join('; '),Updated:n.updated||'',Body:n.body||'',Starred:n.starred?'Yes':''}));
   const headers=['Title','Source','Tags','Updated','Body','Starred'];
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=_ymd(new Date());
   if(format==='html')_exportToHTML('levelup-notes-'+stamp+'.html','LevelUp — Notes',headers,items);
   else _exportToCSV('levelup-notes-'+stamp+'.csv',headers,items);
 }
 function exportProjects(format){
   const items=(D.projects||[]).map(p=>({Name:p.name,Status:p.status||'',Owner:p.owner||'',StartDate:p.startDate||'',Due:p.due||'',Quarter:p.quarter||'',Description:p.desc||'',Progress:(p.pct||0)+'%'}));
   const headers=['Name','Status','Owner','StartDate','Due','Quarter','Description','Progress'];
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=_ymd(new Date());
   if(format==='html')_exportToHTML('levelup-projects-'+stamp+'.html','LevelUp — Projects',headers,items);
   else _exportToCSV('levelup-projects-'+stamp+'.csv',headers,items);
 }
 function exportClusters(format){
   const items=(D.clusters||[]).map(c=>{const projIds=new Set(c.projectIds||[]);const tasks=(D.tasks||[]).filter(t=>t.clusterId===c.id||(t.projectId&&projIds.has(t.projectId)));const done=tasks.filter(t=>t.status==='Done').length;return {Name:c.name,Icon:c.icon||'',Color:c.color||'',Owner:c.owner||'',Projects:(c.projectIds||[]).length,TotalTasks:tasks.length,DoneTasks:done,Progress:tasks.length?Math.round(done/tasks.length*100)+'%':'0%',CreatedAt:c.createdAt||''};});
   const headers=['Name','Icon','Color','Owner','Projects','TotalTasks','DoneTasks','Progress','CreatedAt'];
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=_ymd(new Date());
   if(format==='html')_exportToHTML('levelup-clusters-'+stamp+'.html','LevelUp — Clusters',headers,items);
   else _exportToCSV('levelup-clusters-'+stamp+'.csv',headers,items);
 }
 function exportJournal(format){
   const items=(D.journal||[]).map(j=>({Date:j.date||'',Title:j.title||'',Mood:j.mood||'',Body:j.body||'',Tags:(j.tags||[]).join('; ')}));
   const headers=['Date','Title','Mood','Body','Tags'];
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=_ymd(new Date());
   if(format==='html')_exportToHTML('levelup-journal-'+stamp+'.html','LevelUp — Journal',headers,items);
   else _exportToCSV('levelup-journal-'+stamp+'.csv',headers,items);
 }
@@ -4603,7 +4664,7 @@ async function exportBookmarks(format){
     const res=await _trpc('bookmarks.list',{page:1,pageSize:100},'query');
     const items=(res?.bookmarks||[]).map(b=>({Title:b.title||'',URL:b.url||'',SiteName:b.siteName||'',Description:b.description||'',Tags:(b.tags||[]).join('; '),CreatedAt:b.createdAt||''}));
     const headers=['Title','URL','SiteName','Description','Tags','CreatedAt'];
-    const stamp=new Date().toISOString().slice(0,10);
+    const stamp=_ymd(new Date());
     if(format==='html')_exportToHTML('levelup-bookmarks-'+stamp+'.html','LevelUp — Bookmarks',headers,items);
     else _exportToCSV('levelup-bookmarks-'+stamp+'.csv',headers,items);
   }catch(e){toast('⚠ Export failed: '+e.message);}
@@ -4776,7 +4837,7 @@ function fmtDate(d){
 }
 function fmtTime(d){
   if(!d)return '';
-  const dt=d instanceof Date?d:new Date(d);
+  const dt=d instanceof Date?d:_pd(d);
   if(isNaN(dt))return String(d);
   const use24=(D.prefs&&D.prefs.timeFormat)==='24h';
   return dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:!use24});
@@ -5145,7 +5206,8 @@ function doCapture(){
   const now=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
   if(capType==='Task'){
     const due=document.getElementById('cap-due')?.value;const dueLabel=due?new Date(due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'';
-    D.tasks.push({id:nextId(D.tasks),title,priority:document.getElementById('cap-pri')?.value||'Medium',due:dueLabel||'No date',context:document.getElementById('cap-ctx')?.value||'Inbox',project:document.getElementById('cap-proj')?.value||'',status:'Not Started',myDay:false,energy:'',notes:document.getElementById('cap-body')?.value||''});
+    void dueLabel; // tasks keep due as YYYY-MM-DD (a label like "Oct 25" broke every due-date comparison)
+    D.tasks.push({id:nextId(D.tasks),title,priority:document.getElementById('cap-pri')?.value||'Medium',due:due||'',context:document.getElementById('cap-ctx')?.value||'Inbox',project:document.getElementById('cap-proj')?.value||'',status:'Not Started',myDay:false,energy:'',notes:document.getElementById('cap-body')?.value||''});
     save('tasks');
     _trpc('activityFeed.log',{action:'task_created',entityType:'task',entityTitle:title},'mutation').catch(()=>{});
   } else if(capType==='Note'){
@@ -5164,7 +5226,10 @@ function doCapture(){
     const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
     const capBodyEl=document.getElementById('cap-body');
     const journalBody=capBodyEl?(capBodyEl.contentEditable==='true'?luRTE_htmlToMd(capBodyEl.innerHTML):capBodyEl.value):'';
-    D.journal.push({id:nextId(D.journal),date:'Today · '+dateStr,title,body:journalBody,mood:document.getElementById('cap-mood')?.value||'😊'});
+    // A real local date + createdAt — the old "Today · Wednesday, October 25"
+    // had no year, so next January it read as a future date.
+    void dateStr;
+    D.journal.push({id:nextId(D.journal),date:_ymd(),title,body:journalBody,mood:document.getElementById('cap-mood')?.value||'😊',createdBy:(D.creds&&D.creds.userName)||'',createdAt:new Date().toISOString()});
     save('journal');
   } else if(capType==='Idea'){
     const idea_type=document.getElementById('cap-idea-type')?.value||'general';
@@ -5556,7 +5621,7 @@ async function _restoreRunningTimer(){
     const numericId=Number(running.taskId);
     if(!Number.isFinite(numericId))return; // external-task timer, no local row to attach to
     if(_timerTaskId)return; // already running locally
-    const startMs=new Date(running.startedAt).getTime();
+    const startMs=_pd(running.startedAt).getTime();
     _timerTaskId=numericId;
     _timerStart=startMs;
     _timerInterval=setInterval(()=>{
@@ -5571,7 +5636,7 @@ async function _restoreRunningTimer(){
 }
 function taskRow(t,showActs=true){
   const isSomeday=t.status==='Someday';
-  const _todayForRow=(new Date()).toISOString().split('T')[0];
+  const _todayForRow=_ymd((new Date()));
   const isOverdueTask=t.status!=='Done'&&t.due&&t.due<_todayForRow;
   const assigneeLabel=t.assignedTo?`👤 ${t.assignedTo.split(' ')[0]}`:'Delegate';
   const bulkChk=_bulkMode?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" style="flex-shrink:0;margin-right:2px" onclick="toggleBulkSelect(${_tidLit(t.id)},event)"></div>`:
@@ -5714,7 +5779,7 @@ function aiDecomposeGoal(){
     });
   }
   const today=new Date();
-  const dueDate=new Date(today.getTime()+7*24*60*60*1000).toISOString().slice(0,10);
+  const dueDate=_ymd(new Date(today.getTime()+7*24*60*60*1000));
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">🧩 AI Task Decomposition</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Goal: <strong>${esc(g)}</strong></div>
@@ -5741,7 +5806,7 @@ function aiDeadlineRisk(){
   const today=new Date();
   const risks=[];
   D.tasks.filter(t=>t.status!=='Done'&&t.due).forEach(t=>{
-    const due=new Date(t.due);
+    const due=_pd(t.due);
     const daysLeft=Math.ceil((due-today)/(1000*60*60*24));
     const subtasksDone=(t.subtasks||[]).filter(s=>s.done).length;
     const subtasksTotal=(t.subtasks||[]).length;
@@ -6130,15 +6195,15 @@ function _taskSnoozePopover(e,id){
   const today=new Date();today.setHours(0,0,0,0);
   const opts=[];
   const fmt=d=>d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  const iso=d=>d.toISOString().slice(0,10);
-  const tomorrow=new Date(today);tomorrow.setDate(today.getDate()+1);
+  const iso=d=>_ymd(d);
+  const tomorrow=_pd(today);tomorrow.setDate(today.getDate()+1);
   opts.push({label:`Tomorrow · ${fmt(tomorrow)}`,iso:iso(tomorrow)});
   // Next Monday (or following Mon if today IS Mon)
-  const nextMon=new Date(today);const dow=nextMon.getDay();const addDays=dow===1?7:((1-dow+7)%7||7);nextMon.setDate(today.getDate()+addDays);
+  const nextMon=_pd(today);const dow=nextMon.getDay();const addDays=dow===1?7:((1-dow+7)%7||7);nextMon.setDate(today.getDate()+addDays);
   opts.push({label:`Next Monday · ${fmt(nextMon)}`,iso:iso(nextMon)});
-  const nextWeek=new Date(today);nextWeek.setDate(today.getDate()+7);
+  const nextWeek=_pd(today);nextWeek.setDate(today.getDate()+7);
   opts.push({label:`In a week · ${fmt(nextWeek)}`,iso:iso(nextWeek)});
-  const inMonth=new Date(today);inMonth.setMonth(today.getMonth()+1);
+  const inMonth=_pd(today);inMonth.setMonth(today.getMonth()+1);
   opts.push({label:`In a month · ${fmt(inMonth)}`,iso:iso(inMonth)});
   const pop=document.createElement('div');
   pop.id='task-snooze-pop';
@@ -6196,17 +6261,28 @@ function _taskSmartParse(raw){
   if(pm){out.priority={hi:'High',high:'High',med:'Medium',medium:'Medium',low:'Low'}[pm[1].toLowerCase()];s=s.replace(pm[0],' ');}
   // Date keywords + ISO date
   const today=new Date();today.setHours(0,0,0,0);
-  const iso=d=>d.toISOString().slice(0,10);
-  const dateKeywords={today:0,tod:0,tomorrow:1,tom:1,tmrw:1,'next week':7,nextweek:7};
-  const weekdayMap={sun:0,mon:1,tue:2,tues:2,wed:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+  const iso=d=>_ymd(d);
+  // Full words (today, tomorrow, friday…) count anywhere except as a
+  // possessive ("tomorrow's launch"). Short forms are also ordinary words
+  // ("Call Tom re budget", "sat", "wed"), so they count only at the end
+  // of the line (before any #tag @project ~est !pri) or after
+  // due / on / by / next / this. "tod" and "tom" are gone.
+  const dateKeywords={today:0,tomorrow:1,tmrw:1,'next week':7,nextweek:7};
+  const weekdayFull={sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};
+  const weekdayShort={sun:0,mon:1,tue:2,tues:2,wed:3,thu:4,thur:4,thurs:4,fri:5,sat:6};
+  const TAILTOK="(?=(?:\\s+[#@~!]\\S*)*\\s*$)";
+  const anywhere=kw=>new RegExp("\\s(?:(?:due|on|by)\\s+)?"+kw.replace(' ','\\s+')+"\\b(?!['’])",'i');
+  const placed=kw=>new RegExp("\\s(?:due|on|by|next|this)\\s+"+kw+"\\b(?!['’])|\\s"+kw+"\\b"+TAILTOK,'i');
+  const nextWd=wd=>{const d=_pd(today);let diff=wd-d.getDay();if(diff<=0)diff+=7;d.setDate(today.getDate()+diff);return iso(d);};
   for(const [kw,offset] of Object.entries(dateKeywords)){
-    const re=new RegExp('\\s'+kw.replace(' ','\\s+')+'\\b','i');
-    if(re.test(s)){const d=new Date(today);d.setDate(today.getDate()+offset);out.due=iso(d);s=s.replace(re,' ');break;}
+    const re=anywhere(kw);
+    if(re.test(s)){const d=_pd(today);d.setDate(today.getDate()+offset);out.due=iso(d);s=s.replace(re,' ');break;}
   }
-  if(!out.due){
-    for(const [name,wd] of Object.entries(weekdayMap)){
-      const re=new RegExp('\\s'+name+'\\b','i');
-      if(re.test(s)){const d=new Date(today);const cur=d.getDay();let diff=wd-cur;if(diff<=0)diff+=7;d.setDate(today.getDate()+diff);out.due=iso(d);s=s.replace(re,' ');break;}
+  for(const [table,mk] of [[weekdayFull,anywhere],[weekdayShort,placed]]){
+    if(out.due)break;
+    for(const [name,wd] of Object.entries(table)){
+      const re=mk(name);
+      if(re.test(s)){out.due=nextWd(wd);s=s.replace(re,' ');break;}
     }
   }
   const dm=s.match(/\s(\d{4}-\d{2}-\d{2})\b/);if(dm){out.due=dm[1];s=s.replace(dm[0],' ');}
@@ -6943,7 +7019,7 @@ function snoozeTask(id){
   if(!t)return;
   const tomorrow=new Date();
   tomorrow.setDate(tomorrow.getDate()+1);
-  const ds=tomorrow.toISOString().slice(0,10);
+  const ds=_ymd(tomorrow);
   t.myDay=false;
   t.snoozeUntil=ds;
   t.due=t.due&&t.due!=='Carry Over'?t.due:ds;
@@ -7881,7 +7957,7 @@ function renderHome(){
   const _focusToday=Number((D.prefs&&D.prefs.focusLog||{})[_todayStr]||0);
   const _journalToday=(D.journal||[]).filter(j=>{const d=String(j.date||'').toLowerCase();return d.startsWith(_todayStr)||d.startsWith('today');});
   const _wordsToday=_journalToday.reduce((s,j)=>s+String(j.body||'').trim().split(/\s+/).filter(Boolean).length,0);
-  const _doneToday=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===_todayStr).length;
+  const _doneToday=D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===_todayStr).length;
   // ── #4 — daily-rotating motivational tagline (extended pool) +
   // ── #8 — opt-in AI brief (toggled in Customize Dashboard).
   const _heroLines=[
@@ -8068,10 +8144,10 @@ function renderHome(){
       goals:renderGoalCards(3),
       focus:(()=>{
         const _fl=D.prefs&&D.prefs.focusLog||{};
-        const todayKey=new Date().toISOString().split('T')[0];
+        const todayKey=_ymd(new Date());
         const todayMins=_fl[todayKey]||0;
         const todaySessions=D.prefs&&D.prefs.focusSessions?D.prefs.focusSessions.filter(s=>s.date===todayKey).length:0;
-        const weekMins=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return _fl[d.toISOString().split('T')[0]]||0;}).reduce((a,b)=>a+b,0);
+        const weekMins=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return _fl[_ymd(d)]||0;}).reduce((a,b)=>a+b,0);
         const activeFocusTask=D.tasks.find(t=>t.id===(_focusTaskId||null));
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('clock',15,'currentColor')} Focus</div><span class="cd-a" onclick="nav('focus')">Open Focus</span></div>
           <div style="display:flex;gap:16px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd1);margin-bottom:10px">
@@ -8086,11 +8162,11 @@ function renderHome(){
       files:`<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('folder',15,'#3b82f6')} Recent Files</div><span class="cd-a" onclick="nav('mail')">Open Files</span></div><div style="padding:14px 8px;text-align:center;color:var(--t3);font-size:11px">File sync requires a connected cloud account.<br><span style="color:var(--ac);cursor:pointer" onclick="nav('settings')">Connect in Settings →</span></div></div>`,
       reports:(()=>{
         const today=new Date();
-        const todayKey=today.toISOString().slice(0,10);
+        const todayKey=_ymd(today);
         // 7-day completion bars (last 7 days, oldest left)
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
         const dayLabels=['S','M','T','W','T','F','S'];
-        const counts=days.map(d=>{const k=d.toISOString().slice(0,10);return (D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
+        const counts=days.map(d=>{const k=_ymd(d);return (D.tasks||[]).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length;});
         const maxC=Math.max(...counts,1);
         const totalC=counts.reduce((a,b)=>a+b,0);
         const bars=counts.map((c,i)=>{const h=Math.round(c/maxC*48)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days[i].getDay()]}</div></div>`;}).join('');
@@ -8133,7 +8209,7 @@ function renderHome(){
       })(),
       // ── 30-day Habit Heatmap ──
       habitHeatmap:(()=>{
-        const days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return d.toISOString().slice(0,10);});
+        const days=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));return _ymd(d);});
         const habits=(D.habits||[]).filter(h=>h.cadence==='Daily');
         const cells=days.map(k=>{const total=habits.length;const done=habits.filter(h=>(h.completedDates||[]).includes(k)).length;const pct=total?done/total:0;const c=pct===0?'var(--s3)':(pct<.34?'rgba(34,197,94,.25)':(pct<.67?'rgba(34,197,94,.55)':'rgba(34,197,94,.95)'));return `<div title="${k}: ${done}/${total}" style="width:14px;height:14px;background:${c};border-radius:3px"></div>`;}).join('');
         const totalCompletions=habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>days.includes(d)).length,0);
@@ -8166,7 +8242,7 @@ function renderHome(){
       moodTrend:(()=>{
         const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
         const days=Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return d;});
-        const dayKey=d=>d.toISOString().slice(0,10);
+        const dayKey=d=>_ymd(d);
         const series=days.map(d=>{const k=dayKey(d);const e=(D.journal||[]).find(j=>j.date===k);return {date:k,mood:e?e.mood:null,score:e&&moodMap[e.mood]?moodMap[e.mood]:null};});
         const max=5,min=1;
         const points=series.map((s,i)=>{const x=i/(series.length-1)*100;const y=s.score?100-((s.score-min)/(max-min))*90-5:null;return {x,y,score:s.score,date:s.date,mood:s.mood};});
@@ -8208,8 +8284,8 @@ function renderHome(){
         const mode=getHomeCardMode('deadlines');
         const horizonDays=mode==='7d'?7:mode==='30d'?30:14;
         const tasksOnly=mode==='tasks14d';
-        const today=new Date().toISOString().slice(0,10);
-        const horizon=new Date();horizon.setDate(horizon.getDate()+horizonDays);const horizonKey=horizon.toISOString().slice(0,10);
+        const today=_ymd(new Date());
+        const horizon=new Date();horizon.setDate(horizon.getDate()+horizonDays);const horizonKey=_ymd(horizon);
         const items=[];
         (D.tasks||[]).forEach(t=>{if(t.status!=='Done'&&t.due&&t.due>=today&&t.due<=horizonKey)items.push({type:'task',id:t.id,title:t.title,date:t.due,priority:t.priority||'Medium'});});
         if(!tasksOnly){
@@ -8224,11 +8300,11 @@ function renderHome(){
       })(),
       // ── Productivity Score (composite metric) ──
       productivityScore:(()=>{
-        const todayKey=new Date().toISOString().slice(0,10);
+        const todayKey=_ymd(new Date());
         const dailyHabits=(D.habits||[]).filter(h=>h.cadence==='Daily');
         const habsDone=dailyHabits.filter(h=>h.doneToday).length;
         const habsScore=dailyHabits.length?(habsDone/dailyHabits.length)*30:15;
-        const tDone=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+        const tDone=(D.tasks||[]).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===todayKey).length;
         const tasksScore=Math.min(tDone*8,40);
         const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
         const focusScore=Math.min(focusMins/2,20);
@@ -8269,7 +8345,7 @@ function renderHome(){
       weekAhead:(()=>{
         const days=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d;});
         const weekdays=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const cells=days.map(d=>{const k=d.toISOString().slice(0,10);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=_calMeetingsOn(k);const isToday=k===new Date().toISOString().slice(0,10);return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
+        const cells=days.map(d=>{const k=_ymd(d);const dayTasks=(D.tasks||[]).filter(t=>t.status!=='Done'&&(t.due===k||t.startDate===k));const dayEvents=_calMeetingsOn(k);const isToday=k===_ymd(new Date());return `<div style="border:1px solid ${isToday?'var(--ac)':'var(--bd1)'};border-radius:6px;padding:8px;background:${isToday?'rgba(59,130,246,.05)':'var(--s2)'};min-height:62px"><div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t2)'};margin-bottom:4px"><span>${weekdays[d.getDay()]}</span><span>${d.getDate()}</span></div>${dayTasks.length?`<div style="font-size:11px;color:var(--t1);margin-bottom:2px">📋 ${dayTasks.length}</div>`:''}${dayEvents.length?`<div style="font-size:11px;color:var(--t1)">📅 ${dayEvents.length}</div>`:''}${(!dayTasks.length&&!dayEvents.length)?'<div style="font-size:11px;color:var(--t3)">—</div>':''}</div>`;}).join('');
         return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('calendar',15,'#6366f1')} Week Ahead</div><span class="cd-a" onclick="nav('myweek')">My Week</span></div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">${cells}</div></div>`;
       })(),
       // ── Ideas Pipeline (counts by stage) ──
@@ -8286,8 +8362,8 @@ function renderHome(){
         const now=new Date();
         const thisStart=new Date();thisStart.setDate(thisStart.getDate()-7);
         const lastStart=new Date();lastStart.setDate(lastStart.getDate()-14);
-        const thisKey=thisStart.toISOString().slice(0,10);
-        const lastKey=lastStart.toISOString().slice(0,10);
+        const thisKey=_ymd(thisStart);
+        const lastKey=_ymd(lastStart);
         const thisWeek=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'')>=thisKey).length;
         const lastWeek=(D.tasks||[]).filter(t=>t.status==='Done'&&(t.completedAt||'')>=lastKey&&(t.completedAt||'')<thisKey).length;
         const delta=thisWeek-lastWeek;
@@ -8382,7 +8458,7 @@ function renderHome(){
       yesteryear:(()=>{
         const now=new Date();const mm=String(now.getMonth()+1).padStart(2,'0');const dd=String(now.getDate()).padStart(2,'0');const todayKey=`${mm}-${dd}`;const thisYear=now.getFullYear();
         const items=[];
-        (D.tasks||[]).forEach(t=>{const k=(t.completedAt||t.due||t.createdAt||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'task',title:t.title,year:y,when:k});});
+        (D.tasks||[]).forEach(t=>{const k=_dayOf(t.completedAt||t.due||t.createdAt);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'task',title:t.title,year:y,when:k});});
         (D.journal||[]).forEach(j=>{const k=(j.date||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'journal',title:j.title||(j.body||'').slice(0,80),year:y,when:k});});
         (D.notes||[]).forEach(n=>{const k=(n.created||n.updated||'').slice(0,10);if(!k)return;const y=Number(k.slice(0,4));if(y<thisYear&&k.slice(5,10)===todayKey)items.push({type:'note',title:n.title,year:y,when:k});});
         items.sort((a,b)=>b.year-a.year);
@@ -8394,7 +8470,7 @@ function renderHome(){
       // 🧠 AI Insight — cached daily, calls ai.assist with a workspace snapshot.
       aiInsight:(()=>{
         const cache=(D.prefs&&D.prefs.aiInsightCard)||null;
-        const today=new Date().toISOString().slice(0,10);
+        const today=_ymd(new Date());
         const fresh=cache&&cache.date===today&&cache.text;
         if(fresh){
           return `<div class="cd"><div class="cd-h"><div class="cd-t">${_icon('sparkles',15,'#8b5cf6')} AI Insight</div><span class="cd-a" onclick="_refreshAIInsight()" title="Generate fresh insight">↻ refresh</span></div><div style="padding:8px 4px;font-size:12px;color:var(--t1);line-height:1.55">${esc(cache.text)}</div><div style="font-size:11px;color:var(--t3);margin-top:6px;text-align:right">Updated ${esc(cache.date)}</div></div>`;
@@ -8485,7 +8561,7 @@ function renderHome(){
   const _focusLog=D.prefs&&D.prefs.focusLog||{};
   const _chartDays=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d;});
   const _dayNames=['S','M','T','W','T','F','S'];
-  const _chartVals=_chartDays.map(d=>_focusLog[d.toISOString().split('T')[0]]||0);
+  const _chartVals=_chartDays.map(d=>_focusLog[_ymd(d)]||0);
   const _chartMax=Math.max(..._chartVals,1);
   const _todayIdx=6;
   const focusChartHtml=`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">⏱ Focus Time (7 days)</span><span style="font-size:11px;color:var(--t3)">${_chartVals.reduce((a,b)=>a+b,0)}m total</span></div><div style="display:flex;align-items:flex-end;gap:4px;height:52px">${_chartVals.map((v,i)=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${i===_todayIdx?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${Math.round((v/_chartMax)*40)+2}px;min-height:2px;transition:height .3s" title="${v}m"></div><div style="font-size:9px;color:${i===_todayIdx?'var(--ac)':'var(--t3)'}">${_dayNames[_chartDays[i].getDay()]}</div></div>`).join('')}</div></div>`;
@@ -8496,7 +8572,7 @@ function renderHome(){
   r.innerHTML=dailyCommandCenterHtml+focusChartHtml+`${_homeVisible.has('meetings')?`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Upcoming Meetings</span><span class="cd-a" onclick="nav('calendar')">View calendar</span></div>
   ${(()=>{const now=new Date();const ev=_upcomingCalEvents(4);if(!ev.length)return '<div style="font-size:11px;color:var(--t3);padding:6px 0">No upcoming meetings.</div>';const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});return ev.map(o=>{const s=o.start,en=o.end;const range=en?fmtT(s)+'–'+fmtT(en):fmtT(s);const mins=Math.floor((s-now)/60000);const rel=mins<60?'In '+mins+'m':mins<1440?'In '+Math.floor(mins/60)+'h':'In '+Math.floor(mins/1440)+'d';return '<div class="lr"><span style="font-size:14px">📅</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">'+esc(o.e.title||'(untitled)')+'</div><div style="font-size:11px;color:var(--t3)">'+range+'</div></div><span style="font-size:11px;padding:2px 5px;border-radius:3px;background:var(--acs);color:var(--ach)">'+rel+'</span></div>';}).join('');})()}</div>`:''}
   ${_homeVisible.has('habits')?`<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;font-weight:600">Today's Habits</span><span class="cd-a" onclick="nav('habits')">View all</span></div>
-  ${D.habits.filter(h=>{const sd=typeof _habitScheduledDays==='function'?_habitScheduledDays(h):null;return sd?sd.has(new Date().getDay()):h.cadence==='Daily';}).map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();D.habits.find(x=>x.id==${_tidLit(h.id)}).doneToday=!D.habits.find(x=>x.id==${_tidLit(h.id)}).doneToday;save('habits');renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>`:''}
+  ${D.habits.filter(h=>{const sd=typeof _habitScheduledDays==='function'?_habitScheduledDays(h):null;return sd?sd.has(new Date().getDay()):h.cadence==='Daily';}).map(h=>`<div class="lr"><div class="chk ${h.doneToday?'on':''}" onclick="event.stopPropagation();toggleHabit(${_tidLit(h.id)});renderScreen('home')"></div><span class="rt">${h.icon} ${esc(h.title)}</span><span style="font-size:11px;color:var(--warn)">🔥${h.streak}</span></div>`).join('')}</div>`:''}
   ${(()=>{
     if(!_homeVisible.has('recent'))return '';
     const typeIcon={task:'📋',note:'📝',project:'📁',goal:'🎯',journal:'📔',habit:'⚡'};
@@ -8510,7 +8586,7 @@ function renderHome(){
     recent.sort((a,b)=>b.ts.localeCompare(a.ts));
     const top=recent.slice(0,7);
     if(!top.length)return '';
-    const fmtTs=ts=>{const d=new Date(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
+    const fmtTs=ts=>{const d=_pd(ts);const now=new Date();const diff=Math.floor((now-d)/60000);if(diff<1)return 'just now';if(diff<60)return diff+'m ago';if(diff<1440)return Math.floor(diff/60)+'h ago';return Math.floor(diff/1440)+'d ago';};
     return `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;font-weight:600">🕐 Recently Added</span></div>${top.map(r=>`<div class="lr" onclick="openDrawer('${r.type}',D.${r.type==='project'?'projects':r.type==='habit'?'habits':r.type+'s'}.find(x=>x.id==${_tidLit(r.id)}))" style="cursor:pointer" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''"><span style="width:18px;height:18px;border-radius:4px;background:${typeColor[r.type]}22;color:${typeColor[r.type]};font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${typeIcon[r.type]}</span><span class="rt" style="font-size:11px">${esc(r.title)}</span><span style="font-size:11px;color:var(--t3);flex-shrink:0">${fmtTs(r.ts)}</span></div>`).join('')}</div>`;
   })()}
   ${(()=>{
@@ -8531,7 +8607,7 @@ function renderHome(){
   // flight. Fire-and-forget — the render call inside _refreshDailyFocusAI
   // will re-render Home when results land.
   try{
-    const todayKey=new Date().toISOString().slice(0,10);
+    const todayKey=_ymd(new Date());
     const cache=(D.prefs&&D.prefs.dailyFocusAI)||null;
     const stale=!cache||cache.date!==todayKey;
     if(stale&&!(cache&&cache.pending)&&typeof _refreshDailyFocusAI==='function'){
@@ -9543,7 +9619,7 @@ function renderTaskList(){
     if(tabLabel==='Today')extFiltered=extShaped.filter(t=>t.status!=='Done'&&(t.due===today||(t._override&&t._override.myDay)));
     else if(tabLabel==='This Week'){
       const wkEnd=new Date();wkEnd.setDate(wkEnd.getDate()+7);
-      const wkEndStr=wkEnd.toISOString().slice(0,10);
+      const wkEndStr=_ymd(wkEnd);
       extFiltered=extShaped.filter(t=>t.status!=='Done'&&(!t.due||t.due<=wkEndStr));
     }else if(tabLabel==='Done'){
       extFiltered=extShaped.filter(t=>t.status==='Done');
@@ -9570,7 +9646,7 @@ function renderTaskList(){
         case 'end':return t.due||t.endDate||'9999';
         case 'project':{const p=findProj(t);return (p?p.name:t.project||'').toLowerCase();}
         case 'assignee':return (t.assignedTo||t.createdBy||'').toLowerCase();
-        case 'created':return t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'9999');
+        case 'created':return t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'9999');
         // Source: native tasks have no _source field (treated as Personal);
         // external rows carry _source ∈ {'smartsheet','nifty',…}. The sort
         // key is prefixed with a rank digit so ascending order matches the
@@ -9643,8 +9719,8 @@ function renderTaskList(){
     const endDate=t.due||t.endDate||'';
     const assigned=t.assignedTo||t.createdBy||'';
     const initials=(assigned||'').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
-    const createdISO=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');
-    const createdStr=createdISO?fmtDate(createdISO.slice(0,10)):'—';
+    const createdISO=t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'');
+    const createdStr=createdISO?fmtDate(_dayOf(createdISO)):'—';
     // D: bulk checkbox column when in _bulkMode
     const bulkChk=_bulkMode
       ?`<div class="chk ${_bulkSelected.has(t.id)?'on':''}" onclick="event.stopPropagation();toggleBulkSelect(${_tidLit(t.id)},event)" style="width:14px;height:14px"></div>`
@@ -9740,7 +9816,7 @@ function renderTaskList(){
             ${doneExt?'':`<span class="lu-pill-clickable" style="background:${priColors[t.priority]||priColors.Medium};color:${priText[t.priority]||priText.Medium}">${t.priority||'Medium'}</span>`}
             ${statusLabel?`<span class="lu-pill-clickable" style="background:${doneExt?'rgba(34,197,94,0.15)':'var(--s3)'};color:${doneExt?'var(--ok)':'var(--t2)'};cursor:pointer" title="Click to change status in source" onclick="event.stopPropagation();_externalSetStatus('${t._source}','${esc(t._externalId)}',event)">${esc(statusLabel)}</span>`:''}
             ${due?`<span class="${isOverdueE?'tlc-odt':''}">📅 ${fmtDate(due)}</span>`:''}
-            ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(String(t.completedAt).slice(0,10))}</span>`:''}
+            ${t.completedAt?`<span style="color:var(--ok)">✓ ${fmtDate(_dayOf(t.completedAt))}</span>`:''}
             ${t.project?`<span>${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
             ${_extAnnotationChips(t._override)}
           </div>
@@ -9852,7 +9928,7 @@ function renderTaskList(){
           const d=t.due,t2=_todayStr;
           if(d<t2)return 'Overdue';
           if(d===t2)return 'Today';
-          const dd=new Date(d),td=new Date(t2);const diff=Math.round((dd-td)/86400000);
+          const dd=_pd(d),td=_pd(t2);const diff=Math.round((dd-td)/86400000);
           if(diff===1)return 'Tomorrow';
           if(diff<=7)return 'This week';
           if(diff<=30)return 'This month';
@@ -9931,7 +10007,7 @@ function renderTaskFocus(){
   const inProg=take(pool.filter(t=>t.status==='In Progress').sort(byPriDue));
   const myDay=take(pool.filter(t=>t.myDay&&active(t)).sort(byPriDue));
   const upNext=take(pool.filter(t=>active(t)&&(t.priority==='High'||t.priority==='Medium')).sort(byPriDue)).slice(0,8);
-  const doneToday=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===today).length;
+  const doneToday=D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===today).length;
   const totalQueued=overdue.length+dueToday.length+inProg.length+myDay.length;
   const priColors={High:'#ef4444',Medium:'#f59e0b',Low:'#10b981'};
   const proj=t=>{const p=(D.projects||[]).find(x=>x.id===t.projectId||x.name===t.project);return p?p.name:'';};
@@ -10173,7 +10249,7 @@ function renderTaskBoard(){
           <span class="pill ${pillClass(t.priority)}" style="font-size:9px">${t.priority}</span>
            ${t.due?`<span style="font-size:11px;color:var(--t3)">${fmtDate(t.due)}</span>`:''}          ${t.project?`<span style="font-size:11px;color:var(--t3);white-space:nowrap">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}          ${isBlocked?`<span style="font-size:11px;color:var(--red);font-weight:600">🔒</span>`:''}
           ${t.assignedTo?`<span style="font-size:11px;color:var(--t3)">👤 ${esc(t.assignedTo.split(' ')[0])}</span>`:''}
-          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
@@ -10289,7 +10365,7 @@ function renderTaskMatrix(){
           <span style="font-size:11px;color:var(--t3)">${t.estimatedMins||30}m</span>
           ${t.project?`<span style="font-size:11px;color:var(--t3)">${_icon('folder',12,'currentColor')} ${esc(t.project)}</span>`:''}
           ${t.due?`<span style="font-size:11px;color:var(--t3)">📅 ${fmtDate(t.due)}</span>`:''}
-          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+          ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3)" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
         </div>
       </div>`;
     }).join('');
@@ -10410,19 +10486,19 @@ function renderTaskGantt(){
   }
   // Calculate date range
   const today=new Date(); today.setHours(0,0,0,0);
-  const allDates=tasks.flatMap(t=>[t.startDate,t.due].filter(Boolean).map(d=>new Date(d)));
+  const allDates=tasks.flatMap(t=>[t.startDate,t.due].filter(Boolean).map(d=>_pd(d)));
   let minDate=new Date(Math.min(...allDates)); minDate.setDate(minDate.getDate()-1);
   let maxDate=new Date(Math.max(...allDates)); maxDate.setDate(maxDate.getDate()+2);
   // Ensure at least 14 days visible
   const span=Math.max(14,Math.round((maxDate-minDate)/(1000*60*60*24)));
-  maxDate=new Date(minDate); maxDate.setDate(minDate.getDate()+span);
+  maxDate=_pd(minDate); maxDate.setDate(minDate.getDate()+span);
   const totalDays=Math.round((maxDate-minDate)/(1000*60*60*24));
   const dayPx=Math.max(28,Math.floor(Math.min(900,list.offsetWidth-220)/totalDays));
   const totalW=totalDays*dayPx;
   // Build header (day labels)
   let headerCells='';
   for(let i=0;i<totalDays;i++){
-    const d=new Date(minDate); d.setDate(minDate.getDate()+i);
+    const d=_pd(minDate); d.setDate(minDate.getDate()+i);
     const isToday=d.toDateString()===today.toDateString();
     const dayNum=d.getDate();
     const isMonStart=dayNum===1;
@@ -10431,8 +10507,8 @@ function renderTaskGantt(){
   // Build task rows
   const priorityColors={High:'var(--err)',Medium:'var(--ac)',Low:'var(--ok)'};
   const rows=tasks.map(t=>{
-    const start=t.startDate?new Date(t.startDate):new Date(t.due);
-    const end=t.due?new Date(t.due):start;
+    const start=t.startDate?_pd(t.startDate):_pd(t.due);
+    const end=t.due?_pd(t.due):start;
     start.setHours(0,0,0,0); end.setHours(0,0,0,0);
     const startOffset=Math.max(0,Math.round((start-minDate)/(1000*60*60*24)));
     const duration=Math.max(1,Math.round((end-start)/(1000*60*60*24))+1);
@@ -10860,7 +10936,7 @@ function renderTaskClusters(){
       <span style="flex:1;font-size:12px;font-weight:500;${done?'text-decoration:line-through;color:var(--t3)':(t.titleColor?`color:${t.titleColor};font-weight:700`:'color:var(--t1)')};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.title)}${(()=>{if(!_isSubtaskRow(t))return '';const p=D.tasks.find(x=>String(x.id)===String(t.parentTaskId));return `<span style="font-size:10px;color:var(--t3);font-weight:400;margin-left:6px" title="A subtask filed into this cluster directly">↳ ${esc(p?p.title:'subtask')}</span>`;})()}</span>
       ${_bulkMode?'':`<button class="btn btn-s" style="height:20px;font-size:11px;padding:0 6px;flex-shrink:0" title="Move to another cluster" onclick="openTaskClusterPicker(${_tidLit(t.id)},event)">⬡</button>`}
       <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${pc.bg};color:${pc.fg};font-weight:600;flex-shrink:0">${priShort}</span>
-      ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?new Date(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
+      ${(()=>{const ci=t.createdAt||(typeof t.id==='number'&&t.id>1e9?_pd(t.id).toISOString():'');return ci?`<span style="font-size:11px;color:var(--t3);min-width:70px;text-align:right;flex-shrink:0" title="Created ${esc(ci)}">🕒 ${fmtDate(ci.slice(0,10))}</span>`:'';})()}
       <span style="font-size:11px;${isOverdue?'color:var(--red);font-weight:600':'color:var(--t3)'};min-width:64px;text-align:right;flex-shrink:0">${dueLabel}</span>
     </div>`;
   }
@@ -11093,7 +11169,7 @@ function saveCluster(id){
     clusterId=id;
   }else{
     clusterId=nextId(D.clusters);
-    D.clusters.push({id:clusterId,name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:new Date().toISOString().split('T')[0]});
+    D.clusters.push({id:clusterId,name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:_ymd(new Date())});
   }
   // Apply direct task assignments: any task in taskIds gets t.clusterId=clusterId,
   // any task previously assigned to this cluster but no longer in the list gets cleared
@@ -11295,11 +11371,11 @@ function openTaskRailCustomize(){
 
 function renderTaskRailHTML(){
   const today=new Date();
-  const todayKey=today.toISOString().slice(0,10);
+  const todayKey=_ymd(today);
   const evs=_calMeetingsOn(todayKey).sort((a,b)=>(a.start||'').localeCompare(b.start||''));
   const dateLabel=today.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   const allTasks=D.tasks||[];
-  const doneToday=allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===todayKey).length;
+  const doneToday=allTasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===todayKey).length;
   const myDay=allTasks.filter(t=>t.myDay&&t.status!=='Done').length;
   const overdue=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayKey).sort((a,b)=>(a.due||'').localeCompare(b.due||''));
   const focusMins=(D.prefs&&D.prefs.focusMinsToday)||0;
@@ -11314,7 +11390,7 @@ function renderTaskRailHTML(){
     last7Days:(()=>{
       const days7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
       const dayLabels=['S','M','T','W','T','F','S'];
-      const counts7=days7.map(d=>{const k=d.toISOString().slice(0,10);return allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length;});
+      const counts7=days7.map(d=>{const k=_ymd(d);return allTasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length;});
       const max7=Math.max(...counts7,1);
       const total7=counts7.reduce((a,b)=>a+b,0);
       const bars=counts7.map((c,i)=>{const h=Math.round(c/max7*52)+2;const isToday=i===6;return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="width:100%;background:${isToday?'var(--ac)':'var(--s3)'};border-radius:3px 3px 0 0;height:${h}px;min-height:3px;position:relative" title="${c} done"><span style="position:absolute;top:-13px;left:0;right:0;text-align:center;font-size:11px;font-weight:600;color:${isToday?'var(--ac)':'var(--t3)'}">${c||''}</span></div><div style="font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'600':'400'}">${dayLabels[days7[i].getDay()]}</div></div>`;}).join('');
@@ -11337,7 +11413,7 @@ function renderTaskRailHTML(){
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('zap',14,'currentColor')} Active by Priority</div>${active.length?bars:'<div style="font-size:11px;color:var(--t3)">No active tasks.</div>'}</div>`;
     })(),
     todaySchedule:(()=>{
-      const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?new Date(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:11px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:11px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">No meetings today.</div>';
+      const body=evs.length?evs.slice(0,5).map(e=>{const t=e.start?_pd(e.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(' ',''):'';return `<div style="display:flex;gap:6px;margin-bottom:4px"><span style="font-size:11px;color:var(--t3);width:46px;flex-shrink:0">${t}</span><div class="cal-ev" style="flex:1;font-size:11px">${esc(e.title||'(untitled)')}</div></div>`;}).join(''):'<div style="font-size:11px;color:var(--t3);padding:4px 0">No meetings today.</div>';
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:2px">${_icon('calendar',14,'currentColor')} Today's Schedule</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">${dateLabel}</div>${body}</div>`;
     })(),
     topOverdue:(()=>{
@@ -11355,7 +11431,7 @@ function renderTaskRailHTML(){
       return `<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:12px;margin-bottom:12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">${_icon('target',14,'currentColor')} Goals Snapshot</div>${body}</div>`;
     })(),
     projectVelocity:(()=>{
-      const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkKey=wkStart.toISOString().slice(0,10);
+      const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkKey=_ymd(wkStart);
       const byProj={};(D.projects||[]).forEach(p=>byProj[p.id]={name:p.name,count:0});
       allTasks.filter(t=>t.status==='Done'&&(t.completedAt||'')>=wkKey&&t.projectId).forEach(t=>{if(byProj[t.projectId])byProj[t.projectId].count++;});
       const arr=Object.values(byProj).filter(p=>p.count>0).sort((a,b)=>b.count-a.count).slice(0,5);
@@ -11418,10 +11494,10 @@ function renderTaskRailHTML(){
 function _renderExternalTasksRailWidget(){
   const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
   if(!ext.length)return '';
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   // Show: overdue + today + next 7 days, excluding tombstoned overrides.
   const horizon=new Date();horizon.setDate(horizon.getDate()+7);
-  const horizonKey=horizon.toISOString().slice(0,10);
+  const horizonKey=_ymd(horizon);
   // Include: anything dated within the horizon, anything flagged My Day, and
   // any open item without a due date (common in outline-style sheets like CF's
   // 120-Day Plan — there's no "due", just a Phase). Sort by due (no-due last).
@@ -11494,9 +11570,9 @@ function _extBulkStatusMenu(event){
   (async()=>{
     // Find visible items + which watches they belong to.
     const ext=Array.isArray(D.externalTasks)?D.externalTasks:[];
-    const today=new Date().toISOString().slice(0,10);
+    const today=_ymd(new Date());
     const horizon=new Date();horizon.setDate(horizon.getDate()+7);
-    const horizonKey=horizon.toISOString().slice(0,10);
+    const horizonKey=_ymd(horizon);
     const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
     const visible=ext.filter(t=>{
       if(t.override&&t.override.tombstoned)return false;
@@ -11561,9 +11637,9 @@ async function _extBulkMyDay(setOn){
   if(!ext.length){toast({type:'info',title:'No external tasks loaded'});return;}
   // Same filter as the rail's "Next 7 days" view so the user's intent matches
   // what's visible.
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const horizon=new Date();horizon.setDate(horizon.getDate()+7);
-  const horizonKey=horizon.toISOString().slice(0,10);
+  const horizonKey=_ymd(horizon);
   const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
   const targets=ext.filter(t=>{
     if(t.override&&t.override.tombstoned)return false;
@@ -11593,7 +11669,7 @@ async function _extBulkMyDay(setOn){
 // plate TODAY across CF (Smartsheet), LSI (Nifty), and personal (D.tasks).
 // Lives on the Home rail; refresh button kicks the external-sources cron.
 function _renderDailyCommandCenterCard(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const all=typeof _unifiedTasks==='function'?_unifiedTasks():D.tasks.map(t=>Object.assign({},t,{_source:'local'}));
   const isOpen=t=>(t.status||'Not Started')!=='Done';
   const dueByBucket=(src)=>{
@@ -12042,10 +12118,10 @@ function renderTasks(){
   // Compute week bounds for This Week filter
   const _twNow=new Date();
   const _twDay=_twNow.getDay();
-  const _twMon=new Date(_twNow);
+  const _twMon=_pd(_twNow);
   _twMon.setDate(_twNow.getDate()-(_twDay===0?6:_twDay-1));
   _twMon.setHours(0,0,0,0);
-  const _twSun=new Date(_twMon);
+  const _twSun=_pd(_twMon);
   _twSun.setDate(_twMon.getDate()+6);
   _twSun.setHours(23,59,59,999);
   const _twFmt=_ymd; // local YYYY-MM-DD — not UTC
@@ -13008,7 +13084,7 @@ function setNoteColor(id,hex){
 // Date.now()-based, so higher id == created later) so the Recent view orders by
 // when a note was CREATED, not by its freeform 'updated' display string.
 function _noteCreatedTime(n){
-  if(n&&n.createdAt){ const c=new Date(n.createdAt); if(!isNaN(c.getTime()))return c.getTime(); }
+  if(n&&n.createdAt){ const c=_pd(n.createdAt); if(!isNaN(c.getTime()))return c.getTime(); }
   if(n&&typeof n.id==='number')return n.id;
   return 0;
 }
@@ -13018,32 +13094,32 @@ function _parseNoteDate(n){
   // ahead of older ones even when the legacy 'updated' string is unparseable.
   const rawVal=n.updated||n.created;
   if(rawVal===undefined||rawVal===null||rawVal===''){
-    if(n.createdAt){const c=new Date(n.createdAt);if(!isNaN(c.getTime()))return c;}
-    if(typeof n.id==='number'&&n.id>1e9)return new Date(n.id); // id is a Date.now() timestamp
+    if(n.createdAt){const c=_pd(n.createdAt);if(!isNaN(c.getTime()))return c;}
+    if(typeof n.id==='number'&&n.id>1e9)return _pd(n.id); // id is a Date.now() timestamp
     return new Date(0);
   }
   // Handle numeric timestamps (ms since epoch) directly — avoids raw.trim() error
-  if(typeof rawVal==='number')return new Date(rawVal);
+  if(typeof rawVal==='number')return _pd(rawVal);
   const raw=String(rawVal);
   if(!raw)return new Date(0);
   const s=raw.trim();
   // 1. ISO / RFC2822 / standard parseable strings
-  const d=new Date(s);
+  const d=_pd(s);
   if(!isNaN(d.getTime()))return d;
   const sl=s.toLowerCase();
   const now=new Date();
   // 2. Human-readable relative labels
-  if(/^just now$/i.test(sl))return new Date(now);
-  if(/^today$/i.test(sl)){const t=new Date(now);t.setHours(12,0,0,0);return t;}
-  if(/^yesterday$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-1);t.setHours(12,0,0,0);return t;}
-  if(/^this week$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-3);return t;}
-  if(/^last week$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-10);return t;}
-  if(/^this month$/i.test(sl)){const t=new Date(now);t.setDate(t.getDate()-15);return t;}
-  if(/^last month$/i.test(sl)){const t=new Date(now);t.setMonth(t.getMonth()-1);return t;}
+  if(/^just now$/i.test(sl))return _pd(now);
+  if(/^today$/i.test(sl)){const t=_pd(now);t.setHours(12,0,0,0);return t;}
+  if(/^yesterday$/i.test(sl)){const t=_pd(now);t.setDate(t.getDate()-1);t.setHours(12,0,0,0);return t;}
+  if(/^this week$/i.test(sl)){const t=_pd(now);t.setDate(t.getDate()-3);return t;}
+  if(/^last week$/i.test(sl)){const t=_pd(now);t.setDate(t.getDate()-10);return t;}
+  if(/^this month$/i.test(sl)){const t=_pd(now);t.setDate(t.getDate()-15);return t;}
+  if(/^last month$/i.test(sl)){const t=_pd(now);t.setMonth(t.getMonth()-1);return t;}
   // 3. Numeric relative: '2h ago', '3d ago', '1w ago', '2mo ago', '1y ago'
   const m=sl.match(/^(\d+)\s*(s|sec|m|min|h|hr|d|day|w|wk|mo|month|y|yr|year)s?\s*ago$/);
   if(m){
-    const v=parseInt(m[1]),u=m[2],t=new Date(now);
+    const v=parseInt(m[1]),u=m[2],t=_pd(now);
     if(u==='s'||u==='sec')t.setSeconds(t.getSeconds()-v);
     else if(u==='m'||u==='min')t.setMinutes(t.getMinutes()-v);
     else if(u==='h'||u==='hr')t.setHours(t.getHours()-v);
@@ -13056,7 +13132,7 @@ function _parseNoteDate(n){
   // 4. Short forms without 'ago': '2h', '3d', '1w'
   const m2=sl.match(/^(\d+)(h|d|w|m)$/);
   if(m2){
-    const v=parseInt(m2[1]),u=m2[2],t=new Date(now);
+    const v=parseInt(m2[1]),u=m2[2],t=_pd(now);
     if(u==='h')t.setHours(t.getHours()-v);
     else if(u==='d')t.setDate(t.getDate()-v);
     else if(u==='w')t.setDate(t.getDate()-v*7);
@@ -13086,8 +13162,8 @@ function applyNotesFilters(){
   // Category filter (left nav)
   if(_notesFilterSmart){
     const now=new Date();
-    const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
-    if(_notesFilterSmart==='smart_recent')notes=notes.filter(n=>{try{return new Date(n.updated)>=weekAgo;}catch(e){return false;}});
+    const weekAgo=_pd(now); weekAgo.setDate(weekAgo.getDate()-7);
+    if(_notesFilterSmart==='smart_recent')notes=notes.filter(n=>{try{return _pd(n.updated)>=weekAgo;}catch(e){return false;}});
     else if(_notesFilterSmart==='smart_notags')notes=notes.filter(n=>!n.tags||!n.tags.length);
     else if(_notesFilterSmart==='smart_long')notes=notes.filter(n=>(n.body||'').length>500);
     else if(_notesFilterSmart==='smart_unlinked')notes=notes.filter(n=>!((n.body||'').includes('[[')));
@@ -13144,14 +13220,14 @@ function applyNotesFilters(){
   if(_notesFilterDatePreset==='today'){
     fromDate=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   } else if(_notesFilterDatePreset==='week'){
-    fromDate=new Date(now); fromDate.setDate(fromDate.getDate()-7);
+    fromDate=_pd(now); fromDate.setDate(fromDate.getDate()-7);
   } else if(_notesFilterDatePreset==='month'){
-    fromDate=new Date(now); fromDate.setMonth(fromDate.getMonth()-1);
+    fromDate=_pd(now); fromDate.setMonth(fromDate.getMonth()-1);
   } else if(_notesFilterDatePreset==='year'){
-    fromDate=new Date(now); fromDate.setFullYear(fromDate.getFullYear()-1);
+    fromDate=_pd(now); fromDate.setFullYear(fromDate.getFullYear()-1);
   } else if(_notesFilterDatePreset==='custom'){
-    if(_notesFilterDateFrom)fromDate=new Date(_notesFilterDateFrom);
-    if(_notesFilterDateTo){toDate=new Date(_notesFilterDateTo);toDate.setHours(23,59,59,999);}
+    if(_notesFilterDateFrom)fromDate=_pd(_notesFilterDateFrom);
+    if(_notesFilterDateTo){toDate=_pd(_notesFilterDateTo);toDate.setHours(23,59,59,999);}
   }
   if(fromDate||toDate){
     notes=notes.filter(n=>{
@@ -13453,7 +13529,7 @@ function exportNotesMarkdown(){
   const blob=new Blob([md],{type:'text/markdown'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`levelup-notes-${new Date().toISOString().slice(0,10)}.md`;
+  a.download=`levelup-notes-${_ymd(new Date())}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
   toast(`⬇ Exported ${notes.length} notes as Markdown`);
@@ -13774,7 +13850,7 @@ function bulkNotesExport(){
   const md=arr.map(n=>`# ${n.title||'Untitled'}\n\n${(n.tags||[]).map(t=>'#'+t).join(' ')}\n\n${n.body||''}\n\n---\n`).join('\n');
   const blob=new Blob([md],{type:'text/markdown;charset=utf-8'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=`notes-export-${new Date().toISOString().slice(0,10)}.md`;
+  const a=document.createElement('a');a.href=url;a.download=`notes-export-${_ymd(new Date())}.md`;
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
   toast(`⬇ Exported ${arr.length} note${arr.length===1?'':'s'} as Markdown`);
@@ -13925,7 +14001,7 @@ async function confirmDocImport(){
 }
 const _noteTemplates=[
   {label:'📅 Meeting Notes',icon:'📅',tags:['meetings'],body:`# Meeting Notes\n**Date:** ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})}\n**Attendees:** \n**Facilitator:** \n\n## Agenda\n- \n- \n\n## Discussion\n\n## Decisions Made\n- \n\n## Action Items\n| Task | Owner | Due |\n|------|-------|-----|\n| | | |\n\n## Next Meeting\n**Date:** \n**Agenda:** `},
-  {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${new Date().toISOString().slice(0,10)}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
+  {label:'📁 Project Brief',icon:'📁',tags:['process'],body:`# Project Brief\n**Project:** \n**Owner:** ${D.creds.userName||'Idris Grant'}\n**Start Date:** ${_ymd(new Date())}\n**Target Date:** \n\n## Objective\n\n## Background & Context\n\n## Scope\n### In Scope\n- \n### Out of Scope\n- \n\n## Success Metrics\n- \n\n## Key Stakeholders\n| Name | Role | Involvement |\n|------|------|-------------|\n| | | |\n\n## Risks & Mitigations\n| Risk | Likelihood | Impact | Mitigation |\n|------|-----------|--------|-----------|\n| | | | |\n\n## Resources Needed\n- `},
   {label:'🗓 Weekly Review',icon:'🗓',tags:['strategy','productivity'],body:`# Weekly Review\n**Week of:** ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}\n\n## 🌟 Wins This Week\n- \n\n## 🚧 What Didn't Go Well\n- \n\n## 📊 Progress on Goals\n| Goal | Progress | Notes |\n|------|----------|-------|\n| | | |\n\n## 📌 Carry-Over Tasks\n- \n\n## 🔭 Focus for Next Week\n1. \n2. \n3. \n\n## 💡 Insights & Learnings\n`},
   {label:'💡 Idea Capture',icon:'💡',tags:['vision'],body:`# Idea: \n**Captured:** ${new Date().toLocaleDateString()}\n**Category:** \n\n## The Idea\n\n## Why It Matters\n\n## How It Could Work\n\n## Next Steps\n- [ ] \n\n## Related Notes\n- `},
   {label:'📚 Book Notes',icon:'📚',tags:['books','research'],body:`# Book Notes: [Title]\n**Author:** \n**Finished:** \n**Rating:** /5\n\n## One-Line Summary\n\n## Key Ideas\n1. \n2. \n3. \n\n## Favourite Quotes\n> \n\n## How I'll Apply This\n- \n\n## Related Books\n- `}
@@ -13982,7 +14058,7 @@ function renderNotes(){
     const inFolders=D.notes.filter(n=>n.folderId).length;
     const starred=D.notes.filter(n=>n.starred).length;
     const pinned=D.notes.filter(n=>n.pinned).length;
-    const recent=D.notes.filter(n=>{try{const d=new Date(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
+    const recent=D.notes.filter(n=>{try{const d=_pd(n.updated);const w=new Date();w.setDate(w.getDate()-7);return d>=w;}catch(_){return false;}}).length;
     const parts=[`${total} note${total===1?'':'s'}`];
     if(inFolders>0)parts.push(`${inFolders} in folders`);
     if(recent>0)parts.push(`${recent} this week`);
@@ -14007,12 +14083,12 @@ function renderNotes(){
   })()}
   ${_nnHead('smart','Smart Folders')}
   ${_nnc('smart')?'':(()=>{
-    const now=new Date(); const todayStr=now.toISOString().slice(0,10);
-    const weekAgo=new Date(now); weekAgo.setDate(weekAgo.getDate()-7);
+    const now=new Date(); const todayStr=_ymd(now);
+    const weekAgo=_pd(now); weekAgo.setDate(weekAgo.getDate()-7);
     // Counts only consider un-foldered notes so they match what the smart
     // folder views actually show after applyNotesFilters hides foldered notes.
     const _unfiled=D.notes.filter(n=>!n.folderId);
-    const modThisWeek=_unfiled.filter(n=>{ try{const d=new Date(n.updated);return d>=weekAgo;}catch(e){return false;} }).length;
+    const modThisWeek=_unfiled.filter(n=>{ try{const d=_pd(n.updated);return d>=weekAgo;}catch(e){return false;} }).length;
     const noTags=_unfiled.filter(n=>!n.tags||!n.tags.length).length;
     const longNotes=_unfiled.filter(n=>(n.body||'').length>500).length;
     const unlinked=_unfiled.filter(n=>!((n.body||'').includes('[['))).length;
@@ -14372,7 +14448,7 @@ function _renderNoteVersionSparkline(n){
     const ts=Date.parse(v.savedAt);if(isNaN(ts))return '';
     const x=pad+((ts-oldest)/span)*(W-pad*2);
     const ago=Math.max(0,Math.round((now-ts)/86400000));
-    const label=`${esc(v.title||'(untitled)')} · ${ago===0?'today':ago+'d ago'} · ${new Date(ts).toLocaleString()}`;
+    const label=`${esc(v.title||'(untitled)')} · ${ago===0?'today':ago+'d ago'} · ${_pd(ts).toLocaleString()}`;
     return `<circle cx="${x.toFixed(1)}" cy="${H/2}" r="3" fill="var(--ac)" stroke="var(--bg)" stroke-width="1.2" style="cursor:pointer;transition:r .12s" onmouseover="this.setAttribute('r','5')" onmouseout="this.setAttribute('r','3')" onclick="previewNoteVersion(${_tidLit(n.id)},${i})"><title>${label}</title></circle>`;
   }).join('');
   // "Now" marker at far right.
@@ -14401,7 +14477,7 @@ function openNoteHistory(id){
   <div style="font-size:11px;color:var(--t3);margin-bottom:10px">${versions.length} saved version${versions.length!==1?'s':''}. Click a version to preview and optionally restore it.</div>
   <div id="nh-list" style="max-height:340px;overflow-y:auto">${[...versions].reverse().map((v,ri)=>{
     const i=versions.length-1-ri;
-    const dt=new Date(v.savedAt);
+    const dt=_pd(v.savedAt);
     const label=dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
     const preview=(v.body||'').slice(0,80).replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return `<div style="border:1px solid var(--bd1);border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;background:var(--s1)" onclick="previewNoteVersion(${id},${i})">
@@ -14420,7 +14496,7 @@ function previewNoteVersion(noteId,versionIdx){
   if(!n||!n.versions)return;
   const v=n.versions[versionIdx];
   if(!v)return;
-  const dt=new Date(v.savedAt);
+  const dt=_pd(v.savedAt);
   const label=dt.toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
   // Simple diff: show lines added/removed
   const oldLines=(v.body||'').split('\n');
@@ -14444,7 +14520,7 @@ function restoreNoteVersion(noteId,versionIdx){
   if(!n||!n.versions)return;
   const v=n.versions[versionIdx];
   if(!v)return;
-  if(!confirm(`Restore version from ${new Date(v.savedAt).toLocaleString()}? Current version will be saved as a new history entry.`))return;
+  if(!confirm(`Restore version from ${_pd(v.savedAt).toLocaleString()}? Current version will be saved as a new history entry.`))return;
   // Save current as new version (rich text included: versions from a
   // conflict between devices carry bodyHtml, and the display prefers it).
   n.versions.push({title:n.title,body:n.body||'',bodyHtml:n.bodyHtml||'',savedAt:new Date().toISOString()});
@@ -14583,7 +14659,7 @@ function renderNoteEditor(n){
   }
   const {wc,mins}=_readingTime(n.body||n.bodyHtml||'');
   const st=_noteStatusMeta(_noteStatus(n));
-  const created=n.createdAt?fmtNoteDate(n.createdAt):(typeof n.id==='number'&&n.id>1e9?fmtNoteDate(new Date(n.id).toISOString()):'');
+  const created=n.createdAt?fmtNoteDate(n.createdAt):(typeof n.id==='number'&&n.id>1e9?fmtNoteDate(_pd(n.id).toISOString()):'');
   const colorDots=NOTE_COLOR_PALETTE.map(c=>{
     const sel=(n.color||'')===c.value;
     return `<span class="ncp-dot ${c.value?'':'ncp-none'} ${sel?'selected':''}" style="${c.value?`background:${c.value}`:''}" title="${esc(c.name)}" onclick="setNoteColor(${_tidLit(n.id)},'${c.value}')"></span>`;
@@ -14742,7 +14818,7 @@ function _renderProjRail(){
   const byHealth={'On Track':0,'Needs Attention':0,'At Risk':0};
   ps.forEach(p=>{const h=projectHealth(p).label;if(byHealth[h]!==undefined)byHealth[h]++;});
   const onDeck=ps.filter(p=>p.status==='Not Started').slice(0,5);
-  const due30=ps.filter(p=>{if(!p.due)return false;const d=Date.parse(p.due);if(isNaN(d))return false;const days=Math.ceil((d-Date.now())/86400000);return days>=0&&days<=30;}).sort((a,b)=>Date.parse(a.due)-Date.parse(b.due)).slice(0,6);
+  const due30=ps.filter(p=>{if(!p.due)return false;const d=+_pd(p.due);if(isNaN(d))return false;const days=Math.ceil((d-Date.now())/86400000);return days>=0&&days<=30;}).sort((a,b)=>+_pd(a.due)-+_pd(b.due)).slice(0,6);
   const recentTasks=D.tasks.filter(t=>t.projectId&&t.completedAt).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||'')).slice(0,5);
   r.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <div style="font-size:13px;font-weight:700">${_icon('barChart',14,'currentColor')} Insights</div>
@@ -14755,7 +14831,7 @@ function _renderProjRail(){
       <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--red);flex-shrink:0"></span><span style="flex:1">At Risk</span><strong style="color:var(--red)">${byHealth['At Risk']}</strong></div>
     </div>
   </div>
-  ${due30.length?`<div data-mod="pr-due30" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((Date.parse(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
+  ${due30.length?`<div data-mod="pr-due30" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">⏰ Due in next 30 days</div>${due30.map(p=>{const days=Math.ceil((+_pd(p.due)-Date.now())/86400000);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span><span style="font-size:11px;color:${days<=7?'var(--warn)':'var(--t3)'};flex-shrink:0">${days===0?'today':days+'d'}</span></div>`;}).join('')}</div>`:''}
   ${onDeck.length?`<div data-mod="pr-ondeck" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🚧 On deck</div>${onDeck.map(p=>`<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openProjectDetail(${p.id})"><span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span><span class="rt" style="font-size:11px">${esc(p.name)}</span></div>`).join('')}</div>`:''}
   ${recentTasks.length?`<div data-mod="pr-recent" style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:10px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">🕐 Recent completions</div>${recentTasks.map(t=>{const p=D.projects.find(x=>x.id===t.projectId);return `<div class="lr" style="font-size:11px;cursor:pointer;padding:4px 0" onclick="openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))"><span style="font-size:11px;color:var(--ok);flex-shrink:0">✓</span><span class="rt" style="font-size:11px">${esc(t.title)}</span>${p?`<span style="width:6px;height:6px;border-radius:2px;background:${p.color};flex-shrink:0"></span>`:''}</div>`;}).join('')}</div>`:''}`;
 }
@@ -14941,7 +15017,7 @@ function renderCommandCenter(){
   const weekStart=new Date(tMs-7*86400000);
   const timeRows=(Array.isArray(D.timeEntries)?D.timeEntries:[]).filter(r=>{
     if(!r.startedAt)return false;
-    if(new Date(r.startedAt)<weekStart)return false;
+    if(_pd(r.startedAt)<weekStart)return false;
     if(hat==='cf')return r.source==='smartsheet';
     if(hat==='lsi')return r.source==='nifty';
     if(hat==='personal')return r.source==='local';
@@ -14982,7 +15058,7 @@ function renderCommandCenter(){
     // Badge is clickable — drills into Tasks filtered to that kind + current hat.
     const kindMeta=kind==='overdue'?{e:'⚠',l:'overdue',c:'var(--red)'}:kind==='today'?{e:'📅',l:'today',c:'var(--warn)'}:{e:'💤',l:'stalled',c:'var(--t3)'};
     const kindBadge=`<span style="color:${kindMeta.c};font-size:11px;font-weight:${kind==='stalled'?'400':'600'};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px" onclick="event.stopPropagation();_ccDrillIntoKind('${kind}')" title="Click to see all ${kindMeta.l} tasks in the current hat">${kindMeta.e} ${kindMeta.l}</span>`;
-    const dueDays=t.due?Math.round((Date.parse(t.due)-tMs)/86400000):null;
+    const dueDays=t.due?_daysUntil(t.due):null;
     const dueLabel=t.due?(dueDays===0?'today':dueDays<0?`${-dueDays}d ago`:`${dueDays}d`):'—';
     const extId=t._ext?t._ext.externalId:'';
     const clickAction=t.source==='personal'?`openDrawer('task',D.tasks.find(x=>String(x.id)==='${_jsAttr(String(t.id))}'))`:`_openExternalAnnotateModal('${_jsAttr(t.source)}','${_jsAttr(extId)}')`;
@@ -15172,7 +15248,7 @@ function renderStandup(){
   if(!m)return;
   const tasks=_ccTasks();
   const today=_todayStr;
-  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return _ymd?_ymd(d):d.toISOString().slice(0,10);})();
+  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return _ymd?_ymd(d):_ymd(d);})();
   // "Yesterday" column has two modes:
   //   strict (default) — completedAt date === yesterday's date
   //   24h window       — completedAt within last 24h (handy when you stamp
@@ -15181,8 +15257,8 @@ function renderStandup(){
   //                      midnight rollover the next day).
   const window24hStart=new Date(Date.now()-24*60*60*1000).toISOString();
   const yest=_standupWindow24h
-    ?tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt>=window24hStart&&t.completedAt.slice(0,10)!==today)
-    :tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt.slice(0,10)===yesterday);
+    ?tasks.filter(t=>t.status==='Done'&&t.completedAt&&t.completedAt>=window24hStart&&_dayOf(t.completedAt)!==today)
+    :tasks.filter(t=>t.status==='Done'&&t.completedAt&&_dayOf(t.completedAt)===yesterday);
   const todayItems=tasks.filter(t=>t.status!=='Done'&&(t.due===today||(t._raw&&t._raw.myDay)||(t._ext&&t._ext.override&&t._ext.override.myDay)));
   const blockers=tasks.filter(t=>{
     if(t.status==='Done')return false;
@@ -15207,7 +15283,7 @@ function renderStandup(){
 
   const summary=()=>{
     const lines=[];
-    lines.push(`*Standup — ${new Date().toISOString().slice(0,10)}*`);
+    lines.push(`*Standup — ${_ymd(new Date())}*`);
     lines.push('');
     lines.push('**Yesterday:**');
     yest.length?yest.forEach(t=>lines.push(`- ${t.sourceLabel?'['+t.sourceLabel+'] ':''}${t.title}`)):lines.push('- (nothing logged)');
@@ -15337,7 +15413,7 @@ function renderPipeline(){
       const stageOpps=byStage[s.key]||[];
       const stageValue=stageOpps.reduce((sum,o)=>sum+(Number(o.value)||0),0);
       const cards=stageOpps.sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)).map(o=>{
-        const closeDays=o.closeDate?Math.ceil((Date.parse(o.closeDate)-Date.now())/86400000):null;
+        const closeDays=o.closeDate?Math.ceil((+_pd(o.closeDate)-Date.now())/86400000):null;
         const closeLabel=closeDays==null?'':closeDays<0?`<span style="color:var(--red)">${-closeDays}d late</span>`:closeDays===0?'<span style="color:var(--warn)">today</span>':closeDays<=14?`<span style="color:var(--warn)">${closeDays}d</span>`:`${closeDays}d`;
         const taskN=_opportunityTaskCount(o.id);
         return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;border-left:3px solid ${s.color};cursor:pointer" onclick="openOpportunityDetail(${o.id})">
@@ -15362,7 +15438,7 @@ function renderPipeline(){
     const rows=opps.slice().sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0)).map(o=>{
       const s=_stageDef(o.stage);
       const taskN=_opportunityTaskCount(o.id);
-      const closeDays=o.closeDate?Math.ceil((Date.parse(o.closeDate)-Date.now())/86400000):null;
+      const closeDays=o.closeDate?Math.ceil((+_pd(o.closeDate)-Date.now())/86400000):null;
       const closeLabel=closeDays==null?'—':closeDays<0?`<span style="color:var(--red)">${o.closeDate} (${-closeDays}d late)</span>`:`${o.closeDate}`;
       return `<tr style="cursor:pointer;border-bottom:1px solid var(--bd1)" onclick="openOpportunityDetail(${o.id})">
         <td style="padding:8px 10px;font-size:12px;color:var(--t1);font-weight:600">${esc(o.name||'(unnamed)')}</td>
@@ -15518,7 +15594,7 @@ function _reportStageAging(open){
   // cycles are long so this is a useful aging proxy without needing a full
   // stage-history audit log on every opp.
   const now=Date.now();
-  const daysSince=iso=>iso?Math.max(0,Math.floor((now-new Date(iso).getTime())/86400000)):null;
+  const daysSince=iso=>iso?Math.max(0,Math.floor((now-_pd(iso).getTime())/86400000)):null;
   const stageBuckets={};
   for(const s of _PIPELINE_STAGES){if(!s.terminal)stageBuckets[s.key]={count:0,daysSum:0,oldest:null};}
   for(const o of open){
@@ -15565,7 +15641,7 @@ function _reportStageAging(open){
 }
 function _reportQuarterlyBooking(open){
   const now=new Date();
-  const horizon=new Date(now);horizon.setDate(now.getDate()+90);
+  const horizon=_pd(now);horizon.setDate(now.getDate()+90);
   const horizonStr=_ymd(horizon);
   const todayStr=_todayStr;
   const inWindow=open.filter(o=>o.closeDate&&o.closeDate>=todayStr&&o.closeDate<=horizonStr);
@@ -15587,7 +15663,7 @@ function _reportQuarterlyBooking(open){
   const bars=months.length?months.map(m=>{
     const slot=byMonth[m];
     const pct=Math.round(slot.weighted/maxW*100);
-    const mLabel=new Date(m+'-01').toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    const mLabel=_pd(m+'-01').toLocaleDateString('en-US',{month:'short',year:'numeric'});
     return `<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-bottom:3px">
         <span style="font-weight:600;color:var(--t1)">${esc(mLabel)}</span>
@@ -16131,7 +16207,7 @@ async function aiPortfolioBriefing(){
       source:t.sourceLabel||t.source||'',
     }));
     const snapshot={
-      asOf:new Date().toISOString().slice(0,10),
+      asOf:_ymd(new Date()),
       hat,
       counts:{open:open.length,shipped7d:shipped.length,overdue:overdue.length,stalled:stalled.length},
       shippedThisWeek:summarise(shipped),
@@ -16217,7 +16293,7 @@ async function _emailLatestBriefing(){
   if(!list.length){toast({type:'warn',title:'No briefing to email'});return;}
   const latest=list[0];
   const b=latest.briefing||{};
-  const dateLine=new Date(latest.dateISO).toLocaleString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const dateLine=_pd(latest.dateISO).toLocaleString('en-US',{weekday:'long',month:'short',day:'numeric'});
   const hatLabel=latest.hat==='all'?'All hats':latest.hat.toUpperCase();
   const renderList=(arr,opts)=>arr&&arr.length?arr.slice(0,6).map(it=>{
     if(typeof it==='string')return `<li style="margin-bottom:4px">${esc(it)}</li>`;
@@ -16256,7 +16332,7 @@ function _openBriefingHistory(){
   const ov=document.getElementById('drawer-ov');
   if(!d||!ov)return;
   const rows=list.length?list.map((rec,i)=>{
-    const dt=new Date(rec.dateISO);
+    const dt=_pd(rec.dateISO);
     const hatLabel=rec.hat==='all'?'All':rec.hat.toUpperCase();
     const head=(rec.briefing&&rec.briefing.headline)||'(no headline)';
     return `<div class="lr" style="padding:10px 12px;border-bottom:1px solid var(--bd1);display:flex;align-items:flex-start;gap:9px;cursor:pointer" onclick="_loadBriefing(${rec.id})">
@@ -16292,7 +16368,7 @@ function _deleteBriefing(id){
 // Tiny "X ago" formatter used by Command Center.
 function _relTime(iso){
   if(!iso)return '';
-  const t=new Date(iso).getTime();if(isNaN(t))return '';
+  const t=_pd(iso).getTime();if(isNaN(t))return '';
   const ago=(Date.now()-t)/60000;
   if(ago<1)return 'just now';
   if(ago<60)return Math.floor(ago)+'m ago';
@@ -16407,8 +16483,8 @@ function _renderPortfolioTimeline(){
   if(!projIds.length)return '';
   // Clamp the window: 14d back to 60d forward, but expand if data goes further.
   const today=new Date();const todayStr=_ymd(today);
-  const back=new Date(today);back.setDate(today.getDate()-14);
-  const fwd=new Date(today);fwd.setDate(today.getDate()+60);
+  const back=_pd(today);back.setDate(today.getDate()-14);
+  const fwd=_pd(today);fwd.setDate(today.getDate()+60);
   const winStart=(minD&&minD<_ymd(back))?minD:_ymd(back);
   const winEnd=(maxD&&maxD>_ymd(fwd))?maxD:_ymd(fwd);
   const winStartMs=Date.parse(winStart);
@@ -16418,7 +16494,7 @@ function _renderPortfolioTimeline(){
   const totalW=winDays*dayPx;
   // Axis: month headers across.
   const axisCells=[];
-  let cur=new Date(winStartMs);cur.setHours(0,0,0,0);
+  let cur=_pd(winStartMs);cur.setHours(0,0,0,0);
   let monthStartIdx=0;let curMonth=cur.getMonth();let curYear=cur.getFullYear();
   for(let i=0;i<=winDays;i++){
     const d=new Date(winStartMs+i*86400000);
@@ -16635,7 +16711,7 @@ function projectHealth(p){
   // Check deadline proximity
   let daysLeft=Infinity;
   if(p.due&&p.due!=='TBD'){
-    const d=new Date(p.due);
+    const d=_pd(p.due);
     if(!isNaN(d))daysLeft=Math.ceil((d-new Date())/(1000*60*60*24));
   }
   if(overdueRatio>0.3||daysLeft<0)return{icon:'🔴',label:'At Risk',color:'var(--red)'};
@@ -16993,8 +17069,8 @@ async function _aiProjectStatusUpdate(pid){
   modalBg.classList.add('show');
   try{
     const today=_todayStr;
-    const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkStartStr=wkStart.toISOString().slice(0,10);
-    const horizon=new Date();horizon.setDate(horizon.getDate()+14);const horizonStr=horizon.toISOString().slice(0,10);
+    const wkStart=new Date();wkStart.setDate(wkStart.getDate()-7);const wkStartStr=_ymd(wkStart);
+    const horizon=new Date();horizon.setDate(horizon.getDate()+14);const horizonStr=_ymd(horizon);
     // Native tasks scoped to this project
     const nativePts=_topLevelTasks(D.tasks).filter(t=>t.projectId===pid);
     // External tasks linked to this project
@@ -17003,8 +17079,8 @@ async function _aiProjectStatusUpdate(pid){
     });
     const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
     const shipped=[
-      ...nativePts.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=wkStartStr).map(t=>({src:'P',t:t.title,when:(t.completedAt||'').slice(0,10)})),
-      ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(new Date(t.completedAt).toISOString().slice(0,10))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,when:new Date(t.completedAt).toISOString().slice(0,10)})),
+      ...nativePts.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)>=wkStartStr).map(t=>({src:'P',t:t.title,when:_dayOf(t.completedAt)})),
+      ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(_ymd(_pd(t.completedAt)))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,when:_ymd(_pd(t.completedAt))})),
     ];
     const inProg=[
       ...nativePts.filter(t=>t.status==='In Progress').map(t=>({src:'P',t:t.title,due:t.due||null,priority:t.priority||null})),
@@ -17468,17 +17544,17 @@ function renderProjectsGantt(header){
   const zoom=_projGanttZoom||'month';
   const windowDays=zoom==='week'?28:zoom==='quarter'?365:120; // visible range
   const today=new Date();
-  const parseDate=s=>{if(!s||s==='Ongoing')return null;try{const d=new Date(s);return isNaN(d)?null:d;}catch{return null}};
+  const parseDate=s=>{if(!s||s==='Ongoing')return null;try{const d=_pd(s);return isNaN(d)?null:d;}catch{return null}};
   const filtered=_filteredProjects();
   const allDates=filtered.map(p=>parseDate(p.due)).filter(Boolean);
-  const minDate=new Date(today); minDate.setDate(minDate.getDate()-7);
+  const minDate=_pd(today); minDate.setDate(minDate.getDate()-7);
   const maxFromData=allDates.length?new Date(Math.max(...allDates.map(d=>d.getTime()))):new Date(today.getTime()+windowDays*86400000);
   const maxDate=new Date(Math.max(maxFromData.getTime(),today.getTime()+windowDays*86400000));
   const totalDays=Math.max(1,Math.ceil((maxDate-minDate)/86400000))+14;
-  const pct=(d)=>Math.max(0,Math.min(100,Math.ceil((new Date(d)-minDate)/86400000/totalDays*100)));
+  const pct=(d)=>Math.max(0,Math.min(100,Math.ceil((_pd(d)-minDate)/86400000/totalDays*100)));
   // Build column markers for the chosen zoom
   let markers=[];
-  if(zoom==='week'){for(let w=0;w<Math.ceil(totalDays/7);w++){const d=new Date(minDate);d.setDate(minDate.getDate()+w*7);markers.push({label:`W${w+1}`,p:pct(d)});}}
+  if(zoom==='week'){for(let w=0;w<Math.ceil(totalDays/7);w++){const d=_pd(minDate);d.setDate(minDate.getDate()+w*7);markers.push({label:`W${w+1}`,p:pct(d)});}}
   else if(zoom==='month'){const cur=new Date(minDate.getFullYear(),minDate.getMonth(),1);while(cur<=maxDate){markers.push({label:cur.toLocaleDateString(undefined,{month:'short',year:'2-digit'}),p:pct(cur)});cur.setMonth(cur.getMonth()+1);}}
   else{const cur=new Date(minDate.getFullYear(),Math.floor(minDate.getMonth()/3)*3,1);while(cur<=maxDate){const q=Math.floor(cur.getMonth()/3)+1;markers.push({label:`Q${q} '${String(cur.getFullYear()).slice(-2)}`,p:pct(cur)});cur.setMonth(cur.getMonth()+3);}}
   const markerHtml=markers.map(m=>`<div style="position:absolute;left:${m.p}%;top:0;bottom:0;width:1px;background:var(--bd1)"></div><div style="position:absolute;left:${m.p}%;top:-18px;transform:translateX(-50%);font-size:11px;color:var(--t3);white-space:nowrap">${esc(m.label)}</div>`).join('');
@@ -17558,8 +17634,8 @@ function aiGoalProgress(){
 function aiWeeklyReview(){
   toast('📅 Generating weekly review...');
   const today=new Date();
-  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
-  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekAgo);d.setDate(weekAgo.getDate()+i+1);return d.toISOString().split('T')[0];});
+  const weekAgo=_pd(today);weekAgo.setDate(today.getDate()-7);
+  const weekDates=Array.from({length:7},(_,i)=>{const d=_pd(weekAgo);d.setDate(weekAgo.getDate()+i+1);return _ymd(d);});
   // Tasks
   const tasksDone=D.tasks.filter(t=>t.status==='Done'&&t.completedAt&&weekDates.some(d=>t.completedAt.startsWith(d)));
   const tasksAdded=D.tasks.filter(t=>t.created&&weekDates.some(d=>t.created.startsWith(d)));
@@ -17679,7 +17755,7 @@ function goalHealth(g){
   const due=_goalDue(g);
   if((g.pct||0)>=100)return {icon:'🟢',label:'Done',color:'var(--ok)'};
   if(!due)return {icon:'🟢',label:'On Track',color:'var(--ok)'};
-  const dueMs=Date.parse(due);if(isNaN(dueMs))return {icon:'🟢',label:'On Track',color:'var(--ok)'};
+  const dueMs=+_pd(due);if(isNaN(dueMs))return {icon:'🟢',label:'On Track',color:'var(--ok)'};
   const now=Date.now();
   const daysLeft=Math.ceil((dueMs-now)/86400000);
   if(daysLeft<0)return {icon:'🔴',label:'Overdue',color:'var(--red)'};
@@ -17692,7 +17768,7 @@ function goalHealth(g){
   return {icon:'🟢',label:'On Track',color:'var(--ok)'};
 }
 // G5: latest check-in helper
-function _goalLastCheckIn(g){const cs=g.checkIns||[];if(!cs.length)return null;const last=cs[cs.length-1];const d=Date.parse(last.date);return isNaN(d)?null:{date:last.date,daysAgo:Math.floor((Date.now()-d)/86400000)};}
+function _goalLastCheckIn(g){const cs=g.checkIns||[];if(!cs.length)return null;const last=cs[cs.length-1];const d=+_pd(last.date);return isNaN(d)?null:{date:last.date,daysAgo:Math.floor((Date.now()-d)/86400000)};}
 // G3: stale = no check-in or update in 30+ days (and not done)
 function _goalIsStale(g){if((g.pct||0)>=100)return false;const last=_goalLastCheckIn(g);const lastTouch=g.lastTouchedAt?Date.parse(g.lastTouchedAt):(g.createdAt?Date.parse(g.createdAt):0);const lastMs=Math.max(last?Date.now()-last.daysAgo*86400000:0,lastTouch||0);return Date.now()-lastMs>30*86400000;}
 // G6: 14-point progress sparkline from g.pctHistory
@@ -17914,7 +17990,7 @@ function saveGoalCheckIn(gid){
   g2.pctHistory.push({ts:Date.now(),pct});
   if(g2.pctHistory.length>30)g2.pctHistory=g2.pctHistory.slice(-30);
   // Also create a journal entry
-  const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:new Date().toISOString().split('T')[0],body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
+  const jEntry={id:Date.now(),type:'goal-checkin',title:'Goal Check-in: '+g2.title,date:_ymd(new Date()),body:'## Progress\n'+progress+(blockers?'\n\n## Blockers\n'+blockers:'')+(next?'\n\n## Next Week\n'+next:''),tags:['goal','check-in'],mood:'',energy:'',createdAt:new Date().toISOString(),createdBy:D.creds.userName||'Idris Grant'};
   D.journal.push(jEntry);
   save('goals');save('journal');
   closeModal();
@@ -18035,9 +18111,9 @@ const JOURNAL_CATEGORIES=['Daily','Weekly Review','Gratitude','Planning','Reflec
 // Parse free-form journal date strings ("Today · May 12", "May 12, 2026", ISO)
 // into a real Date. Returns null when unparseable.
 function _parseJournalDate(j){
-  if(j.createdAt){const d=new Date(j.createdAt);if(!isNaN(d))return d;}
+  if(j.createdAt){const d=_pd(j.createdAt);if(!isNaN(d))return d;}
   let raw=String(j.date||'').trim();
-  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){const d=new Date(raw);if(!isNaN(d))return d;}
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){const d=_pd(raw);if(!isNaN(d))return d;}
   // Strip leading relative words / weekday names so strings like
   // "Yesterday · Sunday, May 18" still resolve to a real date.
   raw=raw.replace(/^(today|yesterday|tomorrow)\b\s*[·\-,]?\s*/i,'')
@@ -18047,11 +18123,15 @@ function _parseJournalDate(j){
   // otherwise parse to year 2001 in V8, which gives the wrong weekday.
   const m=raw.match(/([A-Za-z]{3,9})\s+(\d{1,2})/);
   if(m){
-    const yr=(raw.match(/\b(20\d{2})\b/)||[])[1]||new Date().getFullYear();
+    const explicit=(raw.match(/\b(20\d{2})\b/)||[])[1];
+    const yr=explicit||new Date().getFullYear();
     const d=new Date(`${m[1]} ${m[2]}, ${yr}`);
+    // A year-less entry can't be in the future: "December 30" read in
+    // January was written last year.
+    if(!isNaN(d)&&!explicit&&d-Date.now()>2*86400000)d.setFullYear(d.getFullYear()-1);
     if(!isNaN(d))return d;
   }
-  const d=new Date(raw);
+  const d=_pd(raw);
   return isNaN(d)?null:d;
 }
 // Format a journal entry's date for display — recomputes the weekday and the
@@ -18061,7 +18141,7 @@ function _fmtJournalDate(j){
   const d=_parseJournalDate(j);
   if(!d)return String(j.date||'');
   const t=new Date();t.setHours(0,0,0,0);
-  const dd=new Date(d);dd.setHours(0,0,0,0);
+  const dd=_pd(d);dd.setHours(0,0,0,0);
   const diff=Math.round((t-dd)/86400000);
   const wd=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
   const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
@@ -18084,7 +18164,7 @@ function _journalCategoryOf(j){
 function setJournalCategoryFilter(c){_jrnlFilter=c||'All';renderJournalList();}
 function setJournalSearch(q){_jrnlSearch=q||'';renderJournalList();}
 function setJournalView(v){_jrnlView=v||'list';renderJournal();}
-function jrnlCalNav(delta){const d=new Date(_jrnlCalDate);d.setMonth(d.getMonth()+delta);_jrnlCalDate=d;renderJournal();}
+function jrnlCalNav(delta){const d=_pd(_jrnlCalDate);d.setMonth(d.getMonth()+delta);_jrnlCalDate=d;renderJournal();}
 function _filteredJournalEntries(){
   let entries=[...(D.journal||[])];
   if(_jrnlFilter&&_jrnlFilter!=='All')entries=entries.filter(j=>_journalCategoryOf(j)===_jrnlFilter);
@@ -18108,7 +18188,7 @@ function renderJournalList(){
 function renderJournalCalendar(){
   const el=document.getElementById('jrnl-entries');
   if(!el)return;
-  const d=new Date(_jrnlCalDate);
+  const d=_pd(_jrnlCalDate);
   const year=d.getFullYear(),month=d.getMonth();
   const first=new Date(year,month,1);
   const startDow=first.getDay();
@@ -18116,13 +18196,13 @@ function renderJournalCalendar(){
   const monthLabel=first.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   // Bucket entries by yyyy-mm-dd
   const buckets={};
-  (D.journal||[]).forEach(j=>{const dt=_parseJournalDate(j);if(!dt)return;const k=dt.toISOString().slice(0,10);(buckets[k]=buckets[k]||[]).push(j);});
+  (D.journal||[]).forEach(j=>{const dt=_parseJournalDate(j);if(!dt)return;const k=_ymd(dt);(buckets[k]=buckets[k]||[]).push(j);});
   const cells=[];
   for(let i=0;i<startDow;i++)cells.push('<div></div>');
-  const todayKey=new Date().toISOString().slice(0,10);
+  const todayKey=_ymd(new Date());
   for(let dom=1;dom<=daysInMonth;dom++){
     const dt=new Date(year,month,dom);
-    const k=dt.toISOString().slice(0,10);
+    const k=_ymd(dt);
     const list=buckets[k]||[];
     const isToday=k===todayKey;
     const moods=list.map(j=>j.mood||'').filter(Boolean).slice(0,3).join('');
@@ -18139,7 +18219,7 @@ function renderJournalCalendar(){
 function _renderJournalMoodSparkline(){
   const moodMap={'😊':5,'🙂':4,'😐':3,'😫':2,'😰':1};
   const days=Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return d;});
-  const series=days.map(d=>{const k=d.toISOString().slice(0,10);const list=(D.journal||[]).filter(j=>{const jd=_parseJournalDate(j);return jd&&jd.toISOString().slice(0,10)===k;});const last=list[list.length-1];return {date:k,mood:last?last.mood:null,score:last&&moodMap[last.mood]?moodMap[last.mood]:null};});
+  const series=days.map(d=>{const k=_ymd(d);const list=(D.journal||[]).filter(j=>{const jd=_parseJournalDate(j);return jd&&_ymd(jd)===k;});const last=list[list.length-1];return {date:k,mood:last?last.mood:null,score:last&&moodMap[last.mood]?moodMap[last.mood]:null};});
   const valid=series.filter(s=>s.score!==null);
   if(!valid.length)return '';
   const points=series.map((s,i)=>{const x=i/(series.length-1)*100;const y=s.score?100-((s.score-1)/4)*90-5:null;return {x,y,score:s.score,date:s.date,mood:s.mood};});
@@ -18172,7 +18252,7 @@ function _journalPromptPool(){
 }
 async function refreshJournalPromptsAI(){
   const cached=D.prefs&&D.prefs.aiJournalPrompts;
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   if(cached&&cached.date===today&&!cached.regenerate){toast('Already fresh — try again tomorrow.');return;}
   toast({type:'info',title:'Generating fresh prompts…',duration:2000});
   try{
@@ -18211,7 +18291,7 @@ function renderJournal(){
   // Rail
   const onThisDay=_onThisDayEntries();
   const promptsCache=D.prefs&&D.prefs.aiJournalPrompts;
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const useCached=promptsCache&&promptsCache.date===today&&Array.isArray(promptsCache.prompts)&&promptsCache.prompts.length;
   // Daily-rotated prompts: pick 6 from the pool seeded by day-of-year.
   const pool=_journalPromptPool();
@@ -18273,7 +18353,7 @@ async function sendInlineReply(id){
 }
 function _fmtMailDate(d){
   if(!d)return '';
-  const dt=new Date(d);
+  const dt=_pd(d);
   const now=new Date();
   const diff=now-dt;
   if(diff<86400000)return dt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -18420,7 +18500,7 @@ function aiFollowUpReminder(id){
   const mail=_getMailItems().find(m=>String(m.id)===String(id));
   if(!mail)return;
   const followUpDate=new Date();followUpDate.setDate(followUpDate.getDate()+3);
-  const dateStr=followUpDate.toISOString().split('T')[0];
+  const dateStr=_ymd(followUpDate);
   D.tasks.push({id:Date.now(),title:`Follow up: ${mail.subject}`,priority:'Medium',due:dateStr,status:'Not Started',context:'Calls',project:'',tags:['follow-up','email'],notes:`Follow up with ${mail.from} (${mail.email}) re: ${mail.subject}`,myDay:false,energy:'low',subtasks:[],comments:[],createdBy:D.creds.userName||'Idris Grant'});
   save('tasks');
   toast(`⏰ Follow-up task created for ${dateStr}`);
@@ -18642,10 +18722,10 @@ function switchMailTab(el,tab){
   } else if(tab==='calendar'){
     const today=new Date();
     const dayOfWeek=today.getDay();
-    const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
+    const monday=_pd(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
     const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    const weekDays=days.map((d,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
-    const weekDateStrs=days.map((_,i)=>{const dt=new Date(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
+    const weekDays=days.map((d,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return`${d} ${dt.getDate()}`});
+    const weekDateStrs=days.map((_,i)=>{const dt=_pd(monday);dt.setDate(monday.getDate()+i);return _ymd(dt);});
     const gridRows=[8,9,10,11,12,13,14,15,16,17].map(h=>`<div style="font-size:11px;color:var(--t3);text-align:right;padding-right:6px;padding-top:2px">${h>12?h-12:h} ${h>=12?'PM':'AM'}</div>${Array(7).fill(0).map((_,d)=>{const evs=[..._calEvents.filter(e=>e.day===d&&e.hour===h),..._cellEventsForDate(weekDateStrs[d],h)];return`<div style="border-left:1px solid var(--bd1);border-top:1px solid var(--bd1);min-height:32px;padding:2px">${evs.map(e=>`<div style="font-size:11px;background:${e.color}22;border-left:2px solid ${e.color};padding:2px 4px;border-radius:2px;cursor:pointer;margin-bottom:1px" onclick="openCalEvent(${e.id})">${esc(e.title)}</div>`).join('')}</div>`}).join('')}`).join('');
     body.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><span style="font-size:12px;font-weight:600">📅 This Week</span><button class="btn btn-p" style="height:26px;font-size:11px" onclick="openNewCalEventModal()">＋ Event</button></div><div style="overflow-x:auto"><div style="display:grid;grid-template-columns:40px repeat(7,1fr);min-width:500px;font-size:11px"><div></div>${weekDays.map((d,i)=>`<div style="text-align:center;padding:4px;font-weight:${i===dayOfWeek-1?700:400};color:${i===dayOfWeek-1?'var(--ac)':'var(--t2)'}">${d}</div>`).join('')}${gridRows}</div></div>`;
   } else {
@@ -18852,7 +18932,7 @@ function toggleCalShowTasks(){
 // task rail and the coach used to read D.calEvents, which nothing writes, so
 // they always showed no meetings.
 function _calMeetingsOn(day){
-  const d=day instanceof Date?new Date(day):new Date(String(day)+'T00:00');
+  const d=day instanceof Date?_pd(day):new Date(String(day)+'T00:00');
   if(isNaN(d))return [];
   d.setHours(0,0,0,0);
   const ymd=_ymd(d);
@@ -18884,8 +18964,8 @@ function _calLocalOn(e,dt){
   if(e.day!==(dt.getDay()+6)%7)return false;
   if(/^weekly$/i.test(String(e.repeat||'')))return true;
   const t=new Date();t.setHours(0,0,0,0);
-  const mon=new Date(t);mon.setDate(t.getDate()-((t.getDay()+6)%7));
-  const d0=new Date(dt);d0.setHours(0,0,0,0);
+  const mon=_pd(t);mon.setDate(t.getDate()-((t.getDay()+6)%7));
+  const d0=_pd(dt);d0.setHours(0,0,0,0);
   return d0>=mon&&d0-mon<7*86400000;
 }
 const _calIsAllDay=e=>!!(e&&(e.isAllDay||e.allDay));
@@ -18902,10 +18982,10 @@ function _upcomingCalEvents(limit){
     _calEventsOn(day).forEach(e=>{
       if(out.length>=limit)return;
       const h=typeof e.hour==='number'?e.hour:0;
-      const start=new Date(day);start.setHours(h,0,0,0);
+      const start=_pd(day);start.setHours(h,0,0,0);
       if(start<now)return;
       const eh=(typeof e.endHour==='number'&&e.endHour>h)?e.endHour:h+1;
-      const end=new Date(day);end.setHours(eh,0,0,0);
+      const end=_pd(day);end.setHours(eh,0,0,0);
       out.push({e,start,end});
     });
   }
@@ -19079,14 +19159,19 @@ function openEditCalEvent(id){
   if(!ev)return;
   const m=document.getElementById('modal-content');
   // Parse existing time values
-  const startTime=ev.start||ev.time||'09:00';
-  const endTime=ev.end||'10:00';
-  const dateVal=ev.dateStr||new Date().toISOString().slice(0,10);
+  // <input type=time> needs 24h HH:MM; older events carry "10:00 AM" or
+  // only an hour.
+  const startTime=_calHM(ev.start||ev.time,Number.isFinite(ev.hour)?ev.hour:9);
+  const endTime=_calHM(ev.end,Number.isFinite(ev.endHour)?ev.endHour:(Number.isFinite(ev.hour)?ev.hour+1:10));
+  const dateVal=ev.dateStr||_ymd(new Date());
+  // An undated row repeats every week on its weekday; it stays undated
+  // unless the date is actually changed (saving used to pin it to today).
+  const undatedAttr=ev.dateStr?'':` data-undated="${esc(dateVal)}"`;
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:14px">✏️ Edit Event</h2>
   <div style="display:flex;flex-direction:column;gap:10px">
   <div class="field"><label>Title</label><input class="inp" id="cev-title" value="${esc(ev.title)}"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="field"><label>Date</label><input type="date" class="inp" id="cev-date" value="${esc(dateVal)}"></div>
+    <div class="field"><label>Date</label><input type="date" class="inp" id="cev-date" value="${esc(dateVal)}"${undatedAttr}></div>
     <div class="field"><label>All Day</label><select class="inp" id="cev-allday"><option value="0" ${!ev.isAllDay?'selected':''}>No</option><option value="1" ${ev.isAllDay?'selected':''}>Yes</option></select></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -19117,14 +19202,19 @@ async function saveEditCalEvent(id){
   if(!ev)return;
   const title=document.getElementById('cev-title')?.value.trim();
   if(!title){toast('⚠ Title is required');return;}
-  const dateVal=document.getElementById('cev-date')?.value;
+  const dateEl=document.getElementById('cev-date');
+  const keepUndated=!!(dateEl&&dateEl.dataset.undated&&dateEl.value===dateEl.dataset.undated);
+  const dateVal=keepUndated?'':dateEl?.value;
   const startTime=document.getElementById('cev-start')?.value||'09:00';
   const endTime=document.getElementById('cev-end')?.value||'10:00';
   const location=document.getElementById('cev-loc')?.value.trim()||null;
   const desc=document.getElementById('cev-desc')?.value.trim()||null;
   const isAllDay=parseInt(document.getElementById('cev-allday')?.value||'0');
   const startHour=parseInt(startTime.split(':')[0]);
-  const endHour=parseInt(endTime.split(':')[0])||startHour+1;
+  // The grid is hour cells: an end at 10:30 still occupies the 10:00 cell
+  // (it used to be cut off at 10:00).
+  const [eh,em]=endTime.split(':').map(Number);
+  const endHour=Math.max(startHour+1,(eh||0)+((em||0)>0?1:0));
   // Update local state
   const recurrence=document.getElementById('cev-recurrence')?.value||'none';
   ev.title=title;
@@ -19248,7 +19338,7 @@ function _legacyBlockTaskTime(taskId){
     const parsed=new Date(t.due+', '+today.getFullYear());
     if(!isNaN(parsed)){
       prefillDay=(parsed.getDay()+6)%7;
-      prefillDateStr=parsed.toISOString().split('T')[0];
+      prefillDateStr=_ymd(parsed);
     }
   }
   const prefillHour=9;
@@ -19261,7 +19351,7 @@ function openNewCalEventModal(prefillDay,prefillHour,prefillTitle,prefillDuratio
   const m=document.getElementById('modal-content');
   const today=new Date();
   const dayOfWeek=today.getDay();
-  const monday=new Date(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
+  const monday=_pd(today);monday.setDate(today.getDate()-(dayOfWeek===0?6:dayOfWeek-1));
   const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const colorOpts=[{v:'var(--ac)',l:'Blue'},{'v':'var(--ok)',l:'Green'},{'v':'var(--warn)',l:'Yellow'},{'v':'var(--red)',l:'Red'},{'v':'var(--purp)',l:'Purple'}];
   const endHour=prefillHour!==undefined?(prefillHour+Math.ceil((prefillDurationMins||60)/60)):10;
@@ -19295,7 +19385,7 @@ function _nevDefaultDate(prefillDay,prefillDateStr){
   const d=new Date();d.setHours(0,0,0,0);
   if(typeof _calView!=='undefined'&&_calView==='day'&&typeof _calDayOffset!=='undefined'){d.setDate(d.getDate()+_calDayOffset);return _ymd(d);}
   if(prefillDay!==undefined&&prefillDay!==null){
-    const mon=new Date(d);mon.setDate(d.getDate()-((d.getDay()+6)%7)+7*(typeof _calWeekOffset!=='undefined'?_calWeekOffset:0));
+    const mon=_pd(d);mon.setDate(d.getDate()-((d.getDay()+6)%7)+7*(typeof _calWeekOffset!=='undefined'?_calWeekOffset:0));
     mon.setDate(mon.getDate()+Number(prefillDay));return _ymd(mon);
   }
   return _ymd(d);
@@ -19325,7 +19415,7 @@ function saveNewCalEvent(){
     _calEvents.push({...baseEv,dateStr});
     // Dated copies for the other repeats (they used to be 12 identical
     // weekday-only rows stacked in one cell).
-    const add=(n,unit)=>{const d=new Date(_d0);if(unit==='d')d.setDate(d.getDate()+n);else d.setMonth(d.getMonth()+n);return _ymd(d);};
+    const add=(n,unit)=>{const d=_pd(_d0);if(unit==='d')d.setDate(d.getDate()+n);else d.setMonth(d.getMonth()+n);return _ymd(d);};
     const plan=repeat==='daily'?Array.from({length:13},(_,i)=>[i+1,'d']):repeat==='biweekly'?Array.from({length:6},(_,i)=>[(i+1)*14,'d']):repeat==='monthly'?Array.from({length:5},(_,i)=>[i+1,'m']):[];
     plan.forEach(([n,u],i)=>{const ds=add(n,u);const dd=new Date(ds+'T00:00');_calEvents.push({...baseEv,id:Date.now()+i+1,dateStr:ds,day:(dd.getDay()+6)%7,_recurIndex:i+1});});
   }
@@ -19365,14 +19455,14 @@ function renderCalWeek(){
   const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...
   // Calculate offset to week start
   const _startOffset=_sunFirst?(dayOfWeek):(dayOfWeek===0?6:dayOfWeek-1);
-  const baseMonday=new Date(today);
+  const baseMonday=_pd(today);
   baseMonday.setDate(today.getDate()-_startOffset+(_calWeekOffset*7));
   baseMonday.setHours(0,0,0,0);
-  const baseSunday=new Date(baseMonday);baseSunday.setDate(baseMonday.getDate()+6);
+  const baseSunday=_pd(baseMonday);baseSunday.setDate(baseMonday.getDate()+6);
   const isCurrentWeek=_calWeekOffset===0;
   const weekRangeLabel=`${baseMonday.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${baseSunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
   const weekDays=days.map((d,i)=>{
-    const dt=new Date(baseMonday);dt.setDate(baseMonday.getDate()+i);
+    const dt=_pd(baseMonday);dt.setDate(baseMonday.getDate()+i);
     const isToday=dt.toDateString()===today.toDateString();
     return{label:`${d} ${dt.getDate()}`,isToday,dt};
   });
@@ -19397,7 +19487,7 @@ ${_allDayRow}${_hours.map(h=>`<div class="cal-tl">${_hLabel(h)}</div>${weekDays.
 
 function renderCalDay(){
   const today=new Date();
-  const viewDay=new Date(today);
+  const viewDay=_pd(today);
   viewDay.setDate(today.getDate()+_calDayOffset);
   viewDay.setHours(0,0,0,0);
   const isToday=_calDayOffset===0;
@@ -19547,17 +19637,17 @@ function renderCalMonth(){
   const monthLabel=firstOfMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   // Start grid from Monday before first of month
   const startDow=(firstOfMonth.getDay()+6)%7; // 0=Mon
-  const gridStart=new Date(firstOfMonth);gridStart.setDate(1-startDow);
+  const gridStart=_pd(firstOfMonth);gridStart.setDate(1-startDow);
   const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   let cells=[];
   for(let i=0;i<42;i++){
-    const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);
+    const d=_pd(gridStart);d.setDate(gridStart.getDate()+i);
     cells.push(d);
   }
   const cellsHtml=cells.map(d=>{
     const isThisMonth=d.getMonth()===firstOfMonth.getMonth();
     const isTodayCell=d.toDateString()===today.toDateString();
-    const dStr=d.toISOString().split('T')[0];
+    const dStr=_ymd(d);
     const dow=(d.getDay()+6)%7;
     const isCurrentMonth=_calMonthOffset===0;
     const evs=[..._calEvents.filter(e=>_calLocalOn(e,d)),..._syncedEventsOn(d),..._tasksOnDate(d),...((typeof _finBillsOnDate==="function")?_finBillsOnDate(d):[])];
@@ -19594,7 +19684,7 @@ function aiCalNLP(){
   else if(text.includes('evening'))hour=18;
   // Parse date
   const today=new Date();
-  let targetDate=new Date(today);
+  let targetDate=_pd(today);
   if(text.includes('tomorrow'))targetDate.setDate(today.getDate()+1);
   else if(text.includes('monday'))targetDate.setDate(today.getDate()+(1-today.getDay()+7)%7||7);
   else if(text.includes('tuesday'))targetDate.setDate(today.getDate()+(2-today.getDay()+7)%7||7);
@@ -19603,7 +19693,7 @@ function aiCalNLP(){
   else if(text.includes('friday'))targetDate.setDate(today.getDate()+(5-today.getDay()+7)%7||7);
   else if(text.includes('saturday'))targetDate.setDate(today.getDate()+(6-today.getDay()+7)%7||7);
   else if(text.includes('sunday'))targetDate.setDate(today.getDate()+(0-today.getDay()+7)%7||7);
-  const dateStr=targetDate.toISOString().split('T')[0];
+  const dateStr=_ymd(targetDate);
   // Parse duration
   let durationMins=60;
   const durMatch=text.match(/(\d+)\s*(hour|hr|minute|min)/);
@@ -19654,11 +19744,11 @@ function aiCalNLP(){
 function aiScheduleOptimize(){
   toast('✨ Analyzing your schedule...');
   const today=new Date();
-  const weekStart=new Date(today);
+  const weekStart=_pd(today);
   weekStart.setDate(today.getDate()-today.getDay()+1);
   const weekDates=Array.from({length:7},(_,i)=>{
-    const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
-    return d.toISOString().split('T')[0];
+    const d=_pd(weekStart);d.setDate(weekStart.getDate()+i);
+    return _ymd(d);
   });
   const weekEvents=_calEvents.filter(e=>weekDates.includes(e.dateStr));
   const suggestions=[];
@@ -19673,7 +19763,7 @@ function aiScheduleOptimize(){
     }
     // Check for no deep work blocks
     const morningFree=dayEvs.filter(e=>e.hour>=9&&e.hour<=12).length===0;
-    if(morningFree&&new Date(dateStr)>=today){
+    if(morningFree&&_pd(dateStr)>=today){
       suggestions.push(`🟢 ${dateStr}: Morning 9–12 is free — ideal for deep work block`);
     }
   });
@@ -19694,7 +19784,7 @@ function aiScheduleOptimize(){
 function aiMeetingPrepBrief(){
   // Find the next upcoming event
   const today=new Date();
-  const todayStr=today.toISOString().split('T')[0];
+  const todayStr=_ymd(today);
   const upcoming=_calEvents.filter(e=>e.dateStr>=todayStr).sort((a,b)=>a.dateStr.localeCompare(b.dateStr)||a.hour-b.hour);
   if(!upcoming.length){toast('No upcoming events found');return;}
   const ev=upcoming[0];
@@ -19723,7 +19813,7 @@ function aiMeetingPrepBrief(){
 
 function aiExtractActions(){
   // Look for today's journal entries and notes that mention meetings
-  const todayStr=new Date().toISOString().split('T')[0];
+  const todayStr=_ymd(new Date());
   const todayJournal=D.journal.filter(j=>j.date===todayStr);
   const todayNotes=D.notes.filter(n=>n.updatedAt&&n.updatedAt.startsWith(todayStr));
   const allText=[...todayJournal.map(j=>j.body||''),...todayNotes.map(n=>n.body||'')].join(' ');
@@ -19741,7 +19831,7 @@ function aiExtractActions(){
   const actionList=[...actions].slice(0,8);
   if(!actionList.length){toast('No action items detected in today\'s notes');return;}
   const dueDate=new Date();dueDate.setDate(dueDate.getDate()+1);
-  const dueDateStr=dueDate.toISOString().split('T')[0];
+  const dueDateStr=_ymd(dueDate);
   const m=document.getElementById('modal-content');
   m.innerHTML=`<h2 style="font-size:15px;font-weight:600;margin-bottom:8px">✓ Extract Action Items</h2>
   <div style="font-size:11px;color:var(--t2);margin-bottom:10px">Found ${actionList.length} potential action item${actionList.length!==1?'s':''} in today's notes. Select to create tasks:</div>
@@ -19951,7 +20041,7 @@ const WIDGET_SOURCES={
         }
       }
       const startedAt=r.startedAt||r.createdAt||null;
-      const date=startedAt?String(startedAt).slice(0,10):'';
+      const date=startedAt?_dayOf(startedAt):'';
       return {
         id:r.id,
         taskId:r.taskId,
@@ -20015,7 +20105,7 @@ function _widgetFilterRow(row,filter){
   for(const k of Object.keys(filter||{})){
     const v=filter[k];
     if(k==='overdue'&&v===true){
-      const t=new Date().toISOString().slice(0,10);
+      const t=_ymd(new Date());
       if(!(row.status!=='Done'&&row.due&&row.due<t))return false;
     }else if(k==='has_mood'&&v===true){
       if(!row.mood||!_MOOD_MAP[row.mood])return false;
@@ -20031,7 +20121,7 @@ function _widgetFilterRow(row,filter){
 function _evalCond(row,c){
   const op=c.op||'eq';
   const f=c.field;
-  if(op==='overdue'){const t=new Date().toISOString().slice(0,10);return row.status!=='Done'&&row.due&&row.due<t;}
+  if(op==='overdue'){const t=_ymd(new Date());return row.status!=='Done'&&row.due&&row.due<t;}
   if(op==='has_mood'){return row.mood&&_MOOD_MAP[row.mood];}
   if(!f)return true;
   const lv=row[f];
@@ -20065,12 +20155,12 @@ function _widgetGroupKey(row,groupBy){
   if(dm){
     const fname=dm[2];
     const raw=row[fname];if(!raw)return null;
-    const d=new Date(raw);if(isNaN(d))return null;
-    if(dm[1]==='day')return d.toISOString().slice(0,10);
-    if(dm[1]==='month')return d.toISOString().slice(0,7);
+    const d=_pd(raw);if(isNaN(d))return null;
+    if(dm[1]==='day')return _ymd(d);
+    if(dm[1]==='month')return _ymd(d).slice(0,7);
     // week (Mon start)
     const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);
-    return d.toISOString().slice(0,10)+'w';
+    return _ymd(d)+'w';
   }
   return row[groupBy]||'(unset)';
 }
@@ -20104,8 +20194,8 @@ function _widgetData(w){
   // Restrict to the date range when the groupBy is date-based
   // (so the chart matches the configured range). Skip for other groupings.
   const useRange=/^(day|week|month)\(/.test(w.groupBy);
-  const startKey=useRange?_startDate.toISOString().slice(0,10):'';
-  const todayKey=new Date().toISOString().slice(0,10);
+  const startKey=useRange?_ymd(_startDate):'';
+  const todayKey=_ymd(new Date());
   const dm=useRange&&String(w.groupBy).match(/^(\w+)\((\w+)\)$/);
   let rows=src.arr().filter(r=>_widgetFilterRow(r,w.filter||{}));
   if(useRange&&dm){
@@ -20121,7 +20211,7 @@ function _widgetData(w){
   let labels;
   if(useRange&&dm&&dm[1]==='day'){
     const axisDays=Math.min(days,180);
-    labels=Array.from({length:axisDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(axisDays-1-i));return d.toISOString().slice(0,10);});
+    labels=Array.from({length:axisDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(axisDays-1-i));return _ymd(d);});
   }else{
     labels=Object.keys(buckets).sort();
   }
@@ -20728,10 +20818,9 @@ async function _deleteSharedReportItem(idx){
 // Schedule email delivery for a saved report. Stored on the report itself
 // as r.schedule = {frequency:'off'|'daily'|'weekly'|'monthly', time:'08:00',
 // dow:0..6 (for weekly), dom:1..28 (for monthly), lastSentISO?:string}.
-// Because we don't run a server cron per user, the scheduler is opportunistic:
-// on every login (and on Reports page open) we check for any overdue
-// schedules and send them. Reliable for daily-app-openers, best-effort for
-// others — but the schedule UI clearly states this.
+// Delivery: the hourly server cron (server/_core/scheduledReports.ts), plus
+// this tab's catch-up on login / Reports open — one claim per period in the
+// server's send ledger decides which of them sends.
 function openReportSchedule(id){
   const r=_getSavedReports().find(x=>x.id===id);if(!r)return;
   const s=r.schedule||{frequency:'off',time:'08:00',dow:1,dom:1};
@@ -20739,7 +20828,7 @@ function openReportSchedule(id){
   m.innerHTML=`
     <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⏰ Schedule: ${esc(r.name)}</h2>
     <p style="font-size:11px;color:var(--t3);margin-bottom:12px">Email this report to <strong>${esc(D.creds.email||'your account')}</strong> automatically.
-      <br><span style="color:var(--warn)">Note:</span> delivery happens when you next open LevelUp on or after the scheduled time. Open the app daily to receive a daily report on time.</p>
+      <br>Sent at the scheduled time on your clock (time zone: Settings → AI Coach), even when LevelUp is closed; if LevelUp is open then, you get the full report with charts. Never twice.</p>
     <div class="field" style="margin-bottom:10px"><label>Frequency</label>
       <select class="inp" id="rs-freq" onchange="_rsToggle()">
         ${[['off','Off (manual only)'],['daily','Daily'],['weekly','Weekly'],['monthly','Monthly']].map(([v,l])=>`<option value="${v}" ${s.frequency===v?'selected':''}>${l}</option>`).join('')}
@@ -20777,7 +20866,6 @@ function _saveSchedule(id,forceFreq){
       time:document.getElementById('rs-time')?.value||'08:00',
       dow:Number(document.getElementById('rs-dow')?.value||1),
       dom:Number(document.getElementById('rs-dom')?.value||1),
-      lastSentISO:r.schedule&&r.schedule.lastSentISO||null,
     };
   }
   _setSavedReports(arr);
@@ -20788,24 +20876,18 @@ function _saveSchedule(id,forceFreq){
 // schedule is overdue. Catch-up model: if a daily 8am report wasn't sent
 // today and the current time is past 8am, send it now. Idempotent — won't
 // double-send within the same window.
+// The server decides whether a report is due (on your time-zone clock) and
+// hands out ONE claim per period — shared with the hourly server cron, which
+// sends a lighter version when no tab is open. Before -228 this tab and the
+// cron each kept their own lastSentISO, in local time and UTC, and both sent.
 async function _checkReportSchedules(){
   if(!D.creds||!D.creds.email)return;
   const arr=_getSavedReports();let changed=false;
   for(const r of arr){
     const s=r.schedule;if(!s||s.frequency==='off'||!s.frequency)continue;
-    const now=new Date();
-    const [hh,mm]=(s.time||'08:00').split(':').map(Number);
-    const target=new Date(now);target.setHours(hh||8,mm||0,0,0);
-    let due=false;
-    const last=s.lastSentISO?new Date(s.lastSentISO):null;
-    if(s.frequency==='daily'){
-      if(now>=target&&(!last||last<target))due=true;
-    }else if(s.frequency==='weekly'){
-      if(now.getDay()===Number(s.dow||1)&&now>=target&&(!last||(now-last)>24*60*60*1000))due=true;
-    }else if(s.frequency==='monthly'){
-      if(now.getDate()===Number(s.dom||1)&&now>=target&&(!last||(now-last)>24*60*60*1000))due=true;
-    }
-    if(!due)continue;
+    let claim=null;
+    try{claim=await _trpc('reportsSchedule.claim',{reportId:String(r.id)},'mutation');}catch(e){continue;}
+    if(!claim||!claim.claimed)continue;
     // Load the report config in-memory (without re-rendering UI), build HTML, send.
     try{
       // Briefly switch active state to render this report into reports-main
@@ -20827,19 +20909,21 @@ async function _checkReportSchedules(){
       // Restore state
       _reportRange=savedRange;_reportSections=savedSections;_reportWidgets=savedWidgets;
       if(curScreen==='reports')renderReports();
-      if(html){
-        await _trpc('oauthSync.sendCustom',{to:D.creds.email,subject:`📊 ${r.name} — ${new Date().toLocaleDateString()}`,html},'mutation');
-        s.lastSentISO=new Date().toISOString();
-        changed=true;
-      }
-    }catch(e){console.warn('[report schedule] send failed',r.name,e);}
+      if(!html)throw new Error('the report did not render');
+      await _trpc('oauthSync.sendCustom',{to:D.creds.email,subject:`📊 ${r.name} — ${new Date().toLocaleDateString()}`,html},'mutation');
+      changed=true;
+    }catch(e){
+      console.warn('[report schedule] send failed',r.name,e);
+      // Hand the period back so the server cron (or the next open) sends it.
+      try{await _trpc('reportsSchedule.release',{reportId:String(r.id),period:claim.period},'mutation');}catch(_){}
+    }
   }
-  if(changed){_setSavedReports(arr);toast({type:'success',title:'📧 Scheduled reports sent',duration:3000});}
+  if(changed)toast({type:'success',title:'📧 Scheduled reports sent',duration:3000});
 }
 
 function _reportRangeDays(){return {'7d':7,'30d':30,'90d':90,'365d':365,'all':9999}[_reportRange]||30;}
 function _reportRangeLabel(){return {'7d':'Last 7 days','30d':'Last 30 days','90d':'Last 90 days','365d':'Last year','all':'All time'}[_reportRange]||_reportRange;}
-function _reportStartDate(){const d=new Date();d.setDate(d.getDate()-_reportRangeDays());return d.toISOString().slice(0,10);}
+function _reportStartDate(){const d=new Date();d.setDate(d.getDate()-_reportRangeDays());return _ymd(d);}
 
 function setReportRange(r){_reportRange=r;_reportCustomFrom='';_reportCustomTo='';localStorage.setItem('lu_report_range',r);_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();}
 function toggleReportSection(s){_reportSections[s]=!_reportSections[s];localStorage.setItem('lu_report_sections',JSON.stringify(_reportSections));renderReports();}
@@ -20847,13 +20931,13 @@ function toggleReportSection(s){_reportSections[s]=!_reportSections[s];localStor
 if(typeof _reportCustomFrom==='undefined')var _reportCustomFrom='';
 if(typeof _reportCustomTo==='undefined')var _reportCustomTo='';
 function setReportCustomRange(){
-  const f=document.getElementById('rep-from')?.value;const t=document.getElementById('rep-to')?.value||new Date().toISOString().slice(0,10);
+  const f=document.getElementById('rep-from')?.value;const t=document.getElementById('rep-to')?.value||_ymd(new Date());
   if(!f)return toast('Pick a from date');
   _reportCustomFrom=f;_reportCustomTo=t;_reportRange='custom';_reportNarrativeCache=null;_reportAnomaliesCache=null;renderReports();
 }
 // Override range helpers to handle 'custom'.
 const _origReportRangeDays=_reportRangeDays;
-_reportRangeDays=function(){if(_reportRange==='custom'&&_reportCustomFrom){const f=new Date(_reportCustomFrom);const t=_reportCustomTo?new Date(_reportCustomTo):new Date();return Math.max(1,Math.ceil((t-f)/86400000)+1);}return _origReportRangeDays();};
+_reportRangeDays=function(){if(_reportRange==='custom'&&_reportCustomFrom){const f=_pd(_reportCustomFrom);const t=_reportCustomTo?_pd(_reportCustomTo):new Date();return Math.max(1,Math.ceil((t-f)/86400000)+1);}return _origReportRangeDays();};
 const _origReportRangeLabel=_reportRangeLabel;
 _reportRangeLabel=function(){if(_reportRange==='custom'&&_reportCustomFrom)return `${_reportCustomFrom} → ${_reportCustomTo||'today'}`;return _origReportRangeLabel();};
 const _origReportStartDate=_reportStartDate;
@@ -20873,11 +20957,11 @@ function _reportPeriodPair(){
   const days=Math.min(_reportRangeDays(),365);
   const today=new Date();today.setHours(0,0,0,0);
   let curStart,curEnd;
-  if(_reportRange==='custom'&&_reportCustomFrom){curStart=new Date(_reportCustomFrom);curEnd=_reportCustomTo?new Date(_reportCustomTo):new Date(today);}
-  else{curEnd=new Date(today);curStart=new Date(today);curStart.setDate(today.getDate()-(days-1));}
-  const prevEnd=new Date(curStart);prevEnd.setDate(prevEnd.getDate()-1);
-  const prevStart=new Date(prevEnd);prevStart.setDate(prevStart.getDate()-(days-1));
-  const iso=d=>d.toISOString().slice(0,10);
+  if(_reportRange==='custom'&&_reportCustomFrom){curStart=_pd(_reportCustomFrom);curEnd=_reportCustomTo?_pd(_reportCustomTo):_pd(today);}
+  else{curEnd=_pd(today);curStart=_pd(today);curStart.setDate(today.getDate()-(days-1));}
+  const prevEnd=_pd(curStart);prevEnd.setDate(prevEnd.getDate()-1);
+  const prevStart=_pd(prevEnd);prevStart.setDate(prevStart.getDate()-(days-1));
+  const iso=d=>_ymd(d);
   return {days,curStart:iso(curStart),curEnd:iso(curEnd),prevStart:iso(prevStart),prevEnd:iso(prevEnd)};
 }
 function _delta(cur,prev){
@@ -20911,7 +20995,7 @@ function _goalPaceCheck(g){
   if((g.pct||0)>=100)return {status:'done',label:'Done',color:'var(--ok)'};
   const due=_goalDue(g);
   if(!due)return {status:'unknown',label:'No deadline',color:'var(--t3)'};
-  const dueMs=Date.parse(due);if(isNaN(dueMs))return {status:'unknown',label:'No deadline',color:'var(--t3)'};
+  const dueMs=+_pd(due);if(isNaN(dueMs))return {status:'unknown',label:'No deadline',color:'var(--t3)'};
   const created=g.createdAt?Date.parse(g.createdAt):(Date.now()-90*86400000);
   const now=Date.now();const elapsed=Math.max(1,(now-created)/86400000);
   const ratePerDay=(g.pct||0)/elapsed;
@@ -20920,7 +21004,7 @@ function _goalPaceCheck(g){
   const daysToFinish=remaining/ratePerDay;
   const projectedMs=now+daysToFinish*86400000;
   const slipDays=Math.round((projectedMs-dueMs)/86400000);
-  const projectedISO=new Date(projectedMs).toISOString().slice(0,10);
+  const projectedISO=_ymd(_pd(projectedMs));
   if(slipDays<=0)return {status:'on-pace',label:`On pace · ${projectedISO}`,color:'var(--ok)',projected:projectedISO,slip:slipDays};
   if(slipDays<=14)return {status:'tight',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--warn)',projected:projectedISO,slip:slipDays};
   return {status:'behind',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--err)',projected:projectedISO,slip:slipDays};
@@ -20942,16 +21026,16 @@ function _reportContextCompact(){
   const focusLog=(D.prefs&&D.prefs.focusLog)||{};
   const fSum=(s,e)=>Object.entries(focusLog).filter(([d])=>d>=s&&d<=e).reduce((a,[,v])=>a+(Number(v)||0),0);
   const cur={
-    done:tasks.filter(t=>t.status==='Done'&&inCur((t.completedAt||'').slice(0,10))).length,
-    created:tasks.filter(t=>inCur((t.createdAt||'').slice(0,10))).length,
+    done:tasks.filter(t=>t.status==='Done'&&inCur(_dayOf(t.completedAt))).length,
+    created:tasks.filter(t=>inCur(_dayOf(t.createdAt))).length,
     overdue:tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<p.curEnd).length,
     focus:fSum(p.curStart,p.curEnd),
     journal:(D.journal||[]).filter(j=>inCur((j.date||'').slice(0,10))).length,
     habitsDone:habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>inCur(d)).length,0),
   };
   const prev={
-    done:tasks.filter(t=>t.status==='Done'&&inPrev((t.completedAt||'').slice(0,10))).length,
-    created:tasks.filter(t=>inPrev((t.createdAt||'').slice(0,10))).length,
+    done:tasks.filter(t=>t.status==='Done'&&inPrev(_dayOf(t.completedAt))).length,
+    created:tasks.filter(t=>inPrev(_dayOf(t.createdAt))).length,
     focus:fSum(p.prevStart,p.prevEnd),
     journal:(D.journal||[]).filter(j=>inPrev((j.date||'').slice(0,10))).length,
     habitsDone:habits.reduce((s,h)=>s+(h.completedDates||[]).filter(d=>inPrev(d)).length,0),
@@ -20979,9 +21063,9 @@ async function aiReportAskQuestion(){
     const ctx=_reportContextCompact();
     // Build a richer detail blob: per-day series for tasks done + focus
     const days=Math.min(_reportRangeDays(),60);
-    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return _ymd(d);});
     const focusLog=(D.prefs&&D.prefs.focusLog)||{};
-    const seriesDone=dayKeys.map(k=>(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+    const seriesDone=dayKeys.map(k=>(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length);
     const seriesFocus=dayKeys.map(k=>focusLog[k]||0);
     const projLines=(D.projects||[]).slice(0,8).map(p=>`- ${p.name}: ${p.pct||0}%`).join('\n');
     const goalLines=ctx.goals.slice(0,8).map(g=>`- ${g.title}: ${g.pct||0}%`).join('\n');
@@ -20997,10 +21081,10 @@ async function aiReportAnomalies(force){
   const sec=document.getElementById('report-anomalies');if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">⏳ Scanning for anomalies…</div>`;
   try{
     const days=Math.min(_reportRangeDays(),90);
-    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+    const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return _ymd(d);});
     const focusLog=(D.prefs&&D.prefs.focusLog)||{};
     const tasks=(D.tasks||[]).filter(_reportTaskMatches);
-    const seriesDone=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+    const seriesDone=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length);
     const seriesFocus=dayKeys.map(k=>focusLog[k]||0);
     const sys=`You are a pattern-detection analyst. Identify up to 4 specific ANOMALIES or notable patterns in the data series provided. For each: a 1-line title and a 1-2 sentence explanation grounded in the actual numbers. Reply with strict JSON only: {"anomalies":[{"title":"…","detail":"…","severity":"low|med|high"}, …]}. If everything looks normal, return an empty list.`;
     const user=`Days (oldest first, ${days} total):\n${dayKeys.join(',')}\nTasks done per day: ${seriesDone.join(',')}\nFocus minutes per day: ${seriesFocus.join(',')}\nFind anomalies.`;
@@ -21043,7 +21127,7 @@ function addRecommendedWidget(i){
 function reportDrillDown(kind,key){
   const p=_reportPeriodPair();
   let items=[];let title='';
-  if(kind==='taskday'){title=`Tasks done on ${key}`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===key);}
+  if(kind==='taskday'){title=`Tasks done on ${key}`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===key);}
   else if(kind==='taskstatus'){title=`Tasks: ${key}`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>(t.status||'Not Started')===key);}
   else if(kind==='taskpriority'){title=`Active tasks: ${key} priority`;items=(D.tasks||[]).filter(_reportTaskMatches).filter(t=>t.status!=='Done'&&t.priority===key);}
   else return;
@@ -21080,7 +21164,7 @@ async function exportReportsExcel(){
     const projectRows=(D.projects||[]).map(p=>({Name:p.name,Status:p.status||'',Progress:(p.pct||0)+'%',Due:p.due||'',Owner:p.owner||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(projectRows),'Projects');
     // Summary sheet (key metrics)
-    const todayKey=new Date().toISOString().slice(0,10);
+    const todayKey=_ymd(new Date());
     const summary=[
       {Metric:'Report range',Value:_reportRangeLabel()},
       {Metric:'Generated',Value:new Date().toLocaleString()},
@@ -21094,7 +21178,7 @@ async function exportReportsExcel(){
       {Metric:'Journal entries in range',Value:(D.journal||[]).filter(j=>(j.date||'')>=startKey).length},
     ];
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(summary),'Summary');
-    const stamp=new Date().toISOString().slice(0,10);
+    const stamp=_ymd(new Date());
     XLSX.writeFile(wb,`levelup-report-${stamp}.xlsx`);
     toast('⬇ Excel report downloaded');
   }catch(e){toast('⚠ Excel export failed: '+(e.message||e));}
@@ -21112,19 +21196,19 @@ function exportReportsPDF(){
 
 function renderReports(){
   const startKey=_reportStartDate();
-  const todayKey=new Date().toISOString().slice(0,10);
+  const todayKey=_ymd(new Date());
   const inRange=d=>d&&d>=startKey&&d<=todayKey;
   // Journal entries store free-form dates ("Today · Monday, May 19"); normalise
   // through _parseJournalDate before any range comparison.
   const jKey=j=>{const d=_parseJournalDate(j);return d?_ymd(d):'';};
   const tasks=D.tasks||[];const goals=D.goals||[];const habits=D.habits||[];const journal=D.journal||[];const projects=D.projects||[];
   const days=Math.min(_reportRangeDays(),365);
-  const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return d.toISOString().slice(0,10);});
+  const dayKeys=Array.from({length:days},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(days-1-i));return _ymd(d);});
 
   // Tasks data
   const tasksDoneRange=tasks.filter(t=>t.status==='Done'&&inRange(t.completedAt||''));
   const tasksCreatedRange=tasks.filter(t=>inRange(t.createdAt||''));
-  const completionByDay=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)===k).length);
+  const completionByDay=dayKeys.map(k=>tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===k).length);
   const maxCompletion=Math.max(...completionByDay,1);
   // Show at most ~30 bars to keep readable
   const barStep=Math.max(1,Math.ceil(dayKeys.length/30));
@@ -21169,8 +21253,8 @@ function renderReports(){
   const periodPair=_reportPeriodPair();
   const inPrev=d=>d&&d>=periodPair.prevStart&&d<=periodPair.prevEnd;
   const filteredTasks=tasks.filter(_reportTaskMatches);
-  const prevDone=filteredTasks.filter(t=>t.status==='Done'&&inPrev((t.completedAt||'').slice(0,10))).length;
-  const prevCreated=filteredTasks.filter(t=>inPrev((t.createdAt||'').slice(0,10))).length;
+  const prevDone=filteredTasks.filter(t=>t.status==='Done'&&inPrev(_dayOf(t.completedAt))).length;
+  const prevCreated=filteredTasks.filter(t=>inPrev(_dayOf(t.createdAt))).length;
   const prevFocus=Object.entries(focusLog).filter(([d])=>d>=periodPair.prevStart&&d<=periodPair.prevEnd).reduce((a,[,v])=>a+(Number(v)||0),0);
   const prevJournal=journal.filter(j=>inPrev(jKey(j))).length;
   // R6: forecast for next 7 days
@@ -21262,7 +21346,7 @@ function renderReports(){
       const bucketSize=Math.max(1,Math.ceil(dayKeys.length/buckets));
       const bucketIt=(arrByDay)=>{const out=[];for(let i=0;i<dayKeys.length;i+=bucketSize){let s=0;for(let j=i;j<Math.min(i+bucketSize,dayKeys.length);j++)s+=arrByDay[j]||0;out.push(s);}return out;};
       const sparkDone=bucketIt(completionByDay);
-      const sparkCreated=bucketIt(dayKeys.map(k=>tasks.filter(t=>(t.createdAt||'').slice(0,10)===k).length));
+      const sparkCreated=bucketIt(dayKeys.map(k=>tasks.filter(t=>_dayOf(t.createdAt)===k).length));
       const sparkFocus=bucketIt(focusByDay);
       const sparkMood=bucketIt(dayKeys.map(k=>{const e=journal.find(j=>j&&jKey(j)===k);return e&&moodMap[e.mood]?moodMap[e.mood]:0;}));
       // R6: forecast chips on top KPIs
@@ -21411,7 +21495,7 @@ function renderArchive(){
   tabs.slice(1).forEach(t=>counts[t]=items.filter(i=>i.type===t).length);
   if(_archiveTab!=='All')items=items.filter(i=>i.type===_archiveTab);
   if(_archiveSearch)items=items.filter(i=>(i.title||'').toLowerCase().includes(_archiveSearch));
-  const fmt=d=>{if(!d)return '';try{const dt=new Date(d);return isNaN(dt)?'':dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}};
+  const fmt=d=>{if(!d)return '';try{const dt=_pd(d);return isNaN(dt)?'':dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(_){return '';}};
   const typeColors={Task:'var(--ac)',Project:'var(--purp)',Goal:'var(--red)',Note:'var(--ok)'};
   const rows=items.length?items.map(i=>`<div class="lr">
     <span style="font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--s3);color:${typeColors[i.type]||'var(--t3)'}">${i.type}</span>
@@ -21508,7 +21592,7 @@ function _populateMyDayRail(){
   const meetings=_calMeetingsOn(today).sort((a,b)=>(a.start||'').localeCompare(b.start||'')).slice(0,4);
   const now=new Date();
   const meetingHtml=meetings.length?meetings.map(e=>{
-    const s=new Date(e.start);
+    const s=_pd(e.start);
     const fmtT=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     const mins=Math.floor((s-now)/60000);
     const rel=mins<-15?'past':mins<0?'now':mins<60?`in ${mins}m`:`in ${Math.floor(mins/60)}h${mins%60?' '+(mins%60)+'m':''}`;
@@ -21592,13 +21676,14 @@ function saveWrapUp(){
   ].filter(Boolean).join('\n\n');
   const entry={
     id:nextId(D.journal),
-    date:today.toISOString().split('T')[0],
+    date:_ymd(today),
     title:'Daily Wrap-Up — '+dateStr,
     body,
     mood:'😊',
     energy:'medium',
     tags:['wrap-up','daily-review'],
     created:today.toISOString(),
+    createdAt:new Date().toISOString(),
   };
   D.journal.unshift(entry);
   save('journal');
@@ -21733,7 +21818,7 @@ function pomoToggle(){
           D.prefs=D.prefs||{};
           D.prefs.focusMinsToday=(D.prefs.focusMinsToday||0)+Math.round(_pomoTotal/60);
           // Record in 7-day rolling log
-          const _today=new Date().toISOString().split('T')[0];
+          const _today=_ymd(new Date());
           D.prefs.focusLog=D.prefs.focusLog||{};
           D.prefs.focusLog[_today]=(D.prefs.focusLog[_today]||0)+Math.round(_pomoTotal/60);
           // Per-hour tracker for the Peak Focus Hour Home widget.
@@ -21788,16 +21873,16 @@ function pomoSelectTask(taskId){
 function getWeekDates(offsetWeeks=0){
   const now=new Date();
   const day=now.getDay();
-  const mon=new Date(now);
+  const mon=_pd(now);
   mon.setDate(now.getDate()-(day===0?6:day-1)+offsetWeeks*7);
-  return Array.from({length:7},(_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d;});
+  return Array.from({length:7},(_,i)=>{const d=_pd(mon);d.setDate(mon.getDate()+i);return d;});
 }
 let weekOffset=0;
 function renderMyWeek(){
   const days=getWeekDates(weekOffset);
   const dayNames=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const today=new Date().toDateString();
-  const fmt=d=>d.toISOString().split('T')[0];
+  const fmt=d=>_ymd(d);
   const label=d=>dayNames[d.getDay()===0?6:d.getDay()-1]+' '+d.getDate();
   // Group tasks by their startDate or due date falling within this week
   const weekStart=fmt(days[0]);
@@ -21882,7 +21967,7 @@ function quickAddToDay(dateStr){
 function renderMyYear(){
   const yr=new Date().getFullYear();
   const now=new Date();
-  const todayStr=now.toISOString().split('T')[0];
+  const todayStr=_ymd(now);
   const dayOfYear=Math.floor((now-new Date(yr,0,0))/(1000*60*60*24));
   const daysInYear=((yr%4===0&&yr%100!==0)||yr%400===0)?366:365;
   const yearPct=Math.round(dayOfYear/daysInYear*100);
@@ -21900,8 +21985,8 @@ function renderMyYear(){
   const goalTimeline=D.goals.map(g=>{
     const start=g.startDate||`${yr}-01-01`;
     const end=g.dueDate||`${yr}-12-31`;
-    const sDay=Math.floor((new Date(start)-new Date(yr,0,0))/(1000*60*60*24));
-    const eDay=Math.floor((new Date(end)-new Date(yr,0,0))/(1000*60*60*24));
+    const sDay=Math.floor((_pd(start)-new Date(yr,0,0))/(1000*60*60*24));
+    const eDay=Math.floor((_pd(end)-new Date(yr,0,0))/(1000*60*60*24));
     const left=Math.max(0,Math.min(100,(sDay/daysInYear)*100));
     const width=Math.max(2,Math.min(100-left,((eDay-sDay)/daysInYear)*100));
     return {g,left,width};
@@ -21909,7 +21994,7 @@ function renderMyYear(){
 
   // Habit heatmap — last 52 weeks (364 days)
   const heatLog=D.prefs.focusLog||{};
-  const heatDays=Array.from({length:364},(_,i)=>{const d=new Date(now);d.setDate(d.getDate()-363+i);return d.toISOString().split('T')[0];});
+  const heatDays=Array.from({length:364},(_,i)=>{const d=_pd(now);d.setDate(d.getDate()-363+i);return _ymd(d);});
   const heatMax=Math.max(1,...Object.values(heatLog));
   function heatColor(v){if(!v)return 'var(--s3)';const p=v/heatMax;if(p<0.25)return '#1e3a5f';if(p<0.5)return '#1d5fa8';if(p<0.75)return '#2b7de9';return 'var(--ac)';}
 
@@ -22029,7 +22114,7 @@ function _gtdBuckets(){
 function setProcessGtdTab(tab){_processGtdTab=tab;renderProcess();}
 // Triage actions — these are what "feed" each bucket.
 function gtdDoNext(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.myDay=true;t.snoozeUntil='';if(t.status==='Someday'||t.status==='Not Started')t.status='In Progress';save('tasks');renderProcess();toast('⚡ Moved to Do Next');}
-function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||new Date().toISOString().slice(0,10));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')t.status='In Progress';save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
+function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||_ymd(new Date()));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')t.status='In Progress';save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
 function gtdSomeday(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Someday';t.myDay=false;t.snoozeUntil='';save('tasks');renderProcess();toast('🗓 Moved to Someday');}
 function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Done';t.completedAt=new Date().toISOString();save('tasks');renderProcess();toast('✓ Done');}
 function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Not Started';t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
@@ -22101,7 +22186,7 @@ ${tabBarG}
           <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
             <button class="btn btn-p" style="font-size:11px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
             <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
-            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='parked';D.ideas.find(x=>x.id==${_tidLit(idea.id)}).parked_review_date=new Date(Date.now()+30*86400000).toISOString().split('T')[0];save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='parked';D.ideas.find(x=>x.id==${_tidLit(idea.id)}).parked_review_date=_ymd(new Date(Date.now()+30*86400000));save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
             <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
           </div>
         </div>
@@ -22291,12 +22376,12 @@ function calcHabitStreak(h){
     // before it if today isn't done yet); unscheduled days are skipped over.
     const today=new Date();today.setHours(0,0,0,0);
     let streak=0;
-    let checkDate=new Date(today);
-    const todayStr=today.toISOString().split('T')[0];
+    let checkDate=_pd(today);
+    const todayStr=_ymd(today);
     if(!sched.has(today.getDay())||!completedDates.includes(todayStr))checkDate.setDate(checkDate.getDate()-1);
     for(let guard=0;guard<4000;guard++){
       if(!sched.has(checkDate.getDay())){checkDate.setDate(checkDate.getDate()-1);continue;}
-      const ds=checkDate.toISOString().split('T')[0];
+      const ds=_ymd(checkDate);
       if(completedDates.includes(ds)||skippedDates.includes(ds)){
         streak++;
         checkDate.setDate(checkDate.getDate()-1);
@@ -22308,13 +22393,13 @@ function calcHabitStreak(h){
     // Build a map of week -> completion count
     const weekMap={};
     completedDates.forEach(ds=>{
-      const d=new Date(ds);
+      const d=_pd(ds);
       const wk=isoWeek(d);
       weekMap[wk]=(weekMap[wk]||0)+1;
     });
     // Also count skipped days as 1 completion each for streak preservation
     skippedDates.forEach(ds=>{
-      const d=new Date(ds);
+      const d=_pd(ds);
       const wk=isoWeek(d);
       weekMap[wk]=(weekMap[wk]||0)+0.5; // half-credit for skips
     });
@@ -22325,9 +22410,9 @@ function calcHabitStreak(h){
     // Helper to get previous ISO week string
     const prevWeek=wkStr=>{
       const [yr,wn]=wkStr.split('-W').map(Number);
-      const d=new Date(Date.UTC(yr,0,1+((wn-1)*7)));
-      d.setUTCDate(d.getUTCDate()-7);
-      return isoWeek(d);
+      // isoWeek reads the LOCAL date, so hand it a local one (a UTC
+      // midnight is the previous evening here, sometimes the previous week).
+      return isoWeek(new Date(yr,0,1+((wn-1)*7)-7));
     };
     // If current week has enough completions, count it
     if((weekMap[checkWeek]||0)>=reqPerWeek){
@@ -22349,7 +22434,7 @@ function skipHabitToday(id){
   if(!h)return;
   h.skippedToday=true;
   h.doneToday=false;
-  const todayStr=new Date().toISOString().split('T')[0];
+  const todayStr=_ymd(new Date());
   if(!h.skippedDates)h.skippedDates=[];
   if(!h.completedDates)h.completedDates=[];
   if(!h.skippedDates.includes(todayStr))h.skippedDates.push(todayStr);
@@ -22364,7 +22449,7 @@ function toggleHabit(id){
   const wasOff=!h.doneToday;
   h.doneToday=wasOff;
   h.skippedToday=false;
-  const todayStr=new Date().toISOString().split('T')[0];
+  const todayStr=_ymd(new Date());
   if(!h.completedDates)h.completedDates=[];
   if(!h.skippedDates)h.skippedDates=[];
   if(wasOff){
@@ -22542,7 +22627,7 @@ function ideaDaysInStage(idea){
   const stageAtKey=idea.stage+'_at';
   const stageAt=idea[stageAtKey]||idea.createdAt;
   if(!stageAt)return 0;
-  return Math.floor((Date.now()-new Date(stageAt).getTime())/(1000*60*60*24));
+  return Math.floor((Date.now()-_pd(stageAt).getTime())/(1000*60*60*24));
 }
 function ideaStagePill(stage,outcome){
   const label=outcome?({killed:'Killed',parked:'Parked',promoted:'Promoted'}[outcome]||IDEA_STAGE_LABELS[stage]):IDEA_STAGE_LABELS[stage];
@@ -22619,7 +22704,7 @@ function renderIdeas(){
   const today=new Date();
   const isMonday=today.getDay()===1;
   const cachedDigest=D.prefs&&D.prefs.aiIdeasWeeklyDigest;
-  const showDigestBanner=isMonday&&D.ideas.length>=3&&(!cachedDigest||cachedDigest.date!==today.toISOString().slice(0,10));
+  const showDigestBanner=isMonday&&D.ideas.length>=3&&(!cachedDigest||cachedDigest.date!==_ymd(today));
   el.innerHTML=`
   <div class="ph-r" style="margin-bottom:12px">
     <div>
@@ -22790,7 +22875,7 @@ function renderIdeaDetail(idea){
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
       <div style="flex:1">
         <div contenteditable="true" id="idea-title-edit" style="font-size:22px;font-weight:700;outline:none;border-bottom:2px solid transparent;padding-bottom:2px" onfocus="this.style.borderColor='var(--ac)'" onblur="this.style.borderColor='transparent';updateIdeaTitle(${idea.id},this.textContent)">${esc(idea.title)}</div>
-        <div style="font-size:12px;color:var(--t2);margin-top:4px">${IDEA_TYPE_ICONS[idea.idea_type]} ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type} &nbsp;·&nbsp; Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
+        <div style="font-size:12px;color:var(--t2);margin-top:4px">${IDEA_TYPE_ICONS[idea.idea_type]} ${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type} &nbsp;·&nbsp; Created ${_pd(idea.createdAt).toLocaleDateString()}</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center">
         <div style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:4px 10px;text-align:center">
@@ -22950,10 +23035,10 @@ function renderIdeaDetail(idea){
       <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Activity</div>
         <div style="font-size:11px;color:var(--t3)">
-          <div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Created ${new Date(idea.createdAt).toLocaleDateString()}</div>
-          ${idea.develop_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Develop ${new Date(idea.develop_at).toLocaleDateString()}</div>`:''}
-          ${idea.stress_test_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Stress Test ${new Date(idea.stress_test_at).toLocaleDateString()}</div>`:''}
-          ${idea.verdict_at?`<div style="padding:4px 0">Verdict: ${idea.verdict_outcome} ${new Date(idea.verdict_at).toLocaleDateString()}</div>`:''}
+          <div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Created ${_pd(idea.createdAt).toLocaleDateString()}</div>
+          ${idea.develop_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Develop ${_pd(idea.develop_at).toLocaleDateString()}</div>`:''}
+          ${idea.stress_test_at?`<div style="padding:4px 0;border-bottom:1px solid var(--bd1)">Moved to Stress Test ${_pd(idea.stress_test_at).toLocaleDateString()}</div>`:''}
+          ${idea.verdict_at?`<div style="padding:4px 0">Verdict: ${idea.verdict_outcome} ${_pd(idea.verdict_at).toLocaleDateString()}</div>`:''}
         </div>
       </div>
 
@@ -23168,7 +23253,7 @@ function confirmAIPromotion(id){
   const cache=window._aigPromote;if(!cache||cache.ideaId!==id)return;
   const idea=D.ideas.find(x=>x.id===id);if(!idea)return;
   const p=cache.plan;
-  const project={id:Date.now(),name:p.name,desc:p.desc||'',color:'#3b82f6',status:'Active',pct:0,due:'',startDate:new Date().toISOString().slice(0,10),createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),milestones:(p.milestones||[]).map((ms,i)=>({id:i+1,title:ms.title,date:new Date(Date.now()+(ms.due_offset_days||30)*86400000).toISOString().slice(0,10),done:false}))};
+  const project={id:Date.now(),name:p.name,desc:p.desc||'',color:'#3b82f6',status:'Active',pct:0,due:'',startDate:_ymd(new Date()),createdBy:D.creds.userName||'Idris Grant',createdAt:new Date().toISOString(),milestones:(p.milestones||[]).map((ms,i)=>({id:i+1,title:ms.title,date:_ymd(new Date(Date.now()+(ms.due_offset_days||30)*86400000)),done:false}))};
   if(!D.projects)D.projects=[];
   D.projects.push(project);save('projects');
   // Create 5 tasks linked to project
@@ -23263,7 +23348,7 @@ async function aiGenerateRoadmap(){
 }
 // I5: Weekly digest (Mondays) — cached in D.prefs.aiIdeasWeeklyDigest
 async function aiIdeasWeeklyDigest(force){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const cache=D.prefs&&D.prefs.aiIdeasWeeklyDigest;
   if(!force&&cache&&cache.date===today&&cache.text){renderIdeasWeeklyDigest(cache.text);return;}
   toast({type:'info',title:'Generating weekly digest…',duration:1800});
@@ -23427,7 +23512,7 @@ function exportIdeaMarkdown(id){
   md+=`**Type:** ${typeLabel}  \n`;
   md+=`**Stage:** ${stageLabel}  \n`;
   md+=`**ICE Score:** ${ice} (Impact: ${idea.ice_impact||5} / Confidence: ${idea.ice_confidence||5} / Ease: ${idea.ice_ease||5})  \n`;
-  md+=`**Created:** ${new Date(idea.createdAt).toLocaleDateString()}  \n`;
+  md+=`**Created:** ${_pd(idea.createdAt).toLocaleDateString()}  \n`;
   if(idea.verdict_outcome)md+=`**Verdict:** ${idea.verdict_outcome}  \n`;
   md+=`\n---\n\n`;
   if(idea.description)md+=`## Description\n\n${idea.description}\n\n`;
@@ -23469,7 +23554,7 @@ function exportIdeaMarkdown(id){
   // Activity log
   if((idea.activity||[]).length){
     md+=`## Activity Log\n\n`;
-    idea.activity.forEach(a=>md+=`- **${new Date(a.at).toLocaleDateString()}** ${a.text}\n`);
+    idea.activity.forEach(a=>md+=`- **${_pd(a.at).toLocaleDateString()}** ${a.text}\n`);
   }
   const blob=new Blob([md],{type:'text/markdown'});
   const a=document.createElement('a');
@@ -23499,7 +23584,7 @@ function exportIdeaPDF(id){
   const pmHtml=idea.premortem?`<h3 style="font-size:13px;font-weight:700;margin:16px 0 8px;color:#dc2626">Premortem Analysis</h3><div style="font-size:11px;color:#374151;line-height:1.6;padding:8px;background:#fef2f2;border-radius:4px">${idea.premortem.replace(/\n/g,'<br>')}</div>`:'';
   const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${idea.title}</title><style>body{font-family:system-ui,sans-serif;max-width:700px;margin:0 auto;padding:32px;color:#111}@media print{body{padding:0}}</style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:2px solid #4f46e5">
-    <div><h1 style="font-size:22px;font-weight:800;margin:0 0 6px">${idea.title}</h1><div style="font-size:12px;color:#6b7280">${typeLabel} &bull; ${stageLabel} &bull; Created ${new Date(idea.createdAt).toLocaleDateString()}</div></div>
+    <div><h1 style="font-size:22px;font-weight:800;margin:0 0 6px">${idea.title}</h1><div style="font-size:12px;color:#6b7280">${typeLabel} &bull; ${stageLabel} &bull; Created ${_pd(idea.createdAt).toLocaleDateString()}</div></div>
     <div style="text-align:center;background:#eef2ff;border-radius:8px;padding:8px 16px"><div style="font-size:24px;font-weight:800;color:#4f46e5">${ice}</div><div style="font-size:11px;color:#6b7280">ICE Score</div></div>
   </div>
   <div style="display:flex;gap:16px;margin-bottom:16px">
@@ -23636,18 +23721,18 @@ function doJournalExport(currentFilter){
   }
 }
 function _exportJournalMDEntries(entries){
-  const sorted=[...entries].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted=[...entries].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let md=`# Journal Export\n\nExported ${new Date().toLocaleDateString()} \u2014 ${sorted.length} entr${sorted.length===1?'y':'ies'}\n\n---\n\n`;
   sorted.forEach(j=>md+=_buildJournalEntryMD(j)+'---\n\n');
   const blob=new Blob([md],{type:'text/markdown'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`journal-export-${new Date().toISOString().split('T')[0]}.md`;
+  a.download=`journal-export-${_ymd(new Date())}.md`;
   a.click();
   toast('\u2713 Journal exported as Markdown ('+sorted.length+' entries)');
 }
 function _exportJournalPDFEntries(entries){
-  const sorted=[...entries].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted=[...entries].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let entriesHtml='';
   sorted.forEach((j,idx)=>{
     const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
@@ -23671,7 +23756,7 @@ function _exportJournalPDFEntries(entries){
 
 function exportJournalMD(){
   if(!D.journal||!D.journal.length){toast('⚠ No journal entries to export');return;}
-  const sorted=[...D.journal].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted=[...D.journal].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let md=`# Journal Export\n\nExported ${new Date().toLocaleDateString()} — ${sorted.length} entr${sorted.length===1?'y':'ies'}\n\n---\n\n`;
   sorted.forEach(j=>{
     md+=`## ${j.title||'Untitled Entry'}\n\n`;
@@ -23699,14 +23784,14 @@ function exportJournalMD(){
   const blob=new Blob([md],{type:'text/markdown'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`journal-export-${new Date().toISOString().split('T')[0]}.md`;
+  a.download=`journal-export-${_ymd(new Date())}.md`;
   a.click();
   toast('✓ Journal exported as Markdown ('+sorted.length+' entries)');
 }
 
 function exportJournalPDF(){
   if(!D.journal||!D.journal.length){toast('⚠ No journal entries to export');return;}
-  const sorted=[...D.journal].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const sorted=[...D.journal].sort((a,b)=>_pd(b.date)-_pd(a.date));
   let entriesHtml='';
   sorted.forEach((j,idx)=>{
     const moodBadge=j.mood?`<span style="font-size:18px;margin-left:8px">${j.mood}</span>`:'';
@@ -23767,7 +23852,7 @@ function showVerdictFields(outcome){
   if(outcome==='killed'){
     el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Kill reason *</label><textarea id="vf-kill" class="inp" style="width:100%;height:80px;margin-top:4px;font-size:12px" placeholder="Why are you killing this idea?"></textarea></div>`;
   } else if(outcome==='parked'){
-    el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Review date *</label><input id="vf-date" type="date" class="inp" style="width:100%;margin-top:4px" value="${new Date(Date.now()+30*24*60*60*1000).toISOString().split('T')[0]}"></div>`;
+    el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Review date *</label><input id="vf-date" type="date" class="inp" style="width:100%;margin-top:4px" value="${_ymd(new Date(Date.now()+30*24*60*60*1000))}"></div>`;
   } else if(outcome==='promoted'){
     el.innerHTML=`<div><label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">New project name</label><input id="vf-proj" class="inp" style="width:100%;margin-top:4px" placeholder="Project name (leave blank to skip)"></div>`;
   }
@@ -23801,7 +23886,7 @@ function confirmVerdict(id){
   idea.updatedAt=new Date().toISOString();
   // Auto-create Decision Log entry
   if(!D.decisions)D.decisions=[];
-  D.decisions.push({id:Date.now(),idea_id:id,outcome,date:new Date().toISOString().split('T')[0],title:`Idea ${outcome}: ${idea.title}`,context:idea.answers.map(a=>`**${a.stage}/${a.question_key}:** ${a.body}`).join('\n\n'),kill_reason:idea.kill_reason||null,promoted_project_id:idea.promoted_project_id||null});
+  D.decisions.push({id:Date.now(),idea_id:id,outcome,date:_ymd(new Date()),title:`Idea ${outcome}: ${idea.title}`,context:idea.answers.map(a=>`**${a.stage}/${a.question_key}:** ${a.body}`).join('\n\n'),kill_reason:idea.kill_reason||null,promoted_project_id:idea.promoted_project_id||null});
   save('ideas');
   closeModal();
   renderIdeas();
@@ -23899,7 +23984,7 @@ function aiHabitCoach(){
     const completedDates=h.completedDates||[];
     const total=completedDates.length;
     const recentDays=7;
-    const recentDates=Array.from({length:recentDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return d.toISOString().split('T')[0];});
+    const recentDates=Array.from({length:recentDays},(_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return _ymd(d);});
     const recentCount=completedDates.filter(d=>recentDates.includes(d)).length;
     const consistency=recentDays>0?Math.round(recentCount/recentDays*100):0;
     if(streak===0&&total>0)tips.push({h,type:'warning',msg:`"${h.name}" streak broken — restart today to rebuild momentum`});
@@ -23963,8 +24048,8 @@ function aiHabitCorrelation(){
 function aiWellbeingReport(){
   toast('📊 Generating wellbeing report...');
   const today=new Date();
-  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
-  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekAgo);d.setDate(weekAgo.getDate()+i+1);return d.toISOString().split('T')[0];});
+  const weekAgo=_pd(today);weekAgo.setDate(today.getDate()-7);
+  const weekDates=Array.from({length:7},(_,i)=>{const d=_pd(weekAgo);d.setDate(weekAgo.getDate()+i+1);return _ymd(d);});
   // Habits this week
   const habitScore=D.habits.length?Math.round(D.habits.reduce((sum,h)=>{
     const done=(h.completedDates||[]).filter(d=>weekDates.includes(d)).length;
@@ -24204,8 +24289,8 @@ function genHM(s,skippedDates,completedDates){
   let h='';
   const today=new Date();today.setHours(0,0,0,0);
   for(let i=89;i>=0;i--){
-    const d=new Date(today);d.setDate(today.getDate()-i);
-    const dStr=d.toISOString().split('T')[0];
+    const d=_pd(today);d.setDate(today.getDate()-i);
+    const dStr=_ymd(d);
     let cls;
     if(completedDates&&completedDates.length){
       cls=completedDates.includes(dStr)?'ok':(skippedDates&&skippedDates.includes(dStr)?'sk':'mi');
@@ -24232,7 +24317,7 @@ function genHeatmapMonth(h){
   for(let i=0;i<startDow;i++)cells+=`<div class="hm-month-cell future"></div>`;
   for(let day=1;day<=daysInMonth;day++){
     const d=new Date(year,month,day);
-    const dStr=d.toISOString().split('T')[0];
+    const dStr=_ymd(d);
     const isFuture=d>today;
     let cls;
     if(isFuture)cls='future';
@@ -24319,8 +24404,8 @@ async function _coachAICall(systemPrompt,userContent){
   return String(res?.result||res?.text||'').trim();
 }
 function _coachWorkspaceContext(){
-  const today=new Date().toISOString().slice(0,10);
-  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const today=_ymd(new Date());
+  const tomorrow=_ymd(new Date(Date.now()+86400000));
   const tasksDueToday=D.tasks.filter(t=>t.status!=='Done'&&(t.due===today||t.startDate===today||t.myDay));
   const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
   const calToday=_calMeetingsOn(today);
@@ -24333,7 +24418,7 @@ function _coachWorkspaceContext(){
 }
 // C1: Daily AI Brief — cached per day
 async function aiCoachDailyBrief(force){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const cache=D.prefs&&D.prefs.coachDailyBrief;
   const sec=document.getElementById('coach-daily-brief');
   if(!force&&cache&&cache.date===today&&cache.text){if(sec)sec.innerHTML=_coachBriefHtml(cache.text);return;}
@@ -24347,7 +24432,7 @@ async function aiCoachDailyBrief(force){
 }
 function _coachBriefHtml(text){return `<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-s" style="font-size:11px" onclick="aiCoachDailyBrief(true)">↻ Regenerate</button><span style="font-size:11px;color:var(--t3);align-self:center">Cached for today · regenerate after a major change</span></div>`;}
 // C2: Coach chat panel — persistent thread per day
-function _coachThreadKey(){return new Date().toISOString().slice(0,10);}
+function _coachThreadKey(){return _ymd(new Date());}
 function aiCoachChatRender(){
   const sec=document.getElementById('coach-chat');if(!sec)return;
   const key=_coachThreadKey();
@@ -24387,9 +24472,9 @@ async function aiCoachWeeklyReview(){
   try{
     const today=new Date();
     const dow=today.getDay();
-    const monday=new Date(today);monday.setDate(today.getDate()-(dow===0?6:dow-1));monday.setHours(0,0,0,0);
-    const ws=monday.toISOString().slice(0,10);const we=today.toISOString().slice(0,10);
-    const doneWeek=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=ws);
+    const monday=_pd(today);monday.setDate(today.getDate()-(dow===0?6:dow-1));monday.setHours(0,0,0,0);
+    const ws=_ymd(monday);const we=_ymd(today);
+    const doneWeek=D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)>=ws);
     const slipped=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<we&&t.due>=ws);
     const focusLog=D.prefs&&D.prefs.focusLog||{};
     const focusWeek=Object.entries(focusLog).filter(([d])=>d>=ws).reduce((s,[,v])=>s+v,0);
@@ -24408,8 +24493,8 @@ async function aiCoachWeeklyReview(){
 async function aiCoachAccountability(){
   toast({type:'info',title:'Running accountability check…',duration:2000});
   try{
-    const today=new Date().toISOString().slice(0,10);
-    const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const today=_ymd(new Date());
+    const yesterday=_ymd(new Date(Date.now()-86400000));
     const yTasks=D.tasks.filter(t=>(t.due===yesterday||t.startDate===yesterday)&&t.status!=='Done');
     const overdue=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<today);
     const myDay=D.tasks.filter(t=>t.myDay&&t.status!=='Done');
@@ -24427,7 +24512,7 @@ function aiCoachFocusPattern(){
   const fl=(D.prefs&&D.prefs.focusLog)||{};
   const totalMin=Object.values(fl).reduce((s,v)=>s+(Number(v)||0),0);
   const completionsByHour={};
-  D.tasks.filter(t=>t.completedAt).forEach(t=>{const h=new Date(t.completedAt).getHours();completionsByHour[h]=(completionsByHour[h]||0)+1;});
+  D.tasks.filter(t=>t.completedAt).forEach(t=>{const h=_pd(t.completedAt).getHours();completionsByHour[h]=(completionsByHour[h]||0)+1;});
   const peaks=Object.entries(hourly).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const compPeaks=Object.entries(completionsByHour).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const fmt=h=>{const n=Number(h);const ap=n>=12?'pm':'am';const h12=((n%12)||12);return h12+ap;};
@@ -24469,9 +24554,9 @@ async function aiCoachGoalTaskAudit(){
 }
 // C7: Burnout signal — multi-signal check (no AI required for the math)
 function _coachBurnoutSignal(){
-  const today=new Date();const todayStr=today.toISOString().slice(0,10);
-  const past14=Array.from({length:14},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()-i);return d.toISOString().slice(0,10);});
-  const past14Done=D.tasks.filter(t=>t.status==='Done'&&(t.completedAt||'').slice(0,10)>=past14[13]).length;
+  const today=new Date();const todayStr=_ymd(today);
+  const past14=Array.from({length:14},(_,i)=>{const d=_pd(today);d.setDate(today.getDate()-i);return _ymd(d);});
+  const past14Done=D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)>=past14[13]).length;
   const overdueCount=D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due<todayStr).length;
   const focusLog=D.prefs&&D.prefs.focusLog||{};
   const focus14=past14.reduce((s,d)=>s+(focusLog[d]||0),0);
@@ -24495,12 +24580,12 @@ function _coachBurnoutSignal(){
 function renderCoach(){
   // ---- Compute real insights from data ----
   const now=new Date();
-  const todayStr=now.toISOString().split('T')[0];
+  const todayStr=_ymd(now);
   const dayOfWeek=now.getDay();
-  const monDate=new Date(now);monDate.setDate(now.getDate()-(dayOfWeek===0?6:dayOfWeek-1));monDate.setHours(0,0,0,0);
-  const weekStart=monDate.toISOString().split('T')[0];
-  const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
-  const weekEnd=sunDate.toISOString().split('T')[0];
+  const monDate=_pd(now);monDate.setDate(now.getDate()-(dayOfWeek===0?6:dayOfWeek-1));monDate.setHours(0,0,0,0);
+  const weekStart=_ymd(monDate);
+  const sunDate=_pd(monDate);sunDate.setDate(monDate.getDate()+6);
+  const weekEnd=_ymd(sunDate);
 
   // Tasks
   const doneTasks=D.tasks.filter(t=>t.status==='Done');
@@ -24521,12 +24606,12 @@ function renderCoach(){
   // Goals
   const goalsOnTrack=D.goals.filter(g=>g.pct>=50);
   const goalsBehind=D.goals.filter(g=>g.pct<30&&g.dueDate&&g.dueDate>todayStr);
-  const nearDueGoals=D.goals.filter(g=>{if(!g.dueDate)return false;const diff=(new Date(g.dueDate)-now)/(1000*60*60*24);return diff>=0&&diff<=14;});
+  const nearDueGoals=D.goals.filter(g=>{if(!g.dueDate)return false;const diff=(_pd(g.dueDate)-now)/(1000*60*60*24);return diff>=0&&diff<=14;});
 
   // Focus
   const focusLog=D.prefs&&D.prefs.focusLog||{};
   const focusToday=D.prefs&&D.prefs.focusMinsToday||0;
-  const focusWeek=Object.entries(focusLog).filter(([d])=>d>=weekStart&&d<=weekEnd).reduce((s,[,v])=>s+v,0)+focusToday;
+  const focusWeek=Object.entries(focusLog).filter(([d])=>d>=weekStart&&d<=weekEnd).reduce((s,[,v])=>s+v,0); // focusLog already holds today (no +focusMinsToday)
   const focusAvgDay=weekTasks.length?Math.round(focusWeek/7):0;
 
   // Build insight cards
@@ -24687,13 +24772,13 @@ function renderTeam(){
     // Last seen + 7-day activity badge from activity feed data
     const memberFeedData=_activityFeedData.filter(a=>a.userName===m.name||a.userId===m.id);
     const sevenDaysAgo=new Date(Date.now()-7*24*60*60*1000);
-    const weekActivity=memberFeedData.filter(a=>new Date(a.createdAt)>=sevenDaysAgo).length;
+    const weekActivity=memberFeedData.filter(a=>_pd(a.createdAt)>=sevenDaysAgo).length;
     // "Last seen" = the account's real last sign-in (updated on every login),
     // falling back to the most recent activity-feed entry, then "Never". The
     // feed alone missed pure logins, so an active user showed "Never".
-    const lastActivityDate=memberFeedData.length?new Date(memberFeedData[0].createdAt):null;
+    const lastActivityDate=memberFeedData.length?_pd(memberFeedData[0].createdAt):null;
     let lastSeenAt=null;
-    if(m.lastSignedIn){const d=new Date(m.lastSignedIn);if(!isNaN(d))lastSeenAt=d;}
+    if(m.lastSignedIn){const d=_pd(m.lastSignedIn);if(!isNaN(d))lastSeenAt=d;}
     if(lastActivityDate&&!isNaN(lastActivityDate)&&(!lastSeenAt||lastActivityDate>lastSeenAt))lastSeenAt=lastActivityDate;
     const lastSeenStr=lastSeenAt?timeAgo(lastSeenAt.toISOString()):'Never';
     const activityBadge=weekActivity>0?`<span style="font-size:11px;padding:2px 6px;border-radius:10px;background:var(--acs);color:var(--ac);font-weight:600;margin-left:4px">${weekActivity} this week</span>`:'';
@@ -24826,7 +24911,7 @@ function getActionLabel(action) {
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  const d = _pd(dateStr);
   const now = new Date();
   const diff = Math.floor((now - d) / 1000);
   if (diff < 60) return 'just now';
@@ -24849,9 +24934,9 @@ function renderActivityFeed(items) {
   }
   const groups = {};
   items.forEach(function(item) {
-    const d = item.createdAt ? new Date(item.createdAt) : new Date();
+    const d = item.createdAt ? _pd(item.createdAt) : new Date();
     const today = new Date();
-    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const yesterday = _pd(today); yesterday.setDate(today.getDate() - 1);
     let label;
     if (d.toDateString() === today.toDateString()) label = 'Today';
     else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
@@ -24933,7 +25018,7 @@ async function loadInviteList(){
     }
     const now=Date.now();
     const rows=invites.map(inv=>{
-      const expired=new Date(inv.expiresAt).getTime()<now;
+      const expired=_pd(inv.expiresAt).getTime()<now;
       const status=inv.accepted?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">✓ Accepted</span>'
         :expired?'<span class="pill" style="background:var(--s3);color:var(--t3);font-size:11px">Expired</span>'
         :'<span class="pill" style="background:var(--acs);color:var(--ac);font-size:11px">Pending</span>';
@@ -24945,7 +25030,7 @@ async function loadInviteList(){
       return`<div class="lr" style="padding:8px 0;border-bottom:1px solid var(--bd1);gap:8px;flex-wrap:wrap">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500">${esc(inv.email)}</div>
-          <div style="font-size:11px;color:var(--t3)">${inv.name?esc(inv.name)+' · ':''}<span style="text-transform:capitalize">${inv.role}</span> · Expires ${new Date(inv.expiresAt).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">${inv.name?esc(inv.name)+' · ':''}<span style="text-transform:capitalize">${inv.role}</span> · Expires ${_pd(inv.expiresAt).toLocaleDateString()}</div>
         </div>
         ${status}
         <div style="display:flex;gap:4px;flex-shrink:0">${actions}</div>

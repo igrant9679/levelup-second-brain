@@ -6,13 +6,14 @@
  *   - external tasks (external_tasks table) from Smartsheet + NiftyPM
  *
  * Each user's digest is opted-in via prefs.dailyDigest:
- *   { enabled: true, time: "07:00", lastSentDate: "2026-05-25" }
+ *   { enabled: true, time: "07:00" }
  *
  * The cron ticks every 15 minutes. On each tick it walks every user_app_data
- * row, checks whether the configured time has passed in the user's local day
- * (server-local for now; per-user timezones is a follow-up), and sends if
- * lastSentDate !== today. The sendNow tRPC mutation bypasses the time check
- * for manual testing.
+ * row, checks whether the configured time has passed on the USER's clock
+ * (prefs.coach.tz, see userTime.ts — it used to be server UTC, so a 07:00
+ * digest arrived around 03:00 Eastern), and claims (user, "digest", local
+ * day) in send_ledger before sending — once a day, whoever ticks. The sendNow
+ * tRPC mutation bypasses the time check for manual testing.
  */
 
 import { isRetiredSource } from "./retiredSources";
@@ -23,11 +24,13 @@ import { sendEmail } from "./sendEmail";
 import { buildMoneySectionHtml } from "./financeEmail";
 import { readEntityArray } from "../routers/appData";
 import { allowedRecipient } from "./recipient";
+import { userTz, userNow, toMinutes, fmtDay, type UserNow } from "./userTime";
+import { claimSend, releaseSend } from "./sendLedger";
 
 interface DigestPref {
   enabled?: boolean;
-  time?: string;          // "HH:MM" server-local for now
-  lastSentDate?: string;  // YYYY-MM-DD
+  time?: string;          // "HH:MM" in the user's zone (prefs.coach.tz)
+  lastSentDate?: string;  // legacy — the send_ledger row is the record now
   recipientEmail?: string | null; // override; default = user email
 }
 
@@ -79,8 +82,8 @@ async function buildRowsForUser(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   userId: number,
   tasksBlob: string | null,
+  today: string = ymd(),
 ): Promise<DigestRow[]> {
-  const today = ymd();
   const rows: DigestRow[] = [];
 
   // Native tasks from the LIVE relational store (post-Step-3a the
@@ -192,13 +195,15 @@ function escHtml(s: string): string {
  * literally nothing to surface (so we skip sending and don't spam an empty
  * digest).
  */
-function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = ''): string | null {
+function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = '', tz?: string): string | null {
   if (!rows.length && !moneyHtml) return null;
   const overdueN = rows.filter(r => r.overdue).length;
   const cfRows = rows.filter(r => r.source === 'CF');
   const lsiRows = rows.filter(r => r.source === 'LSI');
   const personalRows = rows.filter(r => r.source === 'personal');
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const today = tz
+    ? fmtDay(tz, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const headline = overdueN > 0
     ? `${overdueN} overdue, ${rows.length - overdueN} more on today's plate`
     : rows.length ? `${rows.length} item${rows.length === 1 ? '' : 's'} on today's plate`
@@ -226,18 +231,12 @@ function renderDigestHtml(name: string, rows: DigestRow[], moneyHtml = ''): stri
 </div></body></html>`;
 }
 
-function shouldSendNow(pref: DigestPref): boolean {
+/** Due once the user's own clock passes the set time. Once-a-day is the
+ *  send ledger's job (claimSend on the local day), not a prefs stamp. */
+export function digestDue(pref: DigestPref, local: UserNow): boolean {
   if (!pref.enabled) return false;
-  const now = new Date();
-  const today = ymd(now);
-  if (pref.lastSentDate === today) return false;
-  const [hh, mm] = (pref.time || '07:00').split(':').map(n => parseInt(n, 10));
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return false;
-  // Send when the local time is at or past the configured time. The 15-min
-  // tick + the lastSentDate guard keeps it once-per-day.
-  const target = new Date(now);
-  target.setHours(hh, mm, 0, 0);
-  return now.getTime() >= target.getTime();
+  const target = toMinutes(pref.time, '07:00');
+  return Number.isFinite(target) && local.minutes >= target;
 }
 
 /**
@@ -260,8 +259,13 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
     try {
       const prefs = parsePrefs(row.prefs);
       const digestPref = (prefs.dailyDigest as DigestPref | undefined) || {};
-      if (!opts?.force && !shouldSendNow(digestPref)) { skipped++; continue; }
-      if (!digestPref.enabled && !opts?.force) { skipped++; continue; }
+      const tz = userTz(prefs);
+      const local = userNow(tz);
+      if (!opts?.force && !digestDue(digestPref, local)) { skipped++; continue; }
+      // Claim today's digest. A manual send (force) claims too, so the
+      // scheduled one doesn't follow it the same day; it never skips.
+      const claimed = await claimSend(db, row.userId, 'digest', local.ymd);
+      if (!claimed && !opts?.force) { skipped++; continue; }
 
       const [userRow] = await db.select().from(users).where(eq(users.id, row.userId)).limit(1);
       if (!userRow) { skipped++; continue; }
@@ -269,7 +273,7 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       const recipient = await allowedRecipient(userRow, digestPref.recipientEmail);
       if (!recipient) { skipped++; continue; }
 
-      const digestRows = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */);
+      const digestRows = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */, local.ymd);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
       // 💰 Money block (bills heads-up, nudges, AI insight) — empty string
       // for non-Money users, so their digest is unchanged. Opt out via
@@ -277,12 +281,10 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       const money = (digestPref as DigestPref & { money?: boolean }).money === false
         ? { html: '', billsDueCount: 0, nudgeCount: 0 }
         : await buildMoneySectionHtml((row as { finance?: string | null }).finance, 'daily');
-      const html = renderDigestHtml(name, digestRows, money.html);
+      const html = renderDigestHtml(name, digestRows, money.html, tz);
       if (!html) {
-        // Nothing on the plate today — don't send an empty email but DO mark
-        // lastSentDate so we don't reconsider every 15 min for the rest of the day.
-        const newPrefs = { ...prefs, dailyDigest: { ...digestPref, lastSentDate: ymd() } };
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, row.userId));
+        // Nothing on the plate today — no email, and the claim stays so the
+        // rest of the day's ticks don't reconsider.
         skipped++;
         continue;
       }
@@ -302,10 +304,11 @@ export async function processDailyDigest(opts?: { userId?: number; force?: boole
       });
       if (ok) {
         sent++;
-        const newPrefs = { ...prefs, dailyDigest: { ...digestPref, lastSentDate: ymd() } };
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, row.userId));
+        // No prefs write: rewriting the whole prefs blob from this copy could
+        // undo a change an open tab made a moment ago.
       } else {
         errors++;
+        if (claimed) await releaseSend(db, row.userId, 'digest', local.ymd).catch(() => {});
         console.error(`[daily-digest] sendEmail returned false for user ${row.userId}`);
       }
     } catch (err) {

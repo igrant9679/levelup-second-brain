@@ -3,7 +3,7 @@
  *
  * Walks every `user_app_data` row whose `prefs` blob contains
  * `savedReports[*].schedule` with a non-"off" frequency, decides which
- * reports are due (based on `lastSentISO` + frequency + time-of-day +
+ * reports are due (frequency + time-of-day on the user's clock +
  * dow/dom), renders a minimal HTML email, and ships it via `sendEmail`.
  *
  * Why a mini renderer: the client renders reports via DOM manipulation
@@ -18,6 +18,8 @@ import { userAppData, users, type UserAppData } from "../../drizzle/schema";
 import { sendEmail } from "./sendEmail";
 import { insertScheduledTaskLog } from "../db";
 import { readEntityArray } from "../routers/appData";
+import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } from "./userTime";
+import { claimSend, releaseSend } from "./sendLedger";
 
 type Task = { status?: string; priority?: string; due?: string; completedAt?: string; createdAt?: string; title?: string; project?: string; tags?: string[] };
 type Goal = { title?: string; pct?: number; category?: string; dueDate?: string };
@@ -46,11 +48,9 @@ function safeParse<T>(s: string | null | undefined, fallback: T): T {
   try { return JSON.parse(s) as T; } catch { return fallback; }
 }
 
-function rangeStartKey(range: SavedReport['range']): string {
+function rangeStartKey(range: SavedReport['range'], todayKey: string): string {
   const days = range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 90 : range === '365d' ? 365 : 9999;
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return shiftDays(todayKey, -days);
 }
 
 function rangeLabel(range: SavedReport['range']): string {
@@ -62,29 +62,40 @@ function rangeLabel(range: SavedReport['range']): string {
 }
 
 /**
- * Decide whether a scheduled report is due **right now**.
- * Mirrors the client-side `_checkReportSchedules` logic so emails are
- * not sent twice (once from server, once from client login catch-up).
+ * The period a scheduled report is owed for RIGHT NOW on the user's clock,
+ * or null when it isn't due: the local day for daily/weekly, "YYYY-MM" for
+ * monthly. Whoever claims (user, "report:<id>", period) in send_ledger sends
+ * — this server cron or an open tab's catch-up (reportsSchedule.claim) — so a
+ * report can't go out twice. It used to: the server checked in UTC, the
+ * client in local time, each with its own lastSentISO in prefs.
  */
-function isReportDue(s: ReportSchedule | undefined, now: Date): boolean {
-  if (!s || !s.frequency || s.frequency === 'off') return false;
-  const [hh, mm] = (s.time || '08:00').split(':').map(n => Number(n) || 0);
-  const target = new Date(now);
-  target.setHours(hh || 8, mm || 0, 0, 0);
-  if (now < target) return false; // not yet today
-  const last = s.lastSentISO ? new Date(s.lastSentISO) : null;
-  if (s.frequency === 'daily') {
-    return !last || last < target;
-  }
-  if (s.frequency === 'weekly') {
-    if (now.getDay() !== Number(s.dow ?? 1)) return false;
-    return !last || (now.getTime() - last.getTime()) > 24 * 60 * 60 * 1000;
-  }
-  if (s.frequency === 'monthly') {
-    if (now.getDate() !== Number(s.dom ?? 1)) return false;
-    return !last || (now.getTime() - last.getTime()) > 24 * 60 * 60 * 1000;
-  }
-  return false;
+export function reportPeriod(s: ReportSchedule | undefined, local: UserNow): string | null {
+  if (!s || !s.frequency || s.frequency === 'off') return null;
+  const target = toMinutes(s.time, '08:00');
+  if (!Number.isFinite(target) || local.minutes < target) return null;
+  if (s.frequency === 'daily') return local.ymd;
+  if (s.frequency === 'weekly') return local.dow === Number(s.dow ?? 1) ? local.ymd : null;
+  if (s.frequency === 'monthly') return local.dom === Number(s.dom ?? 1) ? local.ymd.slice(0, 7) : null;
+  return null;
+}
+
+/** Claim one report's current period for an open tab that will send it. */
+export async function claimScheduledReport(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number, prefs: Record<string, unknown>, reportId: string,
+): Promise<{ claimed: boolean; period: string | null }> {
+  const reports = Array.isArray(prefs.savedReports) ? prefs.savedReports as SavedReport[] : [];
+  const r = reports.find(x => String(x.id) === reportId);
+  if (!r) return { claimed: false, period: null };
+  const period = reportPeriod(r.schedule, userNow(userTz(prefs)));
+  if (!period) return { claimed: false, period: null };
+  return { claimed: await claimSend(db, userId, 'report:' + reportId, period), period };
+}
+export async function releaseScheduledReport(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  userId: number, reportId: string, period: string,
+): Promise<void> {
+  await releaseSend(db, userId, 'report:' + reportId, period);
 }
 
 function esc(s: unknown): string {
@@ -111,11 +122,12 @@ function renderReportEmailHtml(opts: {
   blobs: UserBlobs;
   appUrl: string;
   userName: string;
+  tz: string;
 }): string {
-  const { reportName, rangeKey, sections, widgets, blobs, appUrl, userName } = opts;
-  const startKey = rangeStartKey(rangeKey);
-  const todayKey = new Date().toISOString().slice(0, 10);
-  const inRange = (d?: string) => d != null && d >= startKey && d <= todayKey;
+  const { reportName, rangeKey, sections, widgets, blobs, appUrl, userName, tz } = opts;
+  const todayKey = userNow(tz).ymd;
+  const startKey = rangeStartKey(rangeKey, todayKey);
+  const inRange = (d?: string) => { const k = dayIn(tz, d); return !!k && k >= startKey && k <= todayKey; };
 
   const tasks = blobs.tasks || [];
   const goals = blobs.goals || [];
@@ -266,7 +278,13 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
 
     // Filter to due reports up front so we don't parse blobs for users
     // who have nothing scheduled.
-    const due: SavedReport[] = prefs.savedReports.filter((r: SavedReport) => isReportDue(r.schedule, now));
+    const tz = userTz(prefs);
+    const local = userNow(tz, now);
+    const due: Array<{ report: SavedReport; period: string }> = [];
+    for (const r of prefs.savedReports as SavedReport[]) {
+      const period = reportPeriod(r.schedule, local);
+      if (period && r.id != null && await claimSend(db, row.userId, 'report:' + String(r.id), period)) due.push({ report: r, period });
+    }
     if (due.length === 0) continue;
 
     // Look up the user's email
@@ -292,8 +310,8 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
       projects: safeParse<Project[]>(row.projects, []),
     };
 
-    let prefsChanged = false;
-    for (const report of due) {
+    for (const { report, period } of due) {
+      const kind = 'report:' + String(report.id);
       try {
         const html = renderReportEmailHtml({
           reportName: report.name || 'LevelUp Report',
@@ -303,39 +321,29 @@ export async function processScheduledReports(): Promise<{ usersChecked: number;
           blobs,
           appUrl,
           userName,
+          tz,
         });
         const ok = await sendEmail({
           to: userEmail,
-          subject: `📊 ${report.name || 'LevelUp Report'} — ${now.toLocaleDateString()}`,
+          subject: `📊 ${report.name || 'LevelUp Report'} — ${fmtDay(tz, { month: 'numeric', day: 'numeric', year: 'numeric' }, now)}`,
           html,
           senderUserId: null,
           recipientUserId: row.userId,
         });
         if (ok) {
           stats.emailsSent++;
-          report.schedule = report.schedule || {};
-          report.schedule.lastSentISO = now.toISOString();
-          prefsChanged = true;
         } else {
           stats.errors++;
+          await releaseSend(db, row.userId, kind, period).catch(() => {});
         }
       } catch (e) {
         console.error(`[scheduled-reports] Failed for user ${row.userId} report "${report.name}":`, e);
         stats.errors++;
+        await releaseSend(db, row.userId, kind, period).catch(() => {});
       }
     }
-
-    // Persist updated lastSentISO so we don't re-send on the next hourly tick
-    if (prefsChanged) {
-      try {
-        await db.update(userAppData)
-          .set({ prefs: JSON.stringify(prefs) })
-          .where(eq(userAppData.userId, row.userId));
-      } catch (e) {
-        console.error(`[scheduled-reports] Failed to persist lastSentISO for user ${row.userId}:`, e);
-        stats.errors++;
-      }
-    }
+    // No prefs write: the ledger is the record, and rewriting the prefs blob
+    // from this copy could undo a change an open tab just made.
   }
 
   const durationMs = Date.now() - startMs;

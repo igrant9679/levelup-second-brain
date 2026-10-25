@@ -20,6 +20,16 @@ import { signOAuthState } from "../_core/oauthState";
 import { sendEmail } from "../_core/sendEmail";
 import { refreshOAuthTokenSilently, forceRefreshOAuthToken } from "../_core/refreshOAuthToken";
 import nodemailer from "nodemailer";
+
+// Microsoft Graph returns calendar times in UTC with NO zone suffix
+// ("2026-10-25T14:00:00.0000000", timeZone "UTC"). A browser parses that as
+// LOCAL time, so a 10:00 Eastern meeting showed at 14:00. Tag it as UTC.
+function graphUtc(v?: { dateTime?: string; timeZone?: string } | null): string {
+  const s = String(v?.dateTime ?? "");
+  if (!s || /[zZ]$|[+-]\d\d:?\d\d$/.test(s)) return s;
+  if (v?.timeZone && !/^(utc|etc\/utc|gmt)$/i.test(v.timeZone)) return s;
+  return s.replace(/(\.\d{3})\d*$/, "$1") + "Z";
+}
 import Imap from "imap";
 // @ts-ignore - mailparser has no @types package
 import { simpleParser } from "mailparser";
@@ -303,8 +313,8 @@ export const oauthSyncRouter = router({
         const events = (data.value || []).map(e => ({
           id: e.id,
           title: e.subject,
-          start: e.start.dateTime,
-          end: e.end.dateTime,
+          start: graphUtc(e.start),
+          end: graphUtc(e.end),
           location: e.location?.displayName ?? "",
           notes: e.bodyPreview ?? "",
           organizer: e.organizer?.emailAddress?.name ?? "",
@@ -1547,8 +1557,8 @@ export const oauthSyncRouter = router({
               events: data.value.map((e) => ({
                 id: e.id,
                 title: e.subject || '(No title)',
-                startAt: new Date(e.start.dateTime),
-                endAt: new Date(e.end.dateTime),
+                startAt: new Date(graphUtc(e.start)),
+                endAt: new Date(graphUtc(e.end)),
                 location: e.location?.displayName ?? null,
                 organizer: e.organizer?.emailAddress?.name ?? null,
                 isAllDay: e.isAllDay ?? false,
@@ -1915,8 +1925,8 @@ export const oauthSyncRouter = router({
         const data = await resp.json() as { value: Array<{ subject: string; start: { dateTime: string }; end: { dateTime: string }; location?: { displayName?: string }; bodyPreview?: string }> };
         const events = (data.value || []).map(e => ({
           title: e.subject,
-          start: e.start.dateTime,
-          end: e.end.dateTime,
+          start: graphUtc(e.start),
+          end: graphUtc(e.end),
           location: e.location?.displayName ?? '',
           notes: e.bodyPreview ?? '',
         }));

@@ -26,78 +26,15 @@
  *   - uncaught errors raised while the screen rendered.
  * Exits non-zero if any are found.
  */
-import { createServer } from 'node:http';
-import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { spawn } from 'node:child_process';
-import { tmpdir } from 'node:os';
-import { join, resolve, dirname, extname, normalize } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serveDist, openBrowser } from './lib/headless.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(ROOT, 'dist', 'public');
 const argW = process.argv.indexOf('--width');
 const WIDTHS = argW > 0 ? [Number(process.argv[argW + 1])] : [375, 390, 1440];
 const SKIP = new Set(['capture']); // opens a modal over Home, not a screen
-
-if (!existsSync(join(DIST, 'index.html'))) {
-  console.log('dist/public/index.html not found — run `pnpm build` first.');
-  process.exit(1);
-}
-
-// ── static server for the built client; /api answers 503 so the app falls
-//    back to its local data instead of hanging on requests ─────────────────
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
-const server = createServer((req, res) => {
-  const url = decodeURIComponent((req.url || '/').split('?')[0]);
-  if (url.startsWith('/api/')) { res.writeHead(503, { 'content-type': 'application/json' }); res.end('{"error":"offline sweep"}'); return; }
-  let file = normalize(join(DIST, url));
-  if (!file.startsWith(DIST)) { res.writeHead(403); res.end(); return; }
-  if (!existsSync(file) || url.endsWith('/')) file = join(DIST, 'index.html');
-  try {
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] || 'application/octet-stream' });
-    res.end(readFileSync(file));
-  } catch { res.writeHead(404); res.end(); }
-});
-await new Promise(r => server.listen(0, '127.0.0.1', r));
-const ORIGIN = `http://127.0.0.1:${server.address().port}`;
-
-// ── headless Chrome over the DevTools protocol ───────────────────────────
-function findChrome() {
-  const c = [process.env.CHROME_PATH,
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
-  return c.find(p => p && existsSync(p));
-}
-const chromePath = findChrome();
-if (!chromePath) { console.log('No Chrome/Edge found — set CHROME_PATH.'); server.close(); process.exit(1); }
-const profile = mkdtempSync(join(tmpdir(), 'lu-screens-'));
-const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
-  '--no-first-run', '--no-default-browser-check', '--disable-extensions', 'about:blank'], { stdio: 'ignore' });
-let port = null;
-for (let i = 0; i < 100 && !port; i++) {
-  await new Promise(r => setTimeout(r, 150));
-  try { port = Number(readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]); } catch {}
-}
-if (!port) { console.log('Chrome did not start.'); chrome.kill(); server.close(); process.exit(1); }
-const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-const page = targets.find(t => t.type === 'page');
-const ws = new WebSocket(page.webSocketDebuggerUrl);
-await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-let seq = 0; const pending = new Map();
-ws.onmessage = ev => {
-  const m = JSON.parse(ev.data);
-  if (m.id && pending.has(m.id)) { const { r, j } = pending.get(m.id); pending.delete(m.id); m.error ? j(new Error(m.error.message)) : r(m.result); }
-};
-const send = (method, params = {}) => new Promise((r, j) => { const id = ++seq; pending.set(id, { r, j }); ws.send(JSON.stringify({ id, method, params })); });
-async function evaluate(expr) {
-  const out = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
-  if (out.exceptionDetails) throw new Error(out.exceptionDetails.exception?.description || out.exceptionDetails.text);
-  return out.result.value;
-}
 
 // Runs in the page before any app script: collect uncaught errors per route.
 const ERROR_HOOK = `
@@ -178,21 +115,17 @@ const SWEEP = String.raw`async (route)=>{
 
 let failed = 0, totalScreens = 0;
 const summary = [];
+let srv = null, br = null;
 try {
-  await send('Page.enable');
-  await send('Runtime.enable');
+  srv = await serveDist(DIST);
+  br = await openBrowser();
+  const { send, evaluate, loadApp } = br;
   await send('Page.addScriptToEvaluateOnNewDocument', { source: ERROR_HOOK });
   for (const width of WIDTHS) {
     const mobile = width < 768;
     await send('Emulation.setDeviceMetricsOverride', { width, height: mobile ? 812 : 900, deviceScaleFactor: mobile ? 2 : 1, mobile });
     await send('Emulation.setTouchEmulationEnabled', { enabled: mobile });
-    await send('Page.navigate', { url: ORIGIN + '/' });
-    let ready = false;
-    for (let i = 0; i < 80 && !ready; i++) {
-      await new Promise(r => setTimeout(r, 250));
-      try { ready = await evaluate(`typeof nav==='function'&&typeof SM==='object'&&!!document.querySelector('.scr')`); } catch {}
-    }
-    if (!ready) throw new Error(`app did not boot at ${width}px`);
+    await loadApp(srv.origin + '/');
     await new Promise(r => setTimeout(r, 1500));
     const build = await evaluate(`(document.documentElement.outerHTML.match(/APP_BUILD\\s*=\\s*'([^']+)'/)||[])[1]||'?'`);
     // Signed-out sample-data session: put the login screen away.
@@ -223,10 +156,8 @@ try {
   failed++;
   console.log('Sweep aborted: ' + e.message);
 } finally {
-  try { ws.close(); } catch {}
-  chrome.kill();
-  server.close();
-  setTimeout(() => { try { rmSync(profile, { recursive: true, force: true }); } catch {} }, 500);
+  if (br) br.close();
+  if (srv) srv.close();
 }
 console.log('\n' + summary.join(' · '));
 if (failed) { console.log(`\n${failed} screen(s) with missing handlers, clipping or errors.`); process.exitCode = 1; }

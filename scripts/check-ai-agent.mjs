@@ -89,6 +89,9 @@ const sandbox = {
   nav: (p) => { sandbox.curScreen = p; },
   renderScreen: () => {}, updateSidebarBadges: () => {}, invalidateSearchIndex: () => {},
   _ymd: ymd, _todayStr: today,
+  // -228 date helpers (app-part1): bare 'YYYY-MM-DD' = local midnight.
+  _pd: (v) => { const m = typeof v === 'string' && v.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v); },
+  _dayOf: (v) => { if (!v) return ''; const s = String(v); if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d = new Date(v); return isNaN(d) ? s.slice(0, 10) : ymd(d); },
   _trpc: async (proc, input) => {
     trpcCalls.push({ proc, input });
     if (proc === 'ai.agent') {

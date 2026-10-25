@@ -13,10 +13,11 @@
  *   prefs.weeklyReview = {
  *     enabled: bool,
  *     dayOfWeek: 0..6 (Sun..Sat, default 5=Fri),
- *     time: "HH:MM",
- *     lastSentDate: "YYYY-MM-DD",
+ *     time: "HH:MM",             // on the user's clock (prefs.coach.tz)
  *     recipientEmail: string | null,
  *   }
+ * Day, time and the "this week" window are the user's own (userTime.ts);
+ * once-per-week is a send_ledger claim on (user, "weekly", local day).
  */
 
 import { isRetiredSource } from "./retiredSources";
@@ -27,6 +28,8 @@ import { sendEmail } from "./sendEmail";
 import { buildMoneySectionHtml } from "./financeEmail";
 import { readEntityArray } from "../routers/appData";
 import { allowedRecipient } from "./recipient";
+import { userTz, userNow, toMinutes, dayIn, shiftDays, fmtDay, type UserNow } from "./userTime";
+import { claimSend, releaseSend } from "./sendLedger";
 
 interface WeeklyPref {
   enabled?: boolean;
@@ -117,13 +120,11 @@ async function buildRowsForUser(
   tasksBlob: string | null,
   programsBlob: string | null,
   prefsObj: Record<string, unknown>,
+  tz: string = userTz(prefsObj),
 ): Promise<BuiltRows> {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayStr = ymd(today);
-  const weekStart = new Date(today); weekStart.setDate(today.getDate() - 7);
-  const weekStartStr = ymd(weekStart);
-  const horizon = new Date(today); horizon.setDate(today.getDate() + 7);
-  const horizonStr = ymd(horizon);
+  const todayStr = userNow(tz).ymd;
+  const weekStartStr = shiftDays(todayStr, -7);
+  const horizonStr = shiftDays(todayStr, 7);
 
   const shipped: WeeklyRow[] = [];
   const overdue: WeeklyRow[] = [];
@@ -139,7 +140,7 @@ async function buildRowsForUser(
 
   for (const t of nativeTasks) {
     if (t.status === 'Done') {
-      const c = (t.completedAt || '').slice(0, 10);
+      const c = dayIn(tz, t.completedAt);
       if (c >= weekStartStr && c <= todayStr) {
         shipped.push({ source: 'personal', title: t.title || '(untitled)', status: 'Done', priority: t.priority || null, completedAt: c, project: t.project || null });
       }
@@ -176,7 +177,7 @@ async function buildRowsForUser(
       // also be older — if the row stayed Done for weeks, don't surface it
       // every week.
       if (e.completedAt) {
-        const cYmd = ymd(new Date(e.completedAt));
+        const cYmd = dayIn(tz, e.completedAt);
         if (cYmd >= weekStartStr && cYmd <= todayStr) {
           shipped.push({ source: src, title: e.title, status: e.status, priority: (ov?.localPriority) || e.priority, completedAt: cYmd, url: e.externalUrl, project: e.projectLabel });
         }
@@ -222,7 +223,7 @@ async function buildRowsForUser(
   for (const t of nativeTasks) {
     const pid = t.projectId != null ? String(t.projectId) : null;
     if (t.status === 'Done') {
-      const c = (t.completedAt || '').slice(0, 10);
+      const c = dayIn(tz, t.completedAt);
       if (c >= weekStartStr && c <= todayStr) bumpProg(pid, 'shipped');
     } else if (t.status !== 'Someday') {
       bumpProg(pid, 'open');
@@ -237,7 +238,7 @@ async function buildRowsForUser(
     if (!pid) continue;
     if (isExtDone(e.status)) {
       if (e.completedAt) {
-        const cYmd = ymd(new Date(e.completedAt));
+        const cYmd = dayIn(tz, e.completedAt);
         if (cYmd >= weekStartStr && cYmd <= todayStr) bumpProg(pid, 'shipped');
       }
     } else {
@@ -337,9 +338,8 @@ function rowsHtml(rows: WeeklyRow[], emptyText: string): string {
 // with the daily digest, and richer: net-worth movement, budget status,
 // nudges and an AI insight box. Still '' for non-Money users.
 
-function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = ""): string {
-  const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
-  const weekRange = `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtml = "", tz: string = "America/New_York"): string {
+  const weekRange = `${fmtDay(tz, { month: 'short', day: 'numeric' }, new Date(Date.now() - 7 * 86400000))} — ${fmtDay(tz, { month: 'short', day: 'numeric' })}`;
   const picksHtml = ai.picks.length ? `
   <div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:12px 16px;border-radius:0 6px 6px 0;margin:8px 0 16px;font-size:13px;color:#451a03">
     <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#92400e;margin-bottom:6px">✨ Suggested focus for next week</div>
@@ -381,18 +381,12 @@ function renderWeeklyHtml(name: string, rows: BuiltRows, ai: AIBlock, financeHtm
 </div></body></html>`;
 }
 
-function shouldSendNow(pref: WeeklyPref): boolean {
+/** Due on the chosen weekday once the user's clock passes the time. */
+export function weeklyDue(pref: WeeklyPref, local: UserNow): boolean {
   if (!pref.enabled) return false;
-  const now = new Date();
-  const today = ymd(now);
-  if (pref.lastSentDate === today) return false;
-  const targetDow = pref.dayOfWeek ?? 5;
-  if (now.getDay() !== targetDow) return false;
-  const [hh, mm] = (pref.time || '16:30').split(':').map(n => parseInt(n, 10));
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return false;
-  const target = new Date(now);
-  target.setHours(hh, mm, 0, 0);
-  return now.getTime() >= target.getTime();
+  if (local.dow !== (pref.dayOfWeek ?? 5)) return false;
+  const target = toMinutes(pref.time, '16:30');
+  return Number.isFinite(target) && local.minutes >= target;
 }
 
 /**
@@ -414,8 +408,11 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
     try {
       const prefs = parsePrefs(row.prefs);
       const wp = (prefs.weeklyReview as WeeklyPref | undefined) || {};
-      if (!opts?.force && !shouldSendNow(wp)) { skipped++; continue; }
-      if (!wp.enabled && !opts?.force) { skipped++; continue; }
+      const tz = userTz(prefs);
+      const local = userNow(tz);
+      if (!opts?.force && !weeklyDue(wp, local)) { skipped++; continue; }
+      const claimed = await claimSend(db, row.userId, 'weekly', local.ymd);
+      if (!claimed && !opts?.force) { skipped++; continue; }
 
       const [userRow] = await db.select().from(users).where(eq(users.id, row.userId)).limit(1);
       if (!userRow) { skipped++; continue; }
@@ -423,21 +420,19 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       const recipient = await allowedRecipient(userRow, wp.recipientEmail);
       if (!recipient) { skipped++; continue; }
 
-      const built = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */, row.programs, prefs);
+      const built = await buildRowsForUser(db, row.userId, null /* tasks column dropped in 0052 */, row.programs, prefs, tz);
       // Send the review even on a quiet week — knowing "nothing happened" is
       // also a signal. Only skip if the user has literally no open tasks AND
       // shipped nothing AND has nothing upcoming.
       const totallyEmpty = !built.shipped.length && !built.overdue.length && !built.nextWeek.length && built.totalOpen === 0;
       if (totallyEmpty) {
-        skipped++;
-        const newPrefs = { ...prefs, weeklyReview: { ...wp, lastSentDate: ymd() } };
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, row.userId));
+        skipped++; // the claim stays: nothing to say this week
         continue;
       }
       const aiBlock = await generateAIBlock(built);
       const name = (userRow.name || (userRow.email || '').split('@')[0] || 'there').split(' ')[0];
       const money = await buildMoneySectionHtml((row as any).finance, 'weekly');
-      const html = renderWeeklyHtml(name, built, aiBlock, money.html);
+      const html = renderWeeklyHtml(name, built, aiBlock, money.html, tz);
       const ok = await sendEmail({
         to: recipient,
         subject: `📊 Weekly review — ${built.shipped.length} shipped, ${built.overdue.length} overdue, ${built.nextWeek.length} ahead`,
@@ -448,10 +443,9 @@ export async function processWeeklyReview(opts?: { userId?: number; force?: bool
       });
       if (ok) {
         sent++;
-        const newPrefs = { ...prefs, weeklyReview: { ...wp, lastSentDate: ymd() } };
-        await db.update(userAppData).set({ prefs: JSON.stringify(newPrefs) }).where(eq(userAppData.userId, row.userId));
       } else {
         errors++;
+        if (claimed) await releaseSend(db, row.userId, 'weekly', local.ymd).catch(() => {});
         console.error(`[weekly-review] sendEmail returned false for user ${row.userId}`);
       }
     } catch (err) {

@@ -1091,3 +1091,19 @@ export const usageCounters = mysqlTable("usage_counters", {
 }, (t) => ({
   pk: primaryKey({ name: "usage_counters_pk", columns: [t.userId, t.bucket, t.day] }),
 }));
+
+/**
+ * Scheduled-email send ledger (migration 0058). One row per email owed and
+ * sent: (userId, kind, period), e.g. (7, "digest", "2026-10-25"). Senders
+ * claim the row before sending, so two senders (server cron + an open tab, or
+ * two deploys overlapping) can never both send. Read/written only by
+ * server/_core/sendLedger.ts.
+ */
+export const sendLedger = mysqlTable("send_ledger", {
+  userId: int("userId").notNull(),
+  kind: varchar("kind", { length: 64 }).notNull(),
+  period: varchar("period", { length: 40 }).notNull(),
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ name: "send_ledger_pk", columns: [t.userId, t.kind, t.period] }),
+}));

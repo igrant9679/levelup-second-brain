@@ -21,6 +21,7 @@ import { getDb } from "../db";
 import { userAppData } from "../../drizzle/schema";
 import { processDailyDigest } from "../_core/dailyDigestEmail";
 import { spendQuota } from "../_core/quota";
+import { lastSent } from "../_core/sendLedger";
 
 async function requireDb() {
   const db = await getDb();
@@ -49,7 +50,8 @@ export const dailyDigestRouter = router({
     return {
       enabled: !!dp.enabled,
       time: dp.time || '07:00',
-      lastSentDate: dp.lastSentDate || null,
+      // The send ledger is the record now; the prefs stamp is pre-228.
+      lastSentDate: (await lastSent(db, ctx.user.id, 'digest').catch(() => null))?.period || dp.lastSentDate || null,
       recipientEmail: dp.recipientEmail || null,
     };
   }),

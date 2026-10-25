@@ -11,6 +11,7 @@ import { getDb } from "../db";
 import { userAppData } from "../../drizzle/schema";
 import { processWeeklyReview } from "../_core/weeklyReviewEmail";
 import { spendQuota } from "../_core/quota";
+import { lastSent } from "../_core/sendLedger";
 
 async function requireDb() {
   const db = await getDb();
@@ -41,7 +42,8 @@ export const weeklyReviewRouter = router({
       enabled: !!wp.enabled,
       dayOfWeek: typeof wp.dayOfWeek === 'number' ? wp.dayOfWeek : 5,
       time: wp.time || '16:30',
-      lastSentDate: wp.lastSentDate || null,
+      // The send ledger is the record now; the prefs stamp is pre-228.
+      lastSentDate: (await lastSent(db, ctx.user.id, 'weekly').catch(() => null))?.period || wp.lastSentDate || null,
       recipientEmail: wp.recipientEmail || null,
     };
   }),

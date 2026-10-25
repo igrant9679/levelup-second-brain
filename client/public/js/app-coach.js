@@ -87,8 +87,27 @@ function _coachFirstName(){var f=_coachPrefs().profile.fields;return (f.preferre
 
 // Record the device timezone so the server's check-ins (next build) land at
 // the user's local times. Client-owned: the server only ever reads it.
+// A pinned zone (Settings → AI Coach → Time zone) wins: otherwise a laptop on
+// UTC, or a trip, moved every check-in, digest and report (the server sends
+// all of them in prefs.coach.tz).
 function _coachSyncTz(){
-  try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;var c=_coachPrefs();if(tz&&c.tz!==tz){c.tz=tz;_coachSave();}}catch(_){}
+  try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;var c=_coachPrefs();if(c.tzPinned)return;if(tz&&c.tz!==tz){c.tz=tz;_coachSave();}}catch(_){}
+}
+function _coachTzOptions(){
+  var c=_coachPrefs(),dev='';try{dev=Intl.DateTimeFormat().resolvedOptions().timeZone||'';}catch(_){}
+  var list=[];try{list=Intl.supportedValuesOf('timeZone');}catch(_){}
+  if(!list.length)list=['America/New_York','America/Chicago','America/Denver','America/Phoenix','America/Los_Angeles','America/Anchorage','Pacific/Honolulu','Europe/London','Europe/Paris','Europe/Berlin','Asia/Dubai','Asia/Kolkata','Asia/Singapore','Asia/Tokyo','Australia/Sydney','UTC'];
+  if(c.tz&&list.indexOf(c.tz)<0)list=[c.tz].concat(list);
+  return '<option value=""'+(c.tzPinned?'':' selected')+'>Follow this device'+(dev?' ('+esc(dev)+')':'')+'</option>'+
+    list.map(function(z){return '<option value="'+esc(z)+'"'+(c.tzPinned&&c.tz===z?' selected':'')+'>'+esc(z)+'</option>';}).join('');
+}
+function coachSetTz(v){
+  var c=_coachPrefs();
+  if(v){c.tz=v;c.tzPinned=true;}
+  else{delete c.tzPinned;try{c.tz=Intl.DateTimeFormat().resolvedOptions().timeZone||c.tz;}catch(_){}}
+  _coachSave();
+  toast(v?'🌐 Pinned to '+v+' — check-ins, digest and reports use it':'🌐 Following this device ('+c.tz+')');
+  try{_coachRefreshUI();}catch(_){}
 }
 
 // ─── memory tools (instant + silent; listed apart from READ in the catalog) ─
@@ -401,10 +420,10 @@ function _coachHeroHTML(){
 function _coachTodayHTML(){
   try{
     var today=_ymd(new Date());
-    var items=(typeof _coachInbox!=='undefined'?_coachInbox:[]).filter(function(m){return _ymd(new Date(m.createdAt))===today;}).slice().reverse();
+    var items=(typeof _coachInbox!=='undefined'?_coachInbox:[]).filter(function(m){return _ymd(_pd(m.createdAt))===today;}).slice().reverse();
     var k=_coachCheckins();
     if(!items.length)return '<div style="margin-top:10px;font-size:11.5px;color:var(--t3)">🔔 Check-ins through the day: '+(k.enabled?'on — the next one arrives at its scheduled time.':'<a href="#" onclick="event.preventDefault();coachOpenSettings()" style="color:var(--ac)">turn them on</a> to get a morning plan, nudges and an end-of-day review by in-app message and email.')+'</div>';
-    return '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--t3)">Today:</span>'+items.map(function(m){var meta=_coachSlotMeta(m.kind);return '<button class="btn btn-s" style="height:26px;font-size:11px'+(m.status==='new'?';border-color:var(--ac)':'')+'" onclick="coachOpenMessage('+m.id+')">'+meta.icon+' '+esc(meta.label)+' · '+new Date(m.createdAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+(m.status==='new'?' •':'')+'</button>';}).join('')+'</div>';
+    return '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:11px;color:var(--t3)">Today:</span>'+items.map(function(m){var meta=_coachSlotMeta(m.kind);return '<button class="btn btn-s" style="height:26px;font-size:11px'+(m.status==='new'?';border-color:var(--ac)':'')+'" onclick="coachOpenMessage('+m.id+')">'+meta.icon+' '+esc(meta.label)+' · '+_pd(m.createdAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+(m.status==='new'?' •':'')+'</button>';}).join('')+'</div>';
   }catch(_){return '';}
 }
 function _coachInjectHero(){
@@ -563,6 +582,7 @@ function _coachRenderCheckins(){
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11.5px;color:var(--t3);margin-right:4px">On these days</span>'+days+
       '<span style="font-size:11.5px;color:var(--t3);margin-left:12px">Pause until</span><input type="date" class="inp" value="'+(k.pausedUntil||'')+'" style="height:28px;font-size:12px;width:150px" onchange="coachCkPause(this.value)">'+(k.pausedUntil?'<button class="btn btn-s" style="height:26px;font-size:11px" onclick="coachCkPause(\'\')">Resume</button>':'')+'</div>'+
     '<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Once a week</div>'+weekly+alertRow+'</div>'+
+    '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px"><span style="font-size:11.5px;color:var(--t3);margin-right:4px">Time zone</span><select class="inp" aria-label="Time zone for check-ins, digest and reports" style="height:28px;font-size:12px;width:min(340px,100%)" onchange="coachSetTz(this.value)">'+_coachTzOptions()+'</select><span style="font-size:11px;color:var(--t3)">used by check-ins, the daily digest, the weekly review and report emails</span></div>'+
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--bd1)"><span style="font-size:11.5px;color:var(--t3)">Try one now:</span><select id="coach-ck-slot" class="inp" style="height:28px;font-size:12px;width:200px">'+COACH_SLOTS_C.concat(COACH_WEEKLY_C,[COACH_KIND_META.moneyalert]).map(function(s){return '<option value="'+s.id+'">'+s.icon+' '+esc(s.label)+'</option>';}).join('')+'</select><button class="btn btn-p" style="height:28px;font-size:11.5px" onclick="coachCkRunNow()">Send me one now</button></div>'+
     '<div id="coach-ck-run-out" style="font-size:11.5px;color:var(--t2);margin-top:6px"></div>'+
     '<div id="coach-ck-status" style="font-size:11px;color:var(--t3);margin-top:6px">Checking the server…</div>'+
@@ -574,8 +594,8 @@ async function _coachRenderCheckinStatus(){
   var el=document.getElementById('coach-ck-status');if(!el)return;
   try{
     var s=await _trpc('coach.status',undefined,'query');
-    var recent=(s.recent||[]).map(function(r){var m=_coachSlotMeta(r.kind);return m.icon+' '+m.label+' '+new Date(r.at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(r.emailed?' ✉':'')+(r.pushed?' 📱':'')+(r.error?' ⚠':'');}).join(' · ');
-    var rp=s.replies,hm=function(d){return new Date(d).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});};
+    var recent=(s.recent||[]).map(function(r){var m=_coachSlotMeta(r.kind);return m.icon+' '+m.label+' '+_pd(r.at).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(r.emailed?' ✉':'')+(r.pushed?' 📱':'')+(r.error?' ⚠':'');}).join(' · ');
+    var rp=s.replies,hm=function(d){return _pd(d).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});};
     var replyLine=!rp?'':rp.address?'<br>✉️ Reply by email: <b>on</b> — answers sent to '+esc(rp.address)+' are read every 3 minutes'+(rp.lastOkAt?' (last read '+hm(rp.lastOkAt)+')':'')+' · <a href="#" onclick="coachCheckRepliesNow();return false">check now</a>':
       rp.lastError?'<br>✉️ Reply by email: <b style="color:#ef4444">off</b> — could not read the mailbox ('+esc(String(rp.lastError).slice(0,140))+')':'<br>✉️ Reply by email: off — it needs the SMTP/IMAP mailbox that sends system mail';
     el.innerHTML='AI: '+(s.ai.configured?esc(s.ai.provider)+' ✓':'<b style="color:#ef4444">no AI key</b> — set one in Settings → AI Features (check-ins fall back to a plain summary)')+' · Time zone: '+esc(s.tz)+(s.tzFromDevice?'':' (default — open LevelUp on your device to set it)')+' · Your time now: '+esc(s.localTime)+(recent?'<br>Today: '+recent:'')+replyLine;
@@ -607,7 +627,7 @@ async function coachLoadInbox(){
   _coachDelivering=true;
   var newest=null;
   try{
-    var fresh=res.filter(function(m){return Date.now()-new Date(m.createdAt).getTime()<36*3600e3;}).slice().reverse();
+    var fresh=res.filter(function(m){return Date.now()-_pd(m.createdAt).getTime()<36*3600e3;}).slice().reverse();
     for(var i=0;i<fresh.length;i++){var d=await _coachDeliver(fresh[i]);if(d&&fresh[i].status==='new')newest=fresh[i];}
   }finally{_coachDelivering=false;}
   if(newest&&_coachCheckins().channels.inapp!==false&&!_coachDeepLink)_coachToast(newest);
@@ -619,7 +639,7 @@ async function coachLoadInbox(){
 async function _coachDeliver(msg){
   if(_coachTranscriptIndex(msg.id)>=0)return false;
   var meta=_coachSlotMeta(msg.kind);
-  var entry={role:'assistant',content:'**'+meta.icon+' '+meta.label+' — '+msg.title+'**\n\n'+msg.body,coachId:msg.id,coachKind:msg.kind,ask:null,pending:null,actions:null,ts:new Date(msg.createdAt).getTime()||Date.now()};
+  var entry={role:'assistant',content:'**'+meta.icon+' '+meta.label+' — '+msg.title+'**\n\n'+msg.body,coachId:msg.id,coachKind:msg.kind,ask:null,pending:null,actions:null,ts:_pd(msg.createdAt).getTime()||Date.now()};
   var safe=_coachSafeActions(msg);
   var summary=null;
   if(safe.length&&msg.applyState==='pending'){
@@ -692,7 +712,7 @@ function _coachMarkRead(ids){
   var orig=buildNotifs;
   window.buildNotifs=function(){
     var list=orig.apply(this,arguments)||[];
-    try{_coachInbox.filter(function(m){return m.status==='new'&&Date.now()-new Date(m.createdAt).getTime()<24*3600e3;}).forEach(function(m){
+    try{_coachInbox.filter(function(m){return m.status==='new'&&Date.now()-_pd(m.createdAt).getTime()<24*3600e3;}).forEach(function(m){
       var meta=_coachSlotMeta(m.kind);
       list.unshift({id:'coach-'+m.id,type:'info',icon:'🧭',title:meta.label+': '+m.title,body:String(m.push||m.body||'').replace(/[*_#>`]/g,'').slice(0,120),time:m.createdAt,read:false,
         action:new Function('toggleNotifPanel();coachOpenMessage('+Number(m.id)+')')});
@@ -794,7 +814,7 @@ function _coachBootNudge(){
     if(pr.done>0||c.nudgeDismissed)return;
     var wiz=document.getElementById('lu-wiz-ov'); // the setup wizard goes first
     if(wiz&&wiz.offsetParent!==null){setTimeout(_coachBootNudge,60000);return;}
-    var today=typeof _ymd==='function'?_ymd(new Date()):new Date().toISOString().slice(0,10);
+    var today=typeof _ymd==='function'?_ymd(new Date()):_ymd(new Date());
     if(c.nudgedOn===today)return;
     c.nudgedOn=today;_coachSave();
     toast({type:'info',title:'🧭 Meet your AI coach',msg:'A few quick questions and it will organise your life, plan your days and keep you on track.',duration:15000,

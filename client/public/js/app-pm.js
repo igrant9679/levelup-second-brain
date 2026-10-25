@@ -104,7 +104,7 @@ function _pmCSS(){
 // ─── small helpers ──────────────────────────────────────────────────────────
 function _pmE(s){return typeof esc==='function'?esc(s==null?'':String(s)):String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function _pmJ(s){return typeof _jsAttr==='function'?_jsAttr(s):String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
-function _pmToday(){return typeof _ymd==='function'?_ymd(new Date()):new Date().toISOString().slice(0,10);}
+function _pmToday(){return typeof _ymd==='function'?_ymd(new Date()):_ymd(new Date());}
 function _pmYmd(d){if(!d)return '';var x=d instanceof Date?d:new Date(String(d).length<=10?String(d)+'T12:00:00':d);if(isNaN(x))return '';return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
 function _pmAddDays(ymd,n){var d=new Date(ymd+'T12:00:00');d.setDate(d.getDate()+n);return _pmYmd(d);}
 function _pmDays(a,b){return Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);}
@@ -481,7 +481,7 @@ async function pmRefreshChanged(){
       var i=PM.records.findIndex(function(x){return x.id===s.id;});
       if(s.deleted){if(i>=0)PM.records.splice(i,1);return;}
       _pmTagRec(s);
-      if(i>=0){if(_pmPending[PM.records[i]._lk]&&new Date(PM.records[i].updatedAt)>new Date(s.updatedAt))return;s._lk=PM.records[i]._lk;PM.records[i]=s;}
+      if(i>=0){if(_pmPending[PM.records[i]._lk]&&_pd(PM.records[i].updatedAt)>_pd(s.updatedAt))return;s._lk=PM.records[i]._lk;PM.records[i]=s;}
       else PM.records.push(s);
     });
     return (rows||[]).length;
@@ -494,7 +494,7 @@ function pmTab_waiting(key){
   var all=pmDelegations(key);
   var open=all.filter(_pmDlgOpen),late=all.filter(function(r){return _pmDlgLate(r,today);}),due=all.filter(function(r){return _pmDlgDue(r,today);}),
       risky=open.filter(function(r){return r.status==='blocked'||r.status==='at_risk';}),
-      done30=all.filter(function(r){return r.status==='done'&&(Date.now()-new Date(r.updatedAt).getTime())<30*86400e3;});
+      done30=all.filter(function(r){return r.status==='done'&&(Date.now()-_pd(r.updatedAt).getTime())<30*86400e3;});
   var list=f==='late'?late:f==='due'?due:f==='risk'?risky:f==='done'?all.filter(function(r){return r.status==='done';}):f==='all'?all:open;
   var kpi=function(n,l,c,flt){return '<div class="pm-kpi" style="cursor:pointer'+(f===flt?';border-color:var(--page-accent)':'')+'" onclick="_pmState.dlgFilter=\''+flt+'\';pmRender()"><b style="color:'+c+'">'+n+'</b><span>'+l+'</span></div>';};
   var html='<div class="pm-kpis">'+kpi(open.length,'Open','var(--t1)','open')+kpi(late.length,'Past expected date','#dc2626','late')+kpi(due.length,'Follow-up due','#d97706','due')+kpi(risky.length,'Blocked / at risk','#d97706','risk')+kpi(done30.length,'Done (30 days)','#0891b2','done')+'</div>';
@@ -519,10 +519,10 @@ function pmTab_waiting(key){
       rows.map(function(r){
         var d=r.data||{},st=PM_DLG_STATUS[r.status||'open']||PM_DLG_STATUS.open;
         var lastU=(d.updates||[]).slice().reverse().find(function(u){return u.by!=='system';});
-        var age=d.delegatedAt?_pmDays(d.delegatedAt.slice(0,10),today):null;
+        var age=d.delegatedAt?_pmDays(_dayOf(d.delegatedAt),today):null;
         return '<tr class="clk" onclick="pmDelegationDetail('+r.id+')"><td><b>'+_pmE(_pmDlgRefLabel(r))+'</b>'+(r.refType==='atlas'?' <span class="pm-pill" style="background:#dbeafe;color:#1d4ed8">Atlas</span>':'')+'</td>'+
           (g!=='person'?'<td>'+_pmE(pmPersonName(d.personKey))+'</td>':'')+(g!=='project'?'<td class="pm-muted">'+_pmE(_pmProjName(r.projectKey)||'—')+'</td>':'')+
-          '<td class="pm-muted">'+(d.delegatedAt?_pmDate(d.delegatedAt.slice(0,10))+(age!=null&&_pmDlgOpen(r)?' · '+age+'d':''):'—')+'</td>'+
+          '<td class="pm-muted">'+(d.delegatedAt?_pmDate(_dayOf(d.delegatedAt))+(age!=null&&_pmDlgOpen(r)?' · '+age+'d':''):'—')+'</td>'+
           '<td>'+(d.expectedBy?(_pmDlgLate(r,today)?'<b style="color:#dc2626">'+_pmDate(d.expectedBy)+' · late</b>':_pmDate(d.expectedBy)):'<span class="pm-muted">—</span>')+'</td>'+
           '<td>'+(d.followUp&&_pmDlgOpen(r)?(_pmDlgDue(r,today)?'<b style="color:#d97706">'+_pmDate(d.followUp)+'</b>':_pmDate(d.followUp)):'<span class="pm-muted">—</span>')+((d.autoNudge===true||(d.autoNudge==null&&pmSettings(r.projectKey).autoNudge))&&_pmDlgOpen(r)?' <span title="Auto follow-up on">⚡</span>':'')+'</td>'+
           '<td>'+_pmPill(st.label,st.c)+'</td>'+
@@ -666,7 +666,7 @@ function pmDelegationDetail(id){
   var r=pmRec(id);if(!r)return;var d=r.data||{};var p=pmPerson(d.personKey);var st=PM_DLG_STATUS[r.status||'open']||PM_DLG_STATUS.open;
   var hist=(d.updates||[]).slice().reverse().map(function(u){
     var who=u.by==='delegate'?(p?p.name:'Them'):u.by==='system'?'LevelUp':'You';
-    return '<div style="padding:8px 0;border-bottom:1px solid var(--bd1)"><div class="pm-muted">'+_pmE(who)+' · '+new Date(u.at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+(u.status&&PM_DLG_STATUS[u.status]?' · '+_pmPill(PM_DLG_STATUS[u.status].label,PM_DLG_STATUS[u.status].c):'')+(u.eta?' · new date '+_pmDate(u.eta):'')+'</div><div style="white-space:pre-wrap;font-size:12.5px;margin-top:3px">'+_pmE(u.text)+'</div></div>';
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--bd1)"><div class="pm-muted">'+_pmE(who)+' · '+_pd(u.at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+(u.status&&PM_DLG_STATUS[u.status]?' · '+_pmPill(PM_DLG_STATUS[u.status].label,PM_DLG_STATUS[u.status].c):'')+(u.eta?' · new date '+_pmDate(u.eta):'')+'</div><div style="white-space:pre-wrap;font-size:12.5px;margin-top:3px">'+_pmE(u.text)+'</div></div>';
   }).join('');
   pmModal('<h3>'+_pmIcon('users',18)+' '+_pmE(_pmDlgRefLabel(r))+'<button class="x" onclick="pmCloseModal()">×</button></h3>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'+_pmPill(st.label,st.c)+'<span>with <b>'+_pmE(p?p.name:'?')+'</b>'+(p&&p.email?' <span class="pm-muted">'+_pmE(p.email)+'</span>':'')+'</span>'+
@@ -717,7 +717,7 @@ function pmRag(key){
   var spi=ev&&ev.spi,cpi=ev&&ev.cpi;
   var od=pr.total?pr.overdue/pr.total:0;
   var computed=(late>2||high>=2||(spi&&spi<0.85)||(cpi&&cpi<0.85)||od>0.25)?'red':(late||high||(spi&&spi<0.95)||(cpi&&cpi<0.95)||od>0.1)?'amber':'green';
-  return {computed:computed,reported:latest?latest.data.rag:null,rag:latest&&(Date.now()-new Date(latest.updatedAt).getTime())<14*86400e3?latest.data.rag:computed};
+  return {computed:computed,reported:latest?latest.data.rag:null,rag:latest&&(Date.now()-_pd(latest.updatedAt).getTime())<14*86400e3?latest.data.rag:computed};
 }
 function _pmRagPill(r){var c={green:'#16a34a',amber:'#d97706',red:'#dc2626'}[r]||'#64748b';return _pmPill(({green:'Green',amber:'Amber',red:'Red'})[r]||'—',c);}
 function pmMilestones(key){
@@ -1169,7 +1169,7 @@ function pmTab_reports(key){
   var html='<div class="pm-bar"><button class="btn btn-p" onclick="pmReportNew(\''+_pmJ(key)+'\')">'+_pmIcon('sparkles',14,'#fff')+' New status report</button><span class="pm-muted">Drafted by AI from this project’s live data — you edit, then email it, print it or turn it into a slide deck.</span></div>';
   if(!list.length)return html+'<div class="pm-card pm-empty"><b>No reports yet</b>Press “New status report”.</div>';
   html+='<div class="pm-card pm-scroll" style="padding:0"><table class="pm-table"><thead><tr><th>Date</th><th>Status</th><th>Headline</th><th>Sent to</th><th></th></tr></thead><tbody>'+list.map(function(r){var d=r.data||{};
-    return '<tr><td class="pm-muted">'+_pmDate(String(r.createdAt||r.updatedAt).slice(0,10))+'</td><td>'+_pmRagPill(d.rag)+'</td><td class="clk" onclick="pmReportEdit('+r.id+')"><b>'+_pmE(r.title||'Status report')+'</b></td><td class="pm-muted">'+_pmE((d.sentTo||[]).join(', ')||'—')+'</td>'+
+    return '<tr><td class="pm-muted">'+_pmDate(_dayOf(r.createdAt||r.updatedAt))+'</td><td>'+_pmRagPill(d.rag)+'</td><td class="clk" onclick="pmReportEdit('+r.id+')"><b>'+_pmE(r.title||'Status report')+'</b></td><td class="pm-muted">'+_pmE((d.sentTo||[]).join(', ')||'—')+'</td>'+
       '<td style="white-space:nowrap"><button class="btn btn-s" style="height:26px" onclick="pmReportEmail('+r.id+')">Email</button> <button class="btn btn-s" style="height:26px" onclick="pmReportPrint('+r.id+')">PDF</button> <button class="btn btn-s" style="height:26px" onclick="pmReportDeck('+r.id+')">Slides</button> <button class="btn btn-s" style="height:26px" onclick="pmDel(pmRec('+r.id+'),\'Report deleted\')">×</button></td></tr>';}).join('')+'</tbody></table></div>';
   return html;
 }
@@ -1260,7 +1260,7 @@ function pmReportHtml(r,forEmail){
   var sec=function(t,a){return a&&a.length?'<h2 style="font-size:14px;margin:18px 0 6px;color:#0f172a;border-bottom:2px solid #0891b2;padding-bottom:3px">'+t+'</h2><ul style="margin:0;padding-left:20px">'+a.map(function(x){return '<li style="margin:3px 0">'+_pmE(x)+'</li>';}).join('')+'</ul>':'';};
   var met=[m.total!=null?['Complete',m.pct+'%']:null,m.overdue!=null?['Overdue items',m.overdue]:null,m.cpi?['CPI',Number(m.cpi).toFixed(2)]:null,m.spi?['SPI',Number(m.spi).toFixed(2)]:null,m.lateDelegations?['Late delegated',m.lateDelegations]:null].filter(Boolean);
   return '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a;max-width:680px;font-size:14px;line-height:1.5">'+
-    '<div style="font-size:12px;color:#64748b">'+_pmE(_pmProjName(r.projectKey))+' · status report · '+_pmE(_pmDate(d.date||String(r.createdAt||'').slice(0,10)))+'</div>'+
+    '<div style="font-size:12px;color:#64748b">'+_pmE(_pmProjName(r.projectKey))+' · status report · '+_pmE(_pmDate(d.date||String_dayOf(r.createdAt)))+'</div>'+
     '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 10px"><span style="background:'+c+';color:#fff;border-radius:12px;padding:2px 12px;font-weight:700;font-size:12px">'+_pmE((d.rag||'').toUpperCase())+'</span><b style="font-size:18px">'+_pmE(r.title||'')+'</b></div>'+
     (d.summary?'<p style="margin:0 0 10px">'+_pmE(d.summary)+'</p>':'')+
     (met.length?'<table style="border-collapse:collapse;margin:6px 0"><tr>'+met.map(function(x){return '<td style="padding:6px 14px 6px 0"><div style="font-size:18px;font-weight:700">'+_pmE(x[1])+'</div><div style="font-size:11px;color:#64748b">'+_pmE(x[0])+'</div></td>';}).join('')+'</tr></table>':'')+
@@ -2055,7 +2055,7 @@ async function pmCreateFromTemplate(t,o){
   var ww=false;var dateAt=function(off){return _pmAddWork(o.start,Math.max(0,off|0),ww);};
   var pid=typeof nextId==='function'?nextId(D.projects||[]):Date.now();
   var last=(t.tasks||[]).reduce(function(m,x){return Math.max(m,(x.d||0)+(x.dur||0));},0);
-  var proj={id:pid,name:o.name,desc:t.desc||'',status:'Active',area:'',owner:me,color:'#0891b2',startDate:o.start,due:dateAt(last),quarter:'',year:new Date(o.start).getFullYear(),kanbanAxis:'',pct:0,tags:['template:'+t.name],scope:{personal:false,business:true},milestones:[],linkedGoalIds:[],createdBy:me,createdAt:now};
+  var proj={id:pid,name:o.name,desc:t.desc||'',status:'Active',area:'',owner:me,color:'#0891b2',startDate:o.start,due:dateAt(last),quarter:'',year:_pd(o.start).getFullYear(),kanbanAxis:'',pct:0,tags:['template:'+t.name],scope:{personal:false,business:true},milestones:[],linkedGoalIds:[],createdBy:me,createdAt:now};
   D.projects=Array.isArray(D.projects)?D.projects:[];D.projects.push(proj);
   if(o.programId){var pg=(D.programs||[]).find(function(p){return String(p.id)===String(o.programId);});if(pg){pg.projectIds=(pg.projectIds||[]).concat([pid]);try{save('programs');}catch(_){}}}
   try{save('projects');}catch(_){}
@@ -2116,7 +2116,7 @@ function pmMeetingNotesDialog(key){
     try{
       var people=pmPeopleAll().slice(0,80).map(function(p){return p.name;}).join(', ');
       var sys='Extract the ACTION ITEMS from these meeting notes: things someone committed to do. For each return the task (imperative, ≤12 words), the owner exactly as named in the notes (or "me" if it is the note-taker / unassigned), and a due date (YYYY-MM-DD, resolve relative dates from the meeting date) or null. Ignore discussion and FYIs. Return ONLY JSON {"meetingDate":"YYYY-MM-DD or null","actions":[{"title":"","owner":"","due":null,"notes":"≤20 words of context"}]}. Known people: '+people;
-      var res=await _trpc('ai.assist',{systemPrompt:sys.slice(0,3900),userContent:('NOTE TITLE: '+(n.title||'')+'\nDATE: '+String(n.createdAt||'').slice(0,10)+'\n\n'+text).slice(0,7800),provider:(typeof _getAIConfig==='function'?_getAIConfig().provider:undefined)},'mutation');
+      var res=await _trpc('ai.assist',{systemPrompt:sys.slice(0,3900),userContent:('NOTE TITLE: '+(n.title||'')+'\nDATE: '+String_dayOf(n.createdAt)+'\n\n'+text).slice(0,7800),provider:(typeof _getAIConfig==='function'?_getAIConfig().provider:undefined)},'mutation');
       var raw=String(res&&(res.result||res.text)||'');var m=raw.match(/\{[\s\S]*\}/);if(!m)throw new Error('the AI reply was not usable');
       var acts=(JSON.parse(m[0]).actions||[]).filter(function(a){return a&&a.title;}).slice(0,40);
       if(!acts.length){out.innerHTML='<div class="pm-muted" style="margin-top:10px">No action items found in that note.</div>';return;}
@@ -2194,7 +2194,7 @@ async function pmWipeProject(key){
 }
 async function pmExportAll(key){
   var sheets=[];var X=_pmImsRows(key);
-  sheets.push({name:'Delegations',rows:[['Task','Person','Status','Handed off','Expected','Follow up','Last update']].concat(pmDelegations(key).map(function(r){var d=r.data||{};var u=(d.updates||[]).slice(-1)[0];return [_pmDlgRefLabel(r),pmPersonName(d.personKey),r.status,(d.delegatedAt||'').slice(0,10),d.expectedBy||'',d.followUp||'',u?u.text:''];}))});
+  sheets.push({name:'Delegations',rows:[['Task','Person','Status','Handed off','Expected','Follow up','Last update']].concat(pmDelegations(key).map(function(r){var d=r.data||{};var u=(d.updates||[]).slice(-1)[0];return [_pmDlgRefLabel(r),pmPersonName(d.personKey),r.status,_dayOf(d.delegatedAt),d.expectedBy||'',d.followUp||'',u?u.text:''];}))});
   var rt=_pmRaciTable(key);sheets.push({name:'RACI',rows:[rt.head].concat(rt.body)});
   if(X.rows.length)sheets.push({name:X.style==='dod'?'IMS':'WBS',rows:[['ID','Code','Name','Type','Days','Start','Finish','Pred.','Float']].concat(X.rows.map(function(r){return [r.id,r.code,'  '.repeat(r.depth)+r.name,r.type,r.dur,r.start,r.finish,r.preds,r.float];}))});
   ['risk','issue','assumption','decision'].forEach(function(k){sheets.push({name:PM_RAID[k].label,rows:[['ID','Title','Status','Details']].concat(_pmRaidList(k,key).map(function(r){return [_pmRaidNo(r),r.title,r.status,JSON.stringify(r.data||{}).slice(0,500)];}))});});

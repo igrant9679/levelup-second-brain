@@ -1443,7 +1443,7 @@ function _renderAutomationsPanelHTML(rules){
     const ac=r.actionConfig?(()=>{try{return JSON.parse(r.actionConfig);}catch{return{};}})():{};
     const trigDetail=r.trigger==='external_status'&&tc.statusEquals?` = "${esc(String(tc.statusEquals))}"`:'';
     const actDetail=r.action==='add_tag'&&ac.tag?` "${esc(String(ac.tag))}"`:r.action==='set_priority'&&ac.priority?` → ${esc(String(ac.priority))}`:r.action==='set_my_day'?(ac.on===false?' (remove)':''):'';
-    const lastFired=r.lastFiredAt?new Date(r.lastFiredAt).toLocaleString():'Never';
+    const lastFired=r.lastFiredAt?_pd(r.lastFiredAt).toLocaleString():'Never';
     const errBadge=r.lastError?` <span style="color:var(--red);font-size:11px" title="${esc(r.lastError)}">⚠ error</span>`:'';
     return `<div style="padding:8px;background:var(--s1);border:1px solid var(--bd1);border-radius:6px;display:flex;align-items:center;gap:8px">
       <div class="tog ${r.enabled?'on':''}" onclick="_toggleAutomation(${r.id})" style="flex-shrink:0"></div>
@@ -1619,7 +1619,7 @@ async function _hydrateTombstoneArchive(){
         <span style="display:inline-block;padding:2px 6px;border-radius:3px;background:${srcColor};color:#fff;font-size:11px;font-weight:600;letter-spacing:.4px">${srcLabel}</span>
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(et.title||'(no title)')}</div>
-          <div style="font-size:11px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(et.removedAt.slice(0,10)):''}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${annot.length?annot.join(' · '):'No local annotations'}${et.removedAt?' · removed '+esc(_dayOf(et.removedAt)):''}</div>
         </div>
         <button class="btn btn-s" style="height:24px;font-size:11px" onclick="_reviveTombstoned('${_jsAttr(et.source)}','${_jsAttr(et.externalId)}')" title="Clear the tombstone so this row shows up again on next sync">↻ Revive</button>
       </div>`;
@@ -1901,8 +1901,8 @@ function _renderWatchList(source,watches){
   return `<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">${watches.map(w=>{
     const hasErr=!!w.lastError;
     const stripe=hasErr?'var(--red)':(w.lastPulledAt?'var(--ok)':'var(--warn)');
-    const lastPullAge=w.lastPulledAt?fmtAge(now-new Date(w.lastPulledAt).getTime()):'never pulled';
-    const lastPullAbs=w.lastPulledAt?new Date(w.lastPulledAt).toLocaleString():'never';
+    const lastPullAge=w.lastPulledAt?fmtAge(now-_pd(w.lastPulledAt).getTime()):'never pulled';
+    const lastPullAbs=w.lastPulledAt?_pd(w.lastPulledAt).toLocaleString():'never';
     const pill=hasErr
       ?`<span title="${esc(w.lastError).slice(0,400)}" style="font-size:11px;padding:1px 5px;border-radius:3px;background:rgba(239,68,68,.18);color:var(--red);font-weight:600;flex-shrink:0;cursor:help">⚠ error · hover for details</span>`
       :(w.lastPulledAt
@@ -2366,7 +2366,7 @@ async function _extSubmitNiftyWatch(){
 // ====== EXPORT / IMPORT ======
 function exportData(){
   // Build JSON backup
-  const ts=new Date().toISOString().slice(0,10);
+  const ts=_ymd(new Date());
   const payload={version:1,exported:new Date().toISOString(),tasks:D.tasks,notes:D.notes,projects:D.projects,goals:D.goals,journal:D.journal,habits:D.habits,teams:D.teams,aiTopics:D.aiTopics};
   const jsonStr=JSON.stringify(payload,null,2);
 
@@ -2958,7 +2958,7 @@ function _aiQuickSend(s){
 }
 function _fmtChatTime(ts){
   if(!ts)return '';
-  const d=new Date(ts);
+  const d=_pd(ts);
   const now=new Date();
   if(d.toDateString()===now.toDateString())return d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   return d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
@@ -2971,7 +2971,7 @@ function _updateAIMsgCount(){
 // model can answer questions about the user's actual data. Kept terse to
 // stay within token limits — counts + small samples, not full dumps.
 function _buildAIContext(){
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const tasks=D.tasks||[];const notes=D.notes||[];const goals=D.goals||[];const habits=D.habits||[];const journal=D.journal||[];const ideas=D.ideas||[];
   const open=tasks.filter(t=>t.status!=='Done'&&t.status!=='Someday');
   const overdue=open.filter(t=>t.due&&t.due<today);
@@ -3099,9 +3099,9 @@ function buildNotifs(){
     // Tasks due within advance window (but not today/overdue)
     if(advDays>0){
       const cutoff=new Date();cutoff.setDate(cutoff.getDate()+advDays);
-      const cutoffStr=cutoff.toISOString().split('T')[0];
+      const cutoffStr=_ymd(cutoff);
       D.tasks.filter(t=>t.status!=='Done'&&t.due&&t.due>today&&t.due<=cutoffStr).forEach(t=>{
-        const d=Math.ceil((new Date(t.due)-new Date())/(1000*60*60*24));
+        const d=Math.ceil((_pd(t.due)-new Date())/(1000*60*60*24));
         notifs.push({id:'up-'+t.id,type:'info',icon:'📅',title:`Due in ${d} day${d!==1?'s':''}`,body:t.title,time:fmtDate(t.due),read:false,action:()=>{toggleNotifPanel();openDrawer('task',t);}});
       });
     }
@@ -3140,7 +3140,7 @@ function buildNotifs(){
   // ---- Goal Deadline Alerts (always on) ----
   if(!quiet){
     D.goals.filter(g=>_goalDue(g)&&(g.pct||0)<100).forEach(g=>{
-      const _gd=String(_goalDue(g));const _gdd=/^\d{4}-\d{2}-\d{2}$/.test(_gd)?new Date(_gd+'T00:00'):new Date(_gd);
+      const _gd=String(_goalDue(g));const _gdd=/^\d{4}-\d{2}-\d{2}$/.test(_gd)?new Date(_gd+'T00:00'):_pd(_gd);
       const daysLeft=Math.ceil((_gdd-new Date())/(1000*60*60*24));
       if(daysLeft>=0&&daysLeft<=7)notifs.push({id:'gl-'+g.id,type:'goal',icon:'🎯',title:`Goal deadline in ${daysLeft}d`,body:g.title+' · '+g.pct+'% done',time:fmtDate(_goalDue(g)),read:false,action:()=>{toggleNotifPanel();nav('goals');}});
     });
@@ -4350,19 +4350,15 @@ function checkMyDayReset(){
   // Reset habit completion flags for a new day
   // Also break streaks for habits that were not done/skipped yesterday
   const todayDate=new Date();todayDate.setHours(0,0,0,0);
-  const yesterdayDate=new Date(todayDate);yesterdayDate.setDate(todayDate.getDate()-1);
-  const yesterdayStr=yesterdayDate.toISOString().split('T')[0];
+  const yesterdayDate=_pd(todayDate);yesterdayDate.setDate(todayDate.getDate()-1);
+  const yesterdayStr=_ymd(yesterdayDate);
   let habitsChanged=false;
   D.habits.forEach(h=>{
     if(h.doneToday||h.skippedToday){
-      // If habit was done or skipped, record it for yesterday before clearing
-      if(h.doneToday){
-        if(!h.completedDates)h.completedDates=[];
-        if(!h.completedDates.includes(yesterdayStr))h.completedDates.push(yesterdayStr);
-      } else if(h.skippedToday){
-        if(!h.skippedDates)h.skippedDates=[];
-        if(!h.skippedDates.includes(yesterdayStr))h.skippedDates.push(yesterdayStr);
-      }
+      // Only clear the flags. Ticking / skipping already recorded the real
+      // day (toggleHabit, skipHabitToday, the assistant); crediting
+      // "yesterday" here too double-counted, and after a day or more
+      // away it credited a day the habit was never done.
       h.doneToday=false;
       h.skippedToday=false;
       habitsChanged=true;
@@ -4382,13 +4378,14 @@ function checkMyDayReset(){
 }
 function scheduleMidnightReset(){
   const now=new Date();
-  const midnight=new Date(now);
+  const midnight=_pd(now);
   midnight.setHours(24,0,0,500);
   const ms=midnight-now;
   setTimeout(()=>{
-    checkMyDayReset();
-    renderScreen(curScreen);
-    toast('☀️ New day! My Day has been refreshed.');
+    // Moves _todayStr on, runs checkMyDayReset and re-renders — once, however
+    // many of the midnight timer / focus / minute check notice the new day.
+    if(typeof _luRefreshToday==='function')_luRefreshToday();
+    else{checkMyDayReset();renderScreen(curScreen);}
     scheduleMidnightReset();
   },ms);
 }
@@ -4417,10 +4414,10 @@ function autoCalcGoalPct(g){
 // ====== RECURRING TASK AUTO-GENERATION ======
 function addDays(dateStr,n){
   if(!dateStr)return '';
-  const d=new Date(dateStr);
+  const d=_pd(dateStr);
   if(isNaN(d))return dateStr;
   d.setDate(d.getDate()+n);
-  return d.toISOString().split('T')[0];
+  return _ymd(d);
 }
 function recurringOffset(cadence){
   if(cadence==='Daily')return 1;
@@ -4447,7 +4444,7 @@ function _nextRecurringDue(task){
   const m=String(task.due||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
   const base=m?new Date(+m[1],+m[2]-1,+m[3]):new Date();
   base.setHours(0,0,0,0);
-  let d=new Date(base);
+  let d=_pd(base);
   if(freq==='daily')d.setDate(d.getDate()+n);
   else if(freq==='weekly'){
     const days=Array.isArray(rule.byDay)?rule.byDay.map(Number).filter(x=>x>=0&&x<=6).sort((a,b)=>a-b):[];
@@ -5124,7 +5121,7 @@ let _faEditLinksOrig=null; // that entry's links when the form opened (back-link
 function faSetDueChip(daysOffset){
   const d=new Date();
   d.setDate(d.getDate()+daysOffset);
-  const iso=d.toISOString().split('T')[0];
+  const iso=_ymd(d);
   const inp=document.getElementById('fa-due');
   if(inp){inp.value=iso;inp.dispatchEvent(new Event('change'));}
   // Highlight selected chip
@@ -5141,7 +5138,7 @@ function faAutoSuggestDueDate(){
   const offset=offsets[pri]||7;
   const d=new Date();
   d.setDate(d.getDate()+offset);
-  due.placeholder=d.toISOString().split('T')[0]+' (suggested)';
+  due.placeholder=_ymd(d)+' (suggested)';
 }
 function openFA(type,editId){
   // Edit mode (journal only): the same full form, prefilled from the saved entry.
@@ -5730,7 +5727,7 @@ function renderFAGoal(){
 }
 
 function faAddReflection(){
-  _faReflections.push({date:new Date().toISOString().split('T')[0],note:''});
+  _faReflections.push({date:_ymd(new Date()),note:''});
   renderFAReflections();
 }
 function faRemoveReflection(i){
@@ -5761,7 +5758,7 @@ function _journalMoveToDate(j,iso){
   if(!j||!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return;
   j.date=iso;
   const [y,mo,da]=iso.split('-').map(Number);
-  const c=j.createdAt?new Date(j.createdAt):null;
+  const c=j.createdAt?_pd(j.createdAt):null;
   const nd=(c&&!isNaN(c))?new Date(y,mo-1,da,c.getHours(),c.getMinutes(),c.getSeconds()):new Date(y,mo-1,da,12);
   j.createdAt=nd.toISOString();
 }
@@ -5804,7 +5801,7 @@ function _journalSyncBacklinks(jid,prev,next){
 }
 // ej = an existing entry → the same form, prefilled for editing.
 function renderFAJournal(ej){
-  const today=typeof _ymd==='function'?_ymd():new Date().toISOString().split('T')[0]; // local day (UTC flips to tomorrow in the evening)
+  const today=typeof _ymd==='function'?_ymd():_ymd(new Date()); // local day (UTC flips to tomorrow in the evening)
   const habitsDone=ej?ej.habitsDone:D.habits.filter(h=>h.doneToday).length;
   const habitsTotal=ej?ej.habitsTotal:D.habits.length;
   const v=x=>esc(x==null?'':x);
@@ -5925,7 +5922,7 @@ function renderFAHabit(){
     </div>
     <div class="fa-row c2">
       <div class="fa-field"><label>Target Time</label><input type="time" class="fa-inp" id="fa-targettime"></div>
-      <div class="fa-field"><label>Started On</label><input type="date" class="fa-inp" id="fa-startedon" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="fa-field"><label>Started On</label><input type="date" class="fa-inp" id="fa-startedon" value="${_ymd(new Date())}"></div>
     </div>
     <div class="fa-row c2">
       <div class="fa-field">
@@ -6125,7 +6122,7 @@ function doFASave(addAnother){
     } else if(_faType==='journal'){
       const j={
         id:nextId(D.journal),title,
-        date:document.getElementById('fa-date')?.value||new Date().toISOString().split('T')[0],
+        date:document.getElementById('fa-date')?.value||_ymd(new Date()),
         mood:document.getElementById('fa-mood-val')?.value||'😊',
         energy:document.getElementById('fa-energy')?.value||'medium',
         body:desc,
@@ -6161,7 +6158,7 @@ function doFASave(addAnother){
         customDays:_faCustomDays,
         targetCount:parseInt(document.getElementById('fa-target-count')?.value)||1,
         targetTime:document.getElementById('fa-targettime')?.value||'',
-        startedOn:document.getElementById('fa-startedon')?.value||new Date().toISOString().split('T')[0],
+        startedOn:document.getElementById('fa-startedon')?.value||_ymd(new Date()),
         reminderEnabled:document.getElementById('fa-reminder-enabled')?.checked||false,
         reminderTime:document.getElementById('fa-reminder-time')?.value||'',
         linkedTaskId:document.getElementById('fa-linkedtask')?.value?parseInt(document.getElementById('fa-linkedtask').value):null,
@@ -6220,7 +6217,7 @@ function aiContactHealth(){
     const doneTasks=linkedTasks.filter(t=>t.status==='Done').length;
     const openTasks=linkedTasks.filter(t=>t.status!=='Done').length;
     // Days since last contact (use completedAt of most recent done task)
-    const lastDates=linkedTasks.filter(t=>t.completedAt).map(t=>new Date(t.completedAt)).sort((a,b)=>b-a);
+    const lastDates=linkedTasks.filter(t=>t.completedAt).map(t=>_pd(t.completedAt)).sort((a,b)=>b-a);
     const daysSince=lastDates.length?Math.floor((today-lastDates[0])/(1000*60*60*24)):999;
     // Health score: recent contact + task completion rate
     const recencyScore=daysSince<7?100:daysSince<14?80:daysSince<30?60:daysSince<60?40:daysSince<90?20:0;
@@ -6570,7 +6567,7 @@ function paintBookmarks(){
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${tagHtml}
               ${readTimeHtml}
-              <span style="font-size:11px;color:var(--t3)">${new Date(b.createdAt).toLocaleDateString()}</span>
+              <span style="font-size:11px;color:var(--t3)">${_pd(b.createdAt).toLocaleDateString()}</span>
               ${b.isRead?'<span class="pill" style="background:var(--oks);color:var(--ok);font-size:11px">&#10003; Read</span>':''}
             </div>
           </div>
@@ -7090,7 +7087,7 @@ async function deleteShare(id){
 function showShareManager(){
   const rows=_bkShares.map(s=>{
     const url=window.location.origin+'/share/'+s.token;
-    const exp=s.expiresAt?new Date(s.expiresAt).toLocaleDateString():'Never';
+    const exp=s.expiresAt?_pd(s.expiresAt).toLocaleDateString():'Never';
     return `<div style="padding:8px 0;border-bottom:1px solid var(--bd1)">
       <div style="display:flex;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
@@ -7403,7 +7400,7 @@ function openContactDetail(id){
   </div>
   ${(c.tags||[]).length?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">TAGS</div><div style="display:flex;flex-wrap:wrap;gap:4px">${c.tags.map(t=>`<span style="font-size:11px;padding:2px 8px;border-radius:8px;background:var(--acs);color:var(--ac)">${esc(t)}</span>`).join('')}</div></div>`:''}
   ${c.notes?`<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:5px">NOTES</div><div style="font-size:11px;color:var(--t2);line-height:1.6;background:var(--s2);padding:8px 10px;border-radius:6px">${esc(c.notes)}</div></div>`:''}
-  ${c.enrichedAt?`<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Last enriched: ${new Date(c.enrichedAt).toLocaleString()}</div>`:''}  ${(()=>{
+  ${c.enrichedAt?`<div style="font-size:11px;color:var(--t3);margin-bottom:10px">Last enriched: ${_pd(c.enrichedAt).toLocaleString()}</div>`:''}  ${(()=>{
     const slug='contact:'+c.name.toLowerCase().replace(/\s+/g,'-');
     const nameLC=c.name.toLowerCase();
     const linked=D.tasks.filter(t=>{
@@ -7423,7 +7420,7 @@ function openContactDetail(id){
       const done=t.status==='Done';
       const pri=t.priority||'Medium';
       const dueStr=t.due?new Date(t.due+'T00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'No due date';
-      const overdue=!done&&t.due&&t.due<new Date().toISOString().split('T')[0];
+      const overdue=!done&&t.due&&t.due<_ymd(new Date());
       return `<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;background:var(--s2);margin-bottom:4px;${done?'opacity:.55':''}">` +
         `<button onclick="toggleTask(${_tidLit(t.id)});openContactDetail(${c.id})" title="${done?'Mark open':'Mark done'}" style="flex-shrink:0;margin-top:1px;width:16px;height:16px;border-radius:50%;border:2px solid ${done?'var(--ok)':'var(--bd2)'};background:${done?'var(--ok)':'transparent'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff">${done?'✓':''}</button>` +
         `<div style="flex:1;min-width:0">` +
@@ -7485,7 +7482,7 @@ function createTaskFromContact(id){
     const dueEl=document.getElementById('fa-due');
     if(dueEl){
       const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
-      dueEl.value=tomorrow.toISOString().split('T')[0];
+      dueEl.value=_ymd(tomorrow);
     }
     // Tags: follow-up + contact's name slug
     _faTags=['follow-up','contact:'+c.name.toLowerCase().replace(/\s+/g,'-')];
@@ -7877,7 +7874,7 @@ async function loadOnenoteNotebooks(){
         <span style="font-size:18px;margin-right:8px">📓</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:500">${esc(nb.name)}</div>
-          <div style="font-size:11px;color:var(--t3)">Last modified: ${new Date(nb.lastModified).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">Last modified: ${_pd(nb.lastModified).toLocaleDateString()}</div>
         </div>
         <span style="font-size:11px;color:var(--t3)">›</span>
       </div>`).join('');
@@ -7907,7 +7904,7 @@ async function selectOnenoteNotebook(id,name){
         <span style="font-size:16px;margin-right:8px">📂</span>
         <div style="flex:1">
           <div style="font-size:12px;font-weight:500">${esc(s.name)}${isMtgSrc?' <span style="font-size:11px;color:var(--warn)">⭐ meeting-notes source</span>':''}</div>
-          <div style="font-size:11px;color:var(--t3)">Last modified: ${new Date(s.lastModified).toLocaleDateString()}</div>
+          <div style="font-size:11px;color:var(--t3)">Last modified: ${_pd(s.lastModified).toLocaleDateString()}</div>
         </div>
         <span title="${isMtgSrc?'This is your meeting-notes section':'Set as your meeting-notes section — enables one-click ⟳ sync from the Notes page'}" style="font-size:14px;cursor:pointer;color:${isMtgSrc?'var(--warn)':'var(--t3)'};margin-right:8px" onclick="event.stopPropagation();_onenoteSetMeetingSource('${s.id.replace(/'/g,"\\'")}',' ${s.name.replace(/'/g,"\\'")}'.trim());selectOnenoteNotebook('${_onSelectedNotebook?_onSelectedNotebook.id.replace(/'/g,"\\'"):''}','${_onSelectedNotebook?_onSelectedNotebook.name.replace(/'/g,"\\'"):''}')">★</span>
         <span style="font-size:11px;color:var(--t3)">›</span>
@@ -7937,7 +7934,7 @@ async function selectOnenoteSection(id,name){
           <span style="font-size:14px;margin-right:8px">📄</span>
           <div style="flex:1">
             <div style="font-size:11px;font-weight:500">${esc(p.title||'Untitled')}</div>
-            <div style="font-size:11px;color:var(--t3)">${new Date(p.lastModified).toLocaleDateString()}</div>
+            <div style="font-size:11px;color:var(--t3)">${_pd(p.lastModified).toLocaleDateString()}</div>
           </div>
         </div>`).join('');
   } catch(e){
@@ -7965,7 +7962,7 @@ function _onProg(show,label,pct){
 function _onenoteMatchMeeting(p){
   try{
     if(typeof _calEventsOn!=='function')return null;
-    const d=p.createdAt?new Date(p.createdAt):null;
+    const d=p.createdAt?_pd(p.createdAt):null;
     if(!d||isNaN(d.getTime()))return null;
     const tl=(p.title||'').toLowerCase().trim();
     if(!tl)return null;
@@ -8141,7 +8138,7 @@ async function loadOnenoteHistory(){
       return `<div class="lr" style="padding:8px;border-radius:8px;background:var(--s2);margin-bottom:4px">
         <div style="flex:1">
           <div style="font-size:11px;font-weight:500">${esc(j.notebookName||'Unknown notebook')}${j.sectionName?' / '+esc(j.sectionName):''}</div>
-          <div style="font-size:11px;color:var(--t3)">${new Date(j.createdAt).toLocaleString()}</div>
+          <div style="font-size:11px;color:var(--t3)">${_pd(j.createdAt).toLocaleString()}</div>
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:${statusColor}">${statusIcon} ${j.status}</div>
@@ -8687,7 +8684,7 @@ function _updateOAuthCard(provider,status){
     const barLabel=document.getElementById('oauth-'+p+'-expiry-label');
     const barDays=document.getElementById('oauth-'+p+'-expiry-days');
     if(expiryEl&&status.expiresAt){
-      const expiresAt=new Date(status.expiresAt);
+      const expiresAt=_pd(status.expiresAt);
       const diffMs=expiresAt.getTime()-Date.now();
       const diffDays=Math.floor(diffMs/(1000*60*60*24));
       const expiryDateStr=expiresAt.toLocaleString();
@@ -8818,7 +8815,7 @@ async function loadUserCredentials(){
       const cred=await _trpc('oauthSync.getCredentials',{provider},'query');
       if(cred&&statusEl){
         statusEl.style.color='var(--ok)';
-        const savedAt=cred.updatedAt?new Date(cred.updatedAt).toLocaleString():'';
+        const savedAt=cred.updatedAt?_pd(cred.updatedAt).toLocaleString():'';
         let statusText='✓ Saved — Client ID: '+cred.clientId.slice(0,8)+'…'+(savedAt?' · Last updated: '+savedAt:'');
         if(cred.isSharedFromAdmin)statusText='👥 Shared by admin — Client ID: '+cred.clientId.slice(0,8)+'…';
         statusEl.textContent=statusText;
@@ -8844,7 +8841,7 @@ async function loadUserCredentials(){
           verRow.id=p+'-cred-verified-row';
           verRow.style.cssText='font-size:10px;color:var(--t3);margin-top:2px';
           if(cred.lastVerifiedAt){
-            const ago=_timeAgo(new Date(cred.lastVerifiedAt));
+            const ago=_timeAgo(_pd(cred.lastVerifiedAt));
             verRow.textContent='✅ Last verified: '+ago;
             verRow.style.color='var(--ok)';
           } else {
@@ -8924,7 +8921,7 @@ async function loadCredentialAuditLog(provider){
       return;
     }
     entriesEl.innerHTML=entries.map((e)=>{
-      const when=new Date(e.createdAt).toLocaleString();
+      const when=_pd(e.createdAt).toLocaleString();
       const actionLabel=e.action==='saved'?'✓ Credentials saved':'✕ Credentials cleared';
       const actionColor=e.action==='saved'?'var(--ok)':'var(--err,#ef4444)';
       const by=e.performedByName?(' by '+e.performedByName):'';
@@ -9008,7 +9005,7 @@ async function loadEmailDeliveryLog(){
     const statusColor=(s)=>s==='sent'?'var(--ok,#22c55e)':s==='failed'?'var(--err,#ef4444)':'var(--warn,#f59e0b)';
     const statusIcon=(s)=>s==='sent'?'✓':s==='failed'?'✗':'—';
     el.innerHTML=entries.map((e)=>{
-      const date=new Date(e.createdAt).toLocaleString();
+      const date=_pd(e.createdAt).toLocaleString();
       const errNote=e.errorMessage?` <span style="color:var(--err,#ef4444)">(${e.errorMessage})</span>`:'';
       return `<div style="display:flex;gap:6px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--brd)">
         <span style="color:${statusColor(e.status)};font-weight:700;min-width:12px">${statusIcon(e.status)}</span>
@@ -9070,7 +9067,7 @@ async function loadSyncPanel(){
     const status=await _trpc('oauthSync.status',undefined,'query');
     if(msStatusEl){
       if(status?.microsoft?.connected){
-        const exp=status.microsoft.expiresAt?new Date(status.microsoft.expiresAt):null;
+        const exp=status.microsoft.expiresAt?_pd(status.microsoft.expiresAt):null;
         const expStr=exp?(' · Token expires '+exp.toLocaleTimeString()):''
         msStatusEl.style.color='var(--ok,#22c55e)';
         msStatusEl.textContent='✓ Connected'+(status.microsoft.email?' as '+status.microsoft.email:'')+expStr;
@@ -9099,7 +9096,7 @@ async function loadSyncPanel(){
         logEl.innerHTML='<span style="color:var(--t3);font-style:italic">No sync activity yet. Click Sync All Now to start.</span>';
       } else {
         logEl.innerHTML=syncData.map(s=>{
-          const lastSync=s.lastSyncAt?new Date(s.lastSyncAt).toLocaleString():'Never';
+          const lastSync=s.lastSyncAt?_pd(s.lastSyncAt).toLocaleString():'Never';
           const icon=s.lastStatus==='success'?'✓':s.lastStatus==='error'?'✗':'—';
           const color=s.lastStatus==='success'?'var(--ok,#22c55e)':s.lastStatus==='error'?'var(--err,#ef4444)':'var(--t3)';
           return `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid var(--brd)">
@@ -9155,7 +9152,7 @@ async function checkTokenExpiryBanner(){
     if(typeof updateProfileUI==='function')updateProfileUI();
     const providers=[];
     if(status?.microsoft?.connected&&status.microsoft.expiresAt){
-      providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:new Date(status.microsoft.expiresAt)});
+      providers.push({key:'microsoft',label:'Microsoft 365',expiresAt:_pd(status.microsoft.expiresAt)});
     }
     // Find the soonest-expiring provider
     const fiveMinMs=5*60*1000;
@@ -9259,8 +9256,8 @@ async function loadAdminDeliveryLog(page=1){
   const toVal=(document.getElementById('admin-log-to'))?.value;
   const input ={page,pageSize:20};
   if(status)input.status=status;
-  if(fromVal)input.from=new Date(fromVal);
-  if(toVal){const d=new Date(toVal);d.setHours(23,59,59,999);input.to=d;}
+  if(fromVal)input.from=_pd(fromVal);
+  if(toVal){const d=_pd(toVal);d.setHours(23,59,59,999);input.to=d;}
   try{
     const result=await _trpc('oauthSync.getAdminEmailDeliveryLog',input,'query');
     const entries=result?.entries||[];
@@ -9279,7 +9276,7 @@ async function loadAdminDeliveryLog(page=1){
       </tr></thead>
       <tbody>${entries.map((e)=>{
         const sc=statusColor(e.status);const si=statusIcon(e.status);
-        const dt=new Date(e.createdAt).toLocaleString();
+        const dt=_pd(e.createdAt).toLocaleString();
         const user=e.userName||(e.userEmail?e.userEmail.split('@')[0]:'System');
         const _err=e.errorMessage?String(e.errorMessage):'';
         const _escFn=(typeof esc==='function')?esc:(s=>String(s||''));
@@ -9416,7 +9413,7 @@ async function loadScheduledTaskLog(){
   try{
     const rows=await _trpc('oauthSync.getScheduledTaskLog',{limit:20},'query');
     if(!rows||rows.length===0){el.innerHTML='<em style="color:var(--t3)">No runs recorded yet.</em>';return;}
-    const fmt=function(ts){return ts?new Date(ts).toLocaleString():'\u2014';};
+    const fmt=function(ts){return ts?_pd(ts).toLocaleString():'\u2014';};
     const dur=function(ms){return ms!=null?(ms<1000?ms+'ms':(ms/1000).toFixed(1)+'s'):'\u2014';};
     const statusBadge=function(err){return err?'<span style="color:var(--err);font-weight:600">\u2717 Error</span>':'<span style="color:var(--ok);font-weight:600">\u2713 OK</span>';};
     let html='<table style="width:100%;border-collapse:collapse;font-size:11px">';
@@ -9610,7 +9607,7 @@ async function _downloadMigrationBackup(){
     const blob=new Blob([JSON.stringify(res,null,1)],{type:'application/json'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download='levelup-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    a.download='levelup-backup-'+_ymd(new Date())+'.json';
     a.click();
     URL.revokeObjectURL(a.href);
     toast({type:'success',title:'💾 Backup downloaded',msg:(res.tableCount||'?')+' tables, '+res.rowCount+' rows, '+Math.round(blob.size/1024)+' KB. Secret values are redacted. Keep this file somewhere safe.',duration:8000});
@@ -9621,7 +9618,7 @@ async function _downloadMigrationBackup(){
 }
 function _backupStatusHtml(b){
   if(!b)return 'No automatic backup has run yet.';
-  const when=new Date(b.at).toLocaleString();
+  const when=_pd(b.at).toLocaleString();
   if(!b.ok)return '<span style="color:var(--red)">✗ Last backup failed</span> · '+esc(when)+' · '+esc(b.error||'unknown error');
   return '<span style="color:var(--ok)">✓ Verified</span> · '+esc(when)+' · '+(b.tables||0)+' tables, '+(b.rows||0).toLocaleString()+' rows, '+((b.bytes||0)/1048576).toFixed(1)+' MB encrypted · saved to '+(b.provider==='drive'?'Google Drive':esc(b.provider||'storage'))+' (private)';
 }
@@ -9796,25 +9793,54 @@ async function syncOAuthCalendar(provider){
     // After sync, load DB events to get their numeric IDs
     let dbEvents=[];
     try{dbEvents=await _trpc('oauthSync.getCalendarEventsFromDB',null,'query');}catch(e){}
-    // Merge into _calEvents
-    let added=0;
+    // Merge into _calEvents, keyed by the PROVIDER's event id (extId).
+    // It used to match on title + day: a moved event was added again, a
+    // cancelled one stayed, and a second same-named meeting was skipped.
+    // Start/end come from the server as real instants (UTC with Z, or with
+    // an offset), so the local day and time are right; all-day events come
+    // as a bare date. Minutes are kept in start/end ("HH:MM"); hour/endHour
+    // are the grid cells, a :30 end rounding up.
+    let added=0,updated=0,removed=0;
+    const seen=new Set();
+    const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
     events.forEach(ev=>{
-      const d=new Date(ev.start);
-      const dateStr=d.toISOString().slice(0,10);
-      const hour=d.getHours();
-      const endD=new Date(ev.end);
-      const endHour=endD.getHours()||hour+1;
-      const exists=_calEvents.find(e=>e.title===ev.title&&e.dateStr===dateStr);
-      if(!exists){
-        // Try to find DB ID for this event
-        const dbEv=dbEvents.find(d=>d.title===ev.title&&new Date(d.start).toISOString().slice(0,10)===dateStr);
-        _calEvents.push({id:Date.now()+Math.random(),dbId:dbEv?.id||null,title:ev.title,dateStr,hour,endHour,color:'var(--ac)',desc:ev.notes,location:ev.location,source:provider,isAllDay:ev.isAllDay||0,recurrence:dbEv?.recurrence||'none'});
+      if(!ev||!ev.start)return;
+      const s=_pd(ev.start),e=_pd(ev.end||ev.start);
+      if(isNaN(s))return;
+      const allDay=!!ev.isAllDay;
+      // All-day: the provider's own date (a UTC midnight is the evening before here).
+      const dateStr=allDay?String(ev.start).slice(0,10):_ymd(s);
+      const hour=allDay?8:s.getHours();
+      const endHour=allDay?9:Math.max(hour+1,e.getHours()+(e.getMinutes()>0?1:0)+(_ymd(e)!==dateStr?24:0));
+      const fields={title:ev.title||'(No title)',dateStr,hour,endHour:Math.min(endHour,24),start:allDay?'':hm(s),end:allDay?'':hm(e),time:allDay?'':hm(s),desc:ev.notes||'',location:ev.location||'',isAllDay:allDay?1:0};
+      const extId=ev.id?String(ev.id):'';
+      if(extId)seen.add(extId);
+      let row=extId?_calEvents.find(x=>x.source===provider&&String(x.extId||'')===extId):null;
+      // Rows synced before ids were kept: adopt the same-title same-day one.
+      if(!row)row=_calEvents.find(x=>x.source===provider&&!x.extId&&x.title===fields.title&&x.dateStr===dateStr);
+      const dbEv=dbEvents.find(d=>(extId&&String(d.eventId||'')===extId)||(d.title===fields.title&&_ymd(_pd(d.start))===dateStr));
+      if(row){
+        const before=JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location]);
+        Object.assign(row,fields,{extId:extId||row.extId||''});
+        if(dbEv&&!row.dbId)row.dbId=dbEv.id;
+        if(before!==JSON.stringify([row.title,row.dateStr,row.start,row.end,row.location]))updated++;
+      }else{
+        _calEvents.push(Object.assign({id:Date.now()+Math.random(),dbId:dbEv?.id||null,extId,color:'var(--ac)',source:provider,recurrence:dbEv?.recurrence||'none'},fields));
         added++;
       }
     });
+    // Drop rows the provider no longer returns inside the window it covered
+    // (cancelled or moved out of it). Only rows that carry a provider id, so
+    // nothing synced before -228 or made by hand is touched. The fetch starts
+    // NOW, so today's earlier meetings are absent by design: start tomorrow.
+    const winStart=_ymd(new Date(Date.now()+86400000)),winEnd=_ymd(new Date(Date.now()+29*86400000));
+    for(let i=_calEvents.length-1;i>=0;i--){
+      const x=_calEvents[i];
+      if(x&&x.source===provider&&x.extId&&!seen.has(String(x.extId))&&x.dateStr>=winStart&&x.dateStr<=winEnd){_calEvents.splice(i,1);removed++;}
+    }
     _calPersist();
     renderCal();
-    toast('✓ Synced '+added+' new events from '+provider);
+    toast('✓ '+provider+' calendar: '+added+' new'+(updated?', '+updated+' updated':'')+(removed?', '+removed+' removed':''));
   }catch(e){
     toast('⚠️ '+e.message);
   }
@@ -10842,7 +10868,7 @@ async function initInviteScreen(token){
     // Pre-fill name if provided
     if(inv.name){const n=document.getElementById('invite-name');if(n)n.value=inv.name;}
     // Show invite details
-    const expiry=new Date(inv.expiresAt).toLocaleDateString(undefined,{dateStyle:'medium'});
+    const expiry=_pd(inv.expiresAt).toLocaleDateString(undefined,{dateStyle:'medium'});
     details.innerHTML=`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Email</span><strong>${esc(inv.email)}</strong></div><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Role</span><strong style="text-transform:capitalize">${esc(inv.role)}</strong></div><div style="display:flex;justify-content:space-between"><span>Expires</span><span style="color:var(--t3)">${expiry}</span></div>`;
     window._inviteToken=token;
     setTimeout(()=>{const n=document.getElementById('invite-name');if(n&&!n.value)n.focus();else{const p=document.getElementById('invite-password');if(p)p.focus();}},100);
@@ -11160,7 +11186,7 @@ async function _syncDiagnose(){
     report+='\nServer-sync ready: '+(typeof _serverSyncReady!=='undefined'?_serverSyncReady:'?')+'\n';
     report+='Dirty (unsynced) keys: '+([..._dirtyKeys].join(',')||'none')+'\n';
     report+='Oversized-for-cache keys: '+([...(window._luOversizedKeys||[])].join(',')||'none')+'\n';
-    report+='Last successful save: '+(window._luLastSyncOk?new Date(window._luLastSyncOk).toLocaleTimeString():'NEVER this session')+'\n\n';
+    report+='Last successful save: '+(window._luLastSyncOk?_pd(window._luLastSyncOk).toLocaleTimeString():'NEVER this session')+'\n\n';
     let sd=null,err=null;
     try{sd=await _trpc('appData.load',undefined,'query');}catch(e){err=e&&(e.message||e.toString());}
     if(err){report+='Server LOAD failed: '+err+'\n(If this says 401/unauthorized, this device is not logged in / cookie not sent.)';}
@@ -11562,7 +11588,7 @@ async function loadServerData(){
     // precondition for retiring the blob columns).
     try{ window._luLoadSources={tasks:sd._tasksSource||'?',notes:sd._notesSource||'?',ideas:sd._ideasSource||'?',at:new Date().toISOString()}; }catch(_){}
     let _srvUpd=0;
-    try{ if(sd&&sd.updatedAt!=null)_srvUpd=new Date(sd.updatedAt).getTime()||0; }catch(_){ _srvUpd=0; }
+    try{ if(sd&&sd.updatedAt!=null)_srvUpd=_pd(sd.updatedAt).getTime()||0; }catch(_){ _srvUpd=0; }
     const _GRACE=90*1000;
     const _itemTime=x=>{
       const t=Date.parse(x&&(x.createdAt||x.updatedAt||x.created)||0);
@@ -12738,7 +12764,7 @@ function mmConvertToProject(nodeId){
     status: 'Active',
     progress: 0,
     priority: 'Medium',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: _ymd(new Date()),
     dueDate: '',
     tags: ['mindmap'],
     notes: `Created from mind map: ${_mmCurrent.title}`,
@@ -14101,7 +14127,7 @@ async function _hydrateAtlasPanel(){
       ? `<span style="color:var(--ok)">✓ URL: <code style="background:var(--s3);padding:1px 4px;border-radius:3px;font-size:11px">${esc(url)}</code></span>`
       : '<span style="color:var(--warn)">⚠ ATLAS_SYNC_URL env var missing</span>';
     const synced=s.lastPulledAt
-      ? `Last synced: <strong>${new Date(s.lastPulledAt).toLocaleString()}</strong>${s.lastUpdatedAt?` · source updated ${new Date(s.lastUpdatedAt).toLocaleString()}`:''}`
+      ? `Last synced: <strong>${_pd(s.lastPulledAt).toLocaleString()}</strong>${s.lastUpdatedAt?` · source updated ${_pd(s.lastUpdatedAt).toLocaleString()}`:''}`
       : 'Never pulled yet.';
     const counts=s.entityCounts||{};
     const countLine=Object.keys(counts).length
@@ -14198,7 +14224,7 @@ function renderAtlas(){
     {k:'reports',l:'Reports',cnt:((snap.atlasComputed&&snap.atlasComputed.reports)||[]).length},
     {k:'pto',l:'PTO',cnt:(snap.departments||[]).reduce((s,d)=>s+(d.members||[]).reduce((s2,m)=>s2+((m.pto||[]).length?1:0),0),0)},
   ];
-  const synced=snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'unknown';
+  const synced=snap.pulledAt?_pd(snap.pulledAt).toLocaleString():'unknown';
   const tabBtn=t=>`<button class="btn btn-s" onclick="_atlasView='${t.k}';renderAtlas()" style="${_atlasView===t.k?'background:var(--ac);color:#fff;border-color:var(--ac);':''}">${t.l} <span style="opacity:.65">·${t.cnt}</span></button>`;
   const header=`<div class="ph-r" style="margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">
     <div>
@@ -14317,7 +14343,7 @@ function _atlasOppsHTML(snap){
   const cardHTML=o=>{
     const statusColor=o.status?(_ATLAS_OPP_STATUS_C[o.status]||'#64748b'):null;
     const statusChip=o.status?`<span style="display:inline-block;background:${statusColor}22;color:${statusColor};font-size:11px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.04em;margin-right:4px">${esc(o.status)}</span>`:'';
-    const daysToClose=o.closeDate?(()=>{const d=new Date(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
+    const daysToClose=o.closeDate?(()=>{const d=_pd(o.closeDate);if(isNaN(d))return null;const dd=Math.round((d-Date.now())/86400000);return dd;})():null;
     const closeLbl=o.closeDate?(daysToClose!==null?(daysToClose<0?`<span style="color:#dc2626">${Math.abs(daysToClose)}d overdue</span>`:`${daysToClose}d`):esc(o.closeDate)):'';
     return `<div class="cd" style="padding:9px 11px;margin-bottom:6px;cursor:pointer" onclick="atlasOpenDrawer('project','${o.id}')" title="${esc((o.team||'')+' '+(o.changeRequested||''))}">
       <div style="font-size:12px;font-weight:600;margin-bottom:2px">${esc(o.name)}</div>
@@ -14456,7 +14482,7 @@ function _atlasRailHTML(snap){
       <div><strong>${allM}</strong> people · <strong style="color:#dc2626">${_atlasMoney(totalCost)}</strong>/mo cost</div>
       <div><strong style="color:#16a34a">${_atlasMoney(revenue)}</strong>/mo realized · <strong style="color:#f59e0b">${_atlasMoney(targetRev)}</strong> pipeline</div>
     </div>
-    <div style="margin-top:10px;font-size:11px;color:var(--t3)">Last pulled ${snap.pulledAt?new Date(snap.pulledAt).toLocaleString():'—'}</div>
+    <div style="margin-top:10px;font-size:11px;color:var(--t3)">Last pulled ${snap.pulledAt?_pd(snap.pulledAt).toLocaleString():'—'}</div>
     <a href="${ATLAS_PUBLIC_URL}" target="_blank" style="display:block;text-align:center;margin-top:10px;font-size:11px;color:var(--ac);text-decoration:none">Open Atlas ↗</a>
   </div>`;
 }
@@ -14658,7 +14684,7 @@ function _atlasProposalsHTML(snap){
     const opp=p.opportunityId?(snap.projects||[]).find(x=>x.id===p.opportunityId):null;
     const c=_PROP_STATUS_COLOR[p.status]||'#64748b';
     const due=p.rfp&&p.rfp.dueDate;
-    const dueChip=due?(()=>{const dd=new Date(due);if(isNaN(dd))return '';const days=Math.round((dd-Date.now())/86400000);if(days<0)return `<span style="font-size:11px;color:#dc2626;font-weight:700">${Math.abs(days)}d overdue</span>`;if(days<14)return `<span style="font-size:11px;color:#d97706;font-weight:700">due in ${days}d</span>`;return `<span style="font-size:11px;color:var(--t3)">due in ${days}d</span>`;})():'';
+    const dueChip=due?(()=>{const dd=_pd(due);if(isNaN(dd))return '';const days=Math.round((dd-Date.now())/86400000);if(days<0)return `<span style="font-size:11px;color:#dc2626;font-weight:700">${Math.abs(days)}d overdue</span>`;if(days<14)return `<span style="font-size:11px;color:#d97706;font-weight:700">due in ${days}d</span>`;return `<span style="font-size:11px;color:var(--t3)">due in ${days}d</span>`;})():'';
     const secCount=(p.sections||[]).filter(s=>(s.html||'').trim()).length;
     const totSec=(p.sections||[]).length;
     const ppMatches=(p.pastPerformance&&p.pastPerformance.matches)?p.pastPerformance.matches.length:0;
@@ -14888,7 +14914,7 @@ function _atlasDetailsActivity(a){
     ${a.objective?`<div style="margin-top:10px;padding:8px 10px;background:rgba(197,165,90,.08);border:1px solid rgba(197,165,90,.25);border-radius:6px;font-size:12px"><b>Next Steps:</b> ${esc(a.objective)}</div>`:''}
     ${owners.length?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${owners.map(m=>`<span style="cursor:pointer;color:var(--ac);text-decoration:underline;text-underline-offset:2px" onclick="atlasOpenDrawer('member','${m.id}')">${esc(m.name)}</span>`).join(', ')}</div>`:(a.ownerText?`<div style="margin-top:10px;font-size:12px"><b>Owners:</b> ${esc(a.ownerText)}</div>`:'')}
     ${a.updates&&a.updates.length?`<div style="margin-top:14px"><div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Status Updates (${a.updates.length})</div>
-      ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:11px">${esc(u.author||'—')} · ${new Date(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
+      ${a.updates.slice().reverse().map(u=>`<div style="padding:8px 10px;background:var(--s2);border-radius:6px;margin-bottom:5px;font-size:11px"><div style="color:var(--t3);font-size:11px">${esc(u.author||'—')} · ${_pd(u.ts).toLocaleString()}</div><div style="margin-top:3px">${esc(u.text)}</div></div>`).join('')}
     </div>`:''}
     ${a.attachments&&a.attachments.length?`<div style="margin-top:10px">${a.attachments.map(at=>`<div style="font-size:12px;padding:4px 0">${at.type==='file'?'📄':'🔗'} <a href="${esc(at.url)}" target="_blank" style="color:var(--ac);text-decoration:none">${esc(at.name||at.url)}</a></div>`).join('')}</div>`:''}`;
 }
@@ -14927,7 +14953,7 @@ function _atlasFld(label,val){if(val===null||val===undefined||val==='')return ''
 /* ── Annotations ── */
 function _atlasDrawerNotesHTML(type,id,a){
   const key=_atlasAnnotKey(type,id);
-  return `<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Your private notes about this Atlas item. Stored in your LevelUp account — never synced back to Atlas. Updated ${a.updatedAt?new Date(a.updatedAt).toLocaleString():'never'}.</div>
+  return `<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Your private notes about this Atlas item. Stored in your LevelUp account — never synced back to Atlas. Updated ${a.updatedAt?_pd(a.updatedAt).toLocaleString():'never'}.</div>
     <textarea id="atlas-annot-textarea" style="width:100%;min-height:280px;padding:10px 12px;border:1.5px solid var(--brd);border-radius:7px;font-size:13px;font-family:inherit;background:var(--s1);color:var(--t1);line-height:1.55" placeholder="Add notes, observations, follow-ups...">${esc(a.notes||'')}</textarea>
     <div style="display:flex;gap:6px;margin-top:10px"><button class="btn btn-p" onclick="_atlasSaveAnnot('${type}','${id}')">💾 Save Notes</button>${a.notes?`<button class="btn btn-d" style="font-size:11px" onclick="_atlasClearAnnot('${type}','${id}')">Clear</button>`:''}</div>`;
 }
@@ -15000,7 +15026,7 @@ function _atlasSpawnJournal(type,id){
   const {name,typeLabel,refLine}=_atlasSpawnRef(type,id,e);
   const entry={
     id:nextId(D.journal||[]),
-    date:new Date().toISOString().slice(0,10),
+    date:_ymd(new Date()),
     title:'Re: '+name,
     bodyHtml:refLine+'<p></p>',
     mood:'',tags:['atlas-'+type],
@@ -15447,7 +15473,7 @@ function _finTxInsightsHtml(rows,rangeLabel){
   const byCat={}; spend.forEach(t=>{const c=_finCat(t.catId);byCat[c.name]=(byCat[c.name]||0)-t.amount;});
   const dates=spend.map(t=>String(t.date).slice(0,10)).sort(); const span=Math.max(0,(Date.parse(dates[dates.length-1])-Date.parse(dates[0]))/86400000);
   const weekly=span>45;
-  const bucket=d=>{ if(!weekly)return d; const x=new Date(d+'T00:00:00'); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x.toISOString().slice(0,10); };
+  const bucket=d=>{ if(!weekly)return d; const x=new Date(d+'T00:00:00'); x.setDate(x.getDate()-((x.getDay()+6)%7)); return _ymd(x); };
   const byB={}; spend.forEach(t=>{const k=bucket(String(t.date).slice(0,10)); byB[k]=(byB[k]||0)-t.amount;});
   let keys=Object.keys(byB).sort(); if(keys.length>31)keys=keys.slice(-31);
   const byP={}; spend.forEach(t=>{const p=String(t.payee||'(no payee)').slice(0,40); byP[p]=(byP[p]||0)-t.amount;});
@@ -15577,7 +15603,7 @@ function _finTxHtml(){
   const f=_finData(); const ym=_finMonth; const ro=_finRO();
   // Range source (build -180): month view follows the header ‹month› picker;
   // the other ranges are anchored to today and ignore it.
-  const _ymdAgo=n=>new Date(Date.now()-n*86400000).toISOString().slice(0,10);
+  const _ymdAgo=n=>_ymd(new Date(Date.now()-n*86400000));
   let rows,rangeLabel;
   if(_finTxRange==='month'){ rows=_finTxMonth(ym); rangeLabel=_finMonthLabel(ym); }
   else{
@@ -15630,7 +15656,7 @@ function finOpenTx(id){
   if(_finGuard())return;
   const f=_finData();
   const t=id?f.transactions.find(x=>String(x.id)===String(id)):null;
-  const today=new Date().toISOString().slice(0,10);
+  const today=_ymd(new Date());
   const isIncome=t?t.amount>0:false;
   _finModal(`<div style="padding:16px;max-width:440px">
     <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">${t?'✏ Edit':'＋ New'} Transaction</h2>
@@ -15662,7 +15688,7 @@ function finSaveTx(id){
   const amt=parseFloat(g('ftx-amount').value);
   if(isNaN(amt)||amt<=0){toast('Enter an amount.');return;}
   const signed=g('ftx-type').value==='income'?amt:-amt;
-  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), date:g('ftx-date').value||new Date().toISOString().slice(0,10),
+  const rec={ id:id||String(Date.now())+Math.floor(Math.random()*1000), date:g('ftx-date').value||_ymd(new Date()),
     payee:g('ftx-payee').value.trim(), catId:g('ftx-cat').value, accountId:g('ftx-acct').value||null, notes:g('ftx-notes').value.trim(), amount:signed };
   const i=f.transactions.findIndex(x=>String(x.id)===String(rec.id));
   // Merge on edit — a wholesale replace silently dropped cleared/bankTxId/
@@ -15718,7 +15744,7 @@ function finTxUnrecur(id){
    Writes D.tasks, not finance — works on shared budgets too. */
 function finTxReminder(id){
   const f=_finData(); const t=f.transactions.find(x=>String(x.id)===String(id)); if(!t)return;
-  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const tomorrow=_ymd(new Date(Date.now()+86400000));
   const title='Follow up: '+(t.payee||_finCat(t.catId).name)+' ('+_finFmt(t.amount,0)+')';
   _finModal(`<div style="padding:16px;max-width:420px">
     <h2 style="font-size:15px;font-weight:600;margin-bottom:4px">⏰ Reminder from transaction</h2>
@@ -15871,7 +15897,7 @@ function finBillViewPayments(id){
 function finBillLinkPicker(id){
   if(_finGuard())return;
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
-  const since=new Date(Date.now()-120*86400000).toISOString().slice(0,10);
+  const since=_ymd(new Date(Date.now()-120*86400000));
   const plan=Number(b.amount)||0;
   const cands=(f.transactions||[]).filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=since&&(!t.recurringBillId||String(t.recurringBillId)===String(b.id)))
     .map(t=>({t,d:plan>0?Math.abs(Math.abs(t.amount)-plan)/plan:0}))
@@ -15982,7 +16008,7 @@ function finBillMarkPaid(id){
   if(_finGuard())return;
   const f=_finData(); const b=f.bills.find(x=>String(x.id)===String(id)); if(!b)return;
   const today=new Date();
-  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:today.toISOString().slice(0,10),
+  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:_ymd(today),
     payee:b.name, catId:b.catId, accountId:b.accountId||null, notes:'Bill payment', amount:-Math.abs(Number(b.amount)||0) });
   b.lastPaidYM=_finYM(today);
   _finSave(); renderMoney();
@@ -16148,7 +16174,7 @@ function finExport(){
   const blob=new Blob([data],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download='levelup-money-'+new Date().toISOString().slice(0,10)+'.json';
+  a.download='levelup-money-'+_ymd(new Date())+'.json';
   document.body.appendChild(a); a.click(); a.remove();
   toast('📤 Budget exported as JSON.');
 }
@@ -16289,7 +16315,7 @@ function finStreamLog(id){
     <h2 style="font-size:15px;font-weight:600;margin-bottom:12px">＋ Log payment — ${esc(st.name)}</h2>
     <div class="field-row">
       <div class="field"><label>Amount</label><input class="inp" id="fsl-amt" type="number" min="0" step="0.01" value="${remaining||''}"></div>
-      <div class="field"><label>Date</label><input class="inp" id="fsl-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Date</label><input class="inp" id="fsl-date" type="date" value="${_ymd(new Date())}"></div>
     </div>
     <div class="dr-actions" style="margin-top:10px">
       <button class="btn btn-p" onclick="finStreamLogSave('${esc(String(st.id))}')">Log it</button>
@@ -16301,7 +16327,7 @@ function finStreamLogSave(id){
   const f=_finData(); const st=f.incomeStreams.find(x=>String(x.id)===String(id)); if(!st)return;
   const amt=parseFloat(document.getElementById('fsl-amt').value)||0;
   if(amt<=0){toast('Enter an amount.');return;}
-  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:document.getElementById('fsl-date').value||new Date().toISOString().slice(0,10),
+  f.transactions.push({ id:String(Date.now())+Math.floor(Math.random()*1000), date:document.getElementById('fsl-date').value||_ymd(new Date()),
     payee:st.name, catId:st.catId||'inc-salary', accountId:null, notes:'Income payment', amount:amt, streamId:st.id });
   _finSave(); _finCloseModal(); renderMoney();
   toast({type:'success',title:'＋ '+_finFmt(amt,0)+' received',msg:st.name,duration:1800});
@@ -16618,10 +16644,10 @@ const FIN_REPORTS=[
  {id:'debt-overview',icon:'💳',name:'Debt overview',desc:'Every card and loan: balance, payment, payoff estimate.',run(){const ds=_finDebtPayoff();return ds.length?_finRepTable(['Debt','Balance','Payment/mo','Payoff'],ds.map(d=>[esc(d.name)+(d.apr?` (${d.apr}%)`:''),`<span style="color:var(--red)">${_finFmt(d.balance,0)}</span>`,d.pay?_finFmt(d.pay,0):'—',d.months!=null?`${d.months} mo (${d.payoff})`:'no payment mapped']))+`<p style="font-size:12px;margin-top:8px">Total debt <b style="color:var(--red)">${_finFmt(_finDebt(),0)}</b> · total payments ${_finFmt(ds.reduce((s,d)=>s+d.pay,0),0)}/mo</p>`:'<p style="font-size:12px;color:var(--t3)">No debts 🎉</p>';}},
  {id:'debt-payoff-plan',icon:'🏁',name:'Debt payoff order',desc:'Snowball order (smallest balance first) with cumulative freed-up cash.',run(){const ds=_finDebtPayoff().slice().sort((a,b)=>a.balance-b.balance);let freed=0;return _finRepTable(['Order','Debt','Balance','Payment','Cash freed after payoff'],ds.map((d,i)=>{freed+=d.pay;return [String(i+1),esc(d.name),_finFmt(d.balance,0),d.pay?_finFmt(d.pay,0):'—',_finFmt(freed,0)+'/mo'];}))+'<p style="font-size:11px;color:var(--t3);margin-top:6px">Snowball: clear the smallest balance first, then roll its payment into the next debt.</p>';}},
  {id:'upcoming-bills',icon:'📅',name:'Upcoming bills (30 days)',desc:'What\'s due in the next month, in order, with the total.',run(){const f=_finData();const now=new Date();const horizon=new Date(now.getTime()+30*86400000);const list=f.bills.filter(b=>b.active!==false).map(b=>({b,due:_finBillNextDue(b)})).filter(x=>x.due<=horizon).sort((a,b)=>a.due-b.due);return list.length?_finRepTable(['Due','Bill','Category','Amount'],list.map(x=>[x.due.toLocaleDateString('en-US',{month:'short',day:'numeric'}),esc(x.b.name)+(x.b.autopay?' ⚡':''),esc(_finCat(x.b.catId).name),_finFmt(x.b.amount,0)]))+`<p style="font-size:12px;margin-top:8px">Total due in 30 days: <b>${_finFmt(list.reduce((s,x)=>s+(x.b.amount||0),0),0)}</b></p>`:'<p style="font-size:12px;color:var(--t3)">Nothing due in the next 30 days.</p>';}},
- {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);const rows=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
+ {id:'largest-expenses',icon:'🔍',name:'Largest expenses (90 days)',desc:'The 15 biggest single transactions of the last quarter.',run(){const f=_finData();const cut=_ymd(new Date(Date.now()-90*86400000));const rows=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date||'')>=cut).sort((a,b)=>a.amount-b.amount).slice(0,15).map(t=>[esc(String(t.date||'')),esc(t.payee||_finCat(t.catId).name),esc(_finCat(t.catId).name),`<b>${_finFmt(t.amount)}</b>`]);return rows.length?_finRepTable(['Date','Payee','Category','Amount'],rows):'<p style="font-size:12px;color:var(--t3)">No expense transactions in the last 90 days.</p>';}},
  {id:'net-worth',icon:'🏦',name:'Net worth statement',desc:'Assets and debts, line by line, with the bottom line.',run(){const f=_finData();const assets=f.accounts.filter(a=>!['credit','loan'].includes(a.type));const debts=f.accounts.filter(a=>['credit','loan'].includes(a.type));return _finRepTable(['Assets','Balance'],assets.map(a=>[esc(a.name),_finFmt(a.balance||0,0)]))+_finRepTable(['Debts','Owed'],debts.map(a=>[esc(a.name),`<span style="color:var(--red)">${_finFmt(a.balance||0,0)}</span>`]))+`<p style="font-size:13px;margin-top:8px">Net worth: <b style="color:${_finNetWorth()>=0?'var(--ok)':'var(--red)'}">${_finFmt(_finNetWorth(),0)}</b></p>`;}},
  {id:'ytd-summary',icon:'🗓',name:'Year-to-date summary',desc:'Everything received and spent this calendar year.',run(){const f=_finData();const y=_finMonth.slice(0,4);const tx=f.transactions.filter(t=>String(t.date||'').slice(0,4)===y&&!_finIsXfer(t));const inc=tx.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);const sp=-tx.filter(t=>t.amount<0).reduce((s,t)=>s+t.amount,0);const by={};tx.forEach(t=>{if(t.amount<0)by[t.catId]=(by[t.catId]||0)-t.amount;});const rows=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,10).map(x=>[esc(_finCat(x[0]).name),_finFmt(x[1],0)]);return `<p style="font-size:12.5px">${y}: received <b class="fin-amount-pos">${_finFmt(inc,0)}</b> · spent <b>${_finFmt(sp,0)}</b> · net <b style="color:${inc-sp>=0?'var(--ok)':'var(--red)'}">${_finFmt(inc-sp,0)}</b> · ${tx.length} transactions</p>`+(rows.length?_finRepTable(['Top categories','Spent'],rows):'');}},
- {id:'savings-goals',icon:'🎯',name:'Savings goals check',desc:'Progress on each goal and the monthly amount needed to hit its date.',run(){const f=_finData();const rows=f.goals.map(g=>{const left=Math.max(0,(g.target||0)-(g.saved||0));let need='—';if(g.due){const months=Math.max(1,Math.ceil((new Date(g.due)-new Date())/(30.4*86400000)));need=_finFmt(left/months,0)+'/mo';}return [esc(g.name),_finFmt(g.saved||0,0),_finFmt(g.target||0,0),_finFmt(left,0),need];});return rows.length?_finRepTable(['Goal','Saved','Target','Remaining','Needed'],rows):'<p style="font-size:12px;color:var(--t3)">No goals yet — add them in the Goals tab.</p>';}},
+ {id:'savings-goals',icon:'🎯',name:'Savings goals check',desc:'Progress on each goal and the monthly amount needed to hit its date.',run(){const f=_finData();const rows=f.goals.map(g=>{const left=Math.max(0,(g.target||0)-(g.saved||0));let need='—';if(g.due){const months=Math.max(1,Math.ceil((_pd(g.due)-new Date())/(30.4*86400000)));need=_finFmt(left/months,0)+'/mo';}return [esc(g.name),_finFmt(g.saved||0,0),_finFmt(g.target||0,0),_finFmt(left,0),need];});return rows.length?_finRepTable(['Goal','Saved','Target','Remaining','Needed'],rows):'<p style="font-size:12px;color:var(--t3)">No goals yet — add them in the Goals tab.</p>';}},
  {id:'bills-vs-budget',icon:'🧮',name:'Fixed vs flexible spending',desc:'How much of the budget is locked in bills vs discretionary.',run(){const ym=_finMonth;const f=_finData();const fixed=f.bills.filter(b=>b.active!==false).reduce((s,b)=>s+(b.amount||0),0);const tot=_finBudgetTotal(ym);const flex=Math.max(0,tot-fixed);return `<p style="font-size:12.5px">Planned spend ${_finFmt(tot,0)} · <b>fixed bills ${_finFmt(fixed,0)}</b> (${tot?Math.round(fixed/tot*100):0}%) · <b>flexible ${_finFmt(flex,0)}</b></p><div class="fin-bar" style="max-width:420px;height:12px"><div style="width:${tot?Math.min(100,Math.round(fixed/tot*100)):0}%;background:var(--warn)"></div></div><p style="font-size:11px;color:var(--t3);margin-top:8px">A high fixed share means less room to adjust in a tight month — debt payments are usually the biggest lever.</p>`;}},
 ];
 let _finRepOpen=null;
@@ -16979,11 +17005,11 @@ async function sfSync(sfId){
   const acct=f.accounts.find(x=>String(x.id)===String(map[sfId]));
   if(!acct){toast('Add the account to Money first.');return;}
   toast({type:'info',title:'Syncing '+acct.name+'…',duration:2500});
-  const end=new Date().toISOString().slice(0,10);
+  const end=_ymd(new Date());
   // Re-pull a 7-day overlap before the last sync — dedupe-by-id makes the
   // overlap free, and it catches transactions that posted late.
   const last=acct.bankLastSync&&Date.parse(String(acct.bankLastSync).slice(0,10));
-  const start=last?new Date(last-7*86400000).toISOString().slice(0,10):new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const start=last?_ymd(new Date(last-7*86400000)):_ymd(new Date(Date.now()-90*86400000));
   try{
     const res=await _trpc('simplefin.pullTransactions',{accountId:String(sfId),startDate:start,endDate:end},'mutation');
     if(!res||!res.ok){toast({type:'error',title:'Sync failed',msg:(res&&res.error)||''});return;}
@@ -17153,12 +17179,12 @@ function finDetectRecurring(){
     const amts=txs.map(t=>Math.abs(t.amount)).sort((a,b)=>a-b);
     const med=amts[Math.floor(amts.length/2)];
     if(!amts.every(a=>Math.abs(a-med)<=Math.max(2,med*0.15)))return;
-    const dates=txs.map(t=>new Date(t.date)).sort((a,b)=>a-b);
+    const dates=txs.map(t=>_pd(t.date)).sort((a,b)=>a-b);
     const gaps=[];for(let i=1;i<dates.length;i++)gaps.push((dates[i]-dates[i-1])/86400000);
     const medGap=gaps.sort((a,b)=>a-b)[Math.floor(gaps.length/2)];
     if(medGap<24||medGap>38)return; // ~monthly only
     if(existing.has(key))return;
-    cands.push({name:txs[0].payee,amount:Math.round(med*100)/100,dueDay:Math.min(28,new Date(txs[txs.length-1].date).getDate()),catId:txs[0].catId,n:txs.length});
+    cands.push({name:txs[0].payee,amount:Math.round(med*100)/100,dueDay:Math.min(28,_pd(txs[txs.length-1].date).getDate()),catId:txs[0].catId,n:txs.length});
   });
   if(!cands.length){toast('No new recurring charges found (needs ≥3 similar monthly charges).');return;}
   _finModal(`<div style="padding:16px;max-width:480px">
@@ -17353,7 +17379,7 @@ function _finAgents(){ return [
 ];}
 function _finFindings(){ const f=_finData(); if(!Array.isArray(f.agentFindings))f.agentFindings=[]; return f.agentFindings; }
 function _finAgentPush(list,agent,severity,title,body,fingerprint){
-  list.push({agent,severity,title,body,fingerprint,at:new Date().toISOString().slice(0,10)});
+  list.push({agent,severity,title,body,fingerprint,at:_ymd(new Date())});
 }
 function _finAgentCommit(fresh){
   const f=_finData(); const old=_finFindings();
@@ -17365,7 +17391,7 @@ function _finAgentCommit(fresh){
   _finSave();
 }
 function _finTxForBill(b,days){
-  const cut=new Date(Date.now()-(days||95)*86400000).toISOString().slice(0,10);
+  const cut=_ymd(new Date(Date.now()-(days||95)*86400000));
   const key=String(b.name||'').toLowerCase().slice(0,14);
   return _finData().transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut&&(String(t.payee||'').toLowerCase().includes(key)||(t.catId===b.catId&&Math.abs(Math.abs(t.amount)-b.amount)<Math.max(5,b.amount*0.3)))).sort((a,b2)=>String(a.date).localeCompare(String(b2.date)));
 }
@@ -17411,12 +17437,12 @@ function _finAgentBudgetRun(out){
   const subTotal=subs.reduce((s,b)=>s+(b.amount||0),0);
   if(subTotal>0)_finAgentPush(out,'budget','info','Subscription check',subs.length+' subscription'+(subs.length===1?'':'s')+' cost '+_finFmt(subTotal,0)+'/mo — that is '+_finFmt(subTotal*12,0)+'/year. Run 🔍 Recurring on Transactions to catch ones not tracked as bills.','budget-subs-'+Math.round(subTotal));
   // duplicate charges (same payee+amount within 2 days, last 45d)
-  const cut=new Date(Date.now()-45*86400000).toISOString().slice(0,10);
+  const cut=_ymd(new Date(Date.now()-45*86400000));
   const recent=f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut&&t.payee);
   for(let i=0;i<recent.length;i++)for(let j=i+1;j<recent.length;j++){
     const a=recent[i],b2=recent[j];
     if(a.payee===b2.payee&&Math.abs(a.amount-b2.amount)<0.01&&a.id!==b2.id&&!a.splitOf&&!b2.splitOf){
-      const d=Math.abs(new Date(a.date)-new Date(b2.date))/86400000;
+      const d=Math.abs(_pd(a.date)-_pd(b2.date))/86400000;
       if(d>0&&d<=2)_finAgentPush(out,'budget','warn','Possible duplicate charge',a.payee+' — '+_finFmt(a.amount)+' on '+a.date+' and again on '+b2.date+'. Real, or double-billed?','budget-dup-'+a.payee.slice(0,20)+'-'+Math.round(Math.abs(a.amount)));
     }
   }
@@ -17458,7 +17484,7 @@ function _finAgentInvestRun(out){
 function _finAgentHealthRun(out){
   const f=_finData();
   // unusual transactions: z-score within category, last 90d, >= 5 samples
-  const cut=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const cut=_ymd(new Date(Date.now()-90*86400000));
   const byCat={};
   f.transactions.filter(t=>t.amount<0&&!_finIsXfer(t)&&String(t.date)>=cut).forEach(t=>{(byCat[t.catId]=byCat[t.catId]||[]).push(t);});
   Object.values(byCat).forEach(txs=>{
@@ -17534,7 +17560,7 @@ function _finAgentsAutoRun(){
     if(!D.finance||typeof D.finance!=='object')return;
     if(_finShared!=null)return;
     const f=ensureFin();
-    const last=f.settings.agentLastRun?new Date(f.settings.agentLastRun).getTime():0;
+    const last=f.settings.agentLastRun?_pd(f.settings.agentLastRun).getTime():0;
     if(Date.now()-last<20*3600*1000)return; // ~daily
     _finAgentsRunAll();
   }catch(_){}
@@ -17543,7 +17569,7 @@ function _finAgentsAutoRun(){
 function _finAgentsHtml(){
   const f=_finData(); const ro=_finRO();
   const findings=_finFindings().filter(x=>!x.dismissed);
-  const last=f.settings.agentLastRun?new Date(f.settings.agentLastRun).toLocaleString():null;
+  const last=f.settings.agentLastRun?_pd(f.settings.agentLastRun).toLocaleString():null;
   const est=_finCreditEstimate();
   const byAgent=id=>findings.filter(x=>x.agent===id);
   const sevChip=s=>s==='warn'?'<span class="fin-chip" style="color:var(--warn)">⚠</span>':'<span class="fin-chip" style="color:var(--ac)">ℹ</span>';

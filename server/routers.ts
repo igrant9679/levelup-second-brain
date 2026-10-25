@@ -27,6 +27,7 @@ import { externalSourcesRouter } from "./routers/externalSources";
 import { timeEntriesRouter } from "./routers/timeEntries";
 import { taskMigrationsRouter } from "./routers/taskMigrations";
 import { dailyDigestRouter } from "./routers/dailyDigest";
+import { reportsScheduleRouter } from "./routers/reportsSchedule";
 import { weeklyReviewRouter } from "./routers/weeklyReview";
 import { customFieldsRouter } from "./routers/customFields";
 import { automationsRouter } from "./routers/automations";
@@ -103,6 +104,7 @@ export const appRouter = router({
   timeEntries: timeEntriesRouter,
   taskMigrations: taskMigrationsRouter,
   dailyDigest: dailyDigestRouter,
+  reportsSchedule: reportsScheduleRouter,
   coach: coachRouter,
   pm: pmRouter,
   demoAdmin: demoAdminRouter,
