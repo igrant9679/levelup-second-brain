@@ -770,6 +770,13 @@ function _calHM(v,fallbackHour){
   const fh=Math.max(0,Math.min(23,Math.floor(Number(fallbackHour)||0)));
   return String(fh).padStart(2,'0')+':00';
 }
+// Is an external (Nifty / Smartsheet) status "done"? ONE answer for every
+// view: List and Cards accepted completed / cancelled / resolved / shipped
+// while Gantt, Calendar, Clusters, Programs and project cards accepted only
+// done / complete / closed, so the same task was open in one view and done in
+// the next. A status that STARTS with one of these words counts ("Done - QA").
+const _EXT_DONE_RE=/^(done|complete|completed|closed|cancell?ed|resolved|shipped)\b/;
+function _isExtDone(status){ return _EXT_DONE_RE.test(String(status||'').trim().toLowerCase()); }
 function _ymd(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 // Platform detection for keyboard-shortcut hints — Mac/iOS show ⌘, everything else Ctrl.
 const _isMac=/Mac|iPhone|iPod|iPad/i.test((navigator.platform||'')+' '+(navigator.userAgent||''));
@@ -789,6 +796,90 @@ function _luRefreshToday(){
   return true;
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)_luRefreshToday();});
+// ── Keyboard access for click-only controls (Phase 5, build -230) ──────────
+// Much of the app is rendered as div/span with an inline onclick — task
+// checkboxes, status and priority pills, cards, rows, cluster headers, Money
+// rows — which a keyboard could not reach. Rather than rewrite ~1,000
+// templates, every such element gets tabindex=0 as it is rendered, and
+// Enter/Space activate it. role="button" is added only when it has no
+// interactive children (a row holding buttons must not become a button).
+// Skipped: native controls, contenteditable, a handler that only stops
+// propagation, and click-outside backgrounds (event.target===this).
+// `pnpm check:a11y` fails if a visible click-only element is left unreachable.
+const _LU_NATIVE=/^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY|OPTION|LABEL|DETAILS|IFRAME|VIDEO|AUDIO)$/;
+const _luTxt=el=>String(el&&el.textContent||'').replace(/\s+/g,' ').trim();
+function _luKbdFix(el){
+  if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.hasAttribute('tabindex')||el.isContentEditable)return;
+  const oc=el.getAttribute('onclick');
+  if(!oc||/^\s*(event\.stopPropagation\(\);?\s*)?$/.test(oc)||/event\.target\s*===?\s*this/.test(oc))return;
+  el.setAttribute('tabindex','0');
+  // Task / habit completion boxes are checkboxes, with their state and the
+  // item they complete.
+  if(el.matches('.chk,.tlc-chk')&&!el.hasAttribute('role')){
+    el.setAttribute('role','checkbox');
+    el.setAttribute('aria-checked',el.classList.contains('on')||el.classList.contains('done')||el.classList.contains('checked')?'true':'false');
+    const row=el.closest('[data-task-id],.lr,.tlc,.cl-task-row');
+    const t=row?_luTxt(row.querySelector('.rt,.tlc-t,.tlc-title,.tt')||row).slice(0,60):'';
+    if(t&&!el.getAttribute('aria-label'))el.setAttribute('aria-label','Complete '+t);
+    return;
+  }
+  if(!el.hasAttribute('role')&&!el.querySelector('a,button,input,select,textarea,[onclick],[contenteditable="true"]'))el.setAttribute('role','button');
+}
+// Accessible names for form controls rendered without one. A screen reader
+// announced most selects and checkboxes as just "combo box" / "checkbox":
+// the forms put a visible <label> next to the control without connecting
+// it. In order: connect the field's own <label>; a row checkbox becomes
+// "Select ‹row›"; otherwise the control's title, a short text label just
+// before it, or (selects) the first option. Anything named in the markup
+// (aria-label, <label for>, wrapping label) is left alone.
+function _luHasName(c){
+  if(c.getAttribute('aria-label')||c.getAttribute('aria-labelledby')||c.getAttribute('title'))return true;
+  if(c.labels&&c.labels.length)return true;
+  if(c.tagName!=='SELECT'&&c.getAttribute('placeholder'))return true;
+  if(c.tagName==='INPUT'&&/^(button|submit|reset|hidden|image)$/i.test(c.type))return true;
+  return false;
+}
+function _luNameFix(c){
+  if(!c||_luHasName(c))return;
+  // 1) the field's own visible <label> (label + control in one container)
+  const box=c.closest('.field,.fa-field,.form-row,.fin-field,label');
+  const lab=box&&box.tagName!=='LABEL'?box.querySelector('label:not([for])'):null;
+  if(lab&&!lab.querySelector('input,select,textarea')){
+    // the label's own words, not the text of buttons inside it ("⚙ Advanced")
+    const t=[...lab.childNodes].filter(n=>n.nodeType===3||(n.nodeType===1&&!n.matches('button,.btn,a'))).map(n=>n.textContent).join(' ').replace(/\s+/g,' ').trim()||_luTxt(lab);
+    if(t){if(c.id)lab.htmlFor=c.id;else c.setAttribute('aria-label',t.slice(0,80));if(_luHasName(c))return;c.setAttribute('aria-label',t.slice(0,80));return;}
+  }
+  // 2) a selection checkbox in a row
+  if(c.type==='checkbox'){
+    const row=c.closest('[data-task-id],tr,.lr,.tlc,.cl-task-row,.fin-row');
+    if(row){const t=_luTxt(row).slice(0,60);c.setAttribute('aria-label','Select '+(t||'row'));return;}
+  }
+  // 3) a short text label just before it
+  const prev=c.previousElementSibling;
+  const pt=prev&&!prev.matches('input,select,textarea,button')?_luTxt(prev):'';
+  if(pt&&pt.length<=40){c.setAttribute('aria-label',pt.replace(/[:：]\s*$/,''));return;}
+  // 4) a select's first option ("All members", "Link a project…")
+  if(c.tagName==='SELECT'&&c.options.length){const t=_luTxt(c.options[0]);if(t){c.setAttribute('aria-label',t.slice(0,80));return;}}
+  if(c.id)c.setAttribute('aria-label',c.id.replace(/^[a-z]+-/,'').replace(/[-_]+/g,' '));
+}
+function _luKbdScan(root){
+  if(!root||root.nodeType!==1)return;
+  if(root.hasAttribute('onclick'))_luKbdFix(root);
+  root.querySelectorAll('[onclick]').forEach(_luKbdFix);
+  if(root.matches('input,select,textarea'))_luNameFix(root);
+  root.querySelectorAll('input,select,textarea').forEach(_luNameFix);
+}
+new MutationObserver(ms=>{for(const m of ms){if(m.type==='attributes')_luKbdFix(m.target);else m.addedNodes.forEach(_luKbdScan);}})
+  .observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:['onclick']});
+if(document.body)_luKbdScan(document.body);else document.addEventListener('DOMContentLoaded',()=>_luKbdScan(document.body));
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const el=e.target;
+  if(!el||el.nodeType!==1||_LU_NATIVE.test(el.tagName)||el.isContentEditable||!el.hasAttribute('onclick')||el.getAttribute('tabindex')!=='0')return;
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  e.preventDefault();
+  el.click();
+});
 window.addEventListener('focus',()=>_luRefreshToday());
 setInterval(_luRefreshToday,60000);
 var D = {
@@ -3671,7 +3762,7 @@ async function _refreshDailyFocusAI(opts){
     const todayKey=today;
     const open=all.filter(t=>{
       const s=(t.status||'').toLowerCase();
-      if(s==='done'||s==='complete'||s==='closed')return false;
+      if(_isExtDone(s))return false;
       return true;
     });
     // Prioritise the candidate pool: overdue → today → my-day → next 14 days → rest. Cap 60.
@@ -4953,8 +5044,9 @@ function saveItem(type,id){
     t.title=$('#dr-title').value;
     t.titleColor=$('#dr-title-color')?.value||'';
     t.priority=$('#dr-pri').value;
-    t.status=$('#dr-status').value;
-    _syncTaskCompletedAt(t);
+    // Status is applied after the other fields (below), so a repeating
+    // task completed from the drawer spawns with its updated rule.
+    const _drNewStatus=$('#dr-status').value;
     t.startDate=$('#dr-startdate').value;
     t.endDate=$('#dr-due').value;
     t.due=$('#dr-due').value;
@@ -5010,6 +5102,7 @@ function saveItem(type,id){
       t.linkedBookmarkIds=[..._drLinks.bookmarks];
       t.linkedJournalIds=[..._drLinks.journal];
     }
+    setTaskStatus(t,_drNewStatus,{noSave:true});
     save('tasks');
   }}
   if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.title=$('#dr-title').value;n.icon=document.getElementById('dr-note-icon')?.value||'';n.titleColor=document.getElementById('dr-note-title-color')?.value||'';n.tags=$('#dr-tags').value.split(',').map(s=>s.trim()).filter(Boolean);n.source=$('#dr-source').value;n.body=$('#dr-body').value;const drNoteRte=document.getElementById('dr-note-rte');if(drNoteRte)n.bodyHtml=drNoteRte.innerHTML;
@@ -5480,7 +5573,7 @@ function bulkAction(action){
     openPushToNiftyModal(null);
     return;
   } else if(action==='someday'){
-    ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t)t.status='Someday';});
+    ids.forEach(id=>{const t=D.tasks.find(x=>x.id===id);if(t)setTaskStatus(t,'Someday',{noSave:true});});
     save('tasks');toast(`💤 ${ids.length} task(s) moved to Someday`);
   }
   _bulkSelected.clear();
@@ -6244,8 +6337,7 @@ function _taskPillPicker(e,id,field){
   pop.querySelectorAll('button').forEach(b=>{
     b.onclick=ev=>{
       ev.stopPropagation();
-      t[field]=b.dataset.v;
-      if(field==='status'&&b.dataset.v==='Done'&&typeof maybeSpawnRecurring==='function')maybeSpawnRecurring(t);
+      if(field==='status')setTaskStatus(t,b.dataset.v,{noSave:true});else t[field]=b.dataset.v;
       save('tasks');pop.remove();
       if(typeof renderCurrentTaskView==='function')renderCurrentTaskView();
       toast(`${field==='priority'?'⚡':'🏷'} ${field} set to ${b.dataset.v}`);
@@ -7052,15 +7144,39 @@ function _syncTaskCompletedAt(t){
   if(t.status==='Done'){if(!t.completedAt)t.completedAt=new Date().toISOString();}
   else t.completedAt='';
 }
+// The ONE way a task's status changes (Phase 5, build -230). Whatever control
+// did it — checkbox, drawer, status pill, Board "Start", GTD, bulk, the
+// opportunity/project drawers — the same bookkeeping follows: completedAt is
+// stamped or cleared, a repeating task spawns its next copy, linked goals
+// recalculate, and completions are logged. Each path used to skip some of
+// this (no completedAt → missing from Done today / Shipped / velocity).
+// Returns true when the status changed. opts.noSave lets a caller that saves
+// other fields too save once.
+function setTaskStatus(t,status,opts){
+  if(!t||!status||t.status===status)return false;
+  const wasDone=t.status==='Done',nowDone=status==='Done';
+  t.status=status;
+  t.updatedAt=new Date().toISOString();
+  _syncTaskCompletedAt(t);
+  if(nowDone&&!wasDone){
+    try{_trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});}catch(_){}
+    if(t.recurring&&t.recurring!=='None'&&typeof maybeSpawnRecurring==='function')maybeSpawnRecurring(t);
+  }
+  if(nowDone!==wasDone){
+    const gids=new Set();
+    (D.goals||[]).forEach(g=>{if((g.linkedTaskIds||[]).some(x=>String(x)===String(t.id)))gids.add(g.id);});
+    if(t.linkedGoalId)gids.add(t.linkedGoalId);
+    gids.forEach(gid=>{const g=(D.goals||[]).find(x=>String(x.id)===String(gid));if(g&&typeof autoCalcGoalPctBidirectional==='function')autoCalcGoalPctBidirectional(g);});
+  }
+  if(!(opts&&opts.noSave))save('tasks');
+  return true;
+}
 function toggleTask(id){
   const t=D.tasks.find(x=>x.id===id);
   if(!t)return;
   const wasDone=t.status==='Done';
-  t.status=wasDone?'Not Started':'Done';
-  _syncTaskCompletedAt(t);
-  save('tasks');
+  setTaskStatus(t,wasDone?'Not Started':'Done');
   if(!wasDone){
-    _trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(()=>{});
     // Strikethrough sweep on the row, confetti on High-priority completions.
     try{
       const row=document.querySelector(`[data-task-id="${id}"]`);
@@ -7070,17 +7186,6 @@ function toggleTask(id){
       _trackCompletionStreak();
     }catch(_){}
   }
-  if(!wasDone&&t.recurring&&t.recurring!=='None')maybeSpawnRecurring(t);
-  // Auto-recalc linked goal progress (both directions: goal.linkedTaskIds and task.linkedGoalId)
-  const affectedGoalIds=new Set();
-  D.goals.forEach(g=>{
-    if((g.linkedTaskIds||[]).includes(t.id))affectedGoalIds.add(g.id);
-  });
-  if(t.linkedGoalId)affectedGoalIds.add(t.linkedGoalId);
-  affectedGoalIds.forEach(gid=>{
-    const g=D.goals.find(x=>x.id===gid);
-    if(g)autoCalcGoalPctBidirectional(g);
-  });
   renderScreen(curScreen);
 }
 function autoCalcGoalPctBidirectional(g){
@@ -9521,7 +9626,7 @@ function renderTaskList(){
   // Skipped under "My Items" scope (external rows don't carry createdBy).
   if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
     const today=_todayStr;
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     // Pull ALL external rows including done ones — done rows flow into the
     // Done tab + Reports just like native completions. Status normalised to
     // 'Done' for done synonyms so the existing _taskFilter('Done') matches.
@@ -10032,7 +10137,7 @@ function renderTaskFocus(){
       </div>
       <div class="tf-acts" onclick="event.stopPropagation()">
         <button title="Focus timer on this" onclick="if(typeof pomoSelectTask==='function')pomoSelectTask(${_tidLit(t.id)});toast('🎯 Focusing: '+esc(D.tasks.find(x=>x.id==${_tidLit(t.id)})?.title||''))">⏱</button>
-        ${t.status!=='In Progress'?`<button title="Start" onclick="const x=D.tasks.find(z=>z.id==${_tidLit(t.id)});if(x){x.status='In Progress';save('tasks');renderCurrentTaskView();}">▶</button>`:`<span class="tf-ip">● In progress</span>`}
+        ${t.status!=='In Progress'?`<button title="Start" onclick="const x=D.tasks.find(z=>z.id==${_tidLit(t.id)});if(x){setTaskStatus(x,'In Progress');renderCurrentTaskView();}">▶</button>`:`<span class="tf-ip">● In progress</span>`}
       </div>
     </div>`;
   }
@@ -10073,7 +10178,7 @@ function renderTaskCards(){
   // 2. External tasks — skipped under My Items (no createdBy on ext rows).
   let extCards=[];
   if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     extCards=D.externalTasks
       .filter(t=>!(t.override&&t.override.tombstoned)&&_sourceOn(t.source))
       .map(et=>{
@@ -10255,7 +10360,7 @@ function renderTaskBoard(){
         </div>
         <div style="display:flex;gap:4px;margin-top:5px">
           <button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();toggleTask(${_tidLit(t.id)})">${t.status==='Done'?'↩ Undo':'✓ Done'}</button>
-          ${col.status!=='In Progress'?`<button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status='In Progress';save('tasks');renderTaskBoard()">▶ Start</button>`:''}
+          ${col.status!=='In Progress'?`<button class="btn btn-s" style="height:18px;font-size:9px;padding:0 4px" onclick="event.stopPropagation();setTaskStatus(D.tasks.find(x=>x.id==${_tidLit(t.id)}),'In Progress');renderTaskBoard()">▶ Start</button>`:''}
         </div>
       </div>`;
     }).join('');
@@ -10328,7 +10433,7 @@ function renderTaskMatrix(){
   // them separately by their override.localPriority if set, otherwise drop
   // them into q2 ("Plan") — outline-style work usually isn't quick.
   const extTasks=(!_taskMyOnly&&Array.isArray(D.externalTasks))
-    ?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&!/(^|\s)(done|complete|closed|cancell?ed)/i.test(t.status||'')&&_sourceOn(t.source)):[];
+    ?D.externalTasks.filter(t=>!(t.override&&t.override.tombstoned)&&!_isExtDone(t.status)&&_sourceOn(t.source)):[];
   extTasks.forEach(et=>{
     const ov=et.override||{};
     const pri=ov.localPriority||et.priority||'Medium';
@@ -10457,7 +10562,7 @@ function renderTaskGantt(){
   // due/startDate). Skipped under "My Items" scope. Externals are click-to-
   // open-source rather than open-drawer; rendered with dashed bar treatment.
   if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
-    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     D.externalTasks.forEach(et=>{
       if(et.override&&et.override.tombstoned)return;
       if(isDone(et))return;
@@ -10507,7 +10612,7 @@ function renderTaskGantt(){
     headerCells+=`<div style="width:${dayPx}px;min-width:${dayPx}px;text-align:center;font-size:11px;color:${isToday?'var(--ac)':'var(--t3)'};font-weight:${isToday?'700':'400'};border-left:1px solid ${isMonStart?'var(--bd2)':'transparent'};padding:2px 0;flex-shrink:0">${isMonStart?d.toLocaleString('default',{month:'short'})+' ':''} ${dayNum}</div>`;
   }
   // Build task rows
-  const priorityColors={High:'var(--err)',Medium:'var(--ac)',Low:'var(--ok)'};
+  const priorityColors={High:'var(--red)',Medium:'var(--ac)',Low:'var(--ok)'};
   const rows=tasks.map(t=>{
     const start=t.startDate?_pd(t.startDate):_pd(t.due);
     const end=t.due?_pd(t.due):start;
@@ -10517,16 +10622,16 @@ function renderTaskGantt(){
     const barLeft=startOffset*dayPx;
     const barWidth=Math.min(duration*dayPx, totalW-barLeft);
     const overdue=end<today&&t.status!=='Done';
-    const barColor=overdue?'var(--err)':priorityColors[t.priority]||'var(--ac)';
+    const barColor=overdue?'var(--red)':priorityColors[t.priority]||'var(--ac)';
     const isBlocked=(t.predecessorIds||[]).length>0&&(t.predecessorIds||[]).some(pid=>{const p=D.tasks.find(x=>x.id===pid);return p&&p.status!=='Done';});
     // Today marker offset
     const todayOffset=Math.round((today-minDate)/(1000*60*60*24));
     const isExt=t._source&&t._source!=='local';
-    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t.externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
+    const titleClickHandler=isExt?(t._url&&/^https?:\/\//i.test(t._url)?`window.open('${esc(t._url)}','_blank','noopener')`:`_openExternalAnnotateModal('${esc(t._source)}','${esc(t._externalId)}')`):`openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))`;
     const barStyle=isExt?`background:transparent;border:2px dashed ${barColor};color:${barColor}`:`background:${barColor};color:#fff`;
     return `<div style="display:flex;align-items:center;border-bottom:1px solid var(--bd1);min-height:32px">
       <div style="width:200px;min-width:200px;padding:0 8px;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:pointer" onclick="${titleClickHandler}" title="${esc(t.title)}${isExt?' (opens in source)':''}">
-        ${isBlocked?'<span style="color:var(--err);margin-right:3px">🔒</span>':''}
+        ${isBlocked?'<span style="color:var(--red);margin-right:3px">🔒</span>':''}
         ${isExt?_extSourceBadge(t._source):''}
         <span style="font-weight:500;${t.titleColor?`color:${t.titleColor};font-weight:700`:''}">${esc(t.title)}</span>
       </div>
@@ -10561,7 +10666,7 @@ function renderTaskGantt(){
     </div>
   </div>
   <div style="margin-top:10px;display:flex;gap:12px;font-size:11px;color:var(--t3);align-items:center;flex-wrap:wrap">
-    <span><span style="display:inline-block;width:10px;height:10px;background:var(--err);border-radius:2px;margin-right:3px"></span>Overdue / High</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--red);border-radius:2px;margin-right:3px"></span>Overdue / High</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ac);border-radius:2px;margin-right:3px"></span>Medium</span>
     <span><span style="display:inline-block;width:10px;height:10px;background:var(--ok);border-radius:2px;margin-right:3px"></span>Low</span>
     <span><span style="display:inline-block;width:2px;height:10px;background:var(--ac);margin-right:3px"></span>Today</span>
@@ -10702,7 +10807,7 @@ function renderTaskCalendar(){
   // surface them instead. Tombstoned + Done rows are excluded. Respects "My
   // Items only" by excluding externals when that scope is active.
   if(!_taskMyOnly&&Array.isArray(D.externalTasks)){
-    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     D.externalTasks.forEach(et=>{
       if(et.override&&et.override.tombstoned)return;
       if(isDone(et))return;
@@ -11024,7 +11129,7 @@ function _renderExternalClusterCards(){
     if(!_sourceOn(src.key))return '';
     const rows=ext.filter(t=>t.source===src.key);
     if(!rows.length)return '';
-    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const open=rows.filter(t=>!isDone(t));
     const overdue=open.filter(t=>{const due=(t.override&&t.override.localDue)||t.due;return due&&due<today;}).length;
     const collapseKey='__ext__'+src.key;
@@ -11173,13 +11278,18 @@ function saveCluster(id){
     clusterId=nextId(D.clusters);
     D.clusters.push({id:clusterId,name,icon,color,owner:D.creds.userName||'Me',collaborators:[],projectIds:projIds,pct:0,createdAt:_ymd(new Date())});
   }
-  // Apply direct task assignments: any task in taskIds gets t.clusterId=clusterId,
-  // any task previously assigned to this cluster but no longer in the list gets cleared
-  // (only when not project-owned).
-  const wantSet=new Set(taskIds);
+  // Apply direct task assignments: a ticked task joins this cluster; a task
+  // that was SHOWN in the dialog and left unticked leaves it. Tasks the dialog
+  // did not list (it shows open tasks only) keep their cluster — renaming a
+  // cluster used to strip every Done task from it and drop its %. Ids compare
+  // as strings (server-promoted subtasks have string ids).
+  const wantSet=new Set(Array.from(document.querySelectorAll('.cl-task-cb:checked')).map(cb=>String(cb.value)));
+  const shown=new Set(Array.from(document.querySelectorAll('.cl-task-cb')).map(cb=>String(cb.value)));
+  void taskIds;
   D.tasks.forEach(t=>{
-    if(wantSet.has(t.id))t.clusterId=clusterId;
-    else if(t.clusterId===clusterId&&!wantSet.has(t.id))delete t.clusterId;
+    const k=String(t.id);
+    if(wantSet.has(k))t.clusterId=clusterId;
+    else if(shown.has(k)&&String(t.clusterId)===String(clusterId))delete t.clusterId;
   });
   save('clusters');save('tasks');
   closeModal();
@@ -11196,8 +11306,9 @@ function deleteCluster(id){
 }
 function handleQuickAdd(e){
   if(e.key==='Enter'){e.preventDefault();quickAddTask();}
-  // Tab cycles the priority filter (was originally for new-task priority).
-  if(e.key==='Tab'&&!e.shiftKey){
+  // Alt+P cycles the priority filter. It was Tab, which trapped keyboard
+  // users in the box (every press re-filtered instead of moving on).
+  if(e.altKey&&(e.key==='p'||e.key==='P')){
     e.preventDefault();
     const pri=document.getElementById('task-priority-filter');
     if(!pri)return;
@@ -11503,7 +11614,7 @@ function _renderExternalTasksRailWidget(){
   // Include: anything dated within the horizon, anything flagged My Day, and
   // any open item without a due date (common in outline-style sheets like CF's
   // 120-Day Plan — there's no "due", just a Phase). Sort by due (no-due last).
-  const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const relevant=ext.filter(t=>{
     if(t.override&&t.override.tombstoned)return false;
     if(isDone(t))return false;
@@ -11575,7 +11686,7 @@ function _extBulkStatusMenu(event){
     const today=_ymd(new Date());
     const horizon=new Date();horizon.setDate(horizon.getDate()+7);
     const horizonKey=_ymd(horizon);
-    const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const visible=ext.filter(t=>{
       if(t.override&&t.override.tombstoned)return false;
       if(isDone(t))return false;
@@ -11642,7 +11753,7 @@ async function _extBulkMyDay(setOn){
   const today=_ymd(new Date());
   const horizon=new Date();horizon.setDate(horizon.getDate()+7);
   const horizonKey=_ymd(horizon);
-  const isDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const isDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const targets=ext.filter(t=>{
     if(t.override&&t.override.tombstoned)return false;
     if(isDone(t))return false;
@@ -11808,7 +11919,7 @@ async function _externalSetStatus(source,externalId,event){
       pop.innerHTML=`<div style="color:var(--warn);font-size:11px;padding:4px">No status options${source==='smartsheet'?' — set the watch\'s statusColumn in Settings → Integrations':''}.</div>`;
       return;
     }
-    const isDoneVal=v=>{const x=(v||'').toLowerCase();return /(done|complete|closed|cancell?ed|resolved|shipped)/i.test(x);};
+    const isDoneVal=v=>_isExtDone(v);
     pop.innerHTML=`<div style="font-size:11px;color:var(--t3);padding:2px 6px 4px;text-transform:uppercase;letter-spacing:.4px">Set ${source==='smartsheet'?'Smartsheet':'NiftyPM'} status</div>${opts.map(v=>`<button class="btn btn-s" style="display:block;width:100%;text-align:left;height:26px;font-size:11px;padding:0 8px;background:transparent;border:none;color:${isDoneVal(v)?'var(--ok)':'var(--t1)'};border-radius:3px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background='transparent'" data-status="${esc(v)}">${isDoneVal(v)?'✓ ':''}${esc(v)}</button>`).join('')}`;
     pop.querySelectorAll('button[data-status]').forEach(b=>{
       b.onclick=async(e)=>{
@@ -14848,7 +14959,7 @@ function _renderProjRail(){
 //   trend    : 'up' (velocity rising), 'flat', 'down'.
 // Pass `null` projectId to roll up across ALL projects (Command Center "All").
 function _projectHealth(projectId){
-  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const today=_todayStr;
   const tMs=Date.now();
   // Collect rows.
@@ -14943,7 +15054,7 @@ function setCcContext(h){
 }
 // Return a unified, normalised array filtered by current hat.
 function _ccTasks(){
-  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const hat=_ccHat();
   const out=[];
   if(hat==='all'||hat==='personal'){
@@ -15816,7 +15927,7 @@ function openOpportunityDetail(oppId,opts){
   const linkedOpen=linkedTasks.filter(t=>t.status!=='Done');
   const linkedDone=linkedTasks.filter(t=>t.status==='Done');
   const taskRow=t=>`<div class="lr" style="padding:6px 0;border-bottom:1px solid var(--bd1);cursor:pointer" onclick="closeDrawer();setTimeout(()=>openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)})),120)">
-    <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status=D.tasks.find(x=>x.id==${_tidLit(t.id)}).status==='Done'?'Not Started':'Done';if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(D.tasks.find(x=>x.id==${_tidLit(t.id)}));save('tasks');openOpportunityDetail(${o.id})"></div>
+    <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();(t=>setTaskStatus(t,t.status==='Done'?'Not Started':'Done'))(D.tasks.find(x=>x.id==${_tidLit(t.id)}));openOpportunityDetail(${_tidLit(o.id)})"></div>
     <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
     <span class="pill ${pillClass?pillClass(t.priority):''}" style="font-size:11px">${esc(t.priority||'')}</span>
     <span style="font-size:11px;color:var(--t3)">${esc(t.due||'')}</span>
@@ -16446,7 +16557,7 @@ function renderPrograms(){
       return projs.some(p=>String(p.id)===String(ov.localProjectId));
     });
     const totalTasks=allTasks.length+extLinked.length;
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const doneN=allTasks.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
     const overdueN=allTasks.filter(t=>t.status!=='Done'&&t.due&&t.due<_todayStr).length;
     const pct=totalTasks?Math.round(doneN/totalTasks*100):0;
@@ -16510,7 +16621,7 @@ function _newProgram(){
 function _renderPortfolioTimeline(){
   const projects=(D.projects||[]).filter(p=>!p.archived);
   // Build per-project task rows with start/end dates.
-  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const rowsByProj={};
   let minD=null,maxD=null;
   const consider=(date)=>{if(!date)return;const d=date.slice(0,10);if(d.length!==10)return;if(!minD||d<minD)minD=d;if(!maxD||d>maxD)maxD=d;};
@@ -16627,7 +16738,7 @@ function openProgramDetail(pid){
     const o=et.override;if(!o||!o.localProjectId||o.tombstoned)return false;
     return projs.some(p=>String(p.id)===String(o.localProjectId));
   });
-  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+  const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
   const doneN=nativeTasks.filter(t=>t.status==='Done').length+extLinked.filter(isExtDone).length;
   const totalN=nativeTasks.length+extLinked.length;
   const pct=totalN?Math.round(doneN/totalN*100):0;
@@ -16808,7 +16919,7 @@ function renderProjectsList(header){
     const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
       const ov=t.override;return ov&&String(ov.localProjectId||'')===String(p.id)&&!ov.tombstoned;
     });
-    const extDone=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';}).length;
+    const extDone=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);}).length;
     const done=pts.filter(t=>t.status==='Done').length+extDone;
     const subs=pts.flatMap(t=>t.subtasks||[]);
     const totalTasks=pts.length+extLinked.length;
@@ -16900,7 +17011,7 @@ function openProjectDetail(pid){
   const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
     const ov2=t.override;return ov2&&String(ov2.localProjectId||'')===String(pid)&&!ov2.tombstoned;
   });
-  const extDoneN=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';}).length;
+  const extDoneN=extLinked.filter(t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);}).length;
   const d=document.getElementById('drawer-content');
   const ov=document.getElementById('drawer-ov');
   const health=projectHealth(p);
@@ -16929,7 +17040,7 @@ function openProjectDetail(pid){
     const od=t.status!=='Done'&&t.due&&t.due<_todayStr;
     return`<div style="padding:6px 0;border-bottom:1px solid var(--bd1)">
       <div class="lr" onclick="closeDrawer();openDrawer('task',D.tasks.find(x=>x.id==${_tidLit(t.id)}))" style="cursor:pointer">
-        <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();D.tasks.find(x=>x.id==${_tidLit(t.id)}).status=D.tasks.find(x=>x.id==${_tidLit(t.id)}).status==='Done'?'In Progress':'Done';save('tasks');openProjectDetail(${pid})"></div>
+        <div class="chk ${t.status==='Done'?'on':''}" onclick="event.stopPropagation();(t=>setTaskStatus(t,t.status==='Done'?'In Progress':'Done'))(D.tasks.find(x=>x.id==${_tidLit(t.id)}));openProjectDetail(${_tidLit(pid)})"></div>
         <span class="rt" style="font-size:12px;${t.status==='Done'?'text-decoration:line-through;color:var(--t3)':''}">${esc(t.title)}</span>
         <span class="pill ${pillClass(t.priority)}" style="font-size:11px">${t.priority}</span>
         <span style="font-size:11px;color:${od?'var(--red)':'var(--t3)'};flex-shrink:0">${t.due||''}</span>
@@ -17009,7 +17120,7 @@ async function _aiProjectCoach(pid){
   const ext=(D.externalTasks||[]).filter(et=>{
     const ov=et.override;return ov&&String(ov.localProjectId||'')===String(pid)&&!ov.tombstoned;
   });
-  const isExtDone=s=>{const x=(s||'').toLowerCase();return /(done|complete|completed|closed|cancell?ed|resolved|shipped)/.test(x);};
+  const isExtDone=s=>_isExtDone(s);
   const rows=native.map(t=>({
     title:(t.title||'').slice(0,180),
     status:t.status||'',
@@ -17130,7 +17241,7 @@ async function _aiProjectStatusUpdate(pid){
     const extLinked=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>{
       const ov=t.override;return ov&&String(ov.localProjectId||'')===String(pid)&&!ov.tombstoned;
     });
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='closed';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const shipped=[
       ...nativePts.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)>=wkStartStr).map(t=>({src:'P',t:t.title,when:_dayOf(t.completedAt)})),
       ...extLinked.filter(t=>isExtDone(t)&&t.completedAt&&(_ymd(_pd(t.completedAt)))>=wkStartStr).map(t=>({src:t.source==='smartsheet'?'CF':'LSI',t:t.title,when:_ymd(_pd(t.completedAt))})),
@@ -20041,7 +20152,7 @@ const WIDGET_SOURCES={
   // them. Tombstoned externals are skipped.
   allTasks: {arr:()=>{
     const local=(D.tasks||[]).map(t=>Object.assign({},t,{_source:'local',_sourceLabel:'Personal'}));
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     const ext=(Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned)).map(et=>{
       const ov=et.override||{};
       const done=isExtDone(et);
@@ -20115,7 +20226,7 @@ const WIDGET_SOURCES={
   // same task-ish shape. Skips tombstoned rows. Use this when you want a
   // widget scoped purely to CF/LSI without native tasks diluting the bucket.
   external: {arr:()=>{
-    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return s==='done'||s==='complete'||s==='completed'||s==='closed'||s==='cancelled'||s==='resolved'||s==='shipped';};
+    const isExtDone=t=>{const s=(t.status||'').toLowerCase();return _isExtDone(s);};
     return (Array.isArray(D.externalTasks)?D.externalTasks:[]).filter(t=>!(t.override&&t.override.tombstoned)).map(et=>{
       const ov=et.override||{};
       const done=isExtDone(et);
@@ -21035,13 +21146,13 @@ function _delta(cur,prev){
   if(p===0)return {pct:c>0?100:0,arrow:c>0?'▲':'·',color:c>0?'var(--ok)':'var(--t3)',label:c>0?'new':'·'};
   const pct=Math.round(((c-p)/Math.abs(p))*100);
   if(pct===0)return {pct:0,arrow:'·',color:'var(--t3)',label:'flat'};
-  return {pct:Math.abs(pct),arrow:pct>0?'▲':'▼',color:pct>0?'var(--ok)':'var(--err)',label:(pct>0?'+':'-')+Math.abs(pct)+'%'};
+  return {pct:Math.abs(pct),arrow:pct>0?'▲':'▼',color:pct>0?'var(--ok)':'var(--red)',label:(pct>0?'+':'-')+Math.abs(pct)+'%'};
 }
 function _renderDeltaChip(cur,prev,opts){
   const d=_delta(cur,prev);const o=opts||{};
   if(d.label==='·'&&!o.showFlat)return '';
   const goodIsUp=o.goodIsUp!==false;
-  const color=d.label==='flat'?'var(--t3)':((d.arrow==='▲')===goodIsUp?'var(--ok)':'var(--err)');
+  const color=d.label==='flat'?'var(--t3)':((d.arrow==='▲')===goodIsUp?'var(--ok)':'var(--red)');
   return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:600;color:${color};margin-left:6px" title="vs previous period (${prev||0})">${d.arrow} ${d.label}</span>`;
 }
 // ─── R6: simple linear forecast ───────────────────────────────────────
@@ -21065,7 +21176,7 @@ function _goalPaceCheck(g){
   const created=g.createdAt?Date.parse(g.createdAt):(Date.now()-90*86400000);
   const now=Date.now();const elapsed=Math.max(1,(now-created)/86400000);
   const ratePerDay=(g.pct||0)/elapsed;
-  if(ratePerDay<=0)return {status:'stalled',label:'Stalled',color:'var(--err)',projected:null};
+  if(ratePerDay<=0)return {status:'stalled',label:'Stalled',color:'var(--red)',projected:null};
   const remaining=100-(g.pct||0);
   const daysToFinish=remaining/ratePerDay;
   const projectedMs=now+daysToFinish*86400000;
@@ -21073,7 +21184,7 @@ function _goalPaceCheck(g){
   const projectedISO=_ymd(_pd(projectedMs));
   if(slipDays<=0)return {status:'on-pace',label:`On pace · ${projectedISO}`,color:'var(--ok)',projected:projectedISO,slip:slipDays};
   if(slipDays<=14)return {status:'tight',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--warn)',projected:projectedISO,slip:slipDays};
-  return {status:'behind',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--err)',projected:projectedISO,slip:slipDays};
+  return {status:'behind',label:`+${slipDays}d late · ${projectedISO}`,color:'var(--red)',projected:projectedISO,slip:slipDays};
 }
 // ─── R1, R3, R4, R5: AI handlers ──────────────────────────────────────
 if(typeof _reportNarrativeCache==='undefined')var _reportNarrativeCache=null; // {key, text}
@@ -21119,7 +21230,7 @@ async function aiReportNarrative(force){
     const text=await _reportAICall(sys,user);
     _reportNarrativeCache={key,text};
     if(sec)sec.innerHTML=`<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-s" style="font-size:11px" onclick="aiReportNarrative(true)">↻ Regenerate</button><span style="font-size:11px;color:var(--t3);align-self:center">cached for this filter combo</span></div>`;
-  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Narrative failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--red);font-size:11px">Narrative failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 async function aiReportAskQuestion(){
   const inp=document.getElementById('rep-ask-input');if(!inp)return;
@@ -21139,7 +21250,7 @@ async function aiReportAskQuestion(){
     const user=`Period: ${ctx.p.curStart} → ${ctx.p.curEnd} (${ctx.p.days} days)\nFilters: project="${_reportProjectFilter||'(all)'}", tag="${_reportTagFilter||'(none)'}"\n\nSummary: tasks done ${ctx.cur.done} (was ${ctx.prev.done}), tasks created ${ctx.cur.created}, focus ${ctx.cur.focus}m, journal ${ctx.cur.journal} entries, habit completions ${ctx.cur.habitsDone}, overdue ${ctx.cur.overdue}.\n\nDaily series (last ${dayKeys.length} days, oldest first):\nTasks done: ${seriesDone.join(',')}\nFocus min: ${seriesFocus.join(',')}\n\nProjects:\n${projLines||'(none)'}\nGoals:\n${goalLines||'(none)'}\n\nQuestion: ${q}`;
     const text=await _reportAICall(sys,user);
     if(out)out.innerHTML=`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.65;white-space:pre-wrap;color:var(--t1)">${esc(text)}</div>`;
-  }catch(e){if(out)out.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){if(out)out.innerHTML=`<div style="padding:10px;color:var(--red);font-size:11px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 async function aiReportAnomalies(force){
   const key=`${_reportRange}|${_reportCustomFrom}|${_reportCustomTo}|${_reportProjectFilter}|${_reportTagFilter}`;
@@ -21158,12 +21269,12 @@ async function aiReportAnomalies(force){
     const parsed=JSON.parse(text);
     _reportAnomaliesCache={key,items:parsed.anomalies||[]};
     _renderAnomalies(parsed.anomalies||[]);
-  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Anomaly scan failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--red);font-size:11px">Anomaly scan failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 function _renderAnomalies(items){
   const sec=document.getElementById('report-anomalies');if(!sec)return;
   if(!items||!items.length){sec.innerHTML=`<div style="padding:10px;color:var(--t3);font-size:11px">No anomalies detected — your data looks consistent.</div>`;return;}
-  const sevColor={low:'var(--ac)',med:'var(--warn)',high:'var(--err)'};
+  const sevColor={low:'var(--ac)',med:'var(--warn)',high:'var(--red)'};
   sec.innerHTML=items.map(a=>`<div style="display:flex;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd1);border-left:3px solid ${sevColor[a.severity]||'var(--t3)'};border-radius:8px;margin-bottom:6px"><span style="font-size:16px">${a.severity==='high'?'🚨':a.severity==='med'?'⚠️':'💡'}</span><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:3px">${esc(a.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(a.detail||'')}</div></div></div>`).join('');
 }
 async function aiReportRecommendWidgets(){
@@ -21548,7 +21659,7 @@ function _archiveItems(){
   return items.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
 }
 function archiveRestore(type,id){
-  if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){t.status='Not Started';t.completedAt='';save('tasks');toast('↩ Task reopened');}}
+  if(type==='task'){const t=D.tasks.find(x=>x.id===id);if(t){setTaskStatus(t,'Not Started');toast('↩ Task reopened');}}
   else if(type==='project'){const p=D.projects.find(x=>x.id===id);if(p){p.archived=false;save('projects');toast('↩ Project restored');}}
   else if(type==='goal'){const g=D.goals.find(x=>x.id===id);if(g){if(typeof openDrawer==='function')openDrawer('goal',g);return;}}
   else if(type==='note'){const n=D.notes.find(x=>x.id===id);if(n){n.archived=false;save('notes');toast('↩ Note restored');}}
@@ -21596,7 +21707,7 @@ $('myday-main').innerHTML=`<div class="ph-r" style="margin-bottom:12px"><div><h1
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button class="btn btn-p" id="pomo-btn" onclick="pomoToggle()" style="min-width:64px">▶ Start</button>
     <button class="btn btn-s" onclick="pomoReset()">↺ Reset</button>
-    <select class="inp" id="pomo-mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
+    <select class="inp" id="pomo-mode" aria-label="Focus timer mode" onchange="pomoSetMode(this.value)" style="font-size:11px;padding:2px 6px;height:26px">
       ${[['25','25 min Focus'],['50','50 min Deep Work'],['5','5 min Break'],['15','15 min Long Break']]
         .map(([v,l])=>`<option value="${v}" ${String(Math.round(_pomoTotal/60))===v?'selected':''}>${l}</option>`).join('')}
     </select>
@@ -21737,7 +21848,7 @@ function saveWrapUp(){
     tomorrow?'**Top priority for tomorrow:**\n'+tomorrow:'',
     '---',
     '🍅 Focus sessions today: '+(D.prefs&&D.prefs.focusMinsToday||0)+' mins',
-    '✅ Tasks done: '+D.tasks.filter(t=>t.status==='Done').length,
+    '✅ Tasks done: '+D.tasks.filter(t=>t.status==='Done'&&_dayOf(t.completedAt)===_todayStr).length,
     '⏳ Carried over: '+D.tasks.filter(t=>t.myDay&&t.status!=='Done').length,
   ].filter(Boolean).join('\n\n');
   const entry={
@@ -21875,10 +21986,11 @@ function pomoToggle(){
         _pomoRunning=false;
         const isBreak=_pomoTotal<=15*60&&_pomoTotal>=5*60;
         if(!isBreak){
-          // Mark linked task done if one is selected
+          // Offer to complete the linked task — one session rarely finishes a
+          // task, and it used to be marked Done after the first one.
           if(_pomoTaskId){
             const t=D.tasks.find(x=>x.id===_pomoTaskId);
-            if(t&&t.status!=='Done'){toggleTask(_pomoTaskId);}
+            if(t&&t.status!=='Done'){const tid=_pomoTaskId;setTimeout(()=>toast({type:'info',title:'Session done on "'+t.title+'"',msg:'Is the task finished?',duration:9000,actions:[{label:'✓ Mark done',primary:true,onClick:()=>toggleTask(tid)}]}),400);}
           }
           // Log focus time to D.prefs
           D.prefs=D.prefs||{};
@@ -21991,7 +22103,7 @@ function renderMyWeek(){
   ${overdue.length?`<div style="background:var(--wrn-bg,#fff3cd);border:1px solid var(--warn);border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:11px">⚠️ <strong>${overdue.length} overdue task${overdue.length>1?'s':''}</strong> — <span style="color:var(--t2)">${overdue.slice(0,3).map(t=>esc(t.title)).join(', ')}${overdue.length>3?'...':''}</span></div>`:''}
   <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px">${colHtml}</div>
   ${unscheduled.length?`<div style="margin-top:12px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--t2)">📥 Unscheduled (drag to a day)</div><div style="display:flex;flex-wrap:wrap;gap:5px">${unscheduled.map(t=>weekTaskChip(t,true)).join('')}</div></div>`:''}
-  ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:11px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--err)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:11px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
+  ${(()=>{const parked=(D.ideas||[]).filter(x=>x.verdict_outcome==='parked'&&x.parked_review_date&&x.parked_review_date<=weekEnd&&x.parked_review_date>=weekStart);const stale=(D.ideas||[]).filter(x=>['develop','stress_test'].includes(x.stage)&&ideaDaysInStage(x)>=14);return(parked.length||stale.length)?`<div style="margin-top:12px;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:10px 12px"><div style="font-size:11px;font-weight:600;margin-bottom:8px">💡 Ideas Needing Attention</div>${parked.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">🅿</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--t3)">Parked review due ${x.parked_review_date}</div></div><button class="btn btn-s" style="font-size:11px" onclick="openIdeaDetail(${x.id})">Review</button></div>`).join('')}${stale.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd1)"><span style="font-size:14px">⚠️</span><div style="flex:1"><div style="font-size:11px;font-weight:500">${esc(x.title)}</div><div style="font-size:11px;color:var(--red)">${ideaDaysInStage(x)}d stale in ${IDEA_STAGE_LABELS[x.stage]}</div></div><button class="btn btn-s" style="font-size:11px" onclick="nav('ideas');openIdeaDetail(${x.id})">Develop</button></div>`).join('')}</div>`:''})()}
   `;
 }
 function weekTaskChip(t,draggable=true){
@@ -22179,11 +22291,11 @@ function _gtdBuckets(){
 }
 function setProcessGtdTab(tab){_processGtdTab=tab;renderProcess();}
 // Triage actions — these are what "feed" each bucket.
-function gtdDoNext(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.myDay=true;t.snoozeUntil='';if(t.status==='Someday'||t.status==='Not Started')t.status='In Progress';save('tasks');renderProcess();toast('⚡ Moved to Do Next');}
-function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||_ymd(new Date()));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')t.status='In Progress';save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
-function gtdSomeday(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Someday';t.myDay=false;t.snoozeUntil='';save('tasks');renderProcess();toast('🗓 Moved to Someday');}
-function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Done';t.completedAt=new Date().toISOString();save('tasks');renderProcess();toast('✓ Done');}
-function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.status='Not Started';t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
+function gtdDoNext(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;t.myDay=true;t.snoozeUntil='';if(t.status==='Someday'||t.status==='Not Started')setTaskStatus(t,'In Progress',{noSave:true});save('tasks');renderProcess();toast('⚡ Moved to Do Next');}
+function gtdSchedule(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;const v=prompt('Schedule for (YYYY-MM-DD):',t.due||_ymd(new Date()));if(!v)return;t.due=v.trim();t.snoozeUntil='';if(t.status==='Not Started'||t.status==='Someday')setTaskStatus(t,'In Progress',{noSave:true});save('tasks');renderProcess();toast('📅 Scheduled for '+t.due);}
+function gtdSomeday(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Someday',{noSave:true});t.myDay=false;t.snoozeUntil='';save('tasks');renderProcess();toast('🗓 Moved to Someday');}
+function gtdDone(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Done');renderProcess();toast('✓ Done');}
+function gtdToInbox(id){const t=D.tasks.find(x=>x.id===id);if(!t)return;setTaskStatus(t,'Not Started',{noSave:true});t.myDay=false;t.snoozeUntil='';t.due='';t.startDate='';t.assignedTo='';save('tasks');renderProcess();toast('📥 Back to Inbox');}
 function renderProcess(){
   const sparkIdeas=(D.ideas||[]).filter(x=>x.stage==='spark');
   const _gtdB=_gtdBuckets();
@@ -22253,7 +22365,7 @@ ${tabBarG}
             <button class="btn btn-p" style="font-size:11px;padding:4px 10px" onclick="ideaAdvanceStage(${idea.id},'develop');renderProcess()">→ Develop</button>
             <button class="btn btn-s" style="font-size:11px;padding:4px 10px" onclick="openIdeaDetail(${idea.id})">🔍 Detail</button>
             <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--warn)" onclick="ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='parked';D.ideas.find(x=>x.id==${_tidLit(idea.id)}).parked_review_date=_ymd(new Date(Date.now()+30*86400000));save('ideas');renderProcess();toast('🅿 Parked for 30 days')">🅿 Park</button>
-            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--err)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
+            <button class="btn btn-s" style="font-size:11px;padding:4px 10px;color:var(--red)" onclick="if(confirm('Kill this idea?')){ideaAdvanceStage(${idea.id},'verdict');D.ideas.find(x=>x.id==${_tidLit(idea.id)}).verdict_outcome='killed';save('ideas');renderProcess();toast('🗑 Idea killed')}">🗑 Kill</button>
           </div>
         </div>
       </div>`;
@@ -22697,7 +22809,7 @@ function ideaDaysInStage(idea){
 }
 function ideaStagePill(stage,outcome){
   const label=outcome?({killed:'Killed',parked:'Parked',promoted:'Promoted'}[outcome]||IDEA_STAGE_LABELS[stage]):IDEA_STAGE_LABELS[stage];
-  const color=outcome?({killed:'var(--err)',parked:'#8B5CF6',promoted:'var(--ok)'}[outcome]||IDEA_STAGE_COLORS[stage]):IDEA_STAGE_COLORS[stage];
+  const color=outcome?({killed:'var(--red)',parked:'#8B5CF6',promoted:'var(--ok)'}[outcome]||IDEA_STAGE_COLORS[stage]):IDEA_STAGE_COLORS[stage];
   return `<span style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600">${label}</span>`;
 }
 
@@ -22809,7 +22921,7 @@ function renderIdeas(){
       const days=ideaDaysInStage(idea);
       const stale=days>=14&&['develop','stress_test'].includes(idea.stage);
       const goalName=idea.goal_id?D.goals.find(g=>g.id===idea.goal_id)?.title:'';
-      return `<div class="cd" style="cursor:pointer;border-left:3px solid ${IDEA_STAGE_COLORS[idea.stage]};${stale?'border-color:var(--err)':''}" onclick="openIdeaDetail(${idea.id})">
+      return `<div class="cd" style="cursor:pointer;border-left:3px solid ${IDEA_STAGE_COLORS[idea.stage]};${stale?'border-color:var(--red)':''}" onclick="openIdeaDetail(${idea.id})">
         <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
           <span style="font-size:20px">${IDEA_TYPE_ICONS[idea.idea_type]||'💡'}</span>
           <div style="flex:1">
@@ -22820,7 +22932,7 @@ function renderIdeas(){
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
           ${ideaStagePill(idea.stage,idea.verdict_outcome)}
           <span style="font-size:11px;color:var(--t3)">${IDEA_TYPE_LABELS[idea.idea_type]||idea.idea_type}</span>
-          ${stale?`<span style="font-size:11px;color:var(--err);font-weight:600">⚠ ${days}d stale</span>`:`<span style="font-size:11px;color:var(--t3)">${days}d in stage</span>`}
+          ${stale?`<span style="font-size:11px;color:var(--red);font-weight:600">⚠ ${days}d stale</span>`:`<span style="font-size:11px;color:var(--t3)">${days}d in stage</span>`}
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div style="display:flex;gap:4px;align-items:center">
@@ -22951,7 +23063,7 @@ function renderIdeaDetail(idea){
         <button class="btn btn-s" style="font-size:11px" onclick="openIdeaShare(${idea.id})">👥 Share</button>
         <button class="btn btn-s" style="font-size:11px" onclick="exportIdeaMarkdown(${idea.id})" title="Export as Markdown">⬇ MD</button>
         <button class="btn btn-s" style="font-size:11px" onclick="exportIdeaPDF(${idea.id})" title="Export as PDF">🖨 PDF</button>
-        <button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="if(confirm('Delete this idea?')){D.ideas=D.ideas.filter(x=>x.id!==${idea.id});save('ideas');renderIdeas();toast('Idea deleted.');}">🗑</button>
+        <button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="if(confirm('Delete this idea?')){D.ideas=D.ideas.filter(x=>x.id!==${idea.id});save('ideas');renderIdeas();toast('Idea deleted.');}">🗑</button>
       </div>
     </div>
 
@@ -22976,7 +23088,7 @@ function renderIdeaDetail(idea){
     <!-- AI mode toggle -->
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px;background:var(--s2);border:1px solid var(--bd2);border-radius:6px;padding:6px 10px">
       <span style="font-size:11px;color:var(--t2)">AI mode:</span>
-      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--err)22;color:var(--err);border-color:var(--err)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">😈 Devil's Advocate</button>
+      <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='devil'?'background:var(--red)22;color:var(--red);border-color:var(--red)44':''}" onclick="_ideaAIMode='devil';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">😈 Devil's Advocate</button>
       <button class="btn btn-s" style="font-size:11px;${_ideaAIMode==='champion'?'background:var(--ok)22;color:var(--ok);border-color:var(--ok)44':''}" onclick="_ideaAIMode='champion';renderIdeaDetail(D.ideas.find(x=>x.id==${_tidLit(idea.id)}))">🏆 Champion</button>
       <button class="btn btn-s" style="font-size:11px;color:var(--ac)" onclick="aiIdeaDecisionBrief(${idea.id})" title="AI combines Devil + Champion arguments into a decision brief">📋 Decision Brief</button>
       ${idea.stage!=='verdict'||idea.verdict_outcome!=='promoted'?`<button class="btn btn-s" style="font-size:11px;color:var(--purp)" onclick="aiIdeaPromoteToProject(${idea.id})" title="AI drafts a project + tasks from this idea">📁 AI Promote → Project</button>`:''}
@@ -23047,7 +23159,7 @@ function renderIdeaDetail(idea){
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
       ${idea.stage==='spark'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'develop')">→ Move to Develop</button>`:''}
       ${idea.stage==='develop'?`<button class="btn btn-p" onclick="moveIdeaToStage(${idea.id},'stress_test')">→ Move to Stress Test</button>`:''}
-        ${idea.stage==='stress_test'?`<button class="btn btn-p" onclick="openVerdictModal(${idea.id})">⚖ Move to Verdict</button><button class="btn btn-s" style="color:var(--warn)" onclick="runIdeaPremortem(${idea.id})">🧨 Premortem AI</button>`:''}      ${idea.stage!=='verdict'?`<button class="btn btn-s" style="color:var(--err)" onclick="openVerdictModal(${idea.id})">⚖ Verdict now</button>`:''}    </div>
+        ${idea.stage==='stress_test'?`<button class="btn btn-p" onclick="openVerdictModal(${idea.id})">⚖ Move to Verdict</button><button class="btn btn-s" style="color:var(--warn)" onclick="runIdeaPremortem(${idea.id})">🧨 Premortem AI</button>`:''}      ${idea.stage!=='verdict'?`<button class="btn btn-s" style="color:var(--red)" onclick="openVerdictModal(${idea.id})">⚖ Verdict now</button>`:''}    </div>
   </div>`;
 
   // Render right rail
@@ -23093,7 +23205,7 @@ function renderIdeaDetail(idea){
       <!-- Collaborators -->
       <div style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Collaborators</div>
-        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:11px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
+        ${(idea.collaborators||[]).map(c=>`<div style="display:flex;align-items:center;gap:6px;padding:4px 0"><div style="width:24px;height:24px;border-radius:50%;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${c.email[0].toUpperCase()}</div><div style="flex:1"><div style="font-size:11px">${esc(c.email)}</div><div style="font-size:11px;color:var(--t3)">${c.role}</div></div><button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="revokeIdeaCollaborator(${idea.id},'${c.email}')">✕</button></div>`).join('')}
         <button class="btn btn-s" style="width:100%;font-size:11px;margin-top:6px" onclick="openIdeaInvite(${idea.id})">+ Invite</button>
       </div>
 
@@ -23277,7 +23389,7 @@ async function aiIdeaGenerate(){
     if(!ideas.length)throw new Error('No ideas returned');
     results.innerHTML=`<div style="font-size:11px;color:var(--t3);margin-bottom:6px">Click any spark to save it as a new idea:</div>${ideas.map((i,idx)=>`<div class="cd" style="cursor:pointer;margin-bottom:6px;padding:10px" onclick="saveAIGeneratedSpark(${idx})" id="aig-card-${idx}"><div style="font-size:13px;font-weight:600;margin-bottom:3px">💡 ${esc(i.title||'')}</div><div style="font-size:11px;color:var(--t2);line-height:1.45">${esc(i.description||'')}</div></div>`).join('')}<button class="btn btn-s" onclick="aiIdeaGenerate()" style="font-size:11px;margin-top:6px">↻ Regenerate</button>`;
     window._aigCache={ideas,type,goalId};
-  }catch(e){results.innerHTML=`<div style="color:var(--err);font-size:11px;padding:8px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){results.innerHTML=`<div style="color:var(--red);font-size:11px;padding:8px">Failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
   finally{if(btn){btn.disabled=false;btn.textContent='✨ Regenerate';}}
 }
 function saveAIGeneratedSpark(idx){
@@ -23410,7 +23522,7 @@ async function aiGenerateRoadmap(){
     const r=JSON.parse(text);
     const phase=(label,arr,color)=>`<div style="background:var(--s2);border:1px solid var(--bd1);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid ${color}"><div style="font-size:12px;font-weight:700;color:${color};margin-bottom:6px">${label}</div>${(arr||[]).map(it=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--bd1)"><strong>${esc(it.title||'')}</strong><div style="font-size:11px;color:var(--t3);margin-top:2px">${esc(it.why||'')}</div></div>`).join('')||'<div style="font-size:11px;color:var(--t3)">(empty)</div>'}</div>`;
     document.getElementById('airm-results').innerHTML=`<div style="font-size:11px;color:var(--t2);margin-bottom:8px;padding:8px;background:var(--acs);border-radius:6px">🧭 ${esc(r.strategy||'')}</div>${phase('🟢 Now (0-30d)',r.now,'var(--ok)')}${phase('🟡 Next (30-90d)',r.next,'var(--warn)')}${phase('🔵 Later (90d+)',r.later,'var(--ac)')}`;
-  }catch(e){document.getElementById('airm-results').innerHTML=`<div style="color:var(--err);font-size:11px">${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){document.getElementById('airm-results').innerHTML=`<div style="color:var(--red);font-size:11px">${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 // I5: Weekly digest (Mondays) — cached in D.prefs.aiIdeasWeeklyDigest
 async function aiIdeasWeeklyDigest(force){
@@ -23492,7 +23604,7 @@ function ideaAISparkle(id,stage,key,btn){
     const pop=document.createElement('div');
     pop.className='ai-popover';
     pop.style.cssText='background:var(--s3);border:1px solid var(--bd2);border-radius:6px;padding:10px;font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5';
-    pop.innerHTML=`<div style="font-size:11px;font-weight:600;color:${mode==='devil'?'var(--err)':'var(--ok)'};margin-bottom:4px">${mode==='devil'?'😈 Devil\'s Advocate':'🏆 Champion'}</div>${esc(text)}<button class="btn btn-s" style="font-size:11px;margin-top:6px;display:block" onclick="this.parentElement.remove()">Dismiss</button>`;
+    pop.innerHTML=`<div style="font-size:11px;font-weight:600;color:${mode==='devil'?'var(--red)':'var(--ok)'};margin-bottom:4px">${mode==='devil'?'😈 Devil\'s Advocate':'🏆 Champion'}</div>${esc(text)}<button class="btn btn-s" style="font-size:11px;margin-top:6px;display:block" onclick="this.parentElement.remove()">Dismiss</button>`;
     btn.parentElement.appendChild(pop);
   }).catch(()=>{btn.textContent='✨ AI';btn.disabled=false;toast('AI unavailable.');});
 }
@@ -23900,7 +24012,7 @@ function openVerdictModal(id){
   <div style="margin-bottom:12px">
     <label style="font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.4px">Outcome *</label>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="killed" onchange="showVerdictFields('killed')" style="margin-right:4px"><span style="font-size:12px;color:var(--err)">🪦 Kill</span></label>
+      <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="killed" onchange="showVerdictFields('killed')" style="margin-right:4px"><span style="font-size:12px;color:var(--red)">🪦 Kill</span></label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="parked" onchange="showVerdictFields('parked')" style="margin-right:4px"><span style="font-size:12px;color:#8B5CF6">🅿 Park</span></label>
       <label style="flex:1;cursor:pointer"><input type="radio" name="verdict" value="promoted" onchange="showVerdictFields('promoted')" style="margin-right:4px"><span style="font-size:12px;color:var(--ok)">🚀 Promote</span></label>
     </div>
@@ -24018,7 +24130,7 @@ function openIdeaShare(id){
     <div style="display:flex;gap:6px">
       <button class="btn btn-p" style="font-size:11px" onclick="navigator.clipboard.writeText('${publicUrl}').then(()=>toast('✓ Link copied to clipboard!'))">📋 Copy Link</button>
       <button class="btn btn-s" style="font-size:11px" onclick="window.open('${publicUrl}','_blank')">👁 Preview</button>
-      <button class="btn btn-s" style="font-size:11px;color:var(--err)" onclick="D.ideas.find(x=>x.id===${id}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
+      <button class="btn btn-s" style="font-size:11px;color:var(--red)" onclick="D.ideas.find(x=>x.id===${id}).public_token=null;save('ideas');closeModal();toast('Link revoked.')">🚫 Revoke</button>
     </div>
   </div>
   <div style="font-size:11px;font-weight:600;margin-bottom:8px">Or invite a specific collaborator:</div>
@@ -24494,7 +24606,7 @@ async function aiCoachDailyBrief(force){
     const text=await _coachAICall(sys,_coachWorkspaceContext());
     D.prefs=D.prefs||{};D.prefs.coachDailyBrief={date:today,text};save('prefs');
     if(sec)sec.innerHTML=_coachBriefHtml(text);
-  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--err);font-size:11px">Brief generation failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
+  }catch(e){if(sec)sec.innerHTML=`<div style="padding:10px;color:var(--red);font-size:11px">Brief generation failed: ${esc(String(e.message||e).slice(0,200))}</div>`;}
 }
 function _coachBriefHtml(text){return `<div style="font-size:11px;line-height:1.7;color:var(--t1);white-space:pre-wrap;padding:12px 14px;background:linear-gradient(135deg,color-mix(in srgb,var(--ac) 12%,var(--s2)),color-mix(in srgb,var(--purp) 8%,var(--s2)));border:1px solid color-mix(in srgb,var(--ac) 30%,var(--bd2));border-radius:10px">${esc(text)}</div><div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-s" style="font-size:11px" onclick="aiCoachDailyBrief(true)">↻ Regenerate</button><span style="font-size:11px;color:var(--t3);align-self:center">Cached for today · regenerate after a major change</span></div>`;}
 // C2: Coach chat panel — persistent thread per day
@@ -24737,7 +24849,7 @@ function renderCoach(){
       <button class="btn btn-s" onclick="renderCoach()">🔄 Refresh</button>
     </div>
   </div>
-  ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--err)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--err)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
+  ${burnout.stress>=3?`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;margin-bottom:10px;background:color-mix(in srgb,${burnout.level==='high'?'var(--red)':'var(--warn)'} 14%,var(--s2));border:1px solid color-mix(in srgb,${burnout.level==='high'?'var(--red)':'var(--warn)'} 35%,var(--bd2));border-radius:8px"><span style="font-size:18px">🪫</span><div style="flex:1"><div style="font-size:11px;font-weight:600;color:${burnout.level==='high'?'var(--red)':'var(--warn)'}">${burnout.level==='high'?'High stress signals':'Watch your bandwidth'}</div><div style="font-size:11px;color:var(--t2);margin-top:3px;line-height:1.5">${burnout.reasons.slice(0,3).map(r=>esc(r)).join(' · ')}</div></div><button class="btn btn-s" style="font-size:11px" onclick="aiCoachAccountability()">🤝 Triage</button></div>`:''}
   <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--ac);display:flex;align-items:center;gap:6px">📰 Daily Brief ${briefFresh?'<span style="font-size:11px;color:var(--t3);font-weight:400">cached</span>':''}</div><div id="coach-daily-brief">${briefFresh?_coachBriefHtml(briefCache.text):'<div style="padding:12px;text-align:center;color:var(--t3);font-size:11px">⏳ Generating today&#39;s brief…</div>'}</div></div>
   <div style="margin-bottom:12px"><div class="sec-h" style="color:var(--purp)">💬 Coach Chat</div><div id="coach-chat"></div></div>
   <div style="background:var(--s2);border-radius:8px;padding:12px 14px;margin-bottom:12px;display:flex;gap:16px;flex-wrap:wrap">

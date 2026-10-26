@@ -85,3 +85,6 @@ jobs:
 
       - name: Screens (every screen at 375 / 390 / 1440 in headless Chrome)
         run: pnpm check:screens
+
+      - name: Accessibility (axe on every screen + the task forms; no critical violations)
+        run: pnpm check:a11y

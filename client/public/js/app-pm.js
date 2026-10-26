@@ -658,7 +658,8 @@ function _pmCompleteDelegatedTask(r,ask){
   if(r.refType!=='task')return;
   var t=(D.tasks||[]).find(function(x){return String(x.id)===String(r.refId);});if(!t||t.status==='Done')return;
   if(ask&&!confirm('Also mark the task “'+t.title+'” done?'))return;
-  t.status='Done';t.updatedAt=new Date().toISOString();try{if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(t);}catch(_){}
+  if(typeof setTaskStatus==='function')setTaskStatus(t,'Done',{noSave:true});
+  else{t.status='Done';t.updatedAt=new Date().toISOString();try{if(typeof _syncTaskCompletedAt==='function')_syncTaskCompletedAt(t);}catch(_){}}
   try{save('tasks');}catch(_){}
   _pmToast('✓ “'+t.title+'” done');
 }
@@ -1458,7 +1459,7 @@ function pmCpm(key){
   var finish=leaves.reduce(function(m,n){return Math.max(m,R[n.key]?R[n.key].ef:0);},0);
   order.slice().reverse().forEach(function(k){var n=by[k],r=R[k];var lf=finish;
     succ[k].forEach(function(s){var sr=R[s.key];if(!sr||sr.ls==null)return;var lag=s.lag||0,sn=by[s.key];
-      var c=s.type==='SS'?sr.ls-lag+n.dur:s.type==='FF'?sr.lf-lag:s.type==='SF'?sr.lf-lag+n.dur-sn.dur:sr.ls-lag;lf=Math.min(lf,c);});
+      var c=s.type==='SS'?sr.ls-lag+n.dur:s.type==='FF'?sr.lf-lag:s.type==='SF'?sr.lf-lag+n.dur:sr.ls-lag;lf=Math.min(lf,c);}); /* SF: this task's START must precede the successor's FINISH by the lag, so its latest finish is succ.lf-lag+dur (an extra -succ.dur made SF predecessors look critical). */
     r.lf=lf;r.ls=lf-n.dur;r.float=r.ls-r.es;r.critical=r.float<=0&&!n.done;});
   // roll up summaries
   var roll=function(k){var n=by[k];if(!n.children.length)return R[k];var ch=n.children.map(roll).filter(Boolean);if(!ch.length){R[k]={es:0,ef:0,float:0};return R[k];}

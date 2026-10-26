@@ -18,7 +18,8 @@
     "check:account-switch": "node scripts/check-account-switch.mjs",
     "check:screens": "node scripts/check-screens.mjs",
     "check:dates": "node scripts/check-dates.mjs",
-    "check:all": "pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens"
+    "check:a11y": "node scripts/check-a11y.mjs",
+    "check:all": "pnpm check:mobile-nav && pnpm check:ai-prompt && pnpm check:ai-knowledge && pnpm check:ai-agent && pnpm check:account-switch && node scripts/check-electric-contrast.mjs && pnpm check:dates && pnpm check:screens && pnpm check:a11y"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -111,6 +112,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "add": "^2.0.6",
     "autoprefixer": "^10.4.20",
+    "axe-core": "4.10.2",
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.25.0",
     "pnpm": "^10.15.1",

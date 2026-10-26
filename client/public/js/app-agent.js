@@ -367,7 +367,7 @@ var LU_AGENT_TOOLS=[
       if(a.title!=null)t.title=_agentStr(a.title,300);if(a.notes!=null)t.notes=_agentStr(a.notes,4000);
       if(a.due!==undefined){t.due=_agentDate(a.due);t.endDate=t.due;}
       if(a.priority){var p=String(a.priority);p=p.charAt(0).toUpperCase()+p.slice(1).toLowerCase();if(['High','Medium','Low'].indexOf(p)>=0)t.priority=p;}
-      if(a.status){t.status=a.status;_syncTaskCompletedAt(t);}
+      if(a.status){if(typeof setTaskStatus==='function')setTaskStatus(t,a.status,{noSave:true});else{t.status=a.status;_syncTaskCompletedAt(t);}}
       if(a.myDay!=null)t.myDay=!!a.myDay;
       if(a.project!==undefined){if(!a.project){t.projectId=null;t.project='';}else{var pr=_agentFind(D.projects||[],a.project,'name');var pn=_agentNeed(pr,'projects');if(pn)return pn;t.projectId=pr.item.id;t.project=pr.item.name;}}
       if(a.cluster!==undefined){if(a.cluster===''||a.cluster===null){delete t.clusterId;}else{var cr=_agentFind(D.clusters||[],a.cluster,'name');var cn=_agentNeed(cr,'clusters');if(cn)return cn;t.clusterId=cr.item.id;}}
@@ -378,8 +378,9 @@ var LU_AGENT_TOOLS=[
   {name:'complete_task',kind:'write',sig:'complete_task{id,done?=true}',desc:'Mark a task done (or reopen with done:false).',
     describe:function(a){return (a.done===false?'Reopen':'Complete')+' task '+a.id;},
     run:function(a){var r=_agentFind(D.tasks||[],a.id,'title');var need=_agentNeed(r,'tasks');if(need)return need;var t=r.item;var was=t.status,wasAt=t.completedAt;
-      t.status=a.done===false?'Not Started':'Done';_syncTaskCompletedAt(t);save('tasks');
-      if(t.status==='Done'){try{_trpc('activityFeed.log',{action:'task_completed',entityType:'task',entityTitle:t.title},'mutation').catch(function(){});}catch(_){}}
+      // setTaskStatus (app-part1) does completedAt, repeat, goals and the log.
+      if(typeof setTaskStatus==='function')setTaskStatus(t,a.done===false?'Not Started':'Done');
+      else{t.status=a.done===false?'Not Started':'Done';_syncTaskCompletedAt(t);save('tasks');}
       var undo=_agentPushUndo((t.status==='Done'?'complete':'reopen')+' "'+t.title+'"',function(){t.status=was;t.completedAt=wasAt;save('tasks');});
       return {ok:true,summary:(t.status==='Done'?'Completed':'Reopened')+' "'+t.title+'"',ref:{type:'task',id:t.id},undo:undo};}},
   {name:'add_subtasks',kind:'write',sig:'add_subtasks{id,titles[]}',desc:'Append subtasks to a task.',

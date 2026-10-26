@@ -4150,12 +4150,24 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('.tb-s'))closeSearch();
 });
 
+// Tasks that an older Start Fresh left with due = "Carry Over": the real date
+// is gone, so clear it (no due date) and keep the carry-over as a flag.
+function _luRepairCarryOver(){
+  let n=0;
+  (D.tasks||[]).forEach(t=>{if(t&&t.due==='Carry Over'){t.due='';t.carriedOver=true;n++;}});
+  if(n)save('tasks');
+  return n;
+}
 // ====== START FRESH MY DAY ======
 function startFreshMyDay(){
-  if(!confirm('Start Fresh will clear all My Day selections. Incomplete tasks will be marked as Carry Over. Continue?'))return;
+  if(!confirm('Start Fresh will clear all My Day selections. Unfinished tasks keep their due dates and are tagged as carried over. Continue?'))return;
+  // The due date is kept: it used to be overwritten with the text "Carry
+  // Over", which lost the real date, never counted as overdue, and broke
+  // Gantt / timeline maths. The carry-over is recorded alongside instead.
+  const today=_ymd();
   D.tasks.forEach(t=>{
     if(t.myDay&&t.status==='Done'){t.myDay=false;}
-    else if(t.myDay&&t.status!=='Done'){t.myDay=false;t.due='Carry Over';}
+    else if(t.myDay&&t.status!=='Done'){t.myDay=false;t.carriedOver=true;t.carriedFrom=today;}
   });
   save('tasks');
   invalidateSearchIndex();
@@ -4822,6 +4834,7 @@ function doLoginSuccess(member){
   if(typeof reassignHabitsToOwner==='function')reassignHabitsToOwner();
   // One-time: migrate notes flagged favorite→starred so the Favorites view shows them.
   if(typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
+  if(typeof _luRepairCarryOver==='function')_luRepairCarryOver();
   // Load workspace-shared AI keys (admin manages, everyone uses)
   if(typeof loadSharedAISettings==='function')loadSharedAISettings();
   // Catch-up: send any scheduled reports whose time has passed. Fired ~6s
@@ -6386,11 +6399,11 @@ async function loadRelatedBookmarks(entityType, entityId){
           <a href="${b.url}" target="_blank" rel="noopener" style="font-size:11px;font-weight:500;color:var(--ac);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(b.title||b.url)}">${esc(b.title||b.url)}</a>
           ${b.description ? `<div style="font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(b.description.slice(0,80))}</div>` : ''}
         </div>
-        <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--err);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
+        <button class="btn btn-s" style="font-size:11px;padding:1px 5px;color:var(--red);flex-shrink:0" onclick="unlinkBookmarkFromEntity('${entityType}',${entityId},${b.id})" title="Remove link">✕</button>
       </div>
     `).join('');
   } catch(e) {
-    el.innerHTML = `<div style="color:var(--err);font-size:11px">Failed to load linked bookmarks.</div>`;
+    el.innerHTML = `<div style="color:var(--red);font-size:11px">Failed to load linked bookmarks.</div>`;
   }
 }
 
@@ -6426,7 +6439,7 @@ function showLinkBookmarkPanel(entityType, entityId){
     renderLinkBookmarkList(items, entityType, entityId);
   }).catch(() => {
     const listEl = document.getElementById('bk-link-list');
-    if(listEl) listEl.innerHTML = '<div style="color:var(--err);font-size:11px">Failed to load bookmarks.</div>';
+    if(listEl) listEl.innerHTML = '<div style="color:var(--red);font-size:11px">Failed to load bookmarks.</div>';
   });
 }
 
@@ -8546,7 +8559,7 @@ async function testAIProvider(provider,inputId,btnId){
     const ok=!!(res?.result||res?.text||res?.ok);
     if(statusEl){
       statusEl.style.display='block';
-      statusEl.style.color=ok?'var(--ok)':'var(--err)';
+      statusEl.style.color=ok?'var(--ok)':'var(--red)';
       statusEl.textContent=ok?'✅ Connection successful — key is valid':'❌ Unexpected empty response';
     }
     if(btn){btn.disabled=false;btn.textContent='⚡ Test';}
@@ -8554,7 +8567,7 @@ async function testAIProvider(provider,inputId,btnId){
   }catch(e){
     if(statusEl){
       statusEl.style.display='block';
-      statusEl.style.color='var(--err)';
+      statusEl.style.color='var(--red)';
       statusEl.textContent='❌ Error: '+(e?.message||'Connection failed');
     }
     if(btn){btn.disabled=false;btn.textContent='⚡ Test';}
@@ -9400,7 +9413,7 @@ async function adminSendExpiryEmails(){
       toast('\u2705 Expiry emails sent to '+c+' user'+(c===1?'':'s'));
     }
   }catch(e){
-    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='\u2717 '+(e.message||'Error');}
+    if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='\u2717 '+(e.message||'Error');}
     toast('\u274c Failed: '+(e.message||'Unknown error'));
   }finally{
     btn.disabled=false;
@@ -9415,7 +9428,7 @@ async function loadScheduledTaskLog(){
     if(!rows||rows.length===0){el.innerHTML='<em style="color:var(--t3)">No runs recorded yet.</em>';return;}
     const fmt=function(ts){return ts?_pd(ts).toLocaleString():'\u2014';};
     const dur=function(ms){return ms!=null?(ms<1000?ms+'ms':(ms/1000).toFixed(1)+'s'):'\u2014';};
-    const statusBadge=function(err){return err?'<span style="color:var(--err);font-weight:600">\u2717 Error</span>':'<span style="color:var(--ok);font-weight:600">\u2713 OK</span>';};
+    const statusBadge=function(err){return err?'<span style="color:var(--red);font-weight:600">\u2717 Error</span>':'<span style="color:var(--ok);font-weight:600">\u2713 OK</span>';};
     let html='<table style="width:100%;border-collapse:collapse;font-size:11px">';
     html+='<tr style="color:var(--t2);border-bottom:1px solid var(--brd)"><th style="text-align:left;padding:3px 6px">Time</th><th style="text-align:left;padding:3px 6px">Task</th><th style="padding:3px 6px">Status</th><th style="padding:3px 6px">Emails</th><th style="padding:3px 6px">Owner</th><th style="padding:3px 6px">Duration</th></tr>';
     for(var i=0;i<rows.length;i++){
@@ -9429,13 +9442,13 @@ async function loadScheduledTaskLog(){
       html+='<td style="padding:3px 6px;text-align:center">'+dur(r.durationMs)+'</td>';
       html+='</tr>';
       if(r.error){
-        html+='<tr><td colspan="6" style="padding:2px 6px 6px;color:var(--err);font-size:11px">'+r.error+'</td></tr>';
+        html+='<tr><td colspan="6" style="padding:2px 6px 6px;color:var(--red);font-size:11px">'+r.error+'</td></tr>';
       }
     }
     html+='</table>';
     el.innerHTML=html;
   }catch(e){
-    el.innerHTML='<span style="color:var(--err)">\u2717 '+(e.message||'Failed to load')+'</span>';
+    el.innerHTML='<span style="color:var(--red)">\u2717 '+(e.message||'Failed to load')+'</span>';
   }
 }
 function clearAdminLogFilters(){
@@ -9530,7 +9543,7 @@ async function loadEmailNotifPrefs(){
     }
     if(statusEl)statusEl.textContent='';
   }catch(e){
-    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='Could not load preferences: '+e.message;}
+    if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='Could not load preferences: '+e.message;}
   }
 }
 
@@ -9550,7 +9563,7 @@ async function toggleEmailNotifPref(field,togEl){
   }catch(e){
     // Revert on error
     togEl.classList.toggle('on',isCurrentlyOn);
-    if(statusEl){statusEl.style.color='var(--err)';statusEl.textContent='Failed to save: '+e.message;}
+    if(statusEl){statusEl.style.color='var(--red)';statusEl.textContent='Failed to save: '+e.message;}
     toast('⚠️ Failed to save preference: '+e.message,'error');
   }
 }
@@ -10614,7 +10627,7 @@ async function loadTeamNotificationSenders(){
       </div>
     `).join('');
   }catch(e){
-    el.innerHTML='<div style="color:var(--err);font-size:11px">Failed to load: '+esc(e.message||String(e))+'</div>';
+    el.innerHTML='<div style="color:var(--red);font-size:11px">Failed to load: '+esc(e.message||String(e))+'</div>';
   }
 }
 async function openTeamSenderForm(userId,userLabel){
@@ -11614,6 +11627,7 @@ async function loadServerData(){
         if(m.push){_dirtyKeys.add(k);try{clearTimeout(_syncTimers[k]);}catch(_){}setTimeout(()=>_pushKeyToServer(k),1500);}
         if(m.conflicts.length)console.warn('[appData] '+k+': '+m.conflicts.length+' item(s) changed on both sides — kept the server copy'+(k==='notes'?' (this device\'s text is in the note history)':''));
         if(k==='notes'&&typeof _backfillNoteStarredFromFavorite==='function')_backfillNoteStarredFromFavorite();
+        if(k==='tasks'&&typeof _luRepairCarryOver==='function')_luRepairCarryOver();
         return;
       }
       if(srv&&Array.isArray(srv)&&srv.length>0){
